@@ -101,7 +101,7 @@ public class ANTLR4NodeRenamer implements Runnable {
             while (it.hasNext() && !projectTabFound) {
                 TopComponent topComponent = it.next();
 //                System.out.println("- top component name=" + topComponent.getName());
-                if (topComponent.getName().equals("Projects")) {
+                if ("Projects".equals(topComponent.getName())) {
                     projectTabFound = true;
                     projectsTab = topComponent;
                 }

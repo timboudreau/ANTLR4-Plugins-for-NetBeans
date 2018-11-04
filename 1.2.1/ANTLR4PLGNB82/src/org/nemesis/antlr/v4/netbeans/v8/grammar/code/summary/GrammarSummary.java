@@ -30,7 +30,6 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +49,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,19 +60,21 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
-
 import org.nemesis.antlr.v4.netbeans.v8.tokens.code.checking.impl.TokensLexer;
 import org.nemesis.antlr.v4.netbeans.v8.tokens.code.checking.impl.TokensParser;
 
+
 import org.nemesis.antlr.v4.netbeans.v8.tokens.code.summary.TokensSummary;
+import org.netbeans.api.project.FileOwnerQuery;
 
 import org.netbeans.api.project.Project;
 
@@ -84,7 +88,7 @@ import org.openide.text.NbDocument;
  * @author Frédéric Yvon Vinet
  */
 public class GrammarSummary {
-    protected final Path                      sourceFilePath;
+    protected final Optional<Path>                      sourceFilePath;
     
     protected       String                    grammarName;
     protected       GrammarType               grammarType;
@@ -152,10 +156,9 @@ public class GrammarSummary {
     protected final Map<String, String>       importedParserRuleFilePaths;
     
     
-    public Path getSourceFilePath() {
+    public Optional<Path> getSourceFilePath() {
         return sourceFilePath;
     }
-    
     
     public String getGrammarName() {
         return grammarName;
@@ -559,8 +562,9 @@ public class GrammarSummary {
     }
     
     
-    public GrammarSummary(Path sourceFilePath) {
+    public GrammarSummary(Optional<Path> sourceFilePath) {
         assert sourceFilePath != null;
+        recoverReentry.set(true);
         this.sourceFilePath = sourceFilePath;
         
         this.grammarName = null;
@@ -646,17 +650,50 @@ public class GrammarSummary {
   * 
   * @return 
   */
+    private final ThreadLocal<Boolean> recoverReentry = new ThreadLocal<>();
     protected void recoverImportedItems() {
+        Boolean reentry = recoverReentry.get();
+        if (reentry != null && reentry) {
+            return;
+        }
+        recoverReentry.set(true);
+        try {
+            recoverImportedItemsImpl();
+        } finally {
+            recoverReentry.set(false);
+        }
+    }
+
+    private Optional<Project> project() {
+        if (sourceFilePath.isPresent()) {
+            Project prj = FileOwnerQuery.getOwner(FileUtil.toFileObject(sourceFilePath.get().toFile()));
+            return prj == null ? Optional.empty() : Optional.of(prj);
+        }
+        return Optional.empty();
+    }
+
+    protected void recoverImportedItemsImpl() {
+
 //        System.out.println("GrammarSummary:recoverImportedItems() -> List<String> : begin");
 //        System.out.println("- process of file: " + sourceFilePath);
      // We load the document associated to our source path
-        File grammarSource = sourceFilePath.toFile();
+     
+        Path sourcePath;
+        if (sourceFilePath.isPresent()) {
+            sourcePath = sourceFilePath.get();
+        } else {
+            return;
+        }
+        File grammarSource = sourcePath.toFile();
         FileObject grammarSourceFO = FileUtil.toFileObject(grammarSource);
         Document doc = NbDocument.getDocument(grammarSourceFO);
      // We recover the project info associated to that document
-        Project project = ProjectHelper.getProject(doc);
-        File antlrImportDir = ProjectHelper.getANTLRImportDir(project);
-        String antlrImportDirPath = antlrImportDir.getPath();
+        Optional<Project> project = ProjectHelper.getProject(doc);
+        if (!project.isPresent()) {
+            project = Optional.ofNullable(FileOwnerQuery.getOwner(grammarSourceFO));
+        }
+        Optional<Path> antlrImportDir = AntlrFolders.IMPORT.getPath(project(), sourceFilePath);
+
         File importingGrammarDir = ProjectHelper.getDirectory(doc);
 //        System.out.println("- importing grammar dir=" + importingGrammarDir);
         
@@ -681,11 +718,11 @@ public class GrammarSummary {
             if (Files.exists(importedGrammarPath)) {
 //                System.out.println("    + File found in the same directory as importing grammar");
                 importedGrammar = importedGrammarPath.toFile();
-            } else {
+            } else if (antlrImportDir.isPresent()) {
              // We didn't find the file in the same directory as importing 
              // grammar, so now we look for it in import directory
-                importedGrammarPath = Paths.get(antlrImportDirPath,
-                                                importedFileName  );
+                importedGrammarPath = antlrImportDir.get().resolve(importedFileName  );
+                
                 if (Files.exists(importedGrammarPath)) {
 //                    System.out.println("    + File found in ANTLR import directory");
                     importedGrammar = importedGrammarPath.toFile();
@@ -706,13 +743,13 @@ public class GrammarSummary {
                            importedGrammarDoc.getProperty(GrammarSummary.class);
              // If the imported document is not currently edited then there is 
              // no summary already loaded in memory
-                if (summary == null) {
+                if (summary == null && project.isPresent()) {
 //                    System.out.println("    + summary not loaded yet");
                  // So we decide to load it from disk
                     String importedGrammarFilePathString =
                                                     importedGrammarFO.getPath();
                     summary = GrammarSummary.load
-                                                (project                      ,
+                                                (project.get(),
                                                  importedGrammarFilePathString);
                  // On first creation of a summary it is possible that imported
                  // grammar summary files don't exist yet. In this case, we have
@@ -723,8 +760,7 @@ public class GrammarSummary {
                             String content = importedGrammarDoc.getText
                                             (0, importedGrammarDoc.getLength());
                             try (Reader sr = new StringReader(content) ) {
-                                ANTLRInputStream input = new ANTLRInputStream(sr);
-                                ANTLRv4Lexer lexer = new ANTLRv4Lexer(input);
+                                ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
             
                                 CommonTokenStream tokens = new CommonTokenStream
                                                                         (lexer);
@@ -735,7 +771,7 @@ public class GrammarSummary {
                              // parsed document as a property with
                              // GrammarSummary.class as a key)
                                 Collector collector = new Collector
-                                                     (doc, importedGrammarPath);
+                                                     (doc, Optional.of(importedGrammarPath));
                                 parser.addParseListener(collector);
                              // We parser the document content with only a 
                              // collector. So at the end of parsing, document 
@@ -750,7 +786,8 @@ public class GrammarSummary {
                          // With thiese parameter values it is not possible to 
                          // have an exception of this type
                         } catch (IOException ex) {
-                            
+                            Logger.getLogger(GrammarSummary.class.getName())
+                                    .log(Level.INFO, "Exception saving grammar summary", ex);
                         }
 
                     }
@@ -882,14 +919,14 @@ public class GrammarSummary {
                 }
             }
         }
-        
      // We scan all imported token files and recover for each file its token ids
+     if (project.isPresent()) {
         Path importingGrammarDirPath = importingGrammarDir.toPath();
 //        System.out.println("- imported tokens file scanning:");
         for (String importedTokenFile : importedTokenFiles) {
 //            System.out.println("  * imported token file path=" + importedTokenFile);
             recoverTokenIds
-                          (project, importingGrammarDirPath, importedTokenFile);
+                          (project.get(), importingGrammarDirPath, importedTokenFile);
         }
         
      // We display recovered tokens
@@ -899,6 +936,7 @@ public class GrammarSummary {
 //        }
         
         importedItemsRecovered = true;
+     }
 //        System.out.println("GrammarSummary:recoverImportedItems() -> List<String> : end");
     }
     
@@ -920,24 +958,36 @@ public class GrammarSummary {
      //   directory,
      // - in ANTLR destination directory concatenated with relative importing 
      //   grammar directory.
-        File antlrDestinationDir = ProjectHelper.getANTLRDestinationDir(project);
-        File antlrSrcDir = ProjectHelper.getANTLRSourceDir(project);
-        File antlrImportDir = ProjectHelper.getANTLRImportDir(project);
-        Path importedTokensFilePath = determineTokensFilePath
+        Optional<Path> antlrDestinationDir = AntlrFolders.OUTPUT.getPath(project(), sourceFilePath);
+        Optional<Path> antlrSrcDir = AntlrFolders.SOURCE.getPath(project(), sourceFilePath);
+        Optional<Path> antlrImportDir = AntlrFolders.IMPORT.getPath(project(), sourceFilePath);
+
+        Optional<Path> importedTokensFilePath = determineTokensFilePath
                      (importedTokenFileName       ,
                       importingGrammarDirPath     ,
-                      antlrSrcDir.toPath()        ,
-                      antlrImportDir.toPath()     ,
-                      antlrDestinationDir.toPath());
+                      antlrSrcDir,
+                      antlrImportDir,
+                      antlrDestinationDir);
+
+        if (!importedTokensFilePath.isPresent()) {
+            // What we should actually do is just generate it into /tmp
+            // if the grammar file can be located.  The way this is all
+            // done is silly.
+            String importedGrammarFile = importedTokenFileName.replaceAll("\\.tokens", ".g4");
+            importedTokensFilePath = tryGenerateTokensFile (importedGrammarFile,
+                    antlrSrcDir, antlrImportDir,
+                    antlrDestinationDir);
+        }
+
      // It is possible that the imported token file does not exist (of course
      // the grammar will not compile but it must not lead to a null pointer
      // exception in tokens summary management)
-        if (importedTokensFilePath != null) {
+        if (importedTokensFilePath.isPresent()) {
 //            System.out.println("- imported tokens file path=" + importedTokensFilePath);
         
          // We look for the associated summary
             FileObject importedTokensFO = FileUtil.toFileObject
-                                              (importedTokensFilePath.toFile());
+                                              (importedTokensFilePath.get().toFile());
          // Next method always returns a document even if no editor hosts
          // the document but however it does not open an editor.
          // It just loads the document in memory if this one is not already
@@ -960,8 +1010,7 @@ public class GrammarSummary {
                         String content = importedTokensDoc.getText
                                              (0, importedTokensDoc.getLength());
                         try (Reader sr = new StringReader(content) ) {
-                            ANTLRInputStream input = new ANTLRInputStream(sr);
-                            TokensLexer lexer = new TokensLexer(input);
+                            TokensLexer lexer = new TokensLexer(CharStreams.fromReader(sr));
                             CommonTokenStream tokens = new CommonTokenStream(lexer);  
                             TokensParser tokensParser = new TokensParser(tokens);
                             tokensParser.removeErrorListeners(); // remove ConsoleErrorListener
@@ -1033,13 +1082,38 @@ public class GrammarSummary {
         return importedTokenIds;
     }
 
-    
-    static protected Path determineTokensFilePath
+    private Optional<Path> grammarFileParent() {
+        if (this.sourceFilePath.isPresent()) {
+            return Optional.ofNullable(sourceFilePath.get().getParent());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Path> resolveGrammarFile(String name) {
+        Optional<Path> parent = this.grammarFileParent();
+        if (parent.isPresent()) {
+            Path sibling = parent.get().resolve(name);
+            if (Files.exists(sibling)) {
+                return Optional.of(sibling);
+            }
+        }
+        Optional<Path> importDir = AntlrFolders.IMPORT.getPath(project(), sourceFilePath);
+        if (importDir.isPresent()) {
+            Path result = importDir.get().resolve(name);
+            if (Files.exists(result)) {
+                return Optional.of(result);
+            }
+            return Optional.empty();
+        }
+        return Optional.empty();
+    }
+
+    protected Optional<Path> determineTokensFilePath
             (String  importedTokensFileName ,
              Path    importingGrammarDirPath,
-             Path    antlrSrcDirPath        ,
-             Path    antlrImportDirPath     ,
-             Path    antlrDestinationDirPath) {
+             Optional<Path>    antlrSrcDirPath        ,
+             Optional<Path>    antlrImportDirPath     ,
+             Optional<Path>    antlrDestinationDirPath) {
 //        System.out.println("GrammarSummary:determineTokensFilePath() : begin");
 //        System.out.println("- imported tokens File name=" + importedTokensFileName);
 //        System.out.println("- importing grammar directory path=" + importingGrammarDirPath);
@@ -1057,46 +1131,33 @@ public class GrammarSummary {
         String importedTokensFileNameExt = importedTokensFileName + ".tokens";
         Path tokensFilePath = Paths.get(importingGrammarDirPath.toString(),
                                         importedTokensFileNameExt         );
-//        System.out.println("- tokens File Path 1              =" + tokensFilePath);
-        if (!Files.exists(tokensFilePath)) {
-         // we didn't find tokens file in the same directory as importing grammar
-            if (!importingGrammarDirPath.equals(antlrImportDirPath)) {
-             // Importing grammar directory is not placed in import directory
-             // So we can look for it in import directory
-                tokensFilePath = Paths.get(antlrImportDirPath.toString(),
-                                           importedTokensFileNameExt    );
-//                System.out.println("- tokens File Path 2              =" + tokensFilePath);
-                if (!Files.exists(tokensFilePath)) {
-                 // We didn't find tokens file in import directory either
-                 // so it may only be in destination directory concatenated with
-                 // importing grammar relative directory
-                    Path importingGrammarRelativeDir =
-                            antlrSrcDirPath.relativize(importingGrammarDirPath);
-                    tokensFilePath = Paths.get
-                                       (antlrDestinationDirPath.toString()    ,
-                                        importingGrammarRelativeDir.toString(),
-                                        importedTokensFileNameExt             );
-//                    System.out.println("- tokens File Path 3              =" + tokensFilePath);
-                    if (!Files.exists(tokensFilePath))
-                        tokensFilePath = null;
+        Optional<Path> result;
+        if (Files.exists(tokensFilePath)) {
+            result = Optional.of(tokensFilePath);
+        } else {
+            result = resolveGrammarFile(importedTokensFileNameExt);
+        }
+        if (!result.isPresent() && antlrDestinationDirPath.isPresent()) {
+            Path dest = antlrDestinationDirPath.get();
+            Path relativeTokensFilePath =
+                        antlrImportDirPath.get().relativize(importingGrammarDirPath);
+            if (antlrImportDirPath.isPresent()) {
+                tokensFilePath = antlrDestinationDirPath.get().resolve(relativeTokensFilePath)
+                        .resolve(importedTokensFileNameExt);
+            }
+            if (!Files.exists(tokensFilePath)) {
+                if (antlrSrcDirPath.isPresent()) {
+                    tokensFilePath = antlrSrcDirPath.get().resolve(relativeTokensFilePath)
+                        .resolve(importedTokensFileNameExt);
+                    if (Files.exists(tokensFilePath)) {
+                        result = Optional.of(tokensFilePath);
+                    }
                 }
             } else {
-             // importing grammar is placed in import directory
-             // so it is useless to look for in import directory.
-             // We look for in destination directory
-                Path importingGrammarRelativeDir =
-                            antlrSrcDirPath.relativize(importingGrammarDirPath);
-                tokensFilePath = Paths.get
-                                       (antlrDestinationDirPath.toString()    ,
-                                        importingGrammarRelativeDir.toString(),
-                                        importedTokensFileNameExt             );
-//                System.out.println("- tokens File Path 2              =" + tokensFilePath);
-                if (!Files.exists(tokensFilePath))
-                    tokensFilePath = null;
+                result = Optional.of(tokensFilePath);
             }
         }
-//        System.out.println("GrammarSummary:determineTokensFilePath() : end");
-        return tokensFilePath;
+        return result;
     }
     
     
@@ -1159,10 +1220,16 @@ public class GrammarSummary {
     protected static final String USER_HOME_DIRECTORY =
                                                 System.getProperty("user.home");
     public void save () {
+        if (!sourceFilePath.isPresent()) {
+            return;
+        }
+        if (!project().isPresent()) {
+            return;
+        }
 //        System.out.println("GrammarSummary:save() : begin");
 //        System.out.println("- source file path " + sourceFilePath);
         try {
-            Path summaryDirPath = getSummaryDirPath(sourceFilePath);
+            Path summaryDirPath = getSummaryDirPath(project(), sourceFilePath);
 //            System.out.println
 //                     ("- proposed directory path for storing our summary=" +
 //                      summaryDirPath.toString()                             );
@@ -1172,7 +1239,7 @@ public class GrammarSummary {
             }
             
          // We extract the file name from its path
-            String grammarFileName = sourceFilePath.getFileName().toString();
+            String grammarFileName = sourceFilePath.get().getFileName().toString();
             String summaryFileName = grammarFileName + ".properties";
             Path summaryPath = Paths.get(summaryDirPath.toString(),
                                          summaryFileName          );
@@ -1604,7 +1671,7 @@ public class GrammarSummary {
 //        System.out.println("- antlr Src Dir =" + antlrSrcDir);
 //        System.out.println("- grammar File  =" + grammarFile);
         Path grammarPath = Paths.get(grammarFile);
-        Path summaryDirPath = getSummaryDirPath(grammarPath);
+        Path summaryDirPath = getSummaryDirPath(Optional.of(project), Optional.of(grammarPath));
      // We extract the file name from its path
         String grammarFileName = grammarFilePath.getFileName().toString();
         String summaryFileName = grammarFileName + ".properties";
@@ -1836,7 +1903,7 @@ public class GrammarSummary {
                                    props.getProperty(IMPORTED_TOKEN_FILE_NAMES);
                 importedTokenFilesString = importedTokenFilesString.trim();
                 String[] importedTokenFilesArray;
-                if (importedTokenFilesString.equals(""))
+                if (importedTokenFilesString.isEmpty())
                     importedTokenFilesArray = new String[0];
                 else
                     importedTokenFilesArray =
@@ -2359,7 +2426,7 @@ public class GrammarSummary {
                     parserRuleIdEndOffsets.put(parserRuleId, endOffset);
                 }
                 
-                summary = new GrammarSummary(sourceFilePath);
+                summary = new GrammarSummary(Optional.of(sourceFilePath));
 
                 summary.grammarType = grammarType;
                 summary.grammarName = grammarName;
@@ -2415,23 +2482,29 @@ public class GrammarSummary {
     }
     
     
-    protected static Path getSummaryDirPath(Path sourceFilePath) {
+    protected static Path getSummaryDirPath(Optional<Project> prj, Optional<Path> sourceFilePath) {
 //        System.out.println("GrammarSummary:getSummaryDirPath(Path) -> Path : begin");
      // We determine the project associated to our source path ...
-        Project project = ProjectHelper.getProject(sourceFilePath);
-        String projectDir = project.getProjectDirectory().getPath();
+        String projectDir = !prj.isPresent() ? null: prj.get().getProjectDirectory().getPath();
      // ... that enables us to determine the ANTLR source directory...
-        File antlrSrcDir = ProjectHelper.getANTLRSourceDir(project);
+        Optional<Path> antlrSrcDir = AntlrFolders.SOURCE.getPath(prj, sourceFilePath);
+
+
      // ... that enables us to determine our grammar relative directory path
      // (relatively to ANTLR source directory)
-        Path grammarDirPath = sourceFilePath.getParent();
-        Path grammarDirRelativePath =
-                                antlrSrcDir.toPath().relativize(grammarDirPath);
+        Path grammarDirRelativePath = null;
+        if (sourceFilePath.isPresent() && antlrSrcDir.isPresent()) {
+            Path grammarDirPath = sourceFilePath.get().getParent();
+            grammarDirRelativePath = antlrSrcDir.get().relativize(grammarDirPath);
+        } else {
+            grammarDirRelativePath = Paths.get("no-source-file");
+        }
+
 //        System.out.println("- grammar dir relative path=" + grammarDirRelativePath);
         
-        String nbCacheDirectory =
+        String nbCacheDirectory = // XXX: this is NOT a cache dir:
                             System.getProperty("netbeans.default_userdir_root");
-        String nbProductVersion = System.getProperty("netbeans.productversion");
+        String nbProductVersion = System.getProperty("netbeans.productversion", "0.0");
 //        System.out.println("- NetBeans user cache directory=" + nbCacheDirectory);
 //        System.out.println("- NetNeans product version=" + nbProductVersion);
         Pattern versionPattern = Pattern.compile("(\\d(\\.\\d)*)");
@@ -2440,11 +2513,15 @@ public class GrammarSummary {
         if (matcher.find()) {
             nbVersion = matcher.group(1);
 //            System.out.println("- NetBeans version=" + nbVersion);
-        } else
+        } else {
             nbVersion = "unknown_version";
+        }
 
         Path summaryDirPath;
         try {
+            // XXX to do this more flexibly and correctly, hash the *tokens*
+            // after alpha-sorting the rules - that would be whitespace and
+            // rule order independent
          // Now we hash the project path in a string of constant length
             MessageDigest digest1 = MessageDigest.getInstance("SHA-1");
             byte[] hash1 = digest1.digest(projectDir.getBytes("UTF-8"));
@@ -2469,5 +2546,12 @@ public class GrammarSummary {
         }
 //        System.out.println("GrammarSummary:getSummaryDirPath(Path) -> Path : end");
         return summaryDirPath;
+    }
+
+    private Optional<Path> tryGenerateTokensFile(String importedGrammarFile,
+            Optional<Path> toPath, Optional<Path> toPath0, Optional<Path> toPath1) {
+        // PENDING - parse the grammar file and manually
+        // generate a tokens file for it
+        return Optional.empty();
     }
 }

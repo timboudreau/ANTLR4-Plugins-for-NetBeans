@@ -29,6 +29,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.nemesis.antlr.v4.netbeans.v8.maven.nodes;
 
 import java.io.File;
+import static org.nemesis.antlr.v4.netbeans.v8.project.helper.MavenProjectHelper.DEFAULT_ANTLR_SOURCE_DIR;
 
 import org.netbeans.api.project.Project;
 import org.netbeans.spi.project.ProjectServiceProvider;
@@ -57,7 +58,7 @@ public class ANTLRProjectOpenedHook extends ProjectOpenedHook {
 //        System.out.println();
 //        System.out.println("ANTLRProjectOpenedHook.projectOpened()");
         FileObject projectRootDir = project.getProjectDirectory();
-        FileObject antlr4FO = projectRootDir.getFileObject("src/main/antlr4");
+        FileObject antlr4FO = projectRootDir.getFileObject(DEFAULT_ANTLR_SOURCE_DIR);
      // If the project is not ANTLR aware then antlr4FO will be null
         if (antlr4FO != null) {
             File antlr4Dir = FileUtil.toFile(antlr4FO);

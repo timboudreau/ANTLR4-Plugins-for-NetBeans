@@ -47,9 +47,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 
@@ -60,16 +62,15 @@ import org.netbeans.api.project.Project;
  * @author Frédéric Yvon Vinet
  */
 public class TokensSummary {
-    protected final Path                sourceFilePath;
+    protected final Optional<Path>                sourceFilePath;
     protected final List<String>        tokenIds;
     protected final Map<String,Integer> tokenIdOffsets;
     protected final List<String>        tokenLiterals;
     protected final Map<String,Integer> tokenLiteralOffsets;
 
     public Path getSourceFilePath() {
-        return sourceFilePath;
+        return sourceFilePath.get();
     }
-    
     
     public List<String> getTokenIds() {
         return tokenIds;
@@ -111,7 +112,7 @@ public class TokensSummary {
     }
     
     
-    public TokensSummary(Path sourceFilePath) {
+    public TokensSummary(Optional<Path> sourceFilePath) {
         this.sourceFilePath = sourceFilePath;
         this.tokenIds = new ArrayList<>();
         this.tokenIdOffsets = new HashMap<>();
@@ -137,7 +138,7 @@ public class TokensSummary {
                 Files.deleteIfExists(summaryPath);
                 Properties props = new Properties();
                 props.setProperty(SOURCE_FILE_PATH         ,
-                                  sourceFilePath.toString());
+                                  sourceFilePath.get().toString());
                     
                 StringBuilder propertyValue = new StringBuilder();
                 for (String tokenId : tokenIds) {
@@ -189,7 +190,7 @@ public class TokensSummary {
                 try (
                     OutputStream out = new FileOutputStream(summaryFile);
                 ) {
-                    String tokensFileName = sourceFilePath.getFileName().toString();
+                    String tokensFileName = sourceFilePath.get().getFileName().toString();
                     props.store(out                                         ,
                                 "This file contains a content summary of " +
                                 tokensFileName                              );
@@ -210,7 +211,7 @@ public class TokensSummary {
         
         Path tokensFilePath = Paths.get(tokensFile);
         Path summaryPath = TokensSummary.determineSummaryFilePath
-                                                               (tokensFilePath);
+                                                               (Optional.of(tokensFilePath));
         if (summaryPath != null) {
             if (Files.exists(summaryPath)       &&
                 !Files.isDirectory(summaryPath) &&
@@ -306,7 +307,7 @@ public class TokensSummary {
                         tokenLiteralOffsets.put(tokenLiteral, offset);
                     }
                     
-                    summary = new TokensSummary(sourceFilePath);
+                    summary = new TokensSummary(Optional.of(sourceFilePath));
                     summary.addAllTokenIds(tokenIds);
                     summary.putAllTokenIdOffsets(tokenIdOffsets);
                     summary.addAllTokenLiterals(tokenLiterals);
@@ -324,19 +325,20 @@ public class TokensSummary {
     
     protected static final String USER_HOME_DIRECTORY =
                                                 System.getProperty("user.home");
-    static protected Path determineSummaryFilePath(Path tokensFilePath) {
+    static protected Path determineSummaryFilePath(Optional<Path> tokensFilePath) {
 //        System.out.println("TokensSummary:determineSummaryFilePath() -> Path : begin");
         assert tokensFilePath != null;
-        assert Files.exists(tokensFilePath);
-        assert Files.isReadable(tokensFilePath);
-        assert Files.isRegularFile(tokensFilePath);
+        assert tokensFilePath.isPresent();
+        assert Files.exists(tokensFilePath.get());
+        assert Files.isReadable(tokensFilePath.get());
+        assert Files.isRegularFile(tokensFilePath.get());
 //        System.out.println("- tokens file path " + tokensFilePath);
         Path summaryPath;
-        Path summaryDirPath = getSummaryDirPath(tokensFilePath);
-        if (summaryDirPath != null) {
-            if (!Files.exists(summaryDirPath)) {
+        Optional<Path> summaryDirPath = getSummaryDirPath(tokensFilePath);
+        if (summaryDirPath.isPresent()) {
+            if (!Files.exists(summaryDirPath.get())) {
                 try {
-                    summaryDirPath = Files.createDirectories(summaryDirPath);
+                    Files.createDirectories(summaryDirPath.get());
                 } catch (IOException ex) {
                     ex.printStackTrace();
                     summaryDirPath = null;
@@ -344,7 +346,7 @@ public class TokensSummary {
             }
             if (summaryDirPath != null) {
              // We extract the file name from its path
-                String tokensFileName = tokensFilePath.getFileName().toString();
+                String tokensFileName = tokensFilePath.get().getFileName().toString();
                 String summaryFileName = tokensFileName + ".properties";
                 summaryPath = Paths.get(summaryDirPath.toString(),
                                         summaryFileName          );
@@ -367,42 +369,45 @@ public class TokensSummary {
   * For recovering, its relative directory, we have to look for where it is
   * placed.
   */
-    protected static Path getSummaryDirPath(Path tokensFilePath) {
+    protected static Optional<Path> getSummaryDirPath(Optional<Path> tokensFilePath) {
+        if (!tokensFilePath.isPresent()) {
+            return Optional.empty();
+        }
 //        System.out.println("TokensSummary:getSummaryDirPath(Path) -> Path : begin");
         Path summaryDirPath;
      // We determine the project associated to our tokens file path ...
-        Project project = ProjectHelper.getProject(tokensFilePath);
-        String projectDir = project.getProjectDirectory().getPath();
+        Optional<Project> project = ProjectHelper.getProject(tokensFilePath.get());
+        if (!project.isPresent()) {
+            return Optional.empty();
+        }
+        String projectDir = project.get().getProjectDirectory().getPath();
      // ... that enables us to determine:
      // - the ANTLR source directory,
-        File antlrSrcDir = ProjectHelper.getANTLRSourceDir(project);
-        Path antlrSrcDirPath = antlrSrcDir.toPath();
+        Optional<Path> antlrSrcDirPath = AntlrFolders.SOURCE.getPath(project, tokensFilePath);
      // - the ANTLR import directory...
-        File antlrImportDir = ProjectHelper.getANTLRImportDir(project);
-        Path antlrImportDirPath = antlrImportDir.toPath();
+        Optional<Path> antlrImportDirPath = AntlrFolders.IMPORT.getPath(project, tokensFilePath);
      // - the ANTLR destination directory...
-        File antlrDestDir = ProjectHelper.getANTLRDestinationDir(project);
-        Path antlrDestDirPath = antlrDestDir.toPath();
+        Optional<Path> antlrDestDirPath = AntlrFolders.OUTPUT.getPath(project, tokensFilePath);
         Path tokensDirRelativePath;
      // We must start to test if tokens file is in import directory and after if
      // it is in source directory because import directory is a subdir of
      // source directory
-        if (tokensFilePath.startsWith(antlrImportDirPath)) {
+        Path tfp = tokensFilePath.get();
+        if (antlrSrcDirPath.isPresent() && antlrImportDirPath.isPresent() && tokensFilePath.get().startsWith(antlrImportDirPath.get())) {
          // Our tokens file is placed in import directory
-            tokensDirRelativePath = antlrSrcDirPath.relativize
-                                                   (tokensFilePath.getParent());
+            tokensDirRelativePath = antlrSrcDirPath.get().relativize (tfp.getParent());
         } else {
          // We didn't find the tokens file in ANTLR import dir so we look for it
          // in ANTLR source directory
-            if (tokensFilePath.startsWith(antlrSrcDirPath)) {
-                tokensDirRelativePath = antlrSrcDirPath.relativize
-                                                   (tokensFilePath.getParent());
+            if (antlrSrcDirPath.isPresent() && tfp.startsWith(antlrSrcDirPath.get())) {
+                tokensDirRelativePath = antlrSrcDirPath.get().relativize
+                                                   (tfp.getParent());
             } else {
              // We didn't find the tokens file in ANTLR import dir or ANTLR 
              // import dir. So now we look for it in ANTLR destination dir
-                if (tokensFilePath.startsWith(antlrDestDirPath)) {
-                    tokensDirRelativePath = antlrDestDirPath.relativize
-                                                   (tokensFilePath.getParent());
+                if (antlrDestDirPath.isPresent() && tfp.startsWith(antlrDestDirPath.get())) {
+                    tokensDirRelativePath = antlrDestDirPath.get().relativize
+                                                   (tokensFilePath.get().getParent());
                 } else
                     tokensDirRelativePath = null;
             }
@@ -446,9 +451,10 @@ public class TokensSummary {
              // UTF-8 cannot be unsupported
                 summaryDirPath = null;
             }
-        } else
+        } else {
             summaryDirPath = null;
+        }
 //        System.out.println("TokensSummary:getSummaryDirPath(Path) -> Path : end");
-        return summaryDirPath;
+        return Optional.ofNullable(summaryDirPath);
     }
 }

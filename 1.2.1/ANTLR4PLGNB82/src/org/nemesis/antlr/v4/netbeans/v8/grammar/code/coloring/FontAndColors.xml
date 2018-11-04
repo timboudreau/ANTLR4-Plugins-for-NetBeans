@@ -1,15 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <!DOCTYPE fontscolors PUBLIC
  "-//NetBeans//DTD Editor Fonts and Colors settings 1.1//EN"
  "http://www.netbeans.org/dtds/EditorFontsColors-1_1.dtd">
 <fontscolors>
-    <fontcolor name="comment"              foreColor="gray"     default="default"/>
+    <fontcolor name="comment"              foreColor="gray"     default="default">
+        <font style="italic"/>
+    </fontcolor>
+    <fontcolor default="default" name="wildcard_block" underline="pink"/>
+    <fontcolor default="default" name="plus_block" underline="ffaaaaff"/>
     <fontcolor name="literal"              foreColor="ff966496" default="default"/>
     <fontcolor name="lexerCharSet"         foreColor="ff960096" default="default"/>
     <fontcolor name="keyword"              foreColor="ff000099" default="default"/>
     <fontcolor name="punctuation"          foreColor="black"    default="default"/>
     <fontcolor name="identifier"           foreColor="ff990000" default="default"/>
-    <fontcolor name="parserRuleIdentifier" foreColor="ff326432" default="default"/>
+    <fontcolor default="default" foreColor="ff6b6bff" name="parserRuleIdentifier"/>
     <fontcolor name="token"                foreColor="ffcb9664" default="default"/>
+    <fontcolor default="default" foreColor="ff846f16" name="fragment_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="ff004284" name="parser_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="ff008442" name="lexer_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor name="fragment_reference"   foreColor="ff96cb64" default="default">
+        <font style="italic"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="ffdbac00" name="named_alternative">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="33abacfe" name="nested_blocks">
+        <font style="bold"/>
+    </fontcolor>
 </fontscolors>

@@ -1,0 +1,29 @@
+
+TEST for register lexer only grammar
+
+Better error recovery for a partially typed line - fill in e.g. ": 'missing-token';
+
+
+Need to cache semantic parse results.
+
+Semantic parser cleanup and optimizations.  Can we just get rid of it and use Antlr directly?
+
+Maybe separate the classloader for Antlr from the one for the rest and cache it for performance.
+
+Rule tree needs the rules from imported grammars.  Or could add to its list and rejigger dynamically.
+
+
+Save action does not unmark modified.
+
+Cannot expose modification state of preview in tab name of editor.
+
+Shared per-project environment to avoid creating so many JFS's?
+
+Update output window in a background thread to avoid interfering with typing.
+
+
+May have to just suppress offset errors in error highlighter - they can happen when typing fast in preview and
+deleting tail lines.
+
+Error highlighter always gets cancelled on initial parse - no initial error morkings, file must be manually modified.  Why?
+

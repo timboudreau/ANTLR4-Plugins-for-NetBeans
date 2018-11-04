@@ -35,11 +35,11 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <localizing-bundle>org.nemesis.antlr.v4.netbeans.v8.Bundle</localizing-bundle>
     <volume>
         <type>classpath</type>
-        <resource>jar:nbinst://org.nemesis.antlr.v4.netbeans.v8/libs/antlr-4.6-complete.jar!/</resource>
+        <resource>jar:nbinst://org.nemesis.antlr.v4.netbeans.v8/libs/antlr4-4.7.1.jar!/</resource>
     </volume>
     <volume>
         <type>src</type>
-        <resource>jar:nbinst://org.nemesis.antlr.v4.netbeans.v8/sources/antlr-4.6-source.zip!/</resource>
+        <resource>jar:nbinst://org.nemesis.antlr.v4.netbeans.v8/sources/antlr4-runtime-4.7.1-sources.jar!/</resource>
     </volume>
     <volume>
         <type>javadoc</type>

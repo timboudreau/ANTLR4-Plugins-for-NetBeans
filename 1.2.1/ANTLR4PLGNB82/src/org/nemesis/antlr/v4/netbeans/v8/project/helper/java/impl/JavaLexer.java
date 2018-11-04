@@ -1,4 +1,4 @@
-// Generated from JavaLexer.g4 by ANTLR 4.6
+// Generated from JavaLexer.g4 by ANTLR 4.7.1
 package org.nemesis.antlr.v4.netbeans.v8.project.helper.java.impl;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -11,7 +11,7 @@ import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class JavaLexer extends Lexer {
-	static { RuntimeMetaData.checkVersion("4.6", RuntimeMetaData.VERSION); }
+	static { RuntimeMetaData.checkVersion("4.7.1", RuntimeMetaData.VERSION); }
 
 	protected static final DFA[] _decisionToDFA;
 	protected static final PredictionContextCache _sharedContextCache =
@@ -27,10 +27,12 @@ public class JavaLexer extends Lexer {
 		AUP_UNTERMINATED=43, AUP_PARAMETERS=44, TD_BLOCK_COMMENT=45, TD_LINE_COMMENT=46, 
 		TD_BODY_START=47, TD_WS=48, TD_UNTERMINATED=49, BODY_INTERNAL=50, BODY_END=51, 
 		BODY_UNTERMINATED=52, BODY=53;
-	public static final int AnnotationUse = 1;
-	public static final int AnnotationUseParameters = 2;
-	public static final int TypeDeclaration = 3;
-	public static final int Body = 4;
+	public static final int
+		AnnotationUse=1, AnnotationUseParameters=2, TypeDeclaration=3, Body=4;
+	public static String[] channelNames = {
+		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
+	};
+
 	public static String[] modeNames = {
 		"DEFAULT_MODE", "AnnotationUse", "AnnotationUseParameters", "TypeDeclaration", 
 		"Body"
@@ -125,6 +127,9 @@ public class JavaLexer extends Lexer {
 
 	@Override
 	public String getSerializedATN() { return _serializedATN; }
+
+	@Override
+	public String[] getChannelNames() { return channelNames; }
 
 	@Override
 	public String[] getModeNames() { return modeNames; }
@@ -237,7 +242,7 @@ public class JavaLexer extends Lexer {
 	}
 
 	public static final String _serializedATN =
-		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\2\67\u031f\b\1\b\1"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\2\67\u031f\b\1\b\1"+
 		"\b\1\b\1\b\1\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4"+
 		"\t\t\t\4\n\t\n\4\13\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20"+
 		"\4\21\t\21\4\22\t\22\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27"+
@@ -299,15 +304,15 @@ public class JavaLexer extends Lexer {
 		"$$))^^ddhhppttvv\3\2\63;\5\2\62;CHch\3\2\62;\6\2\f\f\17\17))^^\6\2\f\f"+
 		"\17\17$$^^\5\2\u00b9\u00b9\u0302\u0371\u2041\u2042\r\2\u00c2\u00d8\u00da"+
 		"\u00f8\u00fa\u0301\u0372\u037f\u0381\u2001\u200e\u200f\u2072\u2191\u2c02"+
-		"\u2ff1\u3003\ud801\uf902\ufdd1\ufdf2\uffff\3\2*+\4\2}}\177\177\u0309\2"+
-		"\7\3\2\2\2\2\t\3\2\2\2\2\13\3\2\2\2\2\r\3\2\2\2\2\17\3\2\2\2\2\21\3\2"+
-		"\2\2\2\23\3\2\2\2\2\25\3\2\2\2\2\27\3\2\2\2\2\31\3\2\2\2\2\33\3\2\2\2"+
-		"\2\35\3\2\2\2\2\37\3\2\2\2\2!\3\2\2\2\2#\3\2\2\2\2%\3\2\2\2\2\'\3\2\2"+
-		"\2\2)\3\2\2\2\2+\3\2\2\2\2-\3\2\2\2\2/\3\2\2\2\2\61\3\2\2\2\2\63\3\2\2"+
-		"\2\2\65\3\2\2\2\2\67\3\2\2\2\29\3\2\2\2\2;\3\2\2\2\2=\3\2\2\2\2?\3\2\2"+
-		"\2\2A\3\2\2\2\2C\3\2\2\2\2E\3\2\2\2\2G\3\2\2\2\2I\3\2\2\2\3\u00b7\3\2"+
-		"\2\2\3\u00b9\3\2\2\2\3\u00bb\3\2\2\2\3\u00bd\3\2\2\2\3\u00bf\3\2\2\2\3"+
-		"\u00c1\3\2\2\2\3\u00c3\3\2\2\2\3\u00c5\3\2\2\2\4\u00c7\3\2\2\2\4\u00c9"+
+		"\u2ff1\u3003\ud801\uf902\ufdd1\ufdf2\uffff\3\2*+\4\2}}\177\177\2\u0309"+
+		"\2\7\3\2\2\2\2\t\3\2\2\2\2\13\3\2\2\2\2\r\3\2\2\2\2\17\3\2\2\2\2\21\3"+
+		"\2\2\2\2\23\3\2\2\2\2\25\3\2\2\2\2\27\3\2\2\2\2\31\3\2\2\2\2\33\3\2\2"+
+		"\2\2\35\3\2\2\2\2\37\3\2\2\2\2!\3\2\2\2\2#\3\2\2\2\2%\3\2\2\2\2\'\3\2"+
+		"\2\2\2)\3\2\2\2\2+\3\2\2\2\2-\3\2\2\2\2/\3\2\2\2\2\61\3\2\2\2\2\63\3\2"+
+		"\2\2\2\65\3\2\2\2\2\67\3\2\2\2\29\3\2\2\2\2;\3\2\2\2\2=\3\2\2\2\2?\3\2"+
+		"\2\2\2A\3\2\2\2\2C\3\2\2\2\2E\3\2\2\2\2G\3\2\2\2\2I\3\2\2\2\3\u00b7\3"+
+		"\2\2\2\3\u00b9\3\2\2\2\3\u00bb\3\2\2\2\3\u00bd\3\2\2\2\3\u00bf\3\2\2\2"+
+		"\3\u00c1\3\2\2\2\3\u00c3\3\2\2\2\3\u00c5\3\2\2\2\4\u00c7\3\2\2\2\4\u00c9"+
 		"\3\2\2\2\4\u00cb\3\2\2\2\4\u00cd\3\2\2\2\4\u00cf\3\2\2\2\4\u00d1\3\2\2"+
 		"\2\5\u00d3\3\2\2\2\5\u00d5\3\2\2\2\5\u00d7\3\2\2\2\5\u00d9\3\2\2\2\5\u00db"+
 		"\3\2\2\2\5\u00dd\3\2\2\2\5\u00df\3\2\2\2\5\u00e1\3\2\2\2\5\u00e3\3\2\2"+

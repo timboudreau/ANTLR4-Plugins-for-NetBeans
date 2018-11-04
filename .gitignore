@@ -1,6 +1,9 @@
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
+private.xml
+platform-private.properties
+nbproject/private/
 
 # Folder config file
 Desktop.ini
@@ -13,6 +16,7 @@ $RECYCLE.BIN/
 *.msi
 *.msm
 *.msp
+*.log
 
 # Windows shortcuts
 *.lnk
@@ -45,3 +49,5 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+/1.2.1/ANTLR4PLGNB82/build/
+/1.2.1/ANTLR4PLGNB82/nbproject/private/

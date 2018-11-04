@@ -28,10 +28,13 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.generic.parsing;
 
+import java.nio.file.Path;
+import java.util.Optional;
 import org.netbeans.modules.csl.api.Error.Badging;
 import org.netbeans.modules.csl.api.Severity;
 
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 
 /**
  * It is mandatory to implement Error.Badging rather than Error because, we want 
@@ -64,6 +67,28 @@ public class ParsingError implements Badging {
         this.displayName = displayName;
         this.description = description;
     }
+
+    public ParsingError
+        (Optional<Path> path,
+         Severity   severity               ,
+         String     key                    ,
+         int        parsingErrorStartOffset,
+         int        parsingErrorEndOffset  ,
+         String     displayName            ,
+         String     description            ) {
+        if (path.isPresent()) {
+            this.fileObject = FileUtil.toFileObject(path.get().toFile());
+        } else {
+            this.fileObject = null;
+        }
+        this.severity = severity;
+        this.key = key;
+        this.parsingErrorStartOffset = parsingErrorStartOffset;
+        this.parsingErrorEndOffset = parsingErrorEndOffset;
+        this.displayName = displayName;
+        this.description = description;
+    }
+
     
  /**
   * @return Provide a short user-visible (and therefore localized) description

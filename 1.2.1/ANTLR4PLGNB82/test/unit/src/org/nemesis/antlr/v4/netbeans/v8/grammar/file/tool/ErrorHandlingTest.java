@@ -1,0 +1,231 @@
+package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
+
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileAntlrSources;
+import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ForeignInvocationResult;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompiledParserRunner;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunResult;
+import org.openide.filesystems.FileUtil;
+
+/**
+ *
+ * @author Tim Boudreau
+ */
+public class ErrorHandlingTest {
+
+    private static final String TEST_TEXT = "grammar foo;\n"
+            + "thing : Digit (Underscore | Digit)*;\n"
+            + "Digit : [0-9];\n"
+            + "Underscore: '_';\n";
+    private static Path dir;
+    private static Path errorGrammarDir;
+    private static Path goodGrammarDir;
+    private static Path errorFile;
+    private static Path goodFile;
+    private static AntlrLibrary lib;
+    private static Path errorOutputDir1;
+    private static Path goodOutputDir1;
+    private static Path errorOutputDir2;
+    private static Path goodClasspathRoot;
+    private static Path goodOutputDir2;
+    private static Path goodClasspathRoot2;
+    private static Path goodClasspathRoot3;
+    private static Path goodOutputDir3;
+
+    @Test
+    public void testErrorGrammar() throws Throwable {
+        GrammarJavaSourceGenerator runner = new GrammarJavaSourceGenerator(errorFile, "com.foo", errorOutputDir1, null, false, AntlrRunOption.GENERATE_LEXER);
+
+        System.out.println("CMDLINE: " + Arrays.toString(runner.antlrArguments()));
+
+        ForeignInvocationResult<AntlrInvocationResult> res1 = runner.run(lib);
+
+        System.out.println("RES1 " + res1.invocationResult());
+
+        res1.rethrow();
+
+        System.out.println("\n-------------------------------------\nRUN 2\n");
+
+        runner = new GrammarJavaSourceGenerator(errorFile, "com.foo", errorOutputDir2, null, true, AntlrRunOption.GENERATE_LEXER);
+
+        ForeignInvocationResult<AntlrInvocationResult> res2 = runner.run(lib);
+
+        System.out.println("RES2 " + res2.invocationResult());
+
+        res2.rethrow();
+
+        assertEquals("Wrong number of errors in " + res1.invocationResult(), 5, res1.invocationResult().errors().size());
+        assertEquals("Wrong number of errors in " + res2.invocationResult(), 5, res2.invocationResult().errors().size());
+
+        assertEquals(126, res1.invocationResult().errors().get(0).code());
+        assertEquals(125, res1.invocationResult().errors().get(1).code());
+        assertEquals(126, res1.invocationResult().errors().get(2).code());
+        assertEquals(125, res1.invocationResult().errors().get(3).code());
+        assertEquals(51, res1.invocationResult().errors().get(4).code());
+        assertEquals(res1.invocationResult().errors(), res2.invocationResult().errors());
+    }
+
+    @Test
+    public void testBuildAndParseGrammar() throws Throwable {
+        System.out.println("\n************* BUILDER *********************************");
+        GenerateBuildAndRunGrammarResult result = GrammarJavaSourceGeneratorBuilder
+                .forAntlrSource(goodFile)
+                .withAntlrLibrary(lib)
+                .withOutputRoot(goodClasspathRoot2)
+                .withRunOptions(AntlrRunOption.GENERATE_LEXER)
+                .withRunOptions(AntlrRunOption.GENERATE_VISITOR)
+                .toParseAndRunBuilder()
+                .parse("2323 32_52 -32 210_7");
+
+        result.rethrow();
+        assertTrue("Compile did not complete", result.compileResult().isPresent());
+        assertTrue("Parse did not complete", result.parseResult().isPresent());
+
+        System.out.println("SOURCES IN " + result.compileResult().get().sourceRoot());
+        System.out.println("SOURCES: " + result.compileResult().get().sources());
+
+        System.out.println(result.parseResult().get());
+
+        System.out.println("\n************* END BUILDER *********************************");
+    }
+
+    @Test
+    public void testGoodGrammar() throws Throwable {
+        System.out.println("\n\n************* GOOD GRAMMAR ***********************");
+        GrammarJavaSourceGenerator runner = new GrammarJavaSourceGenerator(goodFile, "com.foo", goodOutputDir1, null, false, AntlrRunOption.GENERATE_LEXER, AntlrRunOption.GENERATE_VISITOR);
+
+        System.out.println("GOOD CMDLINE: " + Arrays.toString(runner.antlrArguments()));
+
+        ForeignInvocationResult<AntlrInvocationResult> res = runner.run(lib);
+
+        System.out.println("GOOD RES " + res.invocationResult());
+
+        res.rethrow();
+        assertTrue(res.isSuccess());
+
+        String[] names = new String[]{"NoErrorsBaseListener.java",
+            "NoErrorsBaseVisitor.java",
+            "NoErrors.interp",
+            "NoErrorsLexer.interp",
+            "NoErrorsLexer.java",
+            "NoErrorsLexer.tokens",
+            "NoErrorsListener.java",
+            "NoErrorsParser.java",
+            "NoErrors.tokens",
+            "NoErrorsVisitor.java"};
+        for (String fn : names) {
+            Path path = goodOutputDir1.resolve(fn);
+            assertTrue(path + "", Files.exists(path));
+        }
+
+        Path lexerExtractor = ExtractionCodeGenerator.saveExtractorSourceTo(
+                goodFile, "com.foo", "NoErrors", goodOutputDir1);
+
+        CompileAntlrSources comp = new CompileAntlrSources();
+        CompileResult compRes = comp.compile(goodClasspathRoot, goodClasspathRoot, lib.paths());
+
+        System.out.println("COMP RESULT IN " + goodClasspathRoot + ": " + compRes.ok());
+        for (String fn : names) {
+            if (fn.endsWith(".java")) {
+                fn = fn.substring(0, fn.length() - 5) + ".class";
+                assertTrue(fn, Files.exists(goodOutputDir1.resolve(fn)));
+            }
+        }
+
+        CompiledParserRunner parse = new CompiledParserRunner(goodClasspathRoot, "com.foo", lib.with(goodClasspathRoot.toUri().toURL()));
+        ParserRunResult parseResult = parse.parseAndExtract("2323 32_52 -32 210_7");
+        assertNotNull(parseResult);
+        parseResult.rethrow();
+        assertTrue(parseResult.parseTree().isPresent());
+        ParseTreeProxy extraction = parseResult.parseTree().get();
+        System.out.println("GOT BACK " + extraction);
+
+        for (int i = 0; i < extraction.tokens().size(); i++) {
+            ProxyToken tt = extraction.tokens().get(i);
+            ProxyToken st1 = extraction.tokenAtPosition(tt.getStartIndex());
+            ProxyToken st2 = extraction.tokenAtPosition(tt.getStopIndex());
+            assertSame("\nsearch for token " + i + " - " + tt + " failed for " + tt.getStartIndex() + "\n", tt, st1);
+            assertSame("\nsearch for token " + i + " - " + tt + " failed for " + tt.getStopIndex() + "\n", tt, st2);
+        }
+        ProxyToken last = extraction.tokens().get(extraction.tokens().size() - 1);
+        ProxyToken st3 = extraction.tokenAtPosition(last.getStopIndex() + 2);
+        assertNull(st3);
+
+        System.out.println("\n************************************\n\n");
+    }
+
+    @Test
+    public void testBuilderReuse() {
+
+    }
+
+    @Test
+    public void generateSer() throws IOException {
+        Path pth = Paths.get("/home/tim/work/personal/yasl/yasl-parser/src/main/antlr4/com/mastfrog/yasl/antlr/Types.g4");
+        if (!Files.exists(pth)) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String line : Files.readAllLines(pth)) {
+            sb.append(line).append('\n');
+        }
+        AntlrProxies.ParseTreeProxy proxies = ParserExtractor.extract(sb.toString());
+        System.out.println("PARSE TREE:");
+
+        proxies.save(Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool").resolve(pth.getFileName() + ".ser"));
+    }
+
+    @BeforeClass
+    public static void setup() throws IOException, URISyntaxException {
+        dir = Paths.get(System.getProperty("java.io.tmpdir"), ErrorHandlingTest.class.getSimpleName() + "-" + System.currentTimeMillis());
+        errorGrammarDir = dir.resolve("errorgrammar");
+        goodGrammarDir = dir.resolve("goodgrammar");
+        errorOutputDir1 = dir.resolve("errorgrammar/output1");
+        goodOutputDir1 = dir.resolve("goodgrammar/output1/com/foo");
+        goodClasspathRoot = dir.resolve("goodgrammar/output1");
+        goodOutputDir2 = dir.resolve("goodgrammar/output2/com/foo");
+        goodOutputDir3 = dir.resolve("goodgrammar/output3/com/foo");
+        goodClasspathRoot2 = dir.resolve("goodgrammar/output2");
+        goodClasspathRoot3 = dir.resolve("goodgrammar/output3");
+        errorOutputDir2 = dir.resolve("errorgrammar/output2");
+        Files.createDirectories(goodOutputDir1);
+        Files.createDirectories(errorOutputDir1);
+        Files.createDirectories(errorOutputDir2);
+        InputStream errorStream = ErrorHandlingTest.class.getResourceAsStream("HasErrors.g4");
+        assertNotNull(errorStream);
+        InputStream goodStream = ErrorHandlingTest.class.getResourceAsStream("NoErrors.g4");
+        errorFile = errorGrammarDir.resolve("HasErrors.g4");
+        goodFile = goodGrammarDir.resolve("NoErrors.g4");
+        try (OutputStream out = Files.newOutputStream(errorFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+            FileUtil.copy(errorStream, out);
+        }
+        try (OutputStream out = Files.newOutputStream(goodFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+            FileUtil.copy(goodStream, out);
+        }
+        lib = new UnitTestAntlrLibrary();
+        System.out.println("LIB: \n" + lib);
+    }
+
+}

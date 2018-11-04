@@ -1,4 +1,4 @@
-// Generated from Tokens.g4 by ANTLR 4.6
+// Generated from Tokens.g4 by ANTLR 4.7.1
 package org.nemesis.antlr.v4.netbeans.v8.tokens.code.checking.impl;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class TokensParser extends Parser {
-	static { RuntimeMetaData.checkVersion("4.6", RuntimeMetaData.VERSION); }
+	static { RuntimeMetaData.checkVersion("4.7.1", RuntimeMetaData.VERSION); }
 
 	protected static final DFA[] _decisionToDFA;
 	protected static final PredictionContextCache _sharedContextCache =
@@ -98,6 +98,11 @@ public class TokensParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof TokensListener ) ((TokensListener)listener).exitToken_declarations(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof TokensVisitor ) return ((TokensVisitor<? extends T>)visitor).visitToken_declarations(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final Token_declarationsContext token_declarations() throws RecognitionException {
@@ -151,6 +156,11 @@ public class TokensParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof TokensListener ) ((TokensListener)listener).exitLine(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof TokensVisitor ) return ((TokensVisitor<? extends T>)visitor).visitLine(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -206,6 +216,11 @@ public class TokensParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof TokensListener ) ((TokensListener)listener).exitToken_declaration(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof TokensVisitor ) return ((TokensVisitor<? extends T>)visitor).visitToken_declaration(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -286,17 +301,17 @@ public class TokensParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\t\'\4\2\t\2\4\3\t"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\t\'\4\2\t\2\4\3\t"+
 		"\3\4\4\t\4\3\2\7\2\n\n\2\f\2\16\2\r\13\2\3\3\3\3\3\3\3\4\3\4\7\4\24\n"+
 		"\4\f\4\16\4\27\13\4\3\4\3\4\7\4\33\n\4\f\4\16\4\36\13\4\3\4\3\4\7\4\""+
-		"\n\4\f\4\16\4%\13\4\3\4\2\2\5\2\4\6\2\4\3\3\7\7\3\2\3\4\'\2\13\3\2\2\2"+
-		"\4\16\3\2\2\2\6\21\3\2\2\2\b\n\5\4\3\2\t\b\3\2\2\2\n\r\3\2\2\2\13\t\3"+
-		"\2\2\2\13\f\3\2\2\2\f\3\3\2\2\2\r\13\3\2\2\2\16\17\5\6\4\2\17\20\t\2\2"+
-		"\2\20\5\3\2\2\2\21\25\t\3\2\2\22\24\7\b\2\2\23\22\3\2\2\2\24\27\3\2\2"+
-		"\2\25\23\3\2\2\2\25\26\3\2\2\2\26\30\3\2\2\2\27\25\3\2\2\2\30\34\7\6\2"+
-		"\2\31\33\7\b\2\2\32\31\3\2\2\2\33\36\3\2\2\2\34\32\3\2\2\2\34\35\3\2\2"+
-		"\2\35\37\3\2\2\2\36\34\3\2\2\2\37#\7\5\2\2 \"\7\b\2\2! \3\2\2\2\"%\3\2"+
-		"\2\2#!\3\2\2\2#$\3\2\2\2$\7\3\2\2\2%#\3\2\2\2\6\13\25\34#";
+		"\n\4\f\4\16\4%\13\4\3\4\2\2\5\2\4\6\2\4\3\3\7\7\3\2\3\4\2\'\2\13\3\2\2"+
+		"\2\4\16\3\2\2\2\6\21\3\2\2\2\b\n\5\4\3\2\t\b\3\2\2\2\n\r\3\2\2\2\13\t"+
+		"\3\2\2\2\13\f\3\2\2\2\f\3\3\2\2\2\r\13\3\2\2\2\16\17\5\6\4\2\17\20\t\2"+
+		"\2\2\20\5\3\2\2\2\21\25\t\3\2\2\22\24\7\b\2\2\23\22\3\2\2\2\24\27\3\2"+
+		"\2\2\25\23\3\2\2\2\25\26\3\2\2\2\26\30\3\2\2\2\27\25\3\2\2\2\30\34\7\6"+
+		"\2\2\31\33\7\b\2\2\32\31\3\2\2\2\33\36\3\2\2\2\34\32\3\2\2\2\34\35\3\2"+
+		"\2\2\35\37\3\2\2\2\36\34\3\2\2\2\37#\7\5\2\2 \"\7\b\2\2! \3\2\2\2\"%\3"+
+		"\2\2\2#!\3\2\2\2#$\3\2\2\2$\7\3\2\2\2%#\3\2\2\2\6\13\25\34#";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {

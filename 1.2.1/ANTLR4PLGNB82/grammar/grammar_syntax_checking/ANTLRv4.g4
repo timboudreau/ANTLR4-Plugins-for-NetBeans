@@ -54,7 +54,7 @@
 
 grammar ANTLRv4;
 
-options
+ options
    { tokenVocab = ANTLRv4Lexer; }
 
 
@@ -315,8 +315,8 @@ parserRuleAlternative :
 parserRuleElement :
     labeledParserRuleElement ebnfSuffix? |
     parserRuleAtom ebnfSuffix? |
-    ebnf |
-    actionBlock |
+    ebnf | 
+    actionBlock | 
     actionBlock QUESTION elementOptions?
     ;
 
@@ -368,7 +368,7 @@ lexerRuleAlt :
     ;
 
 lexerRuleElements :
-    lexerRuleElement +
+    lexerRuleElement+
     ;
 
 lexerRuleElement :

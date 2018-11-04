@@ -1,17 +1,14 @@
-// Generated from ANTLRv4Lexer.g4 by ANTLR 4.6
+// Generated from ANTLRv4Lexer.g4 by ANTLR 4.7.1
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class ANTLRv4Lexer extends Lexer {
-	static { RuntimeMetaData.checkVersion("4.6", RuntimeMetaData.VERSION); }
+	static { RuntimeMetaData.checkVersion("4.7.1", RuntimeMetaData.VERSION); }
 
 	protected static final DFA[] _decisionToDFA;
 	protected static final PredictionContextCache _sharedContextCache =
@@ -49,24 +46,15 @@ public class ANTLRv4Lexer extends Lexer {
 		LEXCOM_TYPE=140, LEXCOM_CHANNEL=141, LEXCOM_MODE=142, LEXCOM_PUSHMODE=143, 
 		LEXCOM_POPMODE=144, LEXCOM_UNTERMINATED=145, TYPE_WS=146, TYPE_LINE_COMMENT=147, 
 		TYPE_TOKEN_ID=148, TYPE_UNTERMINATED=149, LEXER_CHAR_SET_UNTERMINATED=150;
-	public static final int Argument = 1;
-	public static final int HeaderPrelude = 2;
-	public static final int HeaderAction = 3;
-	public static final int HeaderPackage = 4;
-	public static final int HeaderImport = 5;
-	public static final int Action = 6;
-	public static final int Options = 7;
-	public static final int Tokens = 8;
-	public static final int Channels = 9;
-	public static final int Import = 10;
-	public static final int Identifier = 11;
-	public static final int TokenDeclaration = 12;
-	public static final int FragmentDeclaration = 13;
-	public static final int ParserRuleDeclaration = 14;
-	public static final int ParserRuleOptions = 15;
-	public static final int LexerCommands = 16;
-	public static final int TypeLexerCommand = 17;
-	public static final int LexerCharSet = 18;
+	public static final int
+		Argument=1, HeaderPrelude=2, HeaderAction=3, HeaderPackage=4, HeaderImport=5, 
+		Action=6, Options=7, Tokens=8, Channels=9, Import=10, Identifier=11, TokenDeclaration=12, 
+		FragmentDeclaration=13, ParserRuleDeclaration=14, ParserRuleOptions=15, 
+		LexerCommands=16, TypeLexerCommand=17, LexerCharSet=18;
+	public static String[] channelNames = {
+		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
+	};
+
 	public static String[] modeNames = {
 		"DEFAULT_MODE", "Argument", "HeaderPrelude", "HeaderAction", "HeaderPackage", 
 		"HeaderImport", "Action", "Options", "Tokens", "Channels", "Import", "Identifier", 
@@ -281,6 +269,9 @@ public class ANTLRv4Lexer extends Lexer {
 
 	@Override
 	public String getSerializedATN() { return _serializedATN; }
+
+	@Override
+	public String[] getChannelNames() { return channelNames; }
 
 	@Override
 	public String[] getModeNames() { return modeNames; }
@@ -626,7 +617,7 @@ public class ANTLRv4Lexer extends Lexer {
 	}
 
 	public static final String _serializedATN =
-		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\2\u0098\u08bb\b\1\b"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\2\u0098\u08bb\b\1\b"+
 		"\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1\b\1"+
 		"\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t"+
 		"\n\4\13\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4"+
@@ -875,18 +866,18 @@ public class ANTLRv4Lexer extends Lexer {
 		";\6\2\f\f\17\17))^^\6\2\f\f\17\17$$^^\5\2\u00b9\u00b9\u0302\u0371\u2041"+
 		"\u2042\r\2\u00c2\u00d8\u00da\u00f8\u00fa\u0301\u0372\u037f\u0381\u2001"+
 		"\u200e\u200f\u2072\u2191\u2c02\u2ff1\u3003\ud801\uf902\ufdd1\ufdf2\uffff"+
-		"\4\2]]__\4\2}}\177\177\3\2^_\u08af\2\25\3\2\2\2\2\27\3\2\2\2\2\31\3\2"+
-		"\2\2\2\33\3\2\2\2\2\35\3\2\2\2\2\37\3\2\2\2\2!\3\2\2\2\2#\3\2\2\2\2%\3"+
-		"\2\2\2\2\'\3\2\2\2\2)\3\2\2\2\2+\3\2\2\2\2-\3\2\2\2\2/\3\2\2\2\2\61\3"+
-		"\2\2\2\2\63\3\2\2\2\2\65\3\2\2\2\2\67\3\2\2\2\29\3\2\2\2\2;\3\2\2\2\2"+
-		"=\3\2\2\2\2?\3\2\2\2\2A\3\2\2\2\2C\3\2\2\2\2E\3\2\2\2\2G\3\2\2\2\2I\3"+
-		"\2\2\2\2K\3\2\2\2\2M\3\2\2\2\2O\3\2\2\2\2Q\3\2\2\2\2S\3\2\2\2\2U\3\2\2"+
-		"\2\2W\3\2\2\2\2Y\3\2\2\2\2[\3\2\2\2\2]\3\2\2\2\2_\3\2\2\2\2a\3\2\2\2\2"+
-		"c\3\2\2\2\2e\3\2\2\2\2g\3\2\2\2\2i\3\2\2\2\2k\3\2\2\2\2m\3\2\2\2\2o\3"+
-		"\2\2\2\2q\3\2\2\2\2s\3\2\2\2\2u\3\2\2\2\2w\3\2\2\2\2y\3\2\2\2\2{\3\2\2"+
-		"\2\2}\3\2\2\2\2\177\3\2\2\2\2\u0081\3\2\2\2\2\u0083\3\2\2\2\3\u00ed\3"+
-		"\2\2\2\3\u00ef\3\2\2\2\3\u00f1\3\2\2\2\3\u00f3\3\2\2\2\4\u00f5\3\2\2\2"+
-		"\4\u00f7\3\2\2\2\4\u00f9\3\2\2\2\4\u00fb\3\2\2\2\4\u00fd\3\2\2\2\4\u00ff"+
+		"\4\2]]__\4\2}}\177\177\3\2^_\2\u08af\2\25\3\2\2\2\2\27\3\2\2\2\2\31\3"+
+		"\2\2\2\2\33\3\2\2\2\2\35\3\2\2\2\2\37\3\2\2\2\2!\3\2\2\2\2#\3\2\2\2\2"+
+		"%\3\2\2\2\2\'\3\2\2\2\2)\3\2\2\2\2+\3\2\2\2\2-\3\2\2\2\2/\3\2\2\2\2\61"+
+		"\3\2\2\2\2\63\3\2\2\2\2\65\3\2\2\2\2\67\3\2\2\2\29\3\2\2\2\2;\3\2\2\2"+
+		"\2=\3\2\2\2\2?\3\2\2\2\2A\3\2\2\2\2C\3\2\2\2\2E\3\2\2\2\2G\3\2\2\2\2I"+
+		"\3\2\2\2\2K\3\2\2\2\2M\3\2\2\2\2O\3\2\2\2\2Q\3\2\2\2\2S\3\2\2\2\2U\3\2"+
+		"\2\2\2W\3\2\2\2\2Y\3\2\2\2\2[\3\2\2\2\2]\3\2\2\2\2_\3\2\2\2\2a\3\2\2\2"+
+		"\2c\3\2\2\2\2e\3\2\2\2\2g\3\2\2\2\2i\3\2\2\2\2k\3\2\2\2\2m\3\2\2\2\2o"+
+		"\3\2\2\2\2q\3\2\2\2\2s\3\2\2\2\2u\3\2\2\2\2w\3\2\2\2\2y\3\2\2\2\2{\3\2"+
+		"\2\2\2}\3\2\2\2\2\177\3\2\2\2\2\u0081\3\2\2\2\2\u0083\3\2\2\2\3\u00ed"+
+		"\3\2\2\2\3\u00ef\3\2\2\2\3\u00f1\3\2\2\2\3\u00f3\3\2\2\2\4\u00f5\3\2\2"+
+		"\2\4\u00f7\3\2\2\2\4\u00f9\3\2\2\2\4\u00fb\3\2\2\2\4\u00fd\3\2\2\2\4\u00ff"+
 		"\3\2\2\2\5\u0101\3\2\2\2\5\u0103\3\2\2\2\5\u0105\3\2\2\2\5\u0107\3\2\2"+
 		"\2\5\u0109\3\2\2\2\5\u010b\3\2\2\2\5\u010d\3\2\2\2\5\u010f\3\2\2\2\5\u0111"+
 		"\3\2\2\2\6\u0113\3\2\2\2\6\u0115\3\2\2\2\6\u0117\3\2\2\2\6\u0119\3\2\2"+

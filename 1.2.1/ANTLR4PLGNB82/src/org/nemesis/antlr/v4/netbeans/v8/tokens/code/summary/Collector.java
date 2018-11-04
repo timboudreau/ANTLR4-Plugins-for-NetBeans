@@ -29,6 +29,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.nemesis.antlr.v4.netbeans.v8.tokens.code.summary;
 
 import java.nio.file.Path;
+import java.util.Optional;
 
 import javax.swing.text.Document;
 
@@ -46,10 +47,10 @@ import org.nemesis.antlr.v4.netbeans.v8.tokens.code.checking.impl.TokensParser.T
  */
 public class Collector extends TokensBaseListener {
     protected final Document      doc;
-    protected final Path          sourceFilePath;
+    protected final Optional<Path>          sourceFilePath;
     protected       TokensSummary summary;
     
-    public Collector(Document doc, Path sourceFilePath) {
+    public Collector(Document doc, Optional<Path> sourceFilePath) {
 //        System.out.println("Collector:Collector(Document, Path) : begin");
         this.doc = doc;
         this.sourceFilePath = sourceFilePath;

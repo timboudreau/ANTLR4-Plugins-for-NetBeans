@@ -28,22 +28,46 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
 
-import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
 /**
  *
  * @author Frédéric Yvon Vinet
  */
-public class RuleDeclaration {
-    private final Path   filePath;
+public class RuleDeclaration implements RuleElement {
     private final String ruleID;
     private       int    startOffset;
     private       int    endOffset;
-    
-    public Path getFilePath() {
-        return filePath;
+    private final RuleElementKind kind;
+    private List<RuleDeclaration> namedAlternatives;
+    private int ruleStartOffset;
+    private int ruleEndOffset;
+
+    public List<RuleDeclaration> namedAlternatives() {
+        if (namedAlternatives == null) {
+            return Collections.emptyList();
+        }
+        return namedAlternatives;
     }
 
+    public RuleDeclaration addNamedAlternative(String name, int tokenStart, int tokenEnd) {
+        if (namedAlternatives == null) {
+            namedAlternatives = new ArrayList<>(5);
+        }
+        RuleDeclaration result = new RuleDeclaration(RuleElementKind.PARSER_NAMED_ALTERNATIVE_SUBRULE,
+            name, tokenStart, tokenEnd);
+        namedAlternatives.add(result);
+        return result;
+    }
+
+    public boolean hasNamedAlternatives() {
+        return namedAlternatives != null;
+    }
+    
     public String getRuleID() {
         return ruleID;
     }
@@ -59,19 +83,91 @@ public class RuleDeclaration {
     public int getEndOffset() {
         return endOffset;
     }
+
+    public int getRuleStartOffset() {
+        return ruleStartOffset;
+    }
+
+    public int getRuleEndOffset() {
+        return ruleEndOffset;
+    }
     
     public void setEndOffset(int endOffset) {
         this.endOffset = endOffset;
     }
+
+    public boolean overlaps(int position) {
+        return position >= startOffset && position < endOffset;
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+         sb.append(ruleID).append("@").append(startOffset).append(":").append(endOffset);
+         if (hasNamedAlternatives()) {
+             sb.append('{');
+             for (Iterator<RuleDeclaration> it=namedAlternatives.iterator(); it.hasNext();) {
+                 RuleDeclaration alt = it.next();
+                 sb.append(alt.getRuleID());
+                 if (it.hasNext()) {
+                     sb.append(',');
+                 }
+             }
+         }
+         return sb.append(" (").append(kind).append(')').toString();
+    }
     
+    public RuleElementKind kind() {
+        return kind;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 53;
+        hash = 23 * hash + Objects.hashCode(this.ruleID);
+        hash = 23 * hash + this.startOffset;
+        hash = 23 * hash + this.endOffset;
+        hash = 23 * hash + kind.ordinal();
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        } else if (obj == null || !(obj instanceof RuleDeclaration)) {
+            return false;
+        }
+        final RuleDeclaration other = (RuleDeclaration) obj;
+        return this.startOffset == other.startOffset &&
+                this.endOffset == other.endOffset &&
+                this.kind == other.kind
+                && this.ruleID.equals(ruleID);
+    }
+
     public RuleDeclaration
-            (Path   filePath   ,
+            (RuleElementTarget target,
+             String ruleID     ,
+             int    startOffset,
+             int    endOffset,
+             int    ruleStartOffset,
+             int    ruleEndOffset) {
+        this.kind = target.declarationKind();
+        this.ruleID = ruleID;
+        this.startOffset = startOffset;
+        this.endOffset = endOffset;
+        this.ruleStartOffset = ruleStartOffset;
+        this.ruleEndOffset = ruleEndOffset;
+    }
+
+    private RuleDeclaration
+            (RuleElementKind kind,
              String ruleID     ,
              int    startOffset,
              int    endOffset  ) {
-        this.filePath = filePath;
+        this.kind= kind;
         this.ruleID = ruleID;
         this.startOffset = startOffset;
         this.endOffset = endOffset;
     }
+
 }

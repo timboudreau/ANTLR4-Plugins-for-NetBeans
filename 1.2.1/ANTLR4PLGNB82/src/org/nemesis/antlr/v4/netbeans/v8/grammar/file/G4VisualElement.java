@@ -25,22 +25,39 @@ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file;
 
+import java.awt.BorderLayout;
+import java.awt.EventQueue;
+import java.io.File;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToolBar;
-
+import javax.swing.SwingConstants;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.UndoRedoProvider;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.PreviewPanel;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
-
+import org.openide.awt.StatusDisplayer;
 import org.openide.awt.UndoRedo;
+import org.openide.cookies.SaveCookie;
+import org.openide.filesystems.FileUtil;
 
 import org.openide.util.Lookup;
+import org.openide.util.LookupEvent;
+import org.openide.util.LookupListener;
+import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.RequestProcessor;
 
 import org.openide.windows.TopComponent;
 
@@ -52,17 +69,30 @@ import org.openide.windows.TopComponent;
         preferredID = "G4Visual",
         position = 2000
 )
-@Messages("LBL_G4_VISUAL=Graphic")
-public final class G4VisualElement extends JPanel implements MultiViewElement {
+@Messages({"LBL_G4_VISUAL=Tester", "LBL_LOADING=Loading..."})
+public final class G4VisualElement extends JPanel implements MultiViewElement, LookupListener {
 
     private final G4DataObject obj;
-    private final JToolBar     toolbar = new JToolBar();
+    private final JToolBar toolbar = new JToolBar();
     private transient MultiViewElementCallback callback;
+    private final JLabel loadingLabel = new JLabel(Bundle.LBL_LOADING());
+    private static final Logger LOG = Logger.getLogger(
+            G4VisualElement.class.getName());
+    private static final RequestProcessor INIT
+            = new RequestProcessor(G4VisualElement.class.getName(), 3);
+    private final MutableProxyLookup lkp;
+    private UndoRedo undoRedo = UndoRedo.NONE;
+    private Lookup.Result<SaveCookie> saveCookieResult;
 
     public G4VisualElement(Lookup lkp) {
         obj = lkp.lookup(G4DataObject.class);
+        this.lkp = new MutableProxyLookup(lkp);
         assert obj != null;
         initComponents();
+        loadingLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        loadingLabel.setVerticalAlignment(SwingConstants.CENTER);
+        loadingLabel.setEnabled(false);
+        add(loadingLabel, BorderLayout.CENTER);
     }
 
     @Override
@@ -78,16 +108,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
-        this.setLayout(layout);
-        layout.setHorizontalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 400, Short.MAX_VALUE)
-        );
-        layout.setVerticalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 300, Short.MAX_VALUE)
-        );
+        setLayout(new java.awt.BorderLayout());
     }// </editor-fold>//GEN-END:initComponents
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -104,16 +125,81 @@ public final class G4VisualElement extends JPanel implements MultiViewElement {
 
     @Override
     public Action[] getActions() {
-        return new Action[0];
+        return callback == null ? new Action[0] : callback.createDefaultActions();
     }
 
     @Override
     public Lookup getLookup() {
-        return obj.getLookup();
+        return lkp;
+    }
+
+    private RequestProcessor.Task initTask;
+
+    @Messages({
+        "# {0} - grammar file path",
+        "NOT_A_FILE=Not a valid file: {0}",
+        "# {0} - grammar file path",
+        "NOT_REGULAR_FILE=Virtual files cannot be parsed by Antlr: {0}",
+        "# {0} - grammar file path",
+        "REGISTERING_DYNAMIC=Compiling {0} and registering syntax highlighting",
+        "# {0} - grammar file path",
+        "REGISTERING_COMPLETE=Language registration complete: {0}"
+    })
+    private void lazyInit() {
+        LOG.log(Level.FINER, "Lazy init for {0}", obj.getPrimaryFile().getPath());
+        if (initTask != null) {
+            LOG.log(Level.WARNING, "Init for {0} called twice", obj.getPrimaryFile().getPath());
+            return;
+        }
+        if (obj.isValid()) {
+            File file = FileUtil.toFile(obj.getPrimaryFile());
+            if (file != null) {
+                StatusDisplayer.getDefault().setStatusText(
+                        Bundle.REGISTERING_DYNAMIC(obj.getPrimaryFile().getNameExt()));
+                initTask = INIT.create(() -> {
+                    _lazyInit(file.toPath());
+                });
+                initTask.schedule(50);
+            } else {
+                loadingLabel.setText(Bundle.NOT_REGULAR_FILE(obj.getPrimaryFile().getPath()));
+            }
+        } else {
+            loadingLabel.setText(Bundle.NOT_A_FILE(obj.getPrimaryFile().getPath()));
+        }
+    }
+
+    private void _lazyInit(Path path) {
+        assert !EventQueue.isDispatchThread();
+        // XXX theoretically the file can be deleted between lazyInit() and
+        // this being run on a background thread
+        String mime = AdhocMimeTypes.mimeTypeForPath(path);
+        LOG.log(Level.FINER, "Background lanugage registration of {0}"
+                + " as pseudo-mime-type {1}", new Object[]{obj.getPrimaryFile().getPath(), mime});
+        long then = System.currentTimeMillis();
+        EventQueue.invokeLater(() -> {
+            StatusDisplayer.getDefault()
+                    .setStatusText(
+                            Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
+            LOG.log(Level.FINEST,
+                    "Lazy load completed in {0} ms", new Object[]{
+                        System.currentTimeMillis() - then});
+            PreviewPanel pnl = new PreviewPanel(mime, obj.getLookup());
+            UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
+            if (prov != null) {
+                this.undoRedo = prov.get();
+                super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
+            }
+            this.lkp.setAdditional(pnl.getLookup());
+            saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
+            saveCookieResult.addLookupListener(this);
+            remove(loadingLabel);
+            add(pnl, BorderLayout.CENTER);
+        });
     }
 
     @Override
     public void componentOpened() {
+        lazyInit();
     }
 
     @Override
@@ -138,7 +224,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement {
 
     @Override
     public UndoRedo getUndoRedo() {
-        return UndoRedo.NONE;
+        return undoRedo;
     }
 
     @Override
@@ -149,5 +235,20 @@ public final class G4VisualElement extends JPanel implements MultiViewElement {
     @Override
     public CloseOperationState canCloseElement() {
         return CloseOperationState.STATE_OK;
+    }
+
+    @Override
+    public void resultChanged(LookupEvent le) {
+        if (callback != null) {
+            Mutex.EVENT.readAccess((Runnable) () -> {
+                Collection<? extends SaveCookie> all = saveCookieResult.allInstances();
+                System.out.println("save cookie result changed: " + all);
+                if (all.isEmpty()) {
+                    callback.updateTitle(obj.getName());
+                } else {
+                    callback.updateTitle("<b>" + obj.getName() + "*");
+                }
+            });
+        }
     }
 }

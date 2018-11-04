@@ -50,7 +50,9 @@ public class GrammarFoldTypeProvider implements FoldTypeProvider {
     }
     
     @Override
-    public Collection<? extends FoldType> getValues(Class type) {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    // the API really is Class, not Class<?>
+    public Collection<? extends FoldType> getValues(@SuppressWarnings({"unchecked", "rawtypes"}) Class type) {
         return type == FoldType.class ? types : null;
     }
 

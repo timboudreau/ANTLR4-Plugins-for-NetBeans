@@ -28,7 +28,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
@@ -38,12 +37,13 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import java.util.logging.Logger;
 
 import javax.swing.text.Document;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 
@@ -68,7 +68,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import org.nemesis.antlr.v4.netbeans.v8.project.ProjectType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 
-import org.netbeans.api.project.Project;
 
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -83,7 +82,7 @@ public class ANTLRv4GrammarChecker {
     
     private       ANTLRv4Parser                 parser;
     private final Document                      doc;
-    private final Path                          grammarFilePath;
+    private final Optional<Path>                grammarFilePath;
     private       String                        grammarName;
     private       GrammarType                   grammarType;
     private final Map<String, RuleDeclaration>  tokenRuleDeclarations;
@@ -167,9 +166,9 @@ public class ANTLRv4GrammarChecker {
   */
     public ANTLRv4GrammarChecker(Document doc, Path grammarFilePath) {
         assert doc != null;
-        assert grammarFilePath != null;
+//        assert grammarFilePath != null;
         this.doc = doc;
-        this.grammarFilePath = grammarFilePath;
+        this.grammarFilePath = Optional.ofNullable(grammarFilePath);
         this.parser = null;
         this.grammarName = null;
         this.grammarType = GrammarType.UNDEFINED;
@@ -183,42 +182,36 @@ public class ANTLRv4GrammarChecker {
         this.semanticWarnings = null;
     }
     
-    
     public void check(String contentToBeParsed) {
         assert contentToBeParsed != null;
-        Project project = ProjectHelper.getProject(doc);
-        ProjectType projectType = ProjectHelper.getProjectType(project);
-
-        try (
-            Reader sr = new StringReader(contentToBeParsed);
-        ) {
-            ANTLRInputStream input = new ANTLRInputStream(sr);
-            ANTLRv4Lexer lexer = new ANTLRv4Lexer(input);
+        ProjectType projectType = ProjectHelper.getProjectType(doc);
+        try (Reader sr = new StringReader(contentToBeParsed)) {
+            ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
                 
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             parser = new ANTLRv4Parser(tokens);
+            FileObject grammarFO = grammarFilePath.isPresent()?
+                    FileUtil.toFileObject(grammarFilePath.get().toFile()) : null;
             
-            File grammarFile = grammarFilePath.toFile();
-            FileObject grammarFO = FileUtil.toFileObject(grammarFile);
             syntacticErrorListener = new ANTLRv4SyntacticErrorListener(grammarFO);
             parser.removeErrorListeners(); // remove ConsoleErrorListener
             parser.addErrorListener(syntacticErrorListener); // add ours
             
          // If we are in an undefined project type, we do nothing
-            if (projectType != ProjectType.UNDEFINED) {
+//            if (projectType != ProjectType.UNDEFINED) {
              // We add a collector in charge of collecting a summary of grammar
              // (summary is attached to parsed document as a property with 
              // GrammarSummary.class as a key)
                 Collector collector = new Collector(doc, grammarFilePath);
                 parser.addParseListener(collector);
-            }
+//            }
          // First step : we parse our grammar
             ParseTree tree = parser.grammarFile();
             
          // Second step: we walk through parse tree in order to recover semantic
          // info and determine if there are semantic errors
          // If we are in an undefined project type, we do nothing
-            if (projectType != ProjectType.UNDEFINED) {
+//            if (projectType != ProjectType.UNDEFINED) {
                 ParseTreeWalker walker = new ParseTreeWalker();
                 GrammarSummary summary = (GrammarSummary) 
                                           doc.getProperty(GrammarSummary.class);
@@ -242,7 +235,7 @@ public class ANTLRv4GrammarChecker {
              // hyperlinks
                 HyperlinkParser hyperlinkParser = new HyperlinkParser(doc);
                 walker.walk(hyperlinkParser, tree);
-            }
+//            }
         } catch (IOException ex) {
                 LOG.severe("Strange! Unable to read the String Buffer");
         } catch (RecognitionException ex) {

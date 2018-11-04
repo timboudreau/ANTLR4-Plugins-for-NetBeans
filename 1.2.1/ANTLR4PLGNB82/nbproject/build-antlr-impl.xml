@@ -104,6 +104,7 @@
 
         <!--Destination for generated Java files.-->
         <mkdir dir="${antlr.generator.dest.dir}"/>
+        <echo>Generator classpath: ${antlr.generator.classpath}</echo>
         <!--Implementation using the ANTLR4 task does not accept multiple
             source files. So use the java task. When grammar files are
             identified by relative paths, the ANTLR Tool produces corresponding
@@ -114,6 +115,10 @@
               fork="true"
               dir="${antlr.generator.src.dir}"
               failonerror="true">
+            <arg value="-visitor"/>
+            <arg value="-listener"/>
+            <arg value="-message-format"/>
+            <arg value="gnu"/>
             <arg value="-package"/>
             <arg value="${antlr.generated.package}"/>
             <arg value="-o"/>
@@ -122,8 +127,14 @@
             <arg path="${antlr.generator.import.dir}"/>
             <arg line="${antlr.temp.src.list}"/>
             <classpath>
+                <!--
+                antlr.runtime.classpath=${basedir}/release/libs/antlr4-4.7.1.jar:${basedir}/release/libs/ST4-4.0.8.jar:${basedir}/release/libs/antlr4-runtime-4.7.1.jar
+ -->
                 <!--Here we need the complete ANTLR release that is the release
                 including the ANTLR code generation tool-->
+                <pathelement path="${basedir}/release/libs/antlr4-4.7.1.jar"/>
+                <pathelement path="${basedir}/release/libs/ST4-4.0.8.jar"/>
+                <pathelement path="${basedir}/release/libs/antlr4-runtime-4.7.1.jar"/>
                 <pathelement path="${antlr.generator.classpath}"/>
                 <pathelement path="${javac.classpath}"/>
             </classpath>

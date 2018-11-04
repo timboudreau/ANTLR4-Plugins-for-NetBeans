@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fontscolors PUBLIC "-//NetBeans//DTD Editor Fonts and Colors settings 1.1//EN" "http://www.netbeans.org/dtds/EditorFontsColors-1_1.dtd">
+<fontscolors>
+    <fontcolor default="default" foreColor="ffb37e7e" name="identifier"/>
+    <fontcolor default="default" foreColor="ff9999fd" name="parserRuleIdentifier"/>
+    <fontcolor default="default" foreColor="ff9999ff" name="lexerCharSet"/>
+    <fontcolor default="default" foreColor="ffb7b7f2" name="parser_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="ff669900" name="fragment_reference">
+        <font style="italic"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="green" name="punctuation"/>
+    <fontcolor default="default" foreColor="ffcb9664" name="lexer_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="black" name="comment"/>
+    <fontcolor default="default" foreColor="ff9664cb" name="keyword"/>
+    <fontcolor default="default" foreColor="ff96cb64" name="fragment_declaration">
+        <font style="bold"/>
+    </fontcolor>
+    <fontcolor default="default" foreColor="ff99ffcc" name="literal"/>
+    <fontcolor default="default" foreColor="ffcb9664" name="token"/>
+    <fontcolor name="named_alternative"    foreColor="yellow" default="default">
+        <font style="bold"/>
+    </fontcolor>
+</fontscolors>

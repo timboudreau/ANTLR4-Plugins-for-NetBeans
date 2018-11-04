@@ -35,7 +35,8 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.TokenStream;
 
@@ -49,7 +50,6 @@ import org.netbeans.api.lexer.TokenHierarchy;
 
 import org.netbeans.editor.BaseDocument;
 
-import org.netbeans.modules.editor.NbEditorUtilities;
 
 import org.netbeans.spi.editor.completion.CompletionResultSet;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionQuery;
@@ -152,7 +152,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
 //                System.out.println("- content to be parsed:");
 //                System.out.println("'" + contentToBeParsed+ "'");
 //                System.out.println("  length of content to be parsed=" + contentToBeParsed.length());
-                ANTLRInputStream input = new ANTLRInputStream(contentToBeParsed);
+                CharStream input = CharStreams.fromString(contentToBeParsed);
                 org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer
                     lexer = new
                         org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer

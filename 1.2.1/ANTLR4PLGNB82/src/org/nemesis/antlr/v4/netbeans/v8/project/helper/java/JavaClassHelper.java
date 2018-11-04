@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Lexer;
@@ -529,8 +529,7 @@ public class JavaClassHelper {
         assert javaFilePath != null;
         JavaSourceClass answer;
         try (Reader sr = new FileReader(javaFilePath.toString()) ) {
-            ANTLRInputStream input = new ANTLRInputStream(sr);
-            JavaLexer lexer = new JavaLexer(input);
+            JavaLexer lexer = new JavaLexer(CharStreams.fromReader(sr));
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             JavaParser parser = new JavaParser(tokens);
             parser.removeErrorListeners(); // remove ConsoleErrorListener

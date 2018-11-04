@@ -78,7 +78,6 @@ public class ANTLRv4LanguageHierarchy extends LanguageHierarchy<ANTLRv4TokenId> 
     }
     
     public static Language<ANTLRv4TokenId> getLanguage() {
-//        return new ANTLRv4LanguageHierarchy().language();
         return language;
     }
 
@@ -90,7 +89,6 @@ public class ANTLRv4LanguageHierarchy extends LanguageHierarchy<ANTLRv4TokenId> 
      */
     @Override
     protected synchronized Lexer<ANTLRv4TokenId> createLexer(LexerRestartInfo<ANTLRv4TokenId> info) {
-//        System.out.println("creation of a new lexer for lexing on a part");
         return new NBANTLRv4Lexer(info);
     }
 

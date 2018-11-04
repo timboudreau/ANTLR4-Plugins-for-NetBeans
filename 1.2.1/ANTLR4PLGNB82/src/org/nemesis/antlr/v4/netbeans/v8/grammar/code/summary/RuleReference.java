@@ -28,14 +28,18 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
 
+import java.util.Objects;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget;
+
 /**
  *
  * @author Frédéric Yvon Vinet
  */
-public class RuleReference {
+public class RuleReference implements RuleElement {
     private final String ruleID;
     private final int    startOffset;
     private final int    endOffset;
+    private RuleElementTarget target;
 
     public String getRuleID() {
         return ruleID;
@@ -48,13 +52,70 @@ public class RuleReference {
     public int getEndOffset() {
         return endOffset;
     }
+
+    public String toString() {
+        return ruleID + "@" + startOffset + ":" + endOffset + " (" + kind() + ")";
+    }
+
+    public void setTarget(RuleElementTarget target) {
+        assert target != null;
+        this.target = target;
+    }
+
+    public RuleElementKind kind() {
+        return target.referenceKind();
+    }
     
     public RuleReference
-           (String ruleID     ,
+           (RuleElementTarget target, String ruleID     ,
             int    startOffset,
             int    endOffset  ) {
         this.ruleID = ruleID;
         this.startOffset = startOffset;
         this.endOffset = endOffset;
+        this.target = target;
     }
+
+    public boolean overlaps(int position) {
+        return position >= startOffset && position < endOffset;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 11 * hash + Objects.hashCode(this.ruleID);
+        hash = 11 * hash + this.startOffset;
+        hash = 11 * hash + this.endOffset;
+        hash = 11 * hash + Objects.hashCode(this.target);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final RuleReference other = (RuleReference) obj;
+        if (this.startOffset != other.startOffset) {
+            return false;
+        }
+        if (this.endOffset != other.endOffset) {
+            return false;
+        }
+        if (!Objects.equals(this.ruleID, other.ruleID)) {
+            return false;
+        }
+        if (this.target != other.target) {
+            return false;
+        }
+        return true;
+    }
+
+    
 }

@@ -88,6 +88,9 @@ public class ErrorBadgingUpdater extends EmbeddingIndexer {
         if (!errorList.isEmpty()) {
             StyledDocument sDoc = ProjectHelper.getDocument
                              (result.getSnapshot().getSource().getFileObject());
+            if (sDoc == null) {
+                return;
+            }
             Convertor<ParsingError> convertor = new ErrorConvertor(sDoc);
             ErrorsCache.setErrors(cntxt.getRootURI(),
                                   indxbl            ,

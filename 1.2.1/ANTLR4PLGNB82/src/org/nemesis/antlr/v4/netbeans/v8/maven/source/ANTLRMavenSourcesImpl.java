@@ -34,6 +34,7 @@ import java.nio.file.Path;
 
 import java.util.HashSet;
 import java.util.Set;
+import static org.nemesis.antlr.v4.netbeans.v8.project.helper.MavenProjectHelper.DEFAULT_ANTLR_SOURCE_DIR;
 
 import org.netbeans.api.project.Project;
 
@@ -57,7 +58,6 @@ import org.openide.filesystems.FileUtil;
         projectType="org-netbeans-modules-maven")
 public class ANTLRMavenSourcesImpl
        implements OtherSourcesExclude {
-    private static final String ANTLR4 = "src/main/antlr4"; //NOI18N
     
     protected final Project       proj;
     protected final FileObject    projectDirectory;
@@ -81,7 +81,7 @@ public class ANTLRMavenSourcesImpl
 //        System.out.println("ANTLRMavenSourcesImpl.excludedFolders() -> Set<Path>");
         HashSet<Path> answer = new HashSet<>();
         File projectDir = FileUtil.toFile(projectDirectory);
-        File antlr4Dir = new File(projectDir, ANTLR4);
+        File antlr4Dir = new File(projectDir, DEFAULT_ANTLR_SOURCE_DIR);
         if (antlr4Dir.exists()     &&
             antlr4Dir.isDirectory()  )
             answer.add(antlr4Dir.toPath());

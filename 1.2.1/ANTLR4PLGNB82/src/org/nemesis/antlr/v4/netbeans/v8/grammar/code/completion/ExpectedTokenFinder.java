@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 import javax.swing.text.Document;
 
@@ -76,7 +77,7 @@ import org.netbeans.modules.editor.NbEditorUtilities;
  */
 public class ExpectedTokenFinder extends BaseErrorListener {
     protected final Document                         doc;
-    protected final Path                             grammarPath;
+    protected final Optional<Path>                   grammarPath;
     protected final String                           grammarName;
     protected final GrammarType                      grammarType;
     protected final List<String>                     importedGrammarIds;
@@ -507,10 +508,13 @@ public class ExpectedTokenFinder extends BaseErrorListener {
                              extraWhitespaceRequiredAfter                     );
                     answer.add(gci);
                         
-                    Project project = ProjectHelper.getProject(doc);
-                    List<String> possibleJavaClasses = ProjectHelper.
+                    Optional<Project> project = ProjectHelper.getProject(doc);
+                    List<String> possibleJavaClasses = Collections.emptyList();
+                    if (project.isPresent()) {
+                        possibleJavaClasses = ProjectHelper.
                               retrieveJavaClassesExtendingImplementingANTLRToken
-                                                  (project);
+                                                  (project.get());
+                    }
                     Iterator<String> stringIt = possibleJavaClasses.iterator();
                     String possibleJavaClass;
                     while (stringIt.hasNext()) {
@@ -531,24 +535,26 @@ public class ExpectedTokenFinder extends BaseErrorListener {
                  // org.antlr.v4.runtime.Lexer if it is a lexer grammar
                  // or from org.antlr.v4.runtime.Parser if it is a parser
                  // or combined grammar
-                    Project project = ProjectHelper.getProject(doc);
-                    List<String> possibleJavaClasses;
-                    switch (grammarType) {
-                        case LEXER:
-//                            System.out.println("lexer grammar");
-                            possibleJavaClasses = ProjectHelper.
-                                          retrieveJavaClassesExtendingANTLRLexer
-                                                                      (project);
-                            break;
-                        case PARSER:
-                        case COMBINED: // For a combined grammar superClass applies to generated parser
-                            possibleJavaClasses = ProjectHelper.
-                                         retrieveJavaClassesExtendingANTLRParser
-                                                                      (project);
-                            break;
-                        default:
- //                           System.out.println("undefined grammar");
-                            possibleJavaClasses = null;
+                    Optional<Project> project = ProjectHelper.getProject(doc);
+                    List<String> possibleJavaClasses = null;
+                    if (project.isPresent()) {
+                        switch (grammarType) {
+                            case LEXER:
+    //                            System.out.println("lexer grammar");
+                                possibleJavaClasses = ProjectHelper.
+                                              retrieveJavaClassesExtendingANTLRLexer
+                                                                          (project.get());
+                                break;
+                            case PARSER:
+                            case COMBINED: // For a combined grammar superClass applies to generated parser
+                                possibleJavaClasses = ProjectHelper.
+                                             retrieveJavaClassesExtendingANTLRParser
+                                                                          (project.get());
+                                break;
+                            default:
+     //                           System.out.println("undefined grammar");
+                                possibleJavaClasses = null;
+                        }
                     }
                     if (possibleJavaClasses != null) {
                         Iterator<String> stringIt =
@@ -585,10 +591,13 @@ public class ExpectedTokenFinder extends BaseErrorListener {
                         if (lexerRuleNumber != 0)
                             excludedTokenFiles.add(grammarName + "Lexer");
                     }
-                    Project project = ProjectHelper.getProject(doc);
-                    List<String> possibleTokenFiles = ProjectHelper.
-                                       retrieveTokenFilesInProjectImportableFrom
-                                     (project, grammarPath, excludedTokenFiles);
+                    Optional<Project> project = ProjectHelper.getProject(doc);
+                    List<String> possibleTokenFiles = Collections.emptyList();
+                    if (project.isPresent() && grammarPath.isPresent()) {
+                        possibleTokenFiles =
+                            ProjectHelper.retrieveTokenFilesInProjectImportableFrom
+                                (project.get(), grammarPath.get(), excludedTokenFiles);
+                    }
 //                    System.out.println("- possible Token Files:");
                     for (String possibleTokenFile : possibleTokenFiles) {
 //                        System.out.println("  * " + possibleTokenFile);

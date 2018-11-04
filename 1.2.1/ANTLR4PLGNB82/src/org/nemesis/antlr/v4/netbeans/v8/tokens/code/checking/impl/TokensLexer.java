@@ -1,4 +1,4 @@
-// Generated from TokensLexer.g4 by ANTLR 4.6
+// Generated from TokensLexer.g4 by ANTLR 4.7.1
 package org.nemesis.antlr.v4.netbeans.v8.tokens.code.checking.impl;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -11,13 +11,17 @@ import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class TokensLexer extends Lexer {
-	static { RuntimeMetaData.checkVersion("4.6", RuntimeMetaData.VERSION); }
+	static { RuntimeMetaData.checkVersion("4.7.1", RuntimeMetaData.VERSION); }
 
 	protected static final DFA[] _decisionToDFA;
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
 		TOKEN_ID=1, TOKEN_LITERAL=2, TOKEN_VALUE=3, EQUAL=4, CR=5, WS=6, ERROR=7;
+	public static String[] channelNames = {
+		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
+	};
+
 	public static String[] modeNames = {
 		"DEFAULT_MODE"
 	};
@@ -89,13 +93,16 @@ public class TokensLexer extends Lexer {
 	public String getSerializedATN() { return _serializedATN; }
 
 	@Override
+	public String[] getChannelNames() { return channelNames; }
+
+	@Override
 	public String[] getModeNames() { return modeNames; }
 
 	@Override
 	public ATN getATN() { return _ATN; }
 
 	public static final String _serializedATN =
-		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\2\t\u015c\b\1\4\2\t"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\2\t\u015c\b\1\4\2\t"+
 		"\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
 		"\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
 		"\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -127,8 +134,8 @@ public class TokensLexer extends Lexer {
 		"ttvv\3\2\63;\5\2\62;CHch\3\2\62;\6\2\f\f\17\17))^^\6\2\f\f\17\17$$^^\5"+
 		"\2\u00b9\u00b9\u0302\u0371\u2041\u2042\r\2\u00c2\u00d8\u00da\u00f8\u00fa"+
 		"\u0301\u0372\u037f\u0381\u2001\u200e\u200f\u2072\u2191\u2c02\u2ff1\u3003"+
-		"\ud801\uf902\ufdd1\ufdf2\uffff\u0141\2\3\3\2\2\2\2\5\3\2\2\2\2\7\3\2\2"+
-		"\2\2\t\3\2\2\2\2\13\3\2\2\2\2\r\3\2\2\2\2\17\3\2\2\2\3y\3\2\2\2\5\u0080"+
+		"\ud801\uf902\ufdd1\ufdf2\uffff\2\u0141\2\3\3\2\2\2\2\5\3\2\2\2\2\7\3\2"+
+		"\2\2\2\t\3\2\2\2\2\13\3\2\2\2\2\r\3\2\2\2\2\17\3\2\2\2\3y\3\2\2\2\5\u0080"+
 		"\3\2\2\2\7\u0082\3\2\2\2\t\u0084\3\2\2\2\13\u0086\3\2\2\2\r\u0088\3\2"+
 		"\2\2\17\u008a\3\2\2\2\21\u008e\3\2\2\2\23\u0090\3\2\2\2\25\u0092\3\2\2"+
 		"\2\27\u0094\3\2\2\2\31\u00a0\3\2\2\2\33\u00ad\3\2\2\2\35\u00b6\3\2\2\2"+

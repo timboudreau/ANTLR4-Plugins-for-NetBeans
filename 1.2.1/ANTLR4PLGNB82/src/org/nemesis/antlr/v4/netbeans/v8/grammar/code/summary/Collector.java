@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.swing.text.Document;
 
@@ -77,14 +78,14 @@ import org.openide.loaders.DataObjectNotFoundException;
  * @author Frédéric Yvon Vinet
  */
 public class Collector extends ANTLRv4BaseListener {
-    protected final Path           sourceFilePath;
+    protected final Optional<Path>           sourceFilePath;
     protected final Document       doc;
     protected       GrammarSummary summary;
     
     protected       String         currentMode;
 
     
-    public Collector(Document doc, Path sourceFilePath)
+    public Collector(Document doc, Optional<Path> sourceFilePath)
             throws DataObjectNotFoundException, IOException  {
 //        System.out.println("Collector:Collector(Document, Path) : begin");
 //        System.out.println("- source file path=" + sourceFilePath);
@@ -336,7 +337,6 @@ public class Collector extends ANTLRv4BaseListener {
                 Token grammarIdToken = idTN.getSymbol();
                 String grammarId = grammarIdToken.getText();
                 if (!grammarId.equals("<missing ID>")) {
-//                    System.out.println("grammar Id=" + grammarId);
                     summary.addImportedGrammar(grammarId);
                     int startOffset = grammarIdToken.getStartIndex();
                     int endOffset   = grammarIdToken.getStopIndex();
@@ -359,7 +359,6 @@ public class Collector extends ANTLRv4BaseListener {
                 Token idToken = idTN.getSymbol();
                 String tokenId = idToken.getText();
                 if (!tokenId.equals("<missing ID>")) {
-//                    System.out.println("token id=" + tokenId);
                     summary.addImportedTokenFile(tokenId);
                     int startOffset = idToken.getStartIndex();
                     summary.putImportedTokenFileIdStartOffset(tokenId, startOffset);
@@ -387,7 +386,6 @@ public class Collector extends ANTLRv4BaseListener {
                         id.append(lid);
                     }
                 }
-//                System.out.println("superClass=" + id.toString());
                 summary.setSuperClass(id.toString());
             }
         }
@@ -410,7 +408,6 @@ public class Collector extends ANTLRv4BaseListener {
                         id.append(lid);
                     }
                 }
-//                System.out.println("tokenClass=" + id.toString());
                 summary.setTokenClass(id.toString());
             }
         }
@@ -447,7 +444,6 @@ public class Collector extends ANTLRv4BaseListener {
                     if (idToken != null) {
                     String id = idToken.getText();
                     if (!id.equals("<missing ID>")) {
-//                        System.out.println("id=" + id);
                         summary.addChannel(id);
                         int startOffset = idToken.getStartIndex();
                         int endOffset   = idToken.getStopIndex();
@@ -482,12 +478,10 @@ public class Collector extends ANTLRv4BaseListener {
     
     @Override
     public void exitTokenRuleDeclaration (TokenRuleDeclarationContext ctx) {
-//        System.out.println("Collector:exitTokenRuleDeclaration(TokenRuleDeclarationContext) : begin");
         TerminalNode idTN = ctx.TOKEN_ID();
         if (idTN != null) {
             Token idToken = idTN.getSymbol();
             String id = idToken.getText();
-//            System.out.println("- id=" + id);
             if (!id.equals("<missing TOKEN_ID>")) {
                 summary.addTokenRuleId(id);
                 Map<String, List<String>> tokenRuleIdsOfMode =

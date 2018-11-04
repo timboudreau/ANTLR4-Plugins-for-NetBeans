@@ -45,6 +45,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import java.util.jar.JarEntry;
@@ -57,6 +58,8 @@ import javax.swing.text.StyledDocument;
 
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.JavaClass;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
+import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.IMPORT;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.ProjectType;
 
@@ -90,17 +93,18 @@ import org.openide.util.Lookup;
  * @author Frédéric Yvon Vinet
  */
 public class ProjectHelper {
-    public static Project getProject(Document doc) {
+
+    public static Optional<Project> getProject(Document doc) {
         assert doc != null;
         Project project = null;
         DataObject docDataObj = NbEditorUtilities.getDataObject(doc);
         if (docDataObj != null)
             project = FileOwnerQuery.getOwner(docDataObj.getPrimaryFile());
-        return project;
+        return Optional.ofNullable(project);
     }
     
     
-    public static Project getProject(Path absoluteFilePath) {
+    public static Optional<Project> getProject(Path absoluteFilePath) {
         assert absoluteFilePath != null;
         assert Files.exists(absoluteFilePath);
         File file = absoluteFilePath.toFile();
@@ -111,7 +115,7 @@ public class ProjectHelper {
             project = FileOwnerQuery.getOwner(fileObject);
         else
             project = null;
-        return project;
+        return Optional.ofNullable(project);
     }
     
     
@@ -155,10 +159,17 @@ public class ProjectHelper {
         }
         return doc;
     }
-    
+
+
+    public static ProjectType getProjectType(Document document) {
+        Optional<Project> project = getProject(document);
+        return !project.isPresent() ? ProjectType.UNDEFINED : getProjectType(project.get());
+    }
     
     public static ProjectType getProjectType(Project project) {
-        assert project != null;
+        if (project == null) {
+            return ProjectType.UNDEFINED;
+        }
         ProjectType l_projectType = ProjectType.UNDEFINED;
         Lookup projectLookup = project.getLookup();
         AntBuildExtender antBuildExtender =
@@ -178,76 +189,25 @@ public class ProjectHelper {
         
         return l_projectType;
     }
-    
-    
-    public static File getANTLRSourceDir(Project project) {
-        assert project != null;
-        FileObject projectDirFO = project.getProjectDirectory();
-        File projectDir = FileUtil.toFile(projectDirFO);
-        String antlrSrc = null;
-        ProjectType projectType = getProjectType(project);
-        switch (projectType) {
-            case ANT_BASED:
-             // By default, it will return "grammar"
-                antlrSrc = AntBasedProjectHelper.getAntProjectProperty
-                                         (project, "antlr.generator.src.dir");
-                break;
-            case MAVEN_BASED:
-                antlrSrc = "src/main/antlr4";
-                break;
-            case UNDEFINED:
-                antlrSrc = null;
-                break;
-        }
-        return antlrSrc == null ? null : new File(projectDir, antlrSrc);
-    }
-    
-    
-    public static File getANTLRImportDir(Project project) {
-        assert project != null;
-        FileObject projectDirFO = project.getProjectDirectory();
-        File projectDir = FileUtil.toFile(projectDirFO);
-        String antlrSrcImprt = null;
-        ProjectType projectType = getProjectType(project);
-        switch (projectType) {
-            case ANT_BASED:
-             // By default, it will return "grammar/imports"
-                antlrSrcImprt = AntBasedProjectHelper.getAntProjectProperty
-                                        (project, "antlr.generator.import.dir");
-                break;
-            case MAVEN_BASED:
-                antlrSrcImprt = "src/main/antlr4/imports";
-                break;
-            case UNDEFINED:
-                antlrSrcImprt = null;
-                break;
-        }
-        return antlrSrcImprt == null ? null : new File(projectDir, antlrSrcImprt);
-    }
-        
 
-    public static File getANTLRDestinationDir(Project project) {
+    private static File getANTLRSourceDir(Project project, Path grammarFilePath) {
         assert project != null;
-        FileObject projectDirFO = project.getProjectDirectory();
-        File projectDir = FileUtil.toFile(projectDirFO);
-        String antlrDestination = null;
         ProjectType projectType = getProjectType(project);
-        switch (projectType) {
-            case ANT_BASED:
-             // By default, it will return "grammar/imports"
-                antlrDestination = AntBasedProjectHelper.getAntProjectProperty
-                                          (project, "antlr.generator.dest.dir");
-                break;
-            case MAVEN_BASED:
-                antlrDestination = "target/generated-sources/antlr4";
-                break;
-            case UNDEFINED:
-                antlrDestination = null;
-                break;
-        }
-        return antlrDestination == null ? null : new File(projectDir, antlrDestination);
+        Optional<Path> result = projectType.sourcePath(project, AntlrFolders.SOURCE);
+        return result.isPresent() ? result.get().toFile() : grammarFilePath.getParent().toFile();
     }
     
+    private static File getANTLRImportDir(Project project, Path grammarFilePath) {
+        assert project != null;
+        Optional<Path> result = IMPORT.getPath(Optional.of(project), Optional.of(grammarFilePath));
+        return result.isPresent() ? result.get().toFile() : null;
+    }
+
+    private static File getANTLRDestinationDir(Project project) {
+        assert project != null;
+        Optional<Path> result = getProjectType(project).sourcePath(project, AntlrFolders.OUTPUT);
+        return result.isPresent() ? result.get().toFile() : null;
+    }
     
     public static File getJavaSourceDir(Project project) {
         assert project != null;
@@ -339,33 +299,36 @@ public class ProjectHelper {
         
      // Second step: we retrieve ANTLR v4 grammar files from ANTLR import 
      // directory
-        Project project = getProject(doc);
-        File importDir = getANTLRImportDir(project);
-        Path importDirPath = importDir.toPath();
-        if (!docDirPath.equals(importDirPath)) {
-            try (
-                DirectoryStream<Path> filePathStream = Files.newDirectoryStream
-                                                              (importDirPath);
-            ) {
-                Iterator<Path> iterator = filePathStream.iterator();
-                while (iterator.hasNext()) {
-                    Path path = iterator.next();
-//                    System.out.println("- path=" + path.toString());
-                    if (matcher.matches(path)) {
-//                        System.out.println("  accepted");
-                     // For recovering only the file name without the extension
-                     // we use FileObject that owns a method extracting that info
-                        File file = new File(path.toString());
-                        FileObject fo = FileUtil.toFileObject(file);
-                        answer.add(fo.getName());
+        Optional<Project> project = getProject(doc);
+        if (project.isPresent()) {
+            Optional<Path> importDir = AntlrFolders.IMPORT.getPath(project, Optional.of(docPath));
+            if (importDir.isPresent()) {
+                Path importDirPath = importDir.get();
+                if (!docDirPath.equals(importDirPath)) {
+                    try (
+                        DirectoryStream<Path> filePathStream = Files.newDirectoryStream
+                                                                      (importDirPath);
+                    ) {
+                        Iterator<Path> iterator = filePathStream.iterator();
+                        while (iterator.hasNext()) {
+                            Path path = iterator.next();
+        //                    System.out.println("- path=" + path.toString());
+                            if (matcher.matches(path)) {
+        //                        System.out.println("  accepted");
+                             // For recovering only the file name without the extension
+                             // we use FileObject that owns a method extracting that info
+                                File file = new File(path.toString());
+                                FileObject fo = FileUtil.toFileObject(file);
+                                answer.add(fo.getName());
+                            }
+                        }
+                    } catch (IOException         |
+                         PatternSyntaxException ex) {
+                        ex.printStackTrace();
                     }
                 }
-            } catch (IOException         |
-                 PatternSyntaxException ex) {
-                ex.printStackTrace();
             }
         }
-        
         return answer;
     }
     
@@ -873,7 +836,7 @@ public class ProjectHelper {
         assert grammarPath != null;
         System.out.println("- source grammar=" + grammarPath);
      // We look for .tokens files in import directory
-        File tokensSourceDir = getANTLRImportDir(project);
+        File tokensSourceDir = getANTLRImportDir(project, grammarPath);
         Path tokenSrcDirPath = tokensSourceDir.toPath();
         List<String> answer = retrieveTokenFilesInDirImportableFrom
                                           (tokenSrcDirPath, excludedTokenFiles);
@@ -892,8 +855,8 @@ public class ProjectHelper {
      //   of our importing grammar if this one is diffrent from import directory
      // - else in ANTLR destination directory 
      // We build the relative path of the directory of our importing grammar
-        File ANTLRSourceDir = ProjectHelper.getANTLRSourceDir(project);
-        File ANTLRImportDir = ProjectHelper.getANTLRImportDir(project);
+        File ANTLRSourceDir = ProjectHelper.getANTLRSourceDir(project, grammarPath);
+        File ANTLRImportDir = ProjectHelper.getANTLRImportDir(project, grammarPath);
         File destinationSourceDir = ProjectHelper.getANTLRDestinationDir(project);
         if (ANTLRImportDir.equals(ANTLRSourceDir)) {
             tokenSrcDirPath = Paths.get(destinationSourceDir.getName());

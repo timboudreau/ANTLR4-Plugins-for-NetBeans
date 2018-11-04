@@ -48,6 +48,8 @@ import org.nemesis.antlr.v4.netbeans.v8.maven.nodes.ANTLR4NodeRenamer;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.action.J2SEProjectToBeAdapted;
 import org.nemesis.antlr.v4.netbeans.v8.project.action.TaskException;
+import static org.nemesis.antlr.v4.netbeans.v8.project.helper.MavenProjectHelper.DEFAULT_ANTLR_IMPORT_DIR_NAME;
+import static org.nemesis.antlr.v4.netbeans.v8.project.helper.MavenProjectHelper.DEFAULT_ANTLR_SOURCE_DIR;
 
 import org.netbeans.api.project.Project;
 
@@ -58,16 +60,13 @@ import org.openide.filesystems.FileObject;
  * @author Frédéric Yvon Vinet
  */
 public class MavenBasedProject extends J2SEProjectToBeAdapted {
-    private static final String GRAMMAR_DIRECTORY_NAME = "src/main/antlr4";
-    private static final String IMPORTED_GRAMMAR_DIRECTORY_NAME = "src/main/antlr4/imports";
-    
+
     private static final String LINE_TERMINATOR = System.getProperty("line.separator");
-    
+
     public MavenBasedProject(Project project) {
         super(project);
     }
-    
-    
+
     @Override
     public void addANTLRSupport() throws TaskException {
      // Task 1: we create the grammar directory
@@ -94,7 +93,7 @@ public class MavenBasedProject extends J2SEProjectToBeAdapted {
      // IOException will be raised
         String projectDirectoryPathName = projectDirectory.getPath();
         final FileSystem fs = FileSystems.getDefault();
-        Path grammarDirectoryPath = fs.getPath(projectDirectoryPathName, GRAMMAR_DIRECTORY_NAME);
+        Path grammarDirectoryPath = fs.getPath(projectDirectoryPathName, DEFAULT_ANTLR_SOURCE_DIR);
         File grammarDirectory = grammarDirectoryPath.toFile();
         if (!grammarDirectory.exists()) {
             grammarDirectory.mkdirs();
@@ -106,7 +105,7 @@ public class MavenBasedProject extends J2SEProjectToBeAdapted {
             out.println("* ... ANTLR grammar directory already exists            *");
         }
         
-        Path importedGrammarDirectoryPath = fs.getPath(projectDirectoryPathName, IMPORTED_GRAMMAR_DIRECTORY_NAME);
+        Path importedGrammarDirectoryPath = fs.getPath(projectDirectoryPathName, DEFAULT_ANTLR_IMPORT_DIR_NAME);
         File importedGrammarDirectory = importedGrammarDirectoryPath.toFile();
         if (!importedGrammarDirectory.exists()) {
             importedGrammarDirectory.mkdirs();

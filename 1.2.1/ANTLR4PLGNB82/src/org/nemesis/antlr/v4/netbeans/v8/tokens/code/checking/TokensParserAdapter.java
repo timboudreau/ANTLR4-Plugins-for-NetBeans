@@ -35,6 +35,7 @@ import java.io.StringReader;
 import java.nio.file.Path;
 
 import java.util.List;
+import java.util.Optional;
 
 import java.util.logging.Logger;
 
@@ -42,7 +43,7 @@ import javax.swing.event.ChangeListener;
 
 import javax.swing.text.Document;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 
@@ -89,7 +90,6 @@ public class TokensParserAdapter extends Parser {
 //        System.out.println("TokensParserAdapter:TokensParserAdapter() : end");
     }
     
-    
     @Override
     public void parse(Snapshot                snapshot,
                       Task                    task    ,
@@ -97,14 +97,14 @@ public class TokensParserAdapter extends Parser {
 //        System.out.println("TokensParserAdapter:parse(Snapshot, Task, SourceModificationEvent) : begin");
         FileObject tokensFO = snapshot.getSource().getFileObject();
         Document doc = ProjectHelper.getDocument(tokensFO);
-        Project project = ProjectHelper.getProject(doc);
-        ProjectType projectType = ProjectHelper.getProjectType(project);
+        Optional<Project> project = ProjectHelper.getProject(doc);
+        ProjectType projectType = project.isPresent() ? ProjectHelper.getProjectType(project.get())
+                : ProjectType.UNDEFINED;
 
         Path tokensFilePath = FileUtil.toFile(tokensFO).toPath();
         String contentToBeParsed = snapshot.getText().toString();
         try (Reader sr = new StringReader(contentToBeParsed) ) {
-            ANTLRInputStream input = new ANTLRInputStream(sr);
-            TokensLexer lexer = new TokensLexer(input);
+            TokensLexer lexer = new TokensLexer(CharStreams.fromReader(sr));
             CommonTokenStream tokens = new CommonTokenStream(lexer);  
             TokensParser tokensParser = new TokensParser(tokens);
 
@@ -114,7 +114,7 @@ public class TokensParserAdapter extends Parser {
             tokensParser.addErrorListener(syntacticErrorListener); // add ours
          // If we are in an undefined project type, we do not collect info
             if (projectType != ProjectType.UNDEFINED) {
-                Collector collector = new Collector(doc, tokensFilePath);
+                Collector collector = new Collector(doc, Optional.ofNullable(tokensFilePath));
                 tokensParser.addParseListener(collector);
             }
             
