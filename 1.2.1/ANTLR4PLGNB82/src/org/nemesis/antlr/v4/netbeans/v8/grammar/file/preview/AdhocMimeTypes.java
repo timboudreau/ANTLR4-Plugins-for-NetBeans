@@ -298,8 +298,10 @@ public class AdhocMimeTypes {
             return _mimeTypeForFilePath(path);
         }
         String ext = extensionFor(path);
-        if (ext != null && !ext.isEmpty() && isRegisteredExtension(ext)) {
-            return EXTENSIONS_REGISTRY.mimeTypeForExt(ext);
+        if (!"g4".equals(ext) && !"g".equals(ext)) {
+            if (ext != null && !ext.isEmpty() && isRegisteredExtension(ext)) {
+                return EXTENSIONS_REGISTRY.mimeTypeForExt(ext);
+            }
         }
         return typeForPath.get(path);
     }

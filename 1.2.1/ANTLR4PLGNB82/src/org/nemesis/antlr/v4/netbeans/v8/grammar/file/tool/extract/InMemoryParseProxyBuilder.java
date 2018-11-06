@@ -79,6 +79,11 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
                 compileResult = Optional.of(cr);
             }
             if ((cr == null || cr.isUsable())) {
+                synchronized (this) {
+                    if (Objects.equals(text, lastText) && !wasStale && lastResult != null && lastResult.isUsable()) {
+                        return lastResult;
+                    }
+                }
                 parsed = true;
                 ParserRunResult runResult = doRun(text, statusUpdater);
                 parse = Optional.of(runResult);

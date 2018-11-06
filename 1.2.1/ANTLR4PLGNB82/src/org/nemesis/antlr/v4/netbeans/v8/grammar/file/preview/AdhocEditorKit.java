@@ -18,9 +18,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleVisi
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.BaseDocument;
+import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.MultiKeymap;
 import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
+import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -148,13 +150,23 @@ public class AdhocEditorKit extends ExtKit {
         if (delegate != null) {
             return delegate.getKeymap();
         }
-        return super.getKeymap(); //To change body of generated methods, choose Tools | Templates.
+        return super.getKeymap();
     }
 
     @Override
     public Document createDefaultDocument() {
         return new Doc(mimeType);
     }
+
+    @Override
+    protected EditorUI createEditorUI() {
+//        EditorUI result = super.createEditorUI();
+        EditorUI result = new NbEditorUI();
+
+        return result;
+    }
+
+
 
     // We have to subclass this in order to supply a toolbar, or the infrastructure
     // throws an exception, since there is no toolbar provider registered

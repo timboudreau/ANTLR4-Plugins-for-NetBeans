@@ -23,6 +23,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.P
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -81,6 +82,7 @@ public class InMemoryGenCompileRunTest {
         InMemoryAntlrSourceGenerationBuilder bldr = new InMemoryAntlrSourceGenerationBuilder(grammar)
                 .withImportDir(importdir)
                 .mapIntoSourcePackage(lexer)
+                .mapIntoSourcePackage(grammar)
                 .copyIntoSourcePackage(tokens)
                 .copyIntoSourcePackage(interp)
                 .copyIntoSourcePackage(lextokens)
@@ -95,7 +97,14 @@ public class InMemoryGenCompileRunTest {
             bldr.jfs().listAll((loc, fo) -> {
 //                if (fo.getName().endsWith(".java") || fo.getName().endsWith(".class")) {
                 System.out.println(" - " + loc + " - " + fo);
+                if (fo.getName().contains("ParserExtr")) {
+                    try {
+                        System.out.println(fo.getCharContent(true));
 //                }
+                    } catch (IOException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
             });
         }
 

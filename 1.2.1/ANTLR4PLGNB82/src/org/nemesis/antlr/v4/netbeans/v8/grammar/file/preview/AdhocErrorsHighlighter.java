@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
@@ -24,7 +26,7 @@ import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
-import org.openide.util.Exceptions;
+import org.openide.filesystems.FileObject;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -36,6 +38,7 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
     private static final String LAYER = "adhoc-parse";
     private final Snapshot snapshot;
     private final AtomicBoolean cancelled = new AtomicBoolean();
+    private static final Logger LOG = Logger.getLogger(AdhocErrorsHighlighter.class.getName());
 
     AdhocErrorsHighlighter(Snapshot sn) {
         this.snapshot = sn;
@@ -45,7 +48,6 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
         return new TaskFactory() {
             @Override
             public Collection<? extends SchedulerTask> create(Snapshot snpsht) {
-                System.out.println("adhoc task create");
                 return Collections.singleton(new AdhocErrorsHighlighter(snpsht));
             }
         };
@@ -63,6 +65,7 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
             return;
         }
         Document d = snapshot.getSource().getDocument(false);
+        FileObject fo = snapshot.getSource().getFileObject();
 
         ParseTreeProxy proxy = t.parseTree();
         if (proxy.isUnparsed()) {
@@ -122,13 +125,18 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
                     ErrorDescription error = ErrorDescriptionFactory
                             .createErrorDescription(Severity.ERROR, err.message(), Collections.emptyList(), d, pos1, pos2);
                     ed.add(error);
+                    // The following errors simply *are* possible, in the case
+                    // that the document has changed, as long as we are using
+                    // createPosition
                 } catch (IndexOutOfBoundsException ex) {
-                    throw new IllegalStateException("IOOBE highlighting error on "
+                    IllegalStateException ise =  new IllegalStateException("IOOBE highlighting error on "
                             + err.line() + ":" + err.charPositionInLine() + " in "
                             + d.getProperty(Document.StreamDescriptionProperty)
                             + " parse is of " + t.buildResult().generationResult().sourceFile()
                             + " err " + err.getClass().getSimpleName() + ": " + err,
                             ex);
+                    LOG.log(Level.FINE, "Error highlighting error '" + e
+                            + "' in " + fo, ise);
                 } catch (BadLocationException ex) {
                     IllegalStateException e2 = new IllegalStateException("IOOBE highlighting error on "
                             + err.line() + ":" + err.charPositionInLine() + " in "
@@ -136,7 +144,8 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
                             + " parse is of " + t.buildResult().generationResult().sourceFile()
                             + " err " + err.getClass().getSimpleName() + ": " + err,
                             ex);
-                    Exceptions.printStackTrace(e2);
+                    LOG.log(Level.FINE, "Error highlighting error '" + e
+                            + "' in " + fo, e2);
                 }
             }
             setErrors(d, ed);
@@ -156,7 +165,7 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
 
     @Override
     public Class<? extends Scheduler> getSchedulerClass() {
-        return Scheduler.EDITOR_SENSITIVE_TASK_SCHEDULER;
+        return Scheduler.CURSOR_SENSITIVE_TASK_SCHEDULER;
     }
 
     @Override

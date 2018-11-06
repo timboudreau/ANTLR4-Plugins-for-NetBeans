@@ -34,7 +34,7 @@ public final class SampleFiles {
     private static FileObject _sampleFile(String mimeType) throws IOException {
         assert AdhocMimeTypes.isAdhocMimeType(mimeType);
         String ext = AdhocMimeTypes.fileExtensionFor(mimeType);
-        String fileName = SFS_PATH + SAMPLE_NAME + '.' + ext;
+        String fileName = SAMPLE_NAME + '.' + ext;
         FileObject sampleFile = FileUtil.getConfigFile(SFS_PATH + fileName);
         if (sampleFile == null) {
             sampleFile = FileUtil.createData(FileUtil.getConfigRoot(), SFS_PATH + fileName);

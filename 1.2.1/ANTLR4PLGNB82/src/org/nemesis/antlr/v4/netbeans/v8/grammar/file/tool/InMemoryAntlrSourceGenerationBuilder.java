@@ -297,27 +297,42 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         return Paths.get(pkg.replace('.', '/'));
     }
 
-    private void generateAllGrammars(MemoryTool tool, Grammar g, Set<Grammar> seen, boolean generate) {
-        if (!seen.contains(g)) {
+    private String keyFor(Grammar g) {
+        return g.name + ":" + g.getTypeString();
+    }
+
+    private void generateAllGrammars(MemoryTool tool, Grammar g, Set<String> seen, boolean generate) {
+        System.out.println("GENERATE " + keyFor(g) + " really generate? " + generate);
+        if (!seen.contains(keyFor(g))) {
             LOG.log(Level.FINEST, "MemoryTool generating {0}", g.fileName);
-            seen.add(g);
+            seen.add(keyFor(g));
 //            tool.generateATNs(g);
             if (g.implicitLexer != null) {
-                LOG.log(Level.FINEST, "Gen implicit lexer {0}", g.implicitLexer.fileName);
+                System.out.println("IMPLICIT LEXER " + g.implicitLexer.fileName + " with name " + g.implicitLexer.name + " in " + g.name + " fn " + g.fileName);
+//                LOG.log(Level.FINEST, "Gen implicit lexer {0}", g.implicitLexer.fileName);
+//                if ("SampleGrammar.g4".equals(g.implicitLexer.fileName)) {
+//                    g.implicitLexer.fileName = g.implicitLexer.name + ".g4";
+//                }
                 tool.process(g.implicitLexer, generate);
+//                generateAllGrammars(tool, g.implicitLexer, seen, generate);
             }
             tool.process(g, generate);
-            if (g.importedGrammars != null) {
+//            if (g.importedGrammars != null) {
 //                for (Grammar gg : g.importedGrammars) {
 //                    System.out.println("generate imported grammar " + gg.fileName);
 //                    generateAllGrammars(tool, gg, seen, generate);
 //                }
-            }
+//            }
             if (g.isCombined()) {
                 String suffix = Grammar.getGrammarTypeToFileNameSuffix(ANTLRParser.LEXER);
                 String lexer = g.name + suffix + ".g4";
                 Path srcPath = packagePath().resolve(lexer);
                 JFSFileObject lexerFo = jfs.get(SOURCE_PATH, srcPath);
+                if (lexerFo == null) {
+                    lexer = g.name + suffix + ".g";
+                    srcPath = packagePath().resolve(lexer);
+                    lexerFo = jfs.get(SOURCE_PATH, srcPath);
+                }
                 if (lexerFo == null) {
                     srcPath = virtualImportDir().resolve(lexer);
                     lexerFo = jfs.get(SOURCE_PATH, srcPath);

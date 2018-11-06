@@ -35,6 +35,9 @@ import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.RecompilationTe
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.JavacDiagnostic;
 import org.nemesis.antlr.v4.netbeans.v8.project.ParsingTestEnvironment;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.junit.MockServices;
@@ -67,12 +70,14 @@ public class DynamicLexerAndParserTest {
     private static TestDir nestedGrammarDir;
     private static String mime;
 
-    public static final String TEXT_1 =
-            "{ skiddoo : 23, meaningful : true,\n"
+    public static final String TEXT_1
+            = "{ skiddoo : 23, meaningful : true,\n"
             + "meaning: '42', \n"
             + "thing: 51 }";
+    private static TestDir lexerDir;
+    private static String lexerMime;
 
-    @Test
+//    @Test
     @SuppressWarnings("unchecked")
     public void test() throws IOException, ParseException {
         assertFalse(ParserManager.canBeParsed(mime));
@@ -81,12 +86,10 @@ public class DynamicLexerAndParserTest {
         assertFalse(DynamicLanguageSupport.mimeTypes().isEmpty());
 
         assertTrue(ParserManager.canBeParsed(mime));
-        
+
         ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(mime, TEXT_1);
         assertNotNull(px);
-        System.out.println(px.tokens());
         String ext = AdhocMimeTypes.fileExtensionFor(mime);
-        System.out.println("EXT " + ext);
         Path tempFile = nestedGrammarDir.tmp.resolve("Test." + ext);
         Files.write(tempFile, Arrays.asList(TEXT_2), UTF_8, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         FileObject fo = FileUtil.toFileObject(tempFile.toFile());
@@ -120,7 +123,7 @@ public class DynamicLexerAndParserTest {
 
         Document d = ParsingTestEnvironment.newDocumentFactory(mime).getDocument(fo);
         Parser.Result[] res = new Parser.Result[1];
-        ParserManager.parse(Collections.singleton(Source.create(d)), new UserTask(){
+        ParserManager.parse(Collections.singleton(Source.create(d)), new UserTask() {
             @Override
             public void run(ResultIterator ri) throws Exception {
                 System.out.println("RESULT " + ri);
@@ -137,8 +140,22 @@ public class DynamicLexerAndParserTest {
         pt.rethrow();
         System.out.println("TOKENS: " + pt.tokens());
         System.out.println("SEQHASH: " + pt.tokenSequenceHash());
+    }
 
-
+    @Test
+    public void testLexerOnlyGrammar() throws Throwable {
+        System.out.println("LexerDirRoot " + lexerDir.root);
+        DynamicLanguageSupport.registerGrammar(AdhocMimeTypes.mimeTypeForPath(lexerDir.antlrSourceFile), TEXT_1);
+        ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(lexerMime, TEXT_1);
+        GenerateBuildAndRunGrammarResult res = DynamicLanguageSupport.lastBuildResult(lexerMime, TEXT_1);
+        if (!res.isUsable()) {
+            CompileResult cr = res.compileResult().get();
+            for (JavacDiagnostic e : cr.diagnostics()) {
+                System.out.println(e);
+            }
+        }
+        assertTrue(res.isUsable());
+        assertNotNull(px);
     }
 
     @BeforeClass
@@ -149,6 +166,9 @@ public class DynamicLexerAndParserTest {
         root = Paths.get(System.getProperty("java.io.tmpdir"), DynamicLexerAndParserTest.class.getSimpleName() + "-" + System.currentTimeMillis());
         nestedGrammarDir = new TestDir(root, "NestedMapGrammar", "NestedMapGrammar.g4", "com.dyn");
         mime = AdhocMimeTypes.mimeTypeForPath(nestedGrammarDir.antlrSourceFile);
+
+        lexerDir = new TestDir(root, "NestedMapLexer", "NestedMapLexer.g4", "moo.bar");
+        lexerMime = AdhocMimeTypes.mimeTypeForPath(lexerDir.antlrSourceFile);
     }
 
     @AfterClass
@@ -190,6 +210,7 @@ public class DynamicLexerAndParserTest {
         }
 
         private final Sched sched = new Sched();
+
         @Override
         public Collection<? extends Scheduler> getSchedulers(Lookup lkp) {
             return Collections.singleton(sched);

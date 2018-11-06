@@ -68,14 +68,14 @@ public class AdhocMimeTypesTest {
         String old=msg.toString();
 
         Set<String> all = AdhocMimeTypes.allExtensionsForMimeType(mime);
-        System.out.println("REINIT NO DELETE CACHE");
         AdhocMimeTypes._reinit();
-        System.out.println("TRIGGER LOAD");
         assertEquals(msg.toString(), all, AdhocMimeTypes.allExtensionsForMimeType(mime));
-        System.out.println("HMMMMMMMMMMMMMMMMMMMMMMMM");
-        AdhocMimeTypes.EXTENSIONS_REGISTRY.mimeTypeForExt("map");
         assertEquals(msg.toString(), ext, AdhocMimeTypes.fileExtensionFor(mime));
-        assertEquals(msg.toString(), mime, AdhocMimeTypes.mimeTypeForPath(mapPath));
+        assertEquals(mime, AdhocMimeTypes.EXTENSIONS_REGISTRY.mimeTypeForExt("map"));
+        assertEquals(mime, AdhocMimeTypes.EXTENSIONS_REGISTRY.mimeTypeForExt("foo"));
+        assertTrue(AdhocMimeTypes.EXTENSIONS_REGISTRY.isRegisteredExtension("map"));
+        assertTrue(AdhocMimeTypes.EXTENSIONS_REGISTRY.isRegisteredExtension("foo"));
+        assertEquals("Wrong result for " + mapPath + ": " + msg.toString(), mime, AdhocMimeTypes.mimeTypeForPath(mapPath));
         assertEquals(msg.toString(), mime, AdhocMimeTypes.mimeTypeForFileExtension(ext));
         assertEquals(msg.toString(), mime, AdhocMimeTypes.mimeTypeForFileExtension("map"));
         assertEquals(msg.toString(), mime, AdhocMimeTypes.mimeTypeForFileExtension("foo"));

@@ -23,20 +23,22 @@ import org.openide.awt.HtmlRenderer;
 import org.openide.util.Exceptions;
 
 /**
- * A LabelUI which uses the lightweight HTML renderer. Stateless - only one
- * instance should ever exist.
+ * Fork of my original Netbeans HtmlLabelUI which works for fixed components,
+ * not just cell renderers.
+ *
  */
 class HtmlLabelUI extends LabelUI {
 
-    /** System property to automatically turn on antialiasing for html strings */
-    
+    /**
+     * System property to automatically turn on antialiasing for html strings
+     */
     static final boolean antialias = Boolean.getBoolean("nb.cellrenderer.antialiasing") // NOI18N
-         ||Boolean.getBoolean("swing.aatext") // NOI18N
-         ||(isGTK() && gtkShouldAntialias()) // NOI18N
-         || isAqua();
-    
+            || Boolean.getBoolean("swing.aatext") // NOI18N
+            || (isGTK() && gtkShouldAntialias()) // NOI18N
+            || isAqua();
+
     private static HtmlLabelUI uiInstance;
-    
+
     private static int FIXED_HEIGHT;
 
     static {
@@ -52,7 +54,7 @@ class HtmlLabelUI extends LabelUI {
         }
     }
 
-    private static Map<Object,Object> hintsMap;
+    private static Map<Object, Object> hintsMap;
     private static Color unfocusedSelBg;
     private static Color unfocusedSelFg;
     private static Boolean gtkAA;
@@ -62,7 +64,8 @@ class HtmlLabelUI extends LabelUI {
         return new HtmlLabelUI();
     }
 
-    public @Override Dimension getPreferredSize(JComponent c) {
+    public @Override
+    Dimension getPreferredSize(JComponent c) {
         if (GraphicsEnvironment.isHeadless()) {
             // cannot create scratch graphics, so don't bother
             return super.getPreferredSize(c);
@@ -70,30 +73,24 @@ class HtmlLabelUI extends LabelUI {
         return calcPreferredSize((HtmlRendererImpl) c);
     }
 
-    /** Get the width of the text */
+    /**
+     * Get the width of the text
+     */
     private static int textWidth(String text, Graphics g, Font f, boolean html) {
         if (text != null) {
             if (html) {
-                return Math.round(
-                    Math.round(
-                        Math.ceil(
-                            HtmlRenderer.renderHTML(
+                return (int) Math.ceil(
+                        HtmlRenderer.renderHTML(
                                 text, g, 0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE, f, Color.BLACK,
                                 HtmlRenderer.STYLE_CLIP, false
-                            )
                         )
-                    )
                 );
             } else {
-                return Math.round(
-                    Math.round(
-                        Math.ceil(
-                            HtmlRenderer.renderPlainString(
+                return (int) Math.ceil(
+                        HtmlRenderer.renderPlainString(
                                 text, g, 0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE, f, Color.BLACK,
                                 HtmlRenderer.STYLE_CLIP, false
-                            )
                         )
-                    )
                 );
             }
         } else {
@@ -123,7 +120,7 @@ class HtmlLabelUI extends LabelUI {
                 prefSize.width += (icon.getIconWidth() + r.getIconTextGap());
             }
         }
-        
+
         //Antialiasing affects the text metrics, so use it if needed when
         //calculating preferred size or the result here will be narrower
         //than the space actually needed
@@ -145,24 +142,25 @@ class HtmlLabelUI extends LabelUI {
     }
 
     @SuppressWarnings("unchecked")
-    static final Map<?,?> getHints() {
+    static final Map<?, ?> getHints() {
         //XXX We REALLY need to put this in a graphics utils lib
         if (hintsMap == null) {
             //Thanks to Phil Race for making this possible
-            hintsMap = (Map)(Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints")); //NOI18N
+            hintsMap = (Map) (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints")); //NOI18N
             if (hintsMap == null) {
-                hintsMap = new HashMap<Object,Object>();
+                hintsMap = new HashMap<Object, Object>();
                 if (antialias) {
                     hintsMap.put(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 }
             }
         }
-        Map<?,?> ret = hintsMap;
+        Map<?, ?> ret = hintsMap;
         assert ret != null; // does this method need to be synchronized?
         return ret;
     }
 
-    public @Override void update(Graphics g, JComponent c) {
+    public @Override
+    void update(Graphics g, JComponent c) {
         Color bg = getBackgroundFor((HtmlRendererImpl) c);
         HtmlRendererImpl h = (HtmlRendererImpl) c;
         if (bg == null && h.getType() == HtmlRendererImpl.Type.UNKNOWN) {
@@ -218,7 +216,8 @@ class HtmlLabelUI extends LabelUI {
         paint(g, c);
     }
 
-    public @Override void paint(Graphics g, JComponent c) {
+    public @Override
+    void paint(Graphics g, JComponent c) {
 
         ((Graphics2D) g).addRenderingHints(getHints());
 
@@ -231,7 +230,9 @@ class HtmlLabelUI extends LabelUI {
         }
     }
 
-    /** Actually paint the icon and text using our own html rendering engine. */
+    /**
+     * Actually paint the icon and text using our own html rendering engine.
+     */
     private void paintIconAndText(Graphics g, HtmlRendererImpl r) {
         Font f = r.getFont();
         g.setFont(f);
@@ -257,7 +258,7 @@ class HtmlLabelUI extends LabelUI {
             //Okay, it's not going to fit, punt.
             txtY = fm.getMaxAscent();
         }
-        
+
         int txtX = r.getIndent();
 
         Icon icon = r.getIcon();
@@ -290,8 +291,8 @@ class HtmlLabelUI extends LabelUI {
                 icon.paintIcon(r, g, iconX, iconY);
             } catch (NullPointerException npe) {
                 Exceptions.attachMessage(npe,
-                                         "Probably an ImageIcon with a null source image: " +
-                                         icon + " - " + r.getText()); //NOI18N
+                        "Probably an ImageIcon with a null source image: "
+                        + icon + " - " + r.getText()); //NOI18N
                 Exceptions.printStackTrace(npe);
             }
 
@@ -310,8 +311,8 @@ class HtmlLabelUI extends LabelUI {
 
         //Get the available horizontal pixels for text
         int txtW = (icon != null)
-            ? (r.getWidth() - (ins.left + ins.right + icon.getIconWidth() + r.getIconTextGap() + r.getIndent()))
-            : (r.getWidth() - (ins.left + ins.right + r.getIndent()));
+                ? (r.getWidth() - (ins.left + ins.right + icon.getIconWidth() + r.getIconTextGap() + r.getIndent()))
+                : (r.getWidth() - (ins.left + ins.right + r.getIndent()));
 
         Color background = getBackgroundFor(r);
         Color foreground = ensureContrastingColor(getForegroundFor(r), background);
@@ -355,11 +356,11 @@ class HtmlLabelUI extends LabelUI {
 
         if (r.isHtml()) {
             HtmlRenderer.renderHTML(
-                r.getText(), g, txtX, txtY, txtW, txtH, f, foreground, r.getRenderStyle(), true
+                    r.getText(), g, txtX, txtY, txtW, txtH, f, foreground, r.getRenderStyle(), true
             );
         } else {
             HtmlRenderer.renderString(
-                r.getText(), g, txtX, txtY, txtW, txtH, r.getFont(), foreground, r.getRenderStyle(), true
+                    r.getText(), g, txtX, txtY, txtW, txtH, r.getFont(), foreground, r.getRenderStyle(), true
             );
         }
     }
@@ -371,9 +372,10 @@ class HtmlLabelUI extends LabelUI {
     static Color ensureContrastingColor(Color fg, Color bg) {
         if (bg == null) {
             if (isNimbus()) {
-                bg = UIManager.getColor( "Tree.background" ); //NOI18N
-                if( null == bg )
+                bg = UIManager.getColor("Tree.background"); //NOI18N
+                if (null == bg) {
                     bg = Color.WHITE;
+                }
             } else {
                 bg = UIManager.getColor("text"); //NOI18N
 
@@ -384,9 +386,10 @@ class HtmlLabelUI extends LabelUI {
         }
         if (fg == null) {
             if (isNimbus()) {
-                fg = UIManager.getColor( "Tree.foreground" ); //NOI18N
-                if( null == fg )
+                fg = UIManager.getColor("Tree.foreground"); //NOI18N
+                if (null == fg) {
                     fg = Color.BLACK;
+                }
             } else {
                 fg = UIManager.getColor("textText"); //NOI18N
                 if (fg == null) {
@@ -420,20 +423,20 @@ class HtmlLabelUI extends LabelUI {
 
         return fg;
     }
-    
+
     private static int difference(Color a, Color b) {
         return Math.abs(luminance(a) - luminance(b));
     }
 
     private static int luminance(Color c) {
-        return (299*c.getRed() + 587*c.getGreen() + 114*c.getBlue()) / 1000;
+        return (299 * c.getRed() + 587 * c.getGreen() + 114 * c.getBlue()) / 1000;
     }
 
     static Color getBackgroundFor(HtmlRendererImpl r) {
         if (r.isOpaque()) {
             return r.getBackground();
         }
-        
+
         if (r.isSelected() && !r.isParentFocused() && !isGTK() && !isNimbus()) {
             return getUnfocusedSelectionBackground();
         }
@@ -442,25 +445,25 @@ class HtmlLabelUI extends LabelUI {
 
         if (r.isSelected()) {
             switch (r.getType()) {
-            case LIST:
-                result = UIManager.getColor("List.selectionBackground"); //NOI18N
+                case LIST:
+                    result = UIManager.getColor("List.selectionBackground"); //NOI18N
 
-                if (result == null) { //GTK
+                    if (result == null) { //GTK
 
-                    //plaf library guarantees this one:
-                    result = UIManager.getColor("Tree.selectionBackground"); //NOI18N
-                }
+                        //plaf library guarantees this one:
+                        result = UIManager.getColor("Tree.selectionBackground"); //NOI18N
+                    }
 
-                //System.err.println("  now " + result);
-                break;
+                    //System.err.println("  now " + result);
+                    break;
 
-            case TABLE:
-                result = UIManager.getColor("Table.selectionBackground"); //NOI18N
+                case TABLE:
+                    result = UIManager.getColor("Table.selectionBackground"); //NOI18N
 
-                break;
+                    break;
 
-            case TREE:
-                return UIManager.getColor("Tree.selectionBackground"); //NOI18N
+                case TREE:
+                    return UIManager.getColor("Tree.selectionBackground"); //NOI18N
             }
 
             return (result == null) ? r.getBackground() : result;
@@ -482,42 +485,44 @@ class HtmlLabelUI extends LabelUI {
 
         if (r.isSelected()) {
             switch (r.getType()) {
-            case LIST:
-                result = UIManager.getColor("List.selectionForeground"); //NOI18N
-                break;
-            case TABLE:
-                result = UIManager.getColor("Table.selectionForeground"); //NOI18N
-                break;
-            case TREE:
-                result = UIManager.getColor("Tree.selectionForeground"); //NOI18N
+                case LIST:
+                    result = UIManager.getColor("List.selectionForeground"); //NOI18N
+                    break;
+                case TABLE:
+                    result = UIManager.getColor("Table.selectionForeground"); //NOI18N
+                    break;
+                case TREE:
+                    result = UIManager.getColor("Tree.selectionForeground"); //NOI18N
             }
         }
 
         return (result == null) ? r.getForeground() : result;
     }
 
-    static boolean isAqua () {
+    static boolean isAqua() {
         return "Aqua".equals(UIManager.getLookAndFeel().getID());
     }
-    
-    static boolean isGTK () {
+
+    static boolean isGTK() {
         return "GTK".equals(UIManager.getLookAndFeel().getID());
     }
-    
-    static boolean isNimbus () {
+
+    static boolean isNimbus() {
         return "Nimbus".equals(UIManager.getLookAndFeel().getID());
     }
 
-    /** Get the system-wide unfocused selection background color */
+    /**
+     * Get the system-wide unfocused selection background color
+     */
     private static Color getUnfocusedSelectionBackground() {
         if (unfocusedSelBg == null) {
             //allow theme/ui custom definition
             unfocusedSelBg = UIManager.getColor("nb.explorer.unfocusedSelBg"); //NOI18N
-            
+
             if (unfocusedSelBg == null) {
                 //try to get standard shadow color
                 unfocusedSelBg = UIManager.getColor("controlShadow"); //NOI18N
-                
+
                 if (unfocusedSelBg == null) {
                     //Okay, the look and feel doesn't suport it, punt
                     unfocusedSelBg = Color.lightGray;
@@ -534,16 +539,18 @@ class HtmlLabelUI extends LabelUI {
         return unfocusedSelBg;
     }
 
-    /** Get the system-wide unfocused selection foreground color */
+    /**
+     * Get the system-wide unfocused selection foreground color
+     */
     private static Color getUnfocusedSelectionForeground() {
         if (unfocusedSelFg == null) {
             //allow theme/ui custom definition
             unfocusedSelFg = UIManager.getColor("nb.explorer.unfocusedSelFg"); //NOI18N
-            
+
             if (unfocusedSelFg == null) {
                 //try to get standard shadow color
                 unfocusedSelFg = UIManager.getColor("textText"); //NOI18N
-                
+
                 if (unfocusedSelFg == null) {
                     //Okay, the look and feel doesn't suport it, punt
                     unfocusedSelFg = Color.BLACK;

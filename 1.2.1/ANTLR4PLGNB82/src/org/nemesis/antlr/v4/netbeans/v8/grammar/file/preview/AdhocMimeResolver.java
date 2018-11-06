@@ -21,15 +21,20 @@ import org.openide.util.Utilities;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
+ * Resolves custom MIME types generated from Antlr grammar file paths.
+ * Note that we *must* use the deprecated constructor which does not
+ * specify a particular MIME type, since we handle multiple types and
+ * they are unknown at initialization-time and the list can change.
  *
  * @author Tim Boudreau
  */
 @ServiceProvider(service = MIMEResolver.class, position = Integer.MAX_VALUE - 1)
-@SuppressWarnings(value = "deprecation")
+@SuppressWarnings("deprecation")
 public class AdhocMimeResolver extends MIMEResolver {
 
     private final int[] codes;
 
+    @SuppressWarnings("deprecation")
     public AdhocMimeResolver() {
         // In order to have the fastest possible rejection test of whether
         // a file is interesting or not, cache the array of identity hash codes
@@ -48,10 +53,16 @@ public class AdhocMimeResolver extends MIMEResolver {
         int[] codes = (int[]) Utilities.toPrimitiveArray(idHashCodes.toArray(new Integer[idHashCodes.size()]));
         Arrays.sort(codes);
         this.codes = codes;
-        System.out.println("CODES: " + Arrays.toString(codes));
     }
 
     private static void findFileSystems(MultiFileSystem mfs, Set<Integer> all) {
+        // Reflectively get the current set of all file systems that are
+        // participating in the system filesystem.  It is possible that this
+        // will change if modules are loaded and unloaded, but it still improves
+        // performance of negative tests in the common case - we do not need to
+        // do a bunch of work to determine if every .instance or .shadow file in
+        // the system filesystem might be an Antlr grammar generated mime type
+        // during startup, since they won't be.
         try {
             Field field = MultiFileSystem.class.getDeclaredField("systems");
             field.setAccessible(true);
@@ -86,11 +97,15 @@ public class AdhocMimeResolver extends MIMEResolver {
 
     private boolean isUninteresting(FileObject fo) {
         if (isConfigFileSystem(fo)) {
+            // In the system filesystem, the only things we ever want to
+            // resolve are sample grammars
             String pth = fo.getPath();
             if (!pth.startsWith("antlr/grammar-samples")) {
                 return true;
             }
         }
+        // Weed out standard file extensions that can't possibly be
+        // relevant
         try {
             String ext = fo.getExt();
             if (ext == null || FileUtil.isArchiveArtifact(fo)) {
@@ -114,6 +129,9 @@ public class AdhocMimeResolver extends MIMEResolver {
                 case "js":
                 case "c":
                 case "g4":
+                case "g":
+                case "interp":
+                case "tokens":
                 case "properties":
                     return true;
             }
@@ -152,6 +170,8 @@ public class AdhocMimeResolver extends MIMEResolver {
         if (isUninteresting(fo)) {
             return null;
         }
+        // We are frequently asked multiple times in a row for the type for
+        // the same file, so cache the result and use it where possible
         String previousResult = last.get().typeOf(fo);
         if (previousResult != null) {
             return previousResult;

@@ -181,11 +181,11 @@ public class ExtractionCodeGenerator {
                 // the same package ordinarily - this could be generated into wherever and an import
                 // from the same package is harmless)
                 result = result.replace("import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;",
-                        "import " + pkg + "." + classNamePrefix + lexerSuffix + ";" + "import " + extractorPackage + ".AntlrProxies;");
+                        "\nimport " + pkg + "." + classNamePrefix + lexerSuffix + ";" + "import " + extractorPackage + ".AntlrProxies;\n");
 
                 // Same for the parser, if lexerOnly is false
                 result = result.replace("import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;",
-                        lexerOnly ? "" : "import " + pkg + "." + classNamePrefix + "Parser;//parser\n");
+                        lexerOnly ? "" : "\nimport " + pkg + "." + classNamePrefix + "Parser;//parser\n");
                 String lexerName = classNamePrefix + lexerSuffix;
                 // Replace class name occurrences in source
                 result = result.replaceAll("ANTLRv4Lexer", lexerName);
@@ -198,13 +198,13 @@ public class ExtractionCodeGenerator {
                 // with no parser
                 if (lexerOnly) {
                     StringBuilder sb = new StringBuilder();
-                    for (String s : result.split("\n")) {
-                        s = s.trim();
-                        if (s.isEmpty() || s.endsWith("//parser") || s.startsWith("//")
-                                || s.startsWith("* ") || s.startsWith("/*")) {
+                    for (String line : result.split("\n")) {
+                        line = line.trim();
+                        if (line.isEmpty() || line.endsWith("//parser") || line.startsWith("//")
+                                || line.startsWith("* ") || line.startsWith("/*") || "*".equals(line) || "*/".equals(line)) {
                             continue;
                         }
-                        sb.append(s).append('\n');
+                        sb.append(line).append('\n');
                     }
                     result = sb.toString();
                 }

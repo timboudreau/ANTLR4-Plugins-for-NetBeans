@@ -22,12 +22,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.UIManager;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.StyleConstants;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
@@ -36,10 +33,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_RULE_DECLARATION;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
-import org.netbeans.api.editor.mimelookup.MimeLookup;
-import org.netbeans.api.editor.mimelookup.MimePath;
-import org.netbeans.api.editor.settings.FontColorNames;
-import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -144,8 +137,8 @@ public final class AdhocColoringsRegistry {
             if (fo == null) {
                 fo = FileUtil.createData(FileUtil.getConfigRoot(), sfsPathFor(mimeType));
             }
-            LOG.log(Level.FINE, "Store {0} colorings in {1} for {2}", 
-                    new Object[] {colorings.size(), fo.getPath(), loggableMimeType(mimeType)});
+            LOG.log(Level.FINE, "Store {0} colorings in {1} for {2}",
+                    new Object[]{colorings.size(), fo.getPath(), loggableMimeType(mimeType)});
             try (OutputStream out = fo.getOutputStream()) {
                 colorings.store(out);
                 saver.storeQueue.remove(mimeType);
@@ -182,91 +175,6 @@ public final class AdhocColoringsRegistry {
         }
     }
 
-    public static Color editorBackground() {
-        MimePath mimePath = MimePath.parse("text/x-java");
-        FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
-        AttributeSet result = fcs.getFontColors(FontColorNames.DEFAULT_COLORING);
-        Color color = (Color) result.getAttribute(StyleConstants.ColorConstants.Background);
-        return color == null ? UIManager.getColor("text") : color;
-    }
-
-    public static Color editorForeground() {
-        MimePath mimePath = MimePath.parse("text/x-java");
-        FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
-        AttributeSet result = fcs.getFontColors(FontColorNames.DEFAULT_COLORING);
-        Color color = (Color) result.getAttribute(StyleConstants.ColorConstants.Foreground);
-        return color == null ? UIManager.getColor("textText") : color;
-    }
-
-    Supplier<Color> foregroundColorSupplier() {
-        Color base = editorBackground();
-        float[] hsb = new float[3];
-        Color.RGBtoHSB(base.getRed(), base.getGreen(), base.getBlue(), hsb);
-        if (isBright(base)) {
-            // gray background, gravitate toward dark
-            hsb[2] = 0.2f;
-        } else if (isMidTone(base)) {
-            // light background, gravitate toward dark
-            hsb[2] = 0.3f;
-        } else {
-            // dark background, gravitate toward light
-            hsb[2] = 0.875f;
-        }
-        hsb[1] = 0.75f;
-        return () -> {
-            hsb[0] = randomlyTweak(hsb[0], 0.25f);
-            float sat = clamp(randomlyTweak(hsb[1], 0.5f) - 0.25f);
-            float bri = clamp(randomlyTweak(hsb[2], 0.5f));
-            return new Color(Color.HSBtoRGB(hsb[0], sat, bri));
-        };
-    }
-
-    private boolean isMidTone(Color color) {
-        int diffR = Math.abs(color.getRed() - 128);
-        int diffG = Math.abs(color.getGreen() - 128);
-        int diffB = Math.abs(color.getBlue() - 128);
-        return diffR + diffG + diffB < 64;
-    }
-
-    private boolean isBright(Color color) {
-        int val = color.getRed() + color.getGreen() + color.getBlue();
-        return val > (256 * 3) / 2;
-    }
-
-    Supplier<Color> backgroundColorSupplier() {
-        Color base = editorBackground();
-        float[] hsb = new float[3];
-        Color.RGBtoHSB(base.getRed(), base.getGreen(), base.getBlue(), hsb);
-        if (!isBright(base)) {
-            hsb[2] = 0.75f;
-        } else {
-            hsb[2] = 0.35f;
-        }
-        hsb[1] = 0.545f;
-        return () -> {
-            hsb[0] = randomlyTweak(hsb[0], 0.45f); // keep the hue moving
-            float sat = randomlyTweak(hsb[1], 0.45f);
-            float bri = randomlyTweak(hsb[2], 0.35f);
-            return new Color(Color.HSBtoRGB(hsb[0], sat, bri));
-        };
-    }
-
-    private float clamp(float f) {
-        return Math.max(0.0f, Math.min(f, 1.0f));
-    }
-
-    private float randomlyTweak(float f, float by) {
-        float offset = (ThreadLocalRandom.current().nextFloat() * by)
-                - (by / 2f);
-        f += offset;
-        if (f > 1.0f) {
-            f -= 1.0f;
-        } else if (f < 0f) {
-            f = 1.0f + f;
-        }
-        return clamp(f);
-    }
-
     public void update(ANTLRv4ParserResult res, String mimeType) throws IOException {
         update(res.semanticParser(), mimeType);
     }
@@ -275,8 +183,11 @@ public final class AdhocColoringsRegistry {
         AdhocColorings existing = getExisting(mimeType);
         RuleTree tree = sem.ruleTree();
         List<String> rules = new ArrayList<>();
-        Supplier<Color> backgrounds = backgroundColorSupplier();
-        Set<String> importantRules = tree.disjunctionOfClosureOfHighestRankedNodes();
+        ColorUtils colors = new ColorUtils();
+        Supplier<Color> backgrounds = colors.backgroundColorSupplier();
+        Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
+        importantRules.addAll(tree.bottomLevelRules());
+
         for (RuleDeclaration decl : sem.allDeclarations()) {
             if (existing.contains(decl.getRuleID())) {
                 continue;
@@ -292,7 +203,7 @@ public final class AdhocColoringsRegistry {
             }
             existing.addIfAbsent(decl.getRuleID(), backgrounds.get(), attrs);
         }
-        Supplier<Color> foregrounds = foregroundColorSupplier();
+        Supplier<Color> foregrounds = colors.foregroundColorSupplier();
         existing.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND, AttrTypes.BOLD));
         existing.addIfAbsent("symbols", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
@@ -339,7 +250,7 @@ public final class AdhocColoringsRegistry {
                 result = AdhocColorings.load(in);
             }
             LOG.log(Level.FINE, "Loaded {0} colorings for {1} from {2}",
-                    new Object[] { result.size(), fo.getPath(), loggableMimeType(mimeType)});
+                    new Object[]{result.size(), fo.getPath(), loggableMimeType(mimeType)});
         } else {
             result = new AdhocColorings();
         }

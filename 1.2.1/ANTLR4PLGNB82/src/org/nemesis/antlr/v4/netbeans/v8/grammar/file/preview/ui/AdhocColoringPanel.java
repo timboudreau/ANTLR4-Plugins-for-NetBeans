@@ -22,8 +22,8 @@ import javax.swing.JRadioButton;
 import javax.swing.plaf.basic.BasicButtonUI;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColorings;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColoring;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColoringsRegistry;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AttrTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ColorUtils;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -229,11 +229,11 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         setColor(info.coloring.color());
         if (info.isForeground()) {
             colorButton.setForeground(info.coloring.color());
-            colorButton.setBackground(AdhocColoringsRegistry.editorBackground());
+            colorButton.setBackground(ColorUtils.editorBackground());
             group.setSelected(foreground.getModel(), true);
         } else {
             colorButton.setBackground(info.coloring.color());
-            colorButton.setForeground(AdhocColoringsRegistry.editorBackground());
+            colorButton.setForeground(ColorUtils.editorForeground());
             group.setSelected(background.getModel(), true);
         }
         active.setSelected(info.isActive());

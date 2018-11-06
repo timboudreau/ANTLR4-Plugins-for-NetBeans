@@ -69,7 +69,6 @@ public class AdhocDataLoaderTest {
 
         assertEquals("content/unknown", glorkFile.getMIMEType());
         DataObject preRegister = DataObject.find(glorkFile);
-        System.out.println("ORIGINAL DOB IS " + preRegister.getClass().getName());
         assertNull(preRegister.getLookup().lookup(AdhocDataObject.class));
 
         preRegister = null;
@@ -79,21 +78,31 @@ public class AdhocDataLoaderTest {
 
         AdhocMimeTypes.registerFileNameExtension("glork", mimeType);
         l.assertChanged("glork", mimeType);
-
-        Thread.sleep(200);
-
-        DataObject nue = DataObject.find(glorkFile);
-
-        System.out.println("NEW DATAOBJECT TYPE: " + nue.getClass().getName());
+        preRegister = null;
+        for (int i = 0; i < 5; i++) {
+            System.gc();
+            System.runFinalization();
+        }
+        DataObject nue = null;
+        // Changing dataobject type will complete asynchronously, and in a test
+        // we have to start the event queue and a bunch of other plumbing, so
+        // busywait a reasonable amount of time before assuming type changing
+        // has failed
+        for (int i = 0; i < 250; i++) {
+            nue = DataObject.find(glorkFile);
+            if (nue.getLookup().lookup(AdhocDataObject.class) != null) {
+                break;
+            } else {
+                Thread.sleep(100);
+            }
+        }
 
         String resolvedType = Lookup.getDefault().lookup(AdhocMimeResolver.class).findMIMEType(glorkFile);
         assertNotNull(resolvedType);
         assertEquals(mimeType, resolvedType);
-
-        System.out.println("NUE IS " + nue.getClass().getName());
         assertEquals(mimeType, nue.getPrimaryFile().getMIMEType());
+        assertTrue(nue.getLoader() instanceof AdhocDataLoader);
         assertNotNull(nue.getLookup().lookup(AdhocDataObject.class));
-
     }
 
     class L implements BiConsumer<String, String> {

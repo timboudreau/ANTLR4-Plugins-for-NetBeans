@@ -50,6 +50,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     }
 
     void addMimeType(GenerateBuildAndRunGrammarResult buildResult, AntlrProxies.ParseTreeProxy parseResult) {
+        System.out.println("ADD MIME TYPE " + parseResult.mimeType());
         MimeEntry en = new MimeEntry(buildResult, parseResult, lang, fcic);
         LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(en.mimeType));
         lookups.put(en.mimeType, en);

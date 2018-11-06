@@ -159,7 +159,7 @@ final class RuleTreeImpl implements RuleTree {
             for (String s : refs) {
                 if (!result.contains(s)) {
                     result.add(s);
-                    closureOf(s, result);
+                    reverseClosureOf(s, result);
                 }
             }
         }

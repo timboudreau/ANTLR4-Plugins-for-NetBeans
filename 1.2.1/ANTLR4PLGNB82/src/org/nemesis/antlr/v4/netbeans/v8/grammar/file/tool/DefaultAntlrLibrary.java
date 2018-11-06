@@ -19,10 +19,6 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service=AntlrLibrary.class, position = Integer.MAX_VALUE)
 public final class DefaultAntlrLibrary implements AntlrLibrary {
 
-    public DefaultAntlrLibrary() {
-        Thread.dumpStack();
-    }
-
     private static final String[] LIB_FILES = {
         "antlr4-4.7.1.jar",
         "ST4-4.0.8.jar",

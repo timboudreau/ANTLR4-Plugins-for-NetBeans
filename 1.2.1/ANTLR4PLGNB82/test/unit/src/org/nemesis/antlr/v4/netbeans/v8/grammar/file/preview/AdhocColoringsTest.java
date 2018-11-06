@@ -2,6 +2,8 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview;
 
 import java.awt.Color;
 import java.awt.EventQueue;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -16,6 +18,7 @@ import java.nio.file.Paths;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -23,7 +26,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
-import javax.swing.plaf.metal.MetalLookAndFeel;
+import javax.swing.plaf.nimbus.NimbusLookAndFeel;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.StyleConstants;
@@ -39,11 +42,11 @@ import org.junit.Test;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColoringsRegistry.editorForeground;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ColorUtils.editorBackground;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ColorUtils.editorForeground;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.AdhocColoringPanel;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.LanguageReplaceabilityTest.ADP;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.project.ParsingTestEnvironment;
 import org.nemesis.antlr.v4.netbeans.v8.project.ParsingWithoutFilesTest;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -194,23 +197,47 @@ public class AdhocColoringsTest {
         assertNotNull(col);
         assertFalse(col.isEmpty());
         System.out.println("GOT COLORS: '" + col + "'");
+
+        ColorUtils utils = new ColorUtils();
+
+        Supplier<Color> bgs = utils.backgroundColorSupplier();
+        for (int i = 0; i < 10; i++) {
+            System.out.println("BG: " + bgs.get());
+        }
+
+        Supplier<Color> fgs = utils.foregroundColorSupplier();
+        for (int i = 0; i < 10; i++) {
+            System.out.println("FG: " + fgs.get());
+        }
+
         if (false) {
-            UIManager.setLookAndFeel(new MetalLookAndFeel());
+            System.setProperty("swing.aatext", "true");
+            UIManager.setLookAndFeel(new NimbusLookAndFeel());
             EventQueue.invokeAndWait(() -> {
-                JPanel pnl = new JPanel(new GridLayout(30, 10));
-                Color c = AdhocColoringsRegistry.editorBackground();
+                JPanel pnl = new JPanel(new GridLayout(30, 1));
+                Color c = editorBackground();
                 pnl.setBackground(c);
-                JPanel editors = new JPanel();
+                JPanel editors = new JPanel(new GridBagLayout());
+                GridBagConstraints con = new GridBagConstraints();
+                con.gridx = 0;
+                con.gridy = 0;
+                con.anchor = GridBagConstraints.FIRST_LINE_START;
+                con.fill = GridBagConstraints.BOTH;
+                con.weightx = 1.0;
+                con.weighty = 1.0;
                 for (String key : col.keys()) {
                     AdhocColoring a = col.get(key);
-                    editors.add(new AdhocColoringPanel(key, col));
+                    editors.add(new AdhocColoringPanel(key, col), con);
+                    con.gridy++;
                     JLabel lbl = new JLabel(key);
+                    lbl.setFont(lbl.getFont().deriveFont(lbl.getFont().getSize2D() + 5F));
+
                     lbl.setOpaque(true);
                     if (a.isBackgroundColor()) {
                         lbl.setForeground(editorForeground());
                         lbl.setBackground(a.color());
                     } else {
-                        lbl.setBackground(AdhocColoringsRegistry.editorBackground());
+                        lbl.setBackground(editorBackground());
                         lbl.setForeground(a.color());
                     }
                     col.addPropertyChangeListener(key, new PropertyChangeListener() {
@@ -220,7 +247,7 @@ public class AdhocColoringsTest {
                                 lbl.setForeground(editorForeground());
                                 lbl.setBackground(a.color());
                             } else {
-                                lbl.setBackground(AdhocColoringsRegistry.editorBackground());
+                                lbl.setBackground(editorBackground());
                                 lbl.setForeground(a.color());
                             }
                         }

@@ -52,7 +52,7 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     }
 
     public Language<?> language(String mimeType) {
-        if (!mimeType.startsWith("text/x-antlr-")) {
+        if (!AdhocMimeTypes.isAdhocMimeType(mimeType)) {
             return null;
         }
         mimeType = DynamicLanguageSupport.currentMimeType(mimeType);
