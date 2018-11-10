@@ -146,6 +146,9 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
     public final void run() {
         Optional<Document> doc = document();
         if (doc.isPresent()) {
+            if (Thread.interrupted()) {
+                return;
+            }
             Document d = doc.get();
             LOG.log(Level.FINEST, "Run with {0}", doc.get());
             T argument = getArgument();
@@ -158,8 +161,8 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
                 Collection<Source> sources = Collections.singleton(src);
                 Future<?> oldFuture = future.get();
                 if (oldFuture != null && !oldFuture.isDone()) {
-//                    LOG.log(Level.FINEST, "Cancel a previously scheduled run");
-//                    oldFuture.cancel(true);
+                    LOG.log(Level.FINEST, "Cancel a previously scheduled run");
+                    oldFuture.cancel(true);
                 }
                 future.set(ParserManager.parseWhenScanFinished(sources, ut));
             } catch (ParseException ex) {
@@ -202,18 +205,20 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
             return AbstractAntlrHighlighter.this;
         }
 
+        @Override
         public boolean equals(Object o) {
             return o == this ? true
                     : o != null && o instanceof OwnableTask
                     && ((OwnableTask) o).owner() == owner();
         }
 
+        @Override
         public int hashCode() {
             return owner().hashCode();
         }
     }
 
-    private final S deriveSemanticsObject(R obj) {
+    private S deriveSemanticsObject(R obj) {
         return semanticsDeriver.apply(obj);
     }
 

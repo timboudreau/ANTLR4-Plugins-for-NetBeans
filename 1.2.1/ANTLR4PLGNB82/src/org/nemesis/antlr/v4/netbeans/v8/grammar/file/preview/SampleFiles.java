@@ -14,7 +14,9 @@ import org.openide.util.Exceptions;
  */
 public final class SampleFiles {
 
-    private static final String SFS_PATH = "antlr/grammar-samples/";
+    private static final String ANTLR_FOLDER = "antlr";
+    private static final String SAMPLES_FOLDER = "grammar-samples";
+    private static final String SFS_PATH = ANTLR_FOLDER + "/" + SAMPLES_FOLDER + "/";
     private static final String SAMPLE_NAME = "sample";
 
     private SampleFiles() {
@@ -29,6 +31,21 @@ public final class SampleFiles {
             Exceptions.printStackTrace(ex);
             return null;
         }
+    }
+
+    public static boolean isSampleFile(DataObject dob) {
+        FileObject fo = dob.getPrimaryFile();
+        boolean result = SAMPLE_NAME.equals(fo.getName());
+        if (result) {
+            FileObject parent = fo.getParent();
+            result = parent != null && "grammar-samples".equals(parent.getName());
+            if (result) {
+                FileObject parentParent = parent.getParent();
+                // good enough
+                result = parentParent != null && "antlr".equals(parentParent.getName());
+            }
+        }
+        return result;
     }
 
     private static FileObject _sampleFile(String mimeType) throws IOException {

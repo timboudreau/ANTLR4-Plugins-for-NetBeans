@@ -25,8 +25,8 @@ import org.nemesis.antlr.v4.netbeans.v8.project.ProjectTypeTest;
 import org.openide.filesystems.FileUtil;
 
 /**
- * Copies a grammar file into place in a unique test dir under /tmp
- * and creates build folders.
+ * Copies a grammar file into place in a unique test dir under /tmp and creates
+ * build folders.
  */
 public final class TestDir {
 
@@ -62,6 +62,12 @@ public final class TestDir {
                 .getProtectionDomain().getCodeSource()
                 .getLocation().toURI()).getParent().getParent().getParent().getParent();
         return baseDir;
+    }
+
+    public static Path testResourcePath(Class<?> relativeTo, String name) throws URISyntaxException {
+        Path base = projectBaseDir();
+        return base.resolve(Paths.get("test", "unit", "src",
+                relativeTo.getPackage().getName().replace('.', '/'), name));
     }
 
     public TestDir addImportFile(Path relativePath, String name, String data) throws IOException {

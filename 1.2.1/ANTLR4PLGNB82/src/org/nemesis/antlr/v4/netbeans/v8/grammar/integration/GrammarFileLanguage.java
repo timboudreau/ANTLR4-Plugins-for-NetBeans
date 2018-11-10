@@ -41,6 +41,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4TokenId;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatter;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
 
@@ -153,12 +154,12 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
 
     @Override
     public Formatter getFormatter() {
-        return super.getFormatter(); //To change body of generated methods, choose Tools | Templates.
+        return new AntlrFormatter();
     }
 
     @Override
     public boolean hasFormatter() {
-        return super.hasFormatter(); //To change body of generated methods, choose Tools | Templates.
+        return true;
     }
 
     @Override

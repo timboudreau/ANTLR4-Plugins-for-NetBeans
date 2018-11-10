@@ -29,6 +29,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.folding;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -244,6 +245,11 @@ public class GrammarFoldManager implements FoldManager {
         StyledDocument sDoc = (StyledDocument) doc;
         TokenHierarchy<Document> hi = TokenHierarchy.get(doc);
         TokenSequence<?> ts =  hi.tokenSequence();
+        if (ts == null) {
+            // Immediately after a reformat, there are no
+            // tokens
+            return Collections.emptyList();
+        }
         FoldType type;
         int offset, startOffset = -1, startLine, endLine;
         String tokenName;

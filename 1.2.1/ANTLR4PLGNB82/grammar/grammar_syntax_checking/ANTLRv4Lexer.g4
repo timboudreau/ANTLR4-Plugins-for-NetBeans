@@ -109,12 +109,12 @@ DOC_COMMENT :
 
 // For syntax checking purpose we skip block comments
 BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 // For syntax checking purpose we skip line comments
 LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 // -------------------------
@@ -399,7 +399,7 @@ TOKEN_OR_PARSER_RULE_ID :
 // -------------------------
 // Whitespace
 WS :
-    Ws+ -> skip
+    Ws+ -> channel(2)
     ;
 
 // -------------------------
@@ -475,11 +475,11 @@ mode HeaderPrelude;
 // We must manage comments because if left brace is in comments it must be
 // ignored
 HEADER_P_LINE_COMMENT
-   : LineComment -> skip
+   : LineComment -> channel(1)
    ;
 
 HEADER_P_BLOCK_COMMENT
-   : BlockComment -> skip
+   : BlockComment -> channel(1)
    ;
 
 HEADER_P_START :
@@ -491,7 +491,7 @@ HEADER_P_START :
     };
 
 HEADER_P_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 HEADER_P_UNTERMINATED :
@@ -508,16 +508,16 @@ mode HeaderAction;
 // We must manage comments because if some keywords or left brace are in
 //  comments they must be ignored
 HEADER_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 // Here document comment is a special case of block comment
 HEADER_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 HEADER_NESTED :
-    LBrace -> skip, pushMode(HeaderAction)
+    LBrace -> channel(3), pushMode(HeaderAction)
     ;
 
 HEADER_PACKAGE :
@@ -543,7 +543,7 @@ HEADER_IMPORT :
     ;
 
 HEADER_WS
-   : Ws + -> skip
+   : Ws + -> channel(2)
    ;
 
 HEADER_END :
@@ -565,7 +565,7 @@ UNTERMINATED_HEADER :
     ;
 
 HEADER_CONTENT
-   : . -> skip
+   : . -> channel(3)
    ;
 
 
@@ -577,11 +577,11 @@ HEADER_CONTENT
  */
 mode HeaderPackage;
 HDR_PCKG_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 HDR_PCKG_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 HDR_PCKG_DOT :
@@ -599,7 +599,7 @@ HDR_PCKG_UNTERMINATED :
     ;
 
 HDR_PCKG_CONTENT :
-    . -> skip
+    . -> channel(3)
     ;
 
 
@@ -610,11 +610,11 @@ HDR_PCKG_CONTENT :
  */
 mode HeaderImport;
 HDR_IMPRT_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 HDR_IMPRT_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 HDR_IMPRT_STATIC :
@@ -638,7 +638,7 @@ HDR_IMPRT_UNTERMINATED :
     ;
 
 HDR_IMPRT_CONTENT :
-    . -> skip
+    . -> channel(3)
     ;
 
 mode Action;
@@ -675,7 +675,7 @@ ACTION_CONTENT :
 mode Options;
 
 OPT_WS
-   : Ws + -> skip
+   : Ws + -> channel(2)
    ;
 
 OPT_DOC_COMMENT
@@ -683,11 +683,11 @@ OPT_DOC_COMMENT
    ;
 
 OPT_BLOCK_COMMENT
-   : BlockComment -> skip
+   : BlockComment -> channel(1)
    ;
 
 OPT_LINE_COMMENT
-   : LineComment -> skip
+   : LineComment -> channel(1)
    ;
 
 OPT_LBRACE :
@@ -756,7 +756,7 @@ OPT_ERRCHAR :
 mode Tokens;
 
 TOK_WS
-   : Ws + -> skip
+   : Ws + -> channel(2)
    ;
 
 // For coloring purpose, we do not skip document comments encountered in
@@ -768,13 +768,13 @@ TOK_DOC_COMMENT
 // For coloring purpose, we do not skip block comments encountered in
 // Tokens mode
 TOK_BLOCK_COMMENT
-   : BlockComment -> skip
+   : BlockComment -> channel(1)
    ;
 
 // For coloring purpose, we do not skip line comments encountered in
 // Tokens mode
 TOK_LINE_COMMENT
-   : LineComment -> skip
+   : LineComment -> channel(1)
    ;
 
 TOK_LBRACE
@@ -818,7 +818,7 @@ TOK_ERRCHAR :
 mode Channels;
 
 CHN_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 CHN_DOC_COMMENT
@@ -826,11 +826,11 @@ CHN_DOC_COMMENT
    ;
 
 CHN_BLOCK_COMMENT
-   : BlockComment -> skip
+   : BlockComment -> channel(1)
    ;
 
 CHN_LINE_COMMENT
-   : LineComment -> skip
+   : LineComment -> channel(1)
    ;
 
 CHN_LBRACE
@@ -870,15 +870,15 @@ CHN_ERRCHAR :
 mode Import;
 
 IMPORT_WS :
-    Ws+ -> skip
+    Ws+ -> channel(2)
     ;
 
 IMPORT_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 IMPORT_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 IMPORT_ID :
@@ -912,15 +912,15 @@ IMPORT_ERRCHAR :
 mode Identifier;
 
 ID_WS :
-    Ws+ -> skip
+    Ws+ -> channel(2)
     ;
 
 ID_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 ID_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 ID_ID :
@@ -947,7 +947,7 @@ TOKDEC_LINE_COMMENT :
     ;
 
 TOKDEC_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 TOKDEC_ID :
@@ -1060,11 +1060,11 @@ TOKDEC_ERRCHAR:
 mode FragmentDeclaration;
 
 FRAGDEC_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 FRAGDEC_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 FRAGDEC_ID :
@@ -1175,15 +1175,15 @@ FRAGDEC_ERRCHAR:
 mode ParserRuleDeclaration;
 
 PARDEC_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 PARDEC_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 PARDEC_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 PARDEC_RETURNS :
@@ -1356,15 +1356,15 @@ PARDEC_ERRCHAR:
 mode ParserRuleOptions;
 
 PARDEC_OPT_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 PARDEC_OPT_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 PARDEC_OPT_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 PARDEC_OPT_LBRACE :
@@ -1402,15 +1402,15 @@ PARDEC_OPT_ERRCHAR :
 mode LexerCommands;
 
 LEXCOM_BLOCK_COMMENT :
-    BlockComment -> skip
+    BlockComment -> channel(1)
     ;
 
 LEXCOM_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 LEXCOM_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 LEXCOM_SKIP :
@@ -1479,11 +1479,11 @@ LEXCOM_ERRCHAR :
 mode TypeLexerCommand;
 
 TYPE_WS :
-    Ws + -> skip
+    Ws + -> channel(2)
     ;
 
 TYPE_LINE_COMMENT :
-    LineComment -> skip
+    LineComment -> channel(1)
     ;
 
 TYPE_LPAREN :

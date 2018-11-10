@@ -23,6 +23,7 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
         this.info = info;
         this.ids = ids;
         if (info.state() instanceof AntlrProxies.ParseTreeProxy) {
+            System.out.println("GOT A RESTART INFO WITH STATE " + info.state());
             this.proxy = (AntlrProxies.ParseTreeProxy) info.state();
             //                System.out.println("USING EXISTING STATE " + this.proxy.text());
         } else {
@@ -30,9 +31,12 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
             //                System.out.println("INPUT IS " + info.input());
             String txt = info.input().readText().toString();
             if (!txt.equals(proxy.text())) {
-                //                    System.out.println("REPARSE '" + truncated(txt) + "'");
-                proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt);
-                //                    System.out.println("PROXY TEXT '" + truncated(proxy.text()) + "'");
+                if (!txt.isEmpty()) {
+                    proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt);
+                } else {
+                    proxy = proxy.toEmptyParseTreeProxy(txt);
+                }
+//                //                    System.out.println("PROXY TEXT '" + truncated(proxy.text()) + "'");
             } else {
                 //                    System.out.println("proxy text matches lexer input, no reparse");
             }
@@ -47,6 +51,13 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
     //                    System.out.println("PROXY TEXT '" + truncated(proxy.text()) + "'");
     //                    System.out.println("proxy text matches lexer input, no reparse");
     //            System.out.println("HAVE " + proxy.tokenCount() + " tokens");
+
+    private void rewind(LexerInput in) {
+        for (int i = 0; i < 10;) {
+            in.backup(1);
+
+        }
+    }
 
     @Override
     public Token<AdhocTokenId> nextToken() {
@@ -120,6 +131,7 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
     @Override
     public Object state() {
         return proxy;
+//        return null;
     }
 
     @Override

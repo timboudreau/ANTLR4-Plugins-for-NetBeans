@@ -307,8 +307,19 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         return result;
     }
 
+    ANTLRv4Parser.GrammarFileContext grammarFile;
+
+    public ANTLRv4Parser.GrammarFileContext grammarFile() {
+        return grammarFile;
+    }
+
+    public void discardParseTree() {
+        grammarFile = null;
+    }
+
     @Override
     public void exitGrammarFile(ANTLRv4Parser.GrammarFileContext ctx) {
+        grammarFile = ctx;
         // Only at this point do we know which rules are fragments, so we
         // can shuffle them into our fragment reference collection - they
         // are indistinguishable at parse time

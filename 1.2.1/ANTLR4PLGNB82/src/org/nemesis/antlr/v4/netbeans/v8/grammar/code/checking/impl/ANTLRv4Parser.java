@@ -3,8 +3,11 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
 import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class ANTLRv4Parser extends Parser {
@@ -189,7 +192,6 @@ public class ANTLRv4Parser extends Parser {
 
 	public ANTLRv4Parser(TokenStream input) {
 		super(input);
-//                new Exception("Created an ANTLR parser for " + input).printStackTrace();
 		_interp = new ParserATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
 	}
 	public static class GrammarFileContext extends ParserRuleContext {

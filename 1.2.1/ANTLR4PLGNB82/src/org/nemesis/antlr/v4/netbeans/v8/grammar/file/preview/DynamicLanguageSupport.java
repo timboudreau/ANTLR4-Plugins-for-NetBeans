@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -225,14 +226,15 @@ public class DynamicLanguageSupport {
         GrammarRegistration reg = registrations.get(mimeType);
         if (reg != null) {
             GenerateBuildAndRunGrammarResult last = reg.lastBuildResult;
-            if (last.text().equals(text)) {
+            if (last != null && Objects.equals(last.text(), text)) {
                 return last;
             } else {
                 reg.get(text, null);
                 return reg.lastBuildResult;
             }
+        } else {
+            return registerGrammar(mimeType, text).lastBuildResult;
         }
-        return null;
     }
 
     static String truncated(String txt) {

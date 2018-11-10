@@ -184,8 +184,8 @@ public class AdhocMimeResolver extends MIMEResolver {
                     return setLast(fo, mime);
                 }
             } else {
-                System.out.println("not an adhoc extension: " + ext + " for " + fo.getPath()
-                        + " registered: " + AdhocMimeTypes.EXTENSIONS_REGISTRY.toString());
+//                System.out.println("not an adhoc extension: " + ext + " for " + fo.getPath()
+//                        + " registered: " + AdhocMimeTypes.EXTENSIONS_REGISTRY.toString());
             }
         }
         return null;

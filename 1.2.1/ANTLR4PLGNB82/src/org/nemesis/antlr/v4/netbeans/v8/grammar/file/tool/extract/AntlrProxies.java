@@ -134,6 +134,13 @@ public class AntlrProxies {
         return prox;
     }
 
+    /**
+     * A wrapper for generated ANTLR parser and lexer vocabularies, optionally
+     * containing a parse tree of some text.  This class takes care not to
+     * expose any ANTLR types which may have been loaded in a disposable
+     * classloader - so tokens, etc. are deconstructed to primitive values and
+     * returned as proxy objects.
+     */
     public static final class ParseTreeProxy implements Serializable {
 
         private final List<ProxyToken> tokens;
@@ -173,23 +180,62 @@ public class AntlrProxies {
             this.thrown = thrown;
         }
 
+        /**
+         * Returns a ParseTreeProxy like this one, but with only some whitespace
+         * characters stuck in an EOF token. Document inserts sometimes cause
+         * the document to be briefly empty, and we don't want to run a full
+         * parse to make a proxy for nothing.
+         *
+         * @param whitespace Some whatespace.
+         * @return A new proxy
+         */
+        public ParseTreeProxy toEmptyParseTreeProxy(String whitespace) {
+            whitespace = whitespace == null ? "" : whitespace;
+            List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(whitespace, -1, 1, 0, 0, 0, 0, whitespace.length()));
+            ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
+            return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
+                    Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
+                    Paths.get(grammarPath), whitespace, null);
+        }
+
         public RuntimeException thrown() {
             return thrown;
         }
 
+        /**
+         * IF an exception was thrown and wrapped, rethrow it.
+         */
         public void rethrow() {
             if (thrown != null) {
                 throw thrown;
             }
         }
 
+        /**
+         * Get the token at a given character offset within the document.
+         * Uses binary search for performance.
+         *
+         * @param position The character offset
+         * @return A token or null if out of range.
+         */
         public ProxyToken tokenAtPosition(int position) {
+            if (position < 0) {
+                return null;
+            }
             if (tokens.isEmpty()) {
                 return null;
             }
             return tokenAtPosition(position, 0, tokens.size() - 1);
         }
 
+        /**
+         * Fetch the token at a given line and character offset within the
+         * text.  Uses binary search for performance.
+         *
+         * @param line
+         * @param charPositionInLine
+         * @return A token or null
+         */
         public ProxyToken tokenAtLinePosition(int line, int charPositionInLine) {
             return tokenAtLinePosition(line, charPositionInLine, 0, tokens.size() - 1);
         }
@@ -226,8 +272,6 @@ public class AntlrProxies {
             ProxyToken first = tokens.get(start);
             ProxyToken last = tokens.get(end);
             ProxyToken mid = tokens.get(middle);
-//            System.out.println("CHECK " + start + " / " + middle + " / " + end
-//                    + " -> " + first + " / " + mid + " / " + last + " FOR LINE " + line + " CHAR POS " + charOffset);
             if (first.contains(line, charOffset)) {
                 return first;
             } else if (last.contains(line, charOffset)) {
@@ -245,15 +289,7 @@ public class AntlrProxies {
             } else if (mid.endsBefore(line, charOffset)) {
                 return ParseTreeProxy.this.tokenAtLinePosition(line, charOffset, middle, end);
             } else {
-//                System.out.println("FALLTHROUGH " + start + " / " + middle + " / " + end + " looking for " + line + ":" + charOffset);
-//                System.out.println("FIRST startsAfter " + first.startsAfter(line, charOffset));
-//                System.out.println("FIRST endsBefore " + first.endsBefore(line, charOffset));
-//                System.out.println("MID startsAfter " + mid.startsAfter(line, charOffset));
-//                System.out.println("MID endsBefore " + mid.endsBefore(line, charOffset));
-//                System.out.println("LAST startsAfter " + last.startsAfter(line, charOffset));
-//                System.out.println("LAST endsBefore " + last.endsBefore(line, charOffset));
-//
-                if (mid.endsBefore(line, charOffset) && last.startsAfter(line, charOffset)){
+                if (mid.endsBefore(line, charOffset) && last.startsAfter(line, charOffset)) {
                     if (end - middle == 1) {
                         return tokens.get(middle + 1);
                     }

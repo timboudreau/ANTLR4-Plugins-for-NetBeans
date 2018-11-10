@@ -19,6 +19,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavi
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.rawGrammarNameForMimeType;
 import org.openide.actions.CopyAction;
 import org.openide.actions.CutAction;
+import org.openide.actions.DeleteAction;
 import org.openide.actions.OpenAction;
 import org.openide.actions.RenameAction;
 import org.openide.actions.ToolsAction;
@@ -48,7 +49,6 @@ import org.openide.nodes.Children;
 import org.openide.nodes.CookieSet;
 import org.openide.nodes.FilterNode;
 import org.openide.nodes.Node;
-import org.openide.text.CloneableEditor;
 import org.openide.text.DataEditorSupport;
 import org.openide.util.Exceptions;
 import org.openide.util.HelpCtx;
@@ -121,11 +121,12 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
     }
 
-    static class DES extends DataEditorSupport implements OpenCookie,
+    static final class DES extends DataEditorSupport implements OpenCookie,
             EditorCookie, EditorCookie.Observable,
-            CloseCookie, PrintCookie, EditorComponentFactory,
+            CloseCookie, PrintCookie,
             UndoRedoProvider {
 
+        private static final long serialVersionUID = 1;
         final String mimeType;
 
         public DES(DataObject d, String mimeType) {
@@ -148,20 +149,9 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
 
         @Override
-        public CloneableEditor newEditor() {
-            CloneableEditor ed = createCloneableEditor();
-            return ed;
-        }
-
-        @Override
         public UndoRedo get() {
             return super.getUndoRedo();
         }
-    }
-
-    public interface EditorComponentFactory {
-
-        public CloneableEditor newEditor();
     }
 
     private static String mimeType(DataObject dob) {
@@ -174,6 +164,8 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
     }
 
     static class DEnv extends DataEditorSupport.Env {
+
+        private static final long serialVersionUID = 1;
 
         public DEnv(DataObject obj) {
             super(obj);
@@ -209,8 +201,20 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
     }
 
     @Override
+    @Messages({
+        "# {0} - The grammar name",
+        "sampleFileName=Sample Text ({0})"
+    })
     public String getName() {
-        return getPrimaryFile().getName();
+        if (SampleFiles.isSampleFile(this)) {
+            Path grammarFile = AdhocMimeTypes.grammarFilePathForMimeType(getPrimaryFile().getMIMEType());
+            if (grammarFile != null) {
+                String grammarName = AdhocMimeTypes.rawFileName(grammarFile);
+                return Bundle.sampleFileName(grammarName);
+            }
+        }
+        String result = getPrimaryFile().getName();
+        return result;
     }
 
     @Override
@@ -225,7 +229,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
     @Override
     public boolean isDeleteAllowed() {
-        return getPrimaryFile().canWrite() && !getPrimaryFile().isVirtual();
+        return getPrimaryFile().canWrite() && !SampleFiles.isSampleFile(this);
     }
 
     @Override
@@ -362,18 +366,18 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
     @Override
     protected Node createNodeDelegate() {
-        return new DN(this);
+        return new AdhocDataNode(this);
     }
 
-    private static final class DN extends DataNode implements FileChangeListener {
+    private static final class AdhocDataNode extends DataNode implements FileChangeListener {
 
         private boolean hasGrammarFile;
 
-        DN(AdhocDataObject obj) {
-            this(obj, new Kids(obj));
+        AdhocDataNode(AdhocDataObject obj) {
+            this(obj, new ShowGrammarChildren(obj));
         }
 
-        public DN(AdhocDataObject obj, Children ch) {
+        public AdhocDataNode(AdhocDataObject obj, Children ch) {
             super(obj, ch);
             FileObject fo = findGrammarFile();
             hasGrammarFile = fo != null;
@@ -391,7 +395,10 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             result.add(null);
             result.add(SystemAction.get(CutAction.class).createContextAwareInstance(getLookup()));
             result.add(SystemAction.get(CopyAction.class).createContextAwareInstance(getLookup()));
-            result.add(SystemAction.get(RenameAction.class).createContextAwareInstance(getLookup()));
+            if (!SampleFiles.isSampleFile(getDataObject())) {
+                result.add(SystemAction.get(RenameAction.class).createContextAwareInstance(getLookup()));
+                result.add(SystemAction.get(DeleteAction.class).createContextAwareInstance(getLookup()));
+            }
             result.add(null);
             result.add(SystemAction.get(ToolsAction.class).createContextAwareInstance(getLookup()));
             return result.toArray(new Action[result.size()]);
@@ -404,6 +411,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
                 super(Bundle.openAssociatedGrammar());
             }
 
+            @Override
             public void actionPerformed(ActionEvent ae) {
                 Path grammarFile = AdhocMimeTypes.grammarFilePathForMimeType(getLookup().lookup(DataObject.class).getPrimaryFile().getMIMEType());
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFile.toFile()));
@@ -421,7 +429,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
 
         public String getName() {
-            return getLookup().lookup(DataObject.class).getPrimaryFile().getName();
+            return getDataObject().getPrimaryFile().getName();
         }
 
         @Override
@@ -431,7 +439,10 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
         @Override
         public String getDisplayName() {
-            FileObject fo = getLookup().lookup(DataObject.class).getPrimaryFile();
+            if (SampleFiles.isSampleFile(getDataObject())) {
+                return getDataObject().getName();
+            }
+            FileObject fo = getDataObject().getPrimaryFile();
             if (fo.getExt().startsWith(AdhocMimeTypes.FILE_EXTENSION_PREFIX)) {
                 return fo.getName();
             }
@@ -439,7 +450,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
 
         private String mimeType() {
-            FileObject theFile = getLookup().lookup(AdhocDataObject.class).getPrimaryFile();
+            FileObject theFile = getDataObject().getPrimaryFile();
             String mime = theFile.getMIMEType();
             if ("content/unknown".equals(mime)) {
                 mime = AdhocMimeTypes.mimeTypeForFileExtension(theFile.getExt());
@@ -466,15 +477,17 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
         @Override
         public String getHtmlDisplayName() {
+            if (SampleFiles.isSampleFile(getDataObject())) {
+                return getDataObject().getName();
+            }
             // Allow some means of eventual refresh - getHtmlDisplayName is
             // frequently called.  Changing VCS branches and such can cause
             // temporary deletion and reappearance
             if (!hasGrammarFile && ix++ % 10 == 0) {
                 hasGrammarFile = findGrammarFile() != null;
             }
-            DataObject dob = getLookup().lookup(DataObject.class);
             String name = super.getDisplayName();
-            String grammarName = rawGrammarNameForMimeType(dob.getPrimaryFile().getMIMEType());
+            String grammarName = rawGrammarNameForMimeType(getDataObject().getPrimaryFile().getMIMEType());
             if (!hasGrammarFile) {
                 name = "<font color=\"!nb.errorForeground\">" + name;
             }
@@ -520,12 +533,12 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
     }
 
-    private static final class Kids extends Children.Keys<String> {
+    private static final class ShowGrammarChildren extends Children.Keys<String> {
 
         private final AdhocDataObject obj;
         private static final String GRAMMAR_KEY = "grammar";
 
-        public Kids(AdhocDataObject obj) {
+        public ShowGrammarChildren(AdhocDataObject obj) {
             super(true);
             this.obj = obj;
         }
@@ -567,7 +580,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
                 DataObject dob = DataObject.find(grammarFile);
                 return new Node[]{new FilterNode(dob.getNodeDelegate(), Children.LEAF)};
             } catch (DataObjectNotFoundException ex) {
-                Logger.getLogger(Kids.class.getName()).log(Level.WARNING,
+                Logger.getLogger(ShowGrammarChildren.class.getName()).log(Level.WARNING,
                         "Dead data object " + path, ex);
                 return new Node[]{new ErrorNode(ex.getLocalizedMessage())};
             }

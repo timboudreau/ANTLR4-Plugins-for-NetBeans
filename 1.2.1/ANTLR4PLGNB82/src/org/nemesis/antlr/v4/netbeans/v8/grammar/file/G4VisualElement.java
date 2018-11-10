@@ -242,11 +242,12 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         if (callback != null) {
             Mutex.EVENT.readAccess((Runnable) () -> {
                 Collection<? extends SaveCookie> all = saveCookieResult.allInstances();
-                System.out.println("save cookie result changed: " + all);
-                if (all.isEmpty()) {
-                    callback.updateTitle(obj.getName());
-                } else {
-                    callback.updateTitle("<b>" + obj.getName() + "*");
+                if (callback != null) {
+                    if (all.isEmpty()) {
+                        callback.updateTitle(obj.getName());
+                    } else {
+                        callback.updateTitle("<b>" + obj.getName() + "-hey*");
+                    }
                 }
             });
         }

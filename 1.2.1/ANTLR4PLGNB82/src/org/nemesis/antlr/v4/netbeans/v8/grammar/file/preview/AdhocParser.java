@@ -21,10 +21,6 @@ import org.openide.util.ChangeSupport;
 final class AdhocParser extends Parser {
     static final Logger LOG = Logger.getLogger(AdhocParser.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static Map<Task, AdhocParserResult> resultForTask = new WeakHashMap<>();
     private AntlrProxies.ParseTreeProxy proxy;
     private GenerateBuildAndRunGrammarResult buildResult;
@@ -51,26 +47,16 @@ final class AdhocParser extends Parser {
         String txt = snpsht.getText().toString();
         AntlrProxies.ParseTreeProxy px = proxy;
         if (!txt.equals(proxy.text())) {
-            px = proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt);
+            if (txt.isEmpty()) {
+                px = proxy = px.toEmptyParseTreeProxy(txt);
+            } else {
+                px = proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt);
+            }
             buildResult = DynamicLanguageSupport.lastBuildResult(proxy.mimeType(), txt);
             LOG.log(Level.FINEST, "Parsed {0} for {1}", new Object[]{px.summary(), task});
         }
-        System.out.println("task " + task + " gets " + px.summary());
         AdhocParserResult result = new AdhocParserResult(snpsht, px, buildResult);
         resultForTask.put(task, last = result);
-//        AdhocMimeDataProvider p = Lookup.getDefault().lookup(AdhocMimeDataProvider.class);
-        // XXX the infrstructure should be taking care of this - why is it not?
-//        if (p != null) {
-//            for (TaskFactory f : p.getLookup(px.mimeType()).lookupAll(TaskFactory.class)) {
-//                Collection<? extends SchedulerTask> all = f.create(snpsht);
-//                for (SchedulerTask t : all) {
-//                    if (t instanceof ParserResultTask) {
-//                        System.out.println("FORCE ERROR HIGHLIGHTING");
-//                        ((ParserResultTask) t).run(last, null);
-//                    }
-//                }
-//            }
-//        }
     }
 
     @Override

@@ -135,7 +135,7 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
                             + " parse is of " + t.buildResult().generationResult().sourceFile()
                             + " err " + err.getClass().getSimpleName() + ": " + err,
                             ex);
-                    LOG.log(Level.FINE, "Error highlighting error '" + e
+                    LOG.log(Level.FINE, "Error highlighting error '" + ex
                             + "' in " + fo, ise);
                 } catch (BadLocationException ex) {
                     IllegalStateException e2 = new IllegalStateException("IOOBE highlighting error on "
@@ -144,7 +144,7 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
                             + " parse is of " + t.buildResult().generationResult().sourceFile()
                             + " err " + err.getClass().getSimpleName() + ": " + err,
                             ex);
-                    LOG.log(Level.FINE, "Error highlighting error '" + e
+                    LOG.log(Level.FINE, "Error highlighting error '" + e2
                             + "' in " + fo, e2);
                 }
             }
@@ -170,7 +170,8 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
 
     @Override
     public void cancel() {
-        System.out.println("adhoc task cancel called");
+        System.out.println("CANCEL ERRORS TASK");
+        Thread.dumpStack();
         cancelled.set(true);
     }
 }

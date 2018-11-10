@@ -8,6 +8,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.lexer.Language;
+import org.netbeans.modules.parsing.spi.TaskFactory;
 import org.netbeans.spi.editor.mimelookup.MimeDataProvider;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.AbstractLookup;
@@ -22,10 +23,6 @@ import org.openide.util.lookup.ServiceProvider;
 public class AdhocMimeDataProvider implements MimeDataProvider {
 
     static final Logger LOG = Logger.getLogger(AdhocMimeDataProvider.class.getName());
-
-    static {
-        LOG.setLevel(Level.FINE);
-    }
 
     private final LanguageIC lang = new LanguageIC();
     private final FontColorsIC fcic = new FontColorsIC();
@@ -50,7 +47,6 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     }
 
     void addMimeType(GenerateBuildAndRunGrammarResult buildResult, AntlrProxies.ParseTreeProxy parseResult) {
-        System.out.println("ADD MIME TYPE " + parseResult.mimeType());
         MimeEntry en = new MimeEntry(buildResult, parseResult, lang, fcic);
         LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(en.mimeType));
         lookups.put(en.mimeType, en);
@@ -100,6 +96,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         private final String mimeType;
         private final AdhocParserFactory pf;
         private final FontColorsIC fcic;
+        private final TaskFactory errorHighlighter;
 
         public MimeEntry(GenerateBuildAndRunGrammarResult buildResult,
                 AntlrProxies.ParseTreeProxy prox, LanguageIC cvt, FontColorsIC fcic) {
@@ -111,7 +108,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.add(mimeType, cvt);
             content.add(pf = new AdhocParserFactory(buildResult, prox));
             content.add(layers = new AdhocHighlightLayerFactory(mimeType));
-            content.add(AdhocErrorsHighlighter.create());
+            content.add(errorHighlighter = AdhocErrorsHighlighter.create());
 //            this.lookup = new DebugLookup(new AbstractLookup(content));
             this.lookup = new AbstractLookup(content);
         }
@@ -128,6 +125,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.remove(mimeType, fcic);
             content.remove(layers);
             content.remove(pf);
+            content.remove(errorHighlighter);
         }
     }
 
