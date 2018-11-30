@@ -14,6 +14,8 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.CharStreams;
@@ -61,23 +63,27 @@ public class AntlrFormatterTest {
         .setSpacesInsideParentheses(false)
         .setBlankLineAfterRule(NewlineStyle.ALWAYS)
         .setWrapPoint(80)
+        .setReflowBlockComments(true)
         .setWrapLines(false),
         new AntlrFormatterSettings()
         .setNewlineAfterColon(true)
         .setSpacesInsideParentheses(true)
         .setBlankLineAfterRule(NewlineStyle.NEVER)
         .setWrapPoint(80)
+        .setReflowBlockComments(true)
         .setWrapLines(false),
         new AntlrFormatterSettings()
         .setNewlineAfterColon(false)
         .setSpacesInsideParentheses(true)
+        .setReflowBlockComments(true)
         .setBlankLineAfterRule(NewlineStyle.IF_COMPLEX)
         .setWrapPoint(32)
         .setWrapLines(true),};
     private String testSix;
+    private String testSeven;
 
     @Test
-    public void testAll() throws Throwable {
+    public void testReformattedFilesParseCleanly() throws Throwable {
         for (AntlrFormatterSettings s : allSettings) {
             testOneFormatter("nestedMapGrammar", nestedMapGrammar, s);
             testOneFormatter("rustMinimal", rustMinimal, s);
@@ -100,35 +106,46 @@ public class AntlrFormatterTest {
         parser.grammarFile().accept(v);
 
         v.assertNoErrors(text);
-
-        Thread.sleep(1000);
+        // Try to force the output window to catch up with the output before
+        // closing the stream
+        System.out.flush();
+        Thread.sleep(500);
     }
 
     @Test
     public void testFormattingUnchanged() throws Throwable {
         List<String> errors = new ArrayList<>();
+        int failureCount = 0;
+        Set<String> failedFiles = new TreeSet<>();
         for (int i = 0; i < allSettings.length; i++) {
             for (Map.Entry<String, String> e : textForName.entrySet()) {
+                String nm = e.getKey() + "-" + i;
+                System.out.println(nm);
                 String formatted = formatOne(e.getValue(), allSettings[i]);
                 String msgs = compareGolden(e.getKey(), i, formatted);
                 if (msgs != null) {
+                    failedFiles.add(nm);
+                    failureCount++;
                     errors.add("\n-------------------- " + e.getKey() + ":" + i + "----------------");
                     errors.add("For " + e.getKey() + " with " + allSettings[i]);
                     errors.add(msgs);
                 }
+                System.out.println("");
             }
         }
         if (!errors.isEmpty()) {
             for (String s : errors) {
                 System.out.println(s);
             }
-            fail("Formatting behavior has changed.");
+            fail("Formatting behavior has changed for " + failureCount + " files: " + failedFiles);
         }
     }
 
 //    @Test
-    public void testFormatSimple() throws Throwable {
-        String rust = formatOne(rustMinimal, allSettings[0]);
+    public void testDebug() throws Throwable {
+        String rust = formatOne(rustMinimal, allSettings[0]
+                .copy().setWrapPoint(90).setWrapLines(false)
+                .setBlankLineAfterRule(NewlineStyle.IF_COMPLEX));
         System.out.println("\nRUST-a:\n\n---------------\n" + rust + "\n-------------------------");
         String firstA = formatOne(testOne, allSettings[0]);
         System.out.println("\nFIRST-a:\n\n---------------\n" + firstA + "\n-------------------------");
@@ -147,19 +164,29 @@ public class AntlrFormatterTest {
         String fourthB = formatOne(testFour, allSettings[1]);
         System.out.println("\nFOURTH-b:\n\n---------------\n" + fourthB + "\n-------------------------");
         String fifthA = formatOne(testFive, allSettings[0]);
-        System.out.println("\nFIFTH-a:\n\n---------------\n" + fifthA + "\n-------------------------");
+        System.out.println("\nFIFTH-a:\n\n---------------\n" + fifthA + "\n" + allSettings[0] + "\n-------------------------");
         String fifthB = formatOne(testFive, allSettings[1]);
-        System.out.println("\nFIFTH-b:\n\n---------------\n" + fifthB + "\n-------------------------");
+        System.out.println("\nFIFTH-b:\n\n---------------\n" + fifthB + "\n" + allSettings[1] + "\n-------------------------");
         String sixthA = formatOne(testSix, allSettings[0]);
-        System.out.println("\nSIXTH-a:\n\n---------------\n" + sixthA + "\n-------------------------");
-        String sixthB = formatOne(testSix, allSettings[1]);
-        System.out.println("\nSIXTH-b:\n\n---------------\n" + sixthB + "\n-------------------------");
+        System.out.println("\nSIXTH-a:\n\n---------------\n" + sixthA + "\n" + allSettings[0] + "\n-------------------------");
+        String sixthB = formatOne(testSix, allSettings[1].copy().setWrapLines(true));
+        System.out.println("\nSIXTH-b:\n\n---------------\n" + sixthB + "\n" + allSettings[1].copy()
+                .setWrapLines(false).setBlankLineAfterRule(NewlineStyle.IF_COMPLEX) + "\n-------------------------");
+        String seventhA = formatOne(testSeven, allSettings[0]);
+        System.out.println("\nSEVENTH-a:\n\n---------------\n" + seventhA + "\n" + allSettings[0] + "\n-------------------------");
+        String seventhB = formatOne(testSeven, allSettings[1].copy().setWrapLines(true));
+        System.out.println("\nSEVENTH-b:\n\n---------------\n" + seventhB + "\n" + allSettings[1].copy()
+                .setWrapLines(true)
+                .setWrapPoint(50)
+                .setBlankLineAfterRule(NewlineStyle.IF_COMPLEX) + "\n-------------------------");
+
         System.out.flush();
         Thread.sleep(1000);
     }
 
     private String formatOne(String text, AntlrFormatterSettings settings) throws Throwable {
         ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromString(text));
+        lexer.removeErrorListeners();
         String formatted = AntlrFormatter.reformat(lexer, 0, text.length(),
                 settings);
         return formatted;
@@ -223,7 +250,19 @@ public class AntlrFormatterTest {
     private final Map<String, String> textForName = new HashMap<>();
 
     private String loadToMap(String name) throws IOException {
-        try (InputStream in = AntlrFormatterTest.class.getResourceAsStream(name)) {
+        return loadToMap(name, AntlrFormatterTest.class);
+    }
+
+    private String loadToMap(Path file) throws IOException {
+        try (InputStream in = Files.newInputStream(file, StandardOpenOption.READ)) {
+            String text = readString(in);
+            textForName.put(file.getFileName().toString(), text);
+            return text;
+        }
+    }
+
+    private String loadToMap(String name, Class<?> relativeTo) throws IOException {
+        try (InputStream in = relativeTo.getResourceAsStream(name)) {
             assertNotNull(in);
             String text = readString(in);
             textForName.put(name, text);
@@ -237,7 +276,7 @@ public class AntlrFormatterTest {
         return longer.substring(shorter.length());
     }
 
-    private String charDiff(String e, String g) {
+    private String charDiff(int line, String e, String g) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < Math.min(e.length(), g.length()); i++) {
             char ec = e.charAt(i);
@@ -246,6 +285,9 @@ public class AntlrFormatterTest {
                 sb.append("Lines first differ at ").append(i)
                         .append(": '").append(ec)
                         .append("' got '").append(gc).append("'");
+                sb.append('\n');
+                sb.append('\'').append(e).append("'|'").append(g).append('\'').append('\n');
+                break;
             }
         }
         if (e.length() != g.length()) {
@@ -264,15 +306,23 @@ public class AntlrFormatterTest {
             String e = expectedLines[i];
             String g = gotLines[i];
             if (!e.equals(g)) {
-                sb.append("Difference at line ").append(i).append(" in ")
+                sb.append(i).append(": Text differed").append(" in ")
                         .append(name).append("-").append(index)
-                        .append(".\n\n'").append(expected)
-                        .append("'\n'").append(got).append("'\n\n")
-                        .append(charDiff(e, g)).append('\n');
+                        .append(".\n\n'").append(e)
+                        .append("'\n'").append(g).append("'\n")
+                        .append(charDiff(i, e, g));
+                break;
             }
         }
         if (expectedLines.length != gotLines.length) {
-            sb.append("Expected " + expectedLines.length + " but got " + gotLines.length).append('\n');
+            sb.append("\nExpected ").append(expectedLines.length)
+                    .append(" but got ").append(gotLines.length).append('\n');
+        }
+        if (sb.length() != 0) {
+            sb.append("\n");
+            sb.append("\nEXPECTED:\n").append(expected);
+            sb.append("\nGOT:\n").append(got);
+            sb.append("\n------------------------------------------------------------------------\n");
         }
         return sb.length() == 0 ? null : sb.toString();
     }
@@ -320,24 +370,21 @@ public class AntlrFormatterTest {
             assertNotNull(in);
             java = readString(in);
         }
-        try (InputStream in = ErrorHandlingTest.class.getResourceAsStream("Rust-Minimal._g4")) {
-            assertNotNull(in);
-            rustMinimal = readString(in);
-        }
+        rustMinimal = loadToMap("Rust-Minimal._g4", ErrorHandlingTest.class);
         testOne = loadToMap("TestOne.g4");
         testTwo = loadToMap("TestTwo.g4");
         testThree = loadToMap("TestThree.g4");
         testFour = loadToMap("TestFour.g4");
         testFive = loadToMap("TestFive.g4");
         testSix = loadToMap("TestSix.g4");
+        testSeven = loadToMap("TestSeven.g4");
         Path baseDir = projectBaseDir();
         Path lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
         Path grammar = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
+
+        antlrGrammar = loadToMap(grammar);
         try (InputStream in = Files.newInputStream(lexer, StandardOpenOption.READ)) {
             antlrLexer = readString(in);
-        }
-        try (InputStream in = Files.newInputStream(grammar, StandardOpenOption.READ)) {
-            antlrGrammar = readString(in);
         }
     }
 

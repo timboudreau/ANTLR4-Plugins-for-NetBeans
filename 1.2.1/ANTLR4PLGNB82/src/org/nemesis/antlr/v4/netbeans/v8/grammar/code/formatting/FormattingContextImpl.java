@@ -1,70 +1,94 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.Interval;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.LexingState.LexerScanner;
 
 /**
  *
  * @author Tim Boudreau
  */
-class FormattingContextImpl implements FormattingContext {
+class FormattingContextImpl implements FormattingContext, LexerScanner {
 
     final TokenStreamRewriter rew;
-    final int start;
-    final int end;
+    final int startToken;
+    final int endToken;
     final int indentSize;
     final FormattingRules rules;
     private boolean lastContainedNewline;
     private int posInOriginalLine;
-    private int lineLength = 0;
-    private int blockDepth = 0;
-    private int openBrace = 0;
-    private int colonPositionInLine = 0;
-    private int actionBraces = 0;
-    private LinkedList<Integer> leftParenPos = new LinkedList<>();
     private String lastAppended;
-    private String prepend;
-    private String append;
-    String replacement;
+    private String replacement;
     private EverythingTokenStream stream;
+    private final LexingState state;
+    private final Criterion notWhitespace;
+    private final LineState lineState = new LineState();
+    private final Criterion whitespace;
+    private final Predicate<Token> debugLogging;
 
     public FormattingContextImpl(TokenStreamRewriter rew, int start, int end, int indentSize,
-            FormattingRules rules) {
-        this.rew = rew;
-        this.start = start;
-        this.end = end;
-        this.rules = rules;
-        this.indentSize = indentSize;
+            FormattingRules rules, LexingState state, Criterion whitespace) {
+        this(rew, start, end, indentSize, rules, state, whitespace, t -> {
+            return false;
+        });
     }
 
-    String go(ANTLRv4Lexer lexer, EverythingTokenStream tokens) {
+    public FormattingContextImpl(TokenStreamRewriter rew, int start, int end,
+            int indentSize, FormattingRules rules, LexingState state,
+            Criterion whitespace, Predicate<Token> debugLogging) {
+        this.rew = rew;
+        this.startToken = start;
+        this.endToken = end;
+        this.rules = rules;
+        this.indentSize = indentSize;
+        this.state = state;
+        this.notWhitespace = whitespace.negate();
+        this.whitespace = whitespace;
+        this.debugLogging = debugLogging;
+    }
+
+    String go(Lexer lexer, EverythingTokenStream tokens) {
+        state.clear();
         stream = tokens;
         tokens.seek(0);
         int prevType = -1;
         int size = tokens.size();
         for (int i = 0; i < size; i++) {
             ModalToken tok = tokens.get(i);
-            if (tok.getStartIndex() > end) {
+            if (tok.getStartIndex() > endToken) {
+                lineState.finish();
                 // We have formatted all we were asked to; get out
                 break;
             }
+            state.onBeforeProcessToken(tok, this);
             tokens.seek(i + 1);
+            boolean res = false;
             try {
-                ModalToken nxt = tokens.findSubsequent(i, AntlrCriteria::notWhitespace);
+                ModalToken nxt = tokens.findSubsequent(i, notWhitespace);
                 int nextType = nxt == null ? -1 : nxt.getType();
                 tokens.seek(i);
-                if (onOneToken(tok, prevType, nextType, tokens)) {
+                ModalToken immediatelyNext = i == tokens.size() - 1 ? null : tokens.get(i + 1);
+                boolean hasFollowingNewline = false;
+                if (immediatelyNext != null && whitespace.test(immediatelyNext.getType())) {
+                    hasFollowingNewline = immediatelyNext.getText() != null
+                            && immediatelyNext.getText().indexOf('\n') >= 0;
+                }
+                if (res = onOneToken(tok, prevType, nextType, tokens, hasFollowingNewline)) {
                     prevType = tok.getType();
                 }
             } finally {
+                if (res) {
+                    onAfterProcessToken(tok, tok.getType());
+                }
+                lineState.withPreviousPosition(() -> {
+                    state.onAfterProcessToken(tok, this);
+                });
                 try {
                     tokens.consume();
                 } catch (IllegalStateException ex) {
@@ -72,32 +96,21 @@ class FormattingContextImpl implements FormattingContext {
                 }
             }
         }
+        // If any token group rewriters were still chewing when we finished
+        // parsing, allow them to clean up and do their replacing
+        rules.finish(rew);
         return getModifiedText();
     }
 
-    public int occurrencesOf(int tokenType, int before) {
-        int count = 0;
-        for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
-            Token t = stream.get(ix);
-            if (t.getType() == before) {
-                break;
-            }
-            if (tokenType == t.getType()) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     @Override
-    public int tokenCountToNext(boolean ignoreWhitespace, int targetType) {
+    public int tokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType) {
         int count = 0;
         for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
             Token t = stream.get(ix);
-            if (t.getType() == targetType) {
+            if (targetType.test(t.getType())) {
                 break;
             }
-            boolean isWhitespace = AntlrCriteria.isWhitespace(t.getType());
+            boolean isWhitespace = whitespace.test(t.getType());
             if (isWhitespace && ignoreWhitespace) {
                 continue;
             }
@@ -107,14 +120,14 @@ class FormattingContextImpl implements FormattingContext {
     }
 
     @Override
-    public int tokenCountToPreceding(boolean ignoreWhitespace, int targetType) {
+    public int tokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType) {
         int count = 0;
         for (int ix = stream.cursor - 1; ix >= 0; ix--) {
             Token t = stream.get(ix);
-            if (t.getType() == targetType) {
+            if (targetType.test(t.getType())) {
                 break;
             }
-            boolean isWhitespace = AntlrCriteria.isWhitespace(t.getType());
+            boolean isWhitespace = whitespace.test(t.getType());
             if (isWhitespace && ignoreWhitespace) {
                 continue;
             }
@@ -131,34 +144,6 @@ class FormattingContextImpl implements FormattingContext {
             if (toCount.test(t.getType())) {
                 count++;
             } else if (stopType.test(t.getType())) {
-                break;
-            }
-        }
-        return count;
-    }
-
-    @Override
-    public int countForwardOccurrencesUntilNext(int toCount, int stopType) {
-        int count = 0;
-        for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
-            Token t = stream.get(ix);
-            if (t.getType() == toCount) {
-                count++;
-            } else if (t.getType() == stopType) {
-                break;
-            }
-        }
-        return count;
-    }
-
-    @Override
-    public int countBackwardOccurrencesUntilPrevious(int toCount, int stopType) {
-        int count = 0;
-        for (int ix = stream.cursor - 1; ix >= 0; ix--) {
-            Token t = stream.get(ix);
-            if (t.getType() == toCount) {
-                count++;
-            } else if (t.getType() == stopType) {
                 break;
             }
         }
@@ -189,9 +174,9 @@ class FormattingContextImpl implements FormattingContext {
     int firstTokenInRange = -1;
     int lastTokenInRange = -1;
 
-    boolean onOneToken(ModalToken tok, int prevType, int nextType, EverythingTokenStream tokens) {
+    boolean onOneToken(ModalToken tok, int prevType, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline) {
         int tokenType = tok.getType();
-        if (AntlrCriteria.isWhitespace(tok.getType()) || tok.getText().trim().length() == 0) {
+        if (whitespace.test(tok.getType()) || tok.getText().trim().length() == 0) {
             int newlinePosition = tok.getText().lastIndexOf('\n');
             lastContainedNewline = newlinePosition >= 0;
             if (lastContainedNewline) {
@@ -203,46 +188,41 @@ class FormattingContextImpl implements FormattingContext {
             } else {
                 posInOriginalLine = tok.getText().length() - newlinePosition;
             }
+            lineState.onUnprocessedToken(tok);
             return false;
         }
-        if (tok.getStartIndex() >= start && tok.getStopIndex() <= end) {
+        if (tok.getStartIndex() >= startToken && tok.getStopIndex() <= endToken) {
             if (firstTokenInRange == -1) {
                 firstTokenInRange = tok.getTokenIndex();
             }
             lastTokenInRange = tok.getTokenIndex();
-            onToken(tok, prevType, tokenType, nextType, lastContainedNewline);
+            onToken(tok, prevType, tokenType, nextType, lastContainedNewline, hasFollowingNewline);
         }
-        posInOriginalLine += tok.getText().length();
+        return true;
+    }
+
+    void onAfterProcessToken(ModalToken tok, int tokenType) {
+//        posInOriginalLine += tok.getText().length();
+        lineState.onToken(tok);
+        posInOriginalLine = tok.getCharPositionInLine() + ((tok.getStopIndex() + 1) - tok.getStartIndex());
         lastContainedNewline = false;
         String txt = tok.getText();
         int len = 0;
         if (txt != null) {
             len = txt.length();
-            int ix = txt.lastIndexOf('\n');
-            if (ix > 0) {
-                lineLength = 0;
-                len -= (ix + 1);
+            if (len > 0) {
+                int ix = txt.lastIndexOf('\n');
+                if (ix > 0) {
+                    lastContainedNewline = true;
+                    len -= (ix + 1);
+                    posInOriginalLine = txt.length() - ix;
+                }
             }
         }
-        lineLength += len;
-        prevType = tokenType;
         if (replacement != null) {
             rew.replace(tok, replacement);
+            replacement = null;
         }
-        if (prepend != null) {
-            rew.insertBefore(tok, prepend);
-        }
-        if (append != null) {
-            rew.insertAfter(tok, append);
-            int ix = append.lastIndexOf('\n');
-            if (ix >= 0) {
-                lineLength = append.length() - (ix + 1);
-            }
-        }
-        lastAppended = append;
-        append = null;
-        prepend = null;
-        return true;
     }
 
     @Override
@@ -253,80 +233,49 @@ class FormattingContextImpl implements FormattingContext {
     @Override
     public void prependSpace() {
         if (!Objects.equals(lastAppended, " ")) {
-            if (prepend != null && prepend.length() > 1) {
+            if (getPrepend() != null && getPrepend().length() > 1) {
                 return;
             }
-            prepend = " ";
-            lineLength++;
+            setPrepend(" ");
         }
     }
 
     @Override
     public void appendSpace() {
-        if (append != null && append.length() > 1) {
+        if (getAppend() != null && getAppend().length() > 1) {
             return;
         }
-        append = " ";
-        lineLength++;
+        setAppend(" ");
     }
 
     @Override
     public void prependNewline() {
-        prepend = "\n";
-        lineLength = 0;
+        setPrepend("\n");
     }
 
     @Override
     public void prependNewlineAndIndentBy(int amt) {
-        prepend = "\n" + spacesString(amt);
-        lineLength = prepend.length() - 1;
+        setPrepend("\n" + spacesString(amt));
+    }
+
+    @Override
+    public void prependDoubleNewline() {
+        setPrepend("\n\n");
+    }
+
+    @Override
+    public void appendNewlineAndIndentBy(int amt) {
+        setAppend("\n" + spacesString(amt));
     }
 
     @Override
     public void prependNewlineAndIndent() {
-        int depth = blockDepth;
-        if (depth == 0) {
-            depth = get("colon", 0);
-        } else {
-            prepend = "\n" + indentString(depth);
-            lineLength = prepend.length() - 1;
-            return;
-        }
-        if (depth == 0) {
-            depth = indentSize;
-        }
-        prepend = "\n" + spacesString(depth);
-        lineLength = prepend.length() - 1;
+        setPrepend("\n" + indentString(1));
     }
 
     @Override
     public void appendNewline() {
-        append = "\n";
-        lineLength = 0;
-    }
-    private final Map<Object, Integer> context = new HashMap<>();
-    private static final String colonPosition = "colon";
-
-    @Override
-    public <T> void set(T key, int val) {
-        context.put(key, val);
-    }
-
-    @Override
-    public <T> int get(T key, int defaultValue) {
-        if ("blockDepth".equals(key)) {
-            return blockDepth;
-        }
-        if ("lparen".equals(key) && !leftParenPos.isEmpty()) {
-            return leftParenPos.peek();
-        }
-        if ("beginActionBraces".equals(key)) {
-            return actionBraces;
-        }
-        if ("openBrace".equals(key)) {
-            return openBrace;
-        }
-        return context.getOrDefault(key, Integer.valueOf(defaultValue));
+        setAppend("\n");
     }
 
     @Override
@@ -336,122 +285,311 @@ class FormattingContextImpl implements FormattingContext {
 
     @Override
     public int currentCharPositionInLine() {
-        if (prepend != null && prepend.startsWith("\n")) {
-            return prepend.length() - 1;
-        }
-        return lineLength;
+        return lineState.currentTokenPosition();
     }
 
     @Override
     public void appendNewlineAndIndent() {
-        append = "\n" + indentString(get(colonPosition, indentSize));
-        lineLength = append.length() - 1;
+        setAppend("\n" + indentString(1));
     }
 
     @Override
     public void appendNewlineAndDoubleIndent() {
-        append = "\n" + indentString(get(colonPosition, indentSize) * 2);
-        lineLength = append.length() - 1;
+        setAppend("\n" + indentString(2));
+    }
+
+    @Override
+    public void appendDoubleNewlineAndIndentBy(int amt) {
+        setAppend("\n\n" + spacesString(amt + indentSize));
     }
 
     @Override
     public void prependNewlineAndDoubleIndent() {
-        int depth = blockDepth;
-        if (depth == 0) {
-            depth = get("colon", 0);
-        } else {
-            prepend = "\n" + indentString(depth + 1);
-            lineLength = prepend.length() - 1;
-            return;
-        }
-        if (depth == 0) {
-            depth = indentSize;
-        }
-        prepend = "\n" + spacesString(depth * 2);
-        lineLength = prepend.length() - 1;
+        setPrepend("\n" + spacesString(indentSize() * 2));
     }
 
     @Override
     public void appendDoubleNewline() {
-        append = "\n\n";
-        lineLength = 0;
+        setAppend("\n\n");
+    }
+
+    @Override
+    public void indentBy(int spaces) {
+        setPrepend(spacesString(spaces));
+    }
+
+    public int indentSize() {
+        return indentSize;
+    }
+
+    public int initialIndentSize() {
+        return indentSize();
     }
 
     @Override
     public void indent() {
-        int depth = blockDepth;
-        if (depth == 0) {
-            depth = get("colon", 0);
+        if (this.currentCharPositionInLine() != 0) {
+            int offset = this.currentCharPositionInLine() % indentSize();
+            if (offset > 0) {
+                setPrepend(spacesString(offset));
+                return;
+            }
+        }
+        int len = initialIndentSize();
+        if (getPrepend() == null) {
+            setPrepend(spacesString(len));
         } else {
-            prepend = indentString(depth + 1);
-            lineLength += prepend.length() - 1;
-            return;
+            setPrepend(spacesString(indentSize()));
         }
-        if (depth == 0) {
-            depth = indentSize;
-        }
-        prepend = spacesString(depth * 2);
-        lineLength += prepend.length();
     }
 
     String indentString(int amt) {
+        if (amt == 1) {
+            return spacesString(initialIndentSize());
+        } else if (amt > 1) {
+            return spacesString(initialIndentSize() + ((amt - 1) * indentSize()));
+        }
         return spacesString(amt * indentSize);
     }
 
-    String spacesString(int amt) {
-        char[] chars = new char[Math.max(0, amt)];
-        Arrays.fill(chars, ' ');
-        return new String(chars);
+    String getPrepend() {
+        return lineState.prepend;
     }
 
-    private void processToken(ModalToken token, int prevType, int tokenType, int nextType, boolean hasImmediatelyPrecedingNewlines) {
-        boolean log = AntlrFormatter.isLoggable(token.getType()) || AntlrFormatter.isLoggable(prevType) || AntlrFormatter.isLoggable(nextType);
+    void setPrepend(String prepend) {
+        lineState.prepend(prepend);
+    }
+
+    String getAppend() {
+        return lineState.append;
+    }
+
+    void setAppend(String append) {
+        lineState.append(append);
+    }
+    private final String[] cachedSpacesStrings = new String[32];
+
+    String spacesString(int amt) {
+        if (amt < cachedSpacesStrings.length) {
+            if (cachedSpacesStrings[amt] != null) {
+                return cachedSpacesStrings[amt];
+            }
+        }
+        char[] chars = new char[Math.max(0, amt)];
+        Arrays.fill(chars, ' ');
+        String result = new String(chars);
+        if (amt < cachedSpacesStrings.length) {
+            cachedSpacesStrings[amt] = result;
+        }
+        return result;
+    }
+
+    private void onToken(ModalToken token, int prevType, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline) {
+        boolean log = debugLogging.test(token);
         if (log) {
-            System.out.println("PROC "
-                    + token.getText() + " "
+            System.out.println("\nPROC '"
+                    + token.getText() + "'\t"
                     + rules.vocabulary().getSymbolicName(tokenType) + " nextType "
                     + rules.vocabulary().getSymbolicName(nextType) + " prevType "
                     + rules.vocabulary().getSymbolicName(prevType) + " precedingNewline "
-                    + hasImmediatelyPrecedingNewlines
+                    + hasPrecedingNewline + " followingNewline "
+                    + hasFollowingNewline
                     + " mode " + token.modeName() + "(" + token.mode() + ")"
+                    + " state " + state
             );
         }
-        rules.apply(token, prevType, nextType, hasImmediatelyPrecedingNewlines, this, log);
+        rules.apply(token, prevType, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew);
     }
 
-    private void onToken(ModalToken token, int prevType, int tokenType, int nextType, boolean hasImmediatelyPrecedingNewlines) {
-        int lpos = lineLength;
-        try {
-            processToken(token, prevType, tokenType, nextType, hasImmediatelyPrecedingNewlines);
-        } finally {
-            switch (tokenType) {
-                case ANTLRv4Lexer.BEGIN_ACTION:
-                case ANTLRv4Lexer.LBRACE:
-                    openBrace = lpos;
-                    actionBraces++;
-                    break;
-                case ANTLRv4Lexer.END_ACTION:
-                    actionBraces--;
-                    if (actionBraces < 0) { // broken source
-                        actionBraces = 0;
+    private FormattingRule currentRule;
+
+    void setCurrentRule(FormattingRule rule) {
+        currentRule = rule;
+    }
+
+    private final class LineState {
+
+        private String prepend;
+        private String append;
+        private int linePosition;
+        private boolean prependingNewline;
+        private int prependOffset;
+        private Token lastToken;
+        private int lastPosition;
+        private FormattingRule lastRule;
+
+        boolean onUnprocessedToken(Token token) {
+            int tokenTextLength = 0;
+            String tokenText = token.getText();
+            if (tokenText != null && tokenText.length() > 0) {
+                tokenTextLength = tokenText.length();
+                int newlineIndex = tokenText.lastIndexOf('\n');
+                if (newlineIndex > 0) {
+                    tokenTextLength -= newlineIndex;
+                    lastPosition = linePosition;
+                    linePosition = tokenTextLength;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void withPreviousPosition(Runnable run) {
+            int curr = linePosition;
+            try {
+                linePosition = lastPosition;
+                run.run();
+            } finally {
+                linePosition = curr;
+            }
+        }
+
+        void onToken(Token token) {
+            lastPosition = currentCharPositionInLine();
+            lastToken = token;
+            if (prepend != null) {
+//                System.out.println("PREPEND '" + prepend + "' to '" + token.getText() + "'");
+                rew.insertBefore(token, prepend);
+                if (prependingNewline) {
+                    linePosition = prependOffset;
+                } else {
+                    linePosition += prependOffset;
+                }
+            }
+            if (!onUnprocessedToken(token)) {
+                linePosition += token.getText().length();
+            }
+//            System.out.println("AFTER '" + token.getText() + "' lp " + linePosition);
+            prepend = append;
+            append = null;
+            onPrependUpdated(prepend);
+        }
+
+        public void finish() {
+            if (lastToken != null && prepend != null) {
+                rew.insertAfter(lastToken, prepend);
+            }
+        }
+
+        public int currentTokenPosition() {
+            int result = linePosition;
+            if (prependingNewline) {
+                result = prependOffset;
+            } else {
+                result += prependOffset;
+            }
+            return result;
+        }
+
+        public void prepend(String toPrepend) {
+//            System.out.println("PREPEND '" + toPrepend + "' by " + currentRule);
+            if (this.prepend == null) {
+                this.prepend = toPrepend;
+            } else {
+                this.prepend = coalescePrepend(this.prepend, toPrepend);
+            }
+            onPrependUpdated(this.prepend);
+            lastRule = currentRule;
+        }
+
+        public void append(String toAppend) {
+            if (this.append == null) {
+                append = toAppend;
+            } else {
+                append = coalesceAppend(append, toAppend);
+            }
+            lastRule = currentRule;
+        }
+
+        private void onPrependUpdated(String prepend) {
+            if (prepend == null) {
+                prependingNewline = false;
+                prependOffset = 0;
+                return;
+            }
+            if (prepend.length() == 1 && prepend.charAt(prepend.length() - 1) == '\n') {
+                prependingNewline = true;
+                prependOffset = 0;
+                return;
+            }
+            int ix = prepend.lastIndexOf('\n');
+            if (ix >= 0) {
+                prependOffset = prepend.length() - (ix + 1);
+                prependingNewline = true;
+            } else {
+                prependOffset = prepend.length();
+                prependingNewline = false;
+            }
+        }
+
+        private String coalesceAppend(String old, String nue) {
+            return coalescePrepend(old, nue);
+        }
+
+        private int newlineCount(String s) {
+            int result = 0;
+            for (int i = 0; i < s.length(); i++) {
+                if (s.charAt(i) == '\n') {
+                    result++;
+                }
+            }
+            return result;
+        }
+
+        private String coalescePrepend(String old, String nue) {
+//            System.out.println("COALESCE '" + old + "' and '" + nue + "'");
+//            System.out.println("FROM " + lastRule + " and " + currentRule);
+            lastRule = currentRule;
+            // Two identical prepend strings means just use one of them
+            if (old.equals(nue)) {
+                return nue;
+            }
+            // If one prepend string is the empty string, use the non empty one
+            if (old.isEmpty() && !nue.isEmpty()) {
+                return nue;
+            } else if (nue.isEmpty() && !old.isEmpty()) {
+                return old;
+            }
+            int newlineIndexOld = old.lastIndexOf('\n');
+            int newlineIndexNew = nue.lastIndexOf('\n');
+            // If one string contains a newline and one doesn't
+            // Then if the one then doesn't consists of a single space,
+            // throw that one away and use the other; otherwise
+            // concatenate them, prepending the one which does contain
+            // a newline to the one that doesn't
+            if (newlineIndexOld != newlineIndexNew) {
+                if (newlineIndexOld >= 0 && newlineIndexNew < 0) {
+                    if (nue.length() == 1) {
+                        return old;
                     }
-                    break;
-                case ANTLRv4Lexer.LPAREN:
-                    leftParenPos.push(lpos);
-                    blockDepth++;
-                    break;
-                case ANTLRv4Lexer.RPAREN:
-                    blockDepth--;
-                    if (blockDepth < 0) { // broken source
-                        blockDepth = 0;
+                    return old + nue;
+                } else if (newlineIndexNew >= 0 && newlineIndexOld < 0) {
+                    if (old.length() == 1) {
+                        return nue;
                     }
-                    if (!leftParenPos.isEmpty()) {
-                        leftParenPos.pop();
-                    }
-                    break;
-                case ANTLRv4Lexer.COLON:
-                    colonPositionInLine = lpos;
-                    break;
+                    return nue + old;
+                }
+            }
+            // If neither contains a newline, take the longer of the two
+            if (newlineIndexOld < 0 && newlineIndexNew < 0) {
+                return old.length() > nue.length() ? old : nue;
+            }
+            // Prefer the one which contains more newlines to less if both
+            // contain newlines
+            int newlinesOld = newlineCount(old);
+            int newlinesNew = newlineCount(nue);
+            if (newlinesNew > 0 && newlinesOld > 0) {
+                if (newlinesNew > newlinesOld) {
+                    return nue;
+                } else if (newlinesNew < newlinesOld) {
+                    return old;
+                }
+            }
+            // Otherwise take the shorter of the two
+            if (old.length() > nue.length()) {
+                return old;
+            } else {
+                return nue;
             }
         }
     }

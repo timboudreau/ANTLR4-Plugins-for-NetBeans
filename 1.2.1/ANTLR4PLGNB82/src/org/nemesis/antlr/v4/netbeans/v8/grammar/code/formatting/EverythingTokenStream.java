@@ -38,6 +38,10 @@ final class EverythingTokenStream implements TokenStream {
         }
     }
 
+    public void rewind() {
+        cursor = 0;
+    }
+
     public void setText(int tok, String txt) {
         ModalToken toChange = tokens.get(tok);
         int diff = txt.length() - toChange.getText().length();

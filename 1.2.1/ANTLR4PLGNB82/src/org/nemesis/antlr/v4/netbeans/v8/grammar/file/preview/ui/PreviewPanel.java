@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -34,9 +36,12 @@ import javax.swing.text.Caret;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColorings;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocColoringsRegistry;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.SampleFiles;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
@@ -51,6 +56,9 @@ import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
+import org.openide.util.lookup.AbstractLookup;
+import org.openide.util.lookup.InstanceContent;
+import org.openide.util.lookup.ProxyLookup;
 
 /**
  *
@@ -58,7 +66,7 @@ import org.openide.util.RequestProcessor;
  */
 public final class PreviewPanel extends JPanel implements ChangeListener,
         ListSelectionListener, DocumentListener, Runnable, PropertyChangeListener,
-        Lookup.Provider {
+        Lookup.Provider, Consumer<ANTLRv4ParserResult> {
 
     static final Comparator<String> RULE_COMPARATOR = new RuleNameComparator();
     private static final java.util.logging.Logger LOG
@@ -84,6 +92,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final RulePathStringifier stringifier = new RulePathStringifierImpl();
     private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
     private SplitLocationSaver splitLocationSaver;
+    private final InstanceContent content = new InstanceContent();
+    private final AbstractLookup internalLookup = new AbstractLookup(content);
 
     @SuppressWarnings("LeakingThisInConstructor")
     public PreviewPanel(final String mimeType, Lookup lookup) {
@@ -113,28 +123,30 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         // Find or create a sample file to work with
         DataObject dob = SampleFiles.sampleFile(mimeType);
-        // We will include its lookup in our own, so it can be saved
-        this.lookup = dob.getLookup();
-        // Now find the editor kit (should be an AdhocEditorKit) from
-        // our mime type
-        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
-        EditorKit kit = lkp.lookup(EditorKit.class);
-        // Configure the editor pane to use it
-        editorPane.setEditorKit(kit);
+        DynamicLanguageSupport.setTextContext(mimeType, new TextSupplier(dob), () -> {
+            // We will include its lookup in our own, so it can be saved
+            this.lookup = new ProxyLookup(dob.getLookup(), internalLookup);
+            // Now find the editor kit (should be an AdhocEditorKit) from
+            // our mime type
+            Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
+            EditorKit kit = lkp.lookup(EditorKit.class);
+            // Configure the editor pane to use it
+            editorPane.setEditorKit(kit);
 
-        EditorCookie ck = this.lookup.lookup(EditorCookie.class);
-        // Open the document and set it on the editor pane
-        StyledDocument doc;
-        try {
-            doc = ck.openDocument();
-            doc.putProperty("mimeType", mimeType);
-            doc.putProperty(StreamDescriptionProperty, dob);
-            editorPane.setDocument(doc);
-        } catch (IOException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-        LOG.log(Level.INFO, "PreviewPanel content type is {0}", editorPane.getContentType());
-
+            EditorCookie ck = this.lookup.lookup(EditorCookie.class);
+            // Open the document and set it on the editor pane
+            StyledDocument doc;
+            try {
+                doc = ck.openDocument();
+                doc.putProperty("mimeType", mimeType);
+                doc.putProperty(StreamDescriptionProperty, dob);
+                content.add(doc);
+                editorPane.setDocument(doc);
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+            LOG.log(Level.INFO, "PreviewPanel content type is {0}", editorPane.getContentType());
+        });
         // EditorUI gives us line number gutter, error gutter, etc.
         EditorUI editorUI = Utilities.getEditorUI(editorPane);
         if (editorUI != null) {
@@ -180,6 +192,36 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         add(breadcrumbPanel, BorderLayout.SOUTH);
         // listen on the caret to update the breadcrumb
         editorPane.getCaret().addChangeListener(this);
+
+        // Stores a weak reference - no leak
+        NBANTLRv4Parser.notifyOnReparse(clone.getDocument(), this);
+    }
+
+    public void accept(ANTLRv4ParserResult res) {
+        ANTLRv4ParserResult old = internalLookup.lookup(ANTLRv4ParserResult.class);
+        if (old != null) {
+            content.remove(old);
+        }
+        content.add(res);
+    }
+
+    static final class TextSupplier implements Supplier<String> {
+
+        private final DataObject dob;
+
+        TextSupplier(DataObject dob) {
+            this.dob = dob;
+        }
+
+        @Override
+        public String get() {
+            try {
+                return dob.getPrimaryFile().asText();
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+                return null;
+            }
+        }
     }
 
     @Override
@@ -211,7 +253,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private void docChanged() {
         previewTextAsOfOnLastDocumentChange = null;
-        task.schedule(10000);
+        task.schedule(1250);
         DataObject dob = this.getLookup().lookup(DataObject.class);
         if (dob != null) {
             dob.setModified(true);
@@ -271,28 +313,30 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private String getText() {
-        if (previewTextAsOfOnLastDocumentChange != null) {
-            return previewTextAsOfOnLastDocumentChange;
-        }
-        previewTextAsOfOnLastDocumentChange = editorPane.getText();
-        return previewTextAsOfOnLastDocumentChange;
+        return editorPane.getText();
     }
 
     private void updateBreadcrumb(Caret caret) {
         if (caret.getMark() != caret.getDot()) {
             breadcrumb.setText(" ");
-            return;
         }
-        String text = getText();
-        if (text != null) {
-            ParseTreeProxy prx
-                    = DynamicLanguageSupport.parseImmediately(editorPane.getContentType(), text);
+        EventQueue.invokeLater(() -> {
+            String text = getText();
+            if (text != null && !text.isEmpty()) {
+                ParseTreeProxy prx
+                        = DynamicLanguageSupport.parseImmediately(editorPane.getContentType(), text, Reason.UPDATE_PREVIEW);
 //                    DynamicLanguageSupport.lastParseResult(editorPane.getContentType(), lastText);
-            if (prx != null) {
-                updateBreadcrumb(text, caret, prx);
+                ParseTreeProxy old = internalLookup.lookup(ParseTreeProxy.class);
+                if (old != null && !old.equals(prx)) {
+                    this.content.remove(old);
+                }
+                this.content.add(prx);
+                if (prx != null) {
+                    updateBreadcrumb(text, caret, prx);
+                }
+                updateErrors(prx);
             }
-            updateErrors(prx);
-        }
+        });
     }
 
     private void updateErrors(ParseTreeProxy prx) {

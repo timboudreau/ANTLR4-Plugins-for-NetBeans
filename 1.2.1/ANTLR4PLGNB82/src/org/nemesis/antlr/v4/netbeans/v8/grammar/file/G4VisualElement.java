@@ -30,20 +30,31 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file;
 
 import java.awt.BorderLayout;
 import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
+import static javax.swing.Action.NAME;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.UndoRedoProvider;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.PreviewPanel;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
@@ -51,6 +62,7 @@ import org.openide.awt.StatusDisplayer;
 import org.openide.awt.UndoRedo;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
@@ -60,6 +72,7 @@ import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
 
 import org.openide.windows.TopComponent;
+import org.openide.windows.WindowManager;
 
 @MultiViewElement.Registration(
         displayName = "#LBL_G4_VISUAL",
@@ -193,8 +206,111 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
             saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
             saveCookieResult.addLookupListener(this);
             remove(loadingLabel);
+            toolbar.add(new FindCulpritAction(pnl.getLookup()));
             add(pnl, BorderLayout.CENTER);
         });
+    }
+
+    static class FindCulpritAction extends AbstractAction implements LookupListener {
+
+        private final Lookup lookup;
+        private final Lookup.Result<ANTLRv4ParserResult> parserResultResult;
+        private final Lookup.Result<ParseTreeProxy> proxyResult;
+
+        @Messages("findCulprit=Find Culprit")
+        FindCulpritAction(Lookup lookup) {
+            putValue(NAME, Bundle.findCulprit());
+            this.lookup = lookup;
+            parserResultResult = lookup.lookupResult(ANTLRv4ParserResult.class);
+            proxyResult = lookup.lookupResult(ParseTreeProxy.class);
+            setEnabled(false);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            ANTLRv4ParserResult parserResult = first(parserResultResult);
+            boolean enabled = parserResult != null;
+            if (enabled) {
+                ParseTreeProxy proxy = first(proxyResult);
+                enabled = proxy != null && !proxy.syntaxErrors().isEmpty();
+                setEnabled(enabled);
+                if (enabled) {
+                    perform(parserResult, proxy);
+                } else {
+                    System.out.println("did not find a proxy");
+                }
+            } else {
+                System.out.println("did not find a parser result");
+                setEnabled(false);
+            }
+        }
+
+        private void perform(ANTLRv4ParserResult parserResult, ParseTreeProxy proxy) {
+            try {
+                CulpritFinder finder = new CulpritFinder(proxy, parserResult);
+                MonitorPanel pnl = MonitorPanel.showDialog();
+                Document doc = lookup.lookup(Document.class);
+                if (doc == null) {
+                    JOptionPane.showMessageDialog(WindowManager.getDefault().getMainWindow(), "No doc", "No doc", JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+                Runnable launch = finder.createCombinatoricRunner(pnl.replan(), doc.getText(0, doc.getLength()));
+                launch.run();
+            } catch (BadLocationException | IOException ex) {
+                ex.printStackTrace();
+                Exceptions.printStackTrace(ex);
+            }
+        }
+
+        private <T> T first(Lookup.Result<T> res) {
+            Collection<? extends T> c = res.allInstances();
+            if (c.isEmpty()) {
+                return null;
+            }
+            return c.iterator().next();
+        }
+
+        @Override
+        public void resultChanged(LookupEvent le) {
+            Mutex.EVENT.readAccess(() -> {
+                System.out.println("lookup result changed");
+                ANTLRv4ParserResult parserResult = first(parserResultResult);
+                System.out.println("  got parser result? " + (parserResult != null));
+                ParseTreeProxy proxy = first(proxyResult);
+                System.out.println("  got proxy result " + (proxy != null));
+                boolean enabled = parserResult != null && proxy != null;
+                setEnabled(enabled);
+            });
+        }
+
+        private void addNotify() {
+            parserResultResult.addLookupListener(this);
+            proxyResult.addLookupListener(this);
+            System.out.println("FindCulpritAction Starts Listening");
+            resultChanged(null);
+        }
+
+        private void removeNotify() {
+            parserResultResult.removeLookupListener(this);
+            proxyResult.removeLookupListener(this);
+        }
+
+        @Override
+        public synchronized void addPropertyChangeListener(PropertyChangeListener listener) {
+            if (super.changeSupport == null || super.changeSupport.getPropertyChangeListeners().length == 0) {
+                addNotify();
+            }
+            super.addPropertyChangeListener(listener);
+
+        }
+
+        @Override
+        public synchronized void removePropertyChangeListener(PropertyChangeListener listener) {
+            super.removePropertyChangeListener(listener);
+            if (super.changeSupport.getPropertyChangeListeners().length == 0) {
+                removeNotify();
+            }
+        }
     }
 
     @Override

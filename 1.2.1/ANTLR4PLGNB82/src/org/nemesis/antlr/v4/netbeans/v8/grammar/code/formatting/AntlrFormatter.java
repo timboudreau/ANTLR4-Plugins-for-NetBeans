@@ -1,66 +1,23 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import javax.swing.text.BadLocationException;
 import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.COMMA;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.ID;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.IMPORT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.LINE_COMMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.LPAREN;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.QUESTION;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.SEMI;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.VOCABULARY;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.ACTION_CONTENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.ASSIGN;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.AT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.CHANNELS;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.COLON;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.DOT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.FRAGDEC_ID;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.FRAGDEC_LINE_COMMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.GRAMMAR;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.HDR_IMPRT_LINE_COMMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.HEADER_IMPORT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.LEXER;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.LEXER_CHAR_SET;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.OPTIONS;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.LBRACE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.RBRACE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.OR;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.PARSER;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.PARSER_RULE_ID;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.PLUS;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.RANGE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.RARROW;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.RPAREN;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.SHARP;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.STAR;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.STRING_LITERAL;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.TOKEN_ID;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.BEGIN_ACTION;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.COLONCOLON;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.END_ACTION;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.PARDEC_LINE_COMMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.TOK_LINE_COMMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.FRAGMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrCriteria.mode;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrCriteria.notMode;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.*;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatterSettings.NewlineStyle;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.Criterion.anyOf;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.Criterion.matching;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.Criterion.noneOf;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.APPEND_DOUBLE_NEWLINE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.APPEND_NEWLINE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.APPEND_SPACE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.PREPEND_NEWLINE;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.PREPEND_NEWLINE_AND_DOUBLE_INDENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.PREPEND_SPACE;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.SimpleFormattingAction.*;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.csl.api.Formatter;
 import org.netbeans.modules.editor.indent.spi.Context;
@@ -74,43 +31,80 @@ import org.openide.util.Exceptions;
  */
 public class AntlrFormatter implements Formatter {
 
-    private static final BitSet LOG_TYPES
-            = new BitSet(ANTLRv4Lexer.VOCABULARY.getMaxTokenType() + 1);
+    private static final String MODE_DEFAULT = "DEFAULT_MODE";
+    private static final String MODE_ARGUMENT = "Argument";
+    private static final String MODE_HEADER_PRELUDE = "HeaderPrelude";
+    private static final String MODE_HEADER_ACTION = "HeaderAction";
+    private static final String MODE_HEADER_PACKAGE = "HeaderPackage";
+    private static final String MODE_HEADER_IMPORT = "HeaderImport";
+    private static final String MODE_ACTION = "Action";
+    private static final String MODE_OPTIONS = "Options";
+    private static final String MODE_TOKENS = "Tokens";
+    private static final String MODE_CHANNELS = "Channels";
+    private static final String MODE_IMPORT = "Import";
+    private static final String MODE_IDENTIFIER = "Identifier";
+    private static final String MODE_TOKEN_DECLARATION = "TokenDeclaration";
+    private static final String MODE_FRAGMENT_DECLARATION = "FragmentDeclaration";
+    private static final String MODE_PARSER_RULE_DECLARATION = "ParserRuleDeclaration";
+    private static final String MODE_PARSER_RULE_OPTIONS = "ParserRuleOptions";
+    private static final String MODE_LEXER_COMMANDS = "LexerCommands";
+    private static final String MODE_TYPE_LEXER_COMMAND = "TypeLexerCommand";
+    private static final String MODE_LEXER_CHAR_SET = "LexerCharSet";
+
+    private static final String[] EXPECTED_MODE_NAMES = {
+        MODE_DEFAULT, MODE_ARGUMENT, MODE_HEADER_PRELUDE, MODE_HEADER_ACTION, MODE_HEADER_PACKAGE,
+        MODE_HEADER_IMPORT, MODE_ACTION, MODE_OPTIONS, MODE_TOKENS, MODE_CHANNELS,
+        MODE_IMPORT, MODE_IDENTIFIER, MODE_TOKEN_DECLARATION, MODE_FRAGMENT_DECLARATION,
+        MODE_PARSER_RULE_DECLARATION, MODE_PARSER_RULE_OPTIONS, MODE_LEXER_COMMANDS,
+        MODE_TYPE_LEXER_COMMAND, MODE_LEXER_CHAR_SET
+    };
+
+    private static String[] modeNames = {
+        "DEFAULT_MODE", "Argument", "HeaderPrelude", "HeaderAction", "HeaderPackage",
+        "HeaderImport", "Action", "Options", "Tokens", "Channels", "Import", "Identifier",
+        "TokenDeclaration", "FragmentDeclaration", "ParserRuleDeclaration", "ParserRuleOptions",
+        "LexerCommands", "TypeLexerCommand", "LexerCharSet"
+    };
 
     static {
-//        LOG_TYPES.set(SEMI);
-//        LOG_TYPES.set(LINE_COMMENT);
-//        LOG_TYPES.set(ID);
-//        LOG_TYPES.set(LBRACE);
-//        LOG_TYPES.set(RBRACE);
-//        LOG_TYPES.set(BEGIN_ACTION);
-//        LOG_TYPES.set(END_ACTION);
-//        LOG_TYPES.set(ACTION_CONTENT);
-//        LOG_TYPES.set(ID);
-//        LOG_TYPES.set(PARSER);
-//        LOG_TYPES.set(MEMBERS);
-//        LOG_TYPES.set(IMPORT);
-//        LOG_TYPES.set(COLONCOLON);
-//        LOG_TYPES.set(ASSIGN);
-//        LOG_TYPES.set(GRAMMAR);
-//        LOG_TYPES.set(HEADER_IMPORT);
-//        LOG_TYPES.set(RPAREN);
-//        LOG_TYPES.set(BEGIN_ACTION);
-//        LOG_TYPES.set(ACTION_CONTENT);
-//        LOG_TYPES.set(PARSER_RULE_ID);
-//        LOG_TYPES.set(OPTIONS);
-//        LOG_TYPES.set(LBRACE);
-//        LOG_TYPES.set(RBRACE);
-//        LOG_TYPES.set(STAR);
-//        LOG_TYPES.set(QUESTION);
+        Set<String> expectedModeNames = new HashSet<>(Arrays.asList(EXPECTED_MODE_NAMES));
+        Set<String> actualModeNames = new HashSet<>(Arrays.asList(ANTLRv4Lexer.modeNames));
+        if (!expectedModeNames.equals(actualModeNames)) {
+            System.err.println("ANTLRv4Lexer mode names have changed.");
+            Set<String> missing = new HashSet<>(expectedModeNames);
+            missing.removeAll(actualModeNames);
+            if (!missing.isEmpty()) {
+                System.err.println("Missing modes: " + missing);
+            }
+            Set<String> added = new HashSet<>(actualModeNames);
+            added.removeAll(expectedModeNames);
+            if (!added.isEmpty()) {
+                System.err.println("Added modes: " + added);
+            }
+        }
     }
 
-    static boolean isLoggable(int type) {
-        if (type < 0) {
-            return false;
-        }
-        return LOG_TYPES.get(type);
-    }
+    static Predicate<Token> LOG_TOKEN = t -> {
+        System.out.println("\n'" + t.getText() + "' " + VOCABULARY.getSymbolicName(t.getType()));
+        return true;
+    };
+
+    private static final Predicate<Token> DEBUG
+            //            = Criterion.<Token>anyOf(VOCABULARY, AT, RBRACE, END_ACTION, SEMI)
+            //                    .firstNmatches(5)
+            //            .<Token>convertedBy(tok -> tok.getType()).and(LOG_TOKEN);
+            //            = SequenceIntPredicate.matchingAnyOf(SEMI, END_ACTION).then(AT)
+            //                    .or(SequenceIntPredicate.matchingAnyOf(RBRACE, END_ACTION))
+            //                    .convertedBy(tok -> {
+            //                        return tok.getType();
+            //                    });
+            = t -> {
+                return false;
+            };
+    // Debug.builder().build();
+//            Debug.builder().onTokenTypes(LBRACE, BEGIN_ACTION, RBRACE, END_ACTION, ACTION_CONTENT)
+//            .enablingOn(ACTION_CONTENT).disablingOn(RBRACE,END_ACTION).build();
+
     private final AntlrFormatterSettings settings;
 
     public AntlrFormatter() {
@@ -162,10 +156,11 @@ public class AntlrFormatter implements Formatter {
         });
     }
 
-    static String reformat(ANTLRv4Lexer lexer, int start, int end, AntlrFormatterSettings config) {
+    static String reformat(Lexer lexer, int start, int end, AntlrFormatterSettings config) {
         EverythingTokenStream tokens = new EverythingTokenStream(lexer, ANTLRv4Lexer.modeNames);
         TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
-        return new FormattingContextImpl(rew, start, end, config.getIndentSize(), rules(config))
+        return new FormattingContextImpl(rew, start, end, config.getIndentSize(),
+                rules(config), state(config), AntlrCriteria.whitespace(), DEBUG)
                 .go(lexer, tokens);
     }
 
@@ -175,98 +170,556 @@ public class AntlrFormatter implements Formatter {
         return new String(c);
     }
 
-    static void rewriteBlockComment(Token tok, FormattingContext ctx) {
-        String textContent = tok.getText().trim().substring(2, tok.getText().length() - 4);
-        int lineOffset = ctx.origCharPositionInLine();
-        char[] c = new char[lineOffset];
+    static String spacesString(int count) {
+        char[] c = new char[count];
         Arrays.fill(c, ' ');
-        StringBuilder sb = new StringBuilder("\n").append(c).append("/*");
-        String[] lines = textContent.split("\n");
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) {
-                sb.append("\n");
-            } else {
-                sb.append(c);
+        return new String(c);
+    }
+
+    static BiFunction<List<? extends ModalToken>, LexingState, String> unmangleActionContent(AntlrFormatterSettings config) {
+        return (List<? extends ModalToken> list, LexingState lexingState) -> {
+            if (list.size() == 1) {
+                ModalToken only = list.get(0);
+                if (only.getText().trim().isEmpty()) {
+                    return null;
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            boolean first = true;
+            for (ModalToken tok : list) {
+                sb.append(tok.getText());
+            }
+            String[] lines = sb.toString().split("\n");
+            sb.setLength(0);
+            int indent = lexingState.get(AntlrCounters.LEFT_BRACE_POSITION, lexingState.get(AntlrCounters.COLON_POSITION, config.getIndentSize()));
+            String indentString = spacesString(indent);
+            int lineIndex = 0;
+            // Preserve relative indenting between lines:
+            int[] indentDiffs = new int[lines.length];
+            int minIndent = 0;
+            int maxIndent = 0;
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                int trimmed = 0;
+                if (line.trim().startsWith("//")) {
+                    line = line.trim().substring(2);
+                    trimmed = lines[i].length() - line.length();
+                }
+                int ix = indexOfFirstNonWhitespaceCharacter(line) + trimmed;
+                if (ix >= 0) {
+                    minIndent = Math.min(minIndent, ix);
+                    maxIndent = Math.max(maxIndent, ix);
+                }
+            }
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                int trimmed = 0;
+                if (line.trim().startsWith("//")) {
+                    line = line.trim().substring(2);
+                    trimmed = lines[i].length() - line.length();
+                }
+                int ix = indexOfFirstNonWhitespaceCharacter(line) + trimmed;
+                if (ix > 0) {
+                    indentDiffs[i] = ix - minIndent;
+                }
+            }
+
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+                String localIndent = spacesString(indentDiffs[i]);
+                boolean leadingNewline = leadingNewline(lines[i]);
+                if (line.startsWith("//")) {
+                    line = line.substring(2).trim();
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+                    if (lineIndex == 0) {
+                        sb.append("\n");
+                    }
+                    localIndent = spacesString(Math.max(0, indentDiffs[i] - 5));
+                    sb.append("//").append(indentString).append(localIndent);
+                    sb.append(line).append('\n');
+                    lineIndex++;
+                    continue;
+                }
+                if (lineIndex > 0 || leadingNewline) {
+                    sb.append(indentString).append(localIndent);
+                }
                 sb.append(line);
-                sb.append("\n");
+                sb.append('\n');
+                lineIndex++;
+            }
+//            System.out.println("ACTION CONTENT REWRITTEN TO:\n-------------------------");
+//            System.out.println(sb);
+//            System.out.println("------------------------------------\n");
+            return sb.toString();
+        };
+    }
+
+    private static int indexOfFirstNonWhitespaceCharacter(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                return i;
             }
         }
-        ctx.replace(sb.append("/*\n").toString());
+        return -1;
+    }
+
+    private static boolean leadingNewline(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\n') {
+                return true;
+            } else if (!Character.isWhitespace(c)) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    static boolean canSafelyReflowLineHeuristic(String line) {
+        line = line.trim();
+        if (line.contains("(c)")) {
+            return false;
+        }
+        if (line.startsWith("*") || line.startsWith("-")) {
+            return false;
+        }
+        if (line.length() > 1 && line.charAt(1) == '.') {
+            return false;
+        }
+        return true;
+    }
+
+    static FormattingAction blockCommentRewriter(AntlrFormatterSettings settings, boolean willGetPrecedingNewline) {
+        return (Token tok, FormattingContext ctx, LexingState st) -> {
+            String textContent = tok.getText().trim().substring(2, tok.getText().length() - 2).trim();
+            int origLinePosition = ctx.origCharPositionInLine();
+            int currPosition = ctx.currentCharPositionInLine();
+            String result = null;
+            boolean isLikelyLicenseHeader = tok.getTokenIndex() < 4;
+            if (textContent.indexOf('\n') < 0) {
+                if (currPosition < origLinePosition && origLinePosition + textContent.length() + 6 < settings.getWrapPoint()) {
+                    result = spacesString(origLinePosition - currPosition) + "/* " + textContent + " */";
+                } else if (currPosition + textContent.length() < settings.getWrapPoint()) {
+                    result = "/* " + textContent + " */";
+                }
+            } else {
+                StringBuilder sb = new StringBuilder();
+                int textStart = settings.isWrapLines() ? origLinePosition : origLinePosition;
+                String indentToCurrPosition = spacesString(textStart);
+                if (willGetPrecedingNewline) {
+                    sb.append(indentToCurrPosition);
+                }
+                String[] lines = textContent.split("\n");
+                boolean asteriskPrefixed = true;
+                if (lines.length > 0) {
+                    String first = lines[0].trim();
+                    if (first.startsWith("*")) {
+                        lines[0] = first.substring(1);
+                    }
+                }
+                for (int i = 1; i < lines.length; i++) {
+                    String line = lines[i].trim();
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+                    boolean ap0 = "*".equals(line);
+                    boolean ap1 = line.startsWith("* ") || line.startsWith("*\t");
+                    boolean ap2 = line.startsWith("/**");
+                    boolean ap3 = line.startsWith("**/");
+                    boolean lineIsAsteriskPrefixed = ap0 || ap1 || ap2 || ap3;
+                    asteriskPrefixed &= lineIsAsteriskPrefixed;
+                    if (lineIsAsteriskPrefixed) {
+                        lines[i] = ap0 ? "" : ap1 ? line.substring(2) : line.substring(3);
+                    }
+                    if (!asteriskPrefixed) {
+                        break;
+                    }
+                }
+                if (asteriskPrefixed) {
+                    StringBuilder replaceContent = new StringBuilder();
+                    for (String line : lines) {
+                        replaceContent.append(line).append('\n');
+                    }
+                    textContent = replaceContent.toString();
+                }
+                boolean newlineDelimitPrefixAndSuffix = settings.isNewlineAfterColon() && (willGetPrecedingNewline || textContent.length() > settings.getWrapPoint());
+                String infix;
+                String prefix = asteriskPrefixed ? "/**" : "/*";
+                if (newlineDelimitPrefixAndSuffix) {
+                    infix = "";
+                    sb.append(prefix).append('\n').append(indentToCurrPosition).append(" ");
+                } else {
+                    infix = "  ";
+                    sb.append(prefix).append(' ');
+                }
+                if (!isLikelyLicenseHeader && settings.isWrapLines()) {
+                    int usableLineLength = settings.getWrapPoint() - textStart;
+                    int lastLineStart = 0;
+                    int linePos = textStart + 3;
+                    boolean first = true;
+                    for (String word : new SimpleCollator(textContent)) {
+                        if (word == null) {
+                            if (asteriskPrefixed) {
+                                sb.append('\n').append(" *").append('\n').append(" *");
+                            } else {
+                                sb.append('\n').append('\n');
+                            }
+                            sb.append(indentToCurrPosition).append(infix);
+                            linePos = textStart + (asteriskPrefixed ? 4 : 2);
+                            continue;
+                        } else if (linePos + word.length() > settings.getWrapPoint() && !first) {
+                            sb.append('\n');
+                            if (asteriskPrefixed) {
+                                sb.append(" * ");
+                            }
+                            sb.append(indentToCurrPosition).append(infix);
+                            linePos = textStart + (asteriskPrefixed ? 4 : 2);
+                        }
+                        if (linePos > textStart && !first) {
+                            sb.append(' ');
+                            linePos++;
+                        }
+                        first = false;
+                        sb.append(word);
+                        linePos += word.length();
+                    }
+                } else {
+                    boolean first = true;
+                    for (String line : lines) {
+                        line = line.trim();
+                        if (!first) {
+                            if (asteriskPrefixed) {
+                                sb.append(indentToCurrPosition).append(" * ");
+                            } else {
+                                sb.append(indentToCurrPosition).append("   ");
+                            }
+                        }
+                        sb.append(line).append('\n');
+                        first = false;
+                    }
+                }
+                if (newlineDelimitPrefixAndSuffix) {
+                    if (asteriskPrefixed) {
+                        sb.append(" *").append('\n').append(indentToCurrPosition).append("**/");
+                    } else {
+                        sb.append('\n').append(indentToCurrPosition).append("*/");
+                    }
+                } else {
+                    if (asteriskPrefixed) {
+                        sb.append(" **/");
+                    } else {
+                        sb.append(" */");
+                    }
+                }
+                result = sb.toString();
+            }
+            if (result != null) {
+                ctx.replace(result);
+            }
+        };
+
+    }
+
+    private static enum AntlrCounters {
+        COLON_POSITION,
+        LEFT_BRACE_POSITION,
+        SEMICOLON_COUNT,
+        LEFT_BRACES_PASSED,
+        LEFT_PAREN_POS,
+        PARENS_DEPTH,
+        LINE_COMMENT_INDENT,
+        DISTANCE_TO_NEXT_SEMICOLON,
+        DISTANCE_TO_PRECEDING_SEMICOLON,
+        DISTANCE_TO_PRECEDING_COLON,
+        DISTANCE_TO_RBRACE,
+        LINE_COMMENT_COUNT,
+        IN_OPTIONS
+    }
+
+    private static boolean splitOrs = false;
+
+    static LexingState state(AntlrFormatterSettings config) {
+        // anyOf(VOCABULARY, SEMI, ACTION_CONTENT), anyOf(VOCABULARY, END_ACTION, RBRACE)
+        LexingState state = LexingState.builder(AntlrCounters.class
+        )
+                // Record the position of the rule colon
+                .recordPosition(AntlrCounters.COLON_POSITION)
+                .onTokenType(COLON)
+                .clearingOnTokenType(-1)
+                // Record position of the most recent left brace,
+                // keeping a stack of them so we pop our way out,
+                // for indenting nested braces
+                .pushPosition(AntlrCounters.LEFT_BRACE_POSITION)
+                .onTokenType(LBRACE, BEGIN_ACTION)
+                .poppingOnTokenType(RBRACE, END_ACTION)
+                // Count the number of ;'s in actions and header blocks to see
+                // if they are single line safe
+                .count(AntlrCounters.SEMICOLON_COUNT).onEntering(LBRACE, BEGIN_ACTION)
+                .countTokensMatching(anyOf(VOCABULARY, SEMI, ACTION_CONTENT))
+                .scanningForwardUntil(anyOf(VOCABULARY, END_ACTION, RBRACE))
+                // Increment a counter for nested left braces
+                .increment(AntlrCounters.LEFT_BRACES_PASSED).onTokenType(LBRACE, BEGIN_ACTION)
+                .decrementingWhenTokenEncountered(RBRACE, END_ACTION)
+                // Increment a counter for nested parens
+                .increment(AntlrCounters.PARENS_DEPTH).onTokenType(LPAREN)
+                .decrementingWhenTokenEncountered(RPAREN)
+                // And push the position of the left paren
+                .pushPosition(AntlrCounters.LEFT_PAREN_POS).onTokenType(LPAREN)
+                .poppingOnTokenType(RPAREN)
+                // Record the indent position of standalone line comments
+                .recordPosition(AntlrCounters.LINE_COMMENT_INDENT)
+                .beforeProcessingToken()
+                .usingPositionFromInput()
+                .onTokenType(AntlrCriteria.lineComments())
+                .clearingOnTokenType(-1)
+                // Record the number of tokens from the current one to the next semicolon
+                .computeTokenDistance(AntlrCounters.DISTANCE_TO_NEXT_SEMICOLON)
+                .onEntering(AntlrCriteria.whitespace().negate())
+                .toNext(SEMI).ignoringWhitespace()
+                // Record the number of tokens from the current one to the preceding semicolon
+                .computeTokenDistance(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON)
+                .onEntering(RBRACE, END_ACTION)
+                .toPreceding(SEMI).ignoringWhitespace()
+                // Record the token offset backward to the preceding colon
+                .computeTokenDistance(AntlrCounters.DISTANCE_TO_PRECEDING_COLON)
+                .onEntering(AntlrCriteria.whitespace().negate()) // XXX this could be less general
+                .toPreceding(COLON).ignoringWhitespace()
+                // Count line comments
+                .count(AntlrCounters.LINE_COMMENT_COUNT).onEntering(LBRACE, BEGIN_ACTION/*, PARDEC_ID, TOKDEC_ID, FRAGDEC_ID*/)
+                .countTokensMatching(AntlrCriteria.lineComments())
+                .scanningForwardUntil(LBRACE, END_ACTION)
+                // Track when we are in an Options statement
+                .set(AntlrCounters.IN_OPTIONS)
+                .onTokenType(ANTLRv4Lexer.OPTIONS)
+                .clearingAfterTokenType(RBRACE, END_ACTION)
+                // Record the token offset backward to the preceding colon
+                .computeTokenDistance(AntlrCounters.DISTANCE_TO_RBRACE)
+                .onEntering(AntlrCriteria.whitespace().negate())
+                .toNext(RBRACE, END_ACTION).ignoringWhitespace()
+                .build();
+        return state;
+    }
+
+    private static FormattingAction wrapIfNeeded(FormattingAction a, AntlrFormatterSettings c, AntlrCounters wrapAt) {
+        if (!c.isWrapLines()) {
+            return a;
+        }
+        return new FormattingAction() {
+            @Override
+            public void accept(Token token, FormattingContext ctx, LexingState state) {
+                if (ctx.currentCharPositionInLine() + token.getText().length() + 1 > c.getWrapPoint()) {
+                    if (wrapAt != null) {
+                        int amt = state.get(wrapAt);
+                        if (amt <= 0) {
+                            ctx.prependNewlineAndDoubleIndent();
+                        } else {
+                            ctx.prependNewlineAndIndentBy(amt + c.getIndentSize());
+                        }
+                    }
+                } else {
+                    a.accept(token, ctx, state);
+                }
+            }
+
+            public String toString() {
+                return "<wrap on " + wrapAt + " | " + a + ">";
+            }
+        };
     }
 
     static FormattingRules rules(AntlrFormatterSettings config) {
-        FormattingRules rules = new FormattingRules(ANTLRv4Lexer.VOCABULARY);
+        FormattingRules rules = new FormattingRules(VOCABULARY, ANTLRv4Lexer.modeNames);
         final Criterion lineComments = AntlrCriteria.lineComments();
+
+        rules.replaceAdjacentTokens(Criterion.matching(VOCABULARY, ACTION_CONTENT), unmangleActionContent(config));
 
         rules.onTokenType(ID)
                 .wherePreviousTokenTypeNot(SHARP, LPAREN, HEADER_IMPORT)
                 // Ensure we don't get import java. util. Blah with spaces inserted
-                .whereMode(notMode("DEFAULT_MODE", "HeaderPrelude", "HeaderImport", "HeaderAction"))
-                .format(PREPEND_SPACE);
+                .whereModeNot("DEFAULT_MODE", "HeaderPrelude", "HeaderImport", "HeaderAction", "Options", "Tokens")
+                .format(wrapIfNeeded(PREPEND_SPACE, config, AntlrCounters.COLON_POSITION));
 
         rules.onTokenType(ID)
-                .whereMode(mode("HeaderImport", "HeaderAction"))
-                .wherePreviousTokenTypeNot(DOT, LPAREN, ASSIGN)
+                .whereMode("HeaderImport", "HeaderAction")
+                .wherePreviousTokenTypeNot(DOT, LPAREN, ASSIGN, COLONCOLON)
+                .whereNextTokenTypeNot(AT)
                 .format(PREPEND_SPACE);
 
-        rules.onTokenType(AT).format(PREPEND_NEWLINE);
+        rules.onTokenType(AT).format(PREPEND_DOUBLE_NEWLINE);
+
+        // Line comments in ACTION_CONTENT will get *split* on { / } chars,
+        // meaning if we prepend a newline, we will wind up with something
+        // that is not a line comment.  This is simply a bug in the grammar.
+        rules.onTokenType(ACTION_CONTENT)
+                .wherePreviousTokenType(ACTION_CONTENT)
+                .whereMode("Action")
+                .priority(8)
+                .format(FormattingAction.EMPTY);
+
+        rules.onTokenType(BEGIN_ACTION).whereMode("Action")
+                .wherePrevTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
+                .priority(6)
+                .named("action.spaces.a")
+                .whereNextTokenType(ACTION_CONTENT)
+                .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isLessThanOrEqualTo(1)
+                .format(PREPEND_SPACE.and(APPEND_NEWLINE_AND_DOUBLE_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION)));
+
+        rules.onTokenType(BEGIN_ACTION).whereMode("Action")
+                .priority(6)
+                .named("action.spaces.b")
+                .wherePrevTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
+                .whereNextTokenType(ACTION_CONTENT)
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isLessThanOrEqualTo(1)
+                .format(PREPEND_SPACE);
+
+        rules.onTokenType(SEMI).whereMode("HeaderAction")
+                .named("action.semi.spacing")
+                .whenCombinationOf(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .and(AntlrCounters.DISTANCE_TO_RBRACE).isEqualTo(0).then()
+                .format(APPEND_SPACE);
+
+        rules.onTokenType(CATCH, FINALLY)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(AntlrCounters.COLON_POSITION).and(APPEND_SPACE));
+
+        rules.onTokenType(DOC_COMMENT).format(PREPEND_NEWLINE);
 
         // Options block handling
-        rules.onTokenType(LBRACE, BEGIN_ACTION).whereMode(mode("Options", "DEFAULT_MODE",
-                "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration"))
+        rules.onTokenType(LBRACE, BEGIN_ACTION).whereMode("Options", "DEFAULT_MODE",
+                "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration")
                 .priority(5)
-                .format((tok, ctx) -> {
-                    int pos;
-                    int numSemicolons = ctx.countForwardOccurrencesUntilNext(anyOf(VOCABULARY, SEMI, ACTION_CONTENT), anyOf(VOCABULARY, END_ACTION, RBRACE));
-                    if (numSemicolons <= 1) {
-                        pos = -1;
-                        ctx.appendSpace();
-                    } else if (config.isNewlineAfterColon()) {
-                        ctx.appendNewlineAndIndent();
-                        pos = ctx.currentCharPositionInLine();
-                    } else {
-                        pos = ctx.currentCharPositionInLine();
-                    }
-                    ctx.prependSpace();
-                    ctx.set("lbr", pos);
-                });
+                .named("lbrace.a")
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .format(APPEND_SPACE);
 
+        if (!config.isNewlineAfterColon()) {
+            rules.onTokenType(Criterion.noneOf(VOCABULARY, RBRACE, END_ACTION)).whereMode("Options", "DEFAULT_MODE",
+                    "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration", "Tokens")
+                    .named("indent.header.brace.content.a")
+                    .wherePrevTokenType(LBRACE, BEGIN_ACTION)
+                    .whenCombinationOf(AntlrCounters.LEFT_BRACES_PASSED).isSet()
+                    .and(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1).then()
+                    //                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    //                    .when(AntlrCounters.LEFT_BRACES_PASSED).isGreaterThan(0)
+                    .format(INDENT.by(config.getIndentSize() - 1));
+        } else {
+            rules.onTokenType(Criterion.noneOf(VOCABULARY, RBRACE, END_ACTION)).whereMode("Options", "DEFAULT_MODE",
+                    "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration", "Tokens")
+                    .wherePrevTokenType(LBRACE, BEGIN_ACTION)
+                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    .when(AntlrCounters.LEFT_BRACES_PASSED).isGreaterThanOrEqualTo(1)
+                    .named("indent.header.brace.content.b")
+                    .format(PREPEND_NEWLINE_AND_DOUBLE_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION));
+        }
+
+        rules.onTokenType(TOKENS)
+                .format(APPEND_SPACE)
+                .and().wherePrevTokenType(RBRACE, END_ACTION)
+                .priority(8)
+                .format(PREPEND_NEWLINE.and(APPEND_SPACE));
+
+        // XXX prepend space will prepend one even following a newline - likely wrong
+        rules.onTokenType(LBRACE, BEGIN_ACTION).whereMode("Options", "DEFAULT_MODE",
+                "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration", "Tokens")
+                .priority(5)
+                .named("lbrace.b")
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isLessThan(1)
+                .format(PREPEND_SPACE)
+                .and()
+                .named("lbrace.b1")
+                .priority(6)
+                .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isUnset()
+                .formatIf(config.isNewlineAfterColon(), APPEND_NEWLINE_AND_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION))
+                //                .formatIfNot(config.isNewlineAfterColon(), INDENT.by(config.getIndentSize()));
+                .formatIfNot(config.isNewlineAfterColon(), INDENT);
+
+        rules.onTokenType(LBRACE, BEGIN_ACTION).whereMode("Options", "DEFAULT_MODE",
+                "HeaderPrelude", "HeaderAction", "Action", "ParserRuleDeclaration")
+                .priority(5)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isUnset()
+                .named("lbrace.c")
+                .format(PREPEND_SPACE)
+                .and()
+                .named("lbrace.c1")
+                .whereModeNot("Tokens")
+                .priority(6)
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .format(PREPEND_SPACE.and(APPEND_SPACE));
         rules.onTokenType(ID)
-                .whereMode(mode("HeaderPrelude", "HeaderAction", "Action", "Options"))
+                .whereMode("HeaderPrelude", "HeaderAction", "Action", "Options")
                 .wherePrevTokenType(LPAREN, ASSIGN, DOT)
                 .priority(4)
+                .named("no.whitespace.after.parens.and.dots")
                 .format(FormattingAction.EMPTY);
 
         rules.onTokenType(RBRACE, END_ACTION)
-                .whereMode(mode("Options", "DEFAULT_MODE", "HeaderPrelude", "HeaderAction",
-                        "Action", "ParserRuleDeclaration"))
+                .whereMode("Options", "DEFAULT_MODE", "HeaderPrelude", "HeaderAction",
+                        "Action", "ParserRuleDeclaration", "Tokens")
+                .named("rbrace.a")
                 .whereNextTokenTypeNot(-1)
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON).isGreaterThan(1)
                 .priority(5)
-                .format((tok, ctx) -> {
-                    int indentTo = ctx.get("lbr", config.getIndentSize());
-                    if (indentTo == -1) {
-                        ctx.prependSpace();
-                    } else if (config.isNewlineAfterColon()) {
-                        ctx.prependNewlineAndIndentBy(indentTo);
-                    } else {
-                        ctx.prependNewlineAndIndentBy(indentTo);
-                    }
-                    int nextSemi = ctx.tokenCountToNext(true, SEMI);
-                    if (nextSemi > 0) {
-                        ctx.appendNewline();
-                    }
-                    ctx.set("lbr", 0);
-                });
-        
-        rules.onTokenType(SEMI).whereMode(mode("DEFAULT_MODE"))
+                .format(PREPEND_SPACE.and(APPEND_NEWLINE));
+        rules.onTokenType(RBRACE, END_ACTION)
+                .whereMode("DEFAULT_MODE", "HeaderPrelude", "HeaderAction",
+                        "Action", "ParserRuleDeclaration")
+                .when(AntlrCounters.IN_OPTIONS).isFalse()
+                .named("rbrace.b")
+                .whereNextTokenTypeNot(-1, SEMI, CATCH, FINALLY, QUESTION)
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON).isLessThanOrEqualTo(1)
+                .priority(5)
+                //                .format(PREPEND_SPACE.and(APPEND_NEWLINE));
+                .format(APPEND_NEWLINE);
+
+        rules.onTokenType(RBRACE, END_ACTION)
+                .whereMode("DEFAULT_MODE")
+                .when(AntlrCounters.IN_OPTIONS).isTrue()
+                .named("rbrace.b1")
+                .whereNextTokenTypeNot(-1, SEMI, CATCH, FINALLY, QUESTION)
+                .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON).isLessThanOrEqualTo(1)
+                .priority(7)
+                .format(PREPEND_SPACE.and(APPEND_NEWLINE));
+
+        rules.onTokenType(RBRACE, END_ACTION)
+                .whereMode("Options", "DEFAULT_MODE", "HeaderPrelude", "HeaderAction",
+                        "Action", "ParserRuleDeclaration", "Tokens")
+                .whereNextTokenTypeNot(-1, SEMI, CATCH, FINALLY, TOKENS)
+                .named("rbrace.c")
+                .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .when(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isEqualTo(1)
+                .priority(5)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION).and(APPEND_NEWLINE));
+        rules.onTokenType(RBRACE, END_ACTION)
+                .whereMode("Options", "DEFAULT_MODE", "HeaderPrelude", "HeaderAction",
+                        "Action", "ParserRuleDeclaration", "Tokens")
+                .named("rbrace.d")
+                .whereNextTokenTypeNot(-1, SEMI, CATCH, FINALLY)
+                .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .when(AntlrCounters.DISTANCE_TO_PRECEDING_SEMICOLON).isLessThanOrEqualTo(1)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isEqualTo(1)
+                .priority(5)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION).and(APPEND_NEWLINE));
+
+        rules.onTokenType(SEMI).whereMode("DEFAULT_MODE")
                 .whereNextTokenTypeNot(
                         AntlrCriteria.lineComments()
                                 .or(AntlrCriteria::isBlockComment)
-                                .or(matching(VOCABULARY, -1)))
+                                .or(anyOf(VOCABULARY, -1, FINALLY, CATCH)))
                 .format(APPEND_DOUBLE_NEWLINE);
 
-        rules.onTokenType(SEMI).whereMode(mode("DEFAULT_MODE"))
+        rules.onTokenType(SEMI).whereMode("DEFAULT_MODE")
                 .whereNextTokenType(
                         AntlrCriteria.lineComments()
                                 .or(AntlrCriteria::isBlockComment)
@@ -275,50 +728,56 @@ public class AntlrFormatter implements Formatter {
 
         rules.onTokenType(Criterion.noneOf(VOCABULARY, SEMI, BEGIN_ACTION, END_ACTION, LBRACE, RBRACE, OPTIONS, AT))
                 .ifPrecededByNewline(true)
-                .whereMode(mode("Options", "HeaderPrelude", "HeaderAction", "HeaderImport", "Action",
-                        "ParserRuleContext"))
-                .format((tok, ctx) -> {
-                    int amt = ctx.get("lbr", config.getIndentSize() * 2);
-                    if (amt > 0) {
-                        ctx.prependNewlineAndIndentBy(amt);
-                    }
-                });
+                .named("catch.all.header.braces.indent")
+                .whereMode("Options", "HeaderPrelude", "HeaderAction", "HeaderImport", "Action",
+                        "ParserRuleContext")
+                .when(AntlrCounters.LEFT_BRACE_POSITION).isGreaterThan(0)
+                .whenCombinationOf(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .or(AntlrCounters.LINE_COMMENT_COUNT).isGreaterThan(0).then()
+                // XXX original code always used indent size * 2
+                .format(PREPEND_NEWLINE_AND_DOUBLE_INDENT.by(AntlrCounters.LEFT_BRACE_POSITION));
 
         // Parser and lexer headers
-        rules.onTokenType(PARSER, LEXER).whereMode(mode("DEFAULT_MODE"))
+        rules.onTokenType(PARSER, LEXER).whereMode("DEFAULT_MODE")
                 .whereNextTokenType(COLONCOLON)
                 .wherePreviousTokenType(AT)
                 .priority(3)
                 .format(FormattingAction.EMPTY); // Do nothing we just want to defeat space insertion
 
         rules.onTokenType(HEADER_IMPORT)
-                .format(APPEND_SPACE.and(PREPEND_NEWLINE_AND_DOUBLE_INDENT));
+                .named("hdr.imp.a")
+                .format(APPEND_SPACE);
+
+        rules.onTokenType(HEADER_IMPORT)
+                .named("hdr.imp.b")
+                .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                .format(APPEND_SPACE
+                        .and(PREPEND_NEWLINE_AND_DOUBLE_INDENT
+                                .by(AntlrCounters.LEFT_BRACE_POSITION)));
 
         rules.onTokenType(SHARP).format(PREPEND_SPACE);
 
+        rules.onTokenType(BEGIN_ARGUMENT)
+                .formatIf(config.isSpacesInsideParentheses(), PREPEND_SPACE.and(APPEND_SPACE))
+                .formatIfNot(config.isSpacesInsideParentheses(), PREPEND_SPACE);
+
+        rules.onTokenType(END_ARGUMENT)
+                .formatIf(config.isSpacesInsideParentheses(), PREPEND_SPACE.and(APPEND_SPACE))
+                .formatIfNot(config.isSpacesInsideParentheses(), APPEND_SPACE);
+
         if (config.getNewlineStyle().isDoubleNewline()) {
             rules.onTokenType(SEMI)
-                    .whereMode(notMode("Options", "DEFAULT_MODE", "HeaderPrelude", "Action"))
+                    .whereModeNot("Options", "DEFAULT_MODE", "HeaderPrelude", "Action")
                     .whereNextTokenTypeNot(-1, LINE_COMMENT, PARDEC_LINE_COMMENT, TOK_LINE_COMMENT, FRAGDEC_LINE_COMMENT)
-                    .format(APPEND_DOUBLE_NEWLINE.unless(ctx -> {
-                        if (ctx.get("lbr", 1) == -1) {
-                            return true;
-                        }
-                        if (config.getNewlineStyle() == NewlineStyle.IF_COMPLEX) {
-                            if (ctx.tokenCountToPreceding(true, COLON) < 3) {
-                                ctx.appendNewline();
-                                return true;
-                            }
-                        }
-                        return false;
-                    }));
+                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    .formatIf(config.getNewlineStyle() == NewlineStyle.IF_COMPLEX, APPEND_DOUBLE_NEWLINE);
+
         } else {
             rules.onTokenType(SEMI)
-                    .whereMode(notMode("Options", "DEFAULT_MODE", "HeaderPrelude", "Action"))
+                    .whereModeNot("Options", "DEFAULT_MODE", "HeaderPrelude", "Action")
                     .whereNextTokenTypeNot(-1, LINE_COMMENT, PARDEC_LINE_COMMENT, TOK_LINE_COMMENT, FRAGDEC_LINE_COMMENT)
-                    .format(APPEND_NEWLINE.unless(ctx -> {
-                        return ctx.get("lbr", 1) == -1;
-                    }));
+                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    .format(APPEND_NEWLINE);
         }
 
         rules.onTokenType(QUESTION)
@@ -326,17 +785,53 @@ public class AntlrFormatter implements Formatter {
                 .format(APPEND_SPACE);
 
         rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
-                .whereMode(notMode("HeaderImport", "HeaderAction", "HeaderPrelude", "Action"))
+                .whereModeNot("HeaderImport", "HeaderAction", "HeaderPrelude", "Action", "Options")
+                .wherePrevTokenType(DOC_COMMENT)
+                .priority(6)
+                .format(PREPEND_NEWLINE);
+
+        rules.onTokenType(TOKEN_ID).whereMode("Tokens")
+                .wherePreviousTokenType(COMMA)
+                .whereNextTokenType(COMMA)
+                .when(AntlrCounters.DISTANCE_TO_RBRACE).isGreaterThan(1)
+                .format((tok, ctx, st) -> {
+                    if (config.isWrapLines() && ctx.currentCharPositionInLine() > config.getWrapPoint() - (tok.getText().length() + 1)) {
+                        ctx.prependNewlineAndDoubleIndent();
+                    } else {
+                        ctx.prependSpace();
+                    }
+                });
+
+        rules.onTokenType(TOKEN_ID).whereMode("Tokens")
+                .wherePreviousTokenType(LBRACE)
+                .named("lbrace.tokens")
+                .priority(3)
+                .whereNextTokenType(COMMA)
+                .when(AntlrCounters.DISTANCE_TO_RBRACE).isGreaterThan(1)
+                .formatIf(config.isSpacesInsideParentheses(), PREPEND_SPACE)
+                .formatIfNot(config.isSpacesInsideParentheses(), FormattingAction.EMPTY);
+
+        rules.onTokenType(TOKEN_ID).whereMode("Tokens")
+                .wherePreviousTokenType(COMMA)
+                .priority(3)
+                .whereNextTokenType(RBRACE)
+                .when(AntlrCounters.DISTANCE_TO_RBRACE).isLessThanOrEqualTo(1)
+                .formatIf(config.isSpacesInsideParentheses(), PREPEND_SPACE.and(APPEND_SPACE))
+                .formatIfNot(config.isSpacesInsideParentheses(), PREPEND_SPACE);
+
+        rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
+                .whereModeNot("HeaderImport", "HeaderAction", "HeaderPrelude", "Action", "Tokens")
                 .wherePrevTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
                 .wherePreviousTokenTypeNot(SEMI, ASSIGN, SHARP)
                 .ifPrecededByNewline(false)
-                .format(PREPEND_SPACE).named("Precede id with space");
+                .format(wrapIfNeeded(PREPEND_SPACE, config, AntlrCounters.COLON_POSITION)).named("Precede id with space");
 
         rules.onTokenType(FRAGMENT).format(APPEND_SPACE);
 
         rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID)
+                .whereModeNot(MODE_TOKENS)
                 .wherePreviousTokenTypeNot(LPAREN, ASSIGN, SHARP)
-                .whereNextTokenTypeNot(RPAREN, SEMI)
+                .whereNextTokenTypeNot(RPAREN, SEMI, PLUS, QUESTION, STAR)
                 .ifPrecededByNewline(false)
                 .format(PREPEND_SPACE.and(APPEND_SPACE))
                 .named("Prepend space if not assigment, first paren element or label");
@@ -357,39 +852,42 @@ public class AntlrFormatter implements Formatter {
         rules.onTokenType(COMMA).format(APPEND_SPACE);
 
         rules.onTokenType(STAR, PLUS, QUESTION)
-                .whereNextTokenTypeNot(QUESTION, SEMI)
+                .whereNextTokenTypeNot(QUESTION, SEMI, RPAREN)
                 .format(APPEND_SPACE);
 
-        rules.onTokenType(IMPORT).format(PREPEND_NEWLINE.and(APPEND_SPACE));
+        rules.onTokenType(IMPORT)
+                .wherePreviousTokenTypeNot(RBRACE, END_ACTION)
+                .format(PREPEND_NEWLINE.and(APPEND_SPACE));
 
-        // The grammar we have inherited identifies EVERY { in an action
-        // as another BEGIN_ACTION token, meaning if we aren't careful we
-        // can move them out of line comments into code
+        rules.onTokenType(IMPORT)
+                .wherePrevTokenType(RBRACE, END_ACTION)
+                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
+
         rules.onTokenType(ANTLRv4Lexer.BEGIN_ACTION)
                 .wherePreviousTokenTypeNot(ACTION_CONTENT)
-                .whereMode(notMode("HeaderPrelude", "HeaderAction"))
+                .whereModeNot("HeaderPrelude", "HeaderAction")
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isLessThan(2)
                 .format(PREPEND_NEWLINE_AND_INDENT
-                        .and(APPEND_NEWLINE).unless(ctx -> {
-                    int braceCount = ctx.get("beginActionBraces", 0);
-                    return braceCount > 1;
-                }));
+                        .and(APPEND_NEWLINE));
 
         rules.onTokenType(ANTLRv4Lexer.BEGIN_ACTION)
-                .whereMode(notMode("HeaderAction", "DEFAULT_MODE", "HeaderPrelude", "HeaderImport"))
+                .whereModeNot("HeaderAction", "DEFAULT_MODE", "HeaderPrelude", "HeaderImport")
                 .format(PREPEND_NEWLINE_AND_INDENT);
 
-//        rules.onTokenType(ANTLRv4Lexer.ACTION_CONTENT)
-//                .format(PREPEND_NEWLINE_AND_INDENT);
         // In the case of, e.g. Dot { ... }? don't put the ? or ; on its own line
         rules.onTokenType(ANTLRv4Lexer.END_ACTION)
-                .whereMode(notMode("HeaderAction", "HeaderPrelude", "DEFAULT_MODE", "HeaderImport"))
+                .whereModeNot("HeaderAction", "HeaderPrelude", "DEFAULT_MODE", "HeaderImport")
+                .named("end.action.a")
                 .whereNextTokenTypeNot(STAR, QUESTION, PLUS, SHARP, SEMI)
+                .when(AntlrCounters.LEFT_BRACES_PASSED).isEqualTo(1)
                 .format(PREPEND_NEWLINE_AND_INDENT.and(APPEND_NEWLINE));
 
         rules.onTokenType(ANTLRv4Lexer.END_ACTION)
-                .whereMode(notMode("HeaderAction", "HeaderPrelude", "DEFAULT_MODE", "HeaderImport"))
+                .whereModeNot("HeaderAction", "HeaderPrelude", "DEFAULT_MODE", "HeaderImport")
+                .named("end.action.b")
                 .whereNextTokenType(STAR, QUESTION, PLUS)
-                .format(PREPEND_NEWLINE_AND_INDENT);
+                .format(PREPEND_SPACE);
+//                .format(PREPEND_NEWLINE_AND_INDENT);
 
         rules.onTokenType(ANTLRv4Lexer.LEXER_CHAR_SET)
                 .whereNextTokenTypeNot(RPAREN, STAR, QUESTION, PLUS, SEMI, LINE_COMMENT)
@@ -412,13 +910,24 @@ public class AntlrFormatter implements Formatter {
                 .format(PREPEND_NEWLINE);
 
         rules.onTokenType(lineComments)
+                .whereNextTokenTypeNot(OR)
                 .format(APPEND_NEWLINE)
                 .and()
                 .priority(6)
                 .ifPrecededByNewline(false)
                 .format(PREPEND_SPACE.and(APPEND_NEWLINE));
 
-        rules.onTokenType(OPTIONS)
+        rules.onTokenType(lineComments)
+                .whereNextTokenType(OR)
+                .when(AntlrCounters.PARENS_DEPTH).isLessThan(1)
+                .format(APPEND_NEWLINE)
+                .and()
+                .when(AntlrCounters.PARENS_DEPTH).isLessThan(1)
+                .priority(6)
+                .ifPrecededByNewline(false)
+                .format(PREPEND_SPACE);
+
+        rules.onTokenType(OPTIONS, MEMBERS, HEADER)
                 .format(APPEND_SPACE);
 
         // In the case that we have, e.g.
@@ -432,35 +941,78 @@ public class AntlrFormatter implements Formatter {
                 .whereNextTokenType(OR)
                 .ifPrecededByNewline(false)
                 .priority(2)
-                .format((tok, ctx) -> {
-                    int bd = ctx.get("blockDepth", 0);
+                .format((tok, ctx, st) -> {
+//                    int bd = ctx.get("blockDepth", 0);
+                    int bd = st.get(AntlrCounters.PARENS_DEPTH, 0);
                     if (bd != 0) {
                         ctx.appendNewline();
                     }
                 });
 
-        rules.onTokenType(AntlrCriteria::isBlockComment)
-                .wherePreviousTokenTypeNot(-1)
-                .whereNextTokenTypeNot(GRAMMAR, LEXER, PARSER)
-                .format(PREPEND_NEWLINE.and(APPEND_NEWLINE));
-
+//        rules.onTokenType(AntlrCriteria::isBlockComment)
+//                .wherePreviousTokenTypeNot(-1)
+//                .whereNextTokenTypeNot(GRAMMAR, LEXER, PARSER)
+//                .format(PREPEND_NEWLINE.and(APPEND_NEWLINE));
         rules.onTokenType(LEXER, PARSER).format(APPEND_SPACE);
 
-        rules.onTokenType(ANTLRv4Lexer.OR).format((tok, ctx) -> {
-            int bd = ctx.get("blockDepth", 0);
-            int colonPos = ctx.get("colon", config.getIndentSize());
-            if (bd == 0) {
-                ctx.prependNewlineAndIndentBy(colonPos);
-                ctx.appendSpace();
-            } else {
-                if (config.isWrapLines() && ctx.currentCharPositionInLine() > config.getWrapPoint() - 12) {
-                    ctx.prependNewlineAndIndentBy(colonPos + config.getIndentSize());
+        if (splitOrs) {
+            rules.onTokenType(LPAREN)
+                    .priority(8)
+                    .wherePreviousTokenTypeNot(OR)
+                    .format((tok, ctx, st) -> {
+                        int pos = st.get(AntlrCounters.COLON_POSITION, 0) - 1;
+                        int pd = st.get(AntlrCounters.PARENS_DEPTH);
+                        pos += Math.max(0, ((pd - 1) * ctx.indentSize()));
+                        ctx.prependNewlineAndIndentBy(pos);
+                    });
+            rules.onTokenType(OR)
+                    .priority(8)
+                    .whereNextTokenType(LPAREN)
+                    .format((tok, ctx, st) -> {
+                        int pos = st.get(AntlrCounters.COLON_POSITION, 0) - 1;
+                        int pd = st.get(AntlrCounters.PARENS_DEPTH) + 1;
+                        pos += Math.max(0, ((pd - 1) * ctx.indentSize()));
+                        ctx.prependNewlineAndIndentBy(pos);
+                        ctx.appendSpace();
+                    });
+
+            rules.onTokenType(OR)
+                    .whereNextTokenTypeNot(LPAREN)
+                    .format((tok, ctx, st) -> {
+                        int bd = Math.max(0, st.get(AntlrCounters.PARENS_DEPTH));
+                        int colonPos = config.isNewlineAfterColon() ? config.getIndentSize()
+                                : st.get(AntlrCounters.COLON_POSITION, config.getIndentSize()) - 1;
+                        if (bd == 0) {
+                            ctx.prependNewlineAndIndentBy(colonPos);
+                            ctx.appendSpace();
+                        } else {
+                            if (config.isWrapLines() && ctx.currentCharPositionInLine() > config.getWrapPoint() - (tok.getText().length() + 1)) {
+                                ctx.prependNewlineAndIndentBy(colonPos + config.getIndentSize());
+                            } else {
+                                ctx.prependSpace();
+                            }
+                            ctx.appendSpace();
+                        }
+                    });
+
+        } else {
+            rules.onTokenType(OR).format((tok, ctx, st) -> {
+                int bd = Math.max(0, st.get(AntlrCounters.PARENS_DEPTH));
+                int colonPos = config.isNewlineAfterColon() ? config.getIndentSize()
+                        : st.get(AntlrCounters.COLON_POSITION, config.getIndentSize()) - 1;
+                if (bd == 0) {
+                    ctx.prependNewlineAndIndentBy(colonPos);
+                    ctx.appendSpace();
                 } else {
-                    ctx.prependSpace();
+                    if (config.isWrapLines() && ctx.currentCharPositionInLine() > config.getWrapPoint() - (tok.getText().length() + 1)) {
+                        ctx.prependNewlineAndIndentBy(colonPos + config.getIndentSize());
+                    } else {
+                        ctx.prependSpace();
+                    }
+                    ctx.appendSpace();
                 }
-                ctx.appendSpace();
-            }
-        });
+            });
+        }
 
         if (config.isSpacesInsideParentheses()) {
             rules.onTokenType(LPAREN)
@@ -472,7 +1024,9 @@ public class AntlrFormatter implements Formatter {
 
         rules.onTokenType(HDR_IMPRT_LINE_COMMENT).format(APPEND_NEWLINE);
 
-        rules.onTokenType(lineComments).wherePrevTokenType(ID, TOKEN_ID, DOT, STRING_LITERAL, PARSER_RULE_ID, FRAGDEC_ID, LPAREN, RPAREN)
+        rules.onTokenType(lineComments)
+                .wherePrevTokenType(ID, TOKEN_ID, DOT, STRING_LITERAL, PARSER_RULE_ID, FRAGDEC_ID, LPAREN, RPAREN, SEMI)
+                .ifPrecededByNewline(false)
                 .format(PREPEND_SPACE);
 
         rules.onTokenType(LPAREN)
@@ -489,17 +1043,15 @@ public class AntlrFormatter implements Formatter {
                     .wherePreviousTokenType(
                             anyOf(VOCABULARY, ID, PARSER_RULE_ID, FRAGDEC_ID, TOKEN_ID, DOT, STRING_LITERAL)
                                     .and(noneOf(VOCABULARY, STAR, QUESTION, PLUS, RPAREN)))
-                    .format(PREPEND_SPACE);
+                    .format(PREPEND_SPACE); // XXX shouldn't this be APPEND?
         }
 
         rules.onTokenType(RPAREN)
                 .whereNextTokenTypeNot(LPAREN, RPAREN, STAR, QUESTION, PLUS)
                 .wherePreviousTokenTypeNot(STAR, QUESTION, PLUS, RPAREN)
-                .format((tok, ctx) -> {
-                    int colonPos = ctx.get("colon", config.getIndentSize()) - 1;
-                    if (colonPos == 0) {
-                        colonPos = config.getIndentSize() - 1;
-                    }
+                .format((tok, ctx, st) -> {
+//                    int colonPos = ctx.get("colon", config.getIndentSize()) - 1;
+                    int colonPos = st.get(AntlrCounters.COLON_POSITION, config.getIndentSize() - 1);
                     if (config.isWrapLines() && ctx.currentCharPositionInLine() > config.getWrapPoint() - 12) {
                         ctx.prependNewlineAndIndentBy(colonPos + config.getIndentSize());
                     } else {
@@ -517,44 +1069,50 @@ public class AntlrFormatter implements Formatter {
         rules.onTokenType(lineComments).ifPrecededByNewline(true)
                 .wherePrevTokenTypeNot(lineComments)
                 .whereNextTokenType(lineComments)
-                .format((tok, ctx) -> {
-                    ctx.set("lc", ctx.origCharPositionInLine());
-                    ctx.prependNewlineAndIndentBy(ctx.origCharPositionInLine());
+                .format((tok, ctx, st) -> {
+//                    ctx.set("lc", ctx.origCharPositionInLine());
+                    ctx.prependNewlineAndIndentBy(st.get(AntlrCounters.LINE_COMMENT_INDENT));
                 });
 
         rules.onTokenType(lineComments).ifPrecededByNewline(true)
                 .wherePreviousTokenType(lineComments)
                 .whereNextTokenType(lineComments)
-                .format((tok, ctx) -> {
-                    int amt = ctx.get("lc", config.getIndentSize());
-                    ctx.prependNewlineAndIndentBy(amt);
+                .format((tok, ctx, st) -> {
+//                    int amt = ctx.get("lc", config.getIndentSize());
+                    ctx.prependNewlineAndIndentBy(st.get(AntlrCounters.LINE_COMMENT_INDENT));
                 });
 
         rules.onTokenType(lineComments).ifPrecededByNewline(true)
                 .wherePreviousTokenType(lineComments)
                 .whereNextTokenTypeNot(lineComments)
-                .format((tok, ctx) -> {
-                    int amt = ctx.get("lc", config.getIndentSize());
-                    ctx.prependNewlineAndIndentBy(amt);
+                .format((tok, ctx, st) -> {
+//                    int amt = ctx.get("lc", config.getIndentSize());
+                    ctx.prependNewlineAndIndentBy(st.get(AntlrCounters.LINE_COMMENT_INDENT));
                     ctx.appendNewline();
                 });
 
-        // Alas, this wreaks unholy havoc - either our stream implementation
-        // or something else is wrong - we get the rewritten block comment
-        // repeated hundreds of times
-//        rules.onTokenType(AntlrCriteria::isBlockComment).ifPrecededByNewline(true)
-//                .format(AntlrFormatter::rewriteBlockComment);
-        rules.onTokenType(COLON).format((tok, ctx) -> {
-            if (config.isNewlineAfterColon()) {
-                ctx.prependNewlineAndIndentBy(config.getIndentSize());
-                ctx.set("colon", config.getIndentSize());
-                ctx.appendSpace();
-            } else {
-                ctx.set("colon", ctx.currentCharPositionInLine() + 1);
-                ctx.prependSpace();
-                ctx.appendSpace();
-            }
-        });
+        if (config.isReflowBlockComments()) {
+            FormattingAction blockComments = blockCommentRewriter(config, false);
+            rules.onTokenType(AntlrCriteria::isBlockComment)
+                    .ifPrecededByNewline(true)
+                    .ifFollowedByNewline(true)
+                    .format(blockCommentRewriter(config, true).and(APPEND_NEWLINE).and(PREPEND_NEWLINE));
+
+            rules.onTokenType(AntlrCriteria::isBlockComment)
+                    .ifPrecededByNewline(false)
+                    .ifFollowedByNewline(true)
+                    .format(blockComments.and(APPEND_NEWLINE).and(PREPEND_SPACE));
+
+            rules.onTokenType(AntlrCriteria::isBlockComment)
+                    .ifPrecededByNewline(false)
+                    .ifFollowedByNewline(false)
+                    .format(blockComments.and(APPEND_SPACE));
+        }
+
+        rules.onTokenType(COLON)
+                .formatIf(config.isNewlineAfterColon(), PREPEND_NEWLINE_AND_INDENT.and(APPEND_SPACE))
+                .formatIfNot(config.isNewlineAfterColon(), PREPEND_SPACE.and(APPEND_SPACE));
+
         return rules;
     }
 }

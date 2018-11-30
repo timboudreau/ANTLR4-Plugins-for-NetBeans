@@ -17,6 +17,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.EXTENSIONS_REGISTRY;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.UNIT_TEST;
 import org.netbeans.core.NbLoaderPool;
 import org.netbeans.junit.MockServices;
 import org.openide.filesystems.FileObject;
@@ -197,7 +198,7 @@ public class AdhocDataLoaderTest {
         System.out.println("MIME TYPE IS '" + mimeType + "'");
         L l = new L();
         AdhocMimeTypes.listenForRegistrations(l);
-        DynamicLanguageSupport.registerGrammar(mimeType, null);
+        DynamicLanguageSupport.registerGrammar(mimeType, null, UNIT_TEST);
         AdhocMimeTypes.registerFileNameExtension("foo", mimeType);
         // Ensures that our test listener isn't notified about this
         // change while we're waiting for another - if we get here,

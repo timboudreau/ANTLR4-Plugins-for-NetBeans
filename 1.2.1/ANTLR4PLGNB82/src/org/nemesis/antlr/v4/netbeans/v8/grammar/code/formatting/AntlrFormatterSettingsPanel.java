@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
 import javax.swing.JPanel;
@@ -92,6 +87,7 @@ public final class AntlrFormatterSettingsPanel extends JPanel implements ChangeL
         indentSizeSpinner = new javax.swing.JSpinner();
         newlineStyleLabel = new javax.swing.JLabel();
         newlineStyleBox = new javax.swing.JComboBox<>();
+        reflowBox = new javax.swing.JCheckBox();
 
         org.openide.awt.Mnemonics.setLocalizedText(newlineBox, org.openide.util.NbBundle.getMessage(AntlrFormatterSettingsPanel.class, "AntlrFormatterSettingsPanel.newlineBox.text")); // NOI18N
         newlineBox.setToolTipText(org.openide.util.NbBundle.getMessage(AntlrFormatterSettingsPanel.class, "AntlrFormatterSettingsPanel.newlineBox.toolTipText")); // NOI18N
@@ -141,6 +137,13 @@ public final class AntlrFormatterSettingsPanel extends JPanel implements ChangeL
             }
         });
 
+        org.openide.awt.Mnemonics.setLocalizedText(reflowBox, org.openide.util.NbBundle.getMessage(AntlrFormatterSettingsPanel.class, "AntlrFormatterSettingsPanel.reflowBox.text")); // NOI18N
+        reflowBox.addChangeListener(new javax.swing.event.ChangeListener() {
+            public void stateChanged(javax.swing.event.ChangeEvent evt) {
+                reflowBoxChanged(evt);
+            }
+        });
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
         layout.setHorizontalGroup(
@@ -165,8 +168,12 @@ public final class AntlrFormatterSettingsPanel extends JPanel implements ChangeL
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(wrapLinesSpinner))
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(newlineBox, javax.swing.GroupLayout.DEFAULT_SIZE, 266, Short.MAX_VALUE)
+                        .addComponent(newlineBox, javax.swing.GroupLayout.DEFAULT_SIZE, 490, Short.MAX_VALUE)
                         .addGap(4, 4, 4)))
+                .addContainerGap())
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(reflowBox, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addContainerGap())
         );
         layout.setVerticalGroup(
@@ -190,7 +197,9 @@ public final class AntlrFormatterSettingsPanel extends JPanel implements ChangeL
                     .addComponent(wrapLinesBox))
                 .addGap(18, 18, 18)
                 .addComponent(newlineBox)
-                .addContainerGap(22, Short.MAX_VALUE))
+                .addGap(18, 18, 18)
+                .addComponent(reflowBox)
+                .addContainerGap(63, Short.MAX_VALUE))
         );
 
         layout.linkSize(javax.swing.SwingConstants.VERTICAL, new java.awt.Component[] {indentSizeSpinner, newlineStyleBox, wrapLinesSpinner});
@@ -257,12 +266,22 @@ public final class AntlrFormatterSettingsPanel extends JPanel implements ChangeL
         }
     }//GEN-LAST:event_separateLineChanged
 
+    private void reflowBoxChanged(javax.swing.event.ChangeEvent evt) {//GEN-FIRST:event_reflowBoxChanged
+        boolean wasModified = isModified();
+        boolean reflow = reflowBox.isSelected();
+        settings.setReflowBlockComments(reflow);
+        if (isModified() != wasModified) {
+            fire();
+        }
+    }//GEN-LAST:event_reflowBoxChanged
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel indentSizeLabel;
     private javax.swing.JSpinner indentSizeSpinner;
     private javax.swing.JCheckBox newlineBox;
     private javax.swing.JComboBox<AntlrFormatterSettings.NewlineStyle> newlineStyleBox;
     private javax.swing.JLabel newlineStyleLabel;
+    private javax.swing.JCheckBox reflowBox;
     private javax.swing.JCheckBox wrapLinesBox;
     private javax.swing.JSpinner wrapLinesSpinner;
     // End of variables declaration//GEN-END:variables

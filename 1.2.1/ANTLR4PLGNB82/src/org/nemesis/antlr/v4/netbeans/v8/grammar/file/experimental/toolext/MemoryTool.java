@@ -73,6 +73,7 @@ public final class MemoryTool extends Tool {
     @Override
     public void log(String component, String msg) {
         // do nothing
+//        System.out.println(component + ": " + msg);
     }
 
     @Override
@@ -151,8 +152,22 @@ public final class MemoryTool extends Tool {
             if (fo == null && libDirectory != null) {
                 fo = jfs.get(location, Paths.get(libDirectory).resolve(g.fileName));
             }
+            if (fo == null) {
+                System.out.println("FAILED TO RESOLVE " + fileName + " relative to " + g.fileName + ". Available: " + list());
+            }
         }
+//        if (fo != null) {
+//            System.out.println("RESOLVED GRAMMAR " + fileName + " as " + fo);
+//        }
         return fo;
+    }
+
+    private String list() {
+        StringBuilder sb = new StringBuilder("Location in use is " + location + "\n");
+        for (Map.Entry<JFSFileObject, Location> e : jfs.listAll().entrySet()) {
+            sb.append(e.getKey().getName()).append('\t').append(e.getValue()).append('\n');
+        }
+        return sb.toString();
     }
 
     public Grammar loadImportedGrammar(Grammar g, GrammarAST nameNode) throws IOException {
@@ -270,7 +285,7 @@ public final class MemoryTool extends Tool {
         public void emit(ErrorType etype, ANTLRMessage msg) {
             if (etype == ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR) {
 //                Thread.dumpStack();
-                System.out.println(msg);
+//                System.out.println(msg);
             }
             Path pth = msg.fileName == null ? Paths.get("_no-file_") : Paths.get(msg.fileName);
             int charPositionInLine = msg.charPosition;

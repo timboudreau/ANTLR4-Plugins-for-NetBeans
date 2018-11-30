@@ -1,8 +1,18 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
-import java.util.function.BiConsumer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.IntPredicate;
-import org.antlr.v4.runtime.Token;
+import java.util.function.Predicate;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
+import org.openide.util.Parameters;
+import org.openide.util.Utilities;
 
 /**
  * A formatting rule; consists of several matching criteria and a
@@ -22,14 +32,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     private IntPredicate prevTokenType;
     private IntPredicate nextTokenType;
     private IntPredicate mode;
-    private Boolean requiredPrecedingNewlineState;
-    private BiConsumer<Token, FormattingContext> action;
+    private Boolean requiresPrecedingNewline;
+    private Boolean requiresFollowingNewline;
+    private FormattingAction action;
     private boolean active = true;
     private boolean temporarilyActive = false;
     private boolean temporarilyInactive = false;
     private final FormattingRules rules;
     private int priority;
     private String name; // for debugging
+    private List<Predicate<LexingState>> stateCriteria;
 
     FormattingRule(IntPredicate tokenType, FormattingRules rules) {
         this.tokenType = tokenType;
@@ -40,12 +52,34 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return action != null;
     }
 
-    void perform(ModalToken tok, FormattingContext ctx) {
+    void perform(ModalToken tok, FormattingContext ctx, LexingState state) {
         if (this.action != null) {
-            this.action.accept(tok, ctx);
+            this.action.accept(tok, ctx, state);
         }
     }
 
+    <T extends Enum<T>> void addStateCriterion(T key, IntPredicate test) {
+        addStateCriterion(new StateCriterion<>(key, test));
+    }
+
+    void addStateCriterion(Predicate<LexingState> pred) {
+        if (stateCriteria == null) {
+            stateCriteria = new LinkedList<>();
+        }
+        stateCriteria.add(pred);
+    }
+
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, FormattingRule> when(T key) {
+        Parameters.notNull("key", key);
+        return new LexingStateCriteriaBuilderImpl<>(key, this);
+    }
+
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> whenCombinationOf(T key) {
+        Parameters.notNull("key", key);
+        return new LogicalLexingStateCriteriaBuilder(this).start(key);
+    }
+
+//    public <T extends Enum<T>> FormattingContext when(T key)
     /**
      * Adds an optional name used for logging/debugging purposes.
      *
@@ -82,7 +116,14 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         FormattingRule nue = new FormattingRule(tokenType, rules);
         nue.prevTokenType = prevTokenType;
         nue.nextTokenType = nextTokenType;
-        nue.requiredPrecedingNewlineState = requiredPrecedingNewlineState;
+        nue.requiresPrecedingNewline = requiresPrecedingNewline;
+        nue.priority = priority;
+        if (stateCriteria != null) {
+            if (nue.stateCriteria == null) {
+                nue.stateCriteria = new LinkedList<>();
+            }
+            nue.stateCriteria.addAll(stateCriteria);
+        }
         rules.addRule(nue);
         return nue;
     }
@@ -215,13 +256,45 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * <i>not</i> active. Note this deals in mode <i>numbers</i> which can
      * change when the grammar is edited.
      *
+     * @param item the first mode name
+     * @param more additional mode name
+     * @return this
+     */
+    public FormattingRule whereModeNot(String item, String... more) {
+        if (more.length == 0) {
+            return whereMode(notMode(item));
+        }
+        return whereMode(FormattingRule.notMode(combine(item, more)));
+    }
+
+    /**
+     * Make this rule only active when a one of the passed lexer modes is
+     * active.
+     *
+     * @param item the first mode name
+     * @param more additional mode name
+     * @return this
+     */
+    public FormattingRule whereMode(String item, String... more) {
+        if (more.length == 0) {
+            return whereMode(FormattingRule.mode(item));
+        }
+        return whereMode(FormattingRule.mode(combine(item, more)));
+    }
+
+    /**
+     * Make this rule only active when a one of the passed lexer modes is
+     * <i>not</i> active. Note this deals in mode <i>numbers</i> which can
+     * change when the grammar is edited; where mode names are stable, prefer
+     * the overload of this method that takes strings.
+     *
      * @param item the first mode number
      * @param more additional mode numbers
      * @return this
      */
     public FormattingRule whereModeNot(int item, int... more) {
         if (more.length == 0) {
-            return whereMode(item);
+            return whereModeNot(item);
         }
         return whereMode(Criterion.noneOf(rules.vocabulary(), combine(item, more)));
     }
@@ -229,7 +302,8 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     /**
      * Make this rule only active when the lexer mode matches the passed
      * predicate. Note this deals in mode <i>numbers</i> which can change when
-     * the grammar is edited.
+     * the grammar is edited; where mode names are stable, prefer the overload
+     * of this method that takes strings.
      *
      * @param item the first mode number
      * @param more additional mode numbers
@@ -401,7 +475,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         int[] vals = new int[more.length + 1];
         vals[0] = prepend;
         System.arraycopy(more, 0, vals, 1, more.length);
+        assert noDuplicates(vals) : "Duplicate values in " + Arrays.toString(vals);
         return vals;
+    }
+
+    private static boolean noDuplicates(int[] vals) {
+        return new HashSet<>(Arrays.asList(Utilities.toObjectArray(vals))).size() == vals.length;
+    }
+
+    private static boolean noDuplicates(String[] vals) {
+        return new HashSet<>(Arrays.asList(vals)).size() == vals.length;
     }
 
     /**
@@ -453,11 +536,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @return this
      */
     public FormattingRule ifPrecededByNewline(boolean val) {
-        this.requiredPrecedingNewlineState = val;
+        this.requiresPrecedingNewline = val;
         return this;
     }
 
-    boolean matches(int tokenType, int prevTokenType, int nextTokenType, boolean precededByNewline, int mode, boolean debug) {
+    public FormattingRule ifFollowedByNewline(boolean val) {
+        this.requiresFollowingNewline = val;
+        return this;
+    }
+
+    boolean matches(int tokenType, int prevTokenType, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
             System.out.println("MATCH " + this);
@@ -488,22 +576,39 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 System.out.println("  MODE MISMATCH " + this.mode + " but mode is " + mode);
             }
         }
+        if (result && this.stateCriteria != null) {
+            for (Predicate<LexingState> c : this.stateCriteria) {
+                result = c.test(state);
+                if (!result) {
+                    if (log) {
+                        System.out.println("  MISMATCH STATE: " + c + " with " + state);
+                    }
+                    break;
+                }
+            }
+        }
         if (result && this.prevTokenType != null) {
             result = this.prevTokenType.test(prevTokenType);
             if (log && !result) {
-                System.out.println("  PREV TYPE NON MATCH " + this.prevTokenType);
+                System.out.println("  PREV TYPE NON-MATCH " + this.prevTokenType);
             }
         }
         if (result && this.nextTokenType != null) {
             result = this.nextTokenType.test(nextTokenType);
             if (log && !result) {
-                System.out.println("  NEXT TYPE NON MATCH " + this.nextTokenType);
+                System.out.println("  NEXT TYPE NON-MATCH " + this.nextTokenType);
             }
         }
-        if (result && this.requiredPrecedingNewlineState != null) {
-            result = this.requiredPrecedingNewlineState.booleanValue() == precededByNewline;
+        if (result && this.requiresPrecedingNewline != null) {
+            result = this.requiresPrecedingNewline == precededByNewline;
             if (log && !result) {
-                System.out.println("  PRECEDED BY NON MATCH " + this.requiredPrecedingNewlineState);
+                System.out.println("  PRECEDED NEWLINE NON-MATCH" + this.requiresPrecedingNewline);
+            }
+        }
+        if (result && this.requiresFollowingNewline != null) {
+            result = this.requiresFollowingNewline == followedByNewline;
+            if (log && !result) {
+                System.out.println("  FOLLOWING NEWLINE NON-MATCH" + this.requiresPrecedingNewline);
             }
         }
         if (temporarilyActive) {
@@ -520,10 +625,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 result++;
             }
         }
-        if (requiredPrecedingNewlineState != null) {
+        if (requiresPrecedingNewline != null) {
+            result++;
+        }
+        if (requiresFollowingNewline != null) {
             result++;
         }
         result += priority;
+        if (stateCriteria != null) {
+            result += stateCriteria.size();
+        }
         return result;
     }
 
@@ -565,16 +676,132 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             }
             sb.append("mode ").append(mode);
         }
-        if (requiredPrecedingNewlineState != null) {
+        if (requiresPrecedingNewline != null) {
             if (sb.length() > 5) {
                 sb.append(' ');
             }
-            sb.append("requiresPrecedingNewline ").append(requiredPrecedingNewlineState);
+            sb.append("requiresPrecedingNewline ").append(requiresPrecedingNewline);
+        }
+        if (this.stateCriteria != null) {
+            if (sb.length() > 5) {
+                sb.append(' ');
+            }
+            sb.append("states {");
+            for (Predicate<LexingState> pred : stateCriteria) {
+                sb.append(pred).append(' ');
+            }
+            sb.append('}');
         }
         if (sb.length() > 5) {
             sb.append(' ');
         }
         sb.append("action ").append(action);
         return sb.append('}').toString();
+    }
+
+    private static class StateCriterion<T extends Enum<T>> implements Predicate<LexingState> {
+
+        private final T key;
+        private final IntPredicate criterion;
+
+        public StateCriterion(T key, IntPredicate criterion) {
+            this.key = key;
+            this.criterion = criterion;
+        }
+
+        public boolean test(LexingState state) {
+            return criterion.test(state.get(key));
+        }
+
+        public String toString() {
+            return key + "" + criterion;
+        }
+    }
+
+    static String[] combine(String first, String... more) {
+        String[] result = new String[more.length + 1];
+        result[0] = first;
+        System.arraycopy(more, 0, result, 1, more.length);
+        assert noDuplicates(result) : "Duplicate values in " + Arrays.toString(result);
+        return result;
+    }
+
+    static IntPredicate mode(String... names) {
+        return modeNames(false, names);
+    }
+
+    static IntPredicate notMode(String... names) {
+        return modeNames(true, names);
+    }
+
+    private static IntPredicate modeNames(boolean not, String... names) {
+        Set<String> all = new TreeSet<>(Arrays.asList(names));
+        List<Integer> ints = new ArrayList<>(all.size());
+        List<String> allModeNames = ANTLRv4Lexer.modeNames == null
+                ? Collections.emptyList() : Arrays.asList(ANTLRv4Lexer.modeNames);
+
+        for (String s : all) {
+            int ix = allModeNames.indexOf(s);
+            if (ix >= 0) {
+                ints.add(ix);
+            } else if ("DEFAULT_MODE".equals(s) || "default".equals(s)) {
+                ints.add(0);
+            }
+        }
+        final int[] vals = new int[ints.size()];
+        for (int i = 0; i < ints.size(); i++) {
+            vals[i] = ints.get(i);
+        }
+        Arrays.sort(vals);
+        return new ModeNamesCriterion(vals, not, all);
+    }
+
+    private static class ModeNamesCriterion implements IntPredicate {
+
+        private final int[] vals;
+        private final boolean not;
+        private final Set<String> all;
+
+        public ModeNamesCriterion(int[] vals, boolean not, Set<String> all) {
+            this.vals = vals;
+            this.not = not;
+            this.all = all;
+        }
+
+        @Override
+        public IntPredicate negate() {
+            return new ModeNamesCriterion(vals, !not, all);
+        }
+
+        @Override
+        public boolean test(int value) {
+            int ix = Arrays.binarySearch(vals, value);
+            if (not) {
+                return ix < 0;
+            } else {
+                return ix >= 0;
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder(not ? "notMode(" : "mode(");
+            int initialLength = sb.length();
+            for (String s : all) {
+                if (sb.length() != initialLength) {
+                    sb.append(", ");
+                }
+                sb.append(s);
+            }
+            sb.append(" = [");
+            for (int i = 0; i < vals.length; i++) {
+                sb.append(vals[i]);
+                if (i != vals.length - 1) {
+                    sb.append(",");
+                }
+            }
+            sb.append("]");
+            return sb.append(")").toString();
+        }
     }
 }

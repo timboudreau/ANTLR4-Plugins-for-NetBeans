@@ -55,10 +55,7 @@ import org.nemesis.antlr.v4.netbeans.v8.project.action.TaskException;
 
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
-import org.netbeans.api.project.ant.AntBuildExtender;
 import org.netbeans.api.project.libraries.LibraryManager;
-
-import org.netbeans.modules.java.j2seproject.J2SEProject;
 
 import org.openide.filesystems.FileObject;
 

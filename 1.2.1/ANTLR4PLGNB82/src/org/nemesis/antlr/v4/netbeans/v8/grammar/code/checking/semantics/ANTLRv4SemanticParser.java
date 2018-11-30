@@ -228,6 +228,10 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         return summary.getJavaImports();
     }
 
+    public Optional<Path> grammarFilePath() {
+        return grammarFilePath;
+    }
+
     private Optional<Path> grammarFileParent() {
         if (grammarFilePath.isPresent()) {
             return Optional.of(grammarFilePath.get().getParent());
@@ -275,6 +279,10 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         parserRuleIds.addAll(summary.getParserRuleIds());
         allParserRuleIds.addAll(summary.getImportedParserRuleIds());
         allParserRuleIds.addAll(parserRuleIds);
+    }
+
+    public GrammarSummary summary() {
+        return summary;
     }
 
     private boolean checkSemanticErrorRequired() {
@@ -340,7 +348,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         BitSetTreeBuilder rtb2 = new BitSetTreeBuilder(pruleIds);
         ctx.accept(rtb2);
         ruleTree = rtb2.toRuleTree().strings(pruleIds);
-/*
+        /*
         System.out.println("IN top: " + ruleTree.topLevelOrOrphanRules());
         System.out.println("IN bottom: " + ruleTree.bottomLevelRules());
         System.out.println("\nEIGENVECTOR CENTRALITY: ");
@@ -364,7 +372,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
             System.out.println("IN " + r + " closure: " + ruleTree.closureOf(r));
             System.out.println("IN " + r + " rev-closure: " + ruleTree.reverseClosureOf(r));
         }
-        */
+         */
     }
 
     public RuleTree ruleTree() {
@@ -826,11 +834,12 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     @Override
-    public void exitParserRuleDeclaration(ParserRuleDeclarationContext ctx) {
+    public void exitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
         // We add the id of the rule to the set of id
         // it enables to check that each parser rule reference has a correspondent
         // parser rule definition
-        ParserRuleIdentifierContext pric = ctx.parserRuleIdentifier();
+        ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
+        ParserRuleIdentifierContext pric = decl.parserRuleIdentifier();
         if (pric != null) {
             TerminalNode pridTN = pric.PARSER_RULE_ID();
             if (pridTN != null) {
@@ -859,22 +868,19 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                             if (firstParserRuleDeclaration == null) {
                                 firstParserRuleDeclaration = parserRuleId;
                             }
-                            ParserRuleIdentifierContext ident = ctx.parserRuleIdentifier();
-                            if (ident != null) { // broken source
-                                String nm = ident.getText();
-                                RuleDeclaration newRule
-                                        = new RuleDeclaration(PARSER,
-                                                nm, ident.getStart().getStartIndex(),
-                                                ident.getStop().getStopIndex() + 1,
-                                                ctx.getStart().getStartIndex(),
-                                                ctx.getStop().getStopIndex() + 1);
-                                parserRuleDeclarations.put(nm, newRule);
-                                lastParserRule = newRule;
-                            }
                             break;
                         }
                         default:
                     }
+                    String nm = parserRuleId;
+                    RuleDeclaration newRule
+                            = new RuleDeclaration(PARSER,
+                                    nm, decl.parserRuleIdentifier().getStart().getStartIndex(),
+                                    decl.parserRuleIdentifier().getStop().getStopIndex() + 1,
+                                    ctx.getStart().getStartIndex(),
+                                    ctx.getStop().getStopIndex() + 1);
+                    parserRuleDeclarations.put(nm, newRule);
+                    lastParserRule = newRule;
                 }
             }
         }
@@ -1076,7 +1082,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                                         fragmentRuleId, idToken.getStartIndex(),
                                         idToken.getStopIndex() + 1,
                                         ctx.getStart().getStartIndex(),
-                                        ctx.getStop().getStopIndex()));
+                                        ctx.getStop().getStopIndex() + 1));
                     }
                 }
             }
@@ -1621,6 +1627,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
             try (
                     Reader sr = new StringReader(contentToBeParsed);) {
                 ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
+                lexer.removeErrorListeners();
 
                 CommonTokenStream tokens = new CommonTokenStream(lexer);
                 ANTLRv4Parser parser = new ANTLRv4Parser(tokens);

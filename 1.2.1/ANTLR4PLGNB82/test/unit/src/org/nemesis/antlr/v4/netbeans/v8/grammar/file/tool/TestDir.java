@@ -40,15 +40,27 @@ public final class TestDir {
     final Path tmp;
 
     TestDir(Path root, String name, String grammarStreamName, String packageName) throws IOException {
+        this(root, name, grammarStreamName, packageName, null);
+    }
+
+    TestDir(Path root, String name, String grammarStreamName, String packageName, Class<?> grammarStreamRelativeTo) throws IOException {
         this.name = name;
         this.packageName = packageName;
         this.root = root;
+        if (grammarStreamRelativeTo == null) {
+            grammarStreamRelativeTo = TestDir.class;
+        }
         antlrSources = root.resolve(name);
-        antlrSourceFile = antlrSources.resolve(grammarStreamName);
+        String fn = grammarStreamName;
+        if (fn.endsWith("._g4")) {
+            fn = fn.substring(0, fn.length() - 4) + ".g4";
+        }
+        antlrSourceFile = antlrSources.resolve(fn);
+        System.out.println("antlrSourceFile is " + antlrSourceFile);
         javaClasspathRoot = antlrSources.resolve("output");
         outputPackage = javaClasspathRoot.resolve(packageName.replace('.', '/'));
         tmp = antlrSources.resolve("tmp");
-        InputStream in = RecompilationTest.class.getResourceAsStream(grammarStreamName);
+        InputStream in = grammarStreamRelativeTo.getResourceAsStream(grammarStreamName);
         Assert.assertNotNull("Missing " + grammarStreamName + " on classpath adjacent to " + RecompilationTest.class.getName(), in);
         Files.createDirectories(outputPackage);
         Files.createDirectories(tmp);
@@ -70,7 +82,17 @@ public final class TestDir {
                 relativeTo.getPackage().getName().replace('.', '/'), name));
     }
 
-    public TestDir addImportFile(Path relativePath, String name, String data) throws IOException {
+    public TestDir addImportFile(String name, Path orig) throws IOException {
+        Path importDir = antlrSources.resolve("import");
+        if (!Files.exists(importDir)) {
+            Files.createDirectories(importDir);
+        }
+        Path dataFile = importDir.resolve(name);
+        Files.copy(orig, dataFile);
+        return this;
+    }
+
+    public TestDir addImportFile(String name, String data) throws IOException {
         Path importDir = antlrSources.resolve("import");
         if (!Files.exists(importDir)) {
             Files.createDirectories(importDir);

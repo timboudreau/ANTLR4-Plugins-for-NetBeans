@@ -3,6 +3,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview;
 import java.io.IOException;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.CREATE_SAMPLE_FILE;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -60,9 +61,9 @@ public final class SampleFiles {
                 // derive a text that could parse from the grammer
                 out.write(DEFAULT_TEXT.getBytes(UTF_8));
             }
-            DynamicLanguageSupport.registerGrammar(mimeType, DEFAULT_TEXT);
+            DynamicLanguageSupport.registerGrammar(mimeType, DEFAULT_TEXT, CREATE_SAMPLE_FILE);
         } else {
-            DynamicLanguageSupport.registerGrammar(mimeType, sampleFile.asText());
+            DynamicLanguageSupport.registerGrammar(mimeType, sampleFile.asText(), CREATE_SAMPLE_FILE);
         }
         return sampleFile;
     }

@@ -94,13 +94,17 @@ public class ParserExtractor {
                     int type = tok.getType();
                     int start = tok.getStartIndex();
                     int stop = tok.getStopIndex();
+                    String txt = tok.getText();
                     if (type == -1) {
                         // EOF has peculiar behavior in Antlr - the start
                         // offset is less than the end offset
                         start = Math.max(start, stop);
                         stop = start;
+                        // And the text may be "<EOF>" which we don't want
+                        // to accidentally return as a netbeans token
+                        txt = "";
                     }
-                    proxies.onToken(tok.getText(), type,
+                    proxies.onToken(txt, type,
                             tok.getLine(), tok.getCharPositionInLine(),
                             tok.getChannel(), tokenIndex++,
                             start, stop);
@@ -146,10 +150,12 @@ public class ParserExtractor {
 
         @Override
         public void reportAmbiguity(Parser parser, DFA dfa, int i, int i1, boolean bln, BitSet bitset, ATNConfigSet atncs) {
+//            System.out.println("AMBIGUITY at " + i + ":" + i1 + " " + dfa.toLexerString() + " cs " + atncs.toString());
         }
 
         @Override
         public void reportAttemptingFullContext(Parser parser, DFA dfa, int i, int i1, BitSet bitset, ATNConfigSet atncs) {
+//            System.out.println("ATTEMPT FULL at " + i + ":" + i1 + " " + dfa.toLexerString() + " cs " + atncs.toString());
         }
 
         @Override

@@ -2,12 +2,14 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
 import java.util.Arrays;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.Vocabulary;
 
 /**
- * One test a rule can use to determine if it matches the current tokens.
+ * One test a rule can use to determine if it matches one or more token types.
  *
  * @author Tim Boudreau
  */
@@ -70,6 +72,7 @@ interface Criterion extends IntPredicate {
     }
 
     static Criterion anyOf(Vocabulary vocab, int... ints) {
+        assert ints.length > 0 : "Empty array";
         Arrays.sort(ints);
         return new Criterion() {
             private boolean logged;
@@ -131,6 +134,32 @@ interface Criterion extends IntPredicate {
         };
     }
 
+    default <R> Predicate<R> convertedBy(ToIntFunction<R> func) {
+        return new Predicate<R>() {
+            public boolean test(R val) {
+                return Criterion.this.test(func.applyAsInt(val));
+            }
+
+            public String toString() {
+                return "convert(" + Criterion.this + " <- " + func + ")";
+            }
+        };
+    }
+
+    default Criterion firstNmatches(int max) {
+        return new Criterion() {
+            private int count;
+
+            @Override
+            public boolean test(int value) {
+                boolean result = Criterion.this.test(value);
+                if (result && count++ > max) {
+                    result = false;
+                }
+                return result;
+            }
+        };
+    }
 
     static Criterion noneOf(Vocabulary vocab, int... ints) {
 //        return anyOf(ints).negate();
@@ -179,7 +208,7 @@ interface Criterion extends IntPredicate {
         };
     }
 
-    static Criterion ALWAYS = new Criterion() {
+    static final Criterion ALWAYS = new Criterion() {
         @Override
         public boolean test(int val) {
             return true;
@@ -190,4 +219,72 @@ interface Criterion extends IntPredicate {
             return "<always>";
         }
     };
+
+    static Criterion greaterThan(int expected) {
+        return new Criterion() {
+            @Override
+            public boolean test(int value) {
+                return value > expected;
+            }
+
+            public String toString() {
+                return ">" + expected;
+            }
+        };
+    }
+
+    static Criterion lessThan(int expected) {
+        return new Criterion() {
+            @Override
+            public boolean test(int value) {
+                return value < expected;
+            }
+
+            public String toString() {
+                return "<" + expected;
+            }
+        };
+    }
+
+    static Criterion equalTo(int expected) {
+        return new Criterion() {
+            @Override
+            public boolean test(int value) {
+                return value == expected;
+            }
+
+            public String toString() {
+                return "==" + expected;
+            }
+        };
+    }
+
+    @Override
+    default Criterion or(IntPredicate other) {
+        return new Criterion() {
+            @Override
+            public boolean test(int value) {
+                return Criterion.this.test(value) || other.test(value);
+            }
+
+            public String toString() {
+                return Criterion.this.toString() + " || " + other.toString();
+            }
+        };
+    }
+
+    @Override
+    default Criterion and(IntPredicate other) {
+        return new Criterion() {
+            @Override
+            public boolean test(int value) {
+                return Criterion.this.test(value) && other.test(value);
+            }
+
+            public String toString() {
+                return Criterion.this.toString() + " & " + other.toString();
+            }
+        };
+    }
+
 }

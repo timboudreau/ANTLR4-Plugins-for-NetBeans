@@ -20,7 +20,7 @@ import java.nio.charset.MalformedInputException;
  *
  * @author Tim Boudreau
  */
-interface JFSBytesStorage {
+public interface JFSBytesStorage {
 
     /**
      * Get the content as a byte array.

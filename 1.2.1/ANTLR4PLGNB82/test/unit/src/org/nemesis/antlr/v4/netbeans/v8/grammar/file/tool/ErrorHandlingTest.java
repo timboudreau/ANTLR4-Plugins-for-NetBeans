@@ -1,16 +1,20 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
+import java.io.ByteArrayOutputStream;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileAntlrSources;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ForeignInvocationResult;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -18,6 +22,10 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
@@ -195,6 +203,82 @@ public class ErrorHandlingTest {
         System.out.println("PARSE TREE:");
 
         proxies.save(Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool").resolve(pth.getFileName() + ".ser"));
+    }
+
+    @Test
+    public void testExtraction() throws Throwable {
+        String text;
+        try (InputStream in = Files.newInputStream(goodFile, StandardOpenOption.READ)) {
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                FileUtil.copy(in, out);
+                text = new String(out.toByteArray(), UTF_8);
+            }
+        }
+
+        ANTLRv4GrammarChecker gc = NBANTLRv4Parser.parse(goodFile);
+        ANTLRv4SemanticParser sem = gc.getSemanticParser();
+        assertNotNull(sem);
+
+        List<Item> all = Arrays.asList(new Item[]{
+            new Item(19, 24, 38, "thing"),
+            new Item(40, 44, 64, "item"),
+            new Item(66, 72, 180, "number"),
+            new Item(182, 187, 200, "words"),
+            new Item(202, 208, 218, "Digits"),
+            new Item(220, 224, 232, "Word"),
+            new Item(234, 244, 275, "Whitespace"),
+            new Item(277, 283, 290, "Hyphen"),
+            new Item(291, 301, 308, "Underscore"),
+            new Item(319, 324, 310, 333, "DIGIT"),
+            new Item(343, 353, 334, 367, "WHITESPACE"),
+            new Item(377, 381, 368, 394, "WORD")
+        });
+        Iterator<Item> it = all.iterator();
+        assertEquals(all.size(), sem.allDeclarations().size());
+        for (RuleDeclaration dec : sem.allDeclarations()) {
+            Item i = it.next();
+            assertTrue(dec.getStartOffset() < dec.getEndOffset());
+            assertTrue(dec.getRuleStartOffset() < dec.getRuleEndOffset());
+            assertTrue(dec.getEndOffset() < dec.getRuleEndOffset());
+            String nm = text.substring(dec.getStartOffset(), dec.getEndOffset());
+            assertEquals(nm, dec.getRuleID());
+            String body = text.substring(dec.getRuleStartOffset(), dec.getRuleEndOffset());
+            assertTrue(body, body.startsWith("fragment " + nm) || body.startsWith(dec.getRuleID()));
+            assertTrue(body, body.endsWith(";"));
+            i.assertMatches(dec);
+        }
+    }
+
+    private static final class Item {
+
+        private final int nameStart;
+        private final int nameEnd;
+        private final int ruleStart;
+        private final int ruleEnd;
+        private final String name;
+
+        public Item(int nameStart, int nameEnd, int ruleEnd, String name) {
+            this.nameStart = this.ruleStart = nameStart;
+            this.nameEnd = nameEnd;
+            this.ruleEnd = ruleEnd;
+            this.name = name;
+        }
+
+        public Item(int nameStart, int nameEnd, int ruleStart, int ruleEnd, String name) {
+            this.nameStart = nameStart;
+            this.ruleStart = ruleStart;
+            this.nameEnd = nameEnd;
+            this.ruleEnd = ruleEnd;
+            this.name = name;
+        }
+
+        public void assertMatches(RuleDeclaration decl) {
+            assertEquals("name", name, decl.getRuleID());
+            assertEquals("nameStart",nameStart, decl.getStartOffset());
+            assertEquals("ruleStart",ruleStart, decl.getRuleStartOffset());
+            assertEquals("nameEnd", nameEnd, decl.getEndOffset());
+            assertEquals("ruleEnd", ruleEnd, decl.getRuleEndOffset());
+        }
     }
 
     @BeforeClass

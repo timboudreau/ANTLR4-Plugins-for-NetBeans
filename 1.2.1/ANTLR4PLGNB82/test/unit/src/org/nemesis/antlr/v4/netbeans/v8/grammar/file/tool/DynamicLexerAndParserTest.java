@@ -30,6 +30,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocTokenId;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocParserResult;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.UNIT_TEST;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.LanguageReplaceabilityTest.ADP;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.RecompilationTest.TEXT_2;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
@@ -82,12 +83,12 @@ public class DynamicLexerAndParserTest {
     public void test() throws IOException, ParseException {
         assertFalse(ParserManager.canBeParsed(mime));
 //        DynamicLanguageSupport.registerGrammar(FileUtil.toFileObject(nestedGrammarDir.antlrSourceFile.toFile()));
-        DynamicLanguageSupport.registerGrammar(AdhocMimeTypes.mimeTypeForPath(nestedGrammarDir.antlrSourceFile), TEXT_1);
+        DynamicLanguageSupport.registerGrammar(AdhocMimeTypes.mimeTypeForPath(nestedGrammarDir.antlrSourceFile), TEXT_1, UNIT_TEST);
         assertFalse(DynamicLanguageSupport.mimeTypes().isEmpty());
 
         assertTrue(ParserManager.canBeParsed(mime));
 
-        ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(mime, TEXT_1);
+        ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(mime, TEXT_1, UNIT_TEST);
         assertNotNull(px);
         String ext = AdhocMimeTypes.fileExtensionFor(mime);
         Path tempFile = nestedGrammarDir.tmp.resolve("Test." + ext);
@@ -145,9 +146,9 @@ public class DynamicLexerAndParserTest {
     @Test
     public void testLexerOnlyGrammar() throws Throwable {
         System.out.println("LexerDirRoot " + lexerDir.root);
-        DynamicLanguageSupport.registerGrammar(AdhocMimeTypes.mimeTypeForPath(lexerDir.antlrSourceFile), TEXT_1);
-        ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(lexerMime, TEXT_1);
-        GenerateBuildAndRunGrammarResult res = DynamicLanguageSupport.lastBuildResult(lexerMime, TEXT_1);
+        DynamicLanguageSupport.registerGrammar(AdhocMimeTypes.mimeTypeForPath(lexerDir.antlrSourceFile), TEXT_1, UNIT_TEST);
+        ParseTreeProxy px = DynamicLanguageSupport.parseImmediately(lexerMime, TEXT_1, UNIT_TEST);
+        GenerateBuildAndRunGrammarResult res = DynamicLanguageSupport.lastBuildResult(lexerMime, TEXT_1, UNIT_TEST);
         if (!res.isUsable()) {
             CompileResult cr = res.compileResult().get();
             for (JavacDiagnostic e : cr.diagnostics()) {

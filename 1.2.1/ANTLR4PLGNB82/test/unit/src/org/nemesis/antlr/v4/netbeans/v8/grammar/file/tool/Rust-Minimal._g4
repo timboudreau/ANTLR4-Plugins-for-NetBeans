@@ -111,13 +111,13 @@ array_literal : (LeftBracket RightBracket) # EmptyArray
 
 match : Match deref=Asterisk? var=expression match_block;
 
-match_block : LeftBrace
-    (first=match_case_element (Comma more=match_case_element)*)?
+match_block : LeftBrace 
+    (first=match_case (Comma more=match_case)*)?
     defaultCase=default_match_case?
     Comma?
     RightBrace;
 
-match_case_element :
+match_case :
     (first=literal (Pipe more=literal)* FatArrow (statement_body | expression | block)) # MultiCaseLiteral
     | (range=RangeExclusive FatArrow (statement_body | expression | block)) # ExclusiveRangeCase
     | (range=MatchRangeInclusive FatArrow (statement_body | expression | block)) # InclusiveRangeCase
@@ -211,12 +211,6 @@ struct:
     | (doc=doc_comment? outer_attribute* Struct name=Ident lifetimes=lifetime_spec? LeftParen (type_spec (Comma type_spec)* Comma?)? RightParen Semicolon) # TupleStruct
 ;
 
-foo : (doc_comment 
-    (Struct Ident
-        (LeftBrace RightBrace 
-            (LeftBracket RightBracket
-                (Crate LeftParen)))));
-
 struct_item :
     (doc=doc_comment? outer_attribute* inner_attribute* name=Ident Colon props=param_props type=type_spec);
 
@@ -244,6 +238,7 @@ visibility_restriction:
     LeftParen restrictedTo=Crate RightParen # CrateVisibility
     | LeftParen restrictedTo=Super RightParen # SuperVisibility
     | LeftParen In restrictedTo=Ident RightParen # ExplicitVisibility;
+
 
 parameter_list : (parameter_spec (Comma parameter_spec)*)
     | (selfref=Ampersand? self=SelfRef (Comma parameter_spec)*);
@@ -317,6 +312,8 @@ intrinsic_type : I8 | I16 | I32 | I64 | I128 | ISIZE | F32 | F64 | U8 | U16 | U3
 
 doc_comment: DocCommentLine+;
 enclosing_doc_comment: EnclosingDocCommentLine+;
+
+aawoo : EnclosingDocCommentLine;
 
 EnclosingDocCommentLine: EnclosingDocCommentPrefix ~[\r\n]*;
 
@@ -601,4 +598,3 @@ fragment FLOAT_SUFFIX:
     | F64;
 
 fragment IDENT: XID_Start XID_Continue*;
-

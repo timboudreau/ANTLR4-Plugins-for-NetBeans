@@ -61,7 +61,6 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
     @Override
     public void run(AdhocParserResult t, SchedulerEvent se) {
         if (cancelled.getAndSet(false)) {
-            System.out.println("cancelled, not running errrors");
             return;
         }
         Document d = snapshot.getSource().getDocument(false);
@@ -170,8 +169,6 @@ class AdhocErrorsHighlighter extends ParserResultTask<AdhocParserResult> {
 
     @Override
     public void cancel() {
-        System.out.println("CANCEL ERRORS TASK");
-        Thread.dumpStack();
         cancelled.set(true);
     }
 }

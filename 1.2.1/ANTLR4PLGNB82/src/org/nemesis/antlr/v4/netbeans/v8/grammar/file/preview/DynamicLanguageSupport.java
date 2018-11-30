@@ -1,16 +1,21 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
@@ -31,6 +36,10 @@ import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.POST_INIT;
+import org.netbeans.api.project.Project;
+import org.openide.util.RequestProcessor;
+import org.openide.windows.WindowManager;
 
 /**
  *
@@ -41,14 +50,14 @@ public class DynamicLanguageSupport {
     private static final DynamicLanguageSupport INSTANCE = new DynamicLanguageSupport();
     static final Logger LOG = Logger.getLogger(DynamicLanguageSupport.class.getName());
 
-    public static ParseTreeProxy proxyFor(String mimeType) {
+    public static ParseTreeProxy proxyFor(String mimeType, Reason reason) {
         GrammarRegistration reg = registrations.get(mimeType);
         if (reg == null) {
             Path path = grammarFilePathForMimeType(mimeType);
             if (path != null) {
                 FileObject fo = FileUtil.toFileObject(path.toFile());
                 if (fo != null) {
-                    reg = INSTANCE._registerGrammar(fo, null, true, null);
+                    reg = INSTANCE._registerGrammar(fo, currentText(), true, null, reason);
                     return reg.lastParseResult;
                 }
             }
@@ -78,12 +87,15 @@ public class DynamicLanguageSupport {
         return registrations.containsKey(mimeType);
     }
 
-    private GrammarRegistration _registerGrammar(FileObject grammarFile, String initialText, boolean build, Consumer<String> statusMonitor) {
+    private GrammarRegistration _registerGrammar(FileObject grammarFile, String initialText, boolean build, Consumer<String> statusMonitor, Reason reason) {
         if (Boolean.TRUE.equals(grammarFile.getAttribute("example"))) {
             return null;
         }
         if (!grammarFile.isValid() || !grammarFile.isData() || !grammarFile.canRead()) {
             return null;
+        }
+        if (initialText == null) {
+            initialText = currentText();
         }
         Path path = pathFor(grammarFile);
         String mimeType = mimeTypeForPath(path);
@@ -95,25 +107,88 @@ public class DynamicLanguageSupport {
             LOG.log(Level.FINE, "Registration already exists");
             return reg;
         }
-        ParseTreeProxy proxy = AntlrProxies.forUnparsed(path, initialText, mimeType);
-        return _registerGrammar(proxy, grammarFile, build, statusMonitor);
+        ParseTreeProxy proxy = AntlrProxies.forUnparsed(path, mimeType, initialText);
+        return _registerGrammar(proxy, grammarFile, build, statusMonitor, reason);
     }
 
-    private GrammarRegistration _registerGrammar(ParseTreeProxy proxy, FileObject grammarFile, boolean build, Consumer<String> statusMonitor) {
-        GrammarRegistration reg = new GrammarRegistration(grammarFile, proxy, build, statusMonitor);
+    private GrammarRegistration _registerGrammar(ParseTreeProxy proxy, FileObject grammarFile, boolean build, Consumer<String> statusMonitor, Reason reason) {
+        boolean empty = registrations.isEmpty();
+        if (empty) {
+            postInit.enqueue();
+        }
+        GrammarRegistration reg = new GrammarRegistration(grammarFile, proxy, build, statusMonitor, reason);
         registrations.put(proxy.mimeType(), reg);
         return reg;
     }
 
-    public static GrammarRegistration registerGrammar(FileObject fo) {
-        return registerGrammar(mimeTypeForPath(pathFor(fo)), null, null);
+    private final PostInit postInit = new PostInit();
+
+    private static class PostInit implements Runnable {
+
+        private volatile boolean enqueued;
+        volatile boolean uiInitialized;
+        private final List<GrammarRegistration> toInitialize = new LinkedList<>();
+
+        void enqueue() {
+            if (enqueued) {
+                return;
+            }
+            enqueued = true;
+            EventQueue.invokeLater(() -> {
+                WindowManager.getDefault().invokeWhenUIReady(PostInit.this);
+            });
+        }
+
+        boolean add(GrammarRegistration reg) {
+            try {
+                if (uiInitialized) {
+                    System.out.println("QUEUE FOR POST INIT: " + reg.lastParseResult.grammarName());
+                    toInitialize.add(reg);
+                    return true;
+                } else {
+                    return false;
+                }
+            } finally {
+                if (!enqueued) {
+                    enqueue();
+                }
+            }
+        }
+
+        @Override
+        public void run() {
+            if (EventQueue.isDispatchThread()) {
+                System.out.println("START COUNTDOWN TO INIT");
+                uiInitialized = true;
+                RequestProcessor.getDefault().post(this, 2000);
+            } else {
+                while (!toInitialize.isEmpty()) {
+                    System.out.println("BEGIN POST-INIT WITH " + toInitialize.size());
+                    for (Iterator<GrammarRegistration> it = toInitialize.iterator(); it.hasNext();) {
+                        try {
+                            GrammarRegistration g = it.next();
+                            System.out.println("POST-INIT " + g.lastParseResult.grammarName());
+                            if (g.lastParseResult.isUnparsed()) {
+                                g.get(g.lastParseResult.text(), null, POST_INIT);
+                            }
+                        } finally {
+                            it.remove();
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    public static GrammarRegistration registerGrammar(String mimeType, String text) {
-        return registerGrammar(mimeType, text, null);
+    public static GrammarRegistration registerGrammar(FileObject fo, Reason reason) {
+        return registerGrammar(mimeTypeForPath(pathFor(fo)), currentText(), null, reason);
     }
 
-    private static GrammarRegistration registerGrammar(String mimeType, String text, Consumer<String> statusMonitor) {
+    public static GrammarRegistration registerGrammar(String mimeType, String text, Reason reason) {
+        return registerGrammar(mimeType, text == null ? currentText() : text, null, reason);
+    }
+
+    private static GrammarRegistration registerGrammar(String mimeType, String text, Consumer<String> statusMonitor, Reason reason) {
         GrammarRegistration result = registrations.get(mimeType);
         if (result == null) {
             Path grammarFile = grammarFilePathForMimeType(mimeType);
@@ -126,29 +201,29 @@ public class DynamicLanguageSupport {
                         new Object[]{grammarFile, loggableMimeType(mimeType)});
                 return null;
             }
-            return INSTANCE._registerGrammar(fo, text, text != null ? true : false, statusMonitor);
+            return INSTANCE._registerGrammar(fo, text, text != null ? true : false, statusMonitor, reason);
         }
         return result;
     }
 
-    public static ParseTreeProxy parseImmediately(String mimeType, String text) {
-        return parseImmediately(mimeType, text, null);
+    public static ParseTreeProxy parseImmediately(String mimeType, String text, Reason reason) {
+        return parseImmediately(mimeType, text, null, reason);
     }
 
-    public static ParseTreeProxy parseImmediately(String mimeType, String text, Consumer<String> statusMonitor) {
+    private static ParseTreeProxy parseImmediately(String mimeType, String text, Consumer<String> statusMonitor, Reason reason) {
         if (LOG.isLoggable(Level.FINEST)) {
             LOG.log(Level.FINEST, "parseImmediately ''{0}''", truncated(text));
         }
-        return INSTANCE._parseImmediately(mimeType, text, statusMonitor);
+        return INSTANCE._parseImmediately(mimeType, text, statusMonitor, reason);
     }
 
-    private ParseTreeProxy _parseImmediately(String mimeType, String txt, Consumer<String> statusMonitor) {
-        GrammarRegistration reg = registerGrammar(mimeType, txt);
+    private ParseTreeProxy _parseImmediately(String mimeType, String txt, Consumer<String> statusMonitor, Reason reason) {
+        GrammarRegistration reg = registerGrammar(mimeType, txt, reason);
         if (reg != null) {
             if (txt == null) {
                 return reg.lastParseResult;
             } else {
-                return reg.get(txt, statusMonitor);
+                return reg.get(txt, statusMonitor, reason);
             }
         } else {
             Path path = grammarFilePathForMimeType(mimeType);
@@ -188,52 +263,101 @@ public class DynamicLanguageSupport {
         return pf.newParser();
     }
 
-    private static final ThreadLocal<String> FORCED_LANGUAGE = new ThreadLocal<>();
+    private static final ThreadLocal<TextContext> CURRENT_LANG_AND_TEXT = new ThreadLocal<>();
 
-    public static void forceLanguage(String lang, Runnable run) {
-        String old = FORCED_LANGUAGE.get();
+    public static void setTextContext(String lang, String text, Runnable run) {
+        TextContext old = CURRENT_LANG_AND_TEXT.get();
         try {
-            FORCED_LANGUAGE.set(lang);
+            CURRENT_LANG_AND_TEXT.set(new TextContext(lang, text));
             run.run();
         } finally {
             if (old == null) {
-                FORCED_LANGUAGE.remove();
+                CURRENT_LANG_AND_TEXT.remove();
             } else {
-                FORCED_LANGUAGE.set(old);
+                CURRENT_LANG_AND_TEXT.set(old);
+            }
+        }
+    }
+
+    public static void setTextContext(String lang, Supplier<String> text, Runnable run) {
+        TextContext old = CURRENT_LANG_AND_TEXT.get();
+        try {
+            CURRENT_LANG_AND_TEXT.set(new TextContext(lang, text));
+            run.run();
+        } finally {
+            if (old == null) {
+                CURRENT_LANG_AND_TEXT.remove();
+            } else {
+                CURRENT_LANG_AND_TEXT.set(old);
             }
         }
     }
 
     static String currentMimeType(String passed) {
-        String result = FORCED_LANGUAGE.get();
-        return result == null ? passed : result;
+        TextContext result = CURRENT_LANG_AND_TEXT.get();
+        return result == null ? passed : result.mimeType();
     }
 
-    public static ParseTreeProxy lastParseResult(String mimeType, String text) {
+    static String currentText() {
+        TextContext result = CURRENT_LANG_AND_TEXT.get();
+        return result == null ? null : result.text();
+    }
+
+    static final class TextContext {
+
+        private final Supplier<String> supplier;
+        private final String mimeType;
+
+        public TextContext(String mimeType, String text) {
+            this(mimeType, () -> {
+                return text;
+            });
+        }
+
+        public TextContext(String mimeType, Supplier<String> supp) {
+            this.supplier = supp;
+            this.mimeType = mimeType;
+        }
+
+        String text() {
+            return supplier.get();
+        }
+
+        String mimeType() {
+            return mimeType;
+        }
+    }
+
+    public static ParseTreeProxy lastParseResult(String mimeType, String text, Reason reason) {
         GrammarRegistration reg = registrations.get(mimeType);
         if (reg != null) {
             ParseTreeProxy last = reg.lastParseResult;
             if (last.text().equals(text)) {
                 return last;
             } else {
-                return reg.get(text, null);
+                return reg.get(text, null, reason);
             }
         }
         return null;
     }
 
-    public static GenerateBuildAndRunGrammarResult lastBuildResult(String mimeType, String text) {
+    public static GenerateBuildAndRunGrammarResult lastBuildResult(String mimeType, String text, Reason reason) {
+        if (text == null) {
+            text = currentText();
+        }
         GrammarRegistration reg = registrations.get(mimeType);
         if (reg != null) {
-            GenerateBuildAndRunGrammarResult last = reg.lastBuildResult;
+            GenerateBuildAndRunGrammarResult last = reg.lastBuildResult();
             if (last != null && Objects.equals(last.text(), text)) {
                 return last;
             } else {
-                reg.get(text, null);
-                return reg.lastBuildResult;
+                synchronized (reg) {
+                    reg.get(text, null, reason);
+                    return reg.lastBuildResult();
+                }
             }
         } else {
-            return registerGrammar(mimeType, text).lastBuildResult;
+            return registerGrammar(mimeType, text, reason).lastBuildResult();
         }
     }
 
@@ -246,31 +370,76 @@ public class DynamicLanguageSupport {
         return txt;
     }
 
+    private boolean reallyParse(GrammarRegistration reg, Reason reason) {
+        if (reason.neverAgoodReason()) {
+            return false;
+        }
+        if (postInit.uiInitialized) {
+            return true;
+        }
+        if (!reason.shouldParseEvenDuringStartup()) {
+            postInit.add(reg);
+            return false;
+        }
+        return true;
+    }
+
     static final class GrammarRegistration {
 
         private ParseTreeProxy lastParseResult;
         final ParseProxyBuilder runner;
         private final FileObject grammarFile;
-        GenerateBuildAndRunGrammarResult lastBuildResult;
+        private GenerateBuildAndRunGrammarResult lastBuildResult;
 
-        GrammarRegistration(FileObject fo, ParseTreeProxy prox, boolean enqueueCompile, Consumer<String> statusMonitor) {
+        GrammarRegistration(FileObject fo, ParseTreeProxy prox, boolean enqueueCompile, Consumer<String> statusMonitor, Reason reason) {
             lastParseResult = prox;
             Path path = pathFor(fo);
             this.grammarFile = fo;
             Optional<Path> imports = AntlrFolders.IMPORT.getPath(ProjectHelper.getProject(path), Optional.of(path));
+            if (!imports.isPresent()) {
+                System.out.println("DID NOT FIND AN IMPORT DIR FOR PROJECT OF " + path + ": " + ProjectHelper.getProject(path));
+                Optional<Project> p = ProjectHelper.getProject(path);
+                if (!p.isPresent()) {
+                    System.out.println("COULD NOT FIND A PROJECT FOR " + path);
+                } else {
+                    System.out.println("  PROJECT TYPE " + ProjectHelper.getProjectType(p.get()));
+                }
+            }
+            System.out.println("REGISTER " + prox.grammarName() + " for " + reason);
             runner = InMemoryAntlrSourceGenerationBuilder.forAntlrSource(path)
                     //                    .withAntlrLibrary(library)
                     .withImportDir(imports)
                     .withRunOptions(AntlrRunOption.GENERATE_LEXER, AntlrRunOption.GENERATE_VISITOR)
                     .toParseAndRunBuilder();
-            if (prox.isUnparsed()) {
-                get(null, null);
+            if (prox.isUnparsed() && INSTANCE.reallyParse(this, reason)) {
+                get(prox.text(), null, reason);
+            } else {
+                lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(lastParseResult);
+                System.out.println("USING A DUMMY PARSE UNTIL UI INIT DONE FOR " + lastParseResult.grammarName());
             }
             INSTANCE.registerInParsingEnvironment(lastBuildResult, lastParseResult);
         }
 
-        public ParseTreeProxy get(String text, Consumer<String> statusMonitor) {
+        synchronized GenerateBuildAndRunGrammarResult lastBuildResult() {
+            return lastBuildResult;
+        }
+
+        synchronized ParseTreeProxy get(final String text, Consumer<String> statusMonitor, Reason reason) {
             Path path = pathFor(grammarFile);
+            System.out.println("PARSE " + lastParseResult.grammarName() + " FOR " + reason + " text "
+                    + (text == null ? "null" : "length " + text.length() + " on " + Thread.currentThread()));
+            if (this.lastParseResult.isUnparsed() && !INSTANCE.reallyParse(this, reason)) {
+                System.out.println("STILL NOT INITIALIZED: " + lastParseResult.grammarName() + " USING DUMMY");
+                if (Objects.equals(lastParseResult.text(), text)) {
+                    lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(lastParseResult);
+                    return lastParseResult;
+                } else {
+                    lastParseResult = AntlrProxies.forUnparsed(path, lastParseResult.grammarName(), text);
+                    lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(lastParseResult);
+                    return lastParseResult;
+                }
+            }
+            System.out.println("REALLY " + lastParseResult.grammarName() + " FOR " + reason);
             GenerateBuildAndRunGrammarResult parse = null;
             try {
                 parse = lastBuildResult = runner.parse(text, statusMonitor);
@@ -299,6 +468,7 @@ public class DynamicLanguageSupport {
             LOG.log(Level.INFO, "Error building/parsing {0}; using dummy result",
                     new Object[]{grammarFile.getPath()});
             ParseTreeProxy result = AntlrProxies.forUnparsed(path, ParseTreeCache.grammarName(path), text);
+            lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(result);
             update(parse == null ? lastBuildResult : parse, result, true); // XXX could check if previous result was same and thrash less
             return result;
         }

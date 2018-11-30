@@ -12,6 +12,7 @@ import java.nio.file.StandardOpenOption;
 import org.junit.After;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
@@ -19,6 +20,7 @@ import org.junit.Test;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.RecompilationTest.TEXT_1;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.RecompilationTest.TEXT_2;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir.projectBaseDir;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir.testResourcePath;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
@@ -40,8 +42,11 @@ public class InMemoryGenCompileRunTest {
     private Path lextokens;
     private Path lexinterp;
     private Path tmpFile;
+    private Path rust;
+    private Path xidstart;
+    private Path xidcontinue;
 
-    @Test
+//    @Test
     public void testSimpleGrammar() throws Throwable {
         InMemoryAntlrSourceGenerationBuilder bldr = new InMemoryAntlrSourceGenerationBuilder(tmpFile)
                 .setAntlrLibrary(new UnitTestAntlrLibrary());
@@ -61,7 +66,7 @@ public class InMemoryGenCompileRunTest {
         assertSame(result2, result3);
     }
 
-    @Test
+//    @Test
     public void testParseLexerGrammar() throws Throwable {
         Path g = importdir.resolve("LexBasic.g4");
         InMemoryAntlrSourceGenerationBuilder bldr = new InMemoryAntlrSourceGenerationBuilder(g)
@@ -77,7 +82,7 @@ public class InMemoryGenCompileRunTest {
         }
     }
 
-    @Test
+//    @Test
     public void testGenerateAndInvoke() throws Throwable {
         InMemoryAntlrSourceGenerationBuilder bldr = new InMemoryAntlrSourceGenerationBuilder(grammar)
                 .withImportDir(importdir)
@@ -113,10 +118,41 @@ public class InMemoryGenCompileRunTest {
         assertTrue(result.parseResult().get().parseTree().isPresent());
         ParseTreeProxy prx = result.parseResult().get().parseTree().get();
         System.out.println("PRX: " + prx);
+
+        bldr.stale = true;
+        GenerateBuildAndRunGrammarResult result2 = runner.parse(sampleGrammar);
+        assertNotSame(result, result2);
+        assertNotSame(result.parseResult().get().parseTree().get(), result2.parseResult().get().parseTree().get());
     }
+
+    @Test
+    public void testGenerateWithImportsRetainsImportsAcrossRuns() throws IOException, URISyntaxException {
+        InMemoryAntlrSourceGenerationBuilder bldr = new InMemoryAntlrSourceGenerationBuilder(td.antlrSourceFile)
+                .withImportDir(td.antlrSources.resolve("import"))
+                .setAntlrLibrary(new UnitTestAntlrLibrary());
+
+        ParseProxyBuilder pbuilder = bldr.toParseAndRunBuilder();
+
+        GenerateBuildAndRunGrammarResult res = pbuilder.parse(RUST_SAMPLE);
+        
+        bldr.stale = true;
+
+        res = pbuilder.parse(RUST_SAMPLE + "\n// hey\n");
+
+        GenerateBuildAndRunGrammarResult res2 = pbuilder.parse(RUST_SAMPLE);
+        assertNotSame(res, res2);
+        assertTrue(res2.isUsable());
+        assertTrue(res2.generationResult().isUsable());
+        assertFalse(res2.parseResult().get().parseTree().get().isUnparsed());
+
+        System.out.println("PARSE RESULT: " + res2);
+    }
+
+    private TestDir td;
 
     @Before
     public void setup() throws URISyntaxException, IOException {
+        System.setProperty("fs.off.heap", "true");
         Path baseDir = projectBaseDir();
         importdir = baseDir.resolve("grammar/imports");
         lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
@@ -125,6 +161,17 @@ public class InMemoryGenCompileRunTest {
         interp = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.interp");
         lextokens = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.tokens");
         lexinterp = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.interp");
+
+        rust = testResourcePath(InMemoryGenCompileRunTest.class, "Rust-Minimal._g4");
+        xidstart = testResourcePath(InMemoryGenCompileRunTest.class, "xidstart._g4");
+        xidcontinue = testResourcePath(InMemoryGenCompileRunTest.class, "xidcontinue._g4");
+
+        Path root = Paths.get(System.getProperty("java.io.tmpdir"), InMemoryGenCompileRunTest.class.getSimpleName() + "-" + System.currentTimeMillis());
+
+        td = new TestDir(root, "InMemoryGenCompileRunTest", "Rust-Minimal._g4", "com.wurgle", InMemoryGenCompileRunTest.class);
+        td.addImportFile("xidstart.g4", xidstart);
+        td.addImportFile("xidcontinue.g4", xidcontinue);
+
         assertTrue(tokens + "", Files.exists(tokens));
         assertTrue(interp + "", Files.exists(interp));
         try (InputStream in = InMemoryGenCompileRunTest.class.getResourceAsStream("NestedMapGrammar.g4")) {
@@ -142,5 +189,26 @@ public class InMemoryGenCompileRunTest {
         if (tmpFile != null && Files.exists(tmpFile)) {
             Files.delete(tmpFile);
         }
+        td.cleanUp();
     }
+
+    private static final String RUST_SAMPLE
+            = "// ignore-emscripten no threads support\n"
+            + "\n"
+            + "use std::thread;\n"
+            + "\n"
+            + "pub fn main() {\n"
+            + "    let mut result = thread::spawn(child);\n"
+            + "    println!(\"1\");\n"
+            + "    thread::yield_now();\n"
+            + "    println!(\"2\");\n"
+            + "    thread::yield_now();\n"
+            + "    println!(\"3\");\n"
+            + "    result.join();\n"
+            + "}\n"
+            + "\n"
+            + "fn child() {\n"
+            + "    println!(\"4\"); thread::yield_now(); println!(\"5\"); thread::yield_now(); println!(\"6\");\n"
+            + "}";
+
 }

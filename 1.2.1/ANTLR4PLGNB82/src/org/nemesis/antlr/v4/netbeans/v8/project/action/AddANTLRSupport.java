@@ -39,8 +39,6 @@ import org.netbeans.api.project.Project;
 
 import org.netbeans.api.project.ant.AntBuildExtender;
 
-import org.netbeans.modules.java.j2seproject.J2SEProject;
-
 import org.netbeans.modules.maven.api.NbMavenProject;
 
 import org.openide.awt.ActionID;
@@ -192,10 +190,11 @@ public final class AddANTLRSupport implements ActionListener {
         boolean ok = true;
         switch (projectType) {
             case ANT_BASED :
-                J2SEProject j2seProject = projectLookup.lookup(J2SEProject.class);
-                if (j2seProject == null) {
-                    ok = false;
-                }
+                ok = false;
+//                J2SEProject j2seProject = projectLookup.lookup(J2SEProject.class);
+//                if (j2seProject == null) {
+//                    ok = false;
+//                }
                 break;
             case MAVEN_BASED :
                 NbMavenProject nBMavenProject =

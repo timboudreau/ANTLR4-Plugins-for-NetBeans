@@ -19,11 +19,11 @@ THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY
 EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
@@ -47,6 +47,11 @@ public class RuleDeclaration implements RuleElement {
     private int ruleStartOffset;
     private int ruleEndOffset;
 
+    public RuleDeclaration offsetBy(int amount) {
+        return new RuleDeclaration(kind, ruleID, startOffset + amount, endOffset
+                + amount, ruleStartOffset + amount, ruleEndOffset + amount);
+    }
+
     public List<RuleDeclaration> namedAlternatives() {
         if (namedAlternatives == null) {
             return Collections.emptyList();
@@ -67,7 +72,7 @@ public class RuleDeclaration implements RuleElement {
     public boolean hasNamedAlternatives() {
         return namedAlternatives != null;
     }
-    
+
     public String getRuleID() {
         return ruleID;
     }
@@ -75,11 +80,11 @@ public class RuleDeclaration implements RuleElement {
     public int getStartOffset() {
         return startOffset;
     }
-    
+
     public void setStartOffset(int startOffset) {
         this.startOffset = startOffset;
     }
-    
+
     public int getEndOffset() {
         return endOffset;
     }
@@ -91,7 +96,7 @@ public class RuleDeclaration implements RuleElement {
     public int getRuleEndOffset() {
         return ruleEndOffset;
     }
-    
+
     public void setEndOffset(int endOffset) {
         this.endOffset = endOffset;
     }
@@ -115,7 +120,7 @@ public class RuleDeclaration implements RuleElement {
          }
          return sb.append(" (").append(kind).append(')').toString();
     }
-    
+
     public RuleElementKind kind() {
         return kind;
     }
@@ -152,6 +157,21 @@ public class RuleDeclaration implements RuleElement {
              int    ruleStartOffset,
              int    ruleEndOffset) {
         this.kind = target.declarationKind();
+        this.ruleID = ruleID;
+        this.startOffset = startOffset;
+        this.endOffset = endOffset;
+        this.ruleStartOffset = ruleStartOffset;
+        this.ruleEndOffset = ruleEndOffset;
+    }
+
+    public RuleDeclaration
+            (RuleElementKind kind,
+             String ruleID     ,
+             int    startOffset,
+             int    endOffset,
+             int    ruleStartOffset,
+             int    ruleEndOffset) {
+        this.kind = kind;
         this.ruleID = ruleID;
         this.startOffset = startOffset;
         this.endOffset = endOffset;

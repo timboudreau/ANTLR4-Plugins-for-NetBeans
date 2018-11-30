@@ -11,12 +11,15 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavigatorPanel;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.rawGrammarNameForMimeType;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.DATA_OBJECT_INIT;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.OPEN_DATA_OBJECT;
 import org.openide.actions.CopyAction;
 import org.openide.actions.CutAction;
 import org.openide.actions.DeleteAction;
@@ -65,7 +68,7 @@ import org.openide.util.lookup.ProxyLookup;
  *
  * @author Tim Boudreau
  */
-public final class AdhocDataObject extends DataObject implements CookieSet.Before, PropertyChangeListener {
+public final class AdhocDataObject extends DataObject implements CookieSet.Before, PropertyChangeListener, Supplier<String> {
 
     private final InstanceContent content = new InstanceContent();
     private final Lookup lookup;
@@ -80,13 +83,15 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         content.add(this);
         @SuppressWarnings("LeakingThisInConstructor")
         String mime = mimeType(this);
-        if (!DynamicLanguageSupport.isRegistered(mime)) {
-            try {
-                DynamicLanguageSupport.registerGrammar(mime, pf.asText());
-            } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
+        DynamicLanguageSupport.setTextContext(mime, this, () -> {
+            if (!DynamicLanguageSupport.isRegistered(mime)) {
+                try {
+                    DynamicLanguageSupport.registerGrammar(mime, pf.asText(), DATA_OBJECT_INIT);
+                } catch (IOException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
             }
-        }
+        });
         DES supp = new DES(this, mime);
         saver = new SaveCookieImpl(supp);
         if (mime != null && !"content/unknown".equals(mime)) {
@@ -94,6 +99,15 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
         cookies.add(supp);
         addPropertyChangeListener(this);
+    }
+
+    public String get() {
+        try {
+            return getPrimaryFile().asText();
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+            return null;
+        }
     }
 
     @Override
@@ -140,7 +154,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             if (AdhocMimeTypes.isMimeTypeWithExistingGrammar(mimeType)) {
                 try {
                     DynamicLanguageSupport.registerGrammar(mimeType,
-                            getDataObject().getPrimaryFile().asText());
+                            getDataObject().getPrimaryFile().asText(), OPEN_DATA_OBJECT);
                 } catch (IOException ex) {
                     Exceptions.printStackTrace(ex);
                 }

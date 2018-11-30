@@ -157,6 +157,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
                     lexer = new
                         org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer
                            (input);
+                lexer.removeErrorListeners();
             
              // We use that token list as a token source in order to not lex our
              // document twice

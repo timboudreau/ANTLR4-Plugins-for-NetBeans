@@ -73,6 +73,15 @@ public final class AntlrSourceGenerationResult {
         this.cancellation = cancellation;
     }
 
+    @Override
+    public String toString() {
+        return "AntlrSourceGenerationResult{" + "sourceFile=" + sourceFile + ", outputRoot=" + outputRoot
+                + ", packageOutput=" + packageOutput + ", pkg=" + pkg + ", success=" + success + ", thrown="
+                + thrown + ", attemptedExitCode=" + attemptedExitCode + ", errors=" + errors + ", generatedFiles="
+                + generatedFiles + ", library=" + library + ", grammarName=" + grammarName
+                + ", cancellation=" + cancellation + '}';
+    }
+
     public AtomicBoolean cancellation() {
         return cancellation;
     }

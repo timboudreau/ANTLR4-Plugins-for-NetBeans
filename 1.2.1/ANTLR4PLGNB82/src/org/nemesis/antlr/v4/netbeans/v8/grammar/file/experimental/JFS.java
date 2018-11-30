@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -117,7 +118,7 @@ public final class JFS implements JavaFileManager {
     }
 
     public static JFS offHeap(Charset charset) {
-        return new JFS(OffHeapBytesStorageImpl.allocator().withEncoding(charset), null);
+        return new JFS(NioBytesStorageAllocator.allocator().withEncoding(charset), null);
     }
 
     @SuppressWarnings("LeakingThisInConstructor")
@@ -214,6 +215,7 @@ public final class JFS implements JavaFileManager {
      * @throws IOException
      */
     public void closeLocations(Location... locations) throws IOException {
+        System.out.println("JFS CLOSE LOCATIONS " + Arrays.toString(locations));
         for (Location loc : locations) {
             JFSStorage store = storageForLocation.get(loc);
             if (store != null) {
@@ -642,7 +644,6 @@ public final class JFS implements JavaFileManager {
             Charset inputCharset = FileEncodingQuery.getEncoding(fileObject);
             if (inputCharset != null && !inputCharset.equals(encoding())) {
                 String in = new String(bytes, inputCharset);
-                System.out.println("CONVERT INPUT FROM " + inputCharset.name() + " to " + encoding().name());
                 return in.getBytes(encoding());
             }
         }

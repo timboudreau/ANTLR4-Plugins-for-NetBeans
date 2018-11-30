@@ -16,7 +16,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -136,10 +135,10 @@ public class AntlrProxies {
 
     /**
      * A wrapper for generated ANTLR parser and lexer vocabularies, optionally
-     * containing a parse tree of some text.  This class takes care not to
-     * expose any ANTLR types which may have been loaded in a disposable
-     * classloader - so tokens, etc. are deconstructed to primitive values and
-     * returned as proxy objects.
+     * containing a parse tree of some text. This class takes care not to expose
+     * any ANTLR types which may have been loaded in a disposable classloader -
+     * so tokens, etc. are deconstructed to primitive values and returned as
+     * proxy objects.
      */
     public static final class ParseTreeProxy implements Serializable {
 
@@ -212,8 +211,8 @@ public class AntlrProxies {
         }
 
         /**
-         * Get the token at a given character offset within the document.
-         * Uses binary search for performance.
+         * Get the token at a given character offset within the document. Uses
+         * binary search for performance.
          *
          * @param position The character offset
          * @return A token or null if out of range.
@@ -229,8 +228,8 @@ public class AntlrProxies {
         }
 
         /**
-         * Fetch the token at a given line and character offset within the
-         * text.  Uses binary search for performance.
+         * Fetch the token at a given line and character offset within the text.
+         * Uses binary search for performance.
          *
          * @param line
          * @param charPositionInLine
@@ -475,7 +474,7 @@ public class AntlrProxies {
         }
     }
 
-    private byte[] hashScratch = new byte[4];
+    private final byte[] hashScratch = new byte[4];
 
     public AntlrProxies onToken(String text, int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
         ByteBuffer.wrap(hashScratch).putInt(type);
@@ -503,10 +502,10 @@ public class AntlrProxies {
                         + " startIndex " + startIndex + " stopIndex " + stopIndex
                 );
             }
-            ProxyTokenType ttype = this.tokenTypes.get(typeIndex);
-            ttype.addTokenInstance(token);
-        } else {
-            EOF_TYPE.addTokenInstance(token);
+//            ProxyTokenType ttype = this.tokenTypes.get(typeIndex);
+//            ttype.addTokenInstance(token);
+//        } else {
+//            EOF_TYPE.addTokenInstance(token);
         }
         return this;
     }
@@ -710,7 +709,6 @@ public class AntlrProxies {
         public final String symbolicName;
         public final String literalName;
         public final String displayName;
-        private final BitSet refs = new BitSet(9000);
 
         public ProxyTokenType(int type, String symbolicName, String literalName, String displayName) {
             this.type = type;
@@ -722,6 +720,25 @@ public class AntlrProxies {
             }
             this.literalName = literalName;
             this.displayName = displayName;
+        }
+
+        @Override
+        public int hashCode() {
+            return 71 * (type + 3);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof ProxyTokenType) {
+                ProxyTokenType ptt = (ProxyTokenType) o;
+                return ptt.type == type && Objects.equals(ptt.symbolicName, symbolicName)
+                        && Objects.equals(ptt.literalName, literalName);
+            }
+            return false;
         }
 
         public boolean isSingleCharacter() {
@@ -853,37 +870,6 @@ public class AntlrProxies {
             } else {
                 return "<no-name>";
             }
-        }
-
-        public BitSet references() {
-            return refs;
-        }
-
-        void addTokenInstance(ProxyToken token) {
-            refs.set(token.tokenIndex);
-        }
-
-        @Override
-        public int hashCode() {
-            return 13 * type;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final ProxyTokenType other = (ProxyTokenType) obj;
-            if (this.type != other.type) {
-                return false;
-            }
-            return true;
         }
 
         public int compareTo(ProxyTokenType other) {

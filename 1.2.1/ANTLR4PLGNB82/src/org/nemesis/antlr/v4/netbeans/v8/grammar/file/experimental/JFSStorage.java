@@ -223,6 +223,7 @@ final class JFSStorage {
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding())
                         : new JFSFileObjectImpl(wrapper, location, name, encoding());
         files.put(name, fo);
+        System.out.println("  MASQ DOC AS " + asPath + " -> " + name);
         if (listener != null) {
             listener.accept(location, fo);
         }

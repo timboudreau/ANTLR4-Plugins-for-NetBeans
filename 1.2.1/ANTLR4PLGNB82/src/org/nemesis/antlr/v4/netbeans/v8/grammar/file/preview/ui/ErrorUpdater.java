@@ -10,6 +10,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.text.Element;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavigatorPanel;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
@@ -102,7 +103,7 @@ final class ErrorUpdater implements Runnable {
             if (prx.isUnparsed()) {
                 // XXX get the full result and print compiler diagnostics?
                 ioPrint(io, Bundle.unparsed(), IOColors.OutputType.ERROR);
-                GenerateBuildAndRunGrammarResult buildResult = DynamicLanguageSupport.lastBuildResult(editorPane.getContentType(), text.get());
+                GenerateBuildAndRunGrammarResult buildResult = DynamicLanguageSupport.lastBuildResult(editorPane.getContentType(), text.get(), Reason.ERROR_HIGHLIGHTING);
                 if (buildResult != null) {
                     boolean wasGenerate = !buildResult.generationResult().isSuccess();
                     if (wasGenerate) {

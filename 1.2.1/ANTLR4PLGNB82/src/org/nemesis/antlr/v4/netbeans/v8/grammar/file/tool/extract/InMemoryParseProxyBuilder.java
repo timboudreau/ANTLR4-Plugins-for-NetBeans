@@ -61,6 +61,7 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
                         && lastResult.parseResult().get().parseTree().isPresent()
                         && !lastResult.parseResult().get().parseTree().get().isUnparsed()) {
                 }
+                System.out.println("USING LAST RESULT - TEXT IS SAME " + text.length() + " chars");
                 return lastResult;
             }
         }
@@ -132,6 +133,12 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
                 Thread.currentThread().setContextClassLoader(old);
                 LOG.log(Level.FINER, "Parsed {0} characters in {1}ms",
                         new Object[]{text.length(), elapsed});
+                LOG.log(Level.FINEST, "Parsed /{0}/ in {1}ms",
+                        new Object[]{text, elapsed});
+
+                if ("}".equals(text.trim())) {
+                    Thread.dumpStack();
+                }
             }
         } catch (Exception e) {
             thrown = e;

@@ -1,34 +1,53 @@
-/*
-Leading comment followed by blank line */
+parser grammar TestSeven;
 
-parser grammar TestSix;
+tokens { FOO, BAR, /*inline-comment*/ BAZ }
 
- options { tokenVocab = TestFour; 
-           tokenVocab = TestThree; 
-            // a line comment
-           tokenVocab = TestFive; 
-    }
-
-@parser::header {
-    import java.util.*;
+otherThing : FOO+ {
+    // these braces should stay commented
+      // if (true) {
+    //    System.out.println("Hey");
+     // }
+    // otherwise we make a mess
 }
+;
+    // these comments
+    // should stay
+    // indented
 
-@parser::members {
-        Set<String> importedTypes = new HashSet<>();
-    Set<String> referencedTypes = new HashSet<>();
-      Set<String> definedTypes = new HashSet<>();
-    Map<String,String> aliasedTypes = new HashMap<>();
-}
+            /* This is a block comment hanging out in the ether */
 
-bug : Word;
+// hmm, hmm
 
-word : Word { System.out.println(ctx); };
+                                                       /* This is a block comment further out which is decidedly 
+too long for the space available, and just goes on and on and on and on.  What's with this thing? */
 
-thing : Word Word 
-{
-     // a comment
-     System.out.println("foo");
-     if (true) {
-         int x = 23;
-     }
+use_statement : outer_attribute* Pub? Use use_path Semicolon { 
+//    if (_localctx.path() != null) {
+//        if (_localctx.path().end != null) {
+//            importedTypes.add(_localctx.path().getText());
+//            aliasedtypes.put(_localctx.path().end, localctx.path());
+//        }
+//    }
 };
+
+    /*
+        This line comment should get wrapped on line breaks where needed, so it does not run too long.
+
+            It should also respect multiple line breaks.
+
+
+It should also convert more than two line breaks into a double line break,
+        but ignore single line breaks when it reflows the words.
+    */
+
+whatzit : BAZ {
+    if (foo == bar) {
+        doSomething();
+        doSomethingElse();
+        // tee hee
+        if (you.equals(me)) {
+            // oops!
+            System.exit(23);
+        }
+    }
+}

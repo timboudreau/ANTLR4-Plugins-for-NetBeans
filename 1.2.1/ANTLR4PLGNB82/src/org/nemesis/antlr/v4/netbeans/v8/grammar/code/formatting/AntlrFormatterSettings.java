@@ -34,6 +34,7 @@ public class AntlrFormatterSettings {
     private NewlineStyle newlineStyle = NewlineStyle.ALWAYS;
     private boolean spacesInsideParentheses = true;
     private boolean wrapLines = true;
+    private boolean reflowBlockComments = false;
 
     private static Reference<AntlrFormatterSettings> INSTANCE;
 
@@ -64,6 +65,7 @@ public class AntlrFormatterSettings {
         this.newlineAfterColon = Boolean.parseBoolean(props.getProperty("newlineAfterColon", "true"));
         this.newlineStyle = NewlineStyle.valueOf(props.getProperty("newlineStyle", NewlineStyle.ALWAYS.name()));
         this.spacesInsideParentheses = Boolean.parseBoolean(props.getProperty("spacesInsideParentheses", "true"));
+        this.reflowBlockComments = Boolean.parseBoolean(props.getProperty("reflowBlockComments", "false"));
     }
 
     public AntlrFormatterSettings copy() {
@@ -77,7 +79,20 @@ public class AntlrFormatterSettings {
         result.setProperty("newlineAfterColon", Boolean.toString(newlineAfterColon));
         result.setProperty("newlineStyle", newlineStyle.name());
         result.setProperty("spacesInsideParentheses", Boolean.toString(spacesInsideParentheses));
+        result.setProperty("reflowBlockComments", Boolean.toString(reflowBlockComments));
         return result;
+    }
+
+    public boolean isReflowBlockComments() {
+        return reflowBlockComments;
+    }
+
+    public AntlrFormatterSettings setReflowBlockComments(boolean val) {
+        if (val != reflowBlockComments) {
+            reflowBlockComments = val;
+            fire();
+        }
+        return this;
     }
 
     public boolean isWrapLines() {
@@ -197,6 +212,7 @@ public class AntlrFormatterSettings {
         int hash = 7;
         hash = 79 * hash + this.indentSize;
         hash = 79 * hash + (this.newlineAfterColon ? 1 : 0);
+        hash = 79 * hash + (this.reflowBlockComments ? 1 : 0);
         hash = 79 * hash + this.wrapPoint;
         hash = 79 * hash + Objects.hashCode(this.newlineStyle);
         hash = 79 * hash + (this.spacesInsideParentheses ? 1 : 0);
@@ -220,6 +236,9 @@ public class AntlrFormatterSettings {
             return false;
         }
         if (this.newlineAfterColon != other.newlineAfterColon) {
+            return false;
+        }
+        if (this.reflowBlockComments != other.reflowBlockComments) {
             return false;
         }
         if (this.wrapPoint != other.wrapPoint) {

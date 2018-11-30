@@ -1,16 +1,21 @@
 package org.nemesis.antlr.v4.netbeans.v8.options;
 
 import java.awt.BorderLayout;
+import javax.swing.BorderFactory;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatterSettingsPanel;
+import org.openide.util.NbBundle.Messages;
 
 final class AntlrPanel extends javax.swing.JPanel {
 
     private final AntlrOptionsPanelController controller;
 
+    @Messages("formatting=Formatting")
     AntlrPanel(AntlrOptionsPanelController controller) {
         this.controller = controller;
         initComponents();
-        add(new AntlrFormatterSettingsPanel(), BorderLayout.CENTER);
+        AntlrFormatterSettingsPanel pnl = new AntlrFormatterSettingsPanel();
+        pnl.setBorder(BorderFactory.createTitledBorder(Bundle.formatting()));
+        add(pnl, BorderLayout.CENTER);
     }
 
     /**

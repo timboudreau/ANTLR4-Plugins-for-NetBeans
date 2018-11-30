@@ -57,7 +57,7 @@ interface JFSStorageAllocator<T extends JFSBytesStorage> {
 
     static JFSStorageAllocator<?> defaultAllocator() {
         boolean useOffHeap = Boolean.getBoolean("jfs.off.heap");
-        return useOffHeap ? OffHeapBytesStorageImpl.allocator() : HEAP;
+        return useOffHeap ? NioBytesStorageAllocator.allocator() : HEAP;
     }
 
     public static JFSStorageAllocator<HeapBytesStorageImpl> HEAP

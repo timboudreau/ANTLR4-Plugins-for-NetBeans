@@ -1,11 +1,9 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrLibrary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrSourceGenerationResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxySyntaxError;
@@ -33,6 +31,16 @@ public class GenerateBuildAndRunGrammarResult {
         this.text = text;
         this.compiled = compiled;
         this.parsed = parsed;
+    }
+
+    public static GenerateBuildAndRunGrammarResult forUnparsed(ParseTreeProxy prox) {
+        Optional<CompileResult> compileResult = Optional.empty();
+        ParserRunResult res = new ParserRunResult(Optional.empty(), Optional.of(prox), false);
+        AntlrSourceGenerationResult gen = new AntlrSourceGenerationResult(null, null, null, "x", false,
+                Optional.empty(), Optional.empty(), Collections.emptyList(), Collections.emptySet(),
+                AntlrLibrary.getDefault(), prox.grammarName(), new AtomicBoolean());
+        return new GenerateBuildAndRunGrammarResult(gen, compileResult, Optional.of(res),
+                prox.text(), false, false);
     }
 
     public String toString() {

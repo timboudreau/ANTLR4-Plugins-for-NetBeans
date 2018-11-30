@@ -1,8 +1,9 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview;
 
+import java.lang.ref.SoftReference;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
@@ -22,29 +23,71 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = LanguageProvider.class, position = 20000)
 public final class AdhocLanguageFactory extends LanguageProvider {
 
-    private final Map<String, AdhocLanguageHierarchy> cache = new ConcurrentHashMap<>();
+//    private final Map<String, AdhocLanguageHierarchy> cache = new ConcurrentHashMap<>();
+    private static final Map<String, ThreadLocal<SoftReference<AdhocLanguageHierarchy>>> cache = new HashMap<>();
     static final Logger LOG = Logger.getLogger(AdhocLanguageFactory.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     static AdhocLanguageFactory get() {
         return Lookup.getDefault().lookup(AdhocLanguageFactory.class);
     }
 
+    static synchronized AdhocLanguageHierarchy getOrCreate(String mimeType, boolean create) {
+        AdhocLanguageHierarchy result = null;
+        ThreadLocal<SoftReference<AdhocLanguageHierarchy>> loc = cache.get(mimeType);
+        if (loc == null && create) {
+            loc = new ThreadLocal<>();
+//            cache.put(mimeType, loc);
+        } else if (loc != null) {
+            SoftReference<AdhocLanguageHierarchy> ref = loc.get();
+            if (ref != null) {
+                result = ref.get();
+            }
+        }
+
+        if (result == null && create) {
+            LOG.log(Level.FINER, "Create new Language for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
+            if ("text/plain".equals(mimeType)) {
+                LOG.log(Level.INFO, "WTF? " + mimeType, new Exception("Trying to create a Language for text/plain!"));
+            }
+            System.out.println("CREATE NEW LANG HIER " + mimeType + " on " + Thread.currentThread().getName());
+            result = new AdhocLanguageHierarchy(mimeType);
+            loc.set(new SoftReference<>(result));
+        }
+        return result;
+    }
+
     AdhocLanguageHierarchy hierarchy(String mimeType) {
-        return cache.get(mimeType);
+        return getOrCreate(mimeType, true);
+    }
+
+    void fire() {
+        System.out.println("FIRE CHANGE FROM AdhocLanguageFactory");
+        super.firePropertyChange(PROP_LANGUAGE);
     }
 
     void discard(String mimeType) {
-        AdhocLanguageHierarchy hier = cache.remove(mimeType);
-        if (hier != null) {
-            LOG.log(Level.INFO, "Discard cached language for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
-            hier.replaceProxy(AntlrProxies.forUnparsed(Paths.get("/discarded"), mimeType, "(discarded)"));
+        System.out.println("DISCARD LANGUAGE INSTANCE FOR " + mimeType);
+        ThreadLocal<SoftReference<AdhocLanguageHierarchy>> localRef = cache.remove(mimeType);
+        if (localRef != null) {
+            SoftReference<AdhocLanguageHierarchy> ref = localRef.get();
+            if (ref != null) {
+                AdhocLanguageHierarchy hier = ref.get();
+                if (hier != null) {
+                    LOG.log(Level.INFO, "Discard cached language for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
+                    hier.replaceProxy(AntlrProxies.forUnparsed(Paths.get("/discarded"), mimeType, "(discarded)"));
+                }
+            }
         }
-        super.firePropertyChange(PROP_LANGUAGE);
+        fire();
     }
 
     void update(AntlrProxies.ParseTreeProxy prox) {
         String mime = prox.mimeType();
-        AdhocLanguageHierarchy hier = cache.get(mime);
+        AdhocLanguageHierarchy hier = getOrCreate(mime, false);
         if (hier != null) {
             LOG.log(Level.FINEST, "Update language {0} with new proxy {1}", new Object[]{AdhocMimeTypes.loggableMimeType(mime), prox.summary()});
             hier.replaceProxy(prox);
@@ -56,16 +99,7 @@ public final class AdhocLanguageFactory extends LanguageProvider {
             return null;
         }
         mimeType = DynamicLanguageSupport.currentMimeType(mimeType);
-//        AdhocLanguageHierarchy hierarchy = cache.get(mimeType);
-        AdhocLanguageHierarchy hierarchy = null;
-        if (hierarchy == null) {
-            LOG.log(Level.FINER, "Create new Language for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
-            if ("text/plain".equals(mimeType)) {
-                LOG.log(Level.INFO, "WTF? " + mimeType, new Exception("Trying to create a Language for text/plain!"));
-            }
-            hierarchy = new AdhocLanguageHierarchy(DynamicLanguageSupport.proxyFor(mimeType));
-            cache.put(mimeType, hierarchy);
-        }
+        AdhocLanguageHierarchy hierarchy = getOrCreate(mimeType, true);
         return hierarchy.language();
     }
 
@@ -78,5 +112,4 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     public LanguageEmbedding<?> findLanguageEmbedding(Token<?> token, LanguagePath lp, InputAttributes ia) {
         return null;
     }
-
 }

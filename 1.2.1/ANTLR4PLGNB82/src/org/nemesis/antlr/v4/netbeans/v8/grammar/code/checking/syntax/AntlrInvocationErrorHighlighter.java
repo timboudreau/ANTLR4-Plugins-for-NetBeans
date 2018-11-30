@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrLibrary;
@@ -90,7 +91,12 @@ public class AntlrInvocationErrorHighlighter extends ParserResultTask<NBANTLRv4P
     private static final TimedCache<Path, ParseProxyBuilder, IOException> builderForPath
             = TimedCache.createThrowing(30000L,
                     (Path request) -> InMemoryAntlrSourceGenerationBuilder.forAntlrSource(request)
+                            .withImportDir(findImportDir(request))
                             .toParseAndRunBuilder());
+
+    private static Optional<Path> findImportDir(Path sourceFile) {
+        return AntlrFolders.IMPORT.getPath(ProjectHelper.getProject(sourceFile), Optional.of(sourceFile));
+    }
 
     @Override
     public void run(NBANTLRv4Parser.ANTLRv4ParserResult t, SchedulerEvent se) {
@@ -116,11 +122,10 @@ public class AntlrInvocationErrorHighlighter extends ParserResultTask<NBANTLRv4P
                             lib = lib.with(file.toPath());
                         }
                     }
-
                     try {
                         AntlrSourceGenerationResult bldr
                                 = builderForPath.get(sourceFile)
-                                .parse(null).generationResult();
+                                        .parse(null).generationResult();
 //                        AntlrSourceGenerationResult bldr
 //                                = GrammarJavaSourceGeneratorBuilder
 //                                        .forAntlrSource(sourceFile)

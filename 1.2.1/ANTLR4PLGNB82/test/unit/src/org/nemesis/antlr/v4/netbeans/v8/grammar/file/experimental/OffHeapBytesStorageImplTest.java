@@ -10,16 +10,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntConsumer;
 import javax.tools.StandardLocation;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.OffHeapBytesStorageImpl.Pool;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.NioBytesStorageAllocator.BytesStorageWrapper;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.nio.BlockStorageKind;
 
 /**
  *
@@ -27,17 +28,22 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.OffHeapBytesSt
  */
 public class OffHeapBytesStorageImplTest {
 
-//    @Test
+    private static final long MINUTE = 1000 * 60;
+
+    @Test(timeout = 2 * MINUTE)
     public void thrashTest() throws Throwable {
         thrash(1);
         thrash(13849273);
         thrash(1638492319L);
+        thrash(82427982740L);
     }
 
     long count = 0;
 
     public void thrash(final long mul) throws Throwable {
-        System.out.println("THRASH " + (++count));
+        List<String> debugOps = new CopyOnWriteArrayList<>();
+        long[] throwingThreadId = new long[]{-1};
+        System.out.println("\n\n------------------ THRASH " + (++count) + " ------------------------------\n\n");
         int iterations = 23;
         int chunkCount = 128;
         int minSize = 32;
@@ -62,17 +68,18 @@ public class OffHeapBytesStorageImplTest {
             chunks4.add(b);
         }
         final ThreadLocal<Random> deterministicChaos = new ThreadLocal<>();
-        Pool pool = new Pool(1024, 512);
+        NioBytesStorageAllocator pool = new NioBytesStorageAllocator(1024, 512, BlockStorageKind.OFF_HEAP);
         try {
             CountDownLatch latch = new CountDownLatch(iterations);
             Callable<Void> doIt = () -> {
                 Random rnd = deterministicChaos.get();
                 assertNotNull(rnd);
-                OffHeapBytesStorageImpl[] files = new OffHeapBytesStorageImpl[chunkCount];
+                BytesStorageWrapper[] files = new BytesStorageWrapper[chunkCount];
                 for (int i = 0; i < chunkCount; i++) {
                     files[i] = pool.allocate(null, Name.forFileName(Thread.currentThread().getName() + "f1-" + i), null);
-                    files[i].setBytes(chunks.get(i), 0);
-                    assertArrayEquals(files[i].name.toString(), chunks.get(i), files[i].asBytes());
+                    byte[] chunk = chunks.get(i);
+                    files[i].setBytes(chunk, 0);
+                    assertArrayEquals(files[i].toString(), chunk, files[i].asBytes());
                 }
                 if (Thread.interrupted()) {
                     return null;
@@ -80,9 +87,9 @@ public class OffHeapBytesStorageImplTest {
                 iterate(chunkCount, rnd, i -> {
                     if (i % 2 == 0) {
                         files[i].setBytes(chunks2.get(i), 0);
-                        assertArrayEquals(chunks2.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks2.get(i), files[i].asBytes());
                     } else {
-                        assertArrayEquals(files[i].name.toString(), chunks.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks.get(i), files[i].asBytes());
                     }
                 });
                 if (Thread.interrupted()) {
@@ -91,9 +98,9 @@ public class OffHeapBytesStorageImplTest {
                 for (int i = 0; i < chunkCount; i++) {
                     if (i % 2 != 0) {
                         files[i].setBytes(chunks2.get(i), 0);
-                        assertArrayEquals(files[i].name.toString(), chunks2.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks2.get(i), files[i].asBytes());
                     } else {
-                        assertArrayEquals(files[i].name.toString(), chunks2.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks2.get(i), files[i].asBytes());
                     }
                 }
                 if (Thread.interrupted()) {
@@ -104,7 +111,7 @@ public class OffHeapBytesStorageImplTest {
                         files[i].discard();
                         files[i] = null;
                     } else {
-                        assertArrayEquals(files[i].name.toString(), chunks2.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks2.get(i), files[i].asBytes());
                     }
                 }
                 if (Thread.interrupted()) {
@@ -114,7 +121,7 @@ public class OffHeapBytesStorageImplTest {
                     if (i % 3 == 0) {
                         files[i] = pool.allocate(null, Name.forFileName(Thread.currentThread().getName() + "f2-" + i), null);
                         files[i].setBytes(chunks.get(i), 0);
-                        assertArrayEquals(files[i].name.toString(), chunks.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks.get(i), files[i].asBytes());
                     } else {
                         files[i].discard();
                         files[i] = null;
@@ -125,11 +132,11 @@ public class OffHeapBytesStorageImplTest {
                 }
                 iterate(chunkCount, rnd, i -> {
                     if (i % 3 == 0) {
-                        assertArrayEquals(files[i].name.toString(), chunks.get(i), files[i].asBytes());
+                        assertArrayEquals(files[i].toString(), chunks.get(i), files[i].asBytes());
                     } else {
                         files[i] = pool.allocate(null, Name.forFileName(Thread.currentThread().getName() + "f3-" + i), null);
                         files[i].setBytes(chunks3.get(i), 0);
-                        assertArrayEquals(files[i].name.toString(), chunks3.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks3.get(i), files[i].asBytes());
                     }
                 });
                 if (Thread.interrupted()) {
@@ -137,14 +144,14 @@ public class OffHeapBytesStorageImplTest {
                 }
                 iterate(chunkCount, rnd, i -> {
                     if (i % 3 != 0) {
-                        assertArrayEquals(files[i].name.toString(), chunks3.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks3.get(i), files[i].asBytes());
                         files[i].setBytes(chunks4.get(i), 0);
-                        assertArrayEquals(files[i].name.toString(), chunks4.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].name.toString(), chunks4.get(i), files[i].asBytes());
                     } else {
                         files[i].discard();
                         files[i] = pool.allocate(null, Name.forFileName(Thread.currentThread().getName() + "f4-" + i), null);
                         files[i].setBytes(chunks4.get(i), 0);
-                        assertArrayEquals(files[i].name.toString(), chunks4.get(i), files[i].asBytes());
+                        assertArrayEquals(i + ": " + files[i].toString(), chunks4.get(i), files[i].asBytes());
                     }
                 });
                 if (Thread.interrupted()) {
@@ -157,7 +164,7 @@ public class OffHeapBytesStorageImplTest {
                     return null;
                 }
                 for (int i = 0; i < chunkCount; i++) {
-                    assertArrayEquals(files[i].name.toString(), chunks.get(i), files[i].asBytes());
+                    assertArrayEquals(i + ": " + files[i].toString(), chunks.get(i), files[i].asBytes());
                     files[i].discard();
                 }
                 if (Thread.interrupted()) {
@@ -210,10 +217,27 @@ public class OffHeapBytesStorageImplTest {
                     try {
                         call.call();
                     } catch (Throwable t) {
-                        ueh.uncaughtException(Thread.currentThread(), t);
-                        for (Thread thr : threads) {
-                            if (thr != null && thr != Thread.currentThread()) {
-                                thr.interrupt();
+                        try {
+                            synchronized (debugOps) {
+                                if (throwingThreadId[0] == -1) {
+                                    throwingThreadId[0] = Thread.currentThread().getId();
+                                }
+                                if (!debugOps.isEmpty()) {
+                                    debugOps.add("-----------------------------------------------------");
+                                }
+                                String s = pool.opsSupplier().get();
+                                if (!s.isEmpty()) {
+                                    debugOps.add(pool.opsSupplier().get());
+                                } else {
+                                    System.out.println(" got empty ops ");
+                                }
+                            }
+                        } finally {
+                            ueh.uncaughtException(Thread.currentThread(), t);
+                            for (Thread thr : threads) {
+                                if (thr != null && thr != Thread.currentThread()) {
+                                    thr.interrupt();
+                                }
                             }
                         }
                     } finally {
@@ -231,13 +255,29 @@ public class OffHeapBytesStorageImplTest {
                 threads[i].start();
             }
             latch.await(60, TimeUnit.SECONDS);
+            if (debugOps.size() > 0) {
+                System.out.println("\nTHROWN FROM THREAD " + throwingThreadId[0]);
+                for (String s : debugOps) {
+                    System.out.println(s);
+                }
+                System.out.flush();
+                Thread.sleep(250);
+            }
             ueh.rethrow();
         } finally {
             pool.destroy();
+            if (debugOps.size() > 0) {
+                System.out.println("\nTHROWN FROM THREAD " + throwingThreadId[0]);
+                for (String s : debugOps) {
+                    System.out.println(s);
+                }
+                System.out.flush();
+                Thread.sleep(250);
+            }
         }
     }
 
-    void iterate(int count, Random rnd, IntConsumer cons) {
+    void iterate(int count, Random rnd, ThrowingIntConsumer cons) throws IOException {
         int[] vals = new int[count];
         for (int i = 0; i < vals.length; i++) {
             vals[i] = i;
@@ -246,6 +286,11 @@ public class OffHeapBytesStorageImplTest {
         for (int i = 0; i < count; i++) {
             cons.accept(vals[i]);
         }
+    }
+
+    interface ThrowingIntConsumer {
+
+        void accept(int i) throws IOException;
     }
 
     public static void shuffle(Random rnd, int[] array) {
@@ -262,9 +307,9 @@ public class OffHeapBytesStorageImplTest {
 
     @Test
     public void testReadWrite() throws IOException {
-        Pool pool = new Pool(256, 64);
-        OffHeapBytesStorageImpl item = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);
-        OffHeapBytesStorageImpl item2 = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);
+        NioBytesStorageAllocator pool = new NioBytesStorageAllocator(1024, 512, BlockStorageKind.OFF_HEAP);
+        BytesStorageWrapper item = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);
+        BytesStorageWrapper item2 = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);
 
         byte[] bytes = new byte[128];
         ThreadLocalRandom.current().nextBytes(bytes);

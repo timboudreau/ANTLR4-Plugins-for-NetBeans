@@ -16,8 +16,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 final class AntlrCriteria {
 
     static Criterion lineComments() {
+        return LINE_COMMENTS;
+    }
 
-        return new Criterion() {
+    private static final Criterion LINE_COMMENTS = new LineCommentCriterion();
+    static final class LineCommentCriterion implements Criterion {
             @Override
             public boolean test(int value) {
                 return isLineComment(value);
@@ -26,7 +29,6 @@ final class AntlrCriteria {
             public String toString() {
                 return "<all-line-comments>";
             }
-        };
     }
 
     public static IntPredicate mode(String... names) {
@@ -42,7 +44,7 @@ final class AntlrCriteria {
         List<Integer> ints = new ArrayList<>(all.size());
         List<String> allModeNames = ANTLRv4Lexer.modeNames == null
                 ? Collections.emptyList() : Arrays.asList(ANTLRv4Lexer.modeNames);
-        
+
         for (String s : all) {
             int ix = allModeNames.indexOf(s);
             if (ix >= 0) {
@@ -135,6 +137,46 @@ final class AntlrCriteria {
     static boolean notWhitespace(int tokenType) {
         return !isWhitespace(tokenType);
     }
+
+    static Criterion whitespace() {
+        return WHITESPACE;
+    }
+
+    private static final Criterion WHITESPACE = new WhitespaceCriterion();
+    private static final Criterion NOT_WHITESPACE = new NotWhitespaceCriterion();
+    private static final class WhitespaceCriterion implements Criterion {
+
+        @Override
+        public boolean test(int value) {
+            return isWhitespace(value);
+        }
+
+        public String toString() {
+            return "<whitespace>";
+        }
+
+        @Override
+        public Criterion negate() {
+            return NOT_WHITESPACE;
+        }
+    }
+
+    private static final class NotWhitespaceCriterion implements Criterion {
+
+        @Override
+        public boolean test(int value) {
+            return !isWhitespace(value);
+        }
+
+        public String toString() {
+            return "<not-whitespace>";
+        }
+
+        public Criterion negate() {
+            return WHITESPACE;
+        }
+   }
+
 
     static boolean isWhitespace(int tokenType) {
         switch (tokenType) {

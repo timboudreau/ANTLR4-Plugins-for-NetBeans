@@ -187,9 +187,11 @@ public class ANTLRv4GrammarChecker {
         ProjectType projectType = ProjectHelper.getProjectType(doc);
         try (Reader sr = new StringReader(contentToBeParsed)) {
             ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
+            lexer.removeErrorListeners();
                 
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             parser = new ANTLRv4Parser(tokens);
+            parser.removeErrorListeners();
             FileObject grammarFO = grammarFilePath.isPresent()?
                     FileUtil.toFileObject(grammarFilePath.get().toFile()) : null;
             

@@ -136,7 +136,6 @@ public class AssociateFileExtensionDialog extends JPanel
         Enumeration<DataLoader> ldrs = DataLoaderPool.getDefault().producersOf(AdhocDataObject.class);
         while (ldrs.hasMoreElements()) {
             DataLoader ldr = ldrs.nextElement();
-            System.out.println("FOUND " + ldr);
         }
     }
 
@@ -145,7 +144,6 @@ public class AssociateFileExtensionDialog extends JPanel
         String ext = field.getText().trim();
         try {
             ensureLoaderIsActive();
-            System.out.println("\nREALLY REGISTER");
             AdhocMimeTypes.registerFileNameExtension(ext, mimeType());
             field.setText("");
         } catch (InvalidMimeTypeRegistrationException ex) {

@@ -227,7 +227,7 @@
                         <specification-version>1.46</specification-version>
                     </run-dependency>
                 </dependency>
-                <dependency>
+<!--                <dependency>
                     <code-name-base>org.netbeans.modules.options.editor</code-name-base>
                     <build-prerequisite/>
                     <compile-dependency/>
@@ -235,7 +235,7 @@
                         <release-version>1</release-version>
                         <implementation-version/>
                     </run-dependency>
-                </dependency>
+                </dependency>-->
                 <dependency>
                     <code-name-base>org.netbeans.modules.parsing.api</code-name-base>
                     <build-prerequisite/>

@@ -11,6 +11,8 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,10 +22,12 @@ import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
+import javax.tools.JavaFileManager;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.tool.Grammar;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFS;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.toolext.MemoryTool;
@@ -32,6 +36,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileAntlrSo
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.InMemoryParseProxyBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import static org.nemesis.antlr.v4.netbeans.v8.util.RandomPackageNames.newPackageName;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileChangeAdapter;
@@ -53,6 +58,10 @@ import org.openide.util.WeakListeners;
 public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGenerationBuilder {
 
     private static final Logger LOG = Logger.getLogger(InMemoryAntlrSourceGenerationBuilder.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
     private final JFS jfs = new JFS(UTF_8);
     private final Set<Path> classpath = new LinkedHashSet<>();
     private AtomicBoolean cancellation = new AtomicBoolean();
@@ -67,16 +76,14 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
     private final Set<Path> additionalSourceDirMasquerades = new HashSet<>();
     private final Set<Path> additionalSourceDirCopies = new HashSet<>();
     private Consumer<AntlrSourceGenerationResult> onRegenerate;
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+    private String virtualGrammarBody;
 
     InMemoryAntlrSourceGenerationBuilder(Path sourceFile) {
         this.sourceFile = sourceFile;
     }
 
     public synchronized void fullReset() {
+        new Exception("FULL RESET").printStackTrace(System.out);
         initialBuildDone = false;
         listener = null;
         stale = true;
@@ -86,6 +93,22 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
             fo.delete();
         }
         antlrGeneratedFiles.clear();
+    }
+
+    public InMemoryAntlrSourceGenerationBuilder replacingAntlrGrammarWith(String body) throws IOException {
+        if (!Objects.equals(virtualGrammarBody, body)) {
+            stale = true;
+            this.virtualGrammarBody = body;
+            if (initialBuildDone) {
+                JFSFileObject file = jfs.get(SOURCE_PATH, virtualSourceFile());
+                if (file != null) {
+                    file.delete();
+                }
+                fullReset();
+                jfs.create(virtualSourceFile(), SOURCE_PATH, virtualGrammarBody);
+            }
+        }
+        return this;
     }
 
     public static InMemoryAntlrSourceGenerationBuilder forAntlrSource(Path sourceFile) {
@@ -122,7 +145,11 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         classpath.add(CompileAntlrSources.moduleJar());
         jfs.setClasspath(classpath);
         Set<Path> masqueraded = new HashSet<>();
+        if (importDir == null) {
+            AntlrFolders.IMPORT.getPath(ProjectHelper.getProject(this.sourceFile), Optional.of(sourceFile));
+        }
         if (importDir != null) {
+            System.out.println("IMPORT DIR FOR " + sourceFile + " in " + System.identityHashCode(this) + " IS " + importDir);
             LOG.log(Level.FINER, "Map .g4 files in import dir {0}", importDir);
             if (Files.exists(importDir)) {
                 try {
@@ -138,6 +165,10 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
                     Exceptions.printStackTrace(ex);
                 }
             }
+        } else {
+            new Exception("NO IMPORT DIR FOR " + sourceFile + " in " + System.identityHashCode(this)
+                + " " + this.importDir).printStackTrace();
+
         }
         if (!classpath.isEmpty()) {
             LOG.log(Level.FINER, "Set classpath to {0}", classpath);
@@ -161,23 +192,37 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
 //            masqueradeFile(pth, FileUtil.toFileObject(pth.toFile()), virtualSourcePath().resolve(pth.getFileName()));
         }
         Path vsf = virtualSourceFile();
-        LOG.log(Level.FINER, "Masq {0} as {1}", new Object[]{sourceFile, vsf});
-        masqueradeFile(sourceFile, FileUtil.toFileObject(sourceFile.toFile()),
-                virtualSourceFile());
+        if (this.virtualGrammarBody != null) {
+            LOG.log(Level.FINER, "Substituting virtual grammar body of length {0}", virtualGrammarBody.length());
+            jfs.create(vsf, SOURCE_PATH, virtualGrammarBody);
+        } else {
+            LOG.log(Level.FINER, "Masq {0} as {1}", new Object[]{sourceFile, vsf});
+            masqueradeFile(sourceFile, FileUtil.toFileObject(sourceFile.toFile()),
+                    virtualSourceFile());
+        }
         // For complex grammars, map any siblings that might be imported.
         // Really, we should get this from the semantic parser
         Files.list(sourceFile.getParent()).filter(p -> {
-            return p != sourceFile && p.getFileName().toString().endsWith(".g4");
+            return !p.equals(sourceFile) && p.getFileName().toString().endsWith(".g4");
         }).forEach(sibling -> {
-            boolean alreadyDone = masqueraded.contains(sibling);
-            Path vsib = virtualSourcePath().resolve(sibling.getFileName());
-            LOG.log(Level.FINEST, "Masq src sibling {0} as {1} needed? {2}", new Object[]{sibling, vsib, !alreadyDone});
+            boolean alreadyDone = masqueraded.contains(sibling) || sibling.getFileName().equals(sourceFile.getFileName());
             if (!alreadyDone) {
+                Path vsib = virtualSourcePath().resolve(sibling.getFileName());
+                LOG.log(Level.FINEST, "Masq src sibling {0} as {1} needed? {2}", new Object[]{sibling, vsib, !alreadyDone});
                 masqueradeFile(sourceFile, FileUtil.toFileObject(sourceFile.toFile()),
                         vsib);
             }
         });
         initialBuildDone = true;
+        System.out.println(list());
+    }
+
+    private String list() {
+        StringBuilder sb = new StringBuilder("---------------- JFS CONTENTS ----------------- \n");
+        for (Map.Entry<JFSFileObject, JavaFileManager.Location> e : jfs.listAll().entrySet()) {
+            sb.append(e.getKey().getName()).append('\t').append(e.getValue()).append('\n');
+        }
+        return sb.toString();
     }
 
     public Path sourceFile() {
@@ -259,7 +304,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
             return e.getValue() == StandardLocation.SOURCE_PATH && e.getKey().getName().endsWith(".java");
         }).forEach(f -> {
             if (!files.contains(f.getKey())) {
-                LOG.log(Level.FINEST, "Generated in {0}: {1}", new Object[] {f.getKey(), f.getValue()});
+                LOG.log(Level.FINEST, "Generated in {0}: {1}", new Object[]{f.getKey(), f.getValue()});
             }
             postFiles.add(f.getKey());
         });
@@ -363,13 +408,14 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         return this;
     }
 
-    private void masqueradeDocument(Path pth, Document doc, Path as) {
-        jfs.masquerade(doc, SOURCE_PATH, as);
+    private JFSFileObject masqueradeDocument(Path pth, Document doc, Path as) {
+        JFSFileObject result = jfs.masquerade(doc, SOURCE_PATH, as);
         doc.addDocumentListener(WeakListeners.document(listener, doc));
+        return result;
     }
 
     private void masqueradeFile(Path pth, FileObject file, Path as) {
-        LOG.log(Level.FINEST, "Listen on {0} virtually {1}", new Object[] {pth, as});
+        LOG.log(Level.FINEST, "Listen on {0} virtually {1}", new Object[]{pth, as});
         // Try to masquerade the actual *document* being edited, so that
         // we parse against live changes, saved or not.  If not open
         // in the editor, use the file path and we will update when
@@ -397,7 +443,8 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
                             masquerade.delete();
                             // will replace the previous file version
                             LOG.log(Level.FINEST, "Masq document for {0} instead", pth);
-                            masqueradeDocument(pth, d, as);
+                            JFSFileObject fo = masqueradeDocument(pth, d, as);
+                            LOG.log(Level.FINEST, "Created jfsFo {0}", fo);
                         }
                     }
                 });

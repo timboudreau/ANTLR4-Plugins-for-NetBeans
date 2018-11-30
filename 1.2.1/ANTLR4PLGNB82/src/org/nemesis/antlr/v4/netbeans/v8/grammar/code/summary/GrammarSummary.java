@@ -761,6 +761,7 @@ public class GrammarSummary {
                                             (0, importedGrammarDoc.getLength());
                             try (Reader sr = new StringReader(content) ) {
                                 ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
+                                lexer.removeErrorListeners();
             
                                 CommonTokenStream tokens = new CommonTokenStream
                                                                         (lexer);

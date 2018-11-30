@@ -101,7 +101,6 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
   Iterator<Item>
   Item -> obj (Reference<DataObject>)
              */
-            System.out.println("populate by reflection");
             try {
                 Class<?> dataObjectPool = Class.forName("org.openide.loaders.DataObjectPool", true, Lookup.getDefault().lookup(ClassLoader.class));
                 Field poolField = dataObjectPool.getDeclaredField("POOL");
@@ -122,11 +121,9 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
                     Reference<DataObject> dobRef = (Reference<DataObject>) objField.get(items.next());
                     DataObject dob = dobRef.get();
                     if (dob != null && dob.isValid() && ext.equals(dob.getPrimaryFile().getExt())) {
-                        System.out.println("FOUND VIA REFLECTION: " + dob.getPrimaryFile().getPath());
                         files.put(dob.getPrimaryFile(), dob);
                     }
                 }
-                System.out.println("found " + count + " items via reflection");
 //                Iterator<?> items = mth.invoke(mth, args)
             } catch (Exception | Error e) {
                 e.printStackTrace();
@@ -148,7 +145,6 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
                         if (dob != null) {
                             FileObject fo = dob.getPrimaryFile();
                             if (ext.equals(fo.getExt())) {
-                                System.out.println("WILL REOPEN " + fo.getPath());
                                 toReopen.add(fo);
                                 files.put(fo, dob);
                             }
@@ -162,7 +158,6 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
                 populateByReflection();
                 for (Map.Entry<FileObject, DataObject> e : files.entrySet()) {
                     try {
-                        System.out.println("\nCHANGE DATA LOADER TO ADHOC: " + e.getKey().getPath());
                         DataLoaderPool.setPreferredLoader(e.getKey(), AdhocDataLoader.this);
                         e.getValue().setValid(false);
                     } catch (IOException | PropertyVetoException ex) {
@@ -176,15 +171,12 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
                         public void run() {
                             if (!EventQueue.isDispatchThread()) {
                                 // Now find OpenCookies for all the files to reopen
-                                System.out.println(toReopen.size() + " files to reopen");
                                 for (FileObject dob : toReopen) {
                                     try {
                                         DataObject toOpen = DataObject.find(dob);
                                         OpenCookie opener = toOpen.getLookup().lookup(OpenCookie.class);
                                         if (opener != null) {
                                             reoopeners.add(opener);
-                                        } else {
-                                            System.out.println("no opencookie for " + dob.getPath());
                                         }
                                     } catch (DataObjectNotFoundException ex) {
                                         Exceptions.printStackTrace(ex);
