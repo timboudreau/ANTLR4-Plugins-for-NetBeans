@@ -2,6 +2,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.toolext;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.Writer;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -39,6 +40,7 @@ public final class MemoryTool extends Tool {
     private JFS jfs;
     private final Location location;
     private final Path dir;
+    private PrintStream logStream;
 
     public MemoryTool(JFS jfs, Location location, Path dir, String... args) {
         super(args);
@@ -55,6 +57,11 @@ public final class MemoryTool extends Tool {
         return jfs;
     }
 
+    public MemoryTool setLogStream(PrintStream printStream) {
+        this.logStream = logStream;
+        return this;
+    }
+
     public List<ParsedAntlrError> errors() {
         List<ParsedAntlrError> result = new ArrayList<>(((ErrM) this.errMgr).errors);
         Collections.sort(result);
@@ -68,6 +75,9 @@ public final class MemoryTool extends Tool {
     @Override
     public void log(String msg) {
         // do nothing
+        if (logStream != null) {
+            logStream.println(msg);
+        }
     }
 
     @Override
@@ -134,7 +144,7 @@ public final class MemoryTool extends Tool {
 
     public JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName) {
         if (g.fileName == null) {
-            System.out.println("Grammar with null filename: " + g + "; was passed " + fileName);
+//            System.out.println("Grammar with null filename: " + g + "; was passed " + fileName);
         }
         JFSFileObject fo = jfs.get(location, dir.resolve(fileName));
         if (fo == null) {
@@ -152,9 +162,9 @@ public final class MemoryTool extends Tool {
             if (fo == null && libDirectory != null) {
                 fo = jfs.get(location, Paths.get(libDirectory).resolve(g.fileName));
             }
-            if (fo == null) {
-                System.out.println("FAILED TO RESOLVE " + fileName + " relative to " + g.fileName + ". Available: " + list());
-            }
+//            if (fo == null) {
+//                System.out.println("FAILED TO RESOLVE " + fileName + " relative to " + g.fileName + ". Available: " + list());
+//            }
         }
 //        if (fo != null) {
 //            System.out.println("RESOLVED GRAMMAR " + fileName + " as " + fo);

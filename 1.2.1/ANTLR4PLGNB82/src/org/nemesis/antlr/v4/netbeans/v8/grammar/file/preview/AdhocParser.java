@@ -53,11 +53,8 @@ final class AdhocParser extends Parser {
             px = proxy = px.toEmptyParseTreeProxy(txt);
         } else {
             px = proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt, REPARSE);
-            System.out.println("PROXY: " + px);
-            System.out.println("IS UNPARSED: " + px.isUnparsed());
         }
         buildResult = DynamicLanguageSupport.lastBuildResult(proxy.mimeType(), txt, REPARSE);
-        System.out.println("BUILD RESULT " + buildResult);
         LOG.log(Level.FINEST, "Parsed {0} for {1}", new Object[]{px.summary(), task});
 //        }
         AdhocParserResult result = new AdhocParserResult(snpsht, px, buildResult);
@@ -74,7 +71,6 @@ final class AdhocParser extends Parser {
             return null;
         }
         if (res == null && last != null) {
-            System.out.println("USING PREVIOUS RESULT FOR " + task + " " + last.parseTree().summary());
             return last;
         }
         return res;

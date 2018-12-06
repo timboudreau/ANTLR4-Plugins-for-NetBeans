@@ -41,7 +41,6 @@ abstract class ByteBufferAllocator implements AutoCloseable {
         if (oldStart == last[0] && newStart == last[2]) {
             IOException ex = new IOException("Duplicate move call", lastCall);
             ex.printStackTrace(System.out);
-            System.out.println("ORIG:");
             lastCall.printStackTrace(System.out);
             System.out.flush();
             throw ex;

@@ -476,8 +476,6 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             String mime = mimeType();
             Path grammar = AdhocMimeTypes.grammarFilePathForMimeType(mime);
             if (grammar == null) {
-                System.out.println("NO GRAMMAR FILE FOR " + mime + " "
-                        + getLookup().lookup(AdhocDataObject.class).getPrimaryFile().getPath());
                 return null;
             }
             FileObject fo = FileUtil.toFileObject(grammar.toFile());

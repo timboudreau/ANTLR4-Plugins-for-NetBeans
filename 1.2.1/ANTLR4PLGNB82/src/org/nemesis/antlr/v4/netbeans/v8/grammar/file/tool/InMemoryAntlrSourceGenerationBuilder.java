@@ -1,6 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,9 +60,9 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
 
     private static final Logger LOG = Logger.getLogger(InMemoryAntlrSourceGenerationBuilder.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+//    static {
+//        LOG.setLevel(Level.ALL);
+//    }
     private final JFS jfs = new JFS(UTF_8);
     private final Set<Path> classpath = new LinkedHashSet<>();
     private AtomicBoolean cancellation = new AtomicBoolean();
@@ -83,7 +84,6 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
     }
 
     public synchronized void fullReset() {
-        new Exception("FULL RESET").printStackTrace(System.out);
         initialBuildDone = false;
         listener = null;
         stale = true;
@@ -149,7 +149,6 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
             AntlrFolders.IMPORT.getPath(ProjectHelper.getProject(this.sourceFile), Optional.of(sourceFile));
         }
         if (importDir != null) {
-            System.out.println("IMPORT DIR FOR " + sourceFile + " in " + System.identityHashCode(this) + " IS " + importDir);
             LOG.log(Level.FINER, "Map .g4 files in import dir {0}", importDir);
             if (Files.exists(importDir)) {
                 try {
@@ -165,10 +164,6 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
                     Exceptions.printStackTrace(ex);
                 }
             }
-        } else {
-            new Exception("NO IMPORT DIR FOR " + sourceFile + " in " + System.identityHashCode(this)
-                + " " + this.importDir).printStackTrace();
-
         }
         if (!classpath.isEmpty()) {
             LOG.log(Level.FINER, "Set classpath to {0}", classpath);
@@ -214,7 +209,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
             }
         });
         initialBuildDone = true;
-        System.out.println(list());
+//        System.out.println(list());
     }
 
     private String list() {
@@ -251,6 +246,13 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
 
     private Set<JFSFileObject> antlrGeneratedFiles = new HashSet<>();
 
+    private PrintStream toolLogStream;
+
+    public InMemoryAntlrSourceGenerationBuilder setToolLogStream(PrintStream stream) {
+        toolLogStream = stream;
+        return this;
+    }
+
     public synchronized AntlrSourceGenerationResult build(boolean generate) throws IOException {
         if (!initialBuildDone) {
             initialBuild();
@@ -273,6 +275,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         String grammarName = "--";
         try {
             MemoryTool tool = new MemoryTool(jfs, SOURCE_PATH, virtualSourcePath(), args);
+            tool.setLogStream(toolLogStream);
             tool.gen_listener = true;
             tool.gen_visitor = true;
 //        tool.generate_ATN_dot = true;
@@ -347,13 +350,11 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
     }
 
     private void generateAllGrammars(MemoryTool tool, Grammar g, Set<String> seen, boolean generate) {
-        System.out.println("GENERATE " + keyFor(g) + " really generate? " + generate);
         if (!seen.contains(keyFor(g))) {
             LOG.log(Level.FINEST, "MemoryTool generating {0}", g.fileName);
             seen.add(keyFor(g));
 //            tool.generateATNs(g);
             if (g.implicitLexer != null) {
-                System.out.println("IMPLICIT LEXER " + g.implicitLexer.fileName + " with name " + g.implicitLexer.name + " in " + g.name + " fn " + g.fileName);
 //                LOG.log(Level.FINEST, "Gen implicit lexer {0}", g.implicitLexer.fileName);
 //                if ("SampleGrammar.g4".equals(g.implicitLexer.fileName)) {
 //                    g.implicitLexer.fileName = g.implicitLexer.name + ".g4";

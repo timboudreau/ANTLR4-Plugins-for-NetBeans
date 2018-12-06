@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +39,17 @@ public class GenerateBuildAndRunGrammarResult {
         ParserRunResult res = new ParserRunResult(Optional.empty(), Optional.of(prox), false);
         AntlrSourceGenerationResult gen = new AntlrSourceGenerationResult(null, null, null, "x", false,
                 Optional.empty(), Optional.empty(), Collections.emptyList(), Collections.emptySet(),
+                AntlrLibrary.getDefault(), prox.grammarName(), new AtomicBoolean());
+        return new GenerateBuildAndRunGrammarResult(gen, compileResult, Optional.of(res),
+                prox.text(), false, false);
+    }
+
+    public static GenerateBuildAndRunGrammarResult forThrown(Throwable thrown, String text) {
+        ParseTreeProxy prox = AntlrProxies.forUnparsed(Paths.get("-nothing"), "x", text);
+        Optional<CompileResult> compileResult = Optional.empty();
+        ParserRunResult res = new ParserRunResult(Optional.empty(), Optional.of(prox), false);
+        AntlrSourceGenerationResult gen = new AntlrSourceGenerationResult(null, null, null, "x", false,
+                Optional.of(thrown), Optional.empty(), Collections.emptyList(), Collections.emptySet(),
                 AntlrLibrary.getDefault(), prox.grammarName(), new AtomicBoolean());
         return new GenerateBuildAndRunGrammarResult(gen, compileResult, Optional.of(res),
                 prox.text(), false, false);

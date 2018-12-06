@@ -1,7 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview;
 
 import java.util.List;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport.truncated;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.CREATE_LEXER;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
@@ -30,14 +29,11 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
         this.origIds = ids;
         // We never seem to have a state object passed, but just in case...
         if (info.state() instanceof AntlrProxies.ParseTreeProxy) {
-            System.err.println("GOT A RESTART INFO WITH STATE " + info.state());
             this.proxy = (AntlrProxies.ParseTreeProxy) info.state();
-            System.err.println("USING EXISTING STATE " + this.proxy.text());
         } else {
             // Extract the text from the lexer input (something mysterious
             // pre-reads it for us)
             String txt = info.input().readText().toString();
-            System.err.println("INPUT TEXT LENGTH " + txt.length());
             // Check if it does not match the proxy we were initialized with
             // DynamicLanguageSupport.setTextContext() *tries* to give access
             // to the text being parsed so we can pre-create a parse during
@@ -53,7 +49,6 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
                     // compilation and execution with the text we got RIGHT NOW
                     // so we have the right stuff
                     proxy = DynamicLanguageSupport.parseImmediately(proxy.mimeType(), txt, CREATE_LEXER);
-                    System.err.println("PROXY TEXT '" + truncated(proxy.text()) + "'");
                     // And push it back into the AdhocLanguageHierarchy so it is
                     // available to the next lexer and it won't have to do that
                     // if nothing has changed
@@ -61,19 +56,15 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
                     ids = (List<AdhocTokenId>) creator.createTokenIds();
                 } else {
                     proxy = proxy.toEmptyParseTreeProxy(txt);
-                    new Exception("CREATE EMPTY TREE FOR TEXT '" + txt + "' FROM INPUT").printStackTrace(System.err);
                 }
-            } else {
-                System.err.println("proxy text matches lexer input, no reparse");
             }
-            if (proxy.isUnparsed()) {
-                System.err.println("PROXY IS UNPARSED");
-            }
+//            if (proxy.isUnparsed()) {
+//                System.err.println("PROXY IS UNPARSED");
+//            }
             this.proxy = proxy;
         }
         this.ids = ids;
         this.count = proxy.tokenCount();
-        System.err.println("HAVE " + proxy.tokenCount() + " tokens");
     }
 
     private AdhocTokenId tokenIdForProxyToken(ProxyToken token) {
@@ -139,12 +130,10 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
             }
             if (sb.length() > 0) {
                 // Screwball EOF token handling I
-                System.out.println(cursor + ": FINALE DUMMY TOKEN TEXT '" + truncated(sb.toString()) + "'");
                 nextIsEof = true;
                 return dummyToken(sb.length());
             }
             // Normal EOF token and no extraneous input - we're done
-            System.out.println(cursor + ": GOT EOF TOKEN WITH TEXT '" + tok.getText() + "'");
             return null;
         }
         // Now wind the LexerInput forward to (what we hope is) the end of the token in
@@ -164,8 +153,6 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
         // If the token contains different text than the LexerInput provided,
         // something is wrong - perhaps the grammar skipped some tokens?
         if (!tok.getText().equals(sb.toString())) {
-            System.out.println(cursor + ": TOKEN AND READ TEXT MISMATCH - TOKEN: '"
-                    + tok.getText() + "' but read '" + sb);
         }
         // If we didn't catch it earlier, we occasionally get Antlr tokens
         // which stop before they start as final tokens - generally this is

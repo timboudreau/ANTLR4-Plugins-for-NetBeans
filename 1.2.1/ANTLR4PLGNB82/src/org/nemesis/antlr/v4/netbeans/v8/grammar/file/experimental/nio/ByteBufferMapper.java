@@ -123,7 +123,6 @@ class ByteBufferMapper {
 
     void migrate(int startByte, int byteCount, int destByte) throws IOException {
         if (startByte == destByte) {
-            System.out.println("same start as dest, do nothing");
             return;
         }
         underReadLock(() -> {

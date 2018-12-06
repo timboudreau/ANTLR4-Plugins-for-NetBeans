@@ -142,7 +142,6 @@ public class DynamicLanguageSupport {
         boolean add(GrammarRegistration reg) {
             try {
                 if (uiInitialized) {
-                    System.out.println("QUEUE FOR POST INIT: " + reg.lastParseResult.grammarName());
                     toInitialize.add(reg);
                     return true;
                 } else {
@@ -158,16 +157,13 @@ public class DynamicLanguageSupport {
         @Override
         public void run() {
             if (EventQueue.isDispatchThread()) {
-                System.out.println("START COUNTDOWN TO INIT");
                 uiInitialized = true;
                 RequestProcessor.getDefault().post(this, 2000);
             } else {
                 while (!toInitialize.isEmpty()) {
-                    System.out.println("BEGIN POST-INIT WITH " + toInitialize.size());
                     for (Iterator<GrammarRegistration> it = toInitialize.iterator(); it.hasNext();) {
                         try {
                             GrammarRegistration g = it.next();
-                            System.out.println("POST-INIT " + g.lastParseResult.grammarName());
                             if (g.lastParseResult.isUnparsed()) {
                                 g.get(g.lastParseResult.text(), null, POST_INIT);
                             }
@@ -397,15 +393,10 @@ public class DynamicLanguageSupport {
             this.grammarFile = fo;
             Optional<Path> imports = AntlrFolders.IMPORT.getPath(ProjectHelper.getProject(path), Optional.of(path));
             if (!imports.isPresent()) {
-                System.out.println("DID NOT FIND AN IMPORT DIR FOR PROJECT OF " + path + ": " + ProjectHelper.getProject(path));
                 Optional<Project> p = ProjectHelper.getProject(path);
                 if (!p.isPresent()) {
-                    System.out.println("COULD NOT FIND A PROJECT FOR " + path);
-                } else {
-                    System.out.println("  PROJECT TYPE " + ProjectHelper.getProjectType(p.get()));
                 }
             }
-            System.out.println("REGISTER " + prox.grammarName() + " for " + reason);
             runner = InMemoryAntlrSourceGenerationBuilder.forAntlrSource(path)
                     //                    .withAntlrLibrary(library)
                     .withImportDir(imports)
@@ -415,7 +406,6 @@ public class DynamicLanguageSupport {
                 get(prox.text(), null, reason);
             } else {
                 lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(lastParseResult);
-                System.out.println("USING A DUMMY PARSE UNTIL UI INIT DONE FOR " + lastParseResult.grammarName());
             }
             INSTANCE.registerInParsingEnvironment(lastBuildResult, lastParseResult);
         }
@@ -426,10 +416,7 @@ public class DynamicLanguageSupport {
 
         synchronized ParseTreeProxy get(final String text, Consumer<String> statusMonitor, Reason reason) {
             Path path = pathFor(grammarFile);
-            System.out.println("PARSE " + lastParseResult.grammarName() + " FOR " + reason + " text "
-                    + (text == null ? "null" : "length " + text.length() + " on " + Thread.currentThread()));
             if (this.lastParseResult.isUnparsed() && !INSTANCE.reallyParse(this, reason)) {
-                System.out.println("STILL NOT INITIALIZED: " + lastParseResult.grammarName() + " USING DUMMY");
                 if (Objects.equals(lastParseResult.text(), text)) {
                     lastBuildResult = GenerateBuildAndRunGrammarResult.forUnparsed(lastParseResult);
                     return lastParseResult;
@@ -439,16 +426,12 @@ public class DynamicLanguageSupport {
                     return lastParseResult;
                 }
             }
-            System.out.println("REALLY " + lastParseResult.grammarName() + " FOR " + reason);
             GenerateBuildAndRunGrammarResult parse = null;
             try {
                 parse = lastBuildResult = runner.parse(text, statusMonitor);
                 LOG.log(Level.FINER, "Result of parse {0} usable {1}", new Object[]{loggableMimeType(lastParseResult.mimeType()),
                     parse.isUsable()});
                 LOG.log(Level.FINEST, "Gen/build/parse result {0}", parse);
-//                System.out.println("\n*************** PARSE RESULT *****************");
-//                System.out.println(parse);
-//                System.out.println("***********************************************\n");
                 if (parse.parseResult().isPresent()) {
                     if (parse.parseResult().get().parseTree().isPresent()) {
                         ParseTreeProxy result = parse.parseResult().get().parseTree().get();

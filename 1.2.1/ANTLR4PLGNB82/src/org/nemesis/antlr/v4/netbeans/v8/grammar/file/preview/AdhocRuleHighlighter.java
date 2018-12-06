@@ -92,10 +92,7 @@ public class AdhocRuleHighlighter extends AbstractAntlrHighlighter.DocumentOrien
                     ruleCount++;
                     int start = rn.startTokenIndex();
                     int end = rn.stopTokenIndex();
-//                    System.out.println("START " + start + " END " + end);
                     if (start < 0 || end < 0) {
-                        System.out.println("NEGATIVE TOKEN INDICES FOR " + rn
-                                + " - " + rn.startTokenIndex() + ":" + rn.endTokenIndex());
                         start = 0;
                         end = Math.min(20, semantics.text().length());
                     } else {

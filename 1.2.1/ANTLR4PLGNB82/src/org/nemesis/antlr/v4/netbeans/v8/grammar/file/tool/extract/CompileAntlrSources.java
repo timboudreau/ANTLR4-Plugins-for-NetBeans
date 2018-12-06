@@ -40,9 +40,9 @@ public class CompileAntlrSources {
 
     private static final Logger LOG = Logger.getLogger(CompileAntlrSources.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+//    static {
+//        LOG.setLevel(Level.ALL);
+//    }
     private final JavacOptions options;
 
     public CompileAntlrSources() {

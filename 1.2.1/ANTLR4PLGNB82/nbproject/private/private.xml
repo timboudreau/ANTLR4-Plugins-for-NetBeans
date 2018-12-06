@@ -2,18 +2,18 @@
 <project-private xmlns="http://www.netbeans.org/ns/project-private/1">
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="2">
         <file>
-            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataLoader.java</url>
-            <bookmark id="2">
-                <name/>
-                <line>116</line>
-                <key/>
-            </bookmark>
-        </file>
-        <file>
             <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/HtmlLabelUI.java</url>
             <bookmark id="1">
                 <name/>
                 <line>163</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataLoader.java</url>
+            <bookmark id="2">
+                <name/>
+                <line>116</line>
                 <key/>
             </bookmark>
         </file>
@@ -23,68 +23,8 @@
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4</file>
         </group>
         <group name="primal">
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/InMemoryAntlrSourceGenerationBuilder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/JFS.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockManagerTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/PreviewPanel.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/ANTLRv4GrammarChecker.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocParser.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetTree.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/GrammarSummary.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlocksTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/ErrorHandlingTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/CompiledParserRunner.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ANTLRv4SemanticParser.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/util/FileLocator.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/DysfunctionalLock.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/lock/SubLock.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/grammar/grammar_syntax_checking/ANTLRv4.g4</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockStorageKind.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/Ops.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleDeclaration.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleElement.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/AntlrProxies.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/ByteBufferAllocator.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/ByteBufferAllocatorTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/formatting/AntlrFormatterSettings.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/DynamicLanguageSupport.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleComponent.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockStorage.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/G4DataObject.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/Range.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/completion/GrammarCompletionQuery.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NoErrors.g4</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/ByteBufferMapper.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/formatting/AntlrFormatterTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/Blocks.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinderTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/grammar/grammar_syntax_checking/ANTLRv4Lexer.g4</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/FunctionalLockImplTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/toolext/MemoryTool.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/G4VisualElement.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/ForeignInvocationEnvironmentTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/lock/TreeLock.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/project/ProjectTypeTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/DefragTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/formatting/AntlrFormatterSettingsPanel.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockMapper.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/OffHeapBytesStorageImplTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocLexer2.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockToBytesConverter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocLanguageFactory.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/NioBytesStorageAllocator.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/FunctionalLockImpl.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/JFSStorageAllocator.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/NBANTLRv4Parser.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/InMemoryParseProxyBuilder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/formatting/AntlrFormatter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockMapperTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/MonitorPanel.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/ParserExtractor.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/BlockManager.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/experimental/nio/FunctionalLock.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinder.java</file>
         </group>
     </open-files>
 </project-private>

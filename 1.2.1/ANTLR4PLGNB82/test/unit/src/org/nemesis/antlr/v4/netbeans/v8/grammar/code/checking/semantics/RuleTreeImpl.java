@@ -78,6 +78,7 @@ final class RuleTreeImpl implements RuleTree {
         return result;
     }
 
+    @Override
     public Set<String> edgeStrings() {
         Set<String> result = new HashSet<>(ruleReferences.size());
         for (Map.Entry<String, Set<String>> e : ruleReferences.entrySet()) {
@@ -88,11 +89,13 @@ final class RuleTreeImpl implements RuleTree {
         return result;
     }
 
+    @Override
     public int inboundReferenceCount(String rule) {
         Set<String> inbound = ruleReferencedBy.get(rule);
         return inbound == null ? 0 : inbound.size();
     }
 
+    @Override
     public int outboundReferenceCount(String rule) {
         Set<String> outbound = ruleReferences.get(rule);
         return outbound == null ? 0 : outbound.size();
@@ -104,6 +107,7 @@ final class RuleTreeImpl implements RuleTree {
      *
      * @return
      */
+    @Override
     public Set<String> topLevelOrOrphanRules() {
         return topLevel;
     }
@@ -113,28 +117,34 @@ final class RuleTreeImpl implements RuleTree {
      *
      * @return
      */
+    @Override
     public Set<String> bottomLevelRules() {
         return bottomLevel;
     }
 
+    @Override
     public boolean isUnreferenced(String rule) {
         return !ruleReferencedBy.containsKey(rule);
     }
 
+    @Override
     public int closureSize(String rule) {
         return closureOf(rule).size();
     }
 
+    @Override
     public int reverseClosureSize(String rule) {
         return reverseClosureOf(rule).size();
     }
 
+    @Override
     public Set<String> reverseClosureOf(String rule) {
         Set<String> result = new HashSet<>(ruleReferencedBy.size());
         reverseClosureOf(rule, result);
         return result;
     }
 
+    @Override
     public Set<String> closureOf(String rule) {
         Set<String> result = new HashSet<>(ruleReferencedBy.size());
         closureOf(rule, result);
@@ -164,5 +174,4 @@ final class RuleTreeImpl implements RuleTree {
             }
         }
     }
-
 }

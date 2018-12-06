@@ -27,9 +27,9 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     private static final Map<String, ThreadLocal<SoftReference<AdhocLanguageHierarchy>>> cache = new HashMap<>();
     static final Logger LOG = Logger.getLogger(AdhocLanguageFactory.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+//    static {
+//        LOG.setLevel(Level.ALL);
+//    }
 
     static AdhocLanguageFactory get() {
         return Lookup.getDefault().lookup(AdhocLanguageFactory.class);
@@ -53,7 +53,6 @@ public final class AdhocLanguageFactory extends LanguageProvider {
             if ("text/plain".equals(mimeType)) {
                 LOG.log(Level.INFO, "WTF? " + mimeType, new Exception("Trying to create a Language for text/plain!"));
             }
-            System.out.println("CREATE NEW LANG HIER " + mimeType + " on " + Thread.currentThread().getName());
             result = new AdhocLanguageHierarchy(mimeType);
             loc.set(new SoftReference<>(result));
         }
@@ -65,12 +64,10 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     }
 
     void fire() {
-        System.out.println("FIRE CHANGE FROM AdhocLanguageFactory");
         super.firePropertyChange(PROP_LANGUAGE);
     }
 
     void discard(String mimeType) {
-        System.out.println("DISCARD LANGUAGE INSTANCE FOR " + mimeType);
         ThreadLocal<SoftReference<AdhocLanguageHierarchy>> localRef = cache.remove(mimeType);
         if (localRef != null) {
             SoftReference<AdhocLanguageHierarchy> ref = localRef.get();

@@ -117,7 +117,8 @@ public class AntlrFormatter implements Formatter {
 
     @Override
     public void reindent(Context cntxt) {
-        reformat(cntxt, null);
+        // do nothing
+        System.out.println("REINDENT " + cntxt.startOffset() + ":" + cntxt.endOffset());
     }
 
     @Override
@@ -147,6 +148,7 @@ public class AntlrFormatter implements Formatter {
                 ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromString(document.getText(0, document.getLength())));
                 lexer.removeErrorListeners();
                 String reformatted = reformat(lexer, start, end, settings);
+                new Exception("\n\nREFORMATTED TO\n" + reformatted + "\n\n").printStackTrace(System.out);
                 document.replace(start, end, reformatted, null);
             } catch (BadLocationException ex) {
                 Exceptions.printStackTrace(ex);

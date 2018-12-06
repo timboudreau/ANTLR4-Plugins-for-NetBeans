@@ -1,0 +1,736 @@
+/*
+ * The MIT License
+ *
+ * Copyright 2018 Tim Boudreau.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets.ReferenceSet;
+
+/**
+ * Maps pairs of start/end offsets to a set of strings. Use with care: in
+ * particular, this class does not support unsorted or duplicate names, or
+ * overlapping ranges.
+ *
+ * @author Tim Boudreau
+ */
+public class Offsets implements Iterable<Item> {
+
+    private final int[] starts;
+    private final int[] ends;
+    private final String[] names;
+    private int size;
+
+    public Offsets(String[] names, int[] starts, int[] ends, int size) {
+        assert starts != null && ends != null && starts.length == ends.length;
+        assert names != null && names.length == starts.length;
+        this.names = names;
+        this.starts = starts;
+        this.ends = ends;
+        this.size = size;
+    }
+
+    public Offsets(String[] names) {
+        this.starts = new int[names.length];
+        this.ends = new int[names.length];
+        Arrays.fill(starts, -1);
+        Arrays.fill(ends, -1);
+        this.names = names;
+        Arrays.sort(this.names);
+        this.size = names.length;
+    }
+
+    public Set<String> itemsWithNoOffsets() {
+        Set<String> result = new HashSet<>();
+        for (int i = 0; i < size(); i++) {
+            if (starts[i] < 0 || ends[i] < 0) {
+                result.add(names[i]);
+            }
+        }
+        return result;
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public void removeItemsWithNoOffsets() {
+        for (String s : itemsWithNoOffsets()) {
+            remove(s);
+        }
+    }
+
+    public boolean remove(String name) {
+        int ix = indexOf(name);
+        if (ix < 0) {
+            return false;
+        }
+        int last = last();
+        if (last == 0) {
+            size = 0;
+            return true;
+        }
+        System.arraycopy(names, ix + 1, names, ix, size - (ix + 1));
+        System.arraycopy(starts, ix + 1, starts, ix, size - (ix + 1));
+        System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
+        size--;
+        return true;
+    }
+
+    public Set<String> newSet() {
+        return new BitSetSet<>(Indexed.forSortedStringArray(names));
+    }
+
+    public Offsets secondary() {
+        return new Offsets(names);
+    }
+
+    public Offsets sans(String... toRemove) {
+        return sans(Arrays.asList(toRemove));
+    }
+
+    public Offsets sans(Iterable<String> toRemove) {
+        BitSet set = new BitSet(size());
+        for (String s : toRemove) {
+            int ix = indexOf(s);
+            if (ix >= 0) {
+                set.set(ix);
+            }
+        }
+        int newCount = size() - set.cardinality();
+        if (newCount == 0) {
+            return this;
+        }
+        int[] newStarts = new int[newCount];
+        int[] newEnds = new int[newCount];
+        String[] newNames = new String[newCount];
+        int cursor = 0;
+        for (int i = 0; i < size(); i++) {
+            if (!set.get(i)) {
+                newStarts[cursor] = starts[i];
+                newEnds[cursor] = ends[i];
+                newNames[cursor] = names[i];
+                cursor++;
+            }
+        }
+        return new Offsets(newNames, newStarts, newEnds, newCount);
+    }
+
+    public int indexOf(String name) {
+        if (name == null) {
+            return -1;
+        }
+        int result = Arrays.binarySearch(names, 0, size, name);
+        return result < 0 ? -1 : result;
+    }
+
+    private int internalIndexOf(String name) {
+        int result = Arrays.binarySearch(names, 0, size, name);
+        if (result < 0) {
+            throw new IllegalArgumentException("Not a known name '"
+                    + name + "' in " + Arrays.toString(names));
+        }
+        return result;
+    }
+
+    int start(String name) {
+        return starts[internalIndexOf(name)];
+    }
+
+    int end(String name) {
+        return ends[internalIndexOf(name)];
+    }
+
+    void setOffsets(String name, int start, int end) {
+        assert end > start;
+        assert name != null;
+        int ix = internalIndexOf(name);
+        starts[ix] = start;
+        ends[ix] = end;
+    }
+
+    ItemImpl item(String name) {
+        return new ItemImpl(internalIndexOf(name));
+    }
+
+    public String get(int index) {
+        return names[index];
+    }
+
+    @Override
+    public Iterator<Item> iterator() {
+        return new Iter();
+    }
+
+    public boolean contains(String name) {
+        return indexOf(name) >= 0;
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < size(); i++) {
+            sb.append(names[i]).append('@').append(starts[i]).append(':').append(ends[i])
+                    .append('(').append(i).append(')');
+            if (i != size() - 1) {
+                sb.append(',');
+            }
+        }
+        return sb.toString();
+    }
+
+    public interface ReferenceSets extends Iterable<ReferenceSet> {
+
+        public void addReference(String name, int start, int end);
+
+        public ReferenceSet references(String name);
+
+        public Item itemAt(int pos);
+
+        public interface ReferenceSet {
+
+            int referenceCount();
+
+            boolean contains(int pos);
+
+            String name();
+
+            int visitReferences(CoordinateConsumer consumer);
+
+            @FunctionalInterface
+            interface CoordinateConsumer {
+
+                void consume(int start, int end);
+            }
+
+            Item original();
+        }
+    }
+
+    final class EmptyReferenceSet implements ReferenceSet {
+
+        private final int index;
+
+        public EmptyReferenceSet(int index) {
+            this.index = index;
+        }
+
+        public Iterator<ReferenceSet> iterator() {
+            return Collections.emptyIterator();
+        }
+
+        public Item itemAt(int pos) {
+            return null;
+        }
+
+        public String name() {
+            return names[index];
+        }
+
+        public boolean contains(int pos) {
+            return false;
+        }
+
+        @Override
+        public int referenceCount() {
+            return 0;
+        }
+
+        @Override
+        public int visitReferences(CoordinateConsumer consumer) {
+            return 0;
+        }
+
+        @Override
+        public Item original() {
+            return new ItemImpl(index);
+        }
+    }
+
+    public ReferenceSets newReferenceSets() {
+        return new ReferenceSetsImpl();
+    }
+
+    private class ReferenceSetsImpl implements ReferenceSets {
+
+        ReferenceSetImpl[] sets;
+
+        ReferenceSetsImpl() {
+            sets = new ReferenceSetImpl[size()];
+        }
+
+        public Item itemAt(int pos) {
+            for (int i = 0; i < sets.length; i++) {
+                if (sets[i] != null) {
+                    Item result = sets[i].itemAt(pos);
+                    if (result != null) {
+                        return result;
+                    }
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void addReference(String name, int start, int end) {
+            int ix = internalIndexOf(name);
+            if (sets[ix] == null) {
+                sets[ix] = new ReferenceSetImpl(ix);
+            }
+            sets[ix].add(start, end);
+        }
+
+        @Override
+        public ReferenceSet references(String name) {
+            int ix = internalIndexOf(name);
+            return sets[ix] == null ? new EmptyReferenceSet(ix) : sets[ix];
+        }
+
+        @Override
+        public Iterator<ReferenceSet> iterator() {
+            return new SetsIter();
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < sets.length; i++) {
+                if (sets[i] != null) {
+                    if (sb.length() > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append('[').append(sets[i]).append(']');
+                }
+            }
+            return sb.toString();
+        }
+
+        private class SetsIter implements Iterator<ReferenceSet> {
+
+            private int ix = 0;
+            private ReferenceSet nextSet;
+
+            public boolean hasNext() {
+                if (nextSet == null && ix < sets.length) {
+                    for (int i = ix; i < sets.length; i++) {
+                        if (sets[i] != null) {
+                            nextSet = sets[i];
+                            break;
+                        }
+                        ix++;
+                    }
+                }
+                return nextSet != null;
+            }
+
+            public ReferenceSet next() {
+                ReferenceSet result = nextSet;
+                if (result == null) {
+                    throw new IllegalStateException("next() called after end");
+                }
+                nextSet = null;
+                ix++;
+                return result;
+            }
+        }
+
+        private class ReferenceSetImpl implements ReferenceSet, Iterable<Item> {
+
+            private int[] referenceStarts = new int[3];
+            private int[] referenceEnds = new int[3];
+            private int size = 0;
+            private final int referenceIndex;
+
+            ReferenceSetImpl(int index) {
+                this.referenceIndex = index;
+            }
+
+            public Item original() {
+                return new ItemImpl(referenceIndex);
+            }
+
+            public String name() {
+                return names[referenceIndex];
+            }
+
+            void add(int start, int end) {
+                assert end > start;
+                assert size == 0 || referenceStarts[size - 1] < start;
+                assert size == 0 || referenceEnds[size - 1] < end;
+                int newSize = size + 1;
+                if (newSize > referenceStarts.length) {
+                    int len = referenceStarts.length + 3;
+                    referenceStarts = Arrays.copyOf(referenceStarts, len);
+                    referenceEnds = Arrays.copyOf(referenceEnds, len);
+                }
+                referenceStarts[size] = start;
+                referenceEnds[size] = end;
+                size++;
+            }
+
+            public boolean contains(int pos) {
+                return indexFor(pos) >= 0;
+            }
+
+            public Item itemAt(int pos) {
+                int ix = indexFor(pos);
+                return ix >= 0 ? new ReferenceItem(ix) : null;
+            }
+
+            private int indexFor(int pos) {
+                return rangeBinarySearch(pos, referenceStarts, referenceEnds, size);
+            }
+
+            @Override
+            public int referenceCount() {
+                return size;
+            }
+
+            @Override
+            public int visitReferences(CoordinateConsumer consumer) {
+                for (int i = 0; i < size; i++) {
+                    consumer.consume(referenceStarts[i], referenceEnds[i]);
+                }
+                return size;
+            }
+
+            @Override
+            public Iterator<Item> iterator() {
+                return new RefIter();
+            }
+
+            public String toString() {
+                StringBuilder sb = new StringBuilder('{');
+                for (int i = 0; i < size; i++) {
+                    if (sb.length() > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(name()).append('@').append(referenceStarts[i])
+                            .append(':').append(referenceEnds[i])
+                            .append('(').append(i).append(')');
+                }
+                return sb.append('}').toString();
+            }
+
+            class RefIter implements Iterator<Item> {
+
+                private int ix = -1;
+
+                @Override
+                public boolean hasNext() {
+                    return ix + 1 < size;
+                }
+
+                @Override
+                public Item next() {
+                    return new ReferenceItem(++ix);
+                }
+            }
+
+            class ReferenceItem implements Item {
+
+                private final int boundsIndex;
+
+                public ReferenceItem(int boundsIndex) {
+                    this.boundsIndex = boundsIndex;
+                }
+
+                @Override
+                public int start() {
+                    return referenceStarts[boundsIndex];
+                }
+
+                @Override
+                public int end() {
+                    return referenceEnds[boundsIndex];
+                }
+
+                @Override
+                public String name() {
+                    return names[referenceIndex];
+                }
+
+                @Override
+                public int index() {
+                    return referenceIndex;
+                }
+
+                @Override
+                public String toString() {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(name()).append('@').append(start()).append(':')
+                            .append(end()).append('(').append(referenceIndex).append(')');
+                    return sb.toString();
+                }
+            }
+        }
+    }
+
+    private final class Iter implements Iterator<Item> {
+
+        private int ix = -1;
+
+        @Override
+        public boolean hasNext() {
+            return ix + 1 < size();
+        }
+
+        @Override
+        public Item next() {
+            return new ItemImpl(++ix);
+        }
+    }
+
+    /**
+     * A flyweight object which encapsulates one entry in an Offsets.
+     */
+    public interface Item {
+
+        int start();
+
+        int end();
+
+        default int stop() {
+            return end() - 1;
+        }
+
+        String name();
+
+        int index();
+
+        default int length() {
+            return end() - start();
+        }
+
+        default boolean containsPosition(int pos) {
+            return pos >= start() && pos < end();
+        }
+    }
+
+    public interface Index extends Iterable<Item> {
+
+        public Item atOffset(int ix);
+
+        public Item withStart(int start);
+
+        public Item withEnd(int end);
+    }
+
+    private Index index;
+
+    public Index index() {
+        if (index != null) {
+            return index;
+        }
+        List<ItemImpl> all = new ArrayList<>(size());
+        for (int i = 0; i < size(); i++) {
+            all.add(new ItemImpl(i));
+        }
+        Collections.sort(all);
+        int[] indices = new int[size()];
+        int[] sortedStarts = new int[size()];
+        int[] sortedEnds = new int[size()];
+        for (int i = 0; i < size(); i++) {
+            ItemImpl item = all.get(i);
+            indices[i] = item.index();
+            if (item.start() == item.end()) {
+                throw new IllegalStateException("Some indices not set: " + item + " or zero size");
+            }
+            sortedStarts[i] = item.start();
+            sortedEnds[i] = item.end();
+        }
+        return index = new IndexImpl(sortedStarts, sortedEnds, indices);
+    }
+
+    int last() {
+        return size() - 1;
+    }
+
+    private final class IndexImpl implements Index {
+
+        private final int[] starts;
+        private final int[] ends;
+        private final int[] indices;
+
+        public IndexImpl(int[] starts, int[] ends, int[] indices) {
+            this.starts = starts;
+            this.ends = ends;
+            this.indices = indices;
+        }
+
+        public Item withStart(int start) {
+            int offset = Arrays.binarySearch(starts, 0, size, start);
+            return offset < 0 ? null : new ItemImpl(indices[offset]);
+        }
+
+        public Item withEnd(int end) {
+            int offset = Arrays.binarySearch(ends, 0, size, end);
+            return offset < 0 ? null : new ItemImpl(indices[offset]);
+        }
+
+        private int indexFor(int pos) {
+            return rangeBinarySearch(pos, starts, ends, size);
+        }
+
+        @Override
+        public Item atOffset(int pos) {
+            int ix = indexFor(pos);
+            return ix < 0 ? null : new ItemImpl(ix);
+        }
+
+        @Override
+        public Iterator<Item> iterator() {
+            return new IndexIter();
+        }
+
+        class IndexIter implements Iterator<Item> {
+
+            private int ix = -1;
+
+            @Override
+            public boolean hasNext() {
+                return ix + 1 < size();
+            }
+
+            @Override
+            public Item next() {
+                return new ItemImpl(indices[++ix]);
+            }
+        }
+    }
+
+    private final class ItemImpl implements Item, Comparable<Item> {
+
+        private final int index;
+
+        public ItemImpl(int index) {
+            this.index = index;
+        }
+
+        @Override
+        public String toString() {
+            return name() + "@" + start() + ":" + end() + "(" + index() + ")";
+        }
+
+        public int index() {
+            return index;
+        }
+
+        boolean overlaps(int pos) {
+            return pos >= start() && pos < end();
+        }
+
+        @Override
+        public int start() {
+            return starts[index];
+        }
+
+        @Override
+        public int end() {
+            return ends[index];
+        }
+
+        @Override
+        public String name() {
+            return names[index];
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof Item) {
+                Item other = (Item) o;
+                return other.name().equals(name());
+            } else {
+                return false;
+            }
+        }
+
+        public int hashCode() {
+            return name().hashCode();
+        }
+
+        @Override
+        public int compareTo(Item o) {
+            int sa = start();
+            int sb = o.start();
+            int result = sa > sb ? 1 : sa == sb ? 0 : -1;
+            if (result == 0) {
+                int ea = end();
+                int eb = o.end();
+                result = ea > eb ? -1 : ea == eb ? 0 : -1;
+            }
+            return result;
+        }
+    }
+
+    static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, int[] ends, int size) {
+        int firstStart = starts[searchFirst];
+        int lastEnd = ends[searchLast];
+        int firstEnd = ends[searchFirst];
+        if (pos >= firstStart && pos < firstEnd) {
+            return searchFirst;
+        } else if (pos < firstStart) {
+            return -1;
+        } else if (pos == lastEnd - 1) {
+            return searchLast;
+        } else if (pos > lastEnd) {
+            return -1;
+        }
+        int lastStart = starts[searchLast];
+        if (pos >= lastStart && pos < lastEnd) {
+            return searchLast;
+        } else if (pos == firstEnd - 1) {
+            return searchFirst;
+        }
+        int mid = searchFirst + ((searchLast - searchFirst) / 2);
+        if (mid == searchFirst || mid == searchLast) {
+            return -1;
+        }
+        int midStart = starts[mid];
+        int midEnd = ends[mid];
+        if (pos >= midStart && pos < midEnd) {
+            return mid;
+        }
+        if (pos > midEnd) {
+            return rangeBinarySearch(pos, mid + 1, searchLast - 1, starts, ends, size);
+        } else {
+            return rangeBinarySearch(pos, searchFirst + 1, mid - 1, starts, ends, size);
+        }
+    }
+
+    static int rangeBinarySearch(int pos, int[] starts, int[] ends, int size) {
+        if (size == 0 || pos < starts[0] || pos >= ends[size - 1]) {
+            return -1;
+        }
+        return rangeBinarySearch(pos, 0, size - 1, starts, ends, size);
+    }
+}

@@ -62,7 +62,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         return null;
     }
 
-    @Override
+//    @Override
     protected Lexer<AdhocTokenId> createLexer(LexerRestartInfo<AdhocTokenId> lri) {
         String text = drain(lri.input());
         synchronized (this) {
@@ -74,7 +74,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
     }
 
 //    @Override
-    protected Lexer<AdhocTokenId> ycreateLexer(LexerRestartInfo<AdhocTokenId> lri) {
+    protected Lexer<AdhocTokenId> ucreateLexer(LexerRestartInfo<AdhocTokenId> lri) {
 //        debugLog("CREATE LEXER FOR lri " + System.identityHashCode(lri));
         new Exception("CREATE LEXER FOR lri " + System.identityHashCode(lri));
         return new AdhocLexer3(cursorSupplier(lri), mimeType);
@@ -93,6 +93,9 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
     }
 
     private void debugLog(String txt) {
+        if (true) {
+            return;
+        }
         String toLog = "[" + Thread.currentThread().getId() + ":"
                 + Thread.currentThread().getName()
                 + ":"
@@ -130,7 +133,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 }
             }
         } finally {
-            System.out.println("READ " + count + " CHARS FROM lri " + System.identityHashCode(lri));
 //            debugLog("Back up input by " + count);
 //            in.backup(count);
         }
@@ -164,15 +166,12 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
 
     private String drain(LexerInput input) {
         if (input.readLengthEOF() > 0) {
-            System.out.println("LexerInput arrived in strange state, backing up " + input.readLengthEOF()
-                    + " EXISTING TEXT: '" + input.readText() + "'");
             input.backup(input.readLengthEOF());
         }
         for (;;) {
             if (input.read() == -1) {
                 String result = input.readText().toString();
                 int backupBy = input.readLengthEOF();
-                System.out.println("READ " + result.length() + " chars, backup by " + backupBy);
                 input.backup(backupBy);
                 return result;
             }
@@ -223,10 +222,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
     }
 
     private Supplier<Iterator<Token<AdhocTokenId>>> cursorSupplier(LexerRestartInfo<AdhocTokenId> info) {
-        System.out.println("STATE: " + info.state());
         if (info.state() instanceof LexerInputCursor) {
             return () -> {
-                System.out.println("USE EXISTING LEXER STATE " + info.state());
                 Iterator<Token<AdhocTokenId>> cur = (Iterator<Token<AdhocTokenId>>) info.state();
                 return cur;
             };
@@ -243,19 +240,16 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
             if (!txt.equals(this.proxy.text())) {
                 if (!txt.isEmpty()) {
                     currProxy = DynamicLanguageSupport.parseImmediately(mimeType, txt, CREATE_LEXER);
-                    System.err.println("REBOOT PROXY '" + truncated(currProxy.text()) + "'");
                     setProxy(currProxy);
                 } else {
                     currProxy = setProxy(this.proxy.toEmptyParseTreeProxy(txt));
-                    new Exception("CREATE EMPTY TREE FOR TEXT '" + txt + "' FROM INPUT").printStackTrace(System.err);
                 }
             } else {
-                System.err.println("proxy text matches lexer input, no reparse");
                 currProxy = this.proxy;
             }
-            if (currProxy.isUnparsed()) {
-                System.err.println("PROXY IS UNPARSED");
-            }
+//            if (currProxy.isUnparsed()) {
+//                System.err.println("PROXY IS UNPARSED");
+//            }
             List<AdhocTokenId> currIds = createTokenIds();
             final ParseTreeProxy px = currProxy;
             List<ProxyToken> tokens = px.tokens();
@@ -362,8 +356,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         }
 
         private Token<AdhocTokenId> createToken(AdhocTokenId id, int length) {
-            System.out.println("CREATE TOKEN " + cursor + " " + id.name() + " of " + length
-                    + " for " + info.input().readLength());
             return info.tokenFactory().createToken(id, length);
         }
 
@@ -376,7 +368,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         private Token<AdhocTokenId> findNextToken() {
             if (cursor >= tokens.size()) {
                 // We reached the normal end of the parse
-                System.out.println("CURSOR IS COUNT - RETURN NULL");
                 return null;
             }
             if (nextIsEof) {
@@ -384,17 +375,14 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 // returned it as a dummy token in the previous pass,
                 // OR the lexer did not parse all characters in the file, and we
                 // hit EOF but returned a dummy token for the tail of it
-                System.out.println("NEXT IS EOF AT " + (cursor + 1) + " - RETURN NULL");
                 nextIsEof = false;
                 return null;
             }
             AntlrProxies.ProxyToken tok = tokens.get(++cursor);
-            System.out.println("TOK " + tokenIds.get(tok.getType() + 1) + " '" + truncated(tok.getText()) + "'");
             if (tok.isEOF()) {
 //            System.out.println(cursor + ": EOF WITH TOKEN " + tok + " '" + tok.getText() + "'");
                 // Wind the LexerInput all the way down to the end (occasionally we get
                 // a screwey LexerInput that will return a few million Character.MAX_VALUEs...sigh)
-                System.out.println(cursor + ": EOF WITH TOKEN " + tok + " '" + tok.getText() + "'");
                 StringBuilder sb = new StringBuilder();
                 // XXX we do not actually need to capture these characters in a stringbuilder - just
                 // useful for logging
@@ -402,14 +390,11 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 while ((ch = info.input().read()) != -1) {
                     sb.append((char) ch);
                 }
-                System.out.println(cursor + ": GOT EOF TOKEN WITH TEXT '" + tok.getText() + "'");
                 if (sb.length() > 0) {
                     // Screwball EOF token handling I
-                    System.out.println(cursor + ": FINALE DUMMY TOKEN TEXT '" + truncated(sb.toString()) + "' with length " + sb.length());
                     nextIsEof = true;
                     return createDummyToken(sb.length());
                 }
-                System.out.println("DONE with EOF TOKEN at " + cursor + " / " + tokens.size());
                 // Normal EOF token and no extraneous input - we're done
                 return null;
             }
@@ -427,9 +412,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 if (count == len) {
                     break;
                 }
-            }
-            if (count > 0) {
-                System.out.println("FAST FORWARDED " + count);
             }
             // If the token contains different text than the LexerInput provided,
             // something is wrong - perhaps the grammar skipped some tokens?
@@ -514,11 +496,9 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 ProxyToken tok = tokens.get(cursor);
                 if (tok.isEOF()) {
                     if (tok.getText().length() > 0) {
-                        System.out.println("ANOTHER TOKEN AT EOF BECAUSE TEXT '" + tok.getText() + "'");
                         return true;
                     }
                     if (textPosition < inputLength) {
-                        System.out.println("ANOTHER TOKEN AT EOF BECAUSE TEXT POSITION " + textPosition + " AND INPUT LENGTH " + inputLength);
                         return true;
                     }
                     return false;
@@ -530,7 +510,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         private void readOneCharFromLRI() {
             lriPosition++;
             char c = (char) info.input().read();
-            System.out.println("  ONE CHAR: '" + c + "' (" + (int) c + ") for " + lriPosition);
         }
 
         @Override
@@ -556,12 +535,10 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 lriPosition = tok.getStopIndex() + 1;
                 textPosition += tok.length();
                 AdhocTokenId id = tokenIds.get(tok.getType() + 1);
-                System.out.println("TOK-" + tok.getTokenIndex() + ": " + id.name() + "@" + tok.getStartIndex() + ":" + tok.getStopIndex());
                 return fac.createToken(id, tok.length());
             } finally {
                 while (lriPosition < textPosition) {
                     readOneCharFromLRI();
-                    System.out.println("AFTER TOKEN " + cursor + " READ LENGTH IS " + info.input().readLength());
                 }
             }
         }
@@ -635,8 +612,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                 debugLog("EMPTY or null text '" + txt + "' for token "
                         + proxy.tokenTypeForInt(tok.getType()) + " tokenText length " + tok.getText().length()
                         + " token start/stop " + tok.getStartIndex() + "/" + tok.getEndIndex());
-                System.out.println("EXPECTED TEXT POSITION " + expectedTextPosition + " charsHandledByTokens " + charsHandledByTokens
-                        + " text length " + text.length());
                 continue;
             }
 

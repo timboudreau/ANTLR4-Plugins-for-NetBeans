@@ -23,9 +23,9 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
 
     private final InMemoryAntlrSourceGenerationBuilder bldr;
     private static final Logger LOG = Logger.getLogger(InMemoryParseProxyBuilder.class.getName());
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+//    static {
+//        LOG.setLevel(Level.ALL);
+//    }
 
     public InMemoryParseProxyBuilder(InMemoryAntlrSourceGenerationBuilder bldr) {
         this.bldr = bldr;
@@ -61,7 +61,7 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
                         && lastResult.parseResult().get().parseTree().isPresent()
                         && !lastResult.parseResult().get().parseTree().get().isUnparsed()) {
                 }
-                System.out.println("USING LAST RESULT - TEXT IS SAME " + text.length() + " chars");
+//                System.out.println("USING LAST RESULT - TEXT IS SAME " + text.length() + " chars");
                 return lastResult;
             }
         }

@@ -236,11 +236,8 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                 setEnabled(enabled);
                 if (enabled) {
                     perform(parserResult, proxy);
-                } else {
-                    System.out.println("did not find a proxy");
                 }
             } else {
-                System.out.println("did not find a parser result");
                 setEnabled(false);
             }
         }
@@ -273,11 +270,8 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         @Override
         public void resultChanged(LookupEvent le) {
             Mutex.EVENT.readAccess(() -> {
-                System.out.println("lookup result changed");
                 ANTLRv4ParserResult parserResult = first(parserResultResult);
-                System.out.println("  got parser result? " + (parserResult != null));
                 ParseTreeProxy proxy = first(proxyResult);
-                System.out.println("  got proxy result " + (proxy != null));
                 boolean enabled = parserResult != null && proxy != null;
                 setEnabled(enabled);
             });
@@ -286,7 +280,6 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         private void addNotify() {
             parserResultResult.addLookupListener(this);
             proxyResult.addLookupListener(this);
-            System.out.println("FindCulpritAction Starts Listening");
             resultChanged(null);
         }
 
