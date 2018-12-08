@@ -8,6 +8,7 @@ import java.io.ObjectOutput;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -73,22 +74,42 @@ public class SemanticParser {
         return extract(parser.grammarFile());
     }
 
-    public RulesInfo extract(ANTLRv4Parser.GrammarFileContext file) {
+    public RulesInfo extract(ANTLRv4Parser.GrammarFileContext file) throws IOException {
+        return extract(file, new HashMap<>());
+    }
+
+    public RulesInfo extract(ANTLRv4Parser.GrammarFileContext file, Map<String, RulesInfo> infoForGrammar) throws IOException {
+        String grammarName = file.grammarSpec().identifier().getText(); // XXX NPE
+        System.out.println("GRAMMAR NAME: " + grammarName);
 
         Set<String> delegatedGrammars = file.accept(new ImportFinder());
+        for (String del : delegatedGrammars) {
+            if (!infoForGrammar.containsKey(del)) {
+                RulesInfo info = streamSupplier.charStream(del, (lastModified, streamSupplier) ->{
+                    return parse(streamSupplier.get(), lastModified);
+                });
+                System.out.println("PARSED DELEGATE '" + del + "'");
+                infoForGrammar.put(del, info);
+            }
+        }
 
         System.out.println("DELEGATED GRAMMARS: " + delegatedGrammars);
-
-        String grammarName = file.grammarSpec().identifier().getText(); // XXX NPE
-
-        System.out.println("GRAMMAR NAME: " + grammarName);
 
         // Read dependent grammars first
         // Need a RulesInfo implementation for a missing file
         // Move all this to a different package
         Offsets<AntlrRuleKind> names = file.accept(new RuleNamesCollector()).build();
 
-        RulesInfo info = file.accept(new ReferenceCollector(names)).build();
+        RuleAlternativeCollector coll = new RuleAlternativeCollector();
+        file.accept(coll);
+        Offsets<AntlrRuleKind> labels = coll.labels.build();
+        Offsets<AntlrRuleKind> alternativesForLabels = coll.alternativesForLabels.build();
+
+        RulesInfo info = file.accept(new ReferenceCollector(names))
+                .setLabelsAndAlternatives(labels, alternativesForLabels)
+                .build();
+
+        infoForGrammar.put(grammarName, info);
 
         // Collect EBNFs and other interesting things
         return info;
@@ -165,23 +186,43 @@ public class SemanticParser {
         PARSER_RULE_LABEL
     }
 
-    static enum ReferenceKind {
-        PARSER_RULE_REFERENCE,
-        LEXER_RULE_REFERENCE,
-        FRAGMENT_RULE_REFERENCE,
-        FOREIGN_RULE_REFERENCE,
-        UNKNOWN_REFERENCE;
+    private static class RuleAlternativeCollector extends ANTLRv4BaseVisitor<OffsetsBuilder<AntlrRuleKind>> {
 
-        ReferenceKind forRuleKind(AntlrRuleKind kind) {
-            switch (kind) {
-                case PARSER_RULE:
-                    return PARSER_RULE_REFERENCE;
-                case LEXER_RULE:
-                    return LEXER_RULE_REFERENCE;
-                case FRAGMENT_RULE:
-                    return FRAGMENT_RULE_REFERENCE;
+        private final OffsetsBuilder<AntlrRuleKind> labels
+                = Offsets.builder(AntlrRuleKind.class);
+
+        private final OffsetsBuilder<AntlrRuleKind> alternativesForLabels
+                = Offsets.builder(AntlrRuleKind.class);
+
+        @Override
+        protected OffsetsBuilder<AntlrRuleKind> defaultResult() {
+            return labels;
+        }
+
+        @Override
+        public OffsetsBuilder<AntlrRuleKind> visitParserRuleLabeledAlternative(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
+            ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
+            if (idc != null) {
+                TerminalNode idTN = idc.ID();
+                if (idTN != null) {
+                    Token labelToken = idTN.getSymbol();
+                    if (labelToken != null) {
+                        labels.add(labelToken.getText(), AntlrRuleKind.PARSER_RULE_LABEL, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
+                        alternativesForLabels.add(labelToken.getText(), AntlrRuleKind.PARSER_RULE_LABEL, ctx.getStart().getStartIndex(), ctx.getStop().getStopIndex() + 1);
+                    }
+                }
             }
-            return UNKNOWN_REFERENCE;
+            return super.visitParserRuleLabeledAlternative(ctx);
+        }
+
+        @Override
+        public OffsetsBuilder<AntlrRuleKind> visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
+            return labels;
+        }
+
+        @Override
+        public OffsetsBuilder<AntlrRuleKind> visitFragmentRuleDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+            return labels;
         }
     }
 
@@ -194,21 +235,6 @@ public class SemanticParser {
         @Override
         protected OffsetsBuilder<AntlrRuleKind> defaultResult() {
             return names;
-        }
-
-        @Override
-        public OffsetsBuilder<AntlrRuleKind> visitParserRuleLabeledAlternative(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
-            ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
-            if (idc != null) {
-                TerminalNode idTN = idc.ID();
-                if (idTN != null) {
-                    Token labelToken = idTN.getSymbol();
-                    if (labelToken != null) {
-                        names.add(labelToken.getText(), AntlrRuleKind.PARSER_RULE_LABEL, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
-                    }
-                }
-            }
-            return super.visitParserRuleLabeledAlternative(ctx);
         }
 
         @Override
@@ -325,29 +351,9 @@ public class SemanticParser {
                     }
                 }
             }
-//            return super.visitParserRuleSpec(ctx);
             return names;
         }
 
-//        @Override
-//        public OffsetsBuilder<AntlrRuleKind> visitParserRuleDeclaration(ANTLRv4Parser.ParserRuleDeclarationContext decl) {
-//                ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
-//                if (ident != null) {
-//                    TerminalNode tn = ident.PARSER_RULE_ID();
-//                    if (tn != null) {
-//                        Token id = tn.getSymbol();
-//                        if (id != null) {
-//                            String ruleId = id.getText();
-//                            if (!MISSING_ID.equals(ruleId)) {
-//                                names.enterRule(ruleId, ctx.getStart().getStartIndex(), ctx.getStop().getStopIndex() + 1, () -> {
-//                                    super.visitParserRuleSpec(ctx);
-//                                });
-//                            }
-//                        }
-//                    }
-//                }
-//            return super.visitParserRuleDeclaration(ctx); //To change body of generated methods, choose Tools | Templates.
-//        }
         @Override
         public ReferencesInfoBuilder visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
             TerminalNode tn = ctx.TOKEN_ID();
@@ -414,17 +420,23 @@ public class SemanticParser {
         private final BitSetStringGraph usageGraph;
         private final Offsets<AntlrRuleKind> ruleBounds;
         private final Map<String, List<int[]>> unknownReferences;
+        private Offsets<AntlrRuleKind> alternativesForLabels;
+        private Offsets<AntlrRuleKind> labels;
 
-        public RulesInfo(Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, Usages usages, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences) {
-            this(offsets, refs, new BitSetStringGraph(usages.toBitSetTree(), offsets.nameArray()), ruleBounds, unknownReferences);
+        public RulesInfo(Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, Usages usages, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels) {
+            this(offsets, refs, new BitSetStringGraph(usages.toBitSetTree(), offsets.nameArray()), ruleBounds, unknownReferences, labels, alternativesForLabels);
         }
 
-        public RulesInfo(Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, BitSetStringGraph usageGraph, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences) {
+        public RulesInfo(Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, BitSetStringGraph usageGraph, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels) {
+            assert labels != null : "Null labels";
+            assert alternativesForLabels != null : "Null alternativesForLabels";
             this.offsets = offsets;
             this.refs = refs;
             this.usageGraph = usageGraph;
             this.ruleBounds = ruleBounds;
             this.unknownReferences = unknownReferences;
+            this.labels = labels;
+            this.alternativesForLabels = alternativesForLabels;
         }
 
         public RulesInfo() {
@@ -433,6 +445,20 @@ public class SemanticParser {
             usageGraph = null;
             ruleBounds = null;
             unknownReferences = null;
+        }
+
+        public List<Item<AntlrRuleKind>> labels() {
+            List<Item<AntlrRuleKind>> result = new ArrayList<>(labels.size());
+            labels.collectItems(result);
+            Collections.sort(result);
+            return result;
+        }
+
+        public List<Item<AntlrRuleKind>> labelClauses() {
+            List<Item<AntlrRuleKind>> result = new ArrayList<>(labels.size());
+            alternativesForLabels.collectItems(result);
+            Collections.sort(result);
+            return result;
         }
 
         @Override
@@ -465,6 +491,12 @@ public class SemanticParser {
                 f = RulesInfo.class.getDeclaredField("unknownReferences");
                 f.setAccessible(true);
                 f.set(this, stub.unknownReferences);
+                f = RulesInfo.class.getDeclaredField("labels");
+                f.setAccessible(true);
+                f.set(this, stub.labels);
+                f = RulesInfo.class.getDeclaredField("alternativesForLabels");
+                f.setAccessible(true);
+                f.set(this, stub.alternativesForLabels);
             } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
                 throw new IOException(ex);
             }
@@ -477,6 +509,8 @@ public class SemanticParser {
             private BitSetStringGraph usageGraph;
             private Offsets<AntlrRuleKind> ruleBounds;
             private Map<String, List<int[]>> unknownReferences;
+            private Offsets<AntlrRuleKind> labels;
+            private Offsets<AntlrRuleKind> alternativesForLabels;
 
             SerializationStub(RulesInfo info) {
                 this.offsets = info.offsets;
@@ -484,6 +518,8 @@ public class SemanticParser {
                 this.usageGraph = info.usageGraph;
                 this.ruleBounds = info.ruleBounds;
                 this.unknownReferences = info.unknownReferences;
+                this.labels = info.labels;
+                this.alternativesForLabels = info.alternativesForLabels;
             }
 
             public SerializationStub() {
@@ -491,7 +527,7 @@ public class SemanticParser {
             }
 
             RulesInfo toRulesInfo() {
-                return new RulesInfo(offsets, refs, usageGraph, ruleBounds, unknownReferences);
+                return new RulesInfo(offsets, refs, usageGraph, ruleBounds, unknownReferences, labels, alternativesForLabels);
             }
 
             @Override
@@ -501,6 +537,8 @@ public class SemanticParser {
                 out.writeObject(refs);
                 out.writeObject(ruleBounds);
                 out.writeObject(unknownReferences);
+                out.writeObject(labels);
+                out.writeObject(alternativesForLabels);
                 usageGraph.save(out);
             }
 
@@ -515,6 +553,8 @@ public class SemanticParser {
                 refs = (ReferenceSets<AntlrRuleKind>) in.readObject();
                 ruleBounds = (Offsets<AntlrRuleKind>) in.readObject();
                 unknownReferences = (Map<String, List<int[]>>) in.readObject();
+                labels = (Offsets<AntlrRuleKind>) in.readObject();
+                alternativesForLabels = (Offsets<AntlrRuleKind>) in.readObject();
                 usageGraph = BitSetStringGraph.load(in);
             }
         }
@@ -548,7 +588,6 @@ public class SemanticParser {
             refs.references(rule).collectItems(items);
             return items;
         }
-
     }
 
     private static final class ReferencesInfoBuilder {
@@ -558,12 +597,20 @@ public class SemanticParser {
         private final Offsets<AntlrRuleKind>.UsagesImpl usages;
         private final Offsets<AntlrRuleKind> ruleBounds;
         private final Map<String, List<int[]>> unknownReferences = new TreeMap<>();
+        private Offsets<AntlrRuleKind> labels;
+        private Offsets<AntlrRuleKind> alternativesForLabels;
 
         public ReferencesInfoBuilder(Offsets<AntlrRuleKind> offsets) {
             this.offsets = offsets;
             this.refs = offsets.newReferenceSets();
             this.usages = offsets.newUsages();
             this.ruleBounds = offsets.secondary();
+        }
+
+        public ReferencesInfoBuilder setLabelsAndAlternatives(Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels) {
+            this.labels = labels;
+            this.alternativesForLabels = alternativesForLabels;
+            return this;
         }
 
         RulesInfo build() {
@@ -574,14 +621,14 @@ public class SemanticParser {
             List<Item<AntlrRuleKind>> refItems = new ArrayList<>();
             refs.collectItems(refItems);
             Collections.sort(refItems);
-            ReferenceSets<AntlrRuleKind> rebuilt = ruleBounds.newReferenceSets();
-            // XXX things are getting removed after the offsets is created
-            for (Item<AntlrRuleKind> i : refItems) {
-                if (ruleBounds.contains(i.name())) {
-                    rebuilt.addReference(i.name(), i.start(), i.end());
-                }
-            }
-            return new RulesInfo(offsets, rebuilt, usages, ruleBounds, unknownReferences);
+//            ReferenceSets<AntlrRuleKind> rebuilt = ruleBounds.newReferenceSets();
+//            // XXX things are getting removed after the offsets is created
+//            for (Item<AntlrRuleKind> i : refItems) {
+//                if (ruleBounds.contains(i.name())) {
+//                    rebuilt.addReference(i.name(), i.start(), i.end());
+//                }
+//            }
+            return new RulesInfo(offsets, refs, usages, ruleBounds, unknownReferences, labels, alternativesForLabels);
         }
 
         private Item<AntlrRuleKind> currentRule;

@@ -37,6 +37,7 @@ public class SemanticParserTest {
         for (Item<AntlrRuleKind> i : ri.allItems()) {
             System.out.println(ix++ + ": " + i);
         }
+        ix=0;
         System.out.println("\n-------------------------- RULES --------------------------------");
         for (Item<AntlrRuleKind> i : ri.allRules()) {
             System.out.println(ix++ + ": " + i);
@@ -45,8 +46,19 @@ public class SemanticParserTest {
         System.out.println(ri.unknownReferenceNames());
 
         System.out.println("\n-------------------------- USAGES --------------------------------");
-
         System.out.println(ri.usageGraph());
+
+        ix=0;
+        System.out.println("\n-------------------------- LABELS --------------------------------");
+        for (Item<AntlrRuleKind> i : ri.labels()) {
+            System.out.println(ix++ + ": " + i);
+        }
+
+        ix=0;
+        System.out.println("\n-------------------------- LABEL ATOMS --------------------------------");
+        for (Item<AntlrRuleKind> i : ri.labelClauses()) {
+            System.out.println(ix++ + ": " + i);
+        }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ObjectOutputStream oout = new ObjectOutputStream(out)) {
@@ -98,8 +110,7 @@ public class SemanticParserTest {
         }
         out.close();
         byte[] b = out.toByteArray();
-        System.out.println("BST SAVED AS " + b.length);
-        System.out.println("==" + new String(b));
+        System.out.println("BST SERIALIZED TO " + b.length + " BYTES");
         BitSetTree bst2 = BitSetTree.load(new ObjectInputStream(new ByteArrayInputStream(b)));
         assertEquals(bst, bst2);
 

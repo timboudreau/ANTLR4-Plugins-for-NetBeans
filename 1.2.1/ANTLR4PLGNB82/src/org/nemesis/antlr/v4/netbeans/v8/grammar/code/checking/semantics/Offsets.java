@@ -222,7 +222,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             index();
             index = this.index;
         }
-        return Arrays.binarySearch(index.starts, starts[ix]);
+        return Arrays.binarySearch(index.starts, 0, size, starts[ix]);
     }
 
     public int orderingOf(String name) {
