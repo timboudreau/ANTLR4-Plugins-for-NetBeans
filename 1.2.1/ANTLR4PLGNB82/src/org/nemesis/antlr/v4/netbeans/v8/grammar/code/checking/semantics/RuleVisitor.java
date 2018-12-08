@@ -5,6 +5,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
  *
  * @author Tim Boudreau
  */
+@FunctionalInterface
 public interface RuleVisitor {
 
     /**
@@ -21,6 +22,6 @@ public interface RuleVisitor {
      */
     void enterRule(String rule, int depth);
 
-    void exitRule(String rule, int depth);
+    default void exitRule(String rule, int depth) {}
 
 }

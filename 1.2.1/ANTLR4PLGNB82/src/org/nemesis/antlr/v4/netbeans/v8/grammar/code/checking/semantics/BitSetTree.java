@@ -1,5 +1,8 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import static java.lang.Math.sqrt;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +26,7 @@ final class BitSetTree {
     private final BitSet bottomLevel;
 
     public BitSetTree(BitSet[] ruleReferences, BitSet[] referencedBy) {
+        assert sanityCheck(ruleReferences, referencedBy);
         this.ruleReferences = ruleReferences;
         this.referencedBy = referencedBy;
         BitSet ruleReferencesKeys = keySet(ruleReferences);
@@ -35,11 +39,102 @@ final class BitSetTree {
         bottomLevel.andNot(ruleReferencesKeys);
     }
 
+    public BitSetTree(BitSet[] references) {
+        this(references, inverseOf(references));
+    }
+
+    void save(ObjectOutput out) throws IOException {
+        out.writeInt(1); // version
+        out.writeInt(ruleReferences.length);
+        for (int i = 0; i < ruleReferences.length; i++) {
+            if (ruleReferences[i].cardinality() > 0) {
+                out.writeObject(ruleReferences[i].toLongArray());
+            } else {
+                out.writeObject(null);
+            }
+        }
+        out.flush();
+    }
+
+    static BitSetTree load(ObjectInput in) throws IOException, ClassNotFoundException {
+        int ver = in.readInt();
+        if (ver != 1) {
+            throw new IOException("Unsupoorted version " + ver);
+        }
+        int count = in.readInt();
+        BitSet[] sets = new BitSet[count];
+        for (int i = 0; i < sets.length; i++) {
+            long[] vals = (long[]) in.readObject();
+            if (vals == null) {
+                sets[i] = new BitSet(0);
+            } else {
+                sets[i] = BitSet.valueOf(vals);
+            }
+        }
+        return new BitSetTree(sets);
+    }
+
+    private static BitSet[] inverseOf(BitSet[] ruleReferences) {
+        int size = ruleReferences.length;
+        BitSet empty = null;
+        BitSet[] reverseUsages = new BitSet[size];
+        for (int i = 0; i < size; i++) {
+            if (ruleReferences[i] == null) {
+                if (empty == null) {
+                    empty = new BitSet(0);
+                }
+                ruleReferences[i] = empty;
+            }
+            for (int j = 0; j < size; j++) {
+                BitSet b = ruleReferences[j];
+                if (b != null) {
+                    if (b.get(i)) {
+                        if (reverseUsages[i] == null) {
+                            reverseUsages[i] = new BitSet(size);
+                        }
+                        reverseUsages[i].set(j);
+                    }
+                }
+            }
+            if (reverseUsages[i] == null) {
+                if (empty == null) {
+                    empty = new BitSet(0);
+                }
+                reverseUsages[i] = empty;
+            }
+        }
+        return reverseUsages;
+    }
+
+    private boolean sanityCheck(BitSet[] ruleReferences, BitSet[] referencedBy) {
+        boolean asserts = false;
+        assert asserts = true;
+        if (!asserts) {
+            return true;
+        }
+        assert ruleReferences.length == referencedBy.length : "BitSet array lengths do not match: "
+                + ruleReferences.length + " and " + referencedBy.length;
+        for (int i = 0; i < ruleReferences.length; i++) {
+            int ix = i;
+            forEach(ruleReferences[i], bit -> {
+                BitSet reverse = referencedBy[bit];
+                assert reverse.get(ix) : "ruleReferences[" + ix + "] says it "
+                        + "references " + bit + " but referencedBy[" + bit + "]"
+                        + " does not have " + ix + " set";
+            });
+        }
+        return true;
+    }
+
     interface IntRuleVisitor {
 
         void enterRule(int ruleId, int depth);
 
         void exitRule(int ruleId, int depth);
+    }
+
+    public String toString() {
+        return "BitSetTree{size=" + ruleReferences.length + "}";
     }
 
     public void walk(IntRuleVisitor v) {
@@ -446,7 +541,7 @@ final class BitSetTree {
         return referencedBy[rule];
     }
 
-    private BitSet keySet(BitSet[] bits) {
+    private static BitSet keySet(BitSet[] bits) {
         BitSet nue = new BitSet(bits.length);
         for (int i = 0; i < bits.length; i++) {
             if (bits[i].cardinality() > 0) {
@@ -522,5 +617,27 @@ final class BitSetTree {
 
     public RuleTree strings(String[] ruleNames) {
         return new StringRuleTree(this, ruleNames);
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 97 * hash + Arrays.deepHashCode(this.ruleReferences);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final BitSetTree other = (BitSetTree) obj;
+        return Arrays.deepEquals(this.ruleReferences, other.ruleReferences);
     }
 }
