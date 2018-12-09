@@ -43,14 +43,15 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.
  * Maps pairs of start/end offsets to a set of strings. Use with care: in
  * particular, this class does not support unsorted or duplicate names, or
  * overlapping ranges. This is the right data structure for an Antlr parse, but
- * not a general-purpose thing.
+ * not a general-purpose thing. It specifically uses shared arrays of names,
+ * start and end positions to minimize memory and disk-cache consumption.
  *
  * @author Tim Boudreau
  */
 public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializable {
 
     private final int[] starts;
-    private final int[] ends;
+    private final EndSupplier ends;
     private final String[] names;
     private final K[] kinds;
     private int size;
@@ -63,7 +64,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         assert kinds.getClass().getComponentType().isEnum();
         this.names = names;
         this.starts = starts;
-        this.ends = ends;
+        this.ends = new ArrayEndSupplier(ends);
         this.kinds = kinds;
         this.size = size;
     }
@@ -72,12 +73,11 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         assert kinds.length == names.length;
         assert new HashSet<>(Arrays.asList(names)).size() == names.length : "Names array contains duplicates: " + Arrays.toString(names);
         this.starts = new int[names.length];
-        this.ends = new int[names.length];
         this.kinds = kinds;
-        Arrays.fill(starts, -1);
-        Arrays.fill(ends, -1);
         this.names = names;
         Arrays.sort(this.names);
+        Arrays.fill(starts, -1);
+        this.ends = new StringEndSupplier();
         this.size = size;
     }
 
@@ -92,11 +92,70 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         return new OffsetsBuilder<>(type);
     }
 
+    interface EndSupplier extends Serializable {
+
+        int get(int index);
+
+        default MutableEndSupplier toMutable(int size) {
+            int[] result = new int[size];
+            for (int i = 0; i < size; i++) {
+                result[i] = get(i);
+            }
+            return new ArrayEndSupplier(result);
+        }
+    }
+
+    interface MutableEndSupplier extends EndSupplier {
+
+        void setEnd(int index, int val);
+
+        void remove(int index);
+    }
+
+    static class ArrayEndSupplier implements MutableEndSupplier {
+
+        private final int[] ends;
+
+        ArrayEndSupplier(int size) {
+            ends = new int[size];
+            Arrays.fill(ends, -1);
+        }
+
+        ArrayEndSupplier(int[] ends) {
+            this.ends = ends;
+        }
+
+        @Override
+        public int get(int index) {
+            return ends[index];
+        }
+
+        @Override
+        public void setEnd(int index, int val) {
+            ends[index] = val;
+        }
+
+        @Override
+        public void remove(int ix) {
+            int size = ends.length;
+            System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
+        }
+    }
+
+    class StringEndSupplier implements EndSupplier {
+
+        @Override
+        public int get(int index) {
+            return starts[index] == -1 ? -1 : starts[index] + names[index].length();
+        }
+    }
+
     public static final class OffsetsBuilder<K extends Enum<K>> {
 
         private final Class<K> type;
         private final Map<String, K> typeForName;
         private final Map<String, int[]> offsetsForName;
+        private boolean needArrayBased;
 
         private OffsetsBuilder(Class<K> type) {
             this.type = type;
@@ -104,9 +163,17 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             offsetsForName = new TreeMap<>();
         }
 
+        public OffsetsBuilder<K> arrayBased() {
+            needArrayBased = true;
+            return this;
+        }
+
         public OffsetsBuilder<K> add(String name, K kind, int start, int end) {
             add(name, kind);
             offsetsForName.put(name, new int[]{start, end});
+            if (end != name.length() + start) {
+                needArrayBased = true;
+            }
             return this;
         }
 
@@ -135,7 +202,16 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
                 assert kinds[i] != null;
                 last = name;
             }
-            Offsets<K> result = new Offsets<>(names, kinds, names.length);
+            Offsets<K> result;
+            if (!needArrayBased) {
+                result = new Offsets<>(names, kinds, names.length);
+            } else {
+                int[] starts = new int[names.length];
+                int[] ends = new int[names.length];
+                Arrays.fill(starts, -1);
+                Arrays.fill(ends, -1);
+                result = new Offsets<>(names, starts, ends, kinds, names.length);
+            }
             for (Map.Entry<String, int[]> e : offsetsForName.entrySet()) {
                 result.setOffsets(e.getKey(), e.getValue()[0], e.getValue()[1]);
             }
@@ -151,7 +227,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
     public Set<String> itemsWithNoOffsets() {
         Set<String> result = new HashSet<>();
         for (int i = 0; i < size(); i++) {
-            if (starts[i] < 0 || ends[i] < 0) {
+            if (starts[i] < 0 || ends.get(i) < 0) {
                 result.add(names[i]);
             }
         }
@@ -195,7 +271,9 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         }
         System.arraycopy(names, ix + 1, names, ix, size - (ix + 1));
         System.arraycopy(starts, ix + 1, starts, ix, size - (ix + 1));
-        System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
+        if (ends instanceof MutableEndSupplier) {
+            ((MutableEndSupplier) ends).remove(ix);
+        }
         System.arraycopy(kinds, ix + 1, kinds, ix, size - (ix + 1));
         size--;
         index = null;
@@ -209,7 +287,11 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
     public Offsets<K> secondary() {
         String[] n = Arrays.copyOf(names, size);
         K[] k = Arrays.copyOf(kinds, size);
-        return new Offsets<>(n, k, size);
+        int[] starts = new int[size];
+        int[] ends = new int[size];
+        Arrays.fill(starts, -1);
+        Arrays.fill(ends, -1);
+        return new Offsets<>(n, starts, ends, k, size);
     }
 
     public Offsets<K> sans(String... toRemove) {
@@ -218,7 +300,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
 
     public int orderingOf(int ix) {
         IndexImpl index = this.index;
-        if (index== null) {
+        if (index == null) {
             index();
             index = this.index;
         }
@@ -250,7 +332,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         for (int i = 0; i < size(); i++) {
             if (!set.get(i)) {
                 newStarts[cursor] = starts[i];
-                newEnds[cursor] = ends[i];
+                newEnds[cursor] = ends.get(i);
                 newNames[cursor] = names[i];
                 newKinds[cursor] = kinds[i];
                 cursor++;
@@ -281,15 +363,23 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
     }
 
     int end(String name) {
-        return ends[internalIndexOf(name)];
+        return ends.get(internalIndexOf(name));
     }
 
     void setOffsets(String name, int start, int end) {
         assert end > start;
         assert name != null;
+        if (!(ends instanceof MutableEndSupplier) && end != start + name.length()) {
+            throw new IllegalStateException("Ends in this Offsets are based on string length,"
+                    + " but attempting to set the end for " + name + " to " + end
+                    + " which is not start + name.length() = " + (start + name.length())
+                    + ". Use the constructor that takes an array of starts and ends if you want that.");
+        }
         int ix = internalIndexOf(name);
         starts[ix] = start;
-        ends[ix] = end;
+        if (ends instanceof MutableEndSupplier) {
+            ((MutableEndSupplier) ends).setEnd(ix, end);
+        }
     }
 
     ItemImpl item(String name) {
@@ -324,7 +414,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < size(); i++) {
-            sb.append(names[i]).append('@').append(starts[i]).append(':').append(ends[i])
+            sb.append(names[i]).append('@').append(starts[i]).append(':').append(ends.get(i))
                     .append('(').append(i).append(')');
             if (i != size() - 1) {
                 sb.append(',');
@@ -611,12 +701,22 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         private class ReferenceSetImpl implements ReferenceSet<K>, Iterable<Item<K>> {
 
             private int[] referenceStarts = new int[3];
-            private int[] referenceEnds = new int[3];
-            private int size = 0;
+//            private int[] referenceEnds = new int[3];
+            private int referenceSetSize = 0;
             private final int referenceIndex;
+            private final ES es = new ES();
 
             ReferenceSetImpl(int index) {
                 this.referenceIndex = index;
+            }
+
+            class ES implements EndSupplier {
+
+                @Override
+                public int get(int index) {
+                    return referenceStarts[index] + names[referenceIndex].length();
+                }
+
             }
 
             public void collectItems(List<? super Item<K>> items) {
@@ -635,17 +735,18 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
 
             void add(int start, int end) {
                 assert end > start;
-                assert size == 0 || referenceStarts[size - 1] < start;
-                assert size == 0 || referenceEnds[size - 1] < end;
-                int newSize = size + 1;
+                assert referenceSetSize == 0 || referenceStarts[referenceSetSize - 1] < start;
+//                assert size == 0 || referenceEnds[size - 1] < end;
+                assert referenceSetSize == 0 || es.get(referenceSetSize - 1) < end;
+                int newSize = referenceSetSize + 1;
                 if (newSize > referenceStarts.length) {
                     int len = referenceStarts.length + 3;
                     referenceStarts = Arrays.copyOf(referenceStarts, len);
-                    referenceEnds = Arrays.copyOf(referenceEnds, len);
+//                    referenceEnds = Arrays.copyOf(referenceEnds, len);
                 }
-                referenceStarts[size] = start;
-                referenceEnds[size] = end;
-                size++;
+                referenceStarts[referenceSetSize] = start;
+//                referenceEnds[size] = end;
+                referenceSetSize++;
             }
 
             public boolean contains(int pos) {
@@ -658,20 +759,20 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             }
 
             private int indexFor(int pos) {
-                return rangeBinarySearch(pos, referenceStarts, referenceEnds, size);
+                return rangeBinarySearch(pos, referenceStarts, es, referenceSetSize);
             }
 
             @Override
             public int referenceCount() {
-                return size;
+                return referenceSetSize;
             }
 
             @Override
             public int visitReferences(CoordinateConsumer consumer) {
-                for (int i = 0; i < size; i++) {
-                    consumer.consume(referenceStarts[i], referenceEnds[i]);
+                for (int i = 0; i < referenceSetSize; i++) {
+                    consumer.consume(referenceStarts[i], es.get(i));
                 }
-                return size;
+                return referenceSetSize;
             }
 
             @Override
@@ -682,12 +783,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             @Override
             public String toString() {
                 StringBuilder sb = new StringBuilder('{');
-                for (int i = 0; i < size; i++) {
+                for (int i = 0; i < referenceSetSize; i++) {
                     if (sb.length() > 0) {
                         sb.append(", ");
                     }
                     sb.append(name()).append('@').append(referenceStarts[i])
-                            .append(':').append(referenceEnds[i])
+                            .append(':').append(es.get(i))
                             .append('(').append(i).append(')');
                 }
                 return sb.append('}').toString();
@@ -699,7 +800,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
 
                 @Override
                 public boolean hasNext() {
-                    return ix + 1 < size;
+                    return ix + 1 < referenceSetSize;
                 }
 
                 @Override
@@ -731,7 +832,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
 
                 @Override
                 public int end() {
-                    return referenceEnds[boundsIndex];
+//                    return referenceEnds[boundsIndex];
+                    return referenceStarts[boundsIndex] + name().length();
                 }
 
                 public K kind() {
@@ -847,7 +949,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             ItemImpl item = all.get(i);
             indices[i] = item.index();
             if (item.start() == item.end()) {
-                throw new IllegalStateException("Some indices not set: " 
+                throw new IllegalStateException("Some indices not set: "
                         + item.name() + "@" + item.start() + ":" + item.end()
                         + "-" + item.kind());
             }
@@ -884,7 +986,9 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         }
 
         private int indexFor(int pos) {
-            return rangeBinarySearch(pos, starts, ends, size);
+            // XXX could use the original end supplier rapped in one which
+            // looks up by index, and forgo having an ends array here
+            return rangeBinarySearch(pos, starts, new ArrayEndSupplier(ends), size);
         }
 
         @Override
@@ -955,7 +1059,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
 
         @Override
         public int end() {
-            return ends[index];
+            return ends.get(index);
         }
 
         @Override
@@ -979,25 +1083,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         public int hashCode() {
             return name().hashCode();
         }
-
-//        @Override
-//        public int compareTo(Item<K> o) {
-//            int sa = start();
-//            int sb = o.start();
-//            int result = sa > sb ? 1 : sa == sb ? 0 : -1;
-//            if (result == 0) {
-//                int ea = end();
-//                int eb = o.end();
-//                result = ea > eb ? -1 : ea == eb ? 0 : -1;
-//            }
-//            return result;
-//        }
     }
 
-    static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, int[] ends, int size) {
+    static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
         int firstStart = starts[searchFirst];
-        int lastEnd = ends[searchLast];
-        int firstEnd = ends[searchFirst];
+        int lastEnd = ends.get(searchLast);
+        int firstEnd = ends.get(searchFirst);
         if (pos >= firstStart && pos < firstEnd) {
             return searchFirst;
         } else if (pos < firstStart) {
@@ -1018,7 +1109,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             return -1;
         }
         int midStart = starts[mid];
-        int midEnd = ends[mid];
+        int midEnd = ends.get(mid);
         if (pos >= midStart && pos < midEnd) {
             return mid;
         }
@@ -1029,8 +1120,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         }
     }
 
-    static int rangeBinarySearch(int pos, int[] starts, int[] ends, int size) {
-        if (size == 0 || pos < starts[0] || pos >= ends[size - 1]) {
+    static int rangeBinarySearch(int pos, int[] starts, EndSupplier ends, int size) {
+        if (size == 0 || pos < starts[0] || pos >= ends.get(size - 1)) {
             return -1;
         }
         return rangeBinarySearch(pos, 0, size - 1, starts, ends, size);

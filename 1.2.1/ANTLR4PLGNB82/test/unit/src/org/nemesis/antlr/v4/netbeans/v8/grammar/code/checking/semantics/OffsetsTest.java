@@ -48,7 +48,7 @@ public class OffsetsTest {
 
     @Test
     public void testSingle() {
-        Offsets<Foo> offsets = new Offsets<>(new String[]{"foo"}, new Foo[]{Foo.FOO}, 1);
+        Offsets<Foo> offsets = new Offsets<>(new String[]{"foo"}, new int[] { -1}, new int[] {-1}, new Foo[]{Foo.FOO}, 1);
         offsets.setOffsets("foo", 10, 20);
         assertEquals(0, offsets.indexOf("foo"));
         assertEquals(10, offsets.start("foo"));
@@ -94,7 +94,7 @@ public class OffsetsTest {
             assertNotNull(i + "", foos[i]);
             bldr.add(names[i], foos[i]);
         }
-        Offsets<Foo> offsets = bldr.build();
+        Offsets<Foo> offsets = bldr.arrayBased().build();
 
 //        Offsets<Foo> offsets = new Offsets<>(names, foos);
         assertEquals(names.length, offsets.size());
