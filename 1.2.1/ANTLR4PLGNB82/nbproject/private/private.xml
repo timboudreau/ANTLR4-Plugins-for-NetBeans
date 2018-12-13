@@ -2,18 +2,18 @@
 <project-private xmlns="http://www.netbeans.org/ns/project-private/1">
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="2">
         <file>
-            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/HtmlLabelUI.java</url>
-            <bookmark id="1">
-                <name/>
-                <line>163</line>
-                <key/>
-            </bookmark>
-        </file>
-        <file>
             <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataLoader.java</url>
             <bookmark id="2">
                 <name/>
                 <line>116</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/HtmlLabelUI.java</url>
+            <bookmark id="1">
+                <name/>
+                <line>163</line>
                 <key/>
             </bookmark>
         </file>
@@ -23,8 +23,21 @@
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4</file>
         </group>
         <group name="primal">
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinderTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetSet.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/OffsetsTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/RuleTree.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/RuleTreeImpl.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/SemanticParserTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/StringRuleTree.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/Offsets.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/RuleVisitor.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/RuleTreeTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/SemanticParser.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetTree.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/Indexed.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ScoreImpl.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetStringGraph.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ANTLRv4SemanticParser.java</file>
         </group>
     </open-files>
 </project-private>

@@ -48,7 +48,7 @@ final class BitSetTree {
         out.writeInt(ruleReferences.length);
         for (int i = 0; i < ruleReferences.length; i++) {
             if (ruleReferences[i].cardinality() > 0) {
-                out.writeObject(ruleReferences[i].toLongArray());
+                out.writeObject(ruleReferences[i].toByteArray());
             } else {
                 out.writeObject(null);
             }
@@ -64,7 +64,7 @@ final class BitSetTree {
         int count = in.readInt();
         BitSet[] sets = new BitSet[count];
         for (int i = 0; i < sets.length; i++) {
-            long[] vals = (long[]) in.readObject();
+            byte[] vals = (byte[]) in.readObject();
             if (vals == null) {
                 sets[i] = new BitSet(0);
             } else {

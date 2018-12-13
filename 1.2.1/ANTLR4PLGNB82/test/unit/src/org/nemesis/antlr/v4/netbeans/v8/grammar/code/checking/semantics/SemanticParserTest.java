@@ -6,9 +6,13 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.URISyntaxException;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.BitSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import org.antlr.v4.runtime.CharStreams;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -27,7 +31,9 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 public class SemanticParserTest {
 
     private final RustCSS rustLoader = new RustCSS();
+    private final AntlrCSS antlrLoader = new AntlrCSS();
     SemanticParser sem = new SemanticParser("Rust", rustLoader);
+//    SemanticParser sem = new SemanticParser("ANTLRv4", antlrLoader);
 
     @Test
     public void testSomeMethod() throws Throwable {
@@ -43,7 +49,22 @@ public class SemanticParserTest {
             System.out.println(ix++ + ": " + i);
         }
         System.out.println("\n-------------------------- UNKNOWN REFS --------------------------------");
-        System.out.println(ri.unknownReferenceNames());
+        ix=0;
+        for (Map.Entry<String,List<int[]>> e : ri.unknownReferences().entrySet()) {
+            StringBuilder sb = new StringBuilder(e.getKey());
+            for (Iterator<int[]> i=e.getValue().iterator(); i.hasNext();) {
+                int[] curr = i.next();
+                sb.append(' ').append(curr[0]).append(':').append(curr[1]);
+            }
+            System.out.println(sb);
+        }
+
+        ix=0;
+        System.out.println("\n-------------------------- FOREIGN REFS --------------------------------");
+        for (Offsets.ForeignItem<AntlrRuleKind, String> i : ri.foreignItems()) {
+            System.out.println(ix++ + ": " + i);
+        }
+
 
         System.out.println("\n-------------------------- USAGES --------------------------------");
         System.out.println(ri.usageGraph());
@@ -66,6 +87,7 @@ public class SemanticParserTest {
         }
         byte[] b = out.toByteArray();
         System.out.println("SERIALIZED TO " + b.length + " bytes");
+        System.out.println("SER: '" + new String(b, UTF_8) + "'");
         ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(b));
 //        RulesInfo deserialized = RulesInfo.load(in);
         RulesInfo deserialized = (RulesInfo) in.readObject();
@@ -122,6 +144,33 @@ public class SemanticParserTest {
         b = out.toByteArray();
         BitSetStringGraph g2 = BitSetStringGraph.load(new ObjectInputStream(new ByteArrayInputStream(b)));
         assertEquals(g, g2);
+    }
+
+    static final class AntlrCSS implements CharStreamSource {
+
+        @Override
+        public <T> T charStream(String name, SemanticParser.CharStreamConsumer<T> cons) throws IOException {
+            try {
+                Path path;
+                switch(name) {
+                    case "ANTLRv4":
+                        path = TestDir.projectBaseDir().resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
+                        break;
+                    case "ANTLRv4Lexer":
+                        path = TestDir.projectBaseDir().resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
+                        break;
+                    case "LexBasic":
+                        path = TestDir.projectBaseDir().resolve("grammar/imports/LexBasic.g4");
+                        break;
+                    default :
+                        throw new IOException(name);
+                }
+                long lm = Files.getLastModifiedTime(path).toMillis();
+                return cons.consume(lm, () -> CharStreams.fromPath(path));
+            } catch (URISyntaxException ex) {
+                throw new IOException(ex);
+            }
+        }
     }
 
     static final class RustCSS implements CharStreamSource {

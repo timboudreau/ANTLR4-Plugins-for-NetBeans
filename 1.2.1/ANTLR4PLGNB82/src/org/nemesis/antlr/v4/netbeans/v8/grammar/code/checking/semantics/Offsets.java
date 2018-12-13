@@ -23,8 +23,13 @@
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -34,8 +39,12 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets.ReferenceSet;
 
@@ -48,7 +57,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.
  *
  * @author Tim Boudreau
  */
-public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializable {
+public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externalizable {
 
     private final int[] starts;
     private final EndSupplier ends;
@@ -57,11 +66,131 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
     private int size;
     private transient IndexImpl index;
 
+    @SuppressWarnings("unchecked")
+    private <X extends Enum<X>> void finishReadExternal(ObjectInput in, Class<X> kindType, int sz) throws IOException, ClassNotFoundException {
+        X[] allKinds = kindType.getEnumConstants();
+        X[] kinds = (X[]) Array.newInstance(kindType, sz);
+        int[] starts = new int[sz];
+        String[] names = new String[sz];
+        SerializationContext ctx = SER.get();
+        for (int i = 0; i < sz; i++) {
+            starts[i] = in.readInt();
+            if (ctx != null) {
+                names[i] = ctx.stringForIndex(in.readShort());
+            } else {
+                names[i] = in.readUTF();
+            }
+            kinds[i] = allKinds[in.readByte()];
+        }
+        EndSupplier ends = (EndSupplier) in.readObject();
+        try {
+            Field f = Offsets.class.getDeclaredField("starts");
+            f.setAccessible(true);
+            f.set(this, starts);
+            f = Offsets.class.getDeclaredField("names");
+            f.setAccessible(true);
+            f.set(this, names);
+            f = Offsets.class.getDeclaredField("kinds");
+            f.setAccessible(true);
+            f.set(this, kinds);
+            f = Offsets.class.getDeclaredField("size");
+            f.setAccessible(true);
+            f.set(this, sz);
+            f = Offsets.class.getDeclaredField("ends");
+            f.setAccessible(true);
+            f.set(this, ends);
+        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
+            throw new IOException(ex);
+        }
+    }
+
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+        out.writeInt(1); // version
+        out.writeInt(size);
+        out.writeUTF(kinds.getClass().getComponentType().getName());
+        SerializationContext ctx = SER.get();
+        short[] stringTable = ctx == null ? null : ctx.toArray(names, size);
+        for (int i = 0; i < size; i++) {
+            out.writeInt(starts[i]);
+            if (stringTable != null) {
+                out.writeShort(stringTable[i]);
+            } else {
+                out.writeUTF(names[i]);
+            }
+            out.writeByte(kinds[i].ordinal());
+        }
+        out.writeObject(ends);
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        int v = in.readInt();
+        if (v != 1) {
+            throw new IOException("Unsupported version " + v);
+        }
+        int sz = in.readInt();
+        assert sz >= 0;
+        String type = in.readUTF();
+        Class<?> enumType = Class.forName(type);
+        assert enumType.isEnum();
+        finishReadExternal(in, (Class) enumType, sz);
+    }
+
+    private static ThreadLocal<SerializationContext> SER = new ThreadLocal<>();
+    static void withSerializationContext(SerializationContext ctx, Callable<Void> c) throws Exception {
+        SerializationContext old = SER.get();
+        SER.set(ctx);
+        try {
+            c.call();
+        } finally {
+            SER.set(old);
+        }
+    }
+
+    static SerializationContext createSerializationContext(Iterable<Offsets<?>> offsets) {
+        return new SerializationContext(offsets);
+    }
+
+    static final class SerializationContext implements Serializable {
+        private String[] strings;
+        SerializationContext(Iterable<Offsets<?>> offsets) {
+            Set<String> strings = new TreeSet<>();
+            for (Offsets<?> o : offsets) {
+                strings.addAll(Arrays.asList(o.nameArray()));
+            }
+            this.strings = strings.toArray(new String[strings.size()]);
+        }
+        
+        public String stringForIndex(int ix) {
+            return strings[ix];
+        }
+
+        public short[] toArray(String[] strings, int size) {
+            short[] result = new short[size];
+            for (int i = 0; i < size; i++) {
+                result[i] = (short) Arrays.binarySearch(this.strings, strings[i]);
+                assert result[i] >= 0 : "Missing string " + strings[i] + " in " + Arrays.toString(this.strings);
+            }
+            return result;
+        }
+
+        public String[] toStringArray(short[] indices) {
+            String[] result = new String[indices.length];
+            for (int i = 0; i < indices.length; i++) {
+                result[i] = strings[indices[i]];
+            }
+            return result;
+        }
+    }
+
     public Offsets(String[] names, int[] starts, int[] ends, K[] kinds, int size) {
         assert starts != null && ends != null && starts.length == ends.length;
         assert names != null && names.length == starts.length;
         assert kinds != null && kinds.length == names.length;
         assert kinds.getClass().getComponentType().isEnum();
+//        assert kinds.getClass().getEnumConstants().length < 65536;
         this.names = names;
         this.starts = starts;
         this.ends = new ArrayEndSupplier(ends);
@@ -79,6 +208,14 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         Arrays.fill(starts, -1);
         this.ends = new StringEndSupplier();
         this.size = size;
+    }
+
+    public Offsets() { // for deserialization only
+        this.starts = null;
+        this.kinds = null;
+        this.ends = null;
+        this.size = -1;
+        this.names = null;
     }
 
     String[] nameArray() {
@@ -466,7 +603,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         public Item<K> next() {
             Item<K> result = nextItem;
             if (result == null) {
-                throw new IllegalStateException("next() called after end");
+                throw new NoSuchElementException("next() called after end");
             }
             nextItem = null;
             ix++;
@@ -604,7 +741,6 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
                 set = usagesForIndex[user] = new BitSet(size());
             }
             set.set(uses);
-//            System.out.println("USAGE: " + names[user] + "(" + user + ") -> " + names[uses] + "(" + uses + "): " + set);
         }
 
         void add(String user, String uses) {
@@ -690,7 +826,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             public ReferenceSet<K> next() {
                 ReferenceSet<K> result = nextSet;
                 if (result == null) {
-                    throw new IllegalStateException("next() called after end");
+                    throw new NoSuchElementException("next() called after end");
                 }
                 nextSet = null;
                 ix++;
@@ -736,13 +872,11 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             void add(int start, int end) {
                 assert end > start;
                 assert referenceSetSize == 0 || referenceStarts[referenceSetSize - 1] < start;
-//                assert size == 0 || referenceEnds[size - 1] < end;
                 assert referenceSetSize == 0 || es.get(referenceSetSize - 1) < end;
                 int newSize = referenceSetSize + 1;
                 if (newSize > referenceStarts.length) {
                     int len = referenceStarts.length + 3;
                     referenceStarts = Arrays.copyOf(referenceStarts, len);
-//                    referenceEnds = Arrays.copyOf(referenceEnds, len);
                 }
                 referenceStarts[referenceSetSize] = start;
 //                referenceEnds[size] = end;
@@ -909,6 +1043,10 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             return pos >= start() && pos < end();
         }
 
+        default boolean isForeign() {
+            return false;
+        }
+
         @Override
         public default int compareTo(Item<?> o) {
             int as = start();
@@ -921,7 +1059,6 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
             }
             return result;
         }
-
     }
 
     public interface Index<K extends Enum<K>> extends Iterable<Item<K>> {
@@ -1018,7 +1155,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         }
     }
 
-    private final class ItemImpl implements Item<K> {
+    private class ItemImpl implements Item<K> {
 
         private final int index;
 
@@ -1085,6 +1222,124 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         }
     }
 
+    public interface ForeignItem<K extends Enum<K>, O> extends Item<K>, Serializable {
+        Offsets<K> originOffsets();
+        O origin();
+        public Item<K> originalItem();
+    }
+
+
+    <O> ForeignItem<K,O> newForeignItem(String name, O origin, int start, int end) {
+        int ix = indexOf(name);
+        if (ix >= 0) {
+            return new ForeignItemImpl<O>(ix, origin, start, end);
+        }
+        return null;
+    }
+
+    private class ForeignItemImpl<O> implements ForeignItem<K,O> {
+
+        private final O origin;
+        private final int index;
+        private final int start;
+        ForeignItemImpl(int index, O origin, int start, int end) {
+            this.index = index;
+            this.origin = origin;
+            this.start = start;
+        }
+
+        public boolean isForeign() {
+            return true;
+        }
+
+        public Item<K> originalItem() {
+            return new ItemImpl(index);
+        }
+
+        public Offsets<K> originOffsets() {
+            return Offsets.this;
+        }
+
+        public O origin() {
+            return origin;
+        }
+
+        @Override
+        public int start() {
+            return start;
+        }
+
+        @Override
+        public int end() {
+            return start() + name().length();
+        }
+
+        @Override
+        public K kind() {
+            return kinds[index];
+        }
+
+        @Override
+        public int ordering() {
+            return orderingOf(index);
+        }
+
+        @Override
+        public boolean isReference() {
+            return true;
+        }
+
+        @Override
+        public String name() {
+            return names[index];
+        }
+
+        @Override
+        public int index() {
+            return index;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 79 * hash + Objects.hashCode(this.origin);
+            hash = 79 * hash + this.index;
+            hash = 79 * hash + this.start;
+            return hash;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ForeignItemImpl<?> other = (ForeignItemImpl<?>) obj;
+            if (this.index != other.index) {
+                return false;
+            }
+            if (this.start != other.start) {
+                return false;
+            }
+            if (!Objects.equals(this.origin, other.origin)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "foreign-ref:" + name() + "@" + start + ":" + end() + "<-" + origin
+                    + ":" + originalItem();
+        }
+    }
+
     static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
         int firstStart = starts[searchFirst];
         int lastEnd = ends.get(searchLast);
@@ -1113,7 +1368,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Serializab
         if (pos >= midStart && pos < midEnd) {
             return mid;
         }
-        if (pos > midEnd) {
+        if (pos >= midEnd) {
             return rangeBinarySearch(pos, mid + 1, searchLast - 1, starts, ends, size);
         } else {
             return rangeBinarySearch(pos, searchFirst + 1, mid - 1, starts, ends, size);
