@@ -30,11 +30,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.BlockContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.IdentifierContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ForeignItem;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.OffsetsBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Usages;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.Usages;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.ForeignNamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
 
 /**
  *
@@ -120,12 +120,12 @@ public class SemanticParser {
         // Read dependent grammars first
         // Need a RulesInfo implementation for a missing file
         // Move all this to a different package
-        Offsets<AntlrRuleKind> names = file.accept(new RuleNamesCollector()).build();
+        NamedSemanticRegions<AntlrRuleKind> names = file.accept(new RuleNamesCollector()).build();
 
         RuleAlternativeCollector coll = new RuleAlternativeCollector();
         file.accept(coll);
-        Offsets<AntlrRuleKind> labels = coll.labels.build();
-        Offsets<AntlrRuleKind> alternativesForLabels = coll.alternativesForLabels.build();
+        NamedSemanticRegions<AntlrRuleKind> labels = coll.labels.build();
+        NamedSemanticRegions<AntlrRuleKind> alternativesForLabels = coll.alternativesForLabels.build();
 
 //        SemanticRegions<Void> blocks = file.accept(new BlockFinder());
         SemanticRegions<Void> blocks = file.accept(new GenericBlockFinder<>(BlockContext.class));
@@ -344,21 +344,21 @@ public class SemanticParser {
         PARSER_RULE_LABEL
     }
 
-    private static class RuleAlternativeCollector extends ANTLRv4BaseVisitor<OffsetsBuilder<AntlrRuleKind>> {
+    private static class RuleAlternativeCollector extends ANTLRv4BaseVisitor<NamedSemanticRegionsBuilder<AntlrRuleKind>> {
 
-        private final OffsetsBuilder<AntlrRuleKind> labels
-                = Offsets.builder(AntlrRuleKind.class);
+        private final NamedSemanticRegionsBuilder<AntlrRuleKind> labels
+                = NamedSemanticRegions.builder(AntlrRuleKind.class);
 
-        private final OffsetsBuilder<AntlrRuleKind> alternativesForLabels
-                = Offsets.builder(AntlrRuleKind.class);
+        private final NamedSemanticRegionsBuilder<AntlrRuleKind> alternativesForLabels
+                = NamedSemanticRegions.builder(AntlrRuleKind.class);
 
         @Override
-        protected OffsetsBuilder<AntlrRuleKind> defaultResult() {
+        protected NamedSemanticRegionsBuilder<AntlrRuleKind> defaultResult() {
             return labels;
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitParserRuleLabeledAlternative(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitParserRuleLabeledAlternative(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
             ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
             if (idc != null) {
                 TerminalNode idTN = idc.ID();
@@ -374,29 +374,29 @@ public class SemanticParser {
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
             return labels;
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitFragmentRuleDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitFragmentRuleDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
             return labels;
         }
     }
 
-    private static class RuleNamesCollector extends ANTLRv4BaseVisitor<OffsetsBuilder<AntlrRuleKind>> {
+    private static class RuleNamesCollector extends ANTLRv4BaseVisitor<NamedSemanticRegionsBuilder<AntlrRuleKind>> {
 
 //        private final Set<String> names = new TreeSet<>();
-        private final OffsetsBuilder<AntlrRuleKind> names
-                = Offsets.builder(AntlrRuleKind.class);
+        private final NamedSemanticRegionsBuilder<AntlrRuleKind> names
+                = NamedSemanticRegions.builder(AntlrRuleKind.class);
 
         @Override
-        protected OffsetsBuilder<AntlrRuleKind> defaultResult() {
+        protected NamedSemanticRegionsBuilder<AntlrRuleKind> defaultResult() {
             return names;
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
             ANTLRv4Parser.ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
             if (decl != null) {
                 ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
@@ -417,7 +417,7 @@ public class SemanticParser {
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitParserRuleIdentifier(ANTLRv4Parser.ParserRuleIdentifierContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitParserRuleIdentifier(ANTLRv4Parser.ParserRuleIdentifierContext ctx) {
             TerminalNode pridTN = ctx.PARSER_RULE_ID();
             if (pridTN != null) {
                 Token tok = pridTN.getSymbol();
@@ -429,7 +429,7 @@ public class SemanticParser {
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitTokenRuleDeclaration(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
             TerminalNode tid = ctx.TOKEN_ID();
             if (tid != null) {
                 Token tok = tid.getSymbol();
@@ -441,7 +441,7 @@ public class SemanticParser {
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitFragmentRuleDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitFragmentRuleDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
             TerminalNode idTN = ctx.TOKEN_ID();
             if (idTN != null) {
                 Token idToken = idTN.getSymbol();
@@ -453,7 +453,7 @@ public class SemanticParser {
         }
 
         @Override
-        public OffsetsBuilder<AntlrRuleKind> visitTokenList(ANTLRv4Parser.TokenListContext ctx) {
+        public NamedSemanticRegionsBuilder<AntlrRuleKind> visitTokenList(ANTLRv4Parser.TokenListContext ctx) {
             List<TerminalNode> toks = ctx.TOKEN_ID();
             if (toks != null) {
                 for (TerminalNode t : toks) {
@@ -475,7 +475,7 @@ public class SemanticParser {
 
         private final ReferencesInfoBuilder names;
 
-        ReferenceCollector(String grammarName, Offsets<AntlrRuleKind> offsets, Map<String, RulesInfo> dependencies) {
+        ReferenceCollector(String grammarName, NamedSemanticRegions<AntlrRuleKind> offsets, Map<String, RulesInfo> dependencies) {
             this.names = new ReferencesInfoBuilder(grammarName, offsets, dependencies);
         }
 
@@ -593,24 +593,24 @@ public class SemanticParser {
 
     public static final class RulesInfo implements Externalizable {
 
-        private final Offsets<AntlrRuleKind> ruleNames;
-        private final ReferenceSets<AntlrRuleKind> refs;
+        private final NamedSemanticRegions<AntlrRuleKind> ruleNames;
+        private final NamedRegionReferenceSets<AntlrRuleKind> refs;
         private final BitSetStringGraph usageGraph;
-        private final Offsets<AntlrRuleKind> ruleBounds;
+        private final NamedSemanticRegions<AntlrRuleKind> ruleBounds;
         private final Map<String, List<int[]>> unknownReferences;
-        private final Offsets<AntlrRuleKind> alternativesForLabels;
-        private final Offsets<AntlrRuleKind> labels;
-        private final List<ForeignItem<AntlrRuleKind, String>> foreignReferences;
+        private final NamedSemanticRegions<AntlrRuleKind> alternativesForLabels;
+        private final NamedSemanticRegions<AntlrRuleKind> labels;
+        private final List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignReferences;
         private final String grammarName;
         private final SemanticRegions<Set<EbnfProperty>> ebnfs;
         private final SemanticRegions<Void> blocks;
 
-        public RulesInfo(String grammarName, Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, Usages usages, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels, List<ForeignItem<AntlrRuleKind, String>> foreignReferences,
+        public RulesInfo(String grammarName, NamedSemanticRegions<AntlrRuleKind> offsets, NamedRegionReferenceSets<AntlrRuleKind> refs, Usages usages, NamedSemanticRegions<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, NamedSemanticRegions<AntlrRuleKind> labels, NamedSemanticRegions<AntlrRuleKind> alternativesForLabels, List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignReferences,
                 SemanticRegions<Set<EbnfProperty>> ebnfs, SemanticRegions<Void> blocks) {
             this(grammarName, offsets, refs, new BitSetStringGraph(usages.toBitSetTree(), offsets.nameArray()), ruleBounds, unknownReferences, labels, alternativesForLabels, foreignReferences, ebnfs, blocks);
         }
 
-        public RulesInfo(String grammarName, Offsets<AntlrRuleKind> offsets, ReferenceSets<AntlrRuleKind> refs, BitSetStringGraph usageGraph, Offsets<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels, List<ForeignItem<AntlrRuleKind, String>> foreignReferences, SemanticRegions<Set<EbnfProperty>> ebnfs, SemanticRegions<Void> blocks) {
+        public RulesInfo(String grammarName, NamedSemanticRegions<AntlrRuleKind> offsets, NamedRegionReferenceSets<AntlrRuleKind> refs, BitSetStringGraph usageGraph, NamedSemanticRegions<AntlrRuleKind> ruleBounds, Map<String, List<int[]>> unknownReferences, NamedSemanticRegions<AntlrRuleKind> labels, NamedSemanticRegions<AntlrRuleKind> alternativesForLabels, List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignReferences, SemanticRegions<Set<EbnfProperty>> ebnfs, SemanticRegions<Void> blocks) {
             assert labels != null : "Null labels";
             assert alternativesForLabels != null : "Null alternativesForLabels";
             this.grammarName = grammarName;
@@ -624,6 +624,14 @@ public class SemanticParser {
             this.foreignReferences = foreignReferences;
             this.ebnfs = ebnfs;
             this.blocks = blocks;
+        }
+
+        public NamedSemanticRegions<AntlrRuleKind> ruleNames() {
+            return ruleNames;
+        }
+
+        public NamedSemanticRegions<AntlrRuleKind> ruleBounds() {
+            return ruleBounds;
         }
 
         public RulesInfo() { // serialization
@@ -648,47 +656,47 @@ public class SemanticParser {
             return blocks;
         }
 
-        public Item<AntlrRuleKind> itemAtPosition(int pos) {
+        public NamedSemanticRegion<AntlrRuleKind> itemAtPosition(int pos) {
             return itemAtPosition(pos, true);
         }
 
-        public Item<AntlrRuleKind> itemAtPosition(int pos, boolean includeRuleBodies) {
-            Item<AntlrRuleKind> result = refs.itemAt(pos);
+        public NamedSemanticRegion<AntlrRuleKind> itemAtPosition(int pos, boolean includeRuleBodies) {
+            NamedSemanticRegion<AntlrRuleKind> result = refs.itemAt(pos);
             if (result != null) {
                 return result;
             }
-            for (ForeignItem<AntlrRuleKind, String> f : foreignReferences) {
+            for (ForeignNamedSemanticRegion<AntlrRuleKind, String> f : foreignReferences) {
                 if (f.containsPosition(pos)) {
                     return f;
                 }
             }
-            result = labels.index().atOffset(pos);
+            result = labels.index().regionAt(pos);
             if (result != null) {
                 return result;
             }
-            result = ruleNames.index().atOffset(pos);
+            result = ruleNames.index().regionAt(pos);
             if (result != null) {
                 return result;
             }
             if (includeRuleBodies) {
-                result = ruleBounds.index().atOffset(pos);
+                result = ruleBounds.index().regionAt(pos);
             }
             return result;
         }
 
-        public List<ForeignItem<AntlrRuleKind, String>> foreignItems() {
+        public List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignItems() {
             return foreignReferences;
         }
 
-        public List<Item<AntlrRuleKind>> labels() {
-            List<Item<AntlrRuleKind>> result = new ArrayList<>(labels.size());
+        public List<NamedSemanticRegion<AntlrRuleKind>> labels() {
+            List<NamedSemanticRegion<AntlrRuleKind>> result = new ArrayList<>(labels.size());
             labels.collectItems(result);
             Collections.sort(result);
             return result;
         }
 
-        public List<Item<AntlrRuleKind>> labelClauses() {
-            List<Item<AntlrRuleKind>> result = new ArrayList<>(labels.size());
+        public List<NamedSemanticRegion<AntlrRuleKind>> labelClauses() {
+            List<NamedSemanticRegion<AntlrRuleKind>> result = new ArrayList<>(labels.size());
             alternativesForLabels.collectItems(result);
             Collections.sort(result);
             return result;
@@ -747,14 +755,14 @@ public class SemanticParser {
         static class SerializationStub implements Externalizable {
 
             private String grammarName;
-            private Offsets<AntlrRuleKind> ruleNames;
-            private ReferenceSets<AntlrRuleKind> refs;
+            private NamedSemanticRegions<AntlrRuleKind> ruleNames;
+            private NamedRegionReferenceSets<AntlrRuleKind> refs;
             private BitSetStringGraph usageGraph;
-            private Offsets<AntlrRuleKind> ruleBounds;
+            private NamedSemanticRegions<AntlrRuleKind> ruleBounds;
             private Map<String, List<int[]>> unknownReferences;
-            private Offsets<AntlrRuleKind> labels;
-            private Offsets<AntlrRuleKind> alternativesForLabels;
-            private List<ForeignItem<AntlrRuleKind, String>> foreignReferences;
+            private NamedSemanticRegions<AntlrRuleKind> labels;
+            private NamedSemanticRegions<AntlrRuleKind> alternativesForLabels;
+            private List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignReferences;
             private SemanticRegions<Set<EbnfProperty>> ebnfs;
             private SemanticRegions<Void> blocks;
 
@@ -783,14 +791,14 @@ public class SemanticParser {
             @Override
             public void writeExternal(ObjectOutput out) throws IOException {
                 out.writeInt(1);
-                Set<Offsets<?>> all = new HashSet<>(Arrays.asList(ruleNames, ruleBounds, alternativesForLabels, labels));
-                for (ForeignItem<?, ?> i : foreignReferences) {
+                Set<NamedSemanticRegions<?>> all = new HashSet<>(Arrays.asList(ruleNames, ruleBounds, alternativesForLabels, labels));
+                for (ForeignNamedSemanticRegion<?, ?> i : foreignReferences) {
                     all.add(i.originOffsets());
                 }
-                Offsets.SerializationContext ctx = Offsets.createSerializationContext(all);
+                NamedSemanticRegions.SerializationContext ctx = NamedSemanticRegions.createSerializationContext(all);
                 out.writeObject(ctx);
                 try {
-                    Offsets.withSerializationContext(ctx, () -> {
+                    NamedSemanticRegions.withSerializationContext(ctx, () -> {
                         out.writeUTF(grammarName);
                         out.writeObject(ruleNames);
                         out.writeObject(refs);
@@ -816,17 +824,17 @@ public class SemanticParser {
                 if (v != 1) {
                     throw new IOException("Unsupported version " + v);
                 }
-                Offsets.SerializationContext ctx = (Offsets.SerializationContext) in.readObject();
+                NamedSemanticRegions.SerializationContext ctx = (NamedSemanticRegions.SerializationContext) in.readObject();
                 try {
-                    Offsets.withSerializationContext(ctx, () -> {
+                    NamedSemanticRegions.withSerializationContext(ctx, () -> {
                         grammarName = in.readUTF();
-                        ruleNames = (Offsets<AntlrRuleKind>) in.readObject();
-                        refs = (ReferenceSets<AntlrRuleKind>) in.readObject();
-                        ruleBounds = (Offsets<AntlrRuleKind>) in.readObject();
+                        ruleNames = (NamedSemanticRegions<AntlrRuleKind>) in.readObject();
+                        refs = (NamedRegionReferenceSets<AntlrRuleKind>) in.readObject();
+                        ruleBounds = (NamedSemanticRegions<AntlrRuleKind>) in.readObject();
                         unknownReferences = (Map<String, List<int[]>>) in.readObject();
-                        labels = (Offsets<AntlrRuleKind>) in.readObject();
-                        alternativesForLabels = (Offsets<AntlrRuleKind>) in.readObject();
-                        foreignReferences = (List<ForeignItem<AntlrRuleKind, String>>) in.readObject();
+                        labels = (NamedSemanticRegions<AntlrRuleKind>) in.readObject();
+                        alternativesForLabels = (NamedSemanticRegions<AntlrRuleKind>) in.readObject();
+                        foreignReferences = (List<ForeignNamedSemanticRegion<AntlrRuleKind, String>>) in.readObject();
                         ebnfs = (SemanticRegions<Set<EbnfProperty>>) in.readObject();
                         blocks = (SemanticRegions<Void>) in.readObject();
                         usageGraph = BitSetStringGraph.load(in);
@@ -838,8 +846,8 @@ public class SemanticParser {
             }
         }
 
-        public List<Item<AntlrRuleKind>> allItems() {
-            List<Item<AntlrRuleKind>> all = new ArrayList<>();
+        public List<NamedSemanticRegion<AntlrRuleKind>> allItems() {
+            List<NamedSemanticRegion<AntlrRuleKind>> all = new ArrayList<>();
             ruleNames.collectItems(all);
             refs.collectItems(all);
             all.addAll(foreignReferences);
@@ -859,16 +867,16 @@ public class SemanticParser {
             return unknownReferences;
         }
 
-        public Iterable<Item<AntlrRuleKind>> allRules() {
+        public Iterable<NamedSemanticRegion<AntlrRuleKind>> allRules() {
             return ruleBounds;
         }
 
-        public Item<AntlrRuleKind> boundsForRule(String rule) {
-            return ruleBounds.item(rule);
+        public NamedSemanticRegion<AntlrRuleKind> boundsForRule(String rule) {
+            return ruleBounds.regionFor(rule);
         }
 
-        public List<Item<AntlrRuleKind>> referencesTo(String rule) {
-            List<Item<AntlrRuleKind>> items = new LinkedList<>();
+        public List<NamedSemanticRegion<AntlrRuleKind>> referencesTo(String rule) {
+            List<NamedSemanticRegion<AntlrRuleKind>> items = new LinkedList<>();
             refs.references(rule).collectItems(items);
             return items;
         }
@@ -876,20 +884,20 @@ public class SemanticParser {
 
     private static final class ReferencesInfoBuilder {
 
-        private final Offsets<AntlrRuleKind> offsets;
-        private final ReferenceSets<AntlrRuleKind> refs;
-        private final Offsets<AntlrRuleKind>.UsagesImpl usages;
-        private final Offsets<AntlrRuleKind> ruleBounds;
+        private final NamedSemanticRegions<AntlrRuleKind> offsets;
+        private final NamedRegionReferenceSets<AntlrRuleKind> refs;
+        private final NamedSemanticRegions<AntlrRuleKind>.UsagesImpl usages;
+        private final NamedSemanticRegions<AntlrRuleKind> ruleBounds;
         private final Map<String, List<int[]>> unknownReferences = new TreeMap<>();
-        private Offsets<AntlrRuleKind> labels;
-        private Offsets<AntlrRuleKind> alternativesForLabels;
+        private NamedSemanticRegions<AntlrRuleKind> labels;
+        private NamedSemanticRegions<AntlrRuleKind> alternativesForLabels;
         private SemanticRegions<Void> blocks;
         private SemanticRegions<Set<EbnfProperty>> ebnfs;
         private final Map<String, RulesInfo> dependencies;
-        private final List<ForeignItem<AntlrRuleKind, String>> foreignReferences = new ArrayList<>();
+        private final List<ForeignNamedSemanticRegion<AntlrRuleKind, String>> foreignReferences = new ArrayList<>();
         private final String grammarName;
 
-        public ReferencesInfoBuilder(String grammarName, Offsets<AntlrRuleKind> offsets, Map<String, RulesInfo> dependencies) {
+        public ReferencesInfoBuilder(String grammarName, NamedSemanticRegions<AntlrRuleKind> offsets, Map<String, RulesInfo> dependencies) {
             this.offsets = offsets;
             this.refs = offsets.newReferenceSets();
             this.usages = offsets.newUsages();
@@ -898,7 +906,7 @@ public class SemanticParser {
             this.grammarName = grammarName;
         }
 
-        public ReferencesInfoBuilder setLabelsAndAlternatives(Offsets<AntlrRuleKind> labels, Offsets<AntlrRuleKind> alternativesForLabels) {
+        public ReferencesInfoBuilder setLabelsAndAlternatives(NamedSemanticRegions<AntlrRuleKind> labels, NamedSemanticRegions<AntlrRuleKind> alternativesForLabels) {
             this.labels = labels;
             this.alternativesForLabels = alternativesForLabels;
             return this;
@@ -915,18 +923,18 @@ public class SemanticParser {
         }
 
         RulesInfo build() {
-            Set<String> origWithoutOffsets = offsets.itemsWithNoOffsets();
+            Set<String> origWithoutOffsets = offsets.regionsWithUnsetOffsets();
             System.out.println("ORIG NO OFFSETS: " + origWithoutOffsets);
             ruleBounds.removeAll(origWithoutOffsets);
-            Set<String> rulesNoOffsets = ruleBounds.removeItemsWithNoOffsets();
+            Set<String> rulesNoOffsets = ruleBounds.removeRegionsWithNoOffsets();
             System.out.println("RULES NO OFFSETS: " + rulesNoOffsets);
-            List<Item<AntlrRuleKind>> refItems = new ArrayList<>();
+            List<NamedSemanticRegion<AntlrRuleKind>> refItems = new ArrayList<>();
             refs.collectItems(refItems);
             Collections.sort(refItems);
             System.out.println("BUILD WITH FOREIGN: " + unknownReferences);
-//            ReferenceSets<AntlrRuleKind> rebuilt = ruleBounds.newReferenceSets();
+//            NamedRegionReferenceSets<AntlrRuleKind> rebuilt = ruleBounds.newReferenceSets();
 //            // XXX things are getting removed after the offsets is created
-//            for (Item<AntlrRuleKind> i : refItems) {
+//            for (NamedSemanticRegion<AntlrRuleKind> i : refItems) {
 //                if (ruleBounds.contains(i.name())) {
 //                    rebuilt.addReference(i.name(), i.start(), i.end());
 //                }
@@ -935,14 +943,14 @@ public class SemanticParser {
                     ebnfs.trim(), blocks.trim());
         }
 
-        private Item<AntlrRuleKind> currentRule;
+        private NamedSemanticRegion<AntlrRuleKind> currentRule;
 
         void enterRule(String ruleName, int start, int end, Runnable r) {
             if (currentRule != null) {
                 throw new IllegalStateException("EnterRule should not be reentrant: " + currentRule);
             }
             ruleBounds.setOffsets(ruleName, start, end);
-            currentRule = offsets.item(ruleName);
+            currentRule = offsets.regionFor(ruleName);
             try {
                 r.run();
             } finally {
@@ -971,7 +979,7 @@ public class SemanticParser {
             }
             for (Map.Entry<String, RulesInfo> e : dependencies.entrySet()) {
                 if (!grammarName.equals(e.getKey())) {
-                    ForeignItem<AntlrRuleKind, String> foreign = e.getValue().ruleNames.newForeignItem(name, e.getKey(), start, end);
+                    ForeignNamedSemanticRegion<AntlrRuleKind, String> foreign = e.getValue().ruleNames.newForeignItem(name, e.getKey(), start, end);
                     if (foreign != null) {
                         foreignReferences.add(foreign);
                         return;

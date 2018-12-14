@@ -45,8 +45,11 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets.ReferenceSet;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.ArrayEndSupplier;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.EndSupplier;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.MutableEndSupplier;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in
@@ -57,7 +60,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.
  *
  * @author Tim Boudreau
  */
-public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externalizable {
+public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSemanticRegion<K>>, Externalizable {
 
     private final int[] starts;
     private final EndSupplier ends;
@@ -84,19 +87,19 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
         EndSupplier ends = (EndSupplier) in.readObject();
         try {
-            Field f = Offsets.class.getDeclaredField("starts");
+            Field f = NamedSemanticRegions.class.getDeclaredField("starts");
             f.setAccessible(true);
             f.set(this, starts);
-            f = Offsets.class.getDeclaredField("names");
+            f = NamedSemanticRegions.class.getDeclaredField("names");
             f.setAccessible(true);
             f.set(this, names);
-            f = Offsets.class.getDeclaredField("kinds");
+            f = NamedSemanticRegions.class.getDeclaredField("kinds");
             f.setAccessible(true);
             f.set(this, kinds);
-            f = Offsets.class.getDeclaredField("size");
+            f = NamedSemanticRegions.class.getDeclaredField("size");
             f.setAccessible(true);
             f.set(this, sz);
-            f = Offsets.class.getDeclaredField("ends");
+            f = NamedSemanticRegions.class.getDeclaredField("ends");
             f.setAccessible(true);
             f.set(this, ends);
         } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
@@ -139,6 +142,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
     }
 
     private static ThreadLocal<SerializationContext> SER = new ThreadLocal<>();
+
     static void withSerializationContext(SerializationContext ctx, Callable<Void> c) throws Exception {
         SerializationContext old = SER.get();
         SER.set(ctx);
@@ -149,20 +153,27 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    static SerializationContext createSerializationContext(Iterable<Offsets<?>> offsets) {
+    static SerializationContext createSerializationContext(Iterable<NamedSemanticRegions<?>> offsets) {
         return new SerializationContext(offsets);
     }
 
+    /**
+     * Special handling to allow multiple NamedSemanticRegions instances
+     * which have overlapping names arrays to be serialized while
+     * serializing only a single copy of each name.
+     */
     static final class SerializationContext implements Serializable {
+
         private String[] strings;
-        SerializationContext(Iterable<Offsets<?>> offsets) {
+
+        SerializationContext(Iterable<NamedSemanticRegions<?>> offsets) {
             Set<String> strings = new TreeSet<>();
-            for (Offsets<?> o : offsets) {
+            for (NamedSemanticRegions<?> o : offsets) {
                 strings.addAll(Arrays.asList(o.nameArray()));
             }
             this.strings = strings.toArray(new String[strings.size()]);
         }
-        
+
         public String stringForIndex(int ix) {
             return strings[ix];
         }
@@ -185,7 +196,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    public Offsets(String[] names, int[] starts, int[] ends, K[] kinds, int size) {
+    NamedSemanticRegions(String[] names, int[] starts, int[] ends, K[] kinds, int size) {
         assert starts != null && ends != null && starts.length == ends.length;
         assert names != null && names.length == starts.length;
         assert kinds != null && kinds.length == names.length;
@@ -193,12 +204,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
 //        assert kinds.getClass().getEnumConstants().length < 65536;
         this.names = names;
         this.starts = starts;
-        this.ends = new ArrayEndSupplier(ends);
+        this.ends = ArrayUtil.createMutableArrayEndSupplier(ends);
         this.kinds = kinds;
         this.size = size;
     }
 
-    public Offsets(String[] names, K[] kinds, int size) {
+    NamedSemanticRegions(String[] names, K[] kinds, int size) {
         assert kinds.length == names.length;
         assert new HashSet<>(Arrays.asList(names)).size() == names.length : "Names array contains duplicates: " + Arrays.toString(names);
         this.starts = new int[names.length];
@@ -210,7 +221,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         this.size = size;
     }
 
-    public Offsets() { // for deserialization only
+    public NamedSemanticRegions() { // for deserialization only
         this.starts = null;
         this.kinds = null;
         this.ends = null;
@@ -225,58 +236,16 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return names;
     }
 
-    public static <K extends Enum<K>> OffsetsBuilder<K> builder(Class<K> type) {
-        return new OffsetsBuilder<>(type);
-    }
-
-    interface EndSupplier extends Serializable {
-
-        int get(int index);
-
-        default MutableEndSupplier toMutable(int size) {
-            int[] result = new int[size];
-            for (int i = 0; i < size; i++) {
-                result[i] = get(i);
-            }
-            return new ArrayEndSupplier(result);
-        }
-    }
-
-    interface MutableEndSupplier extends EndSupplier {
-
-        void setEnd(int index, int val);
-
-        void remove(int index);
-    }
-
-    static class ArrayEndSupplier implements MutableEndSupplier {
-
-        private final int[] ends;
-
-        ArrayEndSupplier(int size) {
-            ends = new int[size];
-            Arrays.fill(ends, -1);
-        }
-
-        ArrayEndSupplier(int[] ends) {
-            this.ends = ends;
-        }
-
-        @Override
-        public int get(int index) {
-            return ends[index];
-        }
-
-        @Override
-        public void setEnd(int index, int val) {
-            ends[index] = val;
-        }
-
-        @Override
-        public void remove(int ix) {
-            int size = ends.length;
-            System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
-        }
+    /**
+     * Create a builder for a NamedSemanticRegions with the passed key
+     * type.
+     *
+     * @param <K> The key type
+     * @param type The key type
+     * @return A builder
+     */
+    public static <K extends Enum<K>> NamedSemanticRegionsBuilder<K> builder(Class<K> type) {
+        return new NamedSemanticRegionsBuilder<>(type);
     }
 
     class StringEndSupplier implements EndSupplier {
@@ -287,25 +256,25 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    public static final class OffsetsBuilder<K extends Enum<K>> {
+    public static final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
 
         private final Class<K> type;
         private final Map<String, K> typeForName;
         private final Map<String, int[]> offsetsForName;
         private boolean needArrayBased;
 
-        private OffsetsBuilder(Class<K> type) {
+        private NamedSemanticRegionsBuilder(Class<K> type) {
             this.type = type;
             typeForName = new TreeMap<>();
             offsetsForName = new TreeMap<>();
         }
 
-        public OffsetsBuilder<K> arrayBased() {
+        public NamedSemanticRegionsBuilder<K> arrayBased() {
             needArrayBased = true;
             return this;
         }
 
-        public OffsetsBuilder<K> add(String name, K kind, int start, int end) {
+        public NamedSemanticRegionsBuilder<K> add(String name, K kind, int start, int end) {
             add(name, kind);
             offsetsForName.put(name, new int[]{start, end});
             if (end != name.length() + start) {
@@ -314,7 +283,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             return this;
         }
 
-        public OffsetsBuilder<K> add(String name, K kind) {
+        public NamedSemanticRegionsBuilder<K> add(String name, K kind) {
             assert name != null;
             assert kind != null;
             K existing = typeForName.get(name);
@@ -326,7 +295,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
 
         @SuppressWarnings("unchecked")
-        public Offsets<K> build() {
+        public NamedSemanticRegions<K> build() {
             String[] names = typeForName.keySet().toArray(new String[typeForName.size()]);
             K[] kinds = (K[]) Array.newInstance(type, names.length);
             String last = null;
@@ -339,15 +308,15 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 assert kinds[i] != null;
                 last = name;
             }
-            Offsets<K> result;
+            NamedSemanticRegions<K> result;
             if (!needArrayBased) {
-                result = new Offsets<>(names, kinds, names.length);
+                result = new NamedSemanticRegions<>(names, kinds, names.length);
             } else {
                 int[] starts = new int[names.length];
                 int[] ends = new int[names.length];
                 Arrays.fill(starts, -1);
                 Arrays.fill(ends, -1);
-                result = new Offsets<>(names, starts, ends, kinds, names.length);
+                result = new NamedSemanticRegions<>(names, starts, ends, kinds, names.length);
             }
             for (Map.Entry<String, int[]> e : offsetsForName.entrySet()) {
                 result.setOffsets(e.getKey(), e.getValue()[0], e.getValue()[1]);
@@ -361,7 +330,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return (Class<K>) kinds.getClass().getComponentType();
     }
 
-    public Set<String> itemsWithNoOffsets() {
+    /**
+     * Get the set of regions whose offsets have not been set.
+     *
+     * @return A set of names
+     */
+    public Set<String> regionsWithUnsetOffsets() {
         Set<String> result = new HashSet<>();
         for (int i = 0; i < size(); i++) {
             if (starts[i] < 0 || ends.get(i) < 0) {
@@ -375,8 +349,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return size;
     }
 
-    Set<String> removeItemsWithNoOffsets() {
-        Set<String> result = itemsWithNoOffsets();
+    Set<String> removeRegionsWithNoOffsets() {
+        Set<String> result = regionsWithUnsetOffsets();
         for (String s : result) {
             remove(s);
         }
@@ -393,7 +367,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return result;
     }
 
-    public boolean remove(String name) {
+    boolean remove(String name) {
+        // XXX get mutation methods out of API
         if (size == 0) {
             return false;
         }
@@ -421,21 +396,37 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return new BitSetSet<>(Indexed.forSortedStringArray(names));
     }
 
-    public Offsets<K> secondary() {
+    /**
+     * Create another NamedSemanticRegions instance, sharing this ones keys
+     * array, but whose offsets are independent - useful when collecting both
+     * the offsets of the names of sections of a source and also the bounds of
+     * that named section.
+     *
+     * @return An offsets with its starts and ends uninitialized.
+     */
+    public NamedSemanticRegions<K> secondary() {
+        // XXX should return a builder
         String[] n = Arrays.copyOf(names, size);
         K[] k = Arrays.copyOf(kinds, size);
         int[] starts = new int[size];
         int[] ends = new int[size];
         Arrays.fill(starts, -1);
         Arrays.fill(ends, -1);
-        return new Offsets<>(n, starts, ends, k, size);
+        return new NamedSemanticRegions<>(n, starts, ends, k, size);
     }
 
-    public Offsets<K> sans(String... toRemove) {
+    /**
+     * Returns a new NamedSemanticRegions which omits entries for
+     * the passed set of names.
+     *
+     * @param toRemove The names to remove
+     * @return A new region set
+     */
+    public NamedSemanticRegions<K> sans(String... toRemove) {
         return sans(Arrays.asList(toRemove));
     }
 
-    public int orderingOf(int ix) {
+    int orderingOf(int ix) {
         IndexImpl index = this.index;
         if (index == null) {
             index();
@@ -448,8 +439,15 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return orderingOf(internalIndexOf(name));
     }
 
+    /**
+     * Returns a new NamedSemanticRegions which omits entries for
+     * the passed set of names.
+     *
+     * @param toRemove The names to remove
+     * @return A new region set
+     */
     @SuppressWarnings("unchecked")
-    public Offsets<K> sans(Iterable<String> toRemove) {
+    public NamedSemanticRegions<K> sans(Iterable<String> toRemove) {
         BitSet set = new BitSet(size());
         for (String s : toRemove) {
             int ix = indexOf(s);
@@ -475,9 +473,15 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 cursor++;
             }
         }
-        return new Offsets<>(newNames, newStarts, newEnds, newKinds, newCount);
+        return new NamedSemanticRegions<>(newNames, newStarts, newEnds, newKinds, newCount);
     }
 
+    /**
+     * Get the internal index of the name in question.
+     *
+     * @param name The name
+     * @return the index, or -1 if not present
+     */
     public int indexOf(String name) {
         if (name == null) {
             return -1;
@@ -519,18 +523,49 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    ItemImpl item(String name) {
-        return new ItemImpl(internalIndexOf(name));
+    /**
+     * Get the region with the passed name; throws an IllegalArgumentException
+     * if no such name is present.
+     *
+     * @param name The name
+     * @return A region
+     * @throws IllegalArgumentException if the name is not present
+     */
+    public IndexNamedSemanticRegionImpl regionFor(String name) {
+        return new IndexNamedSemanticRegionImpl(internalIndexOf(name));
     }
 
+    /**
+     * Get the kind of the region with this index.
+     *
+     * @param index The index of the region
+     * @throws ArrayIndexOutOfBoundsException if out of range
+     * @return
+     */
     public K kind(int index) {
         return kinds[index];
     }
 
+    /**
+     * Get the kind of the region with the passed name; throws an
+     * IllegalArgumentException if no such name is present.
+     *
+     * @param name The name
+     * @return A region
+     * @throws IllegalArgumentException if the name is not present
+     */
     public K kind(String name) {
         return kind(internalIndexOf(name));
     }
 
+    /**
+     * Get the name at a given index.
+     *
+     * @param index
+     * @throws ArrayIndexOutOfBoundsException if the index is &lt; 0 or &gt;
+     * size().
+     * @return A name
+     */
     public String get(int index) {
         return names[index];
     }
@@ -540,10 +575,16 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
     }
 
     @Override
-    public Iterator<Item<K>> iterator() {
+    public Iterator<NamedSemanticRegion<K>> iterator() {
         return new Iter();
     }
 
+    /**
+     * Determine if this Offsets instance contains a particular name.
+     *
+     * @param name The name
+     * @return true if it is present
+     */
     public boolean contains(String name) {
         return indexOf(name) >= 0;
     }
@@ -560,27 +601,33 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return sb.toString();
     }
 
-    public Iterable<Item<K>> ofKind(K kind) {
+    /**
+     * Get an iterable of just those regions with the kind requested.
+     *
+     * @param The requested kind
+     * @return kind An iterable of regions
+     */
+    public Iterable<NamedSemanticRegion<K>> ofKind(K kind) {
         return new ByKindIter(kind);
     }
 
-    void collectItems(List<? super Item<K>> into) {
-        for (Item<K> i : this) {
+    void collectItems(List<? super NamedSemanticRegion<K>> into) {
+        for (NamedSemanticRegion<K> i : this) {
             into.add(i);
         }
     }
 
-    private class ByKindIter implements Iterator<Item<K>>, Iterable<Item<K>> {
+    private class ByKindIter implements Iterator<NamedSemanticRegion<K>>, Iterable<NamedSemanticRegion<K>> {
 
         private int ix = 0;
-        private Item<K> nextItem;
+        private NamedSemanticRegion<K> nextItem;
         private final K kind;
 
         ByKindIter(K kind) {
             this.kind = kind;
         }
 
-        public Iterator<Item<K>> iterator() {
+        public Iterator<NamedSemanticRegion<K>> iterator() {
             if (ix == 0) {
                 return this;
             }
@@ -591,7 +638,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             if (nextItem == null && ix < size()) {
                 for (int i = ix; i < size(); i++) {
                     if (kinds[i] != kind) {
-                        nextItem = new ItemImpl(i);
+                        nextItem = new IndexNamedSemanticRegionImpl(i);
                         break;
                     }
                     ix++;
@@ -600,8 +647,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             return nextItem != null;
         }
 
-        public Item<K> next() {
-            Item<K> result = nextItem;
+        public NamedSemanticRegion<K> next() {
+            NamedSemanticRegion<K> result = nextItem;
             if (result == null) {
                 throw new NoSuchElementException("next() called after end");
             }
@@ -611,23 +658,23 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    public interface ReferenceSets<K extends Enum<K>> extends Iterable<ReferenceSet<K>>, Serializable {
+    public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<NamedRegionReferenceSet<K>>, Serializable {
 
         public void addReference(String name, int start, int end);
 
-        public ReferenceSet<K> references(String name);
+        public NamedRegionReferenceSet<K> references(String name);
 
-        public Item<K> itemAt(int pos);
+        public NamedSemanticRegion<K> itemAt(int pos);
 
-        default void collectItems(List<? super Item<K>> into) {
-            for (ReferenceSet<K> refs : this) {
-                for (Item<K> item : refs) {
+        default void collectItems(List<? super NamedSemanticRegion<K>> into) {
+            for (NamedRegionReferenceSet<K> refs : this) {
+                for (NamedSemanticRegion<K> item : refs) {
                     into.add(item);
                 }
             }
         }
 
-        public interface ReferenceSet<K extends Enum<K>> extends Iterable<Item<K>>, Serializable {
+        public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegion<K>>, Serializable {
 
             int referenceCount();
 
@@ -637,7 +684,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
 
             int visitReferences(CoordinateConsumer consumer);
 
-            Item<K> itemAt(int pos);
+            NamedSemanticRegion<K> itemAt(int pos);
 
             @FunctionalInterface
             interface CoordinateConsumer {
@@ -645,13 +692,13 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 void consume(int start, int end);
             }
 
-            Item<K> original();
+            NamedSemanticRegion<K> original();
 
-            void collectItems(List<? super Item<K>> items);
+            void collectItems(List<? super NamedSemanticRegion<K>> items);
         }
     }
 
-    final class EmptyReferenceSet implements ReferenceSet<K> {
+    final class EmptyReferenceSet implements NamedRegionReferenceSet<K> {
 
         private final int index;
 
@@ -659,15 +706,15 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             this.index = index;
         }
 
-        public void collectItems(List<? super Item<K>> items) {
+        public void collectItems(List<? super NamedSemanticRegion<K>> items) {
             // do nothing
         }
 
-        public Iterator<Item<K>> iterator() {
+        public Iterator<NamedSemanticRegion<K>> iterator() {
             return Collections.emptyIterator();
         }
 
-        public Item<K> itemAt(int pos) {
+        public NamedSemanticRegion<K> itemAt(int pos) {
             return null;
         }
 
@@ -690,12 +737,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
 
         @Override
-        public Item<K> original() {
-            return new ItemImpl(index);
+        public NamedSemanticRegion<K> original() {
+            return new IndexNamedSemanticRegionImpl(index);
         }
     }
 
-    public ReferenceSets<K> newReferenceSets() {
+    public NamedRegionReferenceSets<K> newReferenceSets() {
         return new ReferenceSetsImpl();
     }
 
@@ -703,7 +750,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return new UsagesImpl();
     }
 
-    public interface Usages {
+    interface Usages {
 
         public BitSet get(int index);
 
@@ -749,20 +796,20 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
 
     }
 
-    private class ReferenceSetsImpl implements ReferenceSets<K> {
+    private final class ReferenceSetsImpl implements NamedRegionReferenceSets<K> {
 
-        ReferenceSetImpl[] sets;
+        NamedRegionReferenceSetImpl[] sets;
 
         @SuppressWarnings("unchecked")
         ReferenceSetsImpl() {
 //            sets = new ReferenceSetImpl[size()];
-            sets = (ReferenceSetImpl[]) Array.newInstance(ReferenceSetImpl.class, size());
+            sets = (NamedRegionReferenceSetImpl[]) Array.newInstance(NamedRegionReferenceSetImpl.class, size());
         }
 
-        public Item<K> itemAt(int pos) {
+        public NamedSemanticRegion<K> itemAt(int pos) {
             for (int i = 0; i < sets.length; i++) {
                 if (sets[i] != null) {
-                    Item<K> result = sets[i].itemAt(pos);
+                    NamedSemanticRegion<K> result = sets[i].itemAt(pos);
                     if (result != null) {
                         return result;
                     }
@@ -775,19 +822,19 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         public void addReference(String name, int start, int end) {
             int ix = internalIndexOf(name);
             if (sets[ix] == null) {
-                sets[ix] = new ReferenceSetImpl(ix);
+                sets[ix] = new NamedRegionReferenceSetImpl(ix);
             }
             sets[ix].add(start, end);
         }
 
         @Override
-        public ReferenceSet<K> references(String name) {
+        public NamedRegionReferenceSet<K> references(String name) {
             int ix = internalIndexOf(name);
             return sets[ix] == null ? new EmptyReferenceSet(ix) : sets[ix];
         }
 
         @Override
-        public Iterator<ReferenceSet<K>> iterator() {
+        public Iterator<NamedRegionReferenceSet<K>> iterator() {
             return new SetsIter();
         }
 
@@ -805,10 +852,10 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             return sb.toString();
         }
 
-        private class SetsIter implements Iterator<ReferenceSet<K>> {
+        private class SetsIter implements Iterator<NamedRegionReferenceSet<K>> {
 
             private int ix = 0;
-            private ReferenceSet<K> nextSet;
+            private NamedRegionReferenceSet<K> nextSet;
 
             public boolean hasNext() {
                 if (nextSet == null && ix < sets.length) {
@@ -823,8 +870,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 return nextSet != null;
             }
 
-            public ReferenceSet<K> next() {
-                ReferenceSet<K> result = nextSet;
+            public NamedRegionReferenceSet<K> next() {
+                NamedRegionReferenceSet<K> result = nextSet;
                 if (result == null) {
                     throw new NoSuchElementException("next() called after end");
                 }
@@ -834,7 +881,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             }
         }
 
-        private class ReferenceSetImpl implements ReferenceSet<K>, Iterable<Item<K>> {
+        private class NamedRegionReferenceSetImpl implements NamedRegionReferenceSet<K>, Iterable<NamedSemanticRegion<K>> {
 
             private int[] referenceStarts = new int[3];
 //            private int[] referenceEnds = new int[3];
@@ -842,7 +889,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             private final int referenceIndex;
             private final ES es = new ES();
 
-            ReferenceSetImpl(int index) {
+            NamedRegionReferenceSetImpl(int index) {
                 this.referenceIndex = index;
             }
 
@@ -855,14 +902,14 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
 
             }
 
-            public void collectItems(List<? super Item<K>> items) {
-                for (Item<K> i : this) {
+            public void collectItems(List<? super NamedSemanticRegion<K>> items) {
+                for (NamedSemanticRegion<K> i : this) {
                     items.add(i);
                 }
             }
 
-            public Item<K> original() {
-                return new ItemImpl(referenceIndex);
+            public NamedSemanticRegion<K> original() {
+                return new IndexNamedSemanticRegionImpl(referenceIndex);
             }
 
             public String name() {
@@ -887,13 +934,13 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 return indexFor(pos) >= 0;
             }
 
-            public Item<K> itemAt(int pos) {
+            public NamedSemanticRegion<K> itemAt(int pos) {
                 int ix = indexFor(pos);
                 return ix >= 0 ? new ReferenceItem(ix) : null;
             }
 
             private int indexFor(int pos) {
-                return rangeBinarySearch(pos, referenceStarts, es, referenceSetSize);
+                return ArrayUtil.rangeBinarySearch(pos, referenceStarts, es, referenceSetSize);
             }
 
             @Override
@@ -910,7 +957,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             }
 
             @Override
-            public Iterator<Item<K>> iterator() {
+            public Iterator<NamedSemanticRegion<K>> iterator() {
                 return new RefIter();
             }
 
@@ -928,7 +975,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 return sb.append('}').toString();
             }
 
-            class RefIter implements Iterator<Item<K>> {
+            class RefIter implements Iterator<NamedSemanticRegion<K>> {
 
                 private int ix = -1;
 
@@ -938,12 +985,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 }
 
                 @Override
-                public Item<K> next() {
+                public NamedSemanticRegion<K> next() {
                     return new ReferenceItem(++ix);
                 }
             }
 
-            class ReferenceItem implements Item<K> {
+            class ReferenceItem implements NamedSemanticRegion<K> {
 
                 private final int boundsIndex;
 
@@ -997,7 +1044,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    private final class Iter implements Iterator<Item<K>> {
+    private final class Iter implements Iterator<NamedSemanticRegion<K>> {
 
         private int ix = -1;
 
@@ -1007,48 +1054,115 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
 
         @Override
-        public Item<K> next() {
-            return new ItemImpl(++ix);
+        public NamedSemanticRegion<K> next() {
+            return new IndexNamedSemanticRegionImpl(++ix);
         }
     }
 
     /**
-     * A flyweight object which encapsulates one entry in an Offsets.
+     * A flyweight object which encapsulates one region in a
+     * NamedSemanticRegions. Comparable on its start() and end() positions.
      */
-    public interface Item<K extends Enum<K>> extends Comparable<Item<?>> {
+    public interface NamedSemanticRegion<K extends Enum<K>> extends Comparable<NamedSemanticRegion<?>> {
 
+        /**
+         * Get the start offset, inclusive.
+         *
+         * @return The start offset
+         */
         int start();
 
+        /**
+         * Get the end offset, exclusive.
+         *
+         * @return 23
+         */
         int end();
 
+        /**
+         * Get the assigned "kind" of this region.
+         *
+         * @return The region's kind
+         */
         K kind();
 
+        /**
+         * Get the position, in the total order of named regions in the owning
+         * NamedSemanticRegions, of this one, based on its start and end
+         * positions (this operation may be expensive).
+         *
+         * @return The position of this item relative to its siblings when
+         * sorted by its start position
+         */
         int ordering();
 
+        /**
+         * If true, this item represents a <i>reference</i> to another item (if
+         * it returns true, this item belongs to a NamedRegionsReferenceSet).
+         *
+         * @return
+         */
         boolean isReference();
 
+        /**
+         * Get the final position which is within this NamedSemanticRegions -
+         * equals to end()-1.
+         *
+         * @return
+         */
         default int stop() {
             return end() - 1;
         }
 
+        /**
+         * Get the name of this region.
+         *
+         * @return A name
+         */
         String name();
 
+        /**
+         * Get the index of this region within the NamedSemanticRegions which
+         * owns it. The meaning of this number is unspecified other than that if
+         * you pass this number to fetch a region from the parent by index, you
+         * will get an item which equals() this one.
+         *
+         * @return
+         */
         int index();
 
+        /**
+         * Get the length of this region - end() - start().
+         *
+         * @return The length
+         */
         default int length() {
             return end() - start();
         }
 
+        /**
+         * Determine if this region contains a given position - equivalent to
+         * <code>pos &gt;= start() && pos &lt; end()</code>.
+         *
+         * @param pos A position
+         * @return true if it is contained
+         */
         default boolean containsPosition(int pos) {
             return pos >= start() && pos < end();
         }
 
+        /**
+         * Determine if this item is a reference to an item in a different
+         * NamedSemanticRegionsobject.
+         *
+         * @return
+         */
         default boolean isForeign() {
             return false;
         }
 
         @Override
-        public default int compareTo(Item<?> o) {
+        public default int compareTo(NamedSemanticRegion<?> o) {
             int as = start();
             int bs = o.start();
             int result = as > bs ? 1 : as == bs ? 0 : -1;
@@ -1061,29 +1175,29 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    public interface Index<K extends Enum<K>> extends Iterable<Item<K>> {
+    public interface NamedSemanticRegionPositionIndex<K extends Enum<K>> extends Iterable<NamedSemanticRegion<K>> {
 
-        public Item<K> atOffset(int ix);
+        public NamedSemanticRegion<K> regionAt(int ix);
 
-        public Item<K> withStart(int start);
+        public NamedSemanticRegion<K> withStart(int start);
 
-        public Item<K> withEnd(int end);
+        public NamedSemanticRegion<K> withEnd(int end);
     }
 
-    public Index<K> index() {
+    public NamedSemanticRegionPositionIndex<K> index() {
         if (index != null) {
             return index;
         }
-        List<ItemImpl> all = new ArrayList<>(size());
+        List<IndexNamedSemanticRegionImpl> all = new ArrayList<>(size());
         for (int i = 0; i < size(); i++) {
-            all.add(new ItemImpl(i));
+            all.add(new IndexNamedSemanticRegionImpl(i));
         }
         Collections.sort(all);
         int[] indices = new int[size()];
         int[] sortedStarts = new int[size()];
         int[] sortedEnds = new int[size()];
         for (int i = 0; i < size(); i++) {
-            ItemImpl item = all.get(i);
+            IndexNamedSemanticRegionImpl item = all.get(i);
             indices[i] = item.index();
             if (item.start() == item.end()) {
                 throw new IllegalStateException("Some indices not set: "
@@ -1100,7 +1214,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         return size() - 1;
     }
 
-    private final class IndexImpl implements Index<K> {
+    private final class IndexImpl implements NamedSemanticRegionPositionIndex<K> {
 
         private final int[] starts;
         private final int[] ends;
@@ -1112,34 +1226,34 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             this.indices = indices;
         }
 
-        public Item<K> withStart(int start) {
+        public NamedSemanticRegion<K> withStart(int start) {
             int offset = Arrays.binarySearch(starts, 0, size, start);
-            return offset < 0 ? null : new ItemImpl(indices[offset]);
+            return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
         }
 
-        public Item<K> withEnd(int end) {
+        public NamedSemanticRegion<K> withEnd(int end) {
             int offset = Arrays.binarySearch(ends, 0, size, end);
-            return offset < 0 ? null : new ItemImpl(indices[offset]);
+            return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
         }
 
         private int indexFor(int pos) {
             // XXX could use the original end supplier rapped in one which
             // looks up by index, and forgo having an ends array here
-            return rangeBinarySearch(pos, starts, new ArrayEndSupplier(ends), size);
+            return ArrayUtil.rangeBinarySearch(pos, starts, new ArrayEndSupplier(ends), size);
         }
 
         @Override
-        public Item<K> atOffset(int pos) {
+        public NamedSemanticRegion<K> regionAt(int pos) {
             int ix = indexFor(pos);
-            return ix < 0 ? null : new ItemImpl(ix);
+            return ix < 0 ? null : new IndexNamedSemanticRegionImpl(ix);
         }
 
         @Override
-        public Iterator<Item<K>> iterator() {
+        public Iterator<NamedSemanticRegion<K>> iterator() {
             return new IndexIter();
         }
 
-        class IndexIter implements Iterator<Item<K>> {
+        class IndexIter implements Iterator<NamedSemanticRegion<K>> {
 
             private int ix = -1;
 
@@ -1149,17 +1263,17 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             }
 
             @Override
-            public Item<K> next() {
-                return new ItemImpl(indices[++ix]);
+            public NamedSemanticRegion<K> next() {
+                return new IndexNamedSemanticRegionImpl(indices[++ix]);
             }
         }
     }
 
-    private class ItemImpl implements Item<K> {
+    private class IndexNamedSemanticRegionImpl implements NamedSemanticRegion<K> {
 
         private final int index;
 
-        public ItemImpl(int index) {
+        public IndexNamedSemanticRegionImpl(int index) {
             this.index = index;
         }
 
@@ -1209,8 +1323,8 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
                 return true;
             } else if (o == null) {
                 return false;
-            } else if (o instanceof Item<?>) {
-                Item<?> other = (Item<?>) o;
+            } else if (o instanceof NamedSemanticRegion<?>) {
+                NamedSemanticRegion<?> other = (NamedSemanticRegion<?>) o;
                 return other.name().equals(name());
             } else {
                 return false;
@@ -1222,27 +1336,30 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
         }
     }
 
-    public interface ForeignItem<K extends Enum<K>, O> extends Item<K>, Serializable {
-        Offsets<K> originOffsets();
+    public interface ForeignNamedSemanticRegion<K extends Enum<K>, O> extends NamedSemanticRegion<K>, Serializable {
+
+        NamedSemanticRegions<K> originOffsets();
+
         O origin();
-        public Item<K> originalItem();
+
+        public NamedSemanticRegion<K> originalItem();
     }
 
-
-    <O> ForeignItem<K,O> newForeignItem(String name, O origin, int start, int end) {
+    <O> ForeignNamedSemanticRegion<K, O> newForeignItem(String name, O origin, int start, int end) {
         int ix = indexOf(name);
         if (ix >= 0) {
-            return new ForeignItemImpl<O>(ix, origin, start, end);
+            return new ForeignNamedSemanticRegionImpl<O>(ix, origin, start, end);
         }
         return null;
     }
 
-    private class ForeignItemImpl<O> implements ForeignItem<K,O> {
+    private class ForeignNamedSemanticRegionImpl<O> implements ForeignNamedSemanticRegion<K, O> {
 
         private final O origin;
         private final int index;
         private final int start;
-        ForeignItemImpl(int index, O origin, int start, int end) {
+
+        ForeignNamedSemanticRegionImpl(int index, O origin, int start, int end) {
             this.index = index;
             this.origin = origin;
             this.start = start;
@@ -1252,12 +1369,12 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             return true;
         }
 
-        public Item<K> originalItem() {
-            return new ItemImpl(index);
+        public NamedSemanticRegion<K> originalItem() {
+            return new IndexNamedSemanticRegionImpl(index);
         }
 
-        public Offsets<K> originOffsets() {
-            return Offsets.this;
+        public NamedSemanticRegions<K> originOffsets() {
+            return NamedSemanticRegions.this;
         }
 
         public O origin() {
@@ -1320,7 +1437,7 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            final ForeignItemImpl<?> other = (ForeignItemImpl<?>) obj;
+            final ForeignNamedSemanticRegionImpl<?> other = (ForeignNamedSemanticRegionImpl<?>) obj;
             if (this.index != other.index) {
                 return false;
             }
@@ -1338,47 +1455,5 @@ public class Offsets<K extends Enum<K>> implements Iterable<Item<K>>, Externaliz
             return "foreign-ref:" + name() + "@" + start + ":" + end() + "<-" + origin
                     + ":" + originalItem();
         }
-    }
-
-    static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
-        int firstStart = starts[searchFirst];
-        int lastEnd = ends.get(searchLast);
-        int firstEnd = ends.get(searchFirst);
-        if (pos >= firstStart && pos < firstEnd) {
-            return searchFirst;
-        } else if (pos < firstStart) {
-            return -1;
-        } else if (pos == lastEnd - 1) {
-            return searchLast;
-        } else if (pos > lastEnd) {
-            return -1;
-        }
-        int lastStart = starts[searchLast];
-        if (pos >= lastStart && pos < lastEnd) {
-            return searchLast;
-        } else if (pos == firstEnd - 1) {
-            return searchFirst;
-        }
-        int mid = searchFirst + ((searchLast - searchFirst) / 2);
-        if (mid == searchFirst || mid == searchLast) {
-            return -1;
-        }
-        int midStart = starts[mid];
-        int midEnd = ends.get(mid);
-        if (pos >= midStart && pos < midEnd) {
-            return mid;
-        }
-        if (pos >= midEnd) {
-            return rangeBinarySearch(pos, mid + 1, searchLast - 1, starts, ends, size);
-        } else {
-            return rangeBinarySearch(pos, searchFirst + 1, mid - 1, starts, ends, size);
-        }
-    }
-
-    static int rangeBinarySearch(int pos, int[] starts, EndSupplier ends, int size) {
-        if (size == 0 || pos < starts[0] || pos >= ends.get(size - 1)) {
-            return -1;
-        }
-        return rangeBinarySearch(pos, 0, size - 1, starts, ends, size);
     }
 }

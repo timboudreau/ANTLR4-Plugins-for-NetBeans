@@ -12,7 +12,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.EndSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegionImpl;
 
@@ -138,12 +137,17 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return new SemanticRegions(newStarts, newEnds, newKeys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
-    public SemanticRegionsBuilder<T> builder(Class<T> type) {
+    public static <T> SemanticRegionsBuilder<T> builder(Class<T> type) {
         return new SemanticRegionsBuilder<>(type);
     }
 
-    public SemanticRegionsBuilder<Void> builder() {
+    public static SemanticRegionsBuilder<Void> builder() {
         return new SemanticRegionsBuilder<>(Void.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Class<T> keyType() {
+        return keys == null ? (Class<T>) Void.class : (Class<T>) keys.getClass().getComponentType();
     }
 
     public SemanticRegion<T> get(int index) {
@@ -215,12 +219,12 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     int indexAtPoint(int pos) {
         if (!hasNesting) {
-            return Offsets.rangeBinarySearch(pos, starts, new MES(), size);
+            return ArrayUtil.rangeBinarySearch(pos, starts, new MES(), size);
         }
         if (firstUnsortedEndsEntry > 0) {
             int lastSortedEnd = ends[firstUnsortedEndsEntry - 1];
             if (lastSortedEnd > pos) {
-                return Offsets.rangeBinarySearch(pos, 0, lastSortedEnd - 1, starts, new MES(), size);
+                return ArrayUtil.rangeBinarySearch(pos, 0, lastSortedEnd - 1, starts, new MES(), size);
             }
         }
         int[] id = indexAndDepthAt(pos);
@@ -314,215 +318,10 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     int[] indexAndDepthAt(int pos) {
         if (!hasNesting) {
-            int ix = Offsets.rangeBinarySearch(pos, starts, new MES(), size);
+            int ix = ArrayUtil.rangeBinarySearch(pos, starts, new MES(), size);
             return new int[]{ix, ix == 0 ? 0 : -1};
         }
-        return nestingBinarySearch(pos, starts, ends, size, hasNesting, firstUnsortedEndsEntry);
-    }
-
-    private static int[] nestingBinarySearch(int pos, int[] starts, int[] ends, int size, boolean hasNesting, int firstUnsortedEndsEntry) {
-        return nestingBinarySearch(pos, hasNesting, starts, ends, size, 0, firstUnsortedEndsEntry);
-    }
-
-    static int firstOffsetGreaterThanOrEqualTo(int pos, int[] in, int first, int last) {
-        int fval = in[first];
-        if (fval >= pos) {
-            // if it is the first value we have come to that is >=, we have it
-            return first;
-        }
-        if (last <= first) {
-            return -1;
-        }
-        int midOffset = first + ((last - first) / 2);
-        int lval = in[last];
-        if (lval >= pos) {
-            if (in[last - 1] < pos) {
-                return last;
-            }
-            int m = in[midOffset];
-            if (m >= pos) {
-                return firstOffsetGreaterThanOrEqualTo(pos, in, first + 1, midOffset);
-            } else {
-                return firstOffsetGreaterThanOrEqualTo(pos, in, midOffset, last - 1);
-            }
-        }
-        return -1;
-    }
-
-    static int firstOffsetGreaterThanOrEqualTo(int pos, int[] in, int size) {
-        return firstOffsetGreaterThanOrEqualTo(pos, in, size, Bias.NONE);
-    }
-
-    static int firstOffsetGreaterThanOrEqualTo(int pos, int[] in, int size, Bias bias) {
-        if (size == 0 || in.length == 0) {
-            return -1;
-        }
-        int last = size - 1;
-        int result = firstOffsetGreaterThanOrEqualTo(pos, in, 0, last);
-        if (result >= 0) {
-            switch (bias) {
-                case FORWARD:
-                    while (result < size - 1 && in[result + 1] >= pos) {
-                        result++;
-                    }
-                    break;
-                case BACKWARD:
-                    while (result > 0 && in[result - 1] >= pos) {
-                        result--;
-                    }
-                    break;
-                case NONE:
-                    // do nothing
-                    break;
-                default:
-                    throw new AssertionError(bias);
-            }
-        }
-        return result;
-    }
-
-    static int lastOffsetLessThanOrEqualTo(int pos, int[] in, int first, int last, int size) {
-        int lval = in[last];
-        if (lval <= pos) {
-            return last;
-        }
-        if (first == last) {
-            return -1;
-        }
-        int fval = in[first];
-        if (fval <= pos) {
-            if (first < size && in[first + 1] > pos) {
-                return first;
-            }
-            int mid = first + ((last - first) / 2);
-            if (mid == first || mid == last) {
-                return first;
-            }
-            int m = in[mid];
-            if (m <= pos) {
-                return lastOffsetLessThanOrEqualTo(pos, in, mid, last - 1, size);
-            } else {
-                return lastOffsetLessThanOrEqualTo(pos, in, first + 1, mid, size);
-            }
-        }
-        return -1;
-    }
-
-    static int lastOffsetLessThanOrEqualTo(int pos, int[] in, int size) {
-        return lastOffsetLessThanOrEqualTo(pos, in, size, Bias.NONE);
-    }
-
-    static int lastOffsetLessThanOrEqualTo(int pos, int[] in, int size, Bias bias) {
-        if (size == 0 || in.length == 0) {
-            return -1;
-        }
-        int last = size - 1;
-        int result = lastOffsetLessThanOrEqualTo(pos, in, 0, last, size);
-        if (result >= 0) {
-            switch (bias) {
-                case FORWARD:
-                    while (result < size - 1 && in[result + 1] <= pos) {
-                        result++;
-                    }
-                    break;
-                case BACKWARD:
-                    while (result > 0 && in[result - 1] <= pos) {
-                        result--;
-                    }
-                    break;
-                case NONE:
-                    // do nothing
-                    break;
-                default:
-                    throw new AssertionError(bias);
-            }
-        }
-        return result;
-    }
-
-    static enum Bias {
-        FORWARD,
-        BACKWARD,
-        NONE;
-    }
-
-    private static int[] nestingBinarySearch(int pos, boolean hasNesting, int[] starts, int[] ends, int size, int depth, int firstUnsortedEndsEntry) {
-        // Okay, this requires some explaining:
-        //  - For many cases, binary search will work, unless it stumbles across an end that comes
-        //    before the target position
-        //  - In that case, we must do a linear scan UP TO the last entry in the starts array
-        //    which could possibly be our start (which will still be far less than iterating
-        //    the entire array in most cases
-        int target = Offsets.rangeBinarySearch(pos, starts, new MES2(ends), size);
-        if (target < 0) {
-            // Binary search failed.  If we know we do not have any nesting which
-            // interferes with the sort order of the ends array, then we can stop
-            // here
-            if (hasNesting) {
-                // If there is nesting, then the end test in rangeBinarySearch, which
-                // expects the ends array to be sorted can miss.
-                // In that case, we need to do a linear search, but only of
-                // a few items - as soon as we encounter one which starts
-                // after the end of the earliest start which is <= pos,
-                // we can bail out
-                int scanTo = lastOffsetLessThanOrEqualTo(pos, starts, size);
-                if (scanTo >= 0 && scanTo >= firstUnsortedEndsEntry - 1) {
-                    int scanStop = ends[scanTo];
-                    if (pos >= scanTo && pos < scanStop) {
-                        target = scanTo;
-                    } else {
-//                        for (int i = firstUnsortedEndsEntry; i < scanTo; i++) {
-                        for (int i = 0; i < scanTo; i++) {
-                            int st = starts[i];
-                            int en = ends[i];
-                            if (pos >= st && pos < en) {
-                                target = i;
-                            }
-                        }
-                    }
-                }
-            }
-            if (target < 0) {
-                return new int[]{-1, -1};
-            }
-        } else if (target == 0 && firstUnsortedEndsEntry > 1) {
-            // If the target is zero, we know zero cannot be the child of any
-            // preceding element, so we can return a nesting depth of zero
-            // here and be done
-            return new int[]{0, 0};
-        }
-
-        if (target > 0) {
-            // Our target may be the child of another, so scan backwards
-            // to find out
-            int tgt = target - 1;
-            while (tgt >= 0 && tgt >= firstUnsortedEndsEntry - 1) {
-                if (ends[tgt] >= ends[target]) {
-                    depth++;
-                }
-                tgt--;
-            }
-            // XXX return here?  Is the test below needed if this worked?
-        }
-        int[] result = new int[]{target, depth};
-        subsequentIndexContaining(pos, result, starts, ends, size);
-        return result;
-    }
-
-    static void subsequentIndexContaining(int pos, int[] targetAndDepth, int[] starts, int[] ends, int size) {
-        int result = targetAndDepth[0];
-        for (int i = targetAndDepth[0] + 1; i < size; i++) {
-            int st = starts[i];
-            int en = ends[i];
-            if (st > pos && en > pos) {
-                break;
-            }
-            if (st <= pos && en > pos) {
-                result = i;
-                targetAndDepth[1]++;
-            }
-        }
-        targetAndDepth[0] = result;
+        return ArrayUtil.nestingBinarySearch(pos, starts, ends, size, hasNesting, firstUnsortedEndsEntry);
     }
 
     private void grow(int targetArrayLength) {
@@ -1153,21 +952,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
     }
 
-    private final class MES implements EndSupplier {
-
-        @Override
-        public int get(int index) {
-            return ends[index];
-        }
-    }
-
-    private static final class MES2 implements EndSupplier {
-
-        private final int[] ends;
-
-        public MES2(int[] ends) {
-            this.ends = ends;
-        }
+    private final class MES implements ArrayUtil.EndSupplier {
 
         @Override
         public int get(int index) {

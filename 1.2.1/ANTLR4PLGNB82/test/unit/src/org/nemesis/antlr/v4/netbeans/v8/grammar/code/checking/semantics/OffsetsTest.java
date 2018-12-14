@@ -10,11 +10,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Index;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.OffsetsBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.ReferenceSets.ReferenceSet;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionPositionIndex;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
 
 /**
  *
@@ -48,14 +48,14 @@ public class OffsetsTest {
 
     @Test
     public void testSingle() {
-        Offsets<Foo> offsets = new Offsets<>(new String[]{"foo"}, new int[] { -1}, new int[] {-1}, new Foo[]{Foo.FOO}, 1);
+        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(new String[]{"foo"}, new int[] { -1}, new int[] {-1}, new Foo[]{Foo.FOO}, 1);
         offsets.setOffsets("foo", 10, 20);
         assertEquals(0, offsets.indexOf("foo"));
         assertEquals(10, offsets.start("foo"));
         assertEquals(20, offsets.end("foo"));
-        Index<Foo> ix = offsets.index();
+        NamedSemanticRegionPositionIndex<Foo> ix = offsets.index();
         for (int i = 10; i < 20; i++) {
-            Item<Foo> item = ix.atOffset(10);
+            NamedSemanticRegion<Foo> item = ix.regionAt(10);
             assertEquals("foo", item.name());
             assertEquals(10, item.start());
             assertEquals(20, item.end());
@@ -63,22 +63,22 @@ public class OffsetsTest {
             assertEquals(0, item.index());
         }
         for (int i = 0; i < 10; i++) {
-            assertNull(ix.atOffset(i));
+            assertNull(ix.regionAt(i));
         }
         for (int i = 20; i < 30; i++) {
-            assertNull(ix.atOffset(i));
+            assertNull(ix.regionAt(i));
         }
     }
 
     @Test
     public void testEmpty() {
-        Offsets<Foo> offsets = new Offsets<>(new String[0], new Foo[0], 0);
+        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(new String[0], new Foo[0], 0);
         assertEquals(0, offsets.size());
-        assertNull(offsets.index().atOffset(0));
-        assertNull(offsets.index().atOffset(1));
-        assertNull(offsets.index().atOffset(-1));
-        assertNull(offsets.index().atOffset(Integer.MAX_VALUE));
-        assertNull(offsets.index().atOffset(Integer.MIN_VALUE));
+        assertNull(offsets.index().regionAt(0));
+        assertNull(offsets.index().regionAt(1));
+        assertNull(offsets.index().regionAt(-1));
+        assertNull(offsets.index().regionAt(Integer.MAX_VALUE));
+        assertNull(offsets.index().regionAt(Integer.MIN_VALUE));
         assertFalse(offsets.contains(""));
         assertFalse(offsets.iterator().hasNext());
         assertEquals(-1, offsets.indexOf(""));
@@ -88,15 +88,15 @@ public class OffsetsTest {
         assert names.length == foos.length;
         names = Arrays.copyOf(names, names.length);
 
-        OffsetsBuilder<Foo> bldr = Offsets.builder(Foo.class);
+        NamedSemanticRegionsBuilder<Foo> bldr = NamedSemanticRegions.builder(Foo.class);
         for (int i = 0; i < names.length; i++) {
             assertNotNull(i + "", names[i]);
             assertNotNull(i + "", foos[i]);
             bldr.add(names[i], foos[i]);
         }
-        Offsets<Foo> offsets = bldr.arrayBased().build();
+        NamedSemanticRegions<Foo> offsets = bldr.arrayBased().build();
 
-//        Offsets<Foo> offsets = new Offsets<>(names, foos);
+//        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(names, foos);
         assertEquals(names.length, offsets.size());
         int pos = 0;
         for (int i = 0; i < names.length; i++) {
@@ -106,7 +106,7 @@ public class OffsetsTest {
         }
         assertEquals(names.length, offsets.size());
         int ix = 0;
-        for (Item<Foo> i : offsets) {
+        for (NamedSemanticRegion<Foo> i : offsets) {
             assertEquals(ix, i.index());
             assertNotNull(i.kind());
             if (ix % 2 == 0) {
@@ -120,11 +120,11 @@ public class OffsetsTest {
             assertTrue(i.containsPosition(i.end() - 1));
         }
         pos = 0;
-        Index<Foo> index = offsets.index();
+        NamedSemanticRegionPositionIndex<Foo> index = offsets.index();
         for (int i = 0; i < names.length; i++) {
             int start = pos;
             int end = pos + dist;
-            Item<Foo> it = index.withStart(start);
+            NamedSemanticRegion<Foo> it = index.withStart(start);
             assertNotNull(it);
             assertEquals(names[i], it.name());
             assertEquals(i, it.index());
@@ -134,25 +134,25 @@ public class OffsetsTest {
             assertEquals(i, it.index());
 
             for (int j = start; j < end; j++) {
-                it = index.atOffset(j);
+                it = index.regionAt(j);
                 assertNotNull("Got null for offset " + j, it);
                 assertEquals(names[i], it.name());
                 assertEquals(i, it.index());
             }
             for (int j = 1; j < dist - 1; j++) {
-                assertNull("" + (end + j), index.atOffset(end + j));
+                assertNull("" + (end + j), index.regionAt(end + j));
             }
-            assertNull("" + (end + 4), index.atOffset(end + 4));
-            assertNull("" + (end + 3), index.atOffset(end + 3));
-            assertNull("" + (end + 2), index.atOffset(end + 2));
-            assertNull("" + (end + 1), index.atOffset(end + 1));
-            assertNull("-1", index.atOffset(-1));
-            assertNull("" + Integer.MAX_VALUE, index.atOffset(Integer.MAX_VALUE));
-            assertNull("" + Integer.MIN_VALUE, index.atOffset(Integer.MIN_VALUE));
+            assertNull("" + (end + 4), index.regionAt(end + 4));
+            assertNull("" + (end + 3), index.regionAt(end + 3));
+            assertNull("" + (end + 2), index.regionAt(end + 2));
+            assertNull("" + (end + 1), index.regionAt(end + 1));
+            assertNull("-1", index.regionAt(-1));
+            assertNull("" + Integer.MAX_VALUE, index.regionAt(Integer.MAX_VALUE));
+            assertNull("" + Integer.MIN_VALUE, index.regionAt(Integer.MIN_VALUE));
             pos += dist * 2;
         }
         String[] toRemove = new String[]{"A", "C", "E", "G", "I", "K", "Y"};
-        Offsets<Foo> sans = offsets.sans(toRemove);
+        NamedSemanticRegions<Foo> sans = offsets.sans(toRemove);
         for (String s : toRemove) {
             assertFalse(s, sans.contains(s));
         }
@@ -183,10 +183,10 @@ public class OffsetsTest {
         assertEquals(oldSize - 1, sans.size());
         assertFalse(sans.contains("Q"));
 
-        Offsets<Foo> withoutOffsets = offsets.secondary();
-        assertEquals(new HashSet<>(Arrays.asList(names)), withoutOffsets.itemsWithNoOffsets());
+        NamedSemanticRegions<Foo> withoutOffsets = offsets.secondary();
+        assertEquals(new HashSet<>(Arrays.asList(names)), withoutOffsets.regionsWithUnsetOffsets());
 
-        ReferenceSets<Foo> sets = offsets.newReferenceSets();
+        NamedRegionReferenceSets<Foo> sets = offsets.newReferenceSets();
         assertNotNull(sets);
         sets.addReference("B", 5, 6);
         sets.addReference("C", 7, 8);
@@ -194,7 +194,7 @@ public class OffsetsTest {
         sets.addReference("C", 92, 93);
         sets.addReference("N", 107, 108);
 
-        ReferenceSet<Foo> s = sets.references("B");
+        NamedRegionReferenceSet<Foo> s = sets.references("B");
         assertEquals(2, s.referenceCount());
         assertTrue(s.contains(5));
         assertTrue(s.contains(16));
@@ -209,7 +209,7 @@ public class OffsetsTest {
         assertEquals("B", sets.itemAt(16).name());
 
         int ct = 0;
-        for (ReferenceSet<Foo> set : sets) {
+        for (NamedRegionReferenceSet<Foo> set : sets) {
             assertNotNull("Null set at " + ct + " in " + sets, set);
             String nm = set.name();
             assertNotNull(nm);

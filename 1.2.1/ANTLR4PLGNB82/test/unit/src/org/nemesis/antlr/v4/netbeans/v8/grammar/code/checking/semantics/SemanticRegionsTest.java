@@ -24,23 +24,23 @@ public class SemanticRegionsTest {
     @Test
     public void testLastOffsetFinding() {
         int[] vals = new int[]{0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
-        int off = SemanticRegions.lastOffsetLessThanOrEqualTo(0, vals, vals.length);
+        int off = ArrayUtil.lastOffsetLessThanOrEqualTo(0, vals, vals.length);
         assertEquals(0, off);
 
-        off = SemanticRegions.lastOffsetLessThanOrEqualTo(6, vals, vals.length);
+        off = ArrayUtil.lastOffsetLessThanOrEqualTo(6, vals, vals.length);
         assertEquals(1, off);
-        off = SemanticRegions.lastOffsetLessThanOrEqualTo(7, vals, vals.length);
+        off = ArrayUtil.lastOffsetLessThanOrEqualTo(7, vals, vals.length);
         assertEquals(1, off);
-        off = SemanticRegions.lastOffsetLessThanOrEqualTo(8, vals, vals.length);
+        off = ArrayUtil.lastOffsetLessThanOrEqualTo(8, vals, vals.length);
         assertEquals(1, off);
-        off = SemanticRegions.lastOffsetLessThanOrEqualTo(9, vals, vals.length);
+        off = ArrayUtil.lastOffsetLessThanOrEqualTo(9, vals, vals.length);
         assertEquals(1, off);
-        off = SemanticRegions.lastOffsetLessThanOrEqualTo(10, vals, vals.length);
+        off = ArrayUtil.lastOffsetLessThanOrEqualTo(10, vals, vals.length);
         assertEquals(2, off);
 
         for (int i = 0; i < 65; i++) {
             int expect = i / 5;
-            int o = SemanticRegions.lastOffsetLessThanOrEqualTo(i, vals, vals.length);
+            int o = ArrayUtil.lastOffsetLessThanOrEqualTo(i, vals, vals.length);
             assertEquals(i + " got " + o, expect, o);
         }
     }
@@ -48,42 +48,42 @@ public class SemanticRegionsTest {
     @Test
     public void testFirstOffsetFinding() {
         int[] vals = new int[]{0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
-        int off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(0, vals, vals.length);
+        int off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(0, vals, vals.length);
         assertEquals(0, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(30, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(30, vals, vals.length);
         assertEquals(6, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(60, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(60, vals, vals.length);
         assertEquals(vals.length - 1, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(61, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(61, vals, vals.length);
         assertEquals(-1, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(31, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(31, vals, vals.length);
         assertEquals(7, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(41, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(41, vals, vals.length);
         assertEquals(9, off);
 
         vals = new int[]{0, 5, 10, 15, 20, 20, 20, 25, 30, 30, 35, 35, 40, 45, 50, 50, 50, 55, 60};
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(0, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(0, vals, vals.length);
         assertEquals(0, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(30, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(30, vals, vals.length);
         assertEquals(8, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(60, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(60, vals, vals.length);
         assertEquals(vals.length - 1, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(61, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(61, vals, vals.length);
         assertEquals(-1, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(31, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(31, vals, vals.length);
         assertEquals(10, off);
 
-        off = SemanticRegions.firstOffsetGreaterThanOrEqualTo(41, vals, vals.length);
+        off = ArrayUtil.firstOffsetGreaterThanOrEqualTo(41, vals, vals.length);
         assertEquals(13, off);
     }
 

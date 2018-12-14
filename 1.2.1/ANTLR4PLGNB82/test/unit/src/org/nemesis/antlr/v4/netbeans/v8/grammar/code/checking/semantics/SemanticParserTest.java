@@ -9,20 +9,35 @@ import java.net.URISyntaxException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Offsets.Item;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.BlockContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GenericExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.RegionsKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.AntlrRuleKind;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.CharStreamSource;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.CharStreamSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.RulesInfo;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 
 /**
  *
@@ -32,52 +47,154 @@ public class SemanticParserTest {
 
     private final RustCSS rustLoader = new RustCSS();
     private final AntlrCSS antlrLoader = new AntlrCSS();
-    SemanticParser sem = new SemanticParser("Rust", rustLoader);
+    private final NestedMapCSS nestedMapLoader = new NestedMapCSS();
+//    SemanticParser sem = new SemanticParser("NestedMapGrammar", nestedMapLoader);
+//    SemanticParser sem = new SemanticParser("Rust", rustLoader);
 //    SemanticParser sem = new SemanticParser("ANTLRv4", antlrLoader);
 
     @Test
+    public void testGenericExtractor() throws Throwable {
+        AtomicReference<RegionsKey<Void>> key = new AtomicReference<>();
+        GenericExtractor<GrammarFileContext> ext = new GenericExtractorBuilder<>(GrammarFileContext.class)
+                .extractRegionsFor(BlockContext.class)
+                .named("blocks")
+                .build(key::set).build();
+        RegionsKey<Void> k = key.get();
+        assertNotNull(k);
+        Extraction extraction = nestedMapLoader.charStream("NestedMapGrammar", (lm, s) -> {
+            ANTLRv4Lexer lex = new ANTLRv4Lexer(s.get());
+            CommonTokenStream cts = new CommonTokenStream(lex, 0);
+            ANTLRv4Parser p = new ANTLRv4Parser(cts);
+            return ext.extract(p.grammarFile());
+        });
+
+        SemanticRegions<Void> blocks = extraction.regions(k);
+        System.out.println("GOT BACK BLOCKS: \n" + blocks);
+        assertNotNull(blocks);
+        String txt = nmmText();
+        for (SemanticRegion<Void> r : blocks) {
+            String s = txt.substring(r.start(), r.end());
+            System.out.println(r + ": '" + s + "'");
+        }
+    }
+
+//    @Test
+    public void testSimpleGrammar() throws Throwable {
+        RulesInfo ri = new SemanticParser("NestedMapGrammar", nestedMapLoader).parse();
+
+        String txt = nmmText();
+
+        System.out.println("EBNFS: \n" + ri.ebnfs());
+
+        Set<String> names = new HashSet<>(Arrays.asList(ri.ruleNames().nameArray()));
+        assertEquals(new HashSet<>(Arrays.asList("items", "map", "mapItem", "value", "Comma",
+                "booleanValue", "numberValue", "stringValue", "Number", "Digits", "String",
+                "Whitespace", "OpenBrace", "CloseBrace", "Colon", "True", "False", "Identifier",
+                "TRUE", "FALSE", "Minus", "ID", "STRING", "STRING2", "DIGIT", "WHITESPACE",
+                "ESC", "ESC2")), names);
+
+        Set<String> labels = new HashSet<>();
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.labels()) {
+            System.out.println("LABEL: " + i);
+            labels.add(i.name());
+            assertEquals(i.name(), txt.substring(i.start(), i.end()));
+        }
+        assertEquals(new HashSet<>(Arrays.asList("Bool", "Num", "Str")), labels);
+
+        BitSetStringGraph g = ri.usageGraph();
+        System.out.println("GRAPH:\n" + g);
+
+        assertTrue(g.children("map").contains("mapItem"));
+        assertTrue(g.children("map").contains("OpenBrace"));
+        assertTrue(g.children("map").contains("CloseBrace"));
+        assertTrue(g.children("items").contains("map"));
+        assertTrue(g.children("Whitespace").contains("WHITESPACE"));
+
+        assertTrue(g.closureOf("map").contains("String"));
+        assertTrue(g.reverseClosureOf("String").contains("map"));
+
+        for (NamedSemanticRegion<AntlrRuleKind> o : ri.ruleNames()) {
+            NamedSemanticRegion<AntlrRuleKind> ruleBounds = ri.ruleBounds().regionFor(o.name());
+            assertNotNull(ruleBounds);
+            assertTrue(ruleBounds.containsPosition(o.start()));
+            assertTrue(ruleBounds.containsPosition(o.end()));
+        }
+
+        System.out.println("BLOCKS: " + ri.blocks());
+        List<String> subs = new ArrayList<>();
+        for (SemanticRegions.SemanticRegion<Void> b : ri.blocks()) {
+            String blk = txt.substring(b.start(), b.end());
+            subs.add(blk);
+            assertEquals(b, ri.blocks().regionAt(b.start()));
+            System.out.println("\"" + blk + "\",");
+        }
+        assertEquals(Arrays.asList(expectedNmmBlocks), subs);
+
+        List<NamedSemanticRegion<AntlrRuleKind>> bvs = ri.referencesTo("booleanValue");
+        assertEquals(1, bvs.size());
+        NamedSemanticRegion<AntlrRuleKind> bv = bvs.iterator().next();
+        assertEquals("booleanValue", txt.substring(bv.start(), bv.end()));
+        NamedSemanticRegion<AntlrRuleKind> valueRule = ri.ruleBounds().regionFor("value");
+        assertNotNull(valueRule);
+        assertTrue(valueRule.containsPosition(bv.start()));
+        assertTrue(valueRule.containsPosition(bv.end()));
+
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.allItems()) {
+            System.out.println(i);
+        }
+    }
+
+    private static final String[] expectedNmmBlocks = new String[]{
+        "(map (Comma map)*)",
+        "(Comma map)",
+        "(mapItem (Comma mapItem)*)",
+        "(Comma mapItem)",
+        "(True | False)"
+    };
+
+//    @Test
     public void testSomeMethod() throws Throwable {
+        SemanticParser sem = new SemanticParser("Rust", rustLoader);
         RulesInfo ri = sem.parse();
         int ix = 0;
         System.out.println("\n-------------------------- ITEMS --------------------------------");
-        for (Item<AntlrRuleKind> i : ri.allItems()) {
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.allItems()) {
             System.out.println(ix++ + ": " + i);
         }
-        ix=0;
+        ix = 0;
         System.out.println("\n-------------------------- RULES --------------------------------");
-        for (Item<AntlrRuleKind> i : ri.allRules()) {
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.allRules()) {
             System.out.println(ix++ + ": " + i);
         }
         System.out.println("\n-------------------------- UNKNOWN REFS --------------------------------");
-        ix=0;
-        for (Map.Entry<String,List<int[]>> e : ri.unknownReferences().entrySet()) {
+        ix = 0;
+        for (Map.Entry<String, List<int[]>> e : ri.unknownReferences().entrySet()) {
             StringBuilder sb = new StringBuilder(e.getKey());
-            for (Iterator<int[]> i=e.getValue().iterator(); i.hasNext();) {
+            for (Iterator<int[]> i = e.getValue().iterator(); i.hasNext();) {
                 int[] curr = i.next();
                 sb.append(' ').append(curr[0]).append(':').append(curr[1]);
             }
             System.out.println(sb);
         }
 
-        ix=0;
+        ix = 0;
         System.out.println("\n-------------------------- FOREIGN REFS --------------------------------");
-        for (Offsets.ForeignItem<AntlrRuleKind, String> i : ri.foreignItems()) {
+        for (NamedSemanticRegions.ForeignNamedSemanticRegion<AntlrRuleKind, String> i : ri.foreignItems()) {
             System.out.println(ix++ + ": " + i);
         }
-
 
         System.out.println("\n-------------------------- USAGES --------------------------------");
         System.out.println(ri.usageGraph());
 
-        ix=0;
+        ix = 0;
         System.out.println("\n-------------------------- LABELS --------------------------------");
-        for (Item<AntlrRuleKind> i : ri.labels()) {
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.labels()) {
             System.out.println(ix++ + ": " + i);
         }
 
-        ix=0;
+        ix = 0;
         System.out.println("\n-------------------------- LABEL ATOMS --------------------------------");
-        for (Item<AntlrRuleKind> i : ri.labelClauses()) {
+        for (NamedSemanticRegion<AntlrRuleKind> i : ri.labelClauses()) {
             System.out.println(ix++ + ": " + i);
         }
 
@@ -91,12 +208,12 @@ public class SemanticParserTest {
         ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(b));
 //        RulesInfo deserialized = RulesInfo.load(in);
         RulesInfo deserialized = (RulesInfo) in.readObject();
-        Iterator<Item<AntlrRuleKind>> ai = ri.allItems().iterator();
-        Iterator<Item<AntlrRuleKind>> bi = deserialized.allItems().iterator();
+        Iterator<NamedSemanticRegion<AntlrRuleKind>> ai = ri.allItems().iterator();
+        Iterator<NamedSemanticRegion<AntlrRuleKind>> bi = deserialized.allItems().iterator();
         assert ai.hasNext() && bi.hasNext();
         while (ai.hasNext() && bi.hasNext()) {
-            Item<AntlrRuleKind> i1 = ai.next();
-            Item<AntlrRuleKind> i2 = bi.next();
+            NamedSemanticRegion<AntlrRuleKind> i1 = ai.next();
+            NamedSemanticRegion<AntlrRuleKind> i2 = bi.next();
             assertEquals(i1.name(), i2.name());
             assertEquals(i1.isReference(), i2.isReference());
             assertEquals(i1.index(), i2.index());
@@ -105,6 +222,9 @@ public class SemanticParserTest {
             assertTrue(ai.hasNext() == bi.hasNext());
         }
         assertEquals(ri.usageGraph(), deserialized.usageGraph());
+
+        assertTrue(ri.ebnfs().equalTo(deserialized.ebnfs()));
+        assertTrue(ri.blocks().equalTo(deserialized.blocks()));
     }
 
     @Test
@@ -152,7 +272,7 @@ public class SemanticParserTest {
         public <T> T charStream(String name, SemanticParser.CharStreamConsumer<T> cons) throws IOException {
             try {
                 Path path;
-                switch(name) {
+                switch (name) {
                     case "ANTLRv4":
                         path = TestDir.projectBaseDir().resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
                         break;
@@ -162,7 +282,7 @@ public class SemanticParserTest {
                     case "LexBasic":
                         path = TestDir.projectBaseDir().resolve("grammar/imports/LexBasic.g4");
                         break;
-                    default :
+                    default:
                         throw new IOException(name);
                 }
                 long lm = Files.getLastModifiedTime(path).toMillis();
@@ -202,5 +322,31 @@ public class SemanticParserTest {
                 throw new IOException(ex);
             }
         }
+    }
+
+    static final class NestedMapCSS implements CharStreamSource {
+
+        @Override
+        public <T> T charStream(String name, SemanticParser.CharStreamConsumer<T> cons) throws IOException {
+            switch (name) {
+                case "NestedMapGrammar": {
+                    try {
+                        Path path = TestDir.testResourcePath(TestDir.class, "NestedMapGrammar.g4");
+                        long lm = Files.getLastModifiedTime(path).toMillis();
+                        return cons.consume(lm, () -> {
+                            return CharStreams.fromPath(path);
+                        });
+                    } catch (URISyntaxException ex) {
+                        throw new IOException(ex);
+                    }
+                }
+            }
+            throw new IOException("Unknown name " + name);
+        }
+    }
+
+    static String nmmText() throws URISyntaxException, IOException {
+        Path path = TestDir.testResourcePath(TestDir.class, "NestedMapGrammar.g4");
+        return new String(Files.readAllBytes(path), UTF_8);
     }
 }
