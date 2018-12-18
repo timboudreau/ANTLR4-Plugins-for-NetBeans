@@ -3,15 +3,20 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameExtractors;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameExtractors.NameInfoStore;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NamedRegionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegionsBuilder;
 
 /**
@@ -24,22 +29,32 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
 
     private static final AtomicInteger keyIds = new AtomicInteger();
 
-    private final Set<RegionExtractorInfo<?,?>> regionsInfo = new HashSet<>();
+    private final Set<RegionExtractorInfo<?, ?>> regionsInfo = new HashSet<>();
+    private final Set<NameExtractors<?>> nameExtractors = new HashSet<>();
 
     public GenericExtractorBuilder(Class<T> entryPoint) {
         this.entryPoint = entryPoint;
     }
 
     public GenericExtractor<T> build() {
-        return new GenericExtractor<>(regionsInfo);
+        return new GenericExtractor<>(regionsInfo, nameExtractors);
+    }
+
+    public <K extends Enum<K>> NamedRegionExtractorBuilder<K, GenericExtractorBuilder<T>> extractNamedRegions(Class<K> type) {
+        return new NamedRegionExtractorBuilder<>(type, ne -> {
+            nameExtractors.add(ne);
+            return this;
+        });
     }
 
     public static final class GenericExtractor<T extends ParserRuleContext> {
 
         private final Set<RegionExtractorInfo<?, ?>> extractors;
+        private final Set<NameExtractors<?>> nameExtractors;
 
-        GenericExtractor(Set<RegionExtractorInfo<?, ?>> extractors) {
+        GenericExtractor(Set<RegionExtractorInfo<?, ?>> extractors, Set<NameExtractors<?>> nameExtractors) {
             this.extractors = extractors;
+            this.nameExtractors = nameExtractors;
         }
 
         public Extraction extract(T ruleNode) {
@@ -47,7 +62,14 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
             for (RegionExtractorInfo<?, ?> r : extractors) {
                 runOne(r, ruleNode, extraction);
             }
+            for (NameExtractors<?> n : nameExtractors) {
+                runNames(ruleNode, n, extraction);
+            }
             return extraction;
+        }
+
+        private <L extends Enum<L>> void runNames(T ruleNode, NameExtractors<L> x, Extraction into) {
+            x.invoke(ruleNode, into.store);
         }
 
         private <R> void runOne(RegionExtractorInfo<?, R> info, T ruleNode, Extraction extraction) {
@@ -60,9 +82,31 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
     public static class Extraction {
 
         private final Map<RegionsKey<?>, SemanticRegions<?>> regions = new HashMap<>();
+        private final Map<NamedRegionExtractorBuilder.NamedRegionKey<?>, NamedSemanticRegions> nameds = new HashMap<>();
+        private final Map<NamedRegionExtractorBuilder.NameReferenceSetKey<?>, NamedSemanticRegions.NamedRegionReferenceSets<?>> refs = new HashMap<>();
+        private final Map<NamedRegionExtractorBuilder.NameReferenceSetKey<?>, BitSetStringGraph> graphs = new HashMap<>();
 
         <T> void add(RegionsKey<T> key, SemanticRegions<T> oneRegion) {
             regions.put(key, oneRegion);
+        }
+
+        public <T extends Enum<T>> NamedRegionReferenceSets<T> references(NameReferenceSetKey<T> key) {
+            NamedRegionReferenceSets<?> result = refs.get(key);
+            return (NamedRegionReferenceSets<T>) result;
+        }
+
+        public BitSetStringGraph referenceGraph(NameReferenceSetKey<?> key) {
+            return graphs.get(key);
+        }
+
+        public <T extends Enum<T>> NamedSemanticRegions<T> namedRegions(NamedRegionKey<T> key) {
+            NamedSemanticRegions<?> result = nameds.get(key);
+            return result == null ? null : (NamedSemanticRegions<T>) result;
+        }
+
+        public <T extends Enum<T>> NamedSemanticRegions.NamedRegionReferenceSets<T> namedRegions(NameReferenceSetKey<T> key) {
+            NamedRegionReferenceSets<?> result = refs.get(key);
+            return result == null ? null : (NamedRegionReferenceSets<T>) result;
         }
 
         @SuppressWarnings("unchecked")
@@ -71,6 +115,25 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
             assert key.type.equals(result.keyType());
             return (SemanticRegions<T>) result;
         }
+
+        NameInfoStore store = new NameInfoStore() {
+
+            @Override
+            public <T extends Enum<T>> void addNamedRegions(NamedRegionExtractorBuilder.NamedRegionKey<T> key, NamedSemanticRegions<T> regions) {
+                nameds.put(key, regions);
+            }
+
+            @Override
+            public <T extends Enum<T>> void addReferences(NamedRegionExtractorBuilder.NameReferenceSetKey<T> key, NamedSemanticRegions.NamedRegionReferenceSets<T> regions) {
+                refs.put(key, regions);
+            }
+
+            @Override
+            public <T extends Enum<T>> void addReferenceGraph(NameReferenceSetKey<T> refSetKey, BitSetStringGraph stringGraph) {
+                graphs.put(refSetKey, stringGraph);
+            }
+
+        };
     }
 
     public <RuleType extends ParserRuleContext> RegionExtractionBuilder<T, RuleType, Void> extractRegionsFor(Class<RuleType> rt) {
@@ -109,7 +172,7 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
             return this;
         }
 
-        public RegionExtractionBuilder<EntryPointType, RuleType, RegionKeyType> whenInsideRuleTypes(Class<? extends ParserRuleContext> type) {
+        public RegionExtractionBuilder<EntryPointType, RuleType, RegionKeyType> whereAncestorRuleType(Class<? extends ParserRuleContext> type) {
             whenIn.add(type);
             return this;
         }
@@ -123,9 +186,7 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
             return this;
         }
 
-        public GenericExtractorBuilder<EntryPointType> build(Consumer<RegionsKey<RegionKeyType>> keyConsumer) {
-            RegionsKey<RegionKeyType> key = new RegionsKey<>(regionKeys, name);
-            keyConsumer.accept(key);
+        public GenericExtractorBuilder<EntryPointType> recordingRegionsUnder(RegionsKey<RegionKeyType> key) {
             RegionExtractorInfo<RuleType, RegionKeyType> info = new RegionExtractorInfo<>(key, targetRule, regionKeys, extractor, matcher, whenIn);
             bldr.regionsInfo.add(info);
             return bldr;
@@ -133,6 +194,7 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
     }
 
     static final class ExtractPredicate<T extends ParserRuleContext, R> {
+
         private final Class<T> ruleType;
         private final Function<T, R> keyDerivationFunction;
 
@@ -153,8 +215,10 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
         }
 
         static class Result<T> {
+
             private final boolean wasInvoked;
             private final T key;
+
             Result() {
                 this(null, false);
             }
@@ -244,7 +308,6 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
     public static final class RegionsKey<T> {
 
         private final Class<T> type;
-        private final int id = keyIds.getAndIncrement();
         private final String name;
 
         private RegionsKey(Class<T> type, String name) {
@@ -257,46 +320,54 @@ public class GenericExtractorBuilder<T extends ParserRuleContext> {
             this.name = null;
         }
 
+        public static <T> RegionsKey<T> create(Class<T> type, String name) {
+            return new RegionsKey<>(type, name == null ? type.getSimpleName() : name);
+        }
+
+        public static <T> RegionsKey<T> create(Class<T> type) {
+            return create(type, null);
+        }
+
+        public Class<T> type() {
+            return type;
+        }
+
         public String name() {
             return name;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            return o instanceof RegionsKey<?> && ((RegionsKey<?>) o).id == id;
+        public String toString() {
+            String nm = type.getSimpleName();
+            return nm.equals(name) ? nm : name + ":" + nm;
         }
 
         @Override
         public int hashCode() {
-            return 7 * id;
+            int hash = 7;
+            hash = 37 * hash + Objects.hashCode(this.type);
+            hash = 37 * hash + Objects.hashCode(this.name);
+            return hash;
         }
 
         @Override
-        public String toString() {
-            return name == null ? id + ":" + type.getSimpleName() : id + ":" + type.getSimpleName() + ":" + name;
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final RegionsKey<?> other = (RegionsKey<?>) obj;
+            if (!Objects.equals(this.name, other.name)) {
+                return false;
+            }
+            if (!Objects.equals(this.type, other.type)) {
+                return false;
+            }
+            return true;
         }
     }
-
-    public static final class OffsetsKey<T> {
-
-        private final Class<T> type;
-        private final int id = keyIds.getAndIncrement();
-
-        private OffsetsKey(Class<T> type) {
-            this.type = type;
-        }
-
-        public boolean equals(Object o) {
-            return o instanceof OffsetsKey<?> && ((OffsetsKey<?>) o).id == id;
-        }
-
-        public int hashCode() {
-            return 7 * id;
-        }
-
-        public String toString() {
-            return id + ":" + type.getSimpleName();
-        }
-    }
-
 }

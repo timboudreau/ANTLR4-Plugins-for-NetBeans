@@ -1,6 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectiveValue;
+import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ReflectiveInvoker;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ForeignInvocationResult;
 import java.io.File;
@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectiveValue.ResolutionResultType;
+import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionResultType;
 
 /**
  *
@@ -143,20 +143,20 @@ final class AntlrInvoker implements ReflectiveInvoker<AntlrInvocationResult> {
         // XXX some of this may be fragile under future versions of ANTLR, while
         // command line parsing is likely to be more stable.  However, this lets
         // us collect character offsets in the file without rereading the file.
-        ReflectiveValue<String> message = new ReflectiveValue<>("getErrorType().msg", String.class);
-        ReflectiveValue<String> fileName = new ReflectiveValue<>("fileName", String.class);
-        ReflectiveValue<Object[]> args = new ReflectiveValue<>("args", Object[].class);
-        ReflectiveValue<String> severity = new ReflectiveValue<>("getErrorType().severity.text", String.class);
-        ReflectiveValue<Integer> code = new ReflectiveValue<>("getErrorType().code", Integer.class);
-        ReflectiveValue<Integer> line = new ReflectiveValue<>("line", Integer.class);
-        ReflectiveValue<Integer> lineOffset = new ReflectiveValue<>("charPosition", Integer.class);
-        ReflectiveValue<Integer> startOffset = new ReflectiveValue<>("offendingToken.getStartIndex()", Integer.class);
-        ReflectiveValue<Integer> stopOffset = new ReflectiveValue<>("offendingToken.getStopIndex()", Integer.class);
+        ReflectionPath<String> message = new ReflectionPath<>("getErrorType().msg", String.class);
+        ReflectionPath<String> fileName = new ReflectionPath<>("fileName", String.class);
+        ReflectionPath<Object[]> args = new ReflectionPath<>("args", Object[].class);
+        ReflectionPath<String> severity = new ReflectionPath<>("getErrorType().severity.text", String.class);
+        ReflectionPath<Integer> code = new ReflectionPath<>("getErrorType().code", Integer.class);
+        ReflectionPath<Integer> line = new ReflectionPath<>("line", Integer.class);
+        ReflectionPath<Integer> lineOffset = new ReflectionPath<>("charPosition", Integer.class);
+        ReflectionPath<Integer> startOffset = new ReflectionPath<>("offendingToken.getStartIndex()", Integer.class);
+        ReflectionPath<Integer> stopOffset = new ReflectionPath<>("offendingToken.getStopIndex()", Integer.class);
 
-        ReflectiveValue.resolve(o, message, fileName, args, severity, code, line, lineOffset, startOffset, stopOffset);
+        ReflectionPath.resolve(o, message, fileName, args, severity, code, line, lineOffset, startOffset, stopOffset);
 
         boolean anyFailed = false;
-        for (ReflectiveValue<?> v : new ReflectiveValue<?>[]{message, fileName, args, severity, code, line, lineOffset}) {
+        for (ReflectionPath<?> v : new ReflectionPath<?>[]{message, fileName, args, severity, code, line, lineOffset}) {
             if (v.result().type() != ResolutionResultType.SUCCESS && v.result().type() != ResolutionResultType.NULL_VALUE) {
                 anyFailed = true;
             }

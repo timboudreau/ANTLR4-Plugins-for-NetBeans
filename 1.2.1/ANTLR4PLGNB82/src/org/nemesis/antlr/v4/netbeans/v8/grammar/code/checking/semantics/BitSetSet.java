@@ -140,7 +140,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
     }
 
     private T get(int index) {
-        return data.get(index);
+        return data.forIndex(index);
     }
 
     @Override

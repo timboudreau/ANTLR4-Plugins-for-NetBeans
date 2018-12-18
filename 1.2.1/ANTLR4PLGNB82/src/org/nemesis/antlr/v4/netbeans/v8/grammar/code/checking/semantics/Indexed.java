@@ -38,7 +38,7 @@ interface Indexed<T> {
 
     int indexOf(Object o);
 
-    T get(int index);
+    T forIndex(int index);
 
     int size();
 
@@ -76,7 +76,7 @@ interface Indexed<T> {
         }
 
         @Override
-        public String get(int index) {
+        public String forIndex(int index) {
             return sortedStrings[index];
         }
 
@@ -96,7 +96,7 @@ interface Indexed<T> {
             }
 
             @Override
-            public T get(int index) {
+            public T forIndex(int index) {
                 return list.get(index);
             }
 

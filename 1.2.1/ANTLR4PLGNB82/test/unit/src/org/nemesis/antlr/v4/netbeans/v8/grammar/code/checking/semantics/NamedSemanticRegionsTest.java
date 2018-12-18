@@ -15,12 +15,13 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSem
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionPositionIndex;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParserTest.RuleTypes;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class OffsetsTest {
+public class NamedSemanticRegionsTest {
 
     static char[] chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
     static char[] chars2 = "ABCDEFGHIJKLMNOPQRSTUVWXY".toCharArray();
@@ -36,6 +37,46 @@ public class OffsetsTest {
     }
 
     @Test
+    public void testIndex() {
+        NamedSemanticRegionsBuilder<RuleTypes> bldr = NamedSemanticRegions.builder(RuleTypes.class);
+        bldr.add("CloseBrace", RuleTypes.LEXER, 464, 481);
+        bldr.add("Colon", RuleTypes.LEXER, 495, 507);
+        bldr.add("Comma", RuleTypes.LEXER, 451, 463);
+        bldr.add("DIGIT", RuleTypes.FRAGMENT, 680, 703);
+        bldr.add("Digits", RuleTypes.LEXER, 344, 360);
+        bldr.add("ESC", RuleTypes.FRAGMENT, 813, 844);
+        bldr.add("ESC2", RuleTypes.FRAGMENT, 845, 878);
+        bldr.add("FALSE", RuleTypes.FRAGMENT, 579, 604);
+        bldr.add("False", RuleTypes.LEXER, 521, 535);
+        bldr.add("ID", RuleTypes.FRAGMENT, 738, 812);
+        bldr.add("Identifier", RuleTypes.LEXER, 537, 553);
+        bldr.add("Minus", RuleTypes.LEXER, 482, 494);
+        bldr.add("Number", RuleTypes.LEXER, 320, 342);
+        bldr.add("OpenBrace", RuleTypes.LEXER, 434, 450);
+        bldr.add("STRING", RuleTypes.FRAGMENT, 605, 640);
+        bldr.add("STRING2", RuleTypes.FRAGMENT, 641, 679);
+        bldr.add("String", RuleTypes.LEXER, 363, 389);
+        bldr.add("TRUE", RuleTypes.FRAGMENT, 555, 578);
+        bldr.add("True", RuleTypes.LEXER, 508, 520);
+        bldr.add("WHITESPACE", RuleTypes.FRAGMENT, 704, 737);
+        bldr.add("Whitespace", RuleTypes.LEXER, 391, 432);
+        bldr.add("booleanValue", RuleTypes.PARSER, 231, 265);
+        bldr.add("items", RuleTypes.PARSER, 27, 58);
+        bldr.add("map", RuleTypes.PARSER, 60, 115);
+        bldr.add("mapItem", RuleTypes.PARSER, 117, 153);
+        bldr.add("numberValue", RuleTypes.PARSER, 292, 317);
+        bldr.add("stringValue", RuleTypes.PARSER, 266, 291);
+        bldr.add("value", RuleTypes.PARSER, 155, 229);
+
+        NamedSemanticRegions<RuleTypes> n = bldr.build();
+        System.out.println("GOT " + n);
+
+        NamedSemanticRegionPositionIndex<RuleTypes> index = n.index();
+        assertNotNull(index.regionAt(36));
+        assertEquals("items", index.regionAt(36).name());
+    }
+
+    @Test
     public void testOddAndEvenLengths() {
         // Test both odd and even lengths, since off-by-one errors in things
         // like binary search tend to result in code that looks like it works
@@ -48,7 +89,7 @@ public class OffsetsTest {
 
     @Test
     public void testSingle() {
-        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(new String[]{"foo"}, new int[] { -1}, new int[] {-1}, new Foo[]{Foo.FOO}, 1);
+        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(new String[]{"foo"}, new int[]{-1}, new int[]{-1}, new Foo[]{Foo.FOO}, 1);
         offsets.setOffsets("foo", 10, 20);
         assertEquals(0, offsets.indexOf("foo"));
         assertEquals(10, offsets.start("foo"));

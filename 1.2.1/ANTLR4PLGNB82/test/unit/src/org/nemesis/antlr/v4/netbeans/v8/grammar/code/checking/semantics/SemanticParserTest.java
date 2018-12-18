@@ -17,10 +17,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
@@ -28,9 +30,13 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.BlockContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GenericExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.RegionsKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NamedRegionData;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NamedRegionKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.AntlrRuleKind;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.CharStreamSource;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.CharStreamSupplier;
@@ -38,6 +44,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Semantic
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.MISSING_ID;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParser.MISSING_TOKEN_ID;
 
 /**
  *
@@ -52,15 +60,135 @@ public class SemanticParserTest {
 //    SemanticParser sem = new SemanticParser("Rust", rustLoader);
 //    SemanticParser sem = new SemanticParser("ANTLRv4", antlrLoader);
 
+    static NamedRegionData<RuleTypes> deriveIdFromLexerRule(TokenRuleDeclarationContext ctx) {
+        TerminalNode tn = ctx.TOKEN_ID();
+        if (tn != null) {
+            org.antlr.v4.runtime.Token tok = tn.getSymbol();
+            if (tok != null) {
+                return new NamedRegionData(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
+            }
+        }
+        return null;
+    }
+
+    static NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
+        ANTLRv4Parser.ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
+        if (decl != null) {
+            ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
+            if (ident != null) {
+                TerminalNode tn = ident.PARSER_RULE_ID();
+                if (tn != null) {
+                    Token id = tn.getSymbol();
+                    if (id != null) {
+                        String ruleId = id.getText();
+                        if (!MISSING_ID.equals(ruleId)) {
+                            return new NamedRegionData(ruleId, RuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        // parserRuleDeclaration().parserRuleIdentifier().PARSER_RULE_ID()
+        return null;
+    }
+
+    static NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+        TerminalNode idTN = ctx.TOKEN_ID();
+        if (idTN != null) {
+            Token idToken = idTN.getSymbol();
+            if (idToken != null && !MISSING_TOKEN_ID.equals(idToken.getText())) {
+                return new NamedRegionData(idToken.getText(), RuleTypes.FRAGMENT, idToken.getStartIndex(), idToken.getStopIndex() + 1);
+//                    names.add(idToken.getText(), AntlrRuleKind.FRAGMENT_RULE, idToken.getStartIndex(), idToken.getStopIndex() + 1);
+            }
+        }
+        return null;
+    }
+
+    static List<? extends TerminalNode> deriveTokenIdFromTokenList(ANTLRv4Parser.TokenListContext ctx) {
+        return ctx.TOKEN_ID();
+    }
+
+    static Token deriveReferencedNameFromTerminalContext(ANTLRv4Parser.TerminalContext ctx) {
+        TerminalNode idTN = ctx.TOKEN_ID();
+        if (idTN != null) {
+            Token idToken = idTN.getSymbol();
+            System.out.println("IN TERMINAL CONTEXT '" + ctx.getText() + "' with tok '" + idToken.getText() + "'");
+            if (idToken != null) {
+                String id = idToken.getText();
+                if (!MISSING_ID.equals(id) && !MISSING_TOKEN_ID.equals(id)) {
+                    return idToken;
+                }
+            }
+        }
+        return null;
+    }
+
+    static Token deriveReferenceFromParserRuleReference(ANTLRv4Parser.ParserRuleReferenceContext ctx) {
+        ANTLRv4Parser.ParserRuleIdentifierContext pric = ctx.parserRuleIdentifier();
+        if (pric != null) {
+            TerminalNode pridTN = pric.PARSER_RULE_ID();
+            if (pridTN != null) {
+                Token tok = pridTN.getSymbol();
+                if (tok != null && !MISSING_ID.equals(tok.getText())) {
+//                        names.onReference(tok.getText(), tok.getStartIndex(), tok.getStopIndex() + 1);
+                    return tok;
+                }
+            }
+        }
+        return null;
+    }
+
+    enum RuleTypes {
+        FRAGMENT,
+        LEXER,
+        PARSER
+    }
+    static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
+    static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
+    static final NameReferenceSetKey<RuleTypes> REFS = NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
+    static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
+
     @Test
     public void testGenericExtractor() throws Throwable {
-        AtomicReference<RegionsKey<Void>> key = new AtomicReference<>();
         GenericExtractor<GrammarFileContext> ext = new GenericExtractorBuilder<>(GrammarFileContext.class)
+                // Extract named regions so they are addressable by name or position in file
+                .extractNamedRegions(RuleTypes.class)
+                // Store the bounds of the entire rule in the resulting Extraction under the key
+                // RULE_BOUNDS, which will be parameterized on RuleTypes so we can query for a
+                // NamedSemanticRegions<RuleTypes>
+                .recordingRuleRegionUnder(RULE_BOUNDS)
+                // Store the bounds of just the rule name (for goto declaration) under the key
+                // RULE_NAMES in the resulting extractoin
+                .recordingNamePositionUnder(RULE_NAMES)
+                // Extracts the rule id from a token declaration
+                .whereRuleIs(ANTLRv4Parser.TokenRuleDeclarationContext.class)
+                .derivingNameWith(SemanticParserTest::deriveIdFromLexerRule)
+                // Extracts the rule id from a parser rule declaration, using reflection instead of
+                // a method, to show that works
+                .whereRuleIs(ANTLRv4Parser.ParserRuleSpecContext.class)
+                .derivingNameWith("parserRuleDeclaration().parserRuleIdentifier().PARSER_RULE_ID()", RuleTypes.PARSER)
+                // Extracts the rule id from a fragment declaration
+                .whereRuleIs(ANTLRv4Parser.FragmentRuleDeclarationContext.class)
+                .derivingNameWith(SemanticParserTest::deriveIdFromFragmentDeclaration)
+                // Generate fake definitions for declared tokens so we don't flag them as errors
+                .whereRuleIs(ANTLRv4Parser.TokenListContext.class)
+                .derivingNameFromTerminalNodes(RuleTypes.LEXER, SemanticParserTest::deriveTokenIdFromTokenList)
+                // Now collect usages of the rule ids we just collected.  This gets us both
+                // the ability to query for a NamedReferenceSet<RuleTypes> which has the reference
+                // and can resolve the reference, and a bidirectional graph built from arrays of BitSets
+                // which can let us walk the closure of a rule in either direction
+                .collectingReferencesUnder(REFS)
+                .whereReferenceContainingRuleIs(ANTLRv4Parser.TerminalContext.class)
+                .derivingReferenceOffsetsFromTokenWith(SemanticParserTest::deriveReferencedNameFromTerminalContext)
+                .whereReferenceContainingRuleIs(ANTLRv4Parser.ParserRuleReferenceContext.class)
+                .derivingReferenceOffsetsFromTokenWith(SemanticParserTest::deriveReferenceFromParserRuleReference)
+                // Done specifying how to collect references
+                .finishReferenceCollector()
+                .finishNamedRegions()
+                // Just collect the offsets of all BlockContext trees, in a nested data structure
                 .extractRegionsFor(BlockContext.class)
-                .named("blocks")
-                .build(key::set).build();
-        RegionsKey<Void> k = key.get();
-        assertNotNull(k);
+                .recordingRegionsUnder(BLOCKS).build();
         Extraction extraction = nestedMapLoader.charStream("NestedMapGrammar", (lm, s) -> {
             ANTLRv4Lexer lex = new ANTLRv4Lexer(s.get());
             CommonTokenStream cts = new CommonTokenStream(lex, 0);
@@ -68,14 +196,53 @@ public class SemanticParserTest {
             return ext.extract(p.grammarFile());
         });
 
-        SemanticRegions<Void> blocks = extraction.regions(k);
-        System.out.println("GOT BACK BLOCKS: \n" + blocks);
+        SemanticRegions<Void> blocks = extraction.regions(BLOCKS);
         assertNotNull(blocks);
         String txt = nmmText();
         for (SemanticRegion<Void> r : blocks) {
             String s = txt.substring(r.start(), r.end());
             System.out.println(r + ": '" + s + "'");
         }
+
+        NamedSemanticRegions<RuleTypes> nameds = extraction.namedRegions(RULE_NAMES);
+
+        System.out.println("\n\n-------------------------- NAMEDS -------------------------------");
+        for (NamedSemanticRegion<RuleTypes> r : nameds) {
+            System.out.println(r);
+        }
+
+//        System.out.println("NAMEDS: " + nameds);
+        System.out.println("\n\n-------------------------- BOUNDS -------------------------------");
+        NamedSemanticRegions<RuleTypes> bounds = extraction.namedRegions(RULE_BOUNDS);
+
+        for (NamedSemanticRegion<RuleTypes> r : bounds) {
+            System.out.println(r);
+        }
+
+        assertFalse(nameds.equals(bounds));
+
+        NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes> refs = extraction.references(REFS);
+
+        System.out.println("\n\n-------------------------- REFS -------------------------------");
+        for (NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> r : refs) {
+            for (NamedSemanticRegion<RuleTypes> i : r) {
+                System.out.println(i);
+            }
+        }
+
+        BitSetStringGraph graph = extraction.referenceGraph(REFS);
+
+        System.out.println("GRAPH: \n" + graph);
+
+        
+//        BitSetHeteroObjectGraph<NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>>
+//                cr = bounds.crossReference(nameds);
+
+//        Object cr = bounds.crossReference(refs);
+        Object cr = refs.crossReference(bounds);
+
+        System.out.println("CROSS REF\n" + cr);
+
     }
 
 //    @Test
@@ -125,7 +292,7 @@ public class SemanticParserTest {
         for (SemanticRegions.SemanticRegion<Void> b : ri.blocks()) {
             String blk = txt.substring(b.start(), b.end());
             subs.add(blk);
-            assertEquals(b, ri.blocks().regionAt(b.start()));
+            assertEquals(b, ri.blocks().at(b.start()));
             System.out.println("\"" + blk + "\",");
         }
         assertEquals(Arrays.asList(expectedNmmBlocks), subs);

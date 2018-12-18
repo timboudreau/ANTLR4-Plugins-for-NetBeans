@@ -165,15 +165,15 @@ public class SemanticRegionsTest {
         reg.add("f", 32, 38);
         reg.add("g", 33, 37);
         reg.add("h", 60, 80);
-        SemanticRegion<String> h = reg.regionAt(62);
+        SemanticRegion<String> h = reg.at(62);
         assertEquals("h", h.key());
-        SemanticRegion<String> g = reg.regionAt(34);
-        SemanticRegion<String> f = reg.regionAt(32);
-        SemanticRegion<String> e = reg.regionAt(31);
-        SemanticRegion<String> e1 = reg.regionAt(30);
-        SemanticRegion<String> c = reg.regionAt(25);
-        SemanticRegion<String> c1 = reg.regionAt(20);
-        SemanticRegion<String> c2 = reg.regionAt(29);
+        SemanticRegion<String> g = reg.at(34);
+        SemanticRegion<String> f = reg.at(32);
+        SemanticRegion<String> e = reg.at(31);
+        SemanticRegion<String> e1 = reg.at(30);
+        SemanticRegion<String> c = reg.at(25);
+        SemanticRegion<String> c1 = reg.at(20);
+        SemanticRegion<String> c2 = reg.at(29);
         assertEquals("g", g.key());
         assertEquals("f", f.key());
         assertEquals("e", e.key());
@@ -196,12 +196,12 @@ public class SemanticRegionsTest {
         reg.add("d", 52, 58);
         reg.add("e", 54, 56);
         reg.add("f", 55, 56);
-        assertEquals("f", reg.regionAt(55).key());
-        assertEquals("a", reg.regionAt(10).key());
-        assertEquals("c", reg.regionAt(50).key());
-        assertEquals("d", reg.regionAt(53).key());
-        assertEquals("e", reg.regionAt(54).key());
-        assertEquals("d", reg.regionAt(56).key());
+        assertEquals("f", reg.at(55).key());
+        assertEquals("a", reg.at(10).key());
+        assertEquals("c", reg.at(50).key());
+        assertEquals("d", reg.at(53).key());
+        assertEquals("e", reg.at(54).key());
+        assertEquals("d", reg.at(56).key());
         assertEquals(6, reg.size());
         assertEquals(Arrays.asList("a", "b", "c"), toList(reg.outermostKeys()));
     }
@@ -219,17 +219,17 @@ public class SemanticRegionsTest {
         assertEquals(Arrays.asList("a"), toList(reg.outermostKeys()));
         String ts = reg.toString();
         for (int i = 0; i < 10; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "a", r.key());
             int other = 99 - i;
-            r = reg.regionAt(other);
+            r = reg.at(other);
             assertNotNull(other + " " + r + " in " + ts, r);
             assertEquals(other + " " + r + " in " + ts, "a", r.key());
         }
 
         for (int i = 10; i < 20; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "b", r.key());
             assertNotNull(r.parent());
@@ -241,7 +241,7 @@ public class SemanticRegionsTest {
             assertTrue("Children of parent of " + r + " do not contain the child: " + kids, kids.contains(r));
             assertEquals(1, r.children().size());
             int other = 99 - i;
-            r = reg.regionAt(other);
+            r = reg.at(other);
             assertNotNull(other + " " + r + " in " + ts, r);
             assertEquals(other + " " + r + " in " + ts, "b", r.key());
             assertNotNull(r.parent());
@@ -255,7 +255,7 @@ public class SemanticRegionsTest {
         }
 
         for (int i = 20; i < 30; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "c", r.key());
             assertNotNull(r.parent());
@@ -267,7 +267,7 @@ public class SemanticRegionsTest {
             assertTrue("Children of parent of " + r + " do not contain the child: " + kids, kids.contains(r));
             assertEquals(1, r.children().size());
             int other = 99 - i;
-            r = reg.regionAt(other);
+            r = reg.at(other);
             assertNotNull(other + " " + r + " in " + ts, r);
             assertEquals(other + " " + r + " in " + ts, "c", r.key());
             assertNotNull(r.parent());
@@ -280,7 +280,7 @@ public class SemanticRegionsTest {
             assertEquals(1, r.children().size());
         }
         for (int i = 30; i < 40; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "d", r.key());
             assertNotNull(r.parent());
@@ -290,7 +290,7 @@ public class SemanticRegionsTest {
             assertTrue("Children of parent of " + r + " do not contain the child: " + r.parent().children(), r.parent().children().contains(r));
             assertEquals(1, r.children().size());
             int other = 99 - i;
-            r = reg.regionAt(other);
+            r = reg.at(other);
             assertNotNull(other + " " + r + " in " + ts, r);
             assertEquals(other + " " + r + " in " + ts, "d", r.key());
             assertNotNull(r.parent());
@@ -300,7 +300,7 @@ public class SemanticRegionsTest {
             assertEquals(1, r.children().size());
         }
         for (int i = 40; i < 45; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "e", r.key());
             assertNotNull(r.parent());
@@ -310,7 +310,7 @@ public class SemanticRegionsTest {
             assertTrue("Children of parent of " + r + " do not contain the child: " + r.parent().children(), r.parent().children().contains(r));
             assertEquals(1, r.children().size());
             int other = 99 - i;
-            r = reg.regionAt(other);
+            r = reg.at(other);
             assertTrue("Children of parent of " + r + " do not contain the child: " + r.parent().children(), r.parent().children().contains(r));
             assertNotNull(other + " " + r + " in " + ts, r);
             assertEquals(other + " " + r + " in " + ts, "e", r.key());
@@ -320,7 +320,7 @@ public class SemanticRegionsTest {
             assertEquals("a", r.outermost().key());
         }
         for (int i = 45; i < 50; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "f", r.key());
             assertNotNull(r.parent());
@@ -332,7 +332,7 @@ public class SemanticRegionsTest {
         }
 
         for (int i = 50; i < 51; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertTrue(r.parent().children().contains(r));
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "g", r.key());
@@ -345,7 +345,7 @@ public class SemanticRegionsTest {
         }
 
         for (int i = 51; i < 55; i++) {
-            SemanticRegion<String> r = reg.regionAt(i);
+            SemanticRegion<String> r = reg.at(i);
             assertNotNull(i + " " + r + " in " + ts, r);
             assertEquals(i + " " + r + " in " + ts, "f", r.key());
             assertNotNull(r.parent());
@@ -355,8 +355,8 @@ public class SemanticRegionsTest {
             assertTrue("Children of parent of " + r + " do not contain the child: " + r.parent().children(), r.parent().children().contains(r));
         }
 
-        assertNull(reg.regionAt(101));
-        assertNull(reg.regionAt(-1));
+        assertNull(reg.at(101));
+        assertNull(reg.at(-1));
         sanityCheckRegions(reg);
     }
 
@@ -387,55 +387,55 @@ public class SemanticRegionsTest {
 
         assertEquals(Arrays.asList("a", "b", "c"), toList(reg.outermostKeys()));
         assertEquals(9, reg.size());
-        assertNotNull(reg.regionAt(110));
-        assertEquals("c", reg.regionAt(110).key());
-        assertNotNull(reg.regionAt(111));
-        assertEquals("c", reg.regionAt(111).key());
-        assertNotNull(reg.regionAt(119));
-        assertEquals("c", reg.regionAt(119).key());
+        assertNotNull(reg.at(110));
+        assertEquals("c", reg.at(110).key());
+        assertNotNull(reg.at(111));
+        assertEquals("c", reg.at(111).key());
+        assertNotNull(reg.at(119));
+        assertEquals("c", reg.at(119).key());
 
-        assertNotNull(reg.regionAt(10));
-        assertEquals("a", reg.regionAt(10).key());
-        assertNotNull(reg.regionAt(11));
-        assertEquals("a", reg.regionAt(11).key());
-        assertNotNull(reg.regionAt(19));
-        assertEquals("a", reg.regionAt(19).key());
-        assertNull(reg.regionAt(0));
-        assertNull(reg.regionAt(1));
-        assertNull(reg.regionAt(9));
+        assertNotNull(reg.at(10));
+        assertEquals("a", reg.at(10).key());
+        assertNotNull(reg.at(11));
+        assertEquals("a", reg.at(11).key());
+        assertNotNull(reg.at(19));
+        assertEquals("a", reg.at(19).key());
+        assertNull(reg.at(0));
+        assertNull(reg.at(1));
+        assertNull(reg.at(9));
 
-        SemanticRegion<String> fiftySixty = reg.regionAt(51);
+        SemanticRegion<String> fiftySixty = reg.at(51);
         assertNotNull(fiftySixty);
         assertEquals("b2", fiftySixty.key());
         assertEquals(50, fiftySixty.start());
         assertEquals(60, fiftySixty.end());
-        SemanticRegion<String> seventyEighty = reg.regionAt(71);
+        SemanticRegion<String> seventyEighty = reg.at(71);
         assertNotNull(seventyEighty);
         assertEquals("b3", seventyEighty.key());
         assertEquals(70, seventyEighty.start());
         assertEquals(80, seventyEighty.end());
 
-        SemanticRegion<String> deepest = reg.regionAt(39);
+        SemanticRegion<String> deepest = reg.at(39);
         assertNotNull(deepest);
         assertEquals("b1a1a1a1", deepest.key());
         assertEquals(4, deepest.nestingDepth());
 
-        SemanticRegion<String> nextDeepest = reg.regionAt(37);
+        SemanticRegion<String> nextDeepest = reg.at(37);
         assertNotNull(nextDeepest);
         assertEquals("b1a1a1", nextDeepest.key());
         assertEquals(3, nextDeepest.nestingDepth());
 
-        SemanticRegion<String> nextNextDeepest = reg.regionAt(35);
+        SemanticRegion<String> nextNextDeepest = reg.at(35);
         assertNotNull(nextNextDeepest);
         assertEquals("b1a1", nextNextDeepest.key());
         assertEquals(2, nextNextDeepest.nestingDepth());
 
-        SemanticRegion<String> nextNextNextDeepest = reg.regionAt(34);
+        SemanticRegion<String> nextNextNextDeepest = reg.at(34);
         assertNotNull(nextNextNextDeepest);
         assertEquals("b1", nextNextNextDeepest.key());
         assertEquals(1, nextNextNextDeepest.nestingDepth());
 
-        SemanticRegion<String> nextNextNextNextDeepest = reg.regionAt(31);
+        SemanticRegion<String> nextNextNextNextDeepest = reg.at(31);
         assertNotNull(nextNextNextNextDeepest);
         assertEquals("b", nextNextNextNextDeepest.key());
         assertEquals(0, nextNextNextNextDeepest.nestingDepth());
@@ -464,7 +464,7 @@ public class SemanticRegionsTest {
                 }
                 seen.add(i);
                 assertTrue(s.contains(i));
-                SemanticRegion<String> found = reg.regionAt(i);
+                SemanticRegion<String> found = reg.at(i);
                 assertEquals("For position " + i + " of " + s + " in " + reg, s, found);
             }
         }
@@ -481,7 +481,7 @@ public class SemanticRegionsTest {
         reg.add("e", 70, 80);
         reg.add("f", 110, 120);
         assertEquals(Arrays.asList("a", "b", "f"), toList(reg.outermostKeys()));
-        SemanticRegion<String> sem = reg.regionAt(50);
+        SemanticRegion<String> sem = reg.at(50);
         assertNotNull(sem);
         assertEquals("Wrong entry " + sem + " for 50 in " + reg, "d", sem.key());
         Assert.assertArrayEquals(new int[]{3, 1}, reg.indexAndDepthAt(50));
@@ -504,25 +504,25 @@ public class SemanticRegionsTest {
         reg.add("h3", 35, 40);
         reg.add("h4", 38, 40);
 
-        assertNotNull(reg.regionAt(29));
+        assertNotNull(reg.at(29));
 
         for (SemanticRegion<String> r : reg) {
-            assertNotNull("Null result for region start: " + r.start() + " for " + r, reg.regionAt(r.start()));
-            assertNotNull("Null result for region end-1: " + r.end() + " for " + r, reg.regionAt(r.end() - 1));
+            assertNotNull("Null result for region start: " + r.start() + " for " + r, reg.at(r.start()));
+            assertNotNull("Null result for region end-1: " + r.end() + " for " + r, reg.at(r.end() - 1));
         }
 
-        assertEquals("h1", reg.regionAt(30).key());
-        assertEquals("g", reg.regionAt(29).key());
-        assertEquals("f", reg.regionAt(28).key());
-        assertEquals("e", reg.regionAt(27).key());
-        assertEquals("h1", reg.regionAt(31).key());
-        assertEquals("h3", reg.regionAt(35).key());
-        assertEquals("h3", reg.regionAt(36).key());
-        assertEquals("h2", reg.regionAt(41).key());
-        assertEquals("h4", reg.regionAt(38).key());
-        assertEquals("h4", reg.regionAt(39).key());
+        assertEquals("h1", reg.at(30).key());
+        assertEquals("g", reg.at(29).key());
+        assertEquals("f", reg.at(28).key());
+        assertEquals("e", reg.at(27).key());
+        assertEquals("h1", reg.at(31).key());
+        assertEquals("h3", reg.at(35).key());
+        assertEquals("h3", reg.at(36).key());
+        assertEquals("h2", reg.at(41).key());
+        assertEquals("h4", reg.at(38).key());
+        assertEquals("h4", reg.at(39).key());
         List<String> keys = new LinkedList<>();
-        reg.regionAt(30).keysAtPoint(39, keys);
+        reg.at(30).keysAtPoint(39, keys);
         assertFalse(keys.isEmpty());
         assertEquals(Arrays.asList("h1", "h2", "h3", "h4"), keys);
         sanityCheckRegions(reg);
@@ -540,7 +540,7 @@ public class SemanticRegionsTest {
         assertEquals(Arrays.asList("a", "b", "f"), toList(reg.outermostKeys()));
         assertEquals(6, reg.size());
 
-        SemanticRegion<String> r = reg.regionAt(32);
+        SemanticRegion<String> r = reg.at(32);
         assertEquals("c", r.key());
 
         Assert.assertArrayEquals(new int[]{-1, -1}, reg.indexAndDepthAt(1));
@@ -571,7 +571,7 @@ public class SemanticRegionsTest {
             assertEquals("Unexpected children: " + ss.allChildren() + " in " + ss, expectHasChildren, ss.iterator().hasNext());
             if (!expectHasChildren) {
                 for (int i = ss.start(); i < ss.end(); i++) {
-                    SemanticRegion<String> found = reg.regionAt(i);
+                    SemanticRegion<String> found = reg.at(i);
                     assertNotNull(i + " in " + ss + " of " + reg, found);
                     assertEquals(i + " in " + ss + " of " + reg, ss.key(), found.key());
                 }
@@ -598,8 +598,8 @@ public class SemanticRegionsTest {
         reg.add("c", 50, 60);
         reg.add("d", 70, 80);
         assertEquals(4, reg.size());
-        assertNull(reg.regionAt(1));
-        SemanticRegion<String> s = reg.regionAt(10);
+        assertNull(reg.at(1));
+        SemanticRegion<String> s = reg.at(10);
         assertEquals("a", s.key());
         assertEquals(10, s.start());
         assertEquals(20, s.end());
@@ -612,7 +612,7 @@ public class SemanticRegionsTest {
         for (SemanticRegion<String> ss : reg) {
             assertEquals(0, ss.nestingDepth());
             for (int i = ss.start(); i < ss.end(); i++) {
-                assertEquals(ss, reg.regionAt(i));
+                assertEquals(ss, reg.at(i));
             }
         }
         assertEquals(Arrays.asList("a", "b", "c", "d"), toList(reg.outermostKeys()));
@@ -623,7 +623,7 @@ public class SemanticRegionsTest {
         SemanticRegions.Index<String> index = SemanticRegions.index(reg);
         boolean duplicates = index.size() != reg.size();
         for (SemanticRegion<String> r : reg) {
-            SemanticRegion<String> test = reg.get(r.index());
+            SemanticRegion<String> test = reg.forIndex(r.index());
             assertEquals(r, test);
             assertEquals(r.key(), test.key());
             assertEquals(r.start(), test.start());
@@ -636,7 +636,7 @@ public class SemanticRegionsTest {
             assertFalse(children.contains(r));
             assertFalse(parents.contains(r));
             for (int i = r.start(); i < r.end(); i++) {
-                SemanticRegion<String> atPoint = reg.regionAt(i);
+                SemanticRegion<String> atPoint = reg.at(i);
                 assertTrue(r.equals(atPoint) || allChildren.contains(atPoint));
             }
             SemanticRegion<String> parent = r.parent();

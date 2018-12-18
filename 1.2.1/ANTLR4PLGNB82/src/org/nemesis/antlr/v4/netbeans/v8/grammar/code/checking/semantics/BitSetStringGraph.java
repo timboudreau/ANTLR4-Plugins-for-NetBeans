@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.io.IOException;
@@ -73,7 +68,7 @@ public class BitSetStringGraph {
         }
 
         @Override
-        public String get(int index) {
+        public String forIndex(int index) {
             return nameOf(index);
         }
 
@@ -310,15 +305,42 @@ public class BitSetStringGraph {
                 : collect(tree.closureOf(ix));
     }
 
+    public boolean hasInboundEdge(String from, String to) {
+        int f = indexOf(from);
+        int t = indexOf(to);
+        return f < 0 || t < 0 ? false : tree.hasInboundEdge(f, t);
+    }
+
+    public boolean hasOutboundEdge(String from, String to) {
+        int f = indexOf(from);
+        int t = indexOf(to);
+        return f < 0 || t < 0 ? false : tree.hasOutboundEdge(f, t);
+    }
+
     public String toString() {
-        StringBuilder sb = new StringBuilder(tree.toString()).append(":");
+        StringBuilder sb = new StringBuilder(tree.toString()).append("\n");
         walk((String rule, int depth) -> {
             char[] c = new char[depth * 2];
             Arrays.fill(c, ' ');
             sb.append(c).append(rule).append('\n');
         });
-        sb.append("Tops: ").append(tree.topLevelOrOrphanRules());
+        sb.append("Tops:");
+        topsString(sb);
+        sb.append('\n').append("Bottoms: ");
+        bottomsString(sb);
         return sb.toString();
+    }
+
+    private void topsString(StringBuilder into) {
+        BitSetTree.forEach(tree.topLevelOrOrphanRules(), i -> {
+            into.append(' ').append(nameOf(i));
+        });
+    }
+
+    private void bottomsString(StringBuilder into) {
+        BitSetTree.forEach(tree.bottomLevelRules(), i -> {
+            into.append(' ').append(nameOf(i));
+        });
     }
 
     @Override

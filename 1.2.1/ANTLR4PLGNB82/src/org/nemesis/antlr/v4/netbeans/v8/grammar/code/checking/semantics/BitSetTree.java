@@ -120,21 +120,58 @@ final class BitSetTree {
                 BitSet reverse = referencedBy[bit];
                 assert reverse.get(ix) : "ruleReferences[" + ix + "] says it "
                         + "references " + bit + " but referencedBy[" + bit + "]"
-                        + " does not have " + ix + " set";
+                        + " does not have " + ix + " set - ruleReferences: " + bitSetArrayToString(ruleReferences)
+                        + " referencedBy: " + bitSetArrayToString(referencedBy);
             });
         }
         return true;
+    }
+
+    private String bitSetArrayToString(BitSet[] arr) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < arr.length; i++) {
+            BitSet b = arr[i];
+            if (b.isEmpty()) {
+                sb.append(i).append(": empty\n");
+            } else {
+//                if (i > 0 && arr[i - 1].isEmpty()) {
+//                    sb.append('\n');
+//                }
+                sb.append(i).append(": ").append(b).append('\n');
+            }
+        }
+        return sb.toString();
     }
 
     interface IntRuleVisitor {
 
         void enterRule(int ruleId, int depth);
 
-        void exitRule(int ruleId, int depth);
+        default void exitRule(int ruleId, int depth) {
+
+        }
     }
 
     public String toString() {
-        return "BitSetTree{size=" + ruleReferences.length + "}";
+        StringBuilder sb = new StringBuilder().append("BitSetTree{size=")
+                .append(ruleReferences.length)
+                .append(", totalCardinality=").append(totalCardinality())
+                .append("}\n");
+        
+        System.out.println("RULE REFS:\n");
+        System.out.println(bitSetArrayToString(ruleReferences));
+        System.out.println("REF BY:\n");
+        System.out.println(bitSetArrayToString(referencedBy));
+
+        System.out.println("start walk");
+        walk((id, d) -> {
+            System.out.println("walk " + id + " " + d);
+            char[] c = new char[d * 2];
+            Arrays.fill(c, ' ');
+            sb.append(c).append(id).append('\n');
+        });
+        System.out.println("end walk");
+        return sb.toString();
     }
 
     public void walk(IntRuleVisitor v) {
@@ -373,7 +410,7 @@ final class BitSetTree {
         return result;
     }
 
-    private void forEach(BitSet set, IntConsumer cons) {
+    static void forEach(BitSet set, IntConsumer cons) {
         for (int bit = set.nextSetBit(0); bit >= 0; bit = set.nextSetBit(bit + 1)) {
             cons.accept(bit);
         }
@@ -525,6 +562,14 @@ final class BitSetTree {
         return result;
     }
 
+    public boolean hasOutboundEdge(int from, int to) {
+        return ruleReferences[from].get(to);
+    }
+
+    public boolean hasInboundEdge(int from, int to) {
+        return referencedBy[from].get(to);
+    }
+
     public int inboundReferenceCount(int rule) {
         return referencedBy[rule].cardinality();
     }
@@ -624,6 +669,14 @@ final class BitSetTree {
         int hash = 3;
         hash = 97 * hash + Arrays.deepHashCode(this.ruleReferences);
         return hash;
+    }
+
+    public int totalCardinality() {
+        int result = 0;
+        for (BitSet bs : this.referencedBy) {
+            result += bs.cardinality();
+        }
+        return result;
     }
 
     @Override

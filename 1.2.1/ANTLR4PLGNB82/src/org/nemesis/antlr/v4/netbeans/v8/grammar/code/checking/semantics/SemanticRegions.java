@@ -57,7 +57,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Semantic
  *
  * @author Tim Boudreau
  */
-public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Serializable {
+public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Serializable, IndexAddressable<SemanticRegion<T>> {
 
     private static final int BASE_SIZE = 3;
 
@@ -137,6 +137,17 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return new SemanticRegions(newStarts, newEnds, newKeys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
+    public int indexOf(Object o) {
+        if (o != null && o.getClass() == SemanticRegionImpl.class && ((SemanticRegionImpl) o).owner() == this) {
+            return ((SemanticRegion<?>) o).index();
+        }
+        return -1;
+    }
+
+    public boolean isChildType(IndexAddressableItem item) {
+        return item instanceof SemanticRegion<?>;
+    }
+
     public static <T> SemanticRegionsBuilder<T> builder(Class<T> type) {
         return new SemanticRegionsBuilder<>(type);
     }
@@ -150,7 +161,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return keys == null ? (Class<T>) Void.class : (Class<T>) keys.getClass().getComponentType();
     }
 
-    public SemanticRegion<T> get(int index) {
+    @Override
+    public SemanticRegion<T> forIndex(int index) {
         if (index < 0 || index >= size) {
             throw new IllegalArgumentException("Index out of bounds "
                     + index + " in SemanticRegions of size " + size);
@@ -196,7 +208,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return sb.toString();
     }
 
-    int size() {
+    public int size() {
         return size;
     }
 
@@ -207,7 +219,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     }
 
     public void keysAtPoint(int pos, List<? super T> into) {
-        SemanticRegion<T> reg = regionAt(pos);
+        SemanticRegion<T> reg = at(pos);
         if (reg != null) {
             SemanticRegion<T> outer = reg.outermost();
             if (outer != null) {
@@ -308,7 +320,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         assert checkInvariants();
     }
 
-    public SemanticRegion<T> regionAt(int pos) {
+    public SemanticRegion<T> at(int pos) {
         int[] id = indexAndDepthAt(pos);
         if (id[0] == -1) {
             return null;
@@ -407,8 +419,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
      * keys and the region for one such is requested, some region will be
      * returned. Any elements with null keys are omitted from the index.
      * <p>
-     * If the type of this SemanticRegions is Void, no index is possible and
-     * an exception is thrown.
+     * If the type of this SemanticRegions is Void, no index is possible and an
+     * exception is thrown.
      * </p>
      *
      * @param comp A comparator
@@ -477,7 +489,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             int ix = 0;
             for (ComparableStub<T> c : temp) {
                 indices[ix++] = c.originalIndex;
-                sortedKeys[ix-1] = c.key;
+                sortedKeys[ix - 1] = c.key;
             }
         }
 
@@ -767,7 +779,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
      *
      * @param <T> The data type, returned from the key() method
      */
-    public interface SemanticRegion<T> extends Comparable<SemanticRegion<?>>, Iterable<SemanticRegion<T>> {
+    public interface SemanticRegion<T> extends IndexAddressable.IndexAddressableItem, Iterable<SemanticRegion<T>> {
 
         /**
          * Get the data associated with this semantic region.
@@ -775,32 +787,6 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
          * @return
          */
         T key();
-
-        /**
-         * The start offset of this region, inclusive.
-         *
-         * @return The start
-         */
-        int start();
-
-        /**
-         * The end offset of this region, exclusive.
-         *
-         * @return The end offset
-         */
-        int end();
-
-        /**
-         * Get the index of this semantic region in the set of regions it
-         * belongs to. The exact value returned by this index is
-         * implementation-dependent - the only guarantee is that if you have a
-         * SemanticRegion, and you call SemanticRegions.get(region.index()), you
-         * will get back an instance which equals the one which provided the
-         * index.
-         *
-         * @return The index of this region in its parent
-         */
-        int index();
 
         /**
          * Get the parent region, if any.
@@ -912,14 +898,6 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             return pos >= start() && pos < end();
         }
 
-        default boolean containsRegion(int start, int end) {
-            return contains(start) && (contains(end) || end == end());
-        }
-
-        default boolean abuts(int pos) {
-            return pos == end() || pos == start() - 1;
-        }
-
         /**
          * Get the nesting depth of this region, 0 being outermost.
          *
@@ -935,20 +913,6 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
         default int last() {
             return end() - 1;
-        }
-
-        @Override
-        default int compareTo(SemanticRegion<?> o) {
-            int as = start();
-            int bs = o.start();
-            int result = as > bs ? 1 : as == bs ? 0 : -1;
-            if (result == 0) {
-                // Smaller with same start will occur after larger
-                int ae = end();
-                int be = o.end();
-                result = ae > be ? -1 : ae == be ? 0 : 1;
-            }
-            return result;
         }
     }
 

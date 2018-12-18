@@ -56,7 +56,7 @@ public class SemanticParser {
 //        TimedCache<String, RulesInfo, IOException> inMemory = TimedCache.createThrowing(60000, new TimedCache.Answerer<String, RulesInfo,IOException>(){
 //            @Override
 //            public RulesInfo answer(String request) throws IOException {
-//                Path pth = Paths.get(request).normalize();
+//                Path pth = Paths.forIndex(request).normalize();
 //                if (!Files.exists(pth)) {
 //                    throw new IOException("File does not exist: " + request);
 //                }

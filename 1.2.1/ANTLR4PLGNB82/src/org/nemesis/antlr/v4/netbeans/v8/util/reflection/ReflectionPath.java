@@ -6,28 +6,46 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Allows for drilling through the fields and sub-fields of reflectively
  * obtained foreign objects, fetching values of fields.  Methods are
  * specified by appending () to the name.  E.g. foo.errorType().code.
  * <p>
- * A call to resolve() with a collection of ReflectiveValue instances is
- * expected first - this allows field and method instances to be pooled when
- * looking up a large number of things.
- * </p>
+ A call to resolve() with a collection of ReflectionPath instances is
+ expected first - this allows field and method instances to be pooled when
+ looking up a large number of things.
+ </p>
  *
  * @author Tim Boudreau
  */
-public class ReflectiveValue<T> {
+public final class ReflectionPath<T> {
 
     private final String valuePath;
     private final Class<T> type;
     private ResolutionResult result;
 
-    public ReflectiveValue(String valuePath, Class<T> type) {
+    public ReflectionPath(String valuePath, Class<T> type) {
+        assert valuePath != null && type != null;
         this.valuePath = valuePath;
         this.type = type;
+    }
+
+    @Override
+    public String toString() {
+        return valuePath;
+    }
+
+    public boolean equals(Object o) {
+        return o == this ? true : o == null ? false :
+                o instanceof ReflectionPath<?> ?
+                ((ReflectionPath<?>) o).type == type
+                && ((ReflectionPath<?>) o).valuePath.equals(valuePath) : false;
+    }
+
+    public int hashCode() {
+        return valuePath.hashCode() + 7 * type.hashCode();
     }
 
     public String path() {
@@ -44,9 +62,9 @@ public class ReflectiveValue<T> {
         }
     }
 
-    public static void resolve(Object on, ReflectiveValue<?>... many) {
+    public static void resolve(Object on, ReflectionPath<?>... many) {
         ResolutionContext ctx = new ResolutionContext();
-        for (ReflectiveValue<?> v : many) {
+        for (ReflectionPath<?> v : many) {
             v.resolve(ctx, on);
         }
     }
@@ -139,18 +157,18 @@ public class ReflectiveValue<T> {
         private final Object value;
         private final String path;
 
-        public ResolutionResult(String path) {
+        ResolutionResult(String path) {
             this(ResolutionResultType.NULL_VALUE, null, path);
         }
 
-        public ResolutionResult(ResolutionResultType type, Object value, String path) {
+        ResolutionResult(ResolutionResultType type, Object value, String path) {
             this.type = type;
             this.thrown = null;
             this.value = value;
             this.path = path;
         }
 
-        public ResolutionResult(Throwable thrown, String path) {
+        ResolutionResult(Throwable thrown, String path) {
             this.thrown = thrown;
             this.type = ResolutionResultType.EXCEPTION;
             this.path = path;
@@ -191,11 +209,24 @@ public class ReflectiveValue<T> {
         EXCEPTION
     }
 
-    static class ResolutionContext {
+    public static final class ResolutionContext {
 
         private final Map<Class<?>, String> nonMatches = new HashMap<>();
         private final Map<Class<?>, Map<String, Field>> fields = new HashMap<>();
         private final Map<Class<?>, Map<String, Method>> methods = new HashMap<>();
+
+        public ResolutionResult getResult(ReflectionPath<?> pth, Object on) {
+            ResolutionResult res = pth.resolve(this, on);
+            return res;
+        }
+
+        public <T,R> R get(ReflectionPath<T> path, Object on, Function<Object,R> converter) {
+            ResolutionResult res = path.resolve(this, on);
+            if (res.value == null) {
+                return null;
+            }
+            return converter.apply(res.value);
+        }
 
         private Field cachedField(Class<?> type, String name) {
             Map<String, Field> m = fields.get(type);
