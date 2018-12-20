@@ -662,7 +662,6 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 }
             }
             return targetIndex == -1 ? null : new SemanticRegionImpl(targetIndex, -1);
-
         }
 
         public SemanticRegionImpl outermost() {

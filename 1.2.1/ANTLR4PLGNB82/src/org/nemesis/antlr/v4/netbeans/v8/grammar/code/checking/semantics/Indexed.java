@@ -23,14 +23,17 @@
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 
 /**
+ * A minimal subset of a List that lets items be retrieved by index.
  *
  * @author Tim Boudreau
  */
@@ -41,6 +44,41 @@ interface Indexed<T> {
     T forIndex(int index);
 
     int size();
+
+    default Iterable<T> asIterable() {
+        class I implements Iterable<T>, Iterator<T> {
+
+            int ix = -1;
+
+            @Override
+            public Iterator<T> iterator() {
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return ix + 1 < size();
+            }
+
+            @Override
+            public T next() {
+                return forIndex(++ix);
+            }
+        }
+        return new I();
+    }
+
+    default List<T> populate(List<T> list) {
+        int sz = size();
+        for (int i = 0; i < sz; i++) {
+            list.add(forIndex(i));
+        }
+        return list;
+    }
+
+    default List<T> toList() {
+        return populate(new ArrayList<>(size()));
+    }
 
     static Indexed<String> forSortedStringArray(String... strings) {
         return new StringArrayIndexed(strings);

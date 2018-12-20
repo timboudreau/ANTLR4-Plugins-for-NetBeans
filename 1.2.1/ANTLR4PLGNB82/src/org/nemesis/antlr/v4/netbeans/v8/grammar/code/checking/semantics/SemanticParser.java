@@ -35,6 +35,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSem
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.ForeignNamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSetsBuilder;
 
 /**
  *
@@ -810,7 +811,6 @@ public class SemanticParser {
                         out.writeObject(ebnfs);
                         out.writeObject(blocks);
                         usageGraph.save(out);
-                        return null;
                     });
                 } catch (Exception ex) {
                     throw new IOException(ex);
@@ -838,7 +838,6 @@ public class SemanticParser {
                         ebnfs = (SemanticRegions<Set<EbnfProperty>>) in.readObject();
                         blocks = (SemanticRegions<Void>) in.readObject();
                         usageGraph = BitSetStringGraph.load(in);
-                        return null;
                     });
                 } catch (Exception ex) {
                     throw new IOException(ex);
@@ -885,7 +884,7 @@ public class SemanticParser {
     private static final class ReferencesInfoBuilder {
 
         private final NamedSemanticRegions<AntlrRuleKind> offsets;
-        private final NamedRegionReferenceSets<AntlrRuleKind> refs;
+        private final NamedRegionReferenceSetsBuilder<AntlrRuleKind> refs;
         private final NamedSemanticRegions<AntlrRuleKind>.UsagesImpl usages;
         private final NamedSemanticRegions<AntlrRuleKind> ruleBounds;
         private final Map<String, List<int[]>> unknownReferences = new TreeMap<>();
@@ -899,7 +898,7 @@ public class SemanticParser {
 
         public ReferencesInfoBuilder(String grammarName, NamedSemanticRegions<AntlrRuleKind> offsets, Map<String, RulesInfo> dependencies) {
             this.offsets = offsets;
-            this.refs = offsets.newReferenceSets();
+            this.refs = offsets.newReferenceSetsBuilder();
             this.usages = offsets.newUsages();
             this.ruleBounds = offsets.secondary();
             this.dependencies = dependencies;
@@ -929,7 +928,8 @@ public class SemanticParser {
             Set<String> rulesNoOffsets = ruleBounds.removeRegionsWithNoOffsets();
             System.out.println("RULES NO OFFSETS: " + rulesNoOffsets);
             List<NamedSemanticRegion<AntlrRuleKind>> refItems = new ArrayList<>();
-            refs.collectItems(refItems);
+            NamedRegionReferenceSets<AntlrRuleKind> rs = refs.build();
+            rs.collectItems(refItems);
             Collections.sort(refItems);
             System.out.println("BUILD WITH FOREIGN: " + unknownReferences);
 //            NamedRegionReferenceSets<AntlrRuleKind> rebuilt = ruleBounds.newReferenceSets();
@@ -939,7 +939,7 @@ public class SemanticParser {
 //                    rebuilt.addReference(i.name(), i.start(), i.end());
 //                }
 //            }
-            return new RulesInfo(grammarName, offsets, refs, usages, ruleBounds, unknownReferences, labels, alternativesForLabels, foreignReferences,
+            return new RulesInfo(grammarName, offsets, refs.build(), usages, ruleBounds, unknownReferences, labels, alternativesForLabels, foreignReferences,
                     ebnfs.trim(), blocks.trim());
         }
 

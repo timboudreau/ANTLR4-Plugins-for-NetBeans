@@ -6,6 +6,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetTr
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.IndexAddressableItem;
 
 /**
+ * A graph of container and containee, where the types of the two are heterogenous,
+ * such a {} delimited blocks which contain variable references.
  *
  * @author Tim Boudreau
  */

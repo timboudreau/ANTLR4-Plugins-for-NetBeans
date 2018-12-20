@@ -5,6 +5,12 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
@@ -29,6 +35,38 @@ final class AntlrMarkOccurrencesHighlighter extends AbstractAntlrHighlighter.Car
 
     @Override
     protected void refresh(Document doc, Integer caretPosition, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
+        Extraction ext = semantics.extraction();
+
+        NamedSemanticRegions<AntlrExtractor.RuleTypes> ruleBounds = ext.namedRegions(AntlrExtractor.RULE_BOUNDS);
+        NamedSemanticRegion<AntlrExtractor.RuleTypes> ruleCaretIsIn = ruleBounds.at(caretPosition);
+        if (ruleCaretIsIn != null) {
+
+            NamedSemanticRegions<AntlrExtractor.RuleTypes> names = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+
+            NamedSemanticRegion<AntlrExtractor.RuleTypes> curr = names.at(caretPosition);
+
+            NamedRegionReferenceSets<AntlrExtractor.RuleTypes> nameRefs = ext.namedRegions(AntlrExtractor.REFS);
+            if (curr == null) {
+                curr = nameRefs.at(caretPosition);
+            }
+            if (curr != null) {
+                AttributeSet markColoring = markOccurrencesColoring();
+                if (curr.isReference() && names.contains(curr.name())) {
+                    NamedSemanticRegion<AntlrExtractor.RuleTypes> decl = names.regionFor(curr.name());
+                    bag.addHighlight(decl.start(), decl.end(), markColoring);
+                }
+//                bag.addHighlight(curr.start(), curr.end(), markColoring);
+                NamedRegionReferenceSet<AntlrExtractor.RuleTypes> refs = nameRefs.references(curr.name());
+                if (refs != null && refs.size() > 0) {
+                    for (NamedSemanticRegions.NamedSemanticRegionReference<AntlrExtractor.RuleTypes> ref : refs) {
+                        bag.addHighlight(ref.start(), ref.end(), markColoring);
+                    }
+                }
+            }
+        }
+    }
+
+    protected void xrefresh(Document doc, Integer caretPosition, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
         RuleElement rule = semantics.ruleElementAtPosition(caretPosition);
         if (rule != null) {
             List<RuleElement> all = semantics.allReferencesTo(rule);

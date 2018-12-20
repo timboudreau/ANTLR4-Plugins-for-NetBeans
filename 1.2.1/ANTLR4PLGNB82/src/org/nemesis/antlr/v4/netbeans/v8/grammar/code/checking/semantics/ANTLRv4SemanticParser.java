@@ -50,23 +50,18 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 import javax.swing.text.BadLocationException;
-import javax.swing.text.Document;
 
+import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
-
 import org.antlr.v4.runtime.Token;
-
 import org.antlr.v4.runtime.tree.TerminalNode;
-
 import org.apache.bcel.classfile.JavaClass;
-import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.IMPORT;
-import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.OUTPUT;
-import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.SOURCE;
+import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 
 import org.nemesis.antlr.v4.netbeans.v8.generic.parsing.ParsingError;
 
@@ -93,9 +88,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.SuperClassSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.BlockElement;
-
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
+
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.EbnfElement;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
@@ -315,19 +311,14 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         return result;
     }
 
-    ANTLRv4Parser.GrammarFileContext grammarFile;
+    private Extraction extraction;
 
-    public ANTLRv4Parser.GrammarFileContext grammarFile() {
-        return grammarFile;
-    }
-
-    public void discardParseTree() {
-        grammarFile = null;
+    public Extraction extraction() {
+        return extraction;
     }
 
     @Override
     public void exitGrammarFile(ANTLRv4Parser.GrammarFileContext ctx) {
-        grammarFile = ctx;
         // Only at this point do we know which rules are fragments, so we
         // can shuffle them into our fragment reference collection - they
         // are indistinguishable at parse time
@@ -348,31 +339,8 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         BitSetTreeBuilder rtb2 = new BitSetTreeBuilder(pruleIds);
         ctx.accept(rtb2);
         ruleTree = rtb2.toRuleTree().strings(pruleIds);
-        /*
-        System.out.println("IN top: " + ruleTree.topLevelOrOrphanRules());
-        System.out.println("IN bottom: " + ruleTree.bottomLevelRules());
-        System.out.println("\nEIGENVECTOR CENTRALITY: ");
-        for (Score s : ((StringRuleTree) ruleTree).eigenvectorCentrality()) {
-            System.out.println(" - " + s);
-        }
-        System.out.println("\nPAGERANK CENTRALITY: ");
-        for (Score s : ((StringRuleTree) ruleTree).pageRank()) {
-            System.out.println(" - " + s);
-        }
-        System.out.println("DISJOINT: " + ((StringRuleTree) ruleTree).disjointItems());
 
-        System.out.println("\nIMPORTANT-EI: " + ((StringRuleTree) ruleTree).disjunctionOfClosureOfMostCentralNodes());
-        System.out.println("\nIMPORTANT-PG: " + ((StringRuleTree) ruleTree).disjunctionOfClosureOfHighestRankedNodes());
-
-        for (String r : pruleIds) {
-            System.out.println("IN " + r + " closure-size: " + ruleTree.closureSize(r));
-            System.out.println("IN " + r + " rev-closure-size: " + ruleTree.reverseClosureSize(r));
-            System.out.println("IN " + r + " ir-count: " + ruleTree.inboundReferenceCount(r));
-            System.out.println("IN " + r + " or-count: " + ruleTree.outboundReferenceCount(r));
-            System.out.println("IN " + r + " closure: " + ruleTree.closureOf(r));
-            System.out.println("IN " + r + " rev-closure: " + ruleTree.reverseClosureOf(r));
-        }
-         */
+        extraction = AntlrExtractor.getDefault().extract(ctx);
     }
 
     public RuleTree ruleTree() {
@@ -1329,7 +1297,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     public Optional<Path> importDir() {
-        return IMPORT.getPath(project(), grammarFilePath);
+        return AntlrFolders.IMPORT.getPath(project(), grammarFilePath);
     }
 
     protected void checkImportedGrammars() {
@@ -1510,7 +1478,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         if (!grammarFilePath.isPresent()) {
             return;
         }
-        Optional<Path> antlrSrcDir = SOURCE.getPath(project(), grammarFilePath);
+        Optional<Path> antlrSrcDir = AntlrFolders.SOURCE.getPath(project(), grammarFilePath);
 
         Optional<Path> par = this.grammarFileParent();
         if (!antlrSrcDir.isPresent() || !par.isPresent()) {
@@ -1524,9 +1492,9 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                 = parsedGrammarDirRelativePath.toString();
 //        System.out.println("parsed grammar dir relative path=" +
 //                           parsedGrammarDirRelativePath         );
-        Optional<Path> importDir = IMPORT.getPath(project(), grammarFilePath);
+        Optional<Path> importDir = AntlrFolders.IMPORT.getPath(project(), grammarFilePath);
 
-        Optional<Path> destDir = OUTPUT.getPath(project(), grammarFilePath);
+        Optional<Path> destDir = AntlrFolders.OUTPUT.getPath(project(), grammarFilePath);
 
         List<String> importedTokenFileNames = summary.getImportedTokenFiles();
         Map<String, Integer> importedTokenFileStartOffsets

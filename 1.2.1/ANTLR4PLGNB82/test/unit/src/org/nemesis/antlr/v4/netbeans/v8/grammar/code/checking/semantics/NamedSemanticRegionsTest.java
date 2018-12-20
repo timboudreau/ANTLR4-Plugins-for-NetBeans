@@ -2,12 +2,15 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionsBuilder;
@@ -15,6 +18,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSem
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionPositionIndex;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSetsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticParserTest.RuleTypes;
 
 /**
@@ -227,16 +232,18 @@ public class NamedSemanticRegionsTest {
         NamedSemanticRegions<Foo> withoutOffsets = offsets.secondary();
         assertEquals(new HashSet<>(Arrays.asList(names)), withoutOffsets.regionsWithUnsetOffsets());
 
-        NamedRegionReferenceSets<Foo> sets = offsets.newReferenceSets();
-        assertNotNull(sets);
-        sets.addReference("B", 5, 6);
-        sets.addReference("C", 7, 8);
-        sets.addReference("B", 16, 17);
-        sets.addReference("C", 92, 93);
-        sets.addReference("N", 107, 108);
+        NamedRegionReferenceSetsBuilder<Foo> setsBuilder = offsets.newReferenceSetsBuilder();
+        assertNotNull(setsBuilder);
+        setsBuilder.addReference("B", 5, 6);
+        setsBuilder.addReference("C", 7, 8);
+        setsBuilder.addReference("B", 16, 17);
+        setsBuilder.addReference("C", 92, 93);
+        setsBuilder.addReference("N", 107, 108);
+
+        NamedRegionReferenceSets<Foo> sets = setsBuilder.build();
 
         NamedRegionReferenceSet<Foo> s = sets.references("B");
-        assertEquals(2, s.referenceCount());
+        assertEquals(2, s.size());
         assertTrue(s.contains(5));
         assertTrue(s.contains(16));
         assertFalse(s.contains(0));
@@ -249,23 +256,101 @@ public class NamedSemanticRegionsTest {
         assertNotNull("B", sets.itemAt(16));
         assertEquals("B", sets.itemAt(16).name());
 
+        System.out.println("\n---------- SETS ----------------");
+        System.out.println(sets);
+
         int ct = 0;
         for (NamedRegionReferenceSet<Foo> set : sets) {
             assertNotNull("Null set at " + ct + " in " + sets, set);
             String nm = set.name();
+            if (set.size() == 0) {
+                switch(nm) {
+                    case "B":
+                    case "C":
+                    case "N":
+                        fail("Got an empty set for " + nm);
+                }
+                continue;
+            }
+            System.out.println("\n ---------- SET " + nm + " -----------------------");
+            for (NamedSemanticRegions.NamedSemanticRegionReference<Foo> x : set) {
+                System.out.println("  " + x);
+            }
             assertNotNull(nm);
+            Iterator<NamedSemanticRegionReference<Foo>> iter;
+            iter = set.iterator();
             switch (nm) {
                 case "B":
-                    assertEquals(set.referenceCount(), 2);
-                    assertEquals(0, ct);
+                    assertEquals(set.size(), 2);
+                    for (int i = 0; i < set.size(); i++) {
+                        NamedSemanticRegionReference<Foo> n = set.forIndex(i);
+                        switch (i) {
+                            case 0:
+                                assertEquals(5, n.start());
+                                assertEquals(6, n.end());
+                                assertEquals(0, n.index());
+                                break;
+                            case 1:
+                                assertEquals(16, n.start());
+                                assertEquals(17, n.end());
+                                assertEquals(1, n.index());
+                                break;
+                        }
+                        assertEquals("B", n.name());
+                        assertTrue(iter.hasNext());
+                        NamedSemanticRegionReference<Foo> fromIter = iter.next();
+                        assertEquals(n, fromIter);
+                        assertEquals(n.name(), fromIter.name());
+                        assertEquals(n.start(), fromIter.start());
+                        assertEquals(n.end(), fromIter.end());
+                        assertTrue(n.isReference());
+                        assertFalse(n.isForeign());
+                        assertEquals(i, set.indexOf(n));
+                        int six = set.indexOf(n);
+                        assertNotEquals(-1, six);
+                    }
                     break;
                 case "C":
-                    assertEquals(set.referenceCount(), 2);
-                    assertEquals(1, ct);
+                    assertEquals(set.size(), 2);
+                    for (int i = 0; i < set.size(); i++) {
+                        NamedSemanticRegionReference<Foo> n = set.forIndex(i);
+                        switch (i) {
+                            case 0:
+                                assertEquals(7, n.start());
+                                assertEquals(8, n.end());
+                                assertEquals(0, n.index());
+                                break;
+                            case 1:
+                                assertEquals(92, n.start());
+                                assertEquals(93, n.end());
+                                assertEquals(1, n.index());
+                                break;
+                        }
+                        assertEquals("C", n.name());
+                        assertTrue(iter.hasNext());
+                        NamedSemanticRegionReference<Foo> fromIter = iter.next();
+                        assertEquals(n, fromIter);
+                        assertEquals(n.name(), fromIter.name());
+                        assertEquals(n.start(), fromIter.start());
+                        assertEquals(n.end(), fromIter.end());
+                        assertTrue(n.isReference());
+                        assertFalse(n.isForeign());
+                        assertEquals(i, set.indexOf(n));
+                        int six = set.indexOf(n);
+                        assertNotEquals(-1, six);
+                    }
+
                     break;
                 case "N":
-                    assertEquals(set.referenceCount(), 1);
-                    assertEquals(2, ct);
+                    assertEquals(set.size(), 1);
+                    assertTrue(set.iterator().hasNext());
+                    NamedSemanticRegionReference<Foo> item = set.iterator().next();
+                    assertEquals("N", item.name());
+                    assertEquals(107, item.start());
+                    assertEquals(108, item.end());
+                    assertTrue(item.isReference());
+                    assertFalse(item.isForeign());
+                    assertEquals(0, set.indexOf(item));
                     break;
             }
             ct++;

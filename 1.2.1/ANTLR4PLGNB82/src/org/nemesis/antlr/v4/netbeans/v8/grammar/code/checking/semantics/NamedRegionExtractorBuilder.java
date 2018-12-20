@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.io.Serializable;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
@@ -16,7 +17,7 @@ import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.ReferenceExtractorInfo.ExtractorReturnType;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSetsBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionsBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionContext;
@@ -72,7 +73,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             return new NameExtractorBuilder<>(bldr, type);
         }
 
-        public NamedRegionExtractorBuilderWithBothKeys<T, Ret> recordingNamePositionUnder(NamedRegionKey<T> key) {
+        public NamedRegionExtractorBuilderWithBothKeys<T, Ret> recordingRulePositionUnder(NamedRegionKey<T> key) {
             assert bldr.keyType == key.type;
             bldr.ruleRegionKey = key;
             return new NamedRegionExtractorBuilderWithBothKeys<>(bldr);
@@ -163,12 +164,12 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
 
         /**
-         * Pass a reflection path, such as 
-         * 
+         * Pass a reflection path, such as
+         *
          * @param reflectionPath
          * @param kind
          * @see ReflectionPath
-         * @return 
+         * @return
          */
         public FinishableNamedRegionExtractorBuilder<T, Ret> derivingNameWith(String reflectionPath, T kind) {
             return derivingNameWith(func(kind, new ReflectionPath<Object>(reflectionPath, Object.class), bldr.ctx));
@@ -200,11 +201,11 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    private static final class QualifierPredicate implements Predicate<RuleNode> {
+    static final class QualifierPredicate implements Predicate<RuleNode>, Hashable {
 
         private final Class<? extends RuleNode> qualifyingType;
 
-        public QualifierPredicate(Class<? extends RuleNode> qualifyingType) {
+        QualifierPredicate(Class<? extends RuleNode> qualifyingType) {
             this.qualifyingType = qualifyingType;
         }
 
@@ -213,9 +214,39 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             return qualifyingType.isInstance(t);
         }
 
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString("QP");
+            hasher.writeString(qualifyingType.getName());
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 79 * hash + Objects.hashCode(this.qualifyingType);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final QualifierPredicate other = (QualifierPredicate) obj;
+            if (!Objects.equals(this.qualifyingType, other.qualifyingType)) {
+                return false;
+            }
+            return true;
+        }
     }
 
-    static final class NameExtractorInfo<R extends ParserRuleContext, T extends Enum<T>> {
+    static final class NameExtractorInfo<R extends ParserRuleContext, T extends Enum<T>> implements Hashable {
 
         private final Class<R> type;
         private final Function<R, NamedRegionData<T>> extractor;
@@ -237,6 +268,21 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             this.ancestorQualifier = ancestorQualifier;
             this.argType = argType;
             this.terminalFinder = terminalFinder;
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString(type.getName());
+            hasher.hashObject(extractor);
+            if (ancestorQualifier != null) {
+                hasher.hashObject(ancestorQualifier);
+            }
+            if (argType != null) {
+                hasher.writeInt(argType.ordinal());
+            }
+            if (terminalFinder != null) {
+                hasher.hashObject(terminalFinder);
+            }
         }
 
         public void find(R node, BiConsumer<NamedRegionData<T>, TerminalNode> cons) {
@@ -304,7 +350,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    static class ReferenceExtractorPair<T extends Enum<T>> {
+    static class ReferenceExtractorPair<T extends Enum<T>> implements Hashable {
 
         private final Set<ReferenceExtractorInfo<?>> referenceExtractors;
         private final NameReferenceSetKey<T> refSetKey;
@@ -312,6 +358,14 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         ReferenceExtractorPair(Set<ReferenceExtractorInfo<?>> referenceExtractors, NameReferenceSetKey<T> refSetKey) {
             this.refSetKey = refSetKey;
             this.referenceExtractors = new HashSet<>(referenceExtractors);
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.hashObject(refSetKey);
+            for (ReferenceExtractorInfo<?> e : referenceExtractors) {
+                hasher.hashObject(e);
+            }
         }
     }
 
@@ -455,7 +509,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    static final class ReferenceExtractorInfo<R extends ParserRuleContext> {
+    static final class ReferenceExtractorInfo<R extends ParserRuleContext> implements Hashable {
 
         final Class<R> ruleType;
         final Function<R, NameAndOffsets> offsetsExtractor;
@@ -463,15 +517,57 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
         public ReferenceExtractorInfo(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier) {
             this.ruleType = ruleType;
-            this.offsetsExtractor = offsetsExtractor.andThen(rtype);
+//            this.offsetsExtractor = offsetsExtractor.andThen(rtype);
+            this.offsetsExtractor = rtype.wrap(offsetsExtractor);
             this.ancestorQualifier = ancestorQualifier;
         }
 
-        enum ExtractorReturnType implements Function<Object, NameAndOffsets> {
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString(ruleType.getName());
+            hasher.hashObject(offsetsExtractor);
+            if (ancestorQualifier != null) {
+                hasher.hashObject(ancestorQualifier);
+            }
+        }
+
+        enum ExtractorReturnType implements Function<Object, NameAndOffsets>, Hashable {
             NAME_AND_OFFSETS,
             PARSER_RULE_CONTEXT,
             TOKEN,
             TERMINAL_NODE;
+
+            @Override
+            public void hashInto(Hasher hasher) {
+                hasher.writeInt(ordinal());
+            }
+
+            <R extends ParserRuleContext> Function<R, NameAndOffsets> wrap(Function<R, ?> func) {
+                return new HashableAndThen(this, func);
+            }
+
+            static class HashableAndThen<R extends ParserRuleContext> implements Function<R, NameAndOffsets>, Hashable {
+
+                private final ExtractorReturnType rt;
+                private final Function<R, ?> func;
+
+                public HashableAndThen(ExtractorReturnType rt, Function<R, ?> func) {
+                    this.rt = rt;
+                    this.func = func;
+                }
+
+                @Override
+                public NameAndOffsets apply(R t) {
+                    Object o = func.apply(t);
+                    return rt.apply(o);
+                }
+
+                @Override
+                public void hashInto(Hasher hasher) {
+                    hasher.writeInt(rt.ordinal());
+                    hasher.hashObject(func);
+                }
+            }
 
             @Override
             public NameAndOffsets apply(Object t) {
@@ -507,7 +603,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
     }
 
-    public static final class NamedRegionKey<T extends Enum<T>> {
+    public static final class NamedRegionKey<T extends Enum<T>> implements Serializable, Hashable {
 
         private final String name;
         private final Class<T> type;
@@ -515,6 +611,12 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         private NamedRegionKey(String name, Class<T> type) {
             this.name = name;
             this.type = type;
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString(name);
+            hasher.writeString(type.getName());
         }
 
         public static <T extends Enum<T>> NamedRegionKey create(Class<T> type) {
@@ -559,7 +661,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    public static final class NameReferenceSetKey<T extends Enum<T>> {
+    public static final class NameReferenceSetKey<T extends Enum<T>> implements Serializable, Hashable {
 
         private final String name;
         private final Class<T> type;
@@ -567,6 +669,12 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         private NameReferenceSetKey(String name, Class<T> type) {
             this.name = name;
             this.type = type;
+        }
+
+        @Override
+        public void hashInto(Hashable.Hasher hasher) {
+            hasher.writeString(name);
+            hasher.writeString(type.getName());
         }
 
         public static final <T extends Enum<T>> NameReferenceSetKey<T> create(Class<T> type) {
@@ -608,7 +716,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
     }
 
-    static class NameExtractors<T extends Enum<T>> {
+    static class NameExtractors<T extends Enum<T>> implements Hashable {
 
         private final Class<T> keyType;
         private final NamedRegionKey<T> namePositionKey;
@@ -643,6 +751,19 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             v1.conclude(store);
         }
 
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString(keyType.getName());
+            hasher.hashObject(namePositionKey);
+            hasher.hashObject(ruleRegionKey);
+            for (NameExtractorInfo<?, ?> ne : nameExtractors) {
+                hasher.hashObject(ne);
+            }
+            for (ReferenceExtractorPair<?> p : referenceExtractors) {
+                hasher.hashObject(p);
+            }
+        }
+
         interface NameInfoStore {
 
             <T extends Enum<T>> void addNamedRegions(NamedRegionKey<T> key, NamedSemanticRegions<T> regions);
@@ -660,7 +781,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
             ReferenceExtractorInfo<?>[][] infos;
             private final NamedSemanticRegions<T> regions;
-            NamedSemanticRegions.NamedRegionReferenceSets<T>[] refs;
+            NamedSemanticRegions.NamedRegionReferenceSetsBuilder<T>[] refs;
             private final BitSet[][] references, reverseReferences;
 
             ReferenceExtractorVisitor(NamedSemanticRegions<T> regions) {
@@ -670,14 +791,14 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 reverseReferences = new BitSet[referenceExtractors.length][regions.size()];
 
                 infos = new ReferenceExtractorInfo[referenceExtractors.length][];
-                refs = (NamedRegionReferenceSets<T>[]) new NamedRegionReferenceSets<?>[referenceExtractors.length];
+                refs = (NamedRegionReferenceSetsBuilder<T>[]) new NamedRegionReferenceSetsBuilder<?>[referenceExtractors.length];
 
                 for (int i = 0; i < referenceExtractors.length; i++) {
                     ReferenceExtractorInfo[] ex = referenceExtractors[i].referenceExtractors.toArray(new ReferenceExtractorInfo[referenceExtractors[i].referenceExtractors.size()]);
                     lengths[i] = ex.length;
                     infos[i] = ex;
                     activations[i] = new int[ex.length];
-                    refs[i] = regions.newReferenceSets();
+                    refs[i] = regions.newReferenceSetsBuilder();
                     for (int j = 0; j < ex.length; j++) {
                         if (ex[i].ancestorQualifier == null) {
                             activations[i][j] = 1;
@@ -694,7 +815,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             void conclude(NameInfoStore store) {
                 for (int i = 0; i < referenceExtractors.length; i++) {
                     ReferenceExtractorPair r = referenceExtractors[i];
-                    store.addReferences(r.refSetKey, refs[i]);
+                    store.addReferences(r.refSetKey, refs[i].build());
                     BitSetTree graph = new BitSetTree(reverseReferences[i], references[i]);
                     BitSetStringGraph stringGraph = new BitSetStringGraph(graph, regions.nameArray());
                     store.addReferenceGraph(r.refSetKey, stringGraph);

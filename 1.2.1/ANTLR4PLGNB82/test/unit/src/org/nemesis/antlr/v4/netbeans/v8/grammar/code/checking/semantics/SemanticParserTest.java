@@ -12,13 +12,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import static org.junit.Assert.assertEquals;
@@ -29,7 +32,11 @@ import org.junit.Test;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.BlockContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.EbnfContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.LexerRuleElementContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleElementContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GenericExtractor;
@@ -139,15 +146,90 @@ public class SemanticParserTest {
         return null;
     }
 
+    static void extractEbnfPropertiesFromEbnfContext(ANTLRv4Parser.EbnfContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
+        maybeAddEbnf(ctx.block(), ctx.ebnfSuffix(), c);
+    }
+
+    static void extractEbnfRegionFromParserRuleElement(ANTLRv4Parser.ParserRuleElementContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
+        if (ctx.parserRuleAtom() != null) {
+            maybeAddEbnf(ctx.parserRuleAtom(), ctx.ebnfSuffix(), c);
+        } else if (ctx.labeledParserRuleElement() != null) {
+            maybeAddEbnf(ctx.labeledParserRuleElement(), ctx.ebnfSuffix(), c);
+        }
+    }
+
+    static void extractEbnfRegionFromLexerRuleElement(ANTLRv4Parser.LexerRuleElementContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
+        if (ctx.lexerRuleAtom() != null) {
+            maybeAddEbnf(ctx.lexerRuleAtom(), ctx.ebnfSuffix(), c);
+        } else if (ctx.lexerRuleElementBlock() != null) {
+            maybeAddEbnf(ctx.lexerRuleElementBlock(), ctx.ebnfSuffix(), c);
+        }
+    }
+
+    enum EbnfProperty {
+        STAR,
+        QUESTION,
+        PLUS;
+
+        static Set<EbnfProperty> forSuffix(ANTLRv4Parser.EbnfSuffixContext ctx) {
+            Set<EbnfProperty> result = EnumSet.noneOf(EbnfProperty.class);
+            if (ctx.PLUS() != null) {
+                result.add(PLUS);
+            }
+            if (ctx.STAR() != null) {
+                result.add(STAR);
+            }
+            if (ctx.QUESTION() != null && ctx.QUESTION().size() > 0) {
+//                System.out.println("question; " + ctx.QUESTION());
+                result.add(QUESTION);
+            }
+            return result;
+        }
+    }
+
+    static void maybeAddEbnf(ParserRuleContext repeated, ANTLRv4Parser.EbnfSuffixContext suffix, BiConsumer<Set<EbnfProperty>, int[]> c) {
+        if (suffix == null || repeated == null) {
+            return;
+        }
+        String ebnfString = suffix.getText();
+        if (!ebnfString.isEmpty()) {
+            Set<EbnfProperty> key = EbnfProperty.forSuffix(suffix);
+            if (!key.isEmpty()) {
+                int start = repeated.getStart().getStartIndex();
+                int end = suffix.getStop().getStopIndex() + 1;
+                c.accept(key, new int[]{start, end});
+            }
+        }
+    }
+
+    static NamedRegionData<RuleTypes> extractAlternativeLabelInfo(ParserRuleLabeledAlternativeContext ctx) {
+        ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
+        if (idc != null) {
+            TerminalNode idTN = idc.ID();
+//            return idTN;
+            if (idTN != null) {
+                Token labelToken = idTN.getSymbol();
+                if (labelToken != null) {
+                    String altnvLabel = labelToken.getText();
+                    return new NamedRegionData<>(altnvLabel, RuleTypes.ALTERNATIVE_LABEL, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
+                }
+            }
+        }
+        return null;
+    }
+
     enum RuleTypes {
         FRAGMENT,
         LEXER,
-        PARSER
+        PARSER,
+        ALTERNATIVE_LABEL
     }
+    static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("namedAlternatives", RuleTypes.class);
     static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
     static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
     static final NameReferenceSetKey<RuleTypes> REFS = NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
     static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
+    static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
 
     @Test
     public void testGenericExtractor() throws Throwable {
@@ -186,9 +268,27 @@ public class SemanticParserTest {
                 // Done specifying how to collect references
                 .finishReferenceCollector()
                 .finishNamedRegions()
+                .extractNamedRegions(RuleTypes.class)
+                .recordingNamePositionUnder(NAMED_ALTERNATIVES)
+                .whereRuleIs(ParserRuleLabeledAlternativeContext.class)
+//                .derivingNameWith(SemanticParserTest::extractAlternativeLabelInfo)
+                .derivingNameWith("identifier().ID()", RuleTypes.ALTERNATIVE_LABEL)
+                .finishNamedRegions()
                 // Just collect the offsets of all BlockContext trees, in a nested data structure
-                .extractRegionsFor(BlockContext.class)
-                .recordingRegionsUnder(BLOCKS).build();
+                .extractingRegionsTo(BLOCKS)
+                .whenRuleType(BlockContext.class)
+                .extractingBoundsFromRule()
+                // More complex nested region extraction for EBNF contexts, so we can progressively
+                // darket the background color in the editor of nested repetitions
+                .extractingRegionsTo(EBNFS)
+                .whenRuleType(EbnfContext.class)
+                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfPropertiesFromEbnfContext)
+                .whenRuleType(ParserRuleElementContext.class)
+                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfRegionFromParserRuleElement)
+                .whenRuleType(LexerRuleElementContext.class)
+                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfRegionFromLexerRuleElement)
+                .finishRegionExtractor()
+                .build();
         Extraction extraction = nestedMapLoader.charStream("NestedMapGrammar", (lm, s) -> {
             ANTLRv4Lexer lex = new ANTLRv4Lexer(s.get());
             CommonTokenStream cts = new CommonTokenStream(lex, 0);
@@ -196,10 +296,19 @@ public class SemanticParserTest {
             return ext.extract(p.grammarFile());
         });
 
+        System.out.println("\n\n-------------------------- BLOCKS -------------------------------");
         SemanticRegions<Void> blocks = extraction.regions(BLOCKS);
         assertNotNull(blocks);
         String txt = nmmText();
         for (SemanticRegion<Void> r : blocks) {
+            String s = txt.substring(r.start(), r.end());
+            System.out.println(r + ": '" + s + "'");
+        }
+
+        System.out.println("\n\n-------------------------- EBNFS -------------------------------");
+        SemanticRegions<Set<EbnfProperty>> ebnfs = extraction.regions(EBNFS);
+        assertNotNull(ebnfs);
+        for (SemanticRegion<Set<EbnfProperty>> r : ebnfs) {
             String s = txt.substring(r.start(), r.end());
             System.out.println(r + ": '" + s + "'");
         }
@@ -225,8 +334,9 @@ public class SemanticParserTest {
 
         System.out.println("\n\n-------------------------- REFS -------------------------------");
         for (NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> r : refs) {
+            System.out.println("   ----------------- " + r.name() + " -----------------");
             for (NamedSemanticRegion<RuleTypes> i : r) {
-                System.out.println(i);
+                System.out.println("  " + i);
             }
         }
 
@@ -234,15 +344,36 @@ public class SemanticParserTest {
 
         System.out.println("GRAPH: \n" + graph);
 
-        
-//        BitSetHeteroObjectGraph<NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>>
-//                cr = bounds.crossReference(nameds);
-
-//        Object cr = bounds.crossReference(refs);
-        Object cr = refs.crossReference(bounds);
+        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, NamedSemanticRegions.NamedSemanticRegionReference<RuleTypes>, ?, NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes>> cr = bounds.crossReference(refs);
+//        BitSetHeteroObjectGraph<SemanticRegion<Void>, NamedSemanticRegion<RuleTypes>, ?, NamedSemanticRegions<RuleTypes>> cr = blocks.crossReference(nameds);
 
         System.out.println("CROSS REF\n" + cr);
 
+        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<Set<EbnfProperty>>, ?, SemanticRegions<Set<EbnfProperty>>> cr2 = bounds.crossReference(ebnfs);
+
+        System.out.println("\n\n-------------------------- RULES CONTAINING EBNFS -------------------------------");
+        System.out.println(cr2);
+
+        NamedSemanticRegions<RuleTypes> alts = extraction.namedRegions(NAMED_ALTERNATIVES);
+        System.out.println("\n\n-------------------------- NAMED ALTERNATIVES -------------------------------");
+        for (NamedSemanticRegion<RuleTypes> r : alts) {
+            System.out.println(r);
+        }
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ObjectOutputStream oout = new ObjectOutputStream(out);
+            oout.writeObject(extraction);
+        } finally {
+            out.close();
+        }
+
+        byte[] b = out.toByteArray();
+        System.out.println("EXTRACTED TO " + b.length + " BYTES\n");
+        System.out.println(new String(b, UTF_8));
+        ByteArrayInputStream in = new ByteArrayInputStream(b);
+        ObjectInputStream oin = new ObjectInputStream(in);
+        Extraction ex2 = (Extraction) oin.readObject();
     }
 
 //    @Test

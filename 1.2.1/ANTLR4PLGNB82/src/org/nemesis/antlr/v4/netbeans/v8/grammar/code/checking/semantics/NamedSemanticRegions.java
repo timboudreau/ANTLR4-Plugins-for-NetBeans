@@ -35,9 +35,9 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -45,7 +45,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.Callable;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.ArrayEndSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.EndSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.MutableEndSupplier;
@@ -145,11 +144,20 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
     private static ThreadLocal<SerializationContext> SER = new ThreadLocal<>();
 
-    static void withSerializationContext(SerializationContext ctx, Callable<Void> c) throws Exception {
+    interface SerializationCallback {
+
+        void run() throws IOException, ClassNotFoundException;
+    }
+
+    static SerializationContext currentSerializationContext() {
+        return SER.get();
+    }
+
+    static void withSerializationContext(SerializationContext ctx, SerializationCallback c) throws IOException, ClassNotFoundException {
         SerializationContext old = SER.get();
         SER.set(ctx);
         try {
-            c.call();
+            c.run();
         } finally {
             SER.set(old);
         }
@@ -181,6 +189,9 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         public short[] toArray(String[] strings, int size) {
+            // Shorts?  Yes, shorts.  If you have a grammar with > 64k
+            // rules, you have bigger problems than the serialization
+            // of anything.
             short[] result = new short[size];
             for (int i = 0; i < size; i++) {
                 result[i] = (short) Arrays.binarySearch(this.strings, strings[i]);
@@ -190,11 +201,43 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         public String[] toStringArray(short[] indices) {
-            String[] result = new String[indices.length];
-            for (int i = 0; i < indices.length; i++) {
-                result[i] = strings[indices[i]];
+            // Use a cache so that where possible, deserialized instances are
+            // using shared physical arrays
+            ArrayCacheKey key = new ArrayCacheKey(indices);
+            String[] result = null;
+            if (cache != null) {
+                result = cache.get(key);
+            }
+            if (result == null) {
+                result = new String[indices.length];
+                for (int i = 0; i < indices.length; i++) {
+                    result[i] = strings[indices[i]];
+                }
+                if (cache == null) {
+                    cache = new HashMap<>();
+                }
+                cache.put(key, result);
             }
             return result;
+        }
+
+        private transient Map<ArrayCacheKey, String[]> cache = new HashMap<>();
+
+        private static final class ArrayCacheKey {
+
+            private final short[] keys;
+
+            public ArrayCacheKey(short[] keys) {
+                this.keys = keys;
+            }
+
+            public boolean equals(Object o) {
+                return o instanceof ArrayCacheKey && Arrays.equals(keys, ((ArrayCacheKey) o).keys);
+            }
+
+            public int hashCode() {
+                return Arrays.hashCode(keys);
+            }
         }
     }
 
@@ -679,43 +722,37 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
-    public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<NamedRegionReferenceSet<K>>, Serializable, IndexAddressable<NamedSemanticRegion<K>> {
-
-        public void addReference(String name, int start, int end);
+    public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<NamedRegionReferenceSet<K>>, Serializable, IndexAddressable<NamedSemanticRegionReference<K>> {
 
         public NamedRegionReferenceSet<K> references(String name);
 
-        public NamedSemanticRegion<K> itemAt(int pos);
+        public NamedSemanticRegionReference<K> itemAt(int pos);
 
-        default void collectItems(List<? super NamedSemanticRegion<K>> into) {
+        default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {
             for (NamedRegionReferenceSet<K> refs : this) {
-                for (NamedSemanticRegion<K> item : refs) {
+                for (NamedSemanticRegionReference<K> item : refs) {
                     into.add(item);
                 }
             }
         }
 
-        public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegion<K>>, Serializable {
+        public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegionReference<K>>, Serializable, IndexAddressable<NamedSemanticRegionReference<K>> {
 
-            int referenceCount();
+            int size();
 
             boolean contains(int pos);
 
             String name();
 
-            int visitReferences(CoordinateConsumer consumer);
-
-            NamedSemanticRegion<K> itemAt(int pos);
-
-            @FunctionalInterface
-            interface CoordinateConsumer {
-
-                void consume(int start, int end);
-            }
+            NamedSemanticRegionReference<K> at(int pos);
 
             NamedSemanticRegion<K> original();
 
-            void collectItems(List<? super NamedSemanticRegion<K>> items);
+            default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {
+                for (NamedSemanticRegionReference<K> item : this) {
+                    into.add(item);
+                }
+            }
         }
     }
 
@@ -727,15 +764,24 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             this.index = index;
         }
 
-        public void collectItems(List<? super NamedSemanticRegion<K>> items) {
+        public boolean isChildType(IndexAddressableItem foo) {
+            return false;
+        }
+
+        public void collectItems(List<? super NamedSemanticRegionReference<K>> items) {
             // do nothing
         }
 
-        public Iterator<NamedSemanticRegion<K>> iterator() {
+        @Override
+        public NamedSemanticRegionReference<K> forIndex(int index) {
+            throw new IllegalArgumentException("Empty reference set: " + index);
+        }
+
+        public Iterator<NamedSemanticRegionReference<K>> iterator() {
             return Collections.emptyIterator();
         }
 
-        public NamedSemanticRegion<K> itemAt(int pos) {
+        public NamedSemanticRegionReference<K> at(int pos) {
             return null;
         }
 
@@ -748,12 +794,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         @Override
-        public int referenceCount() {
-            return 0;
-        }
-
-        @Override
-        public int visitReferences(CoordinateConsumer consumer) {
+        public int size() {
             return 0;
         }
 
@@ -761,10 +802,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         public NamedSemanticRegion<K> original() {
             return new IndexNamedSemanticRegionImpl(index);
         }
-    }
 
-    public NamedRegionReferenceSets<K> newReferenceSets() {
-        return new ReferenceSetsImpl();
+        @Override
+        public int indexOf(Object o) {
+            return -1;
+        }
     }
 
     UsagesImpl newUsages() {
@@ -817,334 +859,436 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
     }
 
-    private final class ReferenceSetsImpl implements NamedRegionReferenceSets<K>, IndexAddressable<NamedSemanticRegion<K>> {
-//    private final class ReferenceSetsImpl implements NamedRegionReferenceSets<K>, IndexAddressable<NamedSemanticRegion<K>, NamedRegionReferenceSets<K>> {
+    public NamedRegionReferenceSetsBuilder<K> newReferenceSetsBuilder() {
+        return new ReferenceSetsBuilderImpl();
+    }
 
-        private NamedRegionReferenceSetImpl[] sets;
+    public static abstract class NamedRegionReferenceSetsBuilder<K extends Enum<K>> {
 
-        @SuppressWarnings("unchecked")
-        ReferenceSetsImpl() {
-//            sets = new ReferenceSetImpl[size()];
-            sets = (NamedRegionReferenceSetImpl[]) Array.newInstance(NamedRegionReferenceSetImpl.class, NamedSemanticRegions.this.size());
-            assert sets != null : "Array.newInstance() returned null";
+        private NamedRegionReferenceSetsBuilder() {
         }
 
-        public NamedSemanticRegion<K> itemAt(int pos) {
-            for (int i = 0; i < sets.length; i++) {
-                if (sets[i] != null) {
-                    NamedSemanticRegion<K> result = sets[i].itemAt(pos);
-                    if (result != null) {
-                        return result;
-                    }
-                }
-            }
-            return null;
-        }
+        public abstract void addReference(String name, int start, int end);
 
-        @Override
+        public abstract NamedRegionReferenceSets<K> build();
+    }
+
+    private final class ReferenceSetsBuilderImpl extends NamedRegionReferenceSetsBuilder<K> {
+
+        SemanticRegions.SemanticRegionsBuilder<Integer> bldr = SemanticRegions.builder(Integer.class);
+
         public void addReference(String name, int start, int end) {
             int ix = internalIndexOf(name);
-            if (sets[ix] == null) {
-                sets[ix] = new NamedRegionReferenceSetImpl(ix);
-            }
-            sets[ix].add(start, end);
+            bldr.add(ix, start, end);
         }
 
-        @Override
-        public NamedRegionReferenceSet<K> references(String name) {
-            int ix = internalIndexOf(name);
-            return sets[ix] == null ? new EmptyReferenceSet(ix) : sets[ix];
+        public NamedRegionReferenceSets<K> build() {
+            return new ReferenceSetsImpl(bldr.build());
+        }
+    }
+
+    public interface NamedSemanticRegionReference<K extends Enum<K>> extends NamedSemanticRegion<K> {
+
+        public NamedSemanticRegion<K> referencing();
+
+        public int referencedIndex();
+    }
+
+    private final class ReferenceSetsImpl implements NamedRegionReferenceSets<K> {
+
+        private final SemanticRegions<Integer> regions;
+
+        ReferenceSetsImpl(SemanticRegions<Integer> regions) {
+            this.regions = regions;
         }
 
-        @Override
-        public Iterator<NamedRegionReferenceSet<K>> iterator() {
-            return new SetsIter();
-        }
-
-        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < sets.length; i++) {
-                if (sets[i] != null) {
-                    if (sb.length() > 0) {
-                        sb.append(", ");
-                    }
-                    sb.append('[').append(sets[i]).append(']');
+            for (SemanticRegion<Integer> reg : regions) {
+                if (sb.length() > 0) {
+                    sb.append("\n");
                 }
+                RefItem i = new RefItem(reg);
+                sb.append(i);
             }
             return sb.toString();
         }
 
-        private transient SemanticRegions asSemanticRegions;
+        @Override
+        public NamedSemanticRegionReference<K> itemAt(int pos) {
+            SemanticRegion<Integer> reg = regions.at(pos);
+            return reg == null ? null : new RefItem(reg);
+        }
 
-        private SemanticRegions<NamedSemanticRegion<K>> toSems() {
-            if (asSemanticRegions != null) {
-                return asSemanticRegions;
+        @Override
+        public int size() {
+            return regions.size();
+        }
+
+        @Override
+        public NamedSemanticRegionReference<K> at(int position) {
+            return itemAt(position);
+        }
+
+        @Override
+        public boolean isChildType(IndexAddressableItem item) {
+            boolean result = item != null && item.getClass() == RefItem.class
+                    && ((RefItem) item).owner() == this;
+            if (!result && item != null && item.getClass() == NamedRegionReferenceSetImpl.ReferenceSetWrapper.class) {
+                NamedRegionReferenceSetImpl.ReferenceSetWrapper w = (NamedRegionReferenceSetImpl.ReferenceSetWrapper) item;
+                RefItem ri = w.ri;
+                return isChildType(ri);
             }
-            List<NamedSemanticRegion<K>> all = new LinkedList<>();
-            for (NamedRegionReferenceSet<K> r : this) {
-                for (NamedSemanticRegion<K> ref : r) {
-                    all.add(ref);
-                }
-            }
-            Collections.sort(all);
-            SemanticRegions.SemanticRegionsBuilder<NamedSemanticRegion> bldr = SemanticRegions.builder(NamedSemanticRegion.class);
-            for (NamedSemanticRegion<K> r : all) {
-                bldr.add(r, r.start(), r.end());
-            }
-            SemanticRegions<NamedSemanticRegion<K>> result = asSemanticRegions = bldr.build();
-            System.out.println("Convert to semantic regions " + result);
             return result;
         }
 
         @Override
-        public NamedSemanticRegion<K> at(int position) {
-            SemanticRegion<NamedSemanticRegion<K>> s = toSems().at(position);
-            return s == null ? null : s.key();
-        }
-
-        @Override
-        public boolean isChildType(IndexAddressable.IndexAddressableItem item) {
-            if (item instanceof NamedSemanticRegion<?>) {
-                NamedSemanticRegion<?> n = (NamedSemanticRegion<?>) item;
-                if (n.isReference() && !n.isForeign()) {
-                    Class<?> c = NamedRegionReferenceSetImpl.ReferenceItem.class;
-                    if (n.getClass() == c) {
-                        return true;
-                    }
-
-                }
-            }
-            return false;
-        }
-
-        @Override
         public int indexOf(Object o) {
-            if (o instanceof IndexAddressable.IndexAddressableItem && isChildType((IndexAddressable.IndexAddressableItem) o)) {
-                NamedSemanticRegion<?> n = (NamedSemanticRegion<?>) o;
-                for (SemanticRegion<NamedSemanticRegion<K>> s : toSems()) {
-                    if (n.equals(s.key())) {
-                        return s.index();
-                    }
+            if (o instanceof IndexAddressableItem && isChildType((IndexAddressableItem) o)) {
+                if (o.getClass() == NamedRegionReferenceSetImpl.ReferenceSetWrapper.class) {
+                    o = ((NamedRegionReferenceSetImpl.ReferenceSetWrapper) o).ri;
                 }
+                RefItem ri = (RefItem) o;
+                return ri.index();
             }
             return -1;
         }
 
         @Override
-        public NamedSemanticRegion<K> forIndex(int index) {
-            SemanticRegion<NamedSemanticRegion<K>> s = toSems().forIndex(index);
-            return s == null ? null : s.key();
+        public NamedSemanticRegionReference<K> forIndex(int index) {
+            return regionFor(regions.forIndex(index));
+        }
+
+        private RefItem regionFor(SemanticRegion<Integer> reg) {
+            return reg == null ? null : new RefItem(reg);
         }
 
         @Override
-        public int size() {
-            assert sets != null : "Sets not assigned or nulled";
-            int result = 0;
-            for (int i = 0; i < sets.length; i++) {
-                NamedRegionReferenceSetImpl s = sets[i];
-                if (s != null) {
-                    result += s.size();
-                }
+        public NamedRegionReferenceSet<K> references(String name) {
+            int ix = internalIndexOf(name);
+            int[][] ices = this.keyIndex();
+            if (ices[ix] == null) {
+                return null;
             }
-            return result;
+            return new NamedRegionReferenceSetImpl(ix, ices[ix]);
         }
 
-        private class SetsIter implements Iterator<NamedRegionReferenceSet<K>> {
+        @Override
+        public Iterator<NamedRegionReferenceSet<K>> iterator() {
+            return new RefI();
+        }
 
-            private int ix = 0;
-            private NamedRegionReferenceSet<K> nextSet;
+        private class RefI implements Iterator<NamedRegionReferenceSet<K>> {
+
+            private final int[][] index = keyIndex();
+            private int ix = -1;
 
             public boolean hasNext() {
-                if (nextSet == null && ix < sets.length) {
-                    for (int i = ix; i < sets.length; i++) {
-                        if (sets[i] != null) {
-                            nextSet = sets[i];
-                            break;
-                        }
-                        ix++;
-                    }
-                }
-                return nextSet != null;
+                return ix + 1 < index.length;
             }
 
             public NamedRegionReferenceSet<K> next() {
-                NamedRegionReferenceSet<K> result = nextSet;
-                if (result == null) {
-                    throw new NoSuchElementException("next() called after end");
+                int[] nxt = index[++ix];
+                if (nxt != null) {
+                    return new NamedRegionReferenceSetImpl(ix, nxt);
+                } else {
+                    return new EmptyReferenceSet(ix);
                 }
-                nextSet = null;
-                ix++;
-                return result;
             }
         }
 
-        private final class NamedRegionReferenceSetImpl implements NamedRegionReferenceSet<K>, Iterable<NamedSemanticRegion<K>> {
+        private class NamedRegionReferenceSetImpl implements NamedRegionReferenceSet<K>, IndexAddressable<NamedSemanticRegionReference<K>> {
 
-            private int[] referenceStarts = new int[3];
-//            private int[] referenceEnds = new int[3];
-            private int referenceSetSize = 0;
-            private final int referenceIndex;
-            private final ES es = new ES();
+            private final int[] keys;
+            private final int origIndex;
 
-            NamedRegionReferenceSetImpl(int index) {
-                this.referenceIndex = index;
-            }
-
-            int size() {
-                return referenceSetSize;
-            }
-
-            class ES implements EndSupplier {
-
-                @Override
-                public int get(int index) {
-                    return referenceStarts[index] + names[referenceIndex].length();
-                }
-            }
-
-            public void collectItems(List<? super NamedSemanticRegion<K>> items) {
-                for (NamedSemanticRegion<K> i : this) {
-                    items.add(i);
-                }
+            public NamedRegionReferenceSetImpl(int origIndex, int[] keys) {
+                this.keys = keys;
+                this.origIndex = origIndex;
             }
 
             @Override
-            public NamedSemanticRegion<K> original() {
-                return new IndexNamedSemanticRegionImpl(referenceIndex);
+            public int size() {
+                return keys.length;
             }
 
-            @Override
-            public String name() {
-                return names[referenceIndex];
-            }
-
-            void add(int start, int end) {
-                assert end > start;
-                assert referenceSetSize == 0 || referenceStarts[referenceSetSize - 1] < start;
-                assert referenceSetSize == 0 || es.get(referenceSetSize - 1) < end;
-                int newSize = referenceSetSize + 1;
-                if (newSize > referenceStarts.length) {
-                    int len = referenceStarts.length + 3;
-                    referenceStarts = Arrays.copyOf(referenceStarts, len);
+            public ReferenceSetWrapper forIndex(int ix) {
+                if (ix < 0 || ix > keys.length) {
+                    throw new IllegalArgumentException("Out of range: " + ix);
                 }
-                referenceStarts[referenceSetSize] = start;
-//                referenceEnds[size] = end;
-                referenceSetSize++;
+                return new ReferenceSetWrapper(new RefItem(regions.forIndex(keys[ix])), ix);
             }
 
             @Override
             public boolean contains(int pos) {
-                return indexFor(pos) >= 0;
-            }
-
-            @Override
-            public NamedSemanticRegion<K> itemAt(int pos) {
-                int ix = indexFor(pos);
-                return ix >= 0 ? new ReferenceItem(ix) : null;
-            }
-
-            private int indexFor(int pos) {
-                return ArrayUtil.rangeBinarySearch(pos, referenceStarts, es, referenceSetSize);
-            }
-
-            @Override
-            public int referenceCount() {
-                return referenceSetSize;
-            }
-
-            @Override
-            public int visitReferences(CoordinateConsumer consumer) {
-                for (int i = 0; i < referenceSetSize; i++) {
-                    consumer.consume(referenceStarts[i], es.get(i));
+                SemanticRegion<Integer> reg = regions.at(pos);
+                if (reg != null) {
+                    return reg.key() == origIndex;
                 }
-                return referenceSetSize;
+                return false;
             }
 
             @Override
-            public Iterator<NamedSemanticRegion<K>> iterator() {
-                return new RefIter();
+            public String name() {
+                return NamedSemanticRegions.this.names[origIndex];
             }
 
             @Override
-            public String toString() {
-                StringBuilder sb = new StringBuilder('{');
-                for (int i = 0; i < referenceSetSize; i++) {
-                    if (sb.length() > 0) {
-                        sb.append(", ");
+            public NamedSemanticRegionReference<K> at(int pos) {
+                SemanticRegion<Integer> i = regions.at(pos);
+                if (i != null && origIndex == i.key()) {
+                    int localIndex = Arrays.binarySearch(keys, i.key());
+                    return localIndex < 0
+                            ? null
+                            : new ReferenceSetWrapper(regionFor(i), origIndex);
+                }
+                return null;
+            }
+
+            @Override
+            public NamedSemanticRegion<K> original() {
+                return NamedSemanticRegions.this.forIndex(origIndex);
+            }
+
+            @Override
+            public void collectItems(List<? super NamedSemanticRegionReference<K>> items) {
+                for (NamedSemanticRegionReference<K> r : this) {
+                    items.add(r);
+                }
+            }
+
+            @Override
+            public Iterator<NamedSemanticRegionReference<K>> iterator() {
+                return new SI();
+            }
+
+            @Override
+            public boolean isChildType(IndexAddressableItem item) {
+                if (item == null) {
+                    return false;
+                }
+                if (item instanceof NamedSemanticRegionReference<?>) {
+                    if (ReferenceSetWrapper.class == item.getClass()) {
+                        ReferenceSetWrapper w = (ReferenceSetWrapper) item;
+                        return w.owner() == this
+                                && ReferenceSetsImpl.this.isChildType(w.ri);
                     }
-                    sb.append(name()).append('@').append(referenceStarts[i])
-                            .append(':').append(es.get(i))
-                            .append('(').append(i).append(')');
                 }
-                return sb.append('}').toString();
+                return false;
             }
 
-            private final class RefIter implements Iterator<NamedSemanticRegion<K>> {
+            @Override
+            public int indexOf(Object o) {
+                if (o instanceof IndexAddressableItem && isChildType((IndexAddressableItem) o)) {
+                    return ((IndexAddressableItem) o).index();
+                }
+                return -1;
+            }
 
-                private int ix = -1;
+            class SI implements Iterator<NamedSemanticRegionReference<K>> {
 
-                @Override
+                int ix = -1;
+
                 public boolean hasNext() {
-                    return ix + 1 < referenceSetSize;
+                    return ix + 1 < keys.length;
                 }
 
-                @Override
-                public NamedSemanticRegion<K> next() {
-                    return new ReferenceItem(++ix);
+                public NamedSemanticRegionReference<K> next() {
+                    if (ix >= keys.length) {
+                        throw new NoSuchElementException();
+                    }
+                    SemanticRegion<Integer> reg = regions.forIndex(keys[++ix]);
+                    return new ReferenceSetWrapper(regionFor(reg), ix);
                 }
             }
 
-            private final class ReferenceItem implements NamedSemanticRegion<K> {
+            class ReferenceSetWrapper implements NamedSemanticRegionReference<K> {
 
-                private final int boundsIndex;
+                private final RefItem ri;
+                private final int setIndex;
 
-                public ReferenceItem(int boundsIndex) {
-                    this.boundsIndex = boundsIndex;
+                public ReferenceSetWrapper(RefItem ri, int setIndex) {
+                    this.ri = ri;
+                    this.setIndex = setIndex;
                 }
 
+                NamedRegionReferenceSetImpl owner() {
+                    return NamedRegionReferenceSetImpl.this;
+                }
+
+                @Override
+                public NamedSemanticRegion<K> referencing() {
+                    return ri.referencing();
+                }
+
+                @Override
+                public int referencedIndex() {
+                    return ri.referencedIndex();
+                }
+
+                @Override
+                public K kind() {
+                    return ri.kind();
+                }
+
+                @Override
+                public int ordering() {
+                    return ri.ordering();
+                }
+
+                @Override
                 public boolean isReference() {
                     return true;
                 }
 
                 @Override
-                public int start() {
-                    return referenceStarts[boundsIndex];
+                public String name() {
+                    return ri.name();
                 }
 
-                public int ordering() {
-                    return orderingOf(referenceIndex);
+                @Override
+                public int start() {
+                    return ri.start();
                 }
 
                 @Override
                 public int end() {
-//                    return referenceEnds[boundsIndex];
-                    return referenceStarts[boundsIndex] + name().length();
-                }
-
-                public K kind() {
-                    return kinds[referenceIndex];
-                }
-
-                @Override
-                public String name() {
-                    return names[referenceIndex];
+                    return ri.end();
                 }
 
                 @Override
                 public int index() {
-                    return referenceIndex;
+                    return setIndex;
                 }
 
-                @Override
-                public String toString() {
-                    StringBuilder sb = new StringBuilder("ref:")
-                            .append(ordering()).append(':');
-                    sb.append(name()).append('@').append(start()).append(':')
-                            .append(end()).append('(').append(referenceIndex).append(')')
-                            .append(':').append(kind());
-                    return sb.toString();
+                public int hashCode() {
+                    return ri.hashCode() + (7 * setIndex);
                 }
+
+                public boolean equals(Object o) {
+                    if (o == null) {
+                        return false;
+                    } else if (o == this) {
+                        return true;
+                    } else if (o instanceof NamedSemanticRegionReference<?>) {
+                        NamedSemanticRegionReference<?> other = (NamedSemanticRegionReference<?>) o;
+                        return start() == other.start() && end() == other.end() && name().equals(other.name())
+                                && Objects.equals(kind(), other.kind());
+                    }
+                    return false;
+                }
+
+                public String toString() {
+                    return "set:" + setIndex + ":" + ri;
+                }
+            }
+        }
+
+        private transient int[][] keyIndex;
+
+        private int[][] keyIndex() {
+            if (keyIndex != null) {
+                return keyIndex;
+            }
+            Map<Integer, List<SemanticRegion<Integer>>> m = new TreeMap<>();
+            for (SemanticRegion<Integer> r : regions) {
+                List<SemanticRegion<Integer>> forRegion = m.get(r.key());
+                if (forRegion == null) {
+                    forRegion = new ArrayList<>(15);
+                    m.put(r.key(), forRegion);
+                }
+                forRegion.add(r);
+            }
+            int[][] result = new int[NamedSemanticRegions.this.size()][];
+            for (int i = 0; i < NamedSemanticRegions.this.size(); i++) {
+                List<SemanticRegion<Integer>> l = m.get(i);
+                if (l != null) {
+                    int[] items = new int[l.size()];
+                    result[i] = items;
+                    for (int j = 0; j < items.length; j++) {
+                        items[j] = l.get(j).index();
+                    }
+                }
+            }
+            return keyIndex = result;
+        }
+
+        class RefItem implements NamedSemanticRegionReference<K> {
+
+            private final SemanticRegion<Integer> reg;
+            private final int ix;
+
+            public RefItem(SemanticRegion<Integer> reg) {
+                this.reg = reg;
+                ix = reg.key();
+            }
+
+            public int hashCode() {
+                return ix + (7 * reg.hashCode());
+            }
+
+            public boolean equals(Object o) {
+                if (o == null) {
+                    return false;
+                } else if (o == this) {
+                    return true;
+                } else if (o instanceof NamedSemanticRegionReference<?>) {
+                    NamedSemanticRegionReference<?> other = (NamedSemanticRegionReference<?>) o;
+                    return start() == other.start() && end() == other.end() && name().equals(other.name())
+                            && Objects.equals(kind(), other.kind());
+                }
+                return false;
+            }
+
+            ReferenceSetsImpl owner() {
+                return ReferenceSetsImpl.this;
+            }
+
+            @Override
+            public K kind() {
+                return kinds[ix];
+            }
+
+            @Override
+            public int ordering() {
+                return reg.index();
+            }
+
+            @Override
+            public boolean isReference() {
+                return true;
+            }
+
+            @Override
+            public String name() {
+                return names[ix];
+            }
+
+            @Override
+            public int start() {
+                return reg.start();
+            }
+
+            @Override
+            public int end() {
+                return reg.end();
+            }
+
+            @Override
+            public int index() {
+                return reg.index();
+            }
+
+            public NamedSemanticRegion<K> referencing() {
+                return NamedSemanticRegions.this.forIndex(ix);
+            }
+
+            public int referencedIndex() {
+                return ix;
+            }
+
+            public String toString() {
+                return "ref:" + index() + ":" + name() + "@" + start() + ":" + end() + "->" + referencedIndex();
             }
         }
     }
