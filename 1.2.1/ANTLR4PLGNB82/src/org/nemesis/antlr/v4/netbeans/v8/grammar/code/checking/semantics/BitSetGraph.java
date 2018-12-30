@@ -18,14 +18,14 @@ import java.util.function.IntConsumer;
  *
  * @author Tim Boudreau
  */
-final class BitSetTree {
+final class BitSetGraph {
 
     private final BitSet[] ruleReferences;
     private final BitSet[] referencedBy;
     private final BitSet topLevel;
     private final BitSet bottomLevel;
 
-    public BitSetTree(BitSet[] ruleReferences, BitSet[] referencedBy) {
+    public BitSetGraph(BitSet[] ruleReferences, BitSet[] referencedBy) {
         assert sanityCheck(ruleReferences, referencedBy);
         this.ruleReferences = ruleReferences;
         this.referencedBy = referencedBy;
@@ -39,7 +39,7 @@ final class BitSetTree {
         bottomLevel.andNot(ruleReferencesKeys);
     }
 
-    public BitSetTree(BitSet[] references) {
+    public BitSetGraph(BitSet[] references) {
         this(references, inverseOf(references));
     }
 
@@ -56,7 +56,7 @@ final class BitSetTree {
         out.flush();
     }
 
-    static BitSetTree load(ObjectInput in) throws IOException, ClassNotFoundException {
+    static BitSetGraph load(ObjectInput in) throws IOException, ClassNotFoundException {
         int ver = in.readInt();
         if (ver != 1) {
             throw new IOException("Unsupoorted version " + ver);
@@ -71,7 +71,7 @@ final class BitSetTree {
                 sets[i] = BitSet.valueOf(vals);
             }
         }
-        return new BitSetTree(sets);
+        return new BitSetGraph(sets);
     }
 
     private static BitSet[] inverseOf(BitSet[] ruleReferences) {
@@ -134,16 +134,13 @@ final class BitSetTree {
             if (b.isEmpty()) {
                 sb.append(i).append(": empty\n");
             } else {
-//                if (i > 0 && arr[i - 1].isEmpty()) {
-//                    sb.append('\n');
-//                }
                 sb.append(i).append(": ").append(b).append('\n');
             }
         }
         return sb.toString();
     }
 
-    interface IntRuleVisitor {
+    public interface IntGraphVisitor {
 
         void enterRule(int ruleId, int depth);
 
@@ -152,39 +149,32 @@ final class BitSetTree {
         }
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder().append("BitSetTree{size=")
                 .append(ruleReferences.length)
                 .append(", totalCardinality=").append(totalCardinality())
                 .append("}\n");
         
-        System.out.println("RULE REFS:\n");
-        System.out.println(bitSetArrayToString(ruleReferences));
-        System.out.println("REF BY:\n");
-        System.out.println(bitSetArrayToString(referencedBy));
-
-        System.out.println("start walk");
         walk((id, d) -> {
-            System.out.println("walk " + id + " " + d);
             char[] c = new char[d * 2];
             Arrays.fill(c, ' ');
             sb.append(c).append(id).append('\n');
         });
-        System.out.println("end walk");
         return sb.toString();
     }
 
-    public void walk(IntRuleVisitor v) {
+    public void walk(IntGraphVisitor v) {
         walk(v, topLevel, new BitSet(), 0);
     }
 
-    public void walk(int startingWith, IntRuleVisitor v) {
+    public void walk(int startingWith, IntGraphVisitor v) {
         BitSet set = new BitSet();
         set.set(startingWith);
         walk(v, set, new BitSet(), 0);
     }
 
-    private void walk(IntRuleVisitor v, BitSet traverse, BitSet seen, int depth) {
+    private void walk(IntGraphVisitor v, BitSet traverse, BitSet seen, int depth) {
         BitSet refs = traverse;
         for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
             if (!seen.get(bit)) {
@@ -196,17 +186,17 @@ final class BitSetTree {
         }
     }
 
-    public void walkUpwards(IntRuleVisitor v) {
+    public void walkUpwards(IntGraphVisitor v) {
         walkUpwards(v, topLevel, new BitSet(), 0);
     }
 
-    public void walkUpwards(int startingWith, IntRuleVisitor v) {
+    public void walkUpwards(int startingWith, IntGraphVisitor v) {
         BitSet set = new BitSet();
         set.set(startingWith);
         walkUpwards(v, set, new BitSet(), 0);
     }
 
-    private void walkUpwards(IntRuleVisitor v, BitSet traverse, BitSet seen, int depth) {
+    private void walkUpwards(IntGraphVisitor v, BitSet traverse, BitSet seen, int depth) {
         BitSet refs = traverse;
         for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
             if (!seen.get(bit)) {
@@ -660,8 +650,8 @@ final class BitSetTree {
         }
     }
 
-    public RuleTree strings(String[] ruleNames) {
-        return new StringRuleTree(this, ruleNames);
+    public StringGraph strings(String[] ruleNames) {
+        return new BitSetStringGraph(this, ruleNames);
     }
 
     @Override
@@ -690,7 +680,7 @@ final class BitSetTree {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final BitSetTree other = (BitSetTree) obj;
+        final BitSetGraph other = (BitSetGraph) obj;
         return Arrays.deepEquals(this.ruleReferences, other.ruleReferences);
     }
 }

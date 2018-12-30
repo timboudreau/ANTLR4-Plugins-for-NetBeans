@@ -28,10 +28,12 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.integration;
 
-import java.util.Collection;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.text.Document;
@@ -41,23 +43,31 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4TokenId;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.IndexAddressableItem;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatter;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
 
 import org.netbeans.api.lexer.Language;
+import org.netbeans.modules.csl.api.CodeCompletionHandler;
 import org.netbeans.modules.csl.api.ColoringAttributes;
 import org.netbeans.modules.csl.api.DeclarationFinder;
 import org.netbeans.modules.csl.api.ElementHandle;
 import org.netbeans.modules.csl.api.ElementKind;
 import org.netbeans.modules.csl.api.Formatter;
 import org.netbeans.modules.csl.api.InstantRenamer;
-import org.netbeans.modules.csl.api.KeystrokeHandler;
 import org.netbeans.modules.csl.api.Modifier;
 import org.netbeans.modules.csl.api.OccurrencesFinder;
 import org.netbeans.modules.csl.api.OffsetRange;
 import org.netbeans.modules.csl.api.SemanticAnalyzer;
-import org.netbeans.modules.csl.spi.CommentHandler;
 
 import org.netbeans.modules.csl.spi.DefaultLanguageConfig;
 import org.netbeans.modules.csl.spi.LanguageRegistration;
@@ -67,6 +77,7 @@ import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.Scheduler;
 import org.netbeans.modules.parsing.spi.SchedulerEvent;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Exceptions;
 
 @LanguageRegistration(mimeType = "text/x-g4")
 public class GrammarFileLanguage extends DefaultLanguageConfig {
@@ -97,6 +108,15 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
         return new OC();
     }
 
+    private static OffsetRange toOffsetRange(IndexAddressableItem reg) {
+        return new OffsetRange(reg.start(), reg.end());
+    }
+
+    @Override
+    public CodeCompletionHandler getCompletionHandler() {
+        return super.getCompletionHandler();
+    }
+
     static class OC extends OccurrencesFinder<ANTLRv4ParserResult> {
 
         private int pos;
@@ -119,13 +139,53 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
             occurrences.clear();
             ANTLRv4SemanticParser sem = t.semanticParser();
             if (sem != null) {
-                RuleElement el = sem.ruleElementAtPosition(pos);
-                if (el != null) {
-                    for (RuleElement ref : sem.allReferencesTo(el)) {
-                        occurrences.put(new OffsetRange(ref.getStartOffset(), ref.getEndOffset()), ColoringAttributes.MARK_OCCURRENCES);
+                Extraction ex = sem.extraction();
+                if (ex != null) {
+                    // First see if the caret is in a rule definition's name
+                    NamedSemanticRegion<?> el = ex.namedRegions(AntlrExtractor.RULE_NAMES).at(pos);
+                    NamedSemanticRegions.NamedRegionReferenceSets<AntlrExtractor.RuleTypes> refs = ex.references(AntlrExtractor.RULE_NAME_REFERENCES);
+                    if (el == null && refs != null) {
+                        // If not, see if the caret is on a reference name
+                        el = refs.at(pos);
                     }
-                    if (cancelled) {
-                        occurrences.clear();
+                    if (el != null) {
+                        // If we were in a name or reference to one, highlight
+                        // its declaration and all references
+                        String name = el.name();
+                        NamedSemanticRegion<?> decl = ex.namedRegions(AntlrExtractor.RULE_NAMES).regionFor(name);
+                        if (decl != null) {
+                            occurrences.put(toOffsetRange(decl), ColoringAttributes.MARK_OCCURRENCES);
+                        }
+                        if (refs != null) {
+                            // Highlight reference occurrences
+                            NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<AntlrExtractor.RuleTypes> refsToName = refs.references(name);
+                            if (refsToName != null && refsToName.size() > 0) {
+                                for (NamedSemanticRegions.NamedSemanticRegionReference<AntlrExtractor.RuleTypes> ref : refsToName) {
+                                    occurrences.put(toOffsetRange(ref), ColoringAttributes.MARK_OCCURRENCES);
+                                    if (cancelled) {
+                                        occurrences.clear();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Not a name, but we might be in a foreign (unresolved) name reference, so
+                        // check for that
+                        SemanticRegions<UnknownNameReference<?>> unknowns = ex.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
+                        SemanticRegion<UnknownNameReference<?>> reg = unknowns.at(pos);
+                        if (reg != null) {
+                            List<? extends SemanticRegion<UnknownNameReference<?>>> others = unknowns.collect(r -> {
+                                return reg.key().name().equals(r.name());
+                            });
+                            for (SemanticRegion<UnknownNameReference<?>> r : others) {
+                                occurrences.put(toOffsetRange(r), ColoringAttributes.MARK_OCCURRENCES);
+                                if (cancelled) {
+                                    occurrences.clear();
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -175,20 +235,23 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
     private static final class IR implements InstantRenamer {
 
         @Override
-        public boolean isRenameAllowed(ParserResult pr, int i, String[] strings) {
+        public boolean isRenameAllowed(ParserResult pr, int pos, String[] strings) {
             if (pr instanceof ANTLRv4ParserResult) {
                 ANTLRv4ParserResult res = (ANTLRv4ParserResult) pr;
                 ANTLRv4SemanticParser sem = res.semanticParser();
                 if (sem != null) {
-                    RuleElement elem = sem.ruleElementAtPosition(i);
+                    Extraction ext = sem.extraction();
+                    NamedSemanticRegion<RuleTypes> elem = ext.namedRegions(AntlrExtractor.RULE_NAMES).at(pos);
                     if (elem == null) {
-                        return false;
+                        elem = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES).at(pos);
                     }
-                    switch (elem.kind()) {
-                        case PARSER_NAMED_ALTERNATIVE_SUBRULE:
-                            return false;
-                        default:
-                            return true;
+                    if (elem != null) {
+                        switch (elem.kind()) {
+                            case NAMED_ALTERNATIVES:
+                                return false;
+                            default:
+                                return true;
+                        }
                     }
                 }
             }
@@ -196,19 +259,27 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
         }
 
         @Override
-        public Set<OffsetRange> getRenameRegions(ParserResult pr, int i) {
+        public Set<OffsetRange> getRenameRegions(ParserResult pr, int pos) {
             if (pr instanceof ANTLRv4ParserResult) {
                 ANTLRv4ParserResult res = (ANTLRv4ParserResult) pr;
                 ANTLRv4SemanticParser sem = res.semanticParser();
                 if (sem != null) {
-                    RuleElement elem = sem.ruleElementAtPosition(i);
+                    Extraction ext = sem.extraction();
+                    NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+                    NamedSemanticRegion<RuleTypes> elem = nameds.at(pos);
+                    NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes> refs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+                    if (elem == null) {
+                        elem = refs.at(pos);
+                    }
                     if (elem != null) {
-                        Collection<RuleElement> all = sem.allReferencesTo(elem);
-                        Set<OffsetRange> result = new HashSet<>();
-                        for (RuleElement e : all) {
-                            result.add(new OffsetRange(e.getStartOffset(), e.getEndOffset()));
+                        Set<OffsetRange> all = new HashSet<>(20);
+                        String name = elem.name();
+                        NamedSemanticRegion<RuleTypes> decl = nameds.regionFor(name);
+                        all.add(toOffsetRange(decl));
+                        for (NamedSemanticRegions.NamedSemanticRegionReference<RuleTypes> r : refs.references(name)) {
+                            all.add(toOffsetRange(r));
                         }
-                        return result;
+                        return all;
                     }
                 }
             }
@@ -226,21 +297,15 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
         return "//";
     }
 
-    @Override
-    public KeystrokeHandler getKeystrokeHandler() {
-        return super.getKeystrokeHandler(); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public CommentHandler getCommentHandler() {
-        return super.getCommentHandler(); //To change body of generated methods, choose Tools | Templates.
-    }
-
-
     static final class DecFinder implements DeclarationFinder {
 
+        private DeclarationLocation locationFrom(FileObject file, NamedSemanticRegion decl) {
+            return new DeclarationLocation(file, decl.start(),
+                    new EH(decl, file));
+        }
+
         @Override
-        public DeclarationLocation findDeclaration(ParserResult pr, int i) {
+        public DeclarationLocation findDeclaration(ParserResult pr, int pos) {
             if (pr instanceof ANTLRv4ParserResult) {
                 FileObject file = pr.getSnapshot().getSource().getFileObject();
                 if (file == null) {
@@ -249,13 +314,40 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                 ANTLRv4ParserResult res = (ANTLRv4ParserResult) pr;
                 ANTLRv4SemanticParser sem = res.semanticParser();
                 if (sem != null) {
-                    RuleElement elem = sem.ruleElementAtPosition(i);
-                    if (elem != null) {
-                        RuleDeclaration decl = sem.declarationOf(elem);
-                        if (decl != null) {
-                            DeclarationLocation loc = new DeclarationLocation(file, decl.getStartOffset(),
-                                    new EH(decl, file));
-                            return loc;
+                    Extraction extractions = sem.extraction();
+                    // First check references
+                    NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes> refs = extractions.references(AntlrExtractor.RULE_NAME_REFERENCES);
+                    NamedSemanticRegions.NamedSemanticRegionReference<RuleTypes> ref = refs.at(pos);
+                    if (ref != null) {
+                        return locationFrom(file, ref.referencing());
+                    }
+                    SemanticRegions<NamedRegionExtractorBuilder.UnknownNameReference<?>> unknowns = extractions.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
+                    SemanticRegion<NamedRegionExtractorBuilder.UnknownNameReference<?>> unknownRefRegion = unknowns.at(pos);
+                    if (unknownRefRegion != null) {
+                        UnknownNameReference<?> unknownRef = unknownRefRegion.key();
+                        NamedRegionExtractorBuilder.ResolvedForeignNameReference<GenericExtractorBuilder.GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved;
+                        try {
+                            resolved = unknownRef.resolve(extractions, AntlrExtractor.resolver());
+                            if (resolved != null) {
+                                FileObject fo = resolved.source().toFileObject();
+                                if (fo != null) {
+                                    NamedSemanticRegion<RuleTypes> refItem = resolved.element();
+                                    return locationFrom(fo, refItem);
+                                }
+                            }
+                        } catch (IOException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                    NamedSemanticRegions<AntlrExtractor.ImportKinds> imports = extractions.namedRegions(AntlrExtractor.IMPORTS);
+                    NamedSemanticRegion<AntlrExtractor.ImportKinds> importItem = imports.at(pos);
+                    if (importItem != null) {
+                        GenericExtractorBuilder.GrammarSource<?> src = extractions.resolveRelative(importItem.name());
+                        if (src != null) {
+                            FileObject fo = src.toFileObject();
+                            if (fo != null) {
+                                return new DeclarationLocation(fo, 0, new FileStartHandle(fo, importItem.name()));
+                            }
                         }
                     }
                 }
@@ -263,29 +355,29 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
             return DeclarationLocation.NONE;
         }
 
-        static final class EH implements ElementHandle {
+        static final class FileStartHandle implements ElementHandle {
 
-            private final RuleDeclaration decl;
-            private final FileObject fo;
+            private final FileObject file;
+            private final String name;
 
-            public EH(RuleDeclaration decl, FileObject fo) {
-                this.decl = decl;
-                this.fo = fo;
+            public FileStartHandle(FileObject file, String name) {
+                this.file = file;
+                this.name = name;
             }
 
             @Override
             public FileObject getFileObject() {
-                return fo;
+                return file;
             }
 
             @Override
             public String getMimeType() {
-                return "text/x-g4";
+                return file.getMIMEType();
             }
 
             @Override
             public String getName() {
-                return decl.getRuleID();
+                return name;
             }
 
             @Override
@@ -300,14 +392,67 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
 
             @Override
             public Set<Modifier> getModifiers() {
-                return Collections.singleton(Modifier.PUBLIC);
+                return EnumSet.of(Modifier.PUBLIC);
+            }
+
+            @Override
+            public boolean signatureEquals(ElementHandle eh) {
+                return eh instanceof FileStartHandle
+                        && ((FileStartHandle) eh).name.equals(name)
+                        && ((FileStartHandle) eh).file.equals(file);
+            }
+
+            @Override
+            public OffsetRange getOffsetRange(ParserResult pr) {
+                return new OffsetRange(0, 1);
+            }
+        }
+
+        static final class EH implements ElementHandle {
+
+            private final NamedSemanticRegion<RuleTypes> region;
+            private final FileObject file;
+
+            EH(NamedSemanticRegion<RuleTypes> region, FileObject file) {
+                this.region = region.snapshot();
+                this.file = file;
+            }
+
+            @Override
+            public FileObject getFileObject() {
+                return file;
+            }
+
+            @Override
+            public String getMimeType() {
+                return file.getMIMEType();
+            }
+
+            @Override
+            public String getName() {
+                return region.name();
+            }
+
+            @Override
+            public String getIn() {
+                return null;
+            }
+
+            @Override
+            public ElementKind getKind() {
+                return ElementKind.FIELD;
+            }
+
+            @Override
+            public Set<Modifier> getModifiers() {
+                return EnumSet.of(Modifier.PUBLIC);
             }
 
             @Override
             public boolean signatureEquals(ElementHandle eh) {
                 if (eh instanceof EH) {
                     EH e = (EH) eh;
-                    return e.decl.getRuleID().equals(decl.getRuleID());
+                    return e.getName().equals(getName());
                 }
                 return false;
             }
@@ -315,15 +460,13 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
             @Override
             public OffsetRange getOffsetRange(ParserResult pr) {
                 if (pr instanceof ANTLRv4ParserResult) {
-                    FileObject file = pr.getSnapshot().getSource().getFileObject();
                     ANTLRv4ParserResult res = (ANTLRv4ParserResult) pr;
                     ANTLRv4SemanticParser sem = res.semanticParser();
                     if (sem != null) {
-                        RuleElement elem = sem.declarationOf(decl);
-                        if (elem != null) {
-                            return new OffsetRange(elem.getStartOffset(), elem.getEndOffset());
-                        } else {
-                            return null;
+                        Extraction extraction = sem.extraction();
+                        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+                        if (names.contains(getName())) {
+                            return toOffsetRange(names.regionFor(getName()));
                         }
                     }
                 }

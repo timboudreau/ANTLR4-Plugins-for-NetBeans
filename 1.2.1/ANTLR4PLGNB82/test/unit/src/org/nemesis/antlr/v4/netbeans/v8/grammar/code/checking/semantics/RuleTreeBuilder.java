@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph;
 
 /**
  *
@@ -59,7 +59,7 @@ class RuleTreeBuilder extends ANTLRv4BaseVisitor<Void> {
         }
     }
 
-    public RuleTree toRuleTree() {
+    public StringGraph toRuleTree() {
         return new RuleTreeImpl(ruleReferences, ruleReferencedBy);
     }
 

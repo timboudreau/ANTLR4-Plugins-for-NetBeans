@@ -2,8 +2,8 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.util.BitSet;
 import java.util.Set;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetTree.IntRuleVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.IndexAddressableItem;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetGraph.IntGraphVisitor;
 
 /**
  * A graph of container and containee, where the types of the two are heterogenous,
@@ -13,11 +13,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAdd
  */
 public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddressableItem, RI extends IndexAddressable.IndexAddressableItem, T extends IndexAddressable<TI>, R extends IndexAddressable<RI>> {
 
-    private final BitSetTree tree;
+    private final BitSetGraph tree;
     private final T first;
     private final R second;
 
-    BitSetHeteroObjectGraph(BitSetTree tree, T first, R second) {
+    BitSetHeteroObjectGraph(BitSetGraph tree, T first, R second) {
         this.tree = tree;
         this.first = first;
         this.second = second;
@@ -32,11 +32,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     }
 
     private Set<TI> toSetFirst(BitSet set) {
-        return new BitSetSet(first, set);
+        return new BitSetSliceSet(first, set, 0);
     }
 
     private Set<RI> toSetSecond(BitSet set) {
-        return new BitSetSet(second, set);
+        return new BitSetSliceSet(second, set, first.size());
     }
 
     private Set<Object> toSetAll(BitSet set) {
@@ -61,11 +61,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return tree.distance(aix, bix);
     }
 
-    public Slice<TI, RI> firstSlice() {
+    public Slice<TI, RI> leftSlice() {
         return new FirstSliceImpl();
     }
 
-    public Slice<RI, TI> secondSlice() {
+    public Slice<RI, TI> rightSlice() {
         return new SecondSliceImpl();
     }
 
@@ -78,6 +78,8 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         Set<R> parents(T obj);
 
         Set<R> children(T obj);
+
+        int childCount(T obj);
 
         boolean hasOutboundEdge(T obj, R k);
 
@@ -95,7 +97,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     }
 
     public void walk(HeteroGraphVisitor<TI, RI> v) {
-        tree.walk(new IntRuleVisitor() {
+        tree.walk(new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 if (ruleId < first.size()) {
@@ -188,6 +190,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         public int reverseClosureSize(RI obj) {
             return tree.reverseClosureSize(bitSetIndex(obj));
         }
+
+        @Override
+        public int childCount(RI obj) {
+            return tree.children(bitSetIndex(obj)).cardinality();
+        }
     }
 
     class FirstSliceImpl implements Slice<TI, RI> {
@@ -240,6 +247,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         @Override
         public int reverseClosureSize(TI obj) {
             return tree.reverseClosureSize(obj.index());
+        }
+
+        @Override
+        public int childCount(TI obj) {
+            return tree.children(obj.index()).cardinality();
         }
     }
 

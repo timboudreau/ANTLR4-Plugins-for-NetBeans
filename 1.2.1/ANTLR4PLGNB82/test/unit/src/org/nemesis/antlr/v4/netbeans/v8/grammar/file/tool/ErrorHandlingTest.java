@@ -25,7 +25,8 @@ import org.junit.Test;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
@@ -233,19 +234,24 @@ public class ErrorHandlingTest {
             new Item(343, 353, 334, 367, "WHITESPACE"),
             new Item(377, 381, 368, 394, "WORD")
         });
-        Iterator<Item> it = all.iterator();
-        assertEquals(all.size(), sem.allDeclarations().size());
-        for (RuleDeclaration dec : sem.allDeclarations()) {
-            Item i = it.next();
-            assertTrue(dec.getStartOffset() < dec.getEndOffset());
-            assertTrue(dec.getRuleStartOffset() < dec.getRuleEndOffset());
-            assertTrue(dec.getEndOffset() < dec.getRuleEndOffset());
-            String nm = text.substring(dec.getStartOffset(), dec.getEndOffset());
-            assertEquals(nm, dec.getRuleID());
-            String body = text.substring(dec.getRuleStartOffset(), dec.getRuleEndOffset());
-            assertTrue(body, body.startsWith("fragment " + nm) || body.startsWith(dec.getRuleID()));
+        assertEquals(all.size(), sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).size());
+        Iterable<NamedSemanticRegion<AntlrExtractor.RuleTypes>> decls = sem.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS).index();
+        Iterable<NamedSemanticRegion<AntlrExtractor.RuleTypes>> names = sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).index();
+        Iterator<NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarationsIterator = decls.iterator();
+        Iterator<Item> itemsIterator = all.iterator();
+        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> name : names) {
+            NamedSemanticRegion<AntlrExtractor.RuleTypes> ruleBounds = declarationsIterator.next();
+            Item item = itemsIterator.next();
+            assertTrue(name.start() < name.end());
+            assertTrue(name.start() < name.end());
+            assertTrue(name.end() < ruleBounds.end());
+            assertEquals(name.name(), ruleBounds.name());
+            String nm = text.substring(name.start(), name.end());
+            assertEquals(nm, name.name());
+            String body = text.substring(ruleBounds.start(), ruleBounds.end());
+            assertTrue(body, body.startsWith("fragment " + nm) || body.startsWith(name.name()));
             assertTrue(body, body.endsWith(";"));
-            i.assertMatches(dec);
+            item.assertMatches(name, ruleBounds);
         }
     }
 
@@ -272,12 +278,13 @@ public class ErrorHandlingTest {
             this.name = name;
         }
 
-        public void assertMatches(RuleDeclaration decl) {
-            assertEquals("name", name, decl.getRuleID());
-            assertEquals("nameStart",nameStart, decl.getStartOffset());
-            assertEquals("ruleStart",ruleStart, decl.getRuleStartOffset());
-            assertEquals("nameEnd", nameEnd, decl.getEndOffset());
-            assertEquals("ruleEnd", ruleEnd, decl.getRuleEndOffset());
+        public void assertMatches(NamedSemanticRegion<?> name, NamedSemanticRegion<?> ruleBounds) {
+            assertEquals("name", this.name, name.name());
+            assertEquals("name", this.name, ruleBounds.name());
+            assertEquals("nameStart",nameStart, name.start());
+            assertEquals("ruleStart",ruleStart, ruleBounds.start());
+            assertEquals("nameEnd", nameEnd, name.end());
+            assertEquals("ruleEnd", ruleEnd, ruleBounds.end());
         }
     }
 

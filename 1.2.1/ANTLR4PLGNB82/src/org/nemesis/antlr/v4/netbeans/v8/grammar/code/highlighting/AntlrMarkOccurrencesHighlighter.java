@@ -1,6 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.highlighting;
 
-import java.util.List;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
@@ -11,7 +10,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSem
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorNames;
@@ -45,7 +43,7 @@ final class AntlrMarkOccurrencesHighlighter extends AbstractAntlrHighlighter.Car
 
             NamedSemanticRegion<AntlrExtractor.RuleTypes> curr = names.at(caretPosition);
 
-            NamedRegionReferenceSets<AntlrExtractor.RuleTypes> nameRefs = ext.namedRegions(AntlrExtractor.REFS);
+            NamedRegionReferenceSets<AntlrExtractor.RuleTypes> nameRefs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
             if (curr == null) {
                 curr = nameRefs.at(caretPosition);
             }
@@ -60,21 +58,6 @@ final class AntlrMarkOccurrencesHighlighter extends AbstractAntlrHighlighter.Car
                 if (refs != null && refs.size() > 0) {
                     for (NamedSemanticRegions.NamedSemanticRegionReference<AntlrExtractor.RuleTypes> ref : refs) {
                         bag.addHighlight(ref.start(), ref.end(), markColoring);
-                    }
-                }
-            }
-        }
-    }
-
-    protected void xrefresh(Document doc, Integer caretPosition, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
-        RuleElement rule = semantics.ruleElementAtPosition(caretPosition);
-        if (rule != null) {
-            List<RuleElement> all = semantics.allReferencesTo(rule);
-            if (!all.isEmpty()) {
-                AttributeSet markColoring = markOccurrencesColoring();
-                for (RuleElement ref : semantics.allReferencesTo(rule)) {
-                    if (ref != rule) {
-                        bag.addHighlight(ref.getStartOffset(), ref.getEndOffset(), markColoring);
                     }
                 }
             }

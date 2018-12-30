@@ -1,6 +1,10 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Base interface for collections of that can be indexed and represent a range
@@ -9,7 +13,7 @@ import java.util.BitSet;
  *
  * @author Tim Boudreau
  */
-interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> extends Indexed<T> {
+public interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> extends Indexed<T> {
 
     /**
      * Get the element - the most specific in element in the case of nested
@@ -29,6 +33,15 @@ interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> exte
      * @return
      */
     boolean isChildType(IndexAddressableItem item);
+
+    /**
+     * Determine if this collection is empty.
+     *
+     * @return true if it is empty
+     */
+    default boolean isEmpty() {
+        return size() == 0;
+    }
 
     /**
      * Cross reference two heterogenous IndexAddressables, and build a graph of
@@ -113,7 +126,7 @@ interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> exte
                 setOne.set(item.index(), foreignOffset);
             }
         }
-        BitSetTree tree = new BitSetTree(sets, reverseSets);
+        BitSetGraph tree = new BitSetGraph(sets, reverseSets);
         return new BitSetHeteroObjectGraph<>(tree, a, b);
     }
 
@@ -142,10 +155,51 @@ interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> exte
         void set(int container, int containedBy);
     }
 
+    public interface NamedIndexAddressable<T extends IndexAddressableItem & Named> extends IndexAddressable<T> {
+
+        Iterator<T> byPositionIterator();
+
+        default Iterator<T> byNameIterator() {
+            // Inefficient, and types which implement an index should
+            // override
+            List<T> objs = new ArrayList<>(size());
+            Iterator<T> it = byPositionIterator();
+            while (it.hasNext()) {
+                objs.add(it.next());
+            }
+            Collections.sort(objs, (a, b) -> {
+                return a.name().compareTo(b.name());
+            });
+            return objs.iterator();
+        }
+    }
+
     /**
      * One item in an index addressable collection.
      */
     public interface IndexAddressableItem extends Comparable<IndexAddressableItem> {
+
+        /**
+         * Determine if this item occurs after (start() &gt;= item.end())
+         * another item.
+         *
+         * @param item Another item
+         * @return
+         */
+        default boolean isAfter(IndexAddressableItem item) {
+            return start() >= item.end();
+        }
+
+        /**
+         * Determine if this item occurs before (end() &lt;= item.start())
+         * another item.
+         *
+         * @param item
+         * @return
+         */
+        default boolean isBefore(IndexAddressableItem item) {
+            return end() <= item.start();
+        }
 
         /**
          * Get the start offset, inclusive.

@@ -7,13 +7,20 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.actions;
 
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.IndexAddressableItem;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.netbeans.api.editor.EditorActionRegistration;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.modules.parsing.api.ParserManager;
@@ -42,6 +49,7 @@ import org.openide.util.NbBundle;
 public class NextUsageAction extends BaseAction {
 
     private int direction;
+
     public NextUsageAction(boolean forwards) {
         super(SAVE_POSITION | SELECTION_REMOVE);
         this.direction = forwards ? 1 : -1;
@@ -63,13 +71,15 @@ public class NextUsageAction extends BaseAction {
                     if (res instanceof NBANTLRv4Parser.ANTLRv4ParserResult) {
                         NBANTLRv4Parser.ANTLRv4ParserResult pr = (NBANTLRv4Parser.ANTLRv4ParserResult) res;
                         ANTLRv4SemanticParser semantics = pr.semanticParser();
-                        RuleElement el = semantics.ruleElementAtPosition(caret);
-                        if (el == null) {
+                        GenericExtractorBuilder.Extraction ext = semantics.extraction();
+                        NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> caretToken = ext.regionOrReferenceAt(caret, AntlrExtractor.RULE_NAMES, AntlrExtractor.RULE_NAME_REFERENCES);
+                        if (caretToken != null) {
+                            moveCaretToNext(caretToken, doc, jtc, ext, caret);
+                        } else {
                             StatusDisplayer.getDefault().setStatusText(
                                     NbBundle.getMessage(NextUsageAction.class, "no-rule"));
-                            return;
+
                         }
-                        moveCaretToNext(el, doc, caret, jtc, semantics);
                     }
                 }
             });
@@ -78,25 +88,66 @@ public class NextUsageAction extends BaseAction {
         }
     }
 
-    private void moveCaretToNext(RuleElement el, Document doc, int caret, JTextComponent jtc, ANTLRv4SemanticParser sem) {
-        List<RuleElement> all = sem.allReferencesTo(el);
-        if (all.size() < 2) {
+    private boolean testDirection(IndexAddressableItem caretToken, IndexAddressableItem toTest) {
+        switch (direction) {
+            case 1:
+                return toTest.isAfter(caretToken);
+            case -1:
+                return toTest.isBefore(caretToken);
+            default:
+                throw new AssertionError("Direction must be 1 or -1");
+        }
+    }
+
+    private void moveCaretToNext(NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> caretToken, Document doc, JTextComponent jtc, GenericExtractorBuilder.Extraction ext, int caret) {
+        NamedSemanticRegions.NamedRegionReferenceSets<AntlrExtractor.RuleTypes> refs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+        NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<AntlrExtractor.RuleTypes> refSet = refs.references(caretToken.name());
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> regions = new ArrayList<>();
+        refSet.collectItems(regions);
+        regions.add(caretToken);
+        NamedSemanticRegions<AntlrExtractor.RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+        if (nameds.contains(caretToken.name())) {
+            NamedSemanticRegion<AntlrExtractor.RuleTypes> declaration = nameds.regionFor(caretToken.name());
+            if (declaration != null) {
+                regions.add(declaration);
+            }
+        }
+        Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> regionSet = new TreeSet<>(regions);
+        if (regionSet.isEmpty() || (regionSet.size() == 1 && regionSet.contains(caretToken))) {
             return;
         }
-        int ix = all.indexOf(el);
-        if (ix >= 0) {
-            int nextIndex = ix + direction;
-            if (nextIndex >= all.size()) {
-                nextIndex = 0;
-            } else if (nextIndex < 0) {
-                nextIndex = all.size() -1;
+        NamedSemanticRegion<AntlrExtractor.RuleTypes> candidate = null;
+        NamedSemanticRegion<AntlrExtractor.RuleTypes> first = null;
+        NamedSemanticRegion<AntlrExtractor.RuleTypes> last = null;
+        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> r : regionSet) {
+            if (candidate == null && testDirection(caretToken, r)) {
+                candidate = r;
             }
-            RuleElement next = all.get(nextIndex); // is presorted
-            EventQueue.invokeLater(new CaretShifter(jtc, caret, next.getStartOffset()));
+            last = r;
+            if (first == null) {
+                first = r;
+            }
+        }
+        if (candidate == null && !regionSet.isEmpty()) {
+            switch (direction) {
+                case 1:
+                    candidate = first;
+                    break;
+                case -1:
+                    candidate = last;
+                    break;
+                default:
+                    throw new AssertionError(direction);
+            }
+
+        }
+        if (candidate != null && !caretToken.boundsAndNameEquals(caretToken)) {
+            EventQueue.invokeLater(new CaretShifter(jtc, caret, candidate.start()));
         }
     }
 
     static final class CaretShifter implements Runnable {
+
         private final JTextComponent comp;
         private final int expectedCaretPosition;
         private final int targetCaretPosition;

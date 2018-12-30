@@ -15,7 +15,7 @@ import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleVisitor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ForeignInvocationEnvironmentTest;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir.projectBaseDir;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -24,6 +24,7 @@ import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.openide.filesystems.FileUtil;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraphVisitor;
 
 /**
  *
@@ -50,7 +51,7 @@ public class ParsingWithoutFilesTest {
         assertNotNull(result);
         ANTLRv4SemanticParser sem = result.semanticParser();
         assertNotNull(sem);
-        sem.allDeclarations().forEach(decl -> {
+        result.extraction().namedRegions(AntlrExtractor.RULE_NAMES).forEach(decl -> {
             System.out.println(decl);
         });
     }
@@ -83,7 +84,7 @@ public class ParsingWithoutFilesTest {
         System.out.println("BOTTOM RULES: " + sem.ruleTree().bottomLevelRules());
 
         System.out.println("\n TREE");
-        sem.ruleTree().walk(new RuleVisitor(){
+        sem.ruleTree().walk(new StringGraphVisitor(){
             String indent = "";
 
             private void indent(int val) {

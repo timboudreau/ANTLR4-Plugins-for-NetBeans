@@ -8,13 +8,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JEditorPane;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleVisitor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraphVisitor;
 
 /**
  * Displays the parser rule tree.
@@ -70,7 +72,7 @@ public class AntlrRuleTreeNavigatorPanel extends AbstractAntlrNavigatorPanel<Str
     }
 
     @Override
-    protected void withNewModel(ANTLRv4SemanticParser semantics, EditorCookie ck, int forChange) {
+    protected void withNewModel(Extraction extraction, EditorCookie ck, int forChange) {
         Mutex.EVENT.readAccess((Runnable) () -> {
             if (isCurrent(forChange)) {
                 offsetsForRules.clear();
@@ -82,9 +84,10 @@ public class AntlrRuleTreeNavigatorPanel extends AbstractAntlrNavigatorPanel<Str
                 }
                 final String prevSelection = s;
                 EditorAndChangeAwareListModel<String> mdl 
-                        = new EditorAndChangeAwareListModel<String>(ck, forChange, semantics);
+                        = new EditorAndChangeAwareListModel<String>(ck, forChange, extraction);
                 int[] newSelIndex = new int[]{-1};
-                semantics.ruleTree().walk(new RuleVisitor() {
+                NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+                extraction.referenceGraph(AntlrExtractor.RULE_NAME_REFERENCES).walk(new StringGraphVisitor() {
 
                     private List<String> depthStrings = new ArrayList<>(10);
 
@@ -107,9 +110,9 @@ public class AntlrRuleTreeNavigatorPanel extends AbstractAntlrNavigatorPanel<Str
                         if (prevSelection.equals(rule)) {
                             newSelIndex[0] = index;
                         }
-                        RuleDeclaration rd = semantics.getParserRuleDeclaration(rule);
+                        NamedSemanticRegion<?> rd = decls.regionFor(rule);
                         if (rd != null) {
-                            int[] offsets = new int[]{rd.getStartOffset(), rd.getEndOffset()};
+                            int[] offsets = new int[]{rd.start(), rd.end()};
                             offsetsForRules.put(rule, offsets);
                         }
                         index++;

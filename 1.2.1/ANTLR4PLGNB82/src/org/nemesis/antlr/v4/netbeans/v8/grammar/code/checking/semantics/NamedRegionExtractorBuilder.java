@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.BitSet;
 import java.util.HashSet;
@@ -16,9 +17,22 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.ExtractionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.NamedIndexAddressable;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameAndOffsets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameExtractorInfo;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NamedRegionData;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.NamedRegionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.ReferenceExtractorInfo;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.ReferenceExtractorInfo.ExtractorReturnType;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.ReferenceExtractorPair;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.UnknownNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSetsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegionsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegionsBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionContext;
 
@@ -182,6 +196,29 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             return new FinishableNamedRegionExtractorBuilder<>(bldr);
         }
 
+        public FinishableNamedRegionExtractorBuilder<T, Ret> derivingNameFromTokenWith(T kind, Function<R, Token> extractor) {
+            return derivingNameWith(rule -> {
+                Token tok = extractor.apply(rule);
+                if (tok == null) {
+                    return null;
+                }
+                return new NamedRegionData<>(tok.getText(), kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+            });
+        }
+
+        public FinishableNamedRegionExtractorBuilder<T, Ret> derivingNameFromTerminalNodeWith(T kind, Function<R, TerminalNode> extractor) {
+            return derivingNameWith(rule -> {
+                TerminalNode tn = extractor.apply(rule);
+                if (tn != null) {
+                    Token tok = tn.getSymbol();
+                    if (tok != null) {
+                        return new NamedRegionData<>(tok.getText(), kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+                    }
+                }
+                return null;
+            });
+        }
+
         /**
          * Derive names from a terminal node list, which some kinds of rule can
          * return if there is no parser rule for the name definition itself. In
@@ -332,7 +369,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
         private final FinishableNamedRegionExtractorBuilder<T, Ret> bldr;
         private final NameReferenceSetKey<T> refSetKey;
-        private final Set<ReferenceExtractorInfo<?>> referenceExtractors = new HashSet<>();
+        private final Set<ReferenceExtractorInfo<?, ?>> referenceExtractors = new HashSet<>();
 
         public NameReferenceCollectorBuilder(FinishableNamedRegionExtractorBuilder<T, Ret> bldr, NameReferenceSetKey<T> refSetKey) {
             this.bldr = bldr;
@@ -352,10 +389,10 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
     static class ReferenceExtractorPair<T extends Enum<T>> implements Hashable {
 
-        private final Set<ReferenceExtractorInfo<?>> referenceExtractors;
+        private final Set<ReferenceExtractorInfo<?, ?>> referenceExtractors;
         private final NameReferenceSetKey<T> refSetKey;
 
-        ReferenceExtractorPair(Set<ReferenceExtractorInfo<?>> referenceExtractors, NameReferenceSetKey<T> refSetKey) {
+        ReferenceExtractorPair(Set<ReferenceExtractorInfo<?, ?>> referenceExtractors, NameReferenceSetKey<T> refSetKey) {
             this.refSetKey = refSetKey;
             this.referenceExtractors = new HashSet<>(referenceExtractors);
         }
@@ -363,7 +400,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         @Override
         public void hashInto(Hasher hasher) {
             hasher.hashObject(refSetKey);
-            for (ReferenceExtractorInfo<?> e : referenceExtractors) {
+            for (ReferenceExtractorInfo<?, ?> e : referenceExtractors) {
                 hasher.hashObject(e);
             }
         }
@@ -389,7 +426,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             return this;
         }
 
-        private NameReferenceCollectorBuilder<T, Ret> finish(ReferenceExtractorInfo<R> info) {
+        private NameReferenceCollectorBuilder<T, Ret> finish(ReferenceExtractorInfo<R, T> info) {
             bldr.referenceExtractors.add(info);
             return bldr;
         }
@@ -409,6 +446,23 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         public NameReferenceCollectorBuilder<T, Ret> derivingReferenceOffsetsFromTerminalNodeWith(Function<R, TerminalNode> offsetsExtractor) {
             return finish(new ReferenceExtractorInfo<>(ruleType, offsetsExtractor, ExtractorReturnType.TERMINAL_NODE, ancestorQualifier));
         }
+
+        public NameReferenceCollectorBuilder<T, Ret> derivingReferenceOffsetsExplicitlyWith(T typeHint, Function<R, NameAndOffsets> offsetsExtractor) {
+            return finish(new ReferenceExtractorInfo<>(ruleType, offsetsExtractor, ExtractorReturnType.NAME_AND_OFFSETS, ancestorQualifier, typeHint));
+        }
+
+        public NameReferenceCollectorBuilder<T, Ret> derivingReferenceOffsetsFromRuleWith(T typeHint, Function<R, ParserRuleContext> offsetsExtractor) {
+            return finish(new ReferenceExtractorInfo<>(ruleType, offsetsExtractor, ExtractorReturnType.PARSER_RULE_CONTEXT, ancestorQualifier, typeHint));
+        }
+
+        public NameReferenceCollectorBuilder<T, Ret> derivingReferenceOffsetsFromTokenWith(T typeHint, Function<R, Token> offsetsExtractor) {
+            return finish(new ReferenceExtractorInfo<>(ruleType, offsetsExtractor, ExtractorReturnType.TOKEN, ancestorQualifier, typeHint));
+        }
+
+        public NameReferenceCollectorBuilder<T, Ret> derivingReferenceOffsetsFromTerminalNodeWith(T typeHint, Function<R, TerminalNode> offsetsExtractor) {
+            return finish(new ReferenceExtractorInfo<>(ruleType, offsetsExtractor, ExtractorReturnType.TERMINAL_NODE, ancestorQualifier, typeHint));
+        }
+
     }
 
     public static class NameAndOffsets {
@@ -417,13 +471,17 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         final int start;
         final int end;
 
-        public NameAndOffsets(String name, int start, int end) {
+        NameAndOffsets(String name, int start, int end) {
             assert name != null;
             assert start >= 0;
             assert end >= 0;
             this.name = name;
             this.start = start;
             this.end = end;
+        }
+
+        public static NameAndOffsets create(String name, int start, int end) {
+            return new NameAndOffsets(name, start, end);
         }
 
         public String toString() {
@@ -464,29 +522,28 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    public static class NamedRegionData<T extends Enum<T>> {
+    public static class NamedRegionData<T extends Enum<T>> extends NameAndOffsets {
 
-        final String string;
         final T kind;
-        final int start;
-        final int end;
 
-        public NamedRegionData(String string, T kind, int start, int end) {
-            this.string = string;
+        NamedRegionData(String string, T kind, int start, int end) {
+            super(string, start, end);
             this.kind = kind;
-            this.start = start;
-            this.end = end;
+        }
+
+        public static <T extends Enum<T>> NamedRegionData<T> create(String name, T kind, int start, int end) {
+            return new NamedRegionData<>(name, kind, start, end);
         }
 
         @Override
         public String toString() {
-            return string + ":" + kind + ":" + start + ":" + end;
+            return name + ":" + kind + ":" + start + ":" + end;
         }
 
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 67 * hash + Objects.hashCode(this.string);
+            hash = 67 * hash + Objects.hashCode(this.name);
             return hash;
         }
 
@@ -502,23 +559,28 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 return false;
             }
             final NamedRegionData<?> other = (NamedRegionData<?>) obj;
-            if (!Objects.equals(this.string, other.string)) {
+            if (!Objects.equals(this.name, other.name)) {
                 return false;
             }
             return true;
         }
     }
 
-    static final class ReferenceExtractorInfo<R extends ParserRuleContext> implements Hashable {
+    static final class ReferenceExtractorInfo<R extends ParserRuleContext, T extends Enum<T>> implements Hashable {
 
         final Class<R> ruleType;
         final Function<R, NameAndOffsets> offsetsExtractor;
         private final Predicate<RuleNode> ancestorQualifier;
+        final T typeHint;
 
         public ReferenceExtractorInfo(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier) {
+            this(ruleType, offsetsExtractor, rtype, ancestorQualifier, null);
+        }
+
+        public ReferenceExtractorInfo(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier, T typeHint) {
             this.ruleType = ruleType;
-//            this.offsetsExtractor = offsetsExtractor.andThen(rtype);
-            this.offsetsExtractor = rtype.wrap(offsetsExtractor);
+            this.typeHint = typeHint;
+            this.offsetsExtractor = rtype.wrap(offsetsExtractor, typeHint);
             this.ancestorQualifier = ancestorQualifier;
         }
 
@@ -529,9 +591,14 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             if (ancestorQualifier != null) {
                 hasher.hashObject(ancestorQualifier);
             }
+            if (typeHint != null) {
+                hasher.writeInt(typeHint.ordinal());
+            } else {
+                hasher.writeInt(-1);
+            }
         }
 
-        enum ExtractorReturnType implements Function<Object, NameAndOffsets>, Hashable {
+        enum ExtractorReturnType implements Hashable {
             NAME_AND_OFFSETS,
             PARSER_RULE_CONTEXT,
             TOKEN,
@@ -542,24 +609,26 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 hasher.writeInt(ordinal());
             }
 
-            <R extends ParserRuleContext> Function<R, NameAndOffsets> wrap(Function<R, ?> func) {
-                return new HashableAndThen(this, func);
+            <R extends ParserRuleContext, T extends Enum<T>> Function<R, NameAndOffsets> wrap(Function<R, ?> func, T typeHint) {
+                return new HashableAndThen(this, func, typeHint);
             }
 
-            static class HashableAndThen<R extends ParserRuleContext> implements Function<R, NameAndOffsets>, Hashable {
+            static class HashableAndThen<R extends ParserRuleContext, T extends Enum<T>> implements Function<R, NameAndOffsets>, Hashable {
 
                 private final ExtractorReturnType rt;
                 private final Function<R, ?> func;
+                private final T typeHint;
 
-                public HashableAndThen(ExtractorReturnType rt, Function<R, ?> func) {
+                public HashableAndThen(ExtractorReturnType rt, Function<R, ?> func, T typeHint) {
                     this.rt = rt;
                     this.func = func;
+                    this.typeHint = typeHint;
                 }
 
                 @Override
                 public NameAndOffsets apply(R t) {
                     Object o = func.apply(t);
-                    return rt.apply(o);
+                    return rt.apply(o, typeHint);
                 }
 
                 @Override
@@ -569,8 +638,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 }
             }
 
-            @Override
-            public NameAndOffsets apply(Object t) {
+            public <T extends Enum<T>> NameAndOffsets apply(Object t, T typeHint) {
                 if (t == null) {
                     return null;
                 }
@@ -597,13 +665,25 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                     default:
                         throw new AssertionError(this);
                 }
+                if (result != null && typeHint != null) {
+                    result = new NamedRegionData<>(result.name, typeHint, result.start, result.end);
+                }
                 return result;
             }
         }
+    }
+
+    /**
+     * Marker interface for extractor methods which take a heterogenous set of
+     * keys all of which must return named things.
+     *
+     * @param <T>
+     */
+    public interface NamedExtractionKey<T extends Enum<T>> extends ExtractionKey<T> {
 
     }
 
-    public static final class NamedRegionKey<T extends Enum<T>> implements Serializable, Hashable {
+    public static final class NamedRegionKey<T extends Enum<T>> implements Serializable, Hashable, NamedExtractionKey<T> {
 
         private final String name;
         private final Class<T> type;
@@ -659,9 +739,19 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             }
             return true;
         }
+
+        @Override
+        public Class<T> type() {
+            return type;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
     }
 
-    public static final class NameReferenceSetKey<T extends Enum<T>> implements Serializable, Hashable {
+    public static final class NameReferenceSetKey<T extends Enum<T>> implements Serializable, Hashable, NamedExtractionKey<T> {
 
         private final String name;
         private final Class<T> type;
@@ -683,6 +773,10 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
 
         public static final <T extends Enum<T>> NameReferenceSetKey<T> create(String name, Class<T> type) {
             return new NameReferenceSetKey(name, type);
+        }
+
+        public String toString() {
+            return name + "(" + type.getName() + ")";
         }
 
         @Override
@@ -714,6 +808,204 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             return true;
         }
 
+        @Override
+        public Class<T> type() {
+            return type;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+    }
+
+    public interface UnknownNameReference<T extends Enum<T>> extends Named, IndexAddressable.IndexAddressableItem, Serializable {
+
+        T expectedKind();
+
+        public interface UnknownNameReferenceResolver<R, I extends NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> {
+
+            <X> X resolve(Extraction extraction, UnknownNameReference ref, ResolutionConsumer<R, I, N, T, X> c) throws IOException;
+        }
+
+        public interface ResolutionConsumer<R, I extends NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>, X> {
+
+            X resolved(UnknownNameReference unknown, R resolutionSource, I in, N element);
+        }
+
+        default <R, I extends NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> ResolvedForeignNameReference<R, I, N, T> resolve(Extraction extraction, UnknownNameReferenceResolver<R, I, N, T> resolver) throws IOException {
+            return resolver.resolve(extraction, this, (u, src, in, element) -> {
+                return new ResolvedForeignNameReference<R, I, N, T>(u, src, in, element, extraction);
+            });
+        }
+    }
+
+    public static final class ResolvedForeignNameReference<R, I extends NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> implements Named, IndexAddressable.IndexAddressableItem {
+
+        private final UnknownNameReference<T> unk;
+        private final R resolutionSource;
+        private final I in;
+        private final N element;
+        private final Extraction extraction;
+
+        private ResolvedForeignNameReference(UnknownNameReference<T> unk, R resolutionSource, I in, N element, Extraction extraction) {
+            this.unk = unk;
+            this.resolutionSource = resolutionSource;
+            this.in = in;
+            this.element = element;
+            this.extraction = extraction;
+        }
+
+        public Extraction from() {
+            return extraction;
+        }
+
+        public T expectedKind() {
+            return unk.expectedKind();
+        }
+
+        public boolean isTypeConflict() {
+            T ek = expectedKind();
+            T actualKind = element.kind();
+            return ek != null && actualKind != null && ek != actualKind;
+        }
+
+        public R source() {
+            return resolutionSource;
+        }
+
+        public I in() {
+            return in;
+        }
+
+        public N element() {
+            return element;
+        }
+
+        @Override
+        public String name() {
+            return unk.name();
+        }
+
+        @Override
+        public int start() {
+            return unk.start();
+        }
+
+        @Override
+        public int end() {
+            return unk.end();
+        }
+
+        @Override
+        public int index() {
+            return unk.index();
+        }
+
+        @Override
+        public String toString() {
+            return "for:" + element + "<<-" + resolutionSource;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 79 * hash + Objects.hashCode(this.unk);
+            hash = 79 * hash + Objects.hashCode(this.resolutionSource);
+            hash = 79 * hash + Objects.hashCode(this.in);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ResolvedForeignNameReference<?, ?, ?, ?> other = (ResolvedForeignNameReference<?, ?, ?, ?>) obj;
+            if (!Objects.equals(this.unk, other.unk)) {
+                return false;
+            }
+            if (!Objects.equals(this.resolutionSource, other.resolutionSource)) {
+                return false;
+            }
+            if (!Objects.equals(this.in, other.in)) {
+                return false;
+            }
+            return true;
+        }
+
+    }
+
+    static final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameReference<T> {
+
+        private final T expectedKind;
+
+        private final int start;
+        private final int end;
+        private final String name;
+        private final int index;
+
+        public UnknownNameReferenceImpl(T expectedKind, int start, int end, String name, int index) {
+            this.expectedKind = expectedKind;
+            this.start = start;
+            this.end = end;
+            this.name = name;
+            this.index = index;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public int start() {
+            return start;
+        }
+
+        public int end() {
+            return end;
+        }
+
+        public boolean isReference() {
+            return true;
+        }
+
+        public int index() {
+            return index;
+        }
+
+        @Override
+        public String toString() {
+            return name + "@" + start + ":" + end;
+        }
+
+        @Override
+        public int hashCode() {
+            return start + (end * 73) + 7 * Objects.hashCode(name);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof UnknownNameReference) {
+                UnknownNameReference u = (UnknownNameReference) o;
+                return u.start() == start() && u.end() == end && Objects.equals(name(), u.name());
+            }
+            return false;
+        }
+
+        @Override
+        public T expectedKind() {
+            return expectedKind;
+        }
     }
 
     static class NameExtractors<T extends Enum<T>> implements Hashable {
@@ -745,6 +1037,16 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             if (ruleRegionKey != null) {
                 store.addNamedRegions(ruleRegionKey, ruleBounds);
             }
+            if (v.namesBuilder != null) {
+                v.namesBuilder.retrieveDuplicates((name, duplicates) -> {
+                    store.addDuplicateNamedRegions(namePositionKey, name, duplicates);
+                });
+            }
+            if (v.ruleBoundsBuilder != null) {
+                v.ruleBoundsBuilder.retrieveDuplicates((name, duplicates) -> {
+                    store.addDuplicateNamedRegions(ruleRegionKey, name, duplicates);
+                });
+            }
 
             ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(ruleBounds);
             ctx.accept(v1);
@@ -771,15 +1073,21 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             <T extends Enum<T>> void addReferences(NameReferenceSetKey<T> key, NamedSemanticRegions.NamedRegionReferenceSets<T> regions);
 
             <T extends Enum<T>> void addReferenceGraph(NameReferenceSetKey<T> refSetKey, BitSetStringGraph stringGraph);
+
+            <T extends Enum<T>> void addUnknownReferences(NameReferenceSetKey<T> refSetKey, SemanticRegions<UnknownNameReference<T>> build);
+
+            <T extends Enum<T>> void addDuplicateNamedRegions(NamedRegionKey<T> key, String name, Iterable<? extends NamedSemanticRegion<T>> duplicates);
         }
 
         class ReferenceExtractorVisitor extends AbstractParseTreeVisitor<Void> {
 
             int[] lengths;
             int[][] activations;
-            Set<NameAndOffsets> unknown = new HashSet<>();
+            int unknownCount = 0;
+//            Set<NameAndOffsets> unknown = new HashSet<>();
+            SemanticRegionsBuilder<UnknownNameReference<T>> unknown = SemanticRegions.builder(UnknownNameReference.class);
 
-            ReferenceExtractorInfo<?>[][] infos;
+            ReferenceExtractorInfo<?, ?>[][] infos;
             private final NamedSemanticRegions<T> regions;
             NamedSemanticRegions.NamedRegionReferenceSetsBuilder<T>[] refs;
             private final BitSet[][] references, reverseReferences;
@@ -816,17 +1124,18 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 for (int i = 0; i < referenceExtractors.length; i++) {
                     ReferenceExtractorPair r = referenceExtractors[i];
                     store.addReferences(r.refSetKey, refs[i].build());
-                    BitSetTree graph = new BitSetTree(reverseReferences[i], references[i]);
+                    BitSetGraph graph = new BitSetGraph(reverseReferences[i], references[i]);
                     BitSetStringGraph stringGraph = new BitSetStringGraph(graph, regions.nameArray());
                     store.addReferenceGraph(r.refSetKey, stringGraph);
+                    store.addUnknownReferences(r.refSetKey, unknown.build());
                 }
             }
 
-            private <L extends ParserRuleContext> NameAndOffsets doRunOne(ReferenceExtractorInfo<L> ext, L nd) {
+            private <L extends ParserRuleContext> NameAndOffsets doRunOne(ReferenceExtractorInfo<L, ?> ext, L nd) {
                 return ext.offsetsExtractor.apply(nd);
             }
 
-            private <L extends ParserRuleContext> NameAndOffsets runOne(ReferenceExtractorInfo<L> ext, RuleNode nd) {
+            private <L extends ParserRuleContext> NameAndOffsets runOne(ReferenceExtractorInfo<L, ?> ext, RuleNode nd) {
                 return doRunOne(ext, ext.ruleType.cast(nd));
             }
 
@@ -836,7 +1145,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                 for (int i = 0; i < lengths.length; i++) {
                     activeScratch[i] = new boolean[lengths[i]];
                     for (int j = 0; j < lengths[i]; j++) {
-                        ReferenceExtractorInfo<?> info = infos[i][j];
+                        ReferenceExtractorInfo<?, ?> info = infos[i][j];
                         if (info.ancestorQualifier != null) {
                             if (info.ancestorQualifier.test(node)) {
                                 activeScratch[i][j] = true;
@@ -851,10 +1160,10 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                                     NamedSemanticRegions.NamedSemanticRegion<T> containedBy = regions.index().regionAt(referenceOffsets.start);
                                     int referencedIndex = regions.indexOf(referenceOffsets.name);
                                     if (containedBy != null && referencedIndex != -1) {
-                                        System.out.println("REGION AT " + referenceOffsets.start + " IS " + containedBy.start() + ":" + containedBy.end() + " - " + containedBy.name());
+//                                        System.out.println("REGION AT " + referenceOffsets.start + " IS " + containedBy.start() + ":" + containedBy.end() + " - " + containedBy.name());
                                         assert containedBy.containsPosition(referenceOffsets.start) :
                                                 "Index returned bogus result for position " + referenceOffsets.start + ": " + containedBy + " from " + regions.index() + "; code:\n" + regions.toCode();
-                                        System.out.println("ENCOUNTERED " + referenceOffsets + " index " + referencedIndex + " inside " + containedBy.name() + " index " + containedBy.index() + " in " + regions);
+//                                        System.out.println("ENCOUNTERED " + referenceOffsets + " index " + referencedIndex + " inside " + containedBy.name() + " index " + containedBy.index() + " in " + regions);
                                         int referenceIndex = containedBy.index();
 
                                         references[i][referencedIndex].set(referenceIndex);
@@ -862,7 +1171,11 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                                     }
                                 } else {
                                     System.out.println("ADD UNKNOWN: " + referenceOffsets);
-                                    unknown.add(referenceOffsets);
+                                    T kind = referenceOffsets instanceof NamedRegionData<?>
+                                            && ((NamedRegionData<?>) referenceOffsets).kind != null
+                                                    ? (T) ((NamedRegionData<?>) referenceOffsets).kind : null;
+
+                                    unknown.add(new UnknownNameReferenceImpl(kind, referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
                                 }
                             }
                         }
@@ -955,14 +1268,14 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
                         if (namesBuilder != null) {
                             // XXX, the names extractor actually needs to return the name AND the offsets of the name
                             // use the same code we use for finding the reference
-                            namesBuilder.add(nm.string, nm.kind, nm.start, nm.end);
+                            namesBuilder.add(nm.name, nm.kind, nm.start, nm.end);
                         }
                         if (ruleBoundsBuilder != null) {
                             if (tn == null) {
-                                ruleBoundsBuilder.add(nm.string, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
+                                ruleBoundsBuilder.add(nm.name, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
                             } else {
                                 Token tok = tn.getSymbol();
-                                ruleBoundsBuilder.add(nm.string, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+                                ruleBoundsBuilder.add(nm.name, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
                             }
                         }
                     }

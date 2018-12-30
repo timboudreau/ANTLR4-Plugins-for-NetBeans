@@ -7,15 +7,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph;
 
 /**
- * The original, correct but far less efficient implementation of RuleTree,
- * retained to verify the behavior of the bitset based one.
+ * The original, correct but far less efficient implementation of StringGraph,
+ retained to verify the behavior of the bitset based one.
  *
  * @author Tim Boudreau
  */
-final class RuleTreeImpl implements RuleTree {
+final class RuleTreeImpl implements StringGraph {
 
     final Map<String, Set<String>> ruleReferences;
     final Map<String, Set<String>> ruleReferencedBy;

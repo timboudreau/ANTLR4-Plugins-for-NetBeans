@@ -1,7 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.highlighting;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
@@ -12,7 +10,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExt
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_NAMED_ALTERNATIVE_SUBRULE;
 
@@ -68,7 +65,7 @@ final class AntlrDeclarationHighlighter extends AbstractAntlrHighlighter.Documen
             bag.addHighlight(r.start(), r.end(), colorings.get(kind));
         }
     }
-
+/*
     private final List<RuleDeclaration> lastDeclarations = new ArrayList<>();
 
     protected void xrefresh(Document doc, Void argument, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
@@ -88,4 +85,5 @@ final class AntlrDeclarationHighlighter extends AbstractAntlrHighlighter.Documen
             }
         }
     }
+*/
 }

@@ -25,7 +25,11 @@ import org.openide.util.Exceptions;
  * If you use custom types which are not lambdas for callbacks, or other custom
  * types in builders for creating an extraction, ensure that their hashCode()
  * and toString() are consistent, or the implement Hashable and hash the same
- * way if they have the same configuration.
+ * way if they have the same configuration.  For stateless lambdas - static
+ * methods invoked by reference, the result will always hash correctly.  If there
+ * is some state, you may want to implement the functional interface as a class,
+ * implement Hashable and encode the state in the hash, to guarantee valid
+ * comparisons.
  *
  * @author Tim Boudreau
  */

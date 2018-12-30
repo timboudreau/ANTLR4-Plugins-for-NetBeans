@@ -8,20 +8,24 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetTree.IntRuleVisitor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ScoreImpl;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetGraph.IntGraphVisitor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraphVisitor;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class StringRuleTree implements RuleTree {
+final class StringRuleTree implements StringGraph {
 
     private final String[] namesSorted;
     private final int[] ruleIndicesForSorted;
-    final BitSetTree tree;
+    final BitSetGraph tree;
     final String[] ruleNames;
 
-    StringRuleTree(BitSetTree tree, String[] ruleNames) {
+    StringRuleTree(BitSetGraph tree, String[] ruleNames) {
         this.tree = tree;
         this.ruleNames = ruleNames;
         namesSorted = Arrays.copyOf(ruleNames, ruleNames.length);
@@ -33,8 +37,8 @@ final class StringRuleTree implements RuleTree {
         }
     }
 
-    public void walk(RuleVisitor v) {
-        tree.walk(new IntRuleVisitor() {
+    public void walk(StringGraphVisitor v) {
+        tree.walk(new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -47,12 +51,12 @@ final class StringRuleTree implements RuleTree {
         });
     }
 
-    public void walk(String start, RuleVisitor v) {
+    public void walk(String start, StringGraphVisitor v) {
         int ix = indexOf(start);
         if (ix < 0) {
             return;
         }
-        tree.walk(ix, new IntRuleVisitor() {
+        tree.walk(ix, new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -65,12 +69,12 @@ final class StringRuleTree implements RuleTree {
         });
     }
 
-    public void walkUpwards(String start, RuleVisitor v) {
+    public void walkUpwards(String start, StringGraphVisitor v) {
         int ix = indexOf(start);
         if (ix < 0) {
             return;
         }
-        tree.walkUpwards(ix, new IntRuleVisitor() {
+        tree.walkUpwards(ix, new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);

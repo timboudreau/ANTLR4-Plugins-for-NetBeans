@@ -6,7 +6,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
  * @author Tim Boudreau
  */
 @FunctionalInterface
-public interface RuleVisitor {
+public interface StringGraphVisitor {
 
     /**
      * Enter a rule; subsequent calls to enterRule before a call to exitRule

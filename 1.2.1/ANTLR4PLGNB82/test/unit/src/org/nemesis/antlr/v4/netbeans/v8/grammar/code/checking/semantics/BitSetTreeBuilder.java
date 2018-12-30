@@ -9,9 +9,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetGraph;
 
 /**
- * Wraps an instance of BitSetTree and converts its BitSets to
+ * Wraps an instance of BitSetGraph and converts its BitSets to
  sets of string rule names.
  *
  * @author Tim Boudreau
@@ -92,8 +93,8 @@ class BitSetTreeBuilder extends ANTLRv4BaseVisitor<Void> {
         return null;
     }
 
-    public BitSetTree toRuleTree() {
-        return new BitSetTree(ruleReferences, referencedBy);
+    public BitSetGraph toRuleTree() {
+        return new BitSetGraph(ruleReferences, referencedBy);
     }
     static final IdFinder idFinder = new IdFinder();
 

@@ -27,6 +27,9 @@
     <fontcolor name="fragment_reference"   foreColor="ff96cb64" default="default">
         <font style="italic"/>
     </fontcolor>
+    <fontcolor name="header_matter" default="default">
+        <font style="italic"/>
+    </fontcolor>
     <fontcolor default="default" foreColor="ffdbac00" name="named_alternative">
         <font style="bold"/>
     </fontcolor>

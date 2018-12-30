@@ -7,8 +7,6 @@ import static java.lang.Math.floor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,9 +25,9 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChec
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.LEXER_RULE_DECLARATION;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.BitShiftArray.findIntersector;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrRunOption;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeElement;
@@ -131,8 +129,9 @@ public class CulpritFinder {
 
     private void loadRules(ANTLRv4SemanticParser parse) throws IOException {
         String text = loadGrammarText(parse.grammarFilePath().get());
-        for (RuleDeclaration d : parse.allDeclarations()) {
-            ruleTextForRule.put(d.getRuleID(), text.substring(d.getRuleStartOffset(), d.getRuleEndOffset()));
+        NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+        for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> d : decls) {
+            ruleTextForRule.put(d.name(), text.substring(d.start(), d.end()));
         }
     }
 
@@ -147,25 +146,90 @@ public class CulpritFinder {
             loadRules(parse.getSemanticParser());
         }
 
-        public List<RuleDeclaration> declarations() {
-            // We need to maintain the sort order as Antlr would parse it -
-            // imports are affectively appended to the thing that imports them
-            List<RuleDeclaration> all = new ArrayList<>(parse.getSemanticParser().allDeclarations().size());
-            for (RuleDeclaration d : parse.getSemanticParser().allDeclarations()) {
-                all.add(d.offsetBy(locationOffset));
+        public List<NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarations() {
+            NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> result = new ArrayList<>(decls.size());
+            for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> rule : decls) {
+                result.add(new OffsetNamedSemanticRegion(rule, locationOffset));
             }
-            return all;
+            return result;
         }
 
         public void appendRules(StringBuilder into) throws IOException {
             System.out.println("Append rules for imported: " + parse.getSemanticParser().grammarFilePath().get());
             String text = FileUtil.toFileObject(parse.getSemanticParser().grammarFilePath().get().toFile()).asText();
-            for (RuleDeclaration rule : parse.getSemanticParser().allDeclarations()) {
-                String ruleDef = text.substring(rule.getRuleStartOffset(), rule.getRuleEndOffset());
+            NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> rule : decls) {
+                String ruleDef = text.substring(rule.start(), rule.end());
                 into.append("\n// import ").append(parse.getSemanticParser().grammarFilePath());
                 into.append(ruleDef).append(";\n");
             }
         }
+
+    }
+
+    private static final class OffsetNamedSemanticRegion implements NamedSemanticRegion<AntlrExtractor.RuleTypes> {
+
+        private final NamedSemanticRegion<AntlrExtractor.RuleTypes> orig;
+        private final int offset;
+
+        public OffsetNamedSemanticRegion(NamedSemanticRegion<AntlrExtractor.RuleTypes> orig, int offset) {
+            this.orig = orig;
+            this.offset = offset;
+        }
+
+        @Override
+        public AntlrExtractor.RuleTypes kind() {
+            return orig.kind();
+        }
+
+        @Override
+        public int ordering() {
+            return orig.ordering();
+        }
+
+        @Override
+        public boolean isReference() {
+            return orig.isReference();
+        }
+
+        @Override
+        public int start() {
+            return orig.start() + offset;
+        }
+
+        @Override
+        public int end() {
+            return orig.end() + offset;
+        }
+
+        @Override
+        public int index() {
+            return orig.index();
+        }
+
+        @Override
+        public String name() {
+            return orig.name();
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof NamedSemanticRegion<?>) {
+                NamedSemanticRegion<?> other = (NamedSemanticRegion<?>) o;
+                return other.start() == start() && other.end() == end()
+                        && other.kind() == kind() && name().equals(other.name());
+            }
+            return false;
+        }
+
+        public int hashCode() {
+            return orig.hashCode();
+        }
+
     }
 
     /**
@@ -174,16 +238,16 @@ public class CulpritFinder {
      */
     public interface Monitor {
 
-        void onAttempt(Set<RuleDeclaration> omitted, long attempt, long of);
+        void onAttempt(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, long attempt, long of);
 
-        void onCompleted(boolean success, Set<RuleDeclaration> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext);
+        void onCompleted(boolean success, Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext);
 
         void onStatus(String status);
 
         default Monitor replan() {
             return new Monitor() {
                 @Override
-                public void onAttempt(Set<RuleDeclaration> omitted, long attempt, long of) {
+                public void onAttempt(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, long attempt, long of) {
                     EventQueue.invokeLater(() -> {
                         Monitor.this.onAttempt(omitted, attempt, of);
                     });
@@ -195,7 +259,7 @@ public class CulpritFinder {
                 }
 
                 @Override
-                public void onCompleted(boolean success, Set<RuleDeclaration> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext) {
+                public void onCompleted(boolean success, Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext) {
                     EventQueue.invokeLater(() -> {
                         Monitor.this.onCompleted(success, omitted, proxy, runNext);
                     });
@@ -240,14 +304,14 @@ public class CulpritFinder {
         }
 
         public GenerateBuildAndRunGrammarResult next() throws IOException {
-            AtomicReference<Set<RuleDeclaration>> ref = new AtomicReference<>();
+            AtomicReference<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> ref = new AtomicReference<>();
             try {
                 String grammar = hellscape.nextGrammar(l -> {
                     ref.set(l);
                 });
                 List<String> ruleNames = new ArrayList<>();
-                for (RuleDeclaration r : ref.get()) {
-                    ruleNames.add(r.getRuleID());
+                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> r : ref.get()) {
+                    ruleNames.add(r.name());
                 }
                 System.out.println("--------------------- GEN-GRAMMAR -" + ruleNames + " --------------");
                 monitor.onAttempt(ref.get(), hellscape.product.cursors.calls(),
@@ -296,46 +360,52 @@ public class CulpritFinder {
                 }
             }
         }
+        NamedSemanticRegions<AntlrExtractor.RuleTypes> rules = parseInfo.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
         if (candidateLexerRules.size() < 3) {
-            for (RuleDeclaration d : CulpritFinder.this.parseInfo.allDeclarations()) {
+            for (NamedSemanticRegion<AntlrExtractor.RuleTypes> d : rules) {
                 switch (d.kind()) {
-                    case LEXER_RULE_DECLARATION:
-                        candidateLexerRules.add(d.getRuleID());
+                    case LEXER:
+                        candidateLexerRules.add(d.name());
                 }
             }
         }
         System.out.println("CANDIDATE LEXER RULES: " + candidateLexerRules);
-        List<RuleDeclaration> declarations = new ArrayList<>(parseInfo.allDeclarations());
-        Set<RuleDeclaration> touched = new HashSet<>();
-        List<RuleDeclaration> lexerRules = new ArrayList<>();
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarations = new ArrayList<>();
+        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> r : rules) {
+            declarations.add(r);
+        }
+        Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched = new HashSet<>();
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> lexerRules = new ArrayList<>();
         for (String lexerRuleName : candidateLexerRules) {
-            RuleDeclaration rule = parseInfo.getLexerRuleDeclaration(lexerRuleName);
-            if (rule != null) {
+            if (rules.contains(lexerRuleName)) {
+                NamedSemanticRegion<AntlrExtractor.RuleTypes> rule = rules.regionFor(lexerRuleName);
                 touched.add(rule);
-                if (rule.kind() == LEXER_RULE_DECLARATION) {
+                if (rule.kind() == AntlrExtractor.RuleTypes.LEXER) {
                     lexerRules.add(rule);
                 }
             }
         }
         for (String parserRuleName : candidateParserRules) {
-            RuleDeclaration rule = parseInfo.getParserRuleDeclaration(parserRuleName);
-            if (rule != null) {
-                touched.add(rule);
+            if (rules.contains(parserRuleName)) {
+                NamedSemanticRegion<AntlrExtractor.RuleTypes> rule = rules.regionFor(parserRuleName);
+                if (rule != null) {
+                    touched.add(rule);
+                }
             }
         }
         for (ImportedGrammar grammar : this.imports) {
-            List<RuleDeclaration> imported = grammar.declarations();
+            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> imported = grammar.declarations();
             declarations.addAll(imported);
-            for (RuleDeclaration d : imported) {
+            for (NamedSemanticRegion<AntlrExtractor.RuleTypes> d : imported) {
                 switch (d.kind()) {
-                    case LEXER_RULE_DECLARATION:
+                    case LEXER:
                         lexerRules.add(d);
                         break;
                 }
             }
         }
         Collections.sort(declarations);
-        List<RuleDeclaration> touchedSorted = new ArrayList<>(touched);
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touchedSorted = new ArrayList<>(touched);
 //        if (true || touchedSorted.size() <= 2) {
 //            System.out.println("too few touched - try lexer rules - " + lexerRules.size());
 //            touchedSorted = lexerRules;
@@ -350,18 +420,18 @@ public class CulpritFinder {
 
     public final class CombinatoricHellscape {
 
-        private final List<RuleDeclaration> allDeclarations;
-        private final List<RuleDeclaration> touched;
+        private final List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> allDeclarations;
+        private final List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched;
         private CartesianProductizer product;
 
-        public CombinatoricHellscape(List<RuleDeclaration> allDeclarations, List<RuleDeclaration> touched) throws IOException {
+        public CombinatoricHellscape(List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> allDeclarations, List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched) throws IOException {
             this.allDeclarations = new ArrayList<>(allDeclarations);
             this.touched = new ArrayList<>(touched);
             product = new CartesianProductizer();
         }
 
-        public String nextGrammar(Consumer<Set<RuleDeclaration>> c) {
-            List<RuleDeclaration> all = product.next(c);
+        public String nextGrammar(Consumer<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> c) {
+            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> all = product.next(c);
             System.out.println("NEXT GRAMMAR with " + all.size());
             StringBuilder sb = new StringBuilder();
             try {
@@ -378,9 +448,9 @@ public class CulpritFinder {
                         break;
                 }
                 sb.append(parseInfo.getGrammarName()).append(";\n\n");
-                for (RuleDeclaration rd : all) {
+                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> rd : all) {
 //                    String sub = orig.substring(rd.getRuleStartOffset(), rd.getRuleEndOffset());
-                    String sub = ruleTextForRule.get(rd.getRuleID());
+                    String sub = ruleTextForRule.get(rd.name());
                     sb.append(sub).append('\n');
                 }
                 System.out.println("GENERATED GRAMMAR " + sb.length());
@@ -394,24 +464,24 @@ public class CulpritFinder {
         private class CartesianProductizer {
 
             private final Cursors3 cursors;
-            private final Set<RuleDeclaration> latestOmitted = new LinkedHashSet<>();
+            private final Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> latestOmitted = new LinkedHashSet<>();
 
             public CartesianProductizer() {
                 cursors = new Cursors3(touched.size());
             }
 
-            private void pruneDependencies(Set<RuleDeclaration> omitted, List<RuleDeclaration> kept) {
+            private void pruneDependencies(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> kept) {
                 if (true) {
                     // Reverse closure we're getting is larger than it should be
                     // hold this for a rewrite
                     return;
                 }
-                Set<RuleDeclaration> alsoRemoved = new LinkedHashSet<>(omitted);
-                for (RuleDeclaration om : omitted) {
-                    Set<String> closure = parseInfo.ruleTree().reverseClosureOf(om.getRuleID());
+                Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> alsoRemoved = new LinkedHashSet<>(omitted);
+                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> om : omitted) {
+                    Set<String> closure = parseInfo.ruleTree().reverseClosureOf(om.name());
                     for (String s : closure) {
-                        for (RuleDeclaration rd : kept) {
-                            if (s.equals(rd.getRuleID())) {
+                        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> rd : kept) {
+                            if (s.equals(rd.name())) {
                                 alsoRemoved.add(rd);
                             }
                         }
@@ -424,7 +494,7 @@ public class CulpritFinder {
 
             private BitShiftArray last;
 
-            public List<RuleDeclaration> next(Consumer<Set<RuleDeclaration>> c) {
+            public List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> next(Consumer<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> c) {
                 for (;;) {
                     latestOmitted.clear();
                     BitShiftArray set = cursors.next();
@@ -439,7 +509,7 @@ public class CulpritFinder {
                         continue;
                     }
                     last = set.copy();
-                    List<RuleDeclaration> nue = new LinkedList<>(allDeclarations);
+                    List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> nue = new LinkedList<>(allDeclarations);
                     latestOmitted.addAll(nue);
                     set.pruneList(nue);
                     latestOmitted.removeAll(nue);
@@ -456,80 +526,6 @@ public class CulpritFinder {
 
     public static int bitsRequiredForNumber(long n) {
         return (int) floor(log2(n / 2) + 1);
-    }
-
-    static final class Cursors {
-
-        private final long[] longs;
-        private final long rotateThreshold;
-        private final long addBitThreshold;
-        private final long maxValue;
-
-        Cursors(int max) {
-            BitSet bits = new BitSet(max);
-            for (int i = 0; i < max; i++) {
-                bits.set(i);
-            }
-            longs = bits.toLongArray();
-            Arrays.fill(longs, 0);
-            longs[0] = 1;
-            rotateThreshold = longs.length * 64;
-            maxValue = (long) Math.pow(2, max);
-            addBitThreshold = bitsRequiredForNumber(maxValue);
-            System.out.println("LONGS: " + longs.length);
-            System.out.println("ROTATE THRESHOLD: " + rotateThreshold);
-            System.out.println("ADD BIT THRESHOLD: " + addBitThreshold);
-        }
-
-        public long calls() {
-            return calls;
-        }
-
-        public long maxCalls() {
-            return maxValue;
-        }
-
-        private long calls = 0;
-
-        private boolean seenFullCardinality;
-
-        public BitSet next() {
-            if (seenFullCardinality) {
-                return null;
-            }
-            calls++;
-            int curr = (int) (calls % longs.length);
-            longs[curr] = (longs[curr] >>> 1) | (longs[curr] << (Long.SIZE - 1));
-            if (curr % rotateThreshold == 0) {
-                rotate();
-            }
-            if (calls % addBitThreshold == 0) {
-//                System.out.println("ADD BIT: " + calls);
-                BitSet bits = BitSet.valueOf(longs);
-                int ix = bits.nextClearBit(0);
-                if (ix >= 0) {
-                    bits.set(ix);
-                    long[] nue = bits.toLongArray();
-                    System.arraycopy(nue, 0, longs, 0, longs.length);
-                    seenFullCardinality = bits.cardinality() == addBitThreshold * 2;
-                } else {
-                    return null;
-                }
-            }
-            return BitSet.valueOf(longs);
-        }
-
-        private void rotate() {
-//            System.out.println("ROTATE " + calls);
-            if (longs.length == 1) {
-                return;
-            }
-            long hold = longs[0];
-            for (int i = 1; i < longs.length; i++) {
-                longs[i - 1] = longs[i];
-            }
-            longs[longs.length - 1] = hold;
-        }
     }
 
     public static final class Cursors3 {
@@ -713,221 +709,6 @@ public class CulpritFinder {
                 return max;
             }
             return cur.bitsInMotion();
-        }
-    }
-
-    public static final class Cursors2 {
-
-        private final BitShiftArray set;
-        private final int max;
-        private final long maxIterations;
-        long[] counters = new long[1];
-        long[] maxima = new long[1];
-        List<BitShiftArray> all = new ArrayList<>(5);
-
-        Cursors2(int max) {
-            set = new BitShiftArray(max);
-            this.max = max;
-            maxima[0] = max;
-            this.maxIterations = (long) Math.pow(2, max);
-            System.out.println("MAX ITERATIONS " + maxIterations);
-            all.add(set);
-        }
-
-        public String toString() {
-            return BitShiftArray.orAll(all).toString();
-        }
-
-        public long maxCalls() {
-            return maxIterations;
-        }
-        private long iteration;
-
-        private long update() {
-            iteration++;
-            for (int i = 0; i < maxima.length - 1; i++) {
-                counters[i]++;
-            }
-            if (iteration == maxima[maxima.length - 1]) {
-                all.add(new BitShiftArray(max));
-                counters = Arrays.copyOf(counters, all.size());
-                maxima = Arrays.copyOf(maxima, all.size());
-                maxima[maxima.length - 1] = max;
-            }
-            for (int i = 0; i < maxima.length - 2; i++) {
-                if (counters[i] == maxima[i]) {
-                    all.get(i).shiftRight();
-                    counters[i] = 0;
-                }
-            }
-            all.get(maxima.length - 1).shiftLeft();
-//            if (iteration == addNextBitAtIteration) {
-//                System.out.println("ADD ARRAY FOR " + iteration);
-//                all.add(new BitShiftArray(max));
-//                addNextBitAtIteration *= addNextBitAtIteration;
-//            } else {
-//                all.get(0).shiftLeft();
-//            }
-            return iteration;
-        }
-
-        public BitShiftArray next() {
-            if (update() >= maxIterations) {
-                return null;
-            }
-            for (;;) {
-                BitShiftArray isect = findIntersector(all);
-                if (isect == null) {
-                    break;
-                }
-                update();
-//                isect.shiftRight();
-            }
-            return BitShiftArray.orAll(all);
-        }
-    }
-
-    static final class Cursors4 {
-
-        private final BitShiftArray arr;
-        private long iteration;
-        private final Interstices interstices;
-
-        Cursors4(int max) {
-            arr = new BitShiftArray(max);
-            interstices = new Interstices(max);
-        }
-
-        public BitShiftArray next() {
-//            if (!arr.isLastBitSet()) {
-//                if (iteration++ > 0) {
-//                    arr.shiftLeft();
-//                }
-//                return arr;
-//            }
-            arr.clear();
-            int[] offsets = interstices.nextInterstice();
-            if (offsets == null) {
-                return null;
-            }
-            for (int off : offsets) {
-                arr.set(off);
-            }
-            return arr;
-        }
-    }
-
-    static class Interstices {
-
-        private final int max;
-        private int count = 1;
-        private int[] values;
-
-        private int pseudoEndPoint;
-
-        public Interstices(int max) {
-            this.max = max;
-            pseudoEndPoint = max - 1;
-            values = new int[]{0};
-        }
-
-        private void nextCount() {
-            count++;
-            values = new int[count];
-            if (count < 4) {
-                for (int i = 0; i < count; i++) {
-                    values[i] = i;
-                }
-            } else {
-                values[0] = 0;
-                for (int i = 1; i < count; i++) {
-                    values[i] = initialPosition(i);
-                }
-            }
-        }
-
-        private static final int MAX_SIMPLE = 3;
-
-        private boolean isInitialPosition(int cell) {
-            if (count <= MAX_SIMPLE) {
-                return values[cell] == cell;
-            } else {
-                if (cell == 0) {
-                    return values[cell] == 0;
-                }
-                return values[cell] == initialPosition(cell);
-            }
-        }
-
-        private boolean[] finishedCells;
-        private boolean[] activeCells;
-
-        private int initialPosition(int cell) {
-            if (count <= MAX_SIMPLE) {
-                return cell;
-            }
-            activeCells = new boolean[count];
-            finishedCells = new boolean[count];
-//            if (cell == 0) {
-//                return 0;
-//            }
-//            int halfway = max / 2;
-//            int offset = halfway - ((count - 2) / 2);
-//            int cellOffsetFromOne = cell - 1;
-//            offset += cellOffsetFromOne;
-//            return offset;
-            return cell;
-        }
-
-        private void update() {
-            if (count <= MAX_SIMPLE) {
-                simpleUpdate();
-                return;
-            }
-
-        }
-
-        private void simpleUpdate() {
-            int endPoint = max - 1;
-            int leastUnmovedMovableColumn = -1;
-            int notAtEndIndex = -1;
-            for (int i = values.length - 1; i >= 0; i--) {
-                int val = values[i];
-                if (notAtEndIndex == -1 && val != endPoint) {
-                    notAtEndIndex = i;
-                }
-                if (i > 0 && val == i && leastUnmovedMovableColumn == -1) {
-                    leastUnmovedMovableColumn = i;
-                }
-                endPoint--;
-            }
-            if (notAtEndIndex <= 0) {
-                nextCount();
-            } else {
-                if (values[notAtEndIndex] == notAtEndIndex && count >= 3 && notAtEndIndex < count - 1) {
-//                    if (values[leastUnmovedMovableColumn] != values[notAtEndIndex]) {
-//                        values[leastUnmovedMovableColumn]++;
-//                    } else {
-//                        values[notAtEndIndex + 1] = values[notAtEndIndex] + 1;
-//                    }
-                    values[notAtEndIndex]++;
-                } else {
-                    values[notAtEndIndex]++;
-                }
-            }
-        }
-
-        public int[] nextInterstice() {
-//            int[] result = Arrays.copyOf(values, values.length);
-            if (count == 1) {
-                nextCount();
-                return values;
-            } else if (count >= max) {
-                return null;
-            }
-            update();
-
-            return values;
         }
     }
 }

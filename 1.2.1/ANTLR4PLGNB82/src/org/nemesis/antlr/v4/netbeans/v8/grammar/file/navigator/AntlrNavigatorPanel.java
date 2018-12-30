@@ -21,13 +21,12 @@ import javax.swing.JPopupMenu;
 import javax.swing.JSeparator;
 import javax.swing.KeyStroke;
 import javax.swing.ListModel;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_NAMED_ALTERNATIVE_SUBRULE;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.FRAGMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.LEXER;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.PARSER;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetHeteroObjectGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.SortTypes.NATURAL;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.awt.HtmlRenderer;
@@ -44,7 +43,7 @@ import org.openide.util.NbPreferences;
 @NavigatorPanel.Registration(mimeType = "text/x-g4", displayName = "Rules", position = 0)
 @Messages({"navigator-panel-name=ANTLR Rules",
     "navigator-panel-hint=Lists rules for ANTLR 4 grammar (.g4) files"})
-public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclaration> {
+public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> {
 
     private static final String PREFERENCES_KEY_NAVIGATOR_ALTERNATIVES = "navigator-alternatives";
     private static final String PREFERENCES_KEY_NAVIGATOR_SORT = "navigator-sort";
@@ -77,44 +76,59 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
         return sort;
     }
 
-    private void rebuildModel(EditorAndChangeAwareListModel<RuleDeclaration> oldModel, SortTypes modelSortedAs) {
+    private void rebuildModel(EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> oldModel, SortTypes modelSortedAs) {
         if (oldModel.change != changeCount.get()) {
             return;
         }
         int size = oldModel.getSize();
-        List<RuleDeclaration> els = new ArrayList<>(size);
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> els = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            RuleDeclaration el = oldModel.getElementAt(i);
-            if (el.kind() != PARSER_NAMED_ALTERNATIVE_SUBRULE) {
+            NamedSemanticRegion<AntlrExtractor.RuleTypes> el = oldModel.getElementAt(i);
+            if (el.kind() != RuleTypes.NAMED_ALTERNATIVES) {
                 els.add(oldModel.getElementAt(i));
             }
         }
         replaceModelFromList(oldModel.cookie, els, modelSortedAs, oldModel.change, oldModel.semantics);
     }
 
-    private void replaceModelFromList(EditorCookie ck, List<RuleDeclaration> rules, SortTypes listSortedBy, int change, ANTLRv4SemanticParser semantics) {
-        EditorAndChangeAwareListModel<RuleDeclaration> nue
-                = new EditorAndChangeAwareListModel<RuleDeclaration>(ck, change, semantics);
-        RuleDeclaration oldSelection = null;
+    private static List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> toList(Iterable<NamedSemanticRegion<AntlrExtractor.RuleTypes>> it) {
+        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> result = new ArrayList<>();
+        for (NamedSemanticRegion<RuleTypes> ns : it) {
+            result.add(ns);
+        }
+        return result;
+    }
+
+    private void replaceModelFromList(EditorCookie ck, List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> rules, SortTypes listSortedBy, int change, Extraction extraction) {
+        EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> nue
+                = new EditorAndChangeAwareListModel<>(ck, change, extraction);
+        NamedSemanticRegion<AntlrExtractor.RuleTypes> oldSelection = null;
         if (list.getModel() instanceof EditorAndChangeAwareListModel) {
             oldSelection = list.getSelectedValue();
         }
         if (sort != listSortedBy) {
-            sort.sort(rules, semantics);
+            sort.sort(rules, extraction, AntlrExtractor.RULE_NAME_REFERENCES);
         }
         int newSelectedIndex = -1;
+
+        NamedSemanticRegions<RuleTypes> namedAlts = extraction.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES);
+        NamedSemanticRegions<RuleTypes> ruleBounds = extraction.namedRegions(AntlrExtractor.RULE_BOUNDS);
+
+        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, NamedSemanticRegion<RuleTypes>, ?, NamedSemanticRegions<RuleTypes>> graph = ruleBounds.crossReference(namedAlts);
+
         for (int i = 0; i < rules.size(); i++) {
-            RuleDeclaration rule = rules.get(i);
-            if (oldSelection != null && rule.getRuleID().equals(oldSelection.getRuleID())) {
+            NamedSemanticRegion<AntlrExtractor.RuleTypes> rule = rules.get(i);
+            if (oldSelection != null && rule.name().equals(oldSelection.name())) {
                 newSelectedIndex = nue.getSize();
             }
             nue.addElement(rule);
-            if (showAlternatives && rule.hasNamedAlternatives()) {
-                List<RuleDeclaration> alts = new ArrayList<>(rule.namedAlternatives());
+
+            if (showAlternatives && graph.leftSlice().childCount(rule) > 0) {
+                List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> alts = new ArrayList<>(graph.leftSlice().children(rule));
                 switch (sort) {
                     case ALPHA:
                     case ALPHA_TYPE:
-                        sort.sort(alts, semantics);
+                        sort.sort(alts, extraction, AntlrExtractor.RULE_NAME_REFERENCES);
                         break;
                     case NATURAL:
                         // These will always be natural sort, as originally created
@@ -123,9 +137,9 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
                         // Eigenvector and pagerank are meaningless here since
                         // these are labels for rules, not rules - they do
                         // not have a ranking score
-                        SortTypes.ALPHA.sort(alts, semantics);
+                        SortTypes.ALPHA.sort(alts, extraction, AntlrExtractor.RULE_NAME_REFERENCES);
                 }
-                for (RuleDeclaration alt : alts) {
+                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> alt : alts) {
                     nue.addElement(alt);
                 }
             }
@@ -135,11 +149,11 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
 
     @SuppressWarnings("unchecked")
     void setShowAlternatives(boolean showAlternatives) {
-        ListModel<RuleDeclaration> mdl = list.getModel();
+        ListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> mdl = list.getModel();
         if (this.showAlternatives != showAlternatives) {
             this.showAlternatives = showAlternatives;
             if (mdl instanceof EditorAndChangeAwareListModel<?> && mdl.getSize() > 0) {
-                rebuildModel((EditorAndChangeAwareListModel<RuleDeclaration>) mdl, sort);
+                rebuildModel((EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>>) mdl, sort);
             }
             NbPreferences.forModule(AntlrNavigatorPanel.class).putBoolean(
                     PREFERENCES_KEY_NAVIGATOR_ALTERNATIVES, showAlternatives);
@@ -150,10 +164,10 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
     void setSort(SortTypes sort) {
         SortTypes old = this.sort;
         if (old != sort) {
-            ListModel<RuleDeclaration> mdl = list.getModel();
+            ListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> mdl = list.getModel();
             this.sort = sort;
             if (mdl instanceof EditorAndChangeAwareListModel<?> && mdl.getSize() > 0) {
-                rebuildModel((EditorAndChangeAwareListModel<RuleDeclaration>) mdl, old);
+                rebuildModel((EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>>) mdl, old);
             }
             NbPreferences.forModule(AntlrNavigatorPanel.class).put(
                     PREFERENCES_KEY_NAVIGATOR_SORT, sort.name());
@@ -163,8 +177,8 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
     @Messages({"show-alternatives=Show Named Alternatives",
         "list-tootip=Click to navigate; right click to show popup"})
     @SuppressWarnings("unchecked")
-    protected ActivatedTcPreCheckJList<RuleDeclaration> createList() {
-        final ActivatedTcPreCheckJList<RuleDeclaration> result = new ActivatedTcPreCheckJList<>();
+    protected ActivatedTcPreCheckJList<NamedSemanticRegion<AntlrExtractor.RuleTypes>> createList() {
+        final ActivatedTcPreCheckJList<NamedSemanticRegion<AntlrExtractor.RuleTypes>> result = new ActivatedTcPreCheckJList<>();
         result.setToolTipText(Bundle.list_tootip());
         // Listen for clicks, not selection events
         result.addMouseListener(new MouseAdapter() {
@@ -186,13 +200,13 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
                     menu.add(show);
                     menu.show(list, e.getX(), e.getY());
                 } else {
-                    EditorAndChangeAwareListModel<RuleDeclaration> mdl
+                    EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> mdl
                             = result.getModel() instanceof EditorAndChangeAwareListModel<?>
-                            ? (EditorAndChangeAwareListModel<RuleDeclaration>) result.getModel() : null;
+                            ? (EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>>) result.getModel() : null;
                     if (mdl != null) {
                         int loc = result.locationToIndex(e.getPoint());
                         if (loc >= 0 && loc < result.getModel().getSize()) {
-                            RuleDeclaration el = result.getModel().getElementAt(loc);
+                            NamedSemanticRegion<AntlrExtractor.RuleTypes> el = result.getModel().getElementAt(loc);
                             moveTo(mdl.cookie, el);
                         }
                     }
@@ -206,7 +220,7 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
             @SuppressWarnings("unchecked")
             public void actionPerformed(ActionEvent e) {
                 if (list != null && list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
-                    EditorAndChangeAwareListModel<RuleDeclaration> mdl = (EditorAndChangeAwareListModel<RuleDeclaration>) list.getModel();
+                    EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> mdl = (EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>>) list.getModel();
                     int selected = list.getSelectedIndex();
                     if (selected >= 0 && selected < mdl.getSize()) {
                         moveTo(mdl.cookie, mdl.elementAt(selected));
@@ -217,13 +231,13 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
         renderer.setRenderStyle(HtmlRenderer.STYLE_CLIP);
-        final EnumMap<RuleElementTarget, ? extends Icon> iconForType = iconForTypeMap();
+        final EnumMap<RuleTypes, ? extends Icon> iconForType = iconForTypeMap();
         final ImageIcon alternativeIcon = alternativeIcon();
         assert alternativeIcon != null : "alternative.png is missing";
-        result.setCellRenderer((JList<? extends RuleDeclaration> list1, RuleDeclaration value, int index, boolean isSelected, boolean cellHasFocus) -> {
-            String txt = value.getRuleID();
+        result.setCellRenderer((JList<? extends NamedSemanticRegion<AntlrExtractor.RuleTypes>> list1, NamedSemanticRegion<AntlrExtractor.RuleTypes> value, int index, boolean isSelected, boolean cellHasFocus) -> {
+            String txt = value.name();
             Component render = renderer.getListCellRendererComponent(list1, txt, index, isSelected, cellHasFocus);
-            RuleElementTarget tgt = value.kind().target();
+            RuleTypes tgt = value.kind();
             switch (tgt) {
                 case FRAGMENT:
                     txt = "<i>" + txt;
@@ -233,7 +247,7 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
                     renderer.setHtml(false);
                     break;
                 case PARSER:
-                    if (value.kind() != PARSER_NAMED_ALTERNATIVE_SUBRULE) {
+                    if (value.kind() != RuleTypes.NAMED_ALTERNATIVES) {
                         renderer.setHtml(true);
                         txt = "<b>" + txt;
                     }
@@ -241,7 +255,7 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
             }
             renderer.setText(txt);
             renderer.setParentFocused(isTopComponentActive());
-            if (value.kind() == PARSER_NAMED_ALTERNATIVE_SUBRULE) {
+            if (value.kind() == RuleTypes.NAMED_ALTERNATIVES) {
                 // Subrules are indented for a tree-like display
                 renderer.setIcon(alternativeIcon);
                 renderer.setIndent(alternativeIcon.getIconWidth() + 5 + 3);
@@ -262,7 +276,7 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
         return list != null && list.isActive();
     }
 
-    private void moveTo(EditorCookie cookie, RuleDeclaration el) {
+    private void moveTo(EditorCookie cookie, NamedSemanticRegion<AntlrExtractor.RuleTypes> el) {
         try {
             cookie.openDocument();
             JEditorPane[] panes = cookie.getOpenedPanes();
@@ -275,15 +289,15 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
     }
 
     @SuppressWarnings("deprecation")
-    private void moveTo(JEditorPane pane, RuleDeclaration el) {
+    private void moveTo(JEditorPane pane, NamedSemanticRegion<AntlrExtractor.RuleTypes> el) {
         assert EventQueue.isDispatchThread();
         int len = pane.getDocument().getLength();
-        if (el.getStartOffset() < len && el.getEndOffset() <= len) {
-            moveTo(pane, el.getStartOffset(), el.getEndOffset());
+        if (el.start() < len && el.end() <= len) {
+            moveTo(pane, el.start(), el.end());
         }
     }
 
-    void setNewModel(EditorAndChangeAwareListModel<RuleDeclaration> mdl, int expectedChange, int selectedIndex) {
+    void setNewModel(EditorAndChangeAwareListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> mdl, int expectedChange, int selectedIndex) {
         Mutex.EVENT.readAccess(() -> {
             if (list == null) {
                 return;
@@ -292,7 +306,7 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
                 return;
             }
             if (mdl == null) {
-                ListModel<RuleDeclaration> old = list.getModel();
+                ListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> old = list.getModel();
                 if (old.getSize() > 0) {
                     list.setModel(EmptyListModel.EMPTY_MODEL);
                 }
@@ -314,8 +328,10 @@ public class AntlrNavigatorPanel extends AbstractAntlrNavigatorPanel<RuleDeclara
         setNewModel(null, forChange, -1);
     }
 
-    protected void withNewModel(ANTLRv4SemanticParser semantics, EditorCookie ck, int forChange) {
-        List<RuleDeclaration> elements = semantics.allDeclarations();
-        replaceModelFromList(ck, elements, SortTypes.NATURAL, forChange, semantics);
+    protected void withNewModel(Extraction extraction, EditorCookie ck, int forChange) {
+        NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrExtractor.RULE_BOUNDS);
+        NamedSemanticRegions<RuleTypes> alts = extraction.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES);
+        Iterable<NamedSemanticRegion<RuleTypes>> it = rules.combinedIterable(alts, true);
+        replaceModelFromList(ck, toList(it), SortTypes.NATURAL, forChange, extraction);
     }
 }

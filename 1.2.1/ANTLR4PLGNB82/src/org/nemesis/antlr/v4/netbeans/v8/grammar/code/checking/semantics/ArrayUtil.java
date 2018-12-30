@@ -7,25 +7,26 @@ import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.A
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.Bias.NONE;
 
 /**
- * Utilities for manipulating and searching in arrays and paris of start/end arrays which
- * may contain duplicate entries, or where the ends array may be unsorted.
+ * Utilities for manipulating and searching in arrays and paris of start/end
+ * arrays which may contain duplicate entries, or where the ends array may be
+ * unsorted.
  *
  * @author Tim Boudreau
  */
 final class ArrayUtil {
 
     /**
-     * Perform a binary search for the offset of a start/end pair which
-     * contains the passed position.
+     * Perform a binary search for the offset of a start/end pair which contains
+     * the passed position.
      *
      * @param pos The position
      * @param searchFirst The first element to examine
      * @param searchLast The last element to examin
      * @param starts The array of start positions
-     * @param ends Provider of end positions (which may be based on string length
-     * rather than being an actual array)
-     * @param size The size of the array, in the case there are trailing
-     * unused entries
+     * @param ends Provider of end positions (which may be based on string
+     * length rather than being an actual array)
+     * @param size The size of the array, in the case there are trailing unused
+     * entries
      * @return A position, or -1 if the request cannot be satisfied
      */
     static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
@@ -64,14 +65,14 @@ final class ArrayUtil {
     }
 
     /**
-     * Perform a binary search in set of start/end pairs, to locate the
-     * index of that pair (if any) where start &lt;= pos and end &gt; pos.
+     * Perform a binary search in set of start/end pairs, to locate the index of
+     * that pair (if any) where start &lt;= pos and end &gt; pos.
      *
      * @param pos The position
      * @param starts The array of start offsets, sorted
      * @param ends A provider of end positions
-     * @param size The utilized size of the array, which may be smaller than
-     * the array size
+     * @param size The utilized size of the array, which may be smaller than the
+     * array size
      * @return An integer offset or -1
      */
     static int rangeBinarySearch(int pos, int[] starts, EndSupplier ends, int size) {
@@ -138,9 +139,9 @@ final class ArrayUtil {
     }
 
     /**
-     * In the case of a sorted array which may contain duplicate elements,
-     * find the offset of the last element which is less than or equal
-     * to the passed position.
+     * In the case of a sorted array which may contain duplicate elements, find
+     * the offset of the last element which is less than or equal to the passed
+     * position.
      *
      * @param pos The position
      * @param in The array to examine
@@ -152,9 +153,9 @@ final class ArrayUtil {
     }
 
     /**
-     * In the case of a sorted array which may contain duplicate elements,
-     * find the offset of the last element which is less than or equal
-     * to the passed position.
+     * In the case of a sorted array which may contain duplicate elements, find
+     * the offset of the last element which is less than or equal to the passed
+     * position.
      *
      * @param pos The position
      * @param in The array to examine
@@ -199,12 +200,13 @@ final class ArrayUtil {
      * @param starts An array of start offsets
      * @param ends An array of end offsets
      * @param size The effective size of the arrays
-     * @param hasNesting If true, the ends array may be unsorted and have nested items
+     * @param hasNesting If true, the ends array may be unsorted and have nested
+     * items
      * @param firstUnsortedEndsEntry The last index of the ends array which is
-     * definitely sorted, so faster binary search operations can be used for queries
-     * which definitely pertain only to items below this index
-     * @return a 2-element array containing the offset and the nesting depth
-     * at that offset, as defined by SemanticRegions
+     * definitely sorted, so faster binary search operations can be used for
+     * queries which definitely pertain only to items below this index
+     * @return a 2-element array containing the offset and the nesting depth at
+     * that offset, as defined by SemanticRegions
      */
     static int[] nestingBinarySearch(int pos, int[] starts, int[] ends, int size, boolean hasNesting, int firstUnsortedEndsEntry) {
         return nestingBinarySearch(pos, hasNesting, starts, ends, size, 0, firstUnsortedEndsEntry);
@@ -231,6 +233,41 @@ final class ArrayUtil {
         @Override
         public int get(int index) {
             return arr[index];
+        }
+
+        @Override
+        public int size() {
+            return arr.length;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof ArrayEndSupplier) {
+                return Arrays.equals(arr, ((ArrayEndSupplier) o).ends);
+            } else if (o instanceof Arr) {
+                return Arrays.equals(arr, ((Arr) o).arr);
+            } else if (o instanceof EndSupplier) {
+                EndSupplier other = (EndSupplier) o;
+                if (other.size() == size()) {
+                    int sz = size();
+                    for (int i = 0; i < sz; i++) {
+                        int a = get(i);
+                        int b = other.get(i);
+                        if (a != b) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public int hashCode() {
+            return endSupplierHashCode(this);
         }
     }
 
@@ -365,6 +402,15 @@ final class ArrayUtil {
 
         int get(int index);
 
+        /**
+         * Note that this size method returns the size of the underlying array,
+         * which may be greater than the size used by the owner. Used in
+         * equality tests.
+         *
+         * @return A size
+         */
+        int size();
+
         default MutableEndSupplier toMutable(int size) {
             int[] result = new int[size];
             for (int i = 0; i < size; i++) {
@@ -404,11 +450,53 @@ final class ArrayUtil {
             ends[index] = val;
         }
 
+        public int size() {
+            return ends.length;
+        }
+
         @Override
         public void remove(int ix) {
             int size = ends.length;
             System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
         }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof ArrayEndSupplier) {
+                return Arrays.equals(ends, ((ArrayEndSupplier) o).ends);
+            } else if (o instanceof Arr) {
+                return Arrays.equals(ends, ((Arr) o).arr);
+            } else if (o instanceof EndSupplier) {
+                EndSupplier other = (EndSupplier) o;
+                if (other.size() == size()) {
+                    int sz = size();
+                    for (int i = 0; i < sz; i++) {
+                        int a = get(i);
+                        int b = other.get(i);
+                        if (a != b) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public int hashCode() {
+            return endSupplierHashCode(this);
+        }
+    }
+
+    static int endSupplierHashCode(EndSupplier es) {
+        int[] ends = new int[es.size()];
+        for (int i = 0; i < ends.length; i++) {
+            ends[i] = es.get(i);
+        }
+        return Arrays.hashCode(ends);
     }
 
     static enum Bias {

@@ -25,7 +25,8 @@ THE SOFTWARE.
 
 <!DOCTYPE bindings PUBLIC "-//NetBeans//DTD Editor KeyBindings settings 1.1//EN" "http://www.netbeans.org/dtds/EditorKeyBindings-1_1.dtd">
 <bindings>
-    <bind actionName="antlr-toggle-comment" key="D-SLASH"/>
-    <bind actionName="next-usage" key="D-B"/>
-    <bind actionName="prev-usage" key="SD-B"/>
+    <!--<bind actionName="antlr-toggle-comment" key="D-SLASH"/>-->
+    <bind actionName="next-usage" key="D-K"/>
+    <bind actionName="prev-usage" key="SD-K"/>
+    <bind actionName="goto-source" key="DS-B"/>
 </bindings>

@@ -14,8 +14,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.cookies.EditorCookie;
 import org.openide.loaders.DataObject;
@@ -207,7 +207,7 @@ public abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
 
     protected abstract void setNoModel(int forChange);
 
-    protected abstract void withNewModel(ANTLRv4SemanticParser semantics, EditorCookie ck, int forChange);
+    protected abstract void withNewModel(Extraction semantics, EditorCookie ck, int forChange);
 
     private void buildModel(EditorCookie ck, int forChange) {
         Document doc = ck.getDocument();
@@ -246,7 +246,7 @@ public abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
             onNoModel();
         }
 
-        protected void onNewModel(ANTLRv4SemanticParser semantics) {
+        protected void onNewModel(Extraction semantics) {
             withNewModel(semantics, ck, forChange);
         }
     }
@@ -259,29 +259,29 @@ public abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
         }
     }
 
-    private static EnumMap<RuleElementTarget, ImageIcon> iconForTypeMap;
+    private static EnumMap<RuleTypes, ImageIcon> iconForTypeMap;
 
-    protected static EnumMap<RuleElementTarget, ImageIcon> iconForTypeMap() {
+    protected static EnumMap<RuleTypes, ImageIcon> iconForTypeMap() {
         if (iconForTypeMap != null) {
             return iconForTypeMap;
         }
-        iconForTypeMap = new EnumMap<>(RuleElementTarget.class);
-        iconForTypeMap.put(RuleElementTarget.FRAGMENT, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + FRAGMENT_PNG, false));
-        iconForTypeMap.put(RuleElementTarget.PARSER, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + PARSER_PNG, false));
-        iconForTypeMap.put(RuleElementTarget.LEXER, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + LEXER_PNG, false));
+        iconForTypeMap = new EnumMap<>(RuleTypes.class);
+        iconForTypeMap.put(RuleTypes.FRAGMENT, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + FRAGMENT_PNG, false));
+        iconForTypeMap.put(RuleTypes.PARSER, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + PARSER_PNG, false));
+        iconForTypeMap.put(RuleTypes.LEXER, ImageUtilities.loadImageIcon(PACKAGE_IMAGE_PATH + LEXER_PNG, false));
         return iconForTypeMap;
     }
 
     public static ImageIcon parserIcon() {
-        return iconForTypeMap().get(RuleElementTarget.PARSER);
+        return iconForTypeMap().get(RuleTypes.PARSER);
     }
 
     public static ImageIcon lexerIcon() {
-        return iconForTypeMap().get(RuleElementTarget.LEXER);
+        return iconForTypeMap().get(RuleTypes.LEXER);
     }
 
     public static ImageIcon fragmentIcon() {
-        return iconForTypeMap().get(RuleElementTarget.FRAGMENT);
+        return iconForTypeMap().get(RuleTypes.FRAGMENT);
     }
 
     private static ImageIcon alternativeIcon;

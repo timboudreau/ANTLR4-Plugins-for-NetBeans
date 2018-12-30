@@ -5,33 +5,27 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 /**
+ * A set implementation which takes a larger bitset and a
+ * smaller indexed, and constrains the set to the starting offset
+ * bit and the length of the indexed, for use by
+ * BitSetHeteroObjectGraph, which models two sets of heterogenous
+ * types as a single bitset mapped to two sets of indexeds.
  *
  * @author Tim Boudreau
  */
-public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
+final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
 
     private final BitSet set;
     private final Indexed<T> data;
+    private final int start;
 
-    public BitSetSet(Indexed<T> data) {
-        this(data, new BitSet(data.size()));
-    }
-
-    public BitSetSet(Indexed<T> data, BitSet set) {
+    public BitSetSliceSet(Indexed<T> data, BitSet set, int start) {
         this.data = data;
         this.set = set;
-    }
-
-    public static BitSetSet forStringList(List<String> data) {
-        return new BitSetSet<>(Indexed.forStringList(data));
-    }
-
-    public static BitSetSet forStringSet(Set<String> data) {
-        return new BitSetSet<>(Indexed.forStringSet(data));
+        this.start = start;
     }
 
     @Override
@@ -41,7 +35,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
     @Override
     public boolean isEmpty() {
-        return set.isEmpty();
+        return set.nextSetBit(start) < 0;
     }
 
     @Override
@@ -60,11 +54,13 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
     class Iter implements Iterator<T> {
 
-        int ix = -1;
+        int ix = start - 1;
+        int count = 0;
 
         @Override
         public boolean hasNext() {
-            return set.nextSetBit(ix + 1) >= 0;
+            int result = set.nextSetBit(ix + 1);
+            return result >= 0 && count < data.size();
         }
 
         @Override
@@ -74,7 +70,9 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
                 throw new IllegalStateException();
             }
             ix = offset;
-            return get(ix);
+            T result = get(ix);
+            count++;
+            return result;
         }
     }
 
@@ -128,6 +126,9 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
     @Override
     public boolean retainAll(Collection<?> c) {
         BitSet nue = new BitSet(set.size());
+        if (start > 0) {
+            nue.set(0, start - 1);
+        }
         for (Object o : c) {
             int ix = indexOf(o);
             if (ix >= 0) {
@@ -140,18 +141,18 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
     }
 
     private int indexOf(Object o) {
-        return data.indexOf(o);
+        return data.indexOf(o) + start;
     }
 
     private T get(int index) {
         try {
-            return data.forIndex(index);
+            return data.forIndex(index - start);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Indexed size mismatch in "
-                    + "BitSetSet with cardinality " + set.cardinality()
+                    + "BitSetSliceSet starting at " + start + " with cardinality " + set.cardinality()
                     + " firstSetBit " + firstSet() + " lastSetBit " + lastSet()
                     + " over indexed with size " + data.size(),
-                     ex);
+                    ex);
         }
     }
 
@@ -160,7 +161,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
     }
 
     private int firstSet() {
-        return set.nextSetBit(0);
+        return set.nextSetBit(start);
     }
 
     @Override

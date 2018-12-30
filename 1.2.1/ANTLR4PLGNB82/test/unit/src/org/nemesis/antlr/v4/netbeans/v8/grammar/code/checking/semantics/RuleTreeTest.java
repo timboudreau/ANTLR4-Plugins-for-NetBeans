@@ -5,7 +5,7 @@ import java.util.Iterator;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree.Score;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph.Score;
 
 /**
  *
@@ -61,7 +61,7 @@ public class RuleTreeTest {
 
     @Test
     public void testCentrality() {
-        StringRuleTree irt = (StringRuleTree) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().strings(names2);
+        BitSetStringGraph irt = (BitSetStringGraph) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().strings(names2);
         System.out.println("\n************* EIGENVECTOR ************");
         for (Score score : irt.eigenvectorCentrality()) {
             System.out.println("  " + score + " closureSize " + irt.closureSize(score.node()));
@@ -76,13 +76,12 @@ public class RuleTreeTest {
         for (String score : irt.disjunctionOfClosureOfMostCentralNodes()) {
             System.out.println("  " + score);
         }
-
     }
 
     @Test
     public void testSomeMethod() {
-        RuleTree irt = traverseAll(RULES_1, new BitSetTreeBuilder(names)).toRuleTree().strings(names);
-        RuleTree srt = traverseAll(RULES_1, new RuleTreeBuilder()).toRuleTree();
+        StringGraph irt = traverseAll(RULES_1, new BitSetTreeBuilder(names)).toRuleTree().strings(names);
+        StringGraph srt = traverseAll(RULES_1, new RuleTreeBuilder()).toRuleTree();
         Iterator<String> a = srt.edgeStrings().iterator();
         Iterator<String> b = irt.edgeStrings().iterator();
         int ix = 0;

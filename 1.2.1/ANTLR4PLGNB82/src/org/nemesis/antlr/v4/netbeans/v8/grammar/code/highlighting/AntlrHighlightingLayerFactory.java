@@ -17,7 +17,7 @@ import org.netbeans.spi.editor.highlighting.ZOrder;
 })
 public class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
 
-    public static <T extends AbstractAntlrHighlighter<?,?,?>> T highlighter(Document doc, Class<T> type, Supplier<T> ifNone) {
+    public static <T extends AbstractAntlrHighlighter<?, ?, ?>> T highlighter(Document doc, Class<T> type, Supplier<T> ifNone) {
         T highlighter = existingHighlighter(doc, type);
         if (highlighter == null) {
             highlighter = ifNone.get();
@@ -26,29 +26,33 @@ public class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
         return highlighter;
     }
 
-    public static <T extends AbstractAntlrHighlighter<?,?,?>> T existingHighlighter(Document doc, Class<T> type) {
+    public static <T extends AbstractAntlrHighlighter<?, ?, ?>> T existingHighlighter(Document doc, Class<T> type) {
         Object result = doc.getProperty(type);
         return result == null ? null : type.cast(result);
     }
 
-    public static AbstractAntlrHighlighter<?,?,?> getMarkOccurrencesHighlighter(Document doc) {
+    public static AbstractAntlrHighlighter<?, ?, ?> getMarkOccurrencesHighlighter(Document doc) {
         return highlighter(doc, AntlrMarkOccurrencesHighlighter.class, () -> new AntlrMarkOccurrencesHighlighter(doc));
     }
 
-    public static AbstractAntlrHighlighter<?,?,?> getDeclarationHighlighter(Document doc) {
+    public static AbstractAntlrHighlighter<?, ?, ?> getDeclarationHighlighter(Document doc) {
         return highlighter(doc, AntlrDeclarationHighlighter.class, () -> new AntlrDeclarationHighlighter(doc));
     }
 
-    public static AbstractAntlrHighlighter<?,?,?> getFragmentHighlighter(Document doc) {
+    public static AbstractAntlrHighlighter<?, ?, ?> getFragmentHighlighter(Document doc) {
         return highlighter(doc, AntlrFragmentHighlighter.class, () -> new AntlrFragmentHighlighter(doc));
     }
 
-    public static AbstractAntlrHighlighter<?,?,?> getEbnfHighlighter(Document doc) {
+    public static AbstractAntlrHighlighter<?, ?, ?> getEbnfHighlighter(Document doc) {
         return highlighter(doc, AntlrEbnfHighlighter.class, () -> new AntlrEbnfHighlighter(doc));
     }
 
-    public static AbstractAntlrHighlighter<?,?,?> getNestingDepthHighlighter(Document doc) {
+    public static AbstractAntlrHighlighter<?, ?, ?> getNestingDepthHighlighter(Document doc) {
         return highlighter(doc, AntlrNestingDepthHighlighter.class, () -> new AntlrNestingDepthHighlighter(doc));
+    }
+
+    public static AbstractAntlrHighlighter<?, ?, ?> getHeaderMatterHighlighter(Document doc) {
+        return highlighter(doc, AntlrHeaderMatterHighlighter.class, () -> new AntlrHeaderMatterHighlighter(doc));
     }
 
     @Override
@@ -67,6 +71,11 @@ public class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
                 ZOrder.SYNTAX_RACK.forPosition(2052),
                 true,
                 getEbnfHighlighter(context.getDocument()).getHighlightsBag());
+        HighlightsLayer hdr = HighlightsLayer.create(
+                AntlrHeaderMatterHighlighter.class.getName(),
+                ZOrder.SYNTAX_RACK.forPosition(2052),
+                true,
+                getHeaderMatterHighlighter(context.getDocument()).getHighlightsBag());
         HighlightsLayer nesting = HighlightsLayer.create(
                 AntlrNestingDepthHighlighter.class.getName(),
                 ZOrder.SYNTAX_RACK.forPosition(2051),
@@ -78,6 +87,6 @@ public class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
 //                ZOrder.SYNTAX_RACK.forPosition(2000),
 //                true,
 //                getMarkOccurrencesHighlighter(context.getDocument()).getHighlightsBag());
-        return new HighlightsLayer[]{semantic, fragments, ebnfs, nesting/*, markOccurrences*/};
+        return new HighlightsLayer[]{semantic, fragments, ebnfs, nesting, hdr/*, markOccurrences*/};
     }
 }

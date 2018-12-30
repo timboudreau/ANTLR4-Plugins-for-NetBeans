@@ -12,19 +12,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetTree.IntRuleVisitor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree.Score;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph.Score;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.BitSetGraph.IntGraphVisitor;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class BitSetStringGraph {
+public class BitSetStringGraph implements StringGraph {
 
-    private final BitSetTree tree;
+    private final BitSetGraph tree;
     private final String[] items;
 
-    BitSetStringGraph(BitSetTree tree, String[] sortedArray) {
+    BitSetStringGraph(BitSetGraph tree, String[] sortedArray) {
         this.tree = tree;
         this.items = sortedArray;
     }
@@ -54,7 +54,7 @@ public class BitSetStringGraph {
             throw new IOException("Unsupoorted version " + v);
         }
         String[] sortedArray = (String[]) in.readObject();
-        BitSetTree tree = BitSetTree.load(in);
+        BitSetGraph tree = BitSetGraph.load(in);
         return new BitSetStringGraph(tree, sortedArray);
     }
 
@@ -78,8 +78,8 @@ public class BitSetStringGraph {
         }
     }
 
-    public void walk(RuleVisitor v) {
-        tree.walk(new IntRuleVisitor() {
+    public void walk(StringGraphVisitor v) {
+        tree.walk(new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -92,12 +92,12 @@ public class BitSetStringGraph {
         });
     }
 
-    public void walk(String start, RuleVisitor v) {
+    public void walk(String start, StringGraphVisitor v) {
         int ix = indexOf(start);
         if (ix < 0) {
             return;
         }
-        tree.walk(ix, new IntRuleVisitor() {
+        tree.walk(ix, new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -110,12 +110,12 @@ public class BitSetStringGraph {
         });
     }
 
-    public void walkUpwards(String start, RuleVisitor v) {
+    public void walkUpwards(String start, StringGraphVisitor v) {
         int ix = indexOf(start);
         if (ix < 0) {
             return;
         }
-        tree.walkUpwards(ix, new IntRuleVisitor() {
+        tree.walkUpwards(ix, new IntGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -221,7 +221,7 @@ public class BitSetStringGraph {
         if (ix == -1) {
             return Collections.emptySet();
         }
-        return collect(tree.parents(ix));
+        return setOf(tree.parents(ix));
     }
 
     public Set<String> children(String node) {
@@ -229,7 +229,7 @@ public class BitSetStringGraph {
         if (ix == -1) {
             return Collections.emptySet();
         }
-        return collect(tree.children(ix));
+        return setOf(tree.children(ix));
     }
 
     public Set<String> edgeStrings() {
@@ -238,6 +238,16 @@ public class BitSetStringGraph {
             result.add(nameOf(pair[0]) + ":" + nameOf(pair[1]));
         }
         return result;
+    }
+
+    @Override
+    public Set<String> topLevelOrOrphanRules() {
+        return setOf(tree.topLevelOrOrphanRules());
+    }
+
+    @Override
+    public Set<String> bottomLevelRules() {
+        return setOf(tree.bottomLevelRules());
     }
 
     private int indexOf(String name) {
@@ -252,7 +262,7 @@ public class BitSetStringGraph {
         return items[index];
     }
 
-    private Set<String> collect(BitSet set) {
+    private Set<String> setOf(BitSet set) {
         int count = set.cardinality();
         if (count == 0) {
             return Collections.emptySet();
@@ -271,11 +281,11 @@ public class BitSetStringGraph {
     }
 
     public Set<String> topLevelOrOrphanNodes() {
-        return collect(tree.topLevelOrOrphanRules());
+        return setOf(tree.topLevelOrOrphanRules());
     }
 
     public Set<String> bottomLevelNodes() {
-        return collect(tree.bottomLevelRules());
+        return setOf(tree.bottomLevelRules());
     }
 
     public boolean isUnreferenced(String node) {
@@ -296,13 +306,13 @@ public class BitSetStringGraph {
     public Set<String> reverseClosureOf(String node) {
         int ix = indexOf(node);
         return ix < 0 ? Collections.emptySet()
-                : collect(tree.reverseClosureOf(ix));
+                : setOf(tree.reverseClosureOf(ix));
     }
 
     public Set<String> closureOf(String node) {
         int ix = indexOf(node);
         return ix < 0 ? Collections.emptySet()
-                : collect(tree.closureOf(ix));
+                : setOf(tree.closureOf(ix));
     }
 
     public boolean hasInboundEdge(String from, String to) {
@@ -318,7 +328,7 @@ public class BitSetStringGraph {
     }
 
     public String toString() {
-        StringBuilder sb = new StringBuilder(tree.toString()).append("\n");
+        StringBuilder sb = new StringBuilder(512);
         walk((String rule, int depth) -> {
             char[] c = new char[depth * 2];
             Arrays.fill(c, ' ');
@@ -332,13 +342,13 @@ public class BitSetStringGraph {
     }
 
     private void topsString(StringBuilder into) {
-        BitSetTree.forEach(tree.topLevelOrOrphanRules(), i -> {
+        BitSetGraph.forEach(tree.topLevelOrOrphanRules(), i -> {
             into.append(' ').append(nameOf(i));
         });
     }
 
     private void bottomsString(StringBuilder into) {
-        BitSetTree.forEach(tree.bottomLevelRules(), i -> {
+        BitSetGraph.forEach(tree.bottomLevelRules(), i -> {
             into.append(' ').append(nameOf(i));
         });
     }

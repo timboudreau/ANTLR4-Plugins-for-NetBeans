@@ -45,9 +45,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.ArrayEndSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.EndSupplier;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.MutableEndSupplier;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ArrayUtil.endSupplierHashCode;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.IndexAddressable.NamedIndexAddressable;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
@@ -61,7 +65,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.Semantic
  *
  * @author Tim Boudreau
  */
-public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSemanticRegion<K>>, Externalizable, IndexAddressable<NamedSemanticRegion<K>> {
+public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSemanticRegion<K>>, Externalizable, NamedIndexAddressable<NamedSemanticRegion<K>> {
 
     private final int[] starts;
     private final EndSupplier ends;
@@ -241,12 +245,19 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static final NamedSemanticRegions<?> EMPTY = new NamedSemanticRegions(new String[0], new Enum[0], 0);
+
+    @SuppressWarnings("unchecked")
+    public static <T extends Enum<T>> NamedSemanticRegions<T> empty() {
+        return (NamedSemanticRegions<T>) EMPTY;
+    }
+
     NamedSemanticRegions(String[] names, int[] starts, int[] ends, K[] kinds, int size) {
         assert starts != null && ends != null && starts.length == ends.length;
         assert names != null && names.length == starts.length;
         assert kinds != null && kinds.length == names.length;
         assert kinds.getClass().getComponentType().isEnum();
-//        assert kinds.getClass().getEnumConstants().length < 65536;
         this.names = names;
         this.starts = starts;
         this.ends = ArrayUtil.createMutableArrayEndSupplier(ends);
@@ -281,6 +292,45 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return names;
     }
 
+    public boolean equalTo(NamedSemanticRegions<?> other) {
+        if (other != null && other.size == size && other.kinds.getClass().getComponentType() == kinds.getClass().getComponentType()) {
+            return Arrays.equals(names, other.names)
+                    && Arrays.equals(kinds, other.kinds)
+                    && Arrays.equals(starts, other.starts)
+                    && other.ends.equals(ends);
+        }
+        return false;
+    }
+
+    public Set<String> collectNames(Predicate<NamedSemanticRegion<K>> pred) {
+        BitSet set = new BitSet(size());
+        for (NamedSemanticRegion<K> r : this) {
+            if (pred.test(r)) {
+                set.set(r.index());
+            }
+        }
+        return new BitSetSet<>(new IndexedStringAdapter());
+    }
+
+    class IndexedStringAdapter implements Indexed<String> {
+
+        @Override
+        public int indexOf(Object o) {
+            return Arrays.binarySearch(names, 0, size, o);
+        }
+
+        @Override
+        public String forIndex(int index) {
+            return names[index];
+        }
+
+        @Override
+        public int size() {
+            return NamedSemanticRegions.this.size();
+        }
+
+    }
+
     /**
      * Create a builder for a NamedSemanticRegions with the passed key type.
      *
@@ -312,6 +362,39 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         public int get(int index) {
             return starts[index] == -1 ? -1 : starts[index] + names[index].length();
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof EndSupplier) {
+                EndSupplier other = (EndSupplier) o;
+                if (other.size() == size()) {
+                    int sz = size();
+                    for (int i = 0; i < sz; i++) {
+                        int a = get(i);
+                        int b = other.get(i);
+                        if (a != b) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return endSupplierHashCode(this);
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
     }
 
     public static final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
@@ -320,6 +403,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         private final Map<String, K> typeForName;
         private final Map<String, int[]> offsetsForName;
         private boolean needArrayBased;
+        private final Map<String,Duplicates<K>> duplicates = new HashMap<>();
 
         private NamedSemanticRegionsBuilder(Class<K> type) {
             this.type = type;
@@ -331,9 +415,39 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             needArrayBased = true;
             return this;
         }
+        
+        public void retrieveDuplicates(BiConsumer<String, Iterable<? extends NamedSemanticRegion<K>>> bc) {
+            for (Map.Entry<String, Duplicates<K>> e : duplicates.entrySet()) {
+                bc.accept(e.getKey(), e.getValue());
+            }
+        }
+
+        void addDuplicate(String name, K kind, int start, int end) {
+            Duplicates<K> dups = duplicates.get(name);
+            if (dups == null) {
+                dups = new Duplicates<>(name, start, end, kind);
+                duplicates.put(name, dups);
+                return;
+            }
+            dups.add(start, end, kind);
+        }
 
         public NamedSemanticRegionsBuilder<K> add(String name, K kind, int start, int end) {
-            add(name, kind);
+            assert name != null;
+            assert kind != null;
+            K existing = typeForName.get(name);
+            if (existing != null) {
+                int[] oldOffsets = offsetsForName.get(name);
+                if (oldOffsets == null) {
+                    oldOffsets = new int[] {0,0};
+                }
+                addDuplicate(name, existing, oldOffsets[0], oldOffsets[1]);
+                addDuplicate(name, kind, start, end);
+            }
+            if (existing != null && existing.ordinal() < kind.ordinal()) {
+                return this;
+            }
+            typeForName.put(name, kind);
             offsetsForName.put(name, new int[]{start, end});
             if (end != name.length() + start) {
                 needArrayBased = true;
@@ -341,7 +455,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return this;
         }
 
-        public NamedSemanticRegionsBuilder<K> add(String name, K kind) {
+        NamedSemanticRegionsBuilder<K> add(String name, K kind) {
+            // Removed mutability from API but this is still used by tests
             assert name != null;
             assert kind != null;
             K existing = typeForName.get(name);
@@ -381,6 +496,74 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
             return result;
         }
+
+        static final class Duplicates<K extends Enum<K>> implements Iterable<Duplicates<K>.Dup> {
+            private final String name;
+            private final List<Dup> duplicates;
+            Duplicates(String name, int start, int end, K kind) {
+                this.name = name;
+                duplicates = new ArrayList<>(3);
+                duplicates.add(new Dup(start, end, kind, 0));
+            }
+
+            void add(int start, int end, K kind) {
+                duplicates.add(new Dup(start, end, kind, duplicates.size() + 1));
+            }
+
+            @Override
+            public Iterator<Duplicates<K>.Dup> iterator() {
+                return duplicates.iterator();
+            }
+
+            class Dup implements NamedSemanticRegion<K> {
+                private final int start;
+                private final int end;
+                private final K kind;
+                private final int ordering;
+
+                public Dup(int start, int end, K kind, int ordering) {
+                    this.start = start;
+                    this.end = end;
+                    this.kind = kind;
+                    this.ordering = ordering;
+                }
+
+                @Override
+                public K kind() {
+                    return kind;
+                }
+
+                @Override
+                public int ordering() {
+                    return ordering;
+                }
+
+                @Override
+                public boolean isReference() {
+                    return false;
+                }
+
+                @Override
+                public int start() {
+                    return start;
+                }
+
+                @Override
+                public int end() {
+                    return end;
+                }
+
+                @Override
+                public int index() {
+                    return ordering;
+                }
+
+                @Override
+                public String name() {
+                    return Duplicates.this.name;
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -409,7 +592,9 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
     @Override
     public NamedSemanticRegion<K> forIndex(int index) {
-        assert index >= 0 && index < size;
+        if (index < 0 || index >= size) {
+            throw new IllegalArgumentException("Illegal index " + index);
+        }
         return new IndexNamedSemanticRegionImpl(index);
     }
 
@@ -458,6 +643,16 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
     public Set<String> newSet() {
         return new BitSetSet<>(Indexed.forSortedStringArray(names));
+    }
+
+    @Override
+    public Iterator<NamedSemanticRegion<K>> byPositionIterator() {
+        return index().iterator();
+    }
+
+    @Override
+    public Iterator<NamedSemanticRegion<K>> byNameIterator() {
+        return iterator();
     }
 
     /**
@@ -722,11 +917,17 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
-    public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<NamedRegionReferenceSet<K>>, Serializable, IndexAddressable<NamedSemanticRegionReference<K>> {
+    public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<NamedRegionReferenceSet<K>>, Serializable, NamedIndexAddressable<NamedSemanticRegionReference<K>> {
 
-        public NamedRegionReferenceSet<K> references(String name);
+        NamedRegionReferenceSet<K> references(String name);
 
-        public NamedSemanticRegionReference<K> itemAt(int pos);
+        NamedSemanticRegionReference<K> itemAt(int pos);
+
+        Set<String> collectNames(Predicate<NamedSemanticRegionReference<K>> pred);
+
+        static <Q extends Enum<Q>> NamedRegionReferenceSets<Q> empty() {
+            return new EmptyNamedRegionReferenceSets<>();
+        }
 
         default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {
             for (NamedRegionReferenceSet<K> refs : this) {
@@ -736,7 +937,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
         }
 
-        public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegionReference<K>>, Serializable, IndexAddressable<NamedSemanticRegionReference<K>> {
+        public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegionReference<K>>, Serializable, NamedIndexAddressable<NamedSemanticRegionReference<K>> {
 
             int size();
 
@@ -756,6 +957,113 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
+    static final class EmptyNamedRegionReferenceSets<K extends Enum<K>> implements NamedRegionReferenceSets<K> {
+
+        @Override
+        public NamedRegionReferenceSet<K> references(String name) {
+            return new EmptyRS<>();
+        }
+
+        @Override
+        public NamedSemanticRegionReference<K> itemAt(int pos) {
+            return null;
+        }
+
+        @Override
+        public Set<String> collectNames(Predicate<NamedSemanticRegionReference<K>> pred) {
+            return Collections.emptySet();
+        }
+
+        @Override
+        public Iterator<NamedRegionReferenceSet<K>> iterator() {
+            return Collections.emptyIterator();
+        }
+
+        @Override
+        public Iterator<NamedSemanticRegionReference<K>> byPositionIterator() {
+            return Collections.emptyIterator();
+        }
+
+        @Override
+        public NamedSemanticRegionReference<K> at(int position) {
+            return null;
+        }
+
+        @Override
+        public boolean isChildType(IndexAddressableItem item) {
+            return false;
+        }
+
+        @Override
+        public int indexOf(Object o) {
+            return -1;
+        }
+
+        @Override
+        public NamedSemanticRegionReference<K> forIndex(int index) {
+            return null;
+        }
+
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        private static class EmptyRS<K extends Enum<K>> implements NamedRegionReferenceSet<K> {
+
+            @Override
+            public int size() {
+                return 0;
+            }
+
+            @Override
+            public boolean contains(int pos) {
+                return false;
+            }
+
+            @Override
+            public String name() {
+                return "_";
+            }
+
+            @Override
+            public NamedSemanticRegionReference<K> at(int pos) {
+                return null;
+            }
+
+            @Override
+            public NamedSemanticRegion<K> original() {
+                return null;
+            }
+
+            @Override
+            public Iterator<NamedSemanticRegionReference<K>> iterator() {
+                return Collections.emptyIterator();
+            }
+
+            @Override
+            public Iterator<NamedSemanticRegionReference<K>> byPositionIterator() {
+                return Collections.emptyIterator();
+            }
+
+            @Override
+            public boolean isChildType(IndexAddressableItem item) {
+                return false;
+            }
+
+            @Override
+            public int indexOf(Object o) {
+                return -1;
+            }
+
+            @Override
+            public NamedSemanticRegionReference<K> forIndex(int index) {
+                return null;
+            }
+        }
+
+    }
+
     final class EmptyReferenceSet implements NamedRegionReferenceSet<K> {
 
         private final int index;
@@ -770,6 +1078,10 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         public void collectItems(List<? super NamedSemanticRegionReference<K>> items) {
             // do nothing
+        }
+
+        public Set<String> collectNames(Predicate<NamedSemanticRegionReference<K>> pred) {
+            return Collections.emptySet();
         }
 
         @Override
@@ -807,6 +1119,16 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         public int indexOf(Object o) {
             return -1;
         }
+
+        @Override
+        public Iterator<NamedSemanticRegionReference<K>> byPositionIterator() {
+            return Collections.emptyIterator();
+        }
+
+        @Override
+        public Iterator<NamedSemanticRegionReference<K>> byNameIterator() {
+            return Collections.emptyIterator();
+        }
     }
 
     UsagesImpl newUsages() {
@@ -819,7 +1141,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         public BitSet get(String name);
 
-        public BitSetTree toBitSetTree();
+        public BitSetGraph toBitSetTree();
     }
 
     class UsagesImpl implements Usages {
@@ -830,8 +1152,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             this.usagesForIndex = new BitSet[size()];
         }
 
-        public BitSetTree toBitSetTree() {
-            return new BitSetTree(Arrays.copyOf(usagesForIndex, usagesForIndex.length));
+        public BitSetGraph toBitSetTree() {
+            return new BitSetGraph(Arrays.copyOf(usagesForIndex, usagesForIndex.length));
         }
 
         @Override
@@ -900,6 +1222,16 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         ReferenceSetsImpl(SemanticRegions<Integer> regions) {
             this.regions = regions;
+        }
+
+        public Set<String> collectNames(Predicate<NamedSemanticRegionReference<K>> pred) {
+            Set<String> set = new HashSet<>(size());
+            for (NamedSemanticRegionReference<K> reg : asIterable()) {
+                if (pred.test(reg)) {
+                    set.add(reg.name());
+                }
+            }
+            return set;
         }
 
         public String toString() {
@@ -978,6 +1310,14 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return new RefI();
         }
 
+        @Override
+        public Iterator<NamedSemanticRegionReference<K>> byPositionIterator() {
+            List<NamedSemanticRegionReference<K>> refs = new ArrayList<>();
+            collectItems(refs);
+            Collections.sort(refs);
+            return refs.iterator();
+        }
+
         private class RefI implements Iterator<NamedRegionReferenceSet<K>> {
 
             private final int[][] index = keyIndex();
@@ -997,7 +1337,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
         }
 
-        private class NamedRegionReferenceSetImpl implements NamedRegionReferenceSet<K>, IndexAddressable<NamedSemanticRegionReference<K>> {
+        private class NamedRegionReferenceSetImpl implements NamedRegionReferenceSet<K>, NamedIndexAddressable<NamedSemanticRegionReference<K>> {
 
             private final int[] keys;
             private final int origIndex;
@@ -1055,6 +1395,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 for (NamedSemanticRegionReference<K> r : this) {
                     items.add(r);
                 }
+            }
+
+            @Override
+            public Iterator<NamedSemanticRegionReference<K>> byPositionIterator() {
+                return iterator();
             }
 
             @Override
@@ -1187,6 +1532,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         private transient int[][] keyIndex;
 
         private int[][] keyIndex() {
+            // XXX could use an int[][][] and omit blank arrays for
+            // not-present indices
             if (keyIndex != null) {
                 return keyIndex;
             }
@@ -1312,7 +1659,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
      * A flyweight object which encapsulates one region in a
      * NamedSemanticRegions. Comparable on its start() and end() positions.
      */
-    public interface NamedSemanticRegion<K extends Enum<K>> extends IndexAddressable.IndexAddressableItem {
+    public interface NamedSemanticRegion<K extends Enum<K>> extends IndexAddressable.IndexAddressableItem, Named {
 
         /**
          * Get the assigned "kind" of this region.
@@ -1340,13 +1687,6 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         boolean isReference();
 
         /**
-         * Get the name of this region.
-         *
-         * @return A name
-         */
-        String name();
-
-        /**
          * Determine if this item is a reference to an item in a different
          * NamedSemanticRegionsobject.
          *
@@ -1355,6 +1695,107 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         default boolean isForeign() {
             return false;
         }
+
+        /**
+         * Creates a snapshot of this region, which does not hold a reference to
+         * its owner or any of its arrays, for use in ElementHandles and other
+         * objects which may exist long after this semantic region is defunct.
+         *
+         * @return
+         */
+        default NamedSemanticRegion<K> snapshot() {
+            return new NamedSemanticRegionSnapshot<>(this);
+        }
+
+        /**
+         * Determine if the bounds and name of another item exactly match this
+         * one, without a full equality test.
+         *
+         * @param item Another item
+         * @return true if the item represents the same name, start and end
+         */
+        default boolean boundsAndNameEquals(NamedSemanticRegion<?> item) {
+            return start() == item.start() && end() == item.end()
+                    && Objects.equals(name(), item.name());
+        }
+    }
+
+    private static final class NamedSemanticRegionSnapshot<T extends Enum<T>> implements NamedSemanticRegion<T> {
+
+        private final T kind;
+        private final int ordering;
+        private final int start;
+        private final int end;
+        private final boolean ref;
+        private final String name;
+        private final int index;
+
+        NamedSemanticRegionSnapshot(NamedSemanticRegion<T> orig) {
+            name = orig.name();
+            kind = orig.kind();
+            ordering = orig.ordering();
+            start = orig.start();
+            end = orig.end();
+            ref = orig.isReference();
+            index = orig.index();
+        }
+
+        @Override
+        public T kind() {
+            return kind;
+        }
+
+        @Override
+        public int ordering() {
+            return ordering;
+        }
+
+        @Override
+        public boolean isReference() {
+            return ref;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public int start() {
+            return start;
+        }
+
+        @Override
+        public int end() {
+            return end;
+        }
+
+        @Override
+        public int index() {
+            return index;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof NamedSemanticRegion<?>) {
+                NamedSemanticRegion<?> other = (NamedSemanticRegion<?>) o;
+                return start == other.start() && end == other.end()
+                        && name.equals(other.name()) && Objects.equals(kind, other.kind());
+            }
+            return false;
+        }
+
+        public int hashCode() {
+            return name.hashCode() + (7 * start) + (1029 * end);
+        }
+
+        public String toString() {
+            return "snapshot:" + name + "@" + start + ":" + end;
+        }
+
     }
 
     public interface NamedSemanticRegionPositionIndex<K extends Enum<K>> extends Iterable<NamedSemanticRegion<K>> {
@@ -1670,5 +2111,136 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return "foreign-ref:" + name() + "@" + start + ":" + end() + "<-" + origin
                     + ":" + originalItem();
         }
+    }
+
+    public Iterable<NamedSemanticRegion<K>> combinedIterable(NamedIndexAddressable<? extends NamedSemanticRegion<K>> other, boolean positionSort) {
+        List<NamedIndexAddressable<? extends NamedSemanticRegion<K>>> l = new ArrayList<>(2);
+        l.add(this);
+        l.add(other);
+        return new CombineIterable<>(positionSort, l);
+    }
+
+    public static <K extends Enum<K>> Iterable<NamedSemanticRegion<K>> combine(Collection<? extends NamedIndexAddressable<? extends NamedSemanticRegion<K>>> all, boolean positionSort) {
+        return new CombineIterable<>(positionSort, all);
+    }
+
+    private static class CombineIterable<T extends Enum<T>> implements Iterable<NamedSemanticRegion<T>> {
+
+        private final boolean positionSort;
+        private final Collection<? extends NamedIndexAddressable<? extends NamedSemanticRegion<T>>> coll;
+
+        CombineIterable(boolean positionSort, Collection<? extends NamedIndexAddressable<? extends NamedSemanticRegion<T>>> coll) {
+            this.positionSort = positionSort;
+            this.coll = coll;
+        }
+
+        @Override
+        public Iterator<NamedSemanticRegion<T>> iterator() {
+            return new CIter(positionSort, coll);
+        }
+
+        private static final class CIter<T extends Enum<T>> implements Iterator<NamedSemanticRegion<T>> {
+
+            private final List<IteratorHolder<T>> holders;
+
+            CIter(boolean positionSort, Collection<? extends NamedIndexAddressable<NamedSemanticRegion<T>>> coll) {
+                holders = new ArrayList(coll.size());
+                for (NamedIndexAddressable<NamedSemanticRegion<T>> r : coll) {
+                    holders.add(new IteratorHolder<>(positionSort ? r.byPositionIterator() : r.byNameIterator(), positionSort));
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (holders.isEmpty()) {
+                    return false;
+                }
+                Collections.sort(holders);
+                for (IteratorHolder<T> i : holders) {
+                    if (i.hasNext()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public NamedSemanticRegion<T> next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                return holders.get(0).next();
+            }
+        }
+
+        private static final class IteratorHolder<T extends Enum<T>> implements Iterator<NamedSemanticRegion<T>>, Comparable<IteratorHolder<T>> {
+
+            private final Iterator<NamedSemanticRegion<T>> iter;
+            private NamedSemanticRegion<T> next;
+            private final boolean positionSort;
+
+            public IteratorHolder(Iterator<NamedSemanticRegion<T>> iter, boolean positionSort) {
+                this.iter = iter;
+                next = iter.hasNext() ? iter.next() : null;
+                this.positionSort = positionSort;
+            }
+
+            NamedSemanticRegion<T> checkNext() {
+                hasNext();
+                return next;
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                }
+                if (iter.hasNext()) {
+                    next = iter.next();
+                }
+                return next != null;
+            }
+
+            @Override
+            public NamedSemanticRegion<T> next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                NamedSemanticRegion<T> obj = next;
+                next = null;
+                return obj;
+            }
+
+            @Override
+            public int compareTo(IteratorHolder<T> o) {
+                NamedSemanticRegion<T> myNext = checkNext();
+                NamedSemanticRegion<T> oNext = o.checkNext();
+                if (myNext == null && oNext != null) {
+                    return 1;
+                } else if (oNext == null && myNext != null) {
+                    return -1;
+                } else if (oNext == null && myNext == null) {
+                    return 0;
+                } else {
+                    if (positionSort) {
+//                        return myNext.compareTo(oNext);
+                        int ms = myNext.start();
+                        int os = oNext.start();
+                        int result = ms > os ? 1 : ms == os ? 0 : -1;
+                        if (result == 0) {
+                            // Sort containing in front of contained, same as
+                            // SemanticRegions sort order
+                            int me = myNext.end();
+                            int oe = oNext.end();
+                            result = me < oe ? 1 : me == oe ? 0 : 1;
+                        }
+                        return result;
+                    } else {
+                        return myNext.name().compareTo(oNext.name());
+                    }
+                }
+            }
+        }
+
     }
 }

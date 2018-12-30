@@ -2,13 +2,13 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.util.List;
 import java.util.Set;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleVisitor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraphVisitor;
 
 /**
  *
  * @author Tim Boudreau
  */
-public interface RuleTree {
+public interface StringGraph {
 
     List<String> byClosureSize();
 
@@ -47,7 +47,7 @@ public interface RuleTree {
      * is only visited once.
      * @param v A visitor
      */
-    default void walk(RuleVisitor v) {
+    default void walk(StringGraphVisitor v) {
         throw new UnsupportedOperationException();
     }
 
@@ -58,7 +58,7 @@ public interface RuleTree {
      * @param startingWith The starting rule
      * @param v A visitor
      */
-    default void walk(String startingWith, RuleVisitor v) {
+    default void walk(String startingWith, StringGraphVisitor v) {
         throw new UnsupportedOperationException();
     }
 
@@ -68,7 +68,7 @@ public interface RuleTree {
      * @param startingWith The starting rule
      * @param v A visitor
      */
-    default void walkUpwards(String startingWith, RuleVisitor v) {
+    default void walkUpwards(String startingWith, StringGraphVisitor v) {
         throw new UnsupportedOperationException();
     }
     

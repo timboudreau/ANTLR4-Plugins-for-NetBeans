@@ -56,6 +56,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.syntax.ANTLRv4SyntacticErrorListener;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.ExtractionParserResult;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 
@@ -193,7 +195,7 @@ public class NBANTLRv4Parser extends Parser {
      * getDiagnostics().
      *
      */
-    public static class ANTLRv4ParserResult extends ParserResult {
+    public static class ANTLRv4ParserResult extends ParserResult implements ExtractionParserResult {
 
         private boolean valid;
         private final ANTLRv4SyntacticErrorListener errorListener;
@@ -210,6 +212,10 @@ public class NBANTLRv4Parser extends Parser {
 
         public ANTLRv4SemanticParser semanticParser() {
             return semanticParser;
+        }
+
+        public Extraction extraction() {
+            return semanticParser == null ? null : semanticParser.extraction();
         }
 
         @Override

@@ -12,6 +12,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions.SemanticRegionImpl;
 
@@ -103,7 +104,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     public SemanticRegions(Class<T> type) {
         starts = new int[BASE_SIZE];
         ends = new int[BASE_SIZE];
-        keys = type == Void.class || type == Void.TYPE ? null : (T[]) Array.newInstance(type, BASE_SIZE);
+        keys = type == null || type == Void.class || type == Void.TYPE ? null : (T[]) Array.newInstance(type, BASE_SIZE);
         size = 0;
     }
 
@@ -114,6 +115,11 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         this.size = size;
         this.firstUnsortedEndsEntry = firstUnsortedEndsEntry;
         this.hasNesting = hasNesting;
+    }
+
+    private static SemanticRegions<?> EMPTY = new SemanticRegions(null);
+    public static <T> SemanticRegions<T> empty() {
+        return (SemanticRegions<T>) EMPTY;
     }
 
     SemanticRegions<T> trim() {
@@ -144,12 +150,35 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return -1;
     }
 
+    /**
+     * Iterate all regions and collect those where the key matches the
+     * passed predicate.
+     *
+     * @param pred A predicate
+     * @return A list of regions
+     */
+    public List<? extends SemanticRegion<T>> collect(Predicate<T> pred) {
+        List<SemanticRegion<T>> result = new LinkedList<>();
+        for (SemanticRegion<T> s : this) {
+            if (pred.test(s.key())) {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Determine if the passed item was produced by this collection.
+     *
+     * @param item An item
+     * @return Whether or not its type and owner match this collection
+     */
     public boolean isChildType(IndexAddressableItem item) {
         return item instanceof SemanticRegion<?>;
     }
 
-    public static <T> SemanticRegionsBuilder<T> builder(Class<T> type) {
-        return new SemanticRegionsBuilder<>(type);
+    public static <T> SemanticRegionsBuilder<T> builder(Class<? super T> type) {
+        return new SemanticRegionsBuilder<>((Class<T>) type);
     }
 
     public static SemanticRegionsBuilder<Void> builder() {
@@ -179,6 +208,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
 
         public SemanticRegionsBuilder<T> add(T key, int start, int end) {
+            assert key == null || regions.keys.getClass().getComponentType().isInstance(key) :
+                    "Bad key type: " + key + " (" + key.getClass() + ")";
             regions.add(key, start, end);
             return this;
         }
@@ -920,6 +951,11 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         @Override
         public int get(int index) {
             return ends[index];
+        }
+
+        @Override
+        public int size() {
+            return size;
         }
     }
 }

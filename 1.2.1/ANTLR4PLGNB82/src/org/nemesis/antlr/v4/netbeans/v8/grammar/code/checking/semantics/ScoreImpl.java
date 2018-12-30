@@ -4,7 +4,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
  *
  * @author Tim Boudreau
  */
-final class ScoreImpl implements RuleTree.Score {
+final class ScoreImpl implements StringGraph.Score {
 
     private final double score;
     private final int ruleIndex;
@@ -33,7 +33,7 @@ final class ScoreImpl implements RuleTree.Score {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof RuleTree.Score && ((RuleTree.Score) o).ruleIndex() == ruleIndex();
+        return o instanceof StringGraph.Score && ((StringGraph.Score) o).ruleIndex() == ruleIndex();
     }
 
     @Override

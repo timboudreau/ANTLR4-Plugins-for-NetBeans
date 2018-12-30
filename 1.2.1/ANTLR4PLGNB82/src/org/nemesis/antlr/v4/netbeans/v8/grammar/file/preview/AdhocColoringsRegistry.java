@@ -29,9 +29,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChec
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTree;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_RULE_DECLARATION;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.openide.filesystems.FileObject;
@@ -41,6 +42,7 @@ import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 import org.openide.util.lookup.ServiceProvider;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph;
 
 /**
  *
@@ -181,28 +183,46 @@ public final class AdhocColoringsRegistry {
 
     public void update(ANTLRv4SemanticParser sem, String mimeType) throws IOException {
         AdhocColorings existing = getExisting(mimeType);
-        RuleTree tree = sem.ruleTree();
+        StringGraph tree = sem.ruleTree();
         List<String> rules = new ArrayList<>();
         ColorUtils colors = new ColorUtils();
         Supplier<Color> backgrounds = colors.backgroundColorSupplier();
         Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
         importantRules.addAll(tree.bottomLevelRules());
 
-        for (RuleDeclaration decl : sem.allDeclarations()) {
-            if (existing.contains(decl.getRuleID())) {
+        Extraction ext = sem.extraction();
+        NamedSemanticRegions<AntlrExtractor.RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+        for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> decl : nameds) {
+            String id = decl.name();
+            if (existing.contains(id)) {
                 continue;
             }
-            if (decl.kind() == PARSER_RULE_DECLARATION) {
-                rules.add(decl.getRuleID());
+            if (decl.kind() == RuleTypes.PARSER) {
+                rules.add(id);
             }
             Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND);
-            if (importantRules.contains(decl.getRuleID())) {
+            if (importantRules.contains(id)) {
                 attrs.add(AttrTypes.ACTIVE);
             } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
                 attrs.add(AttrTypes.ACTIVE);
             }
-            existing.addIfAbsent(decl.getRuleID(), backgrounds.get(), attrs);
+            existing.addIfAbsent(id, backgrounds.get(), attrs);
         }
+//        for (RuleDeclaration decl : sem.allDeclarations()) {
+//            if (existing.contains(decl.getRuleID())) {
+//                continue;
+//            }
+//            if (decl.kind() == PARSER_RULE_DECLARATION) {
+//                rules.add(decl.getRuleID());
+//            }
+//            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND);
+//            if (importantRules.contains(decl.getRuleID())) {
+//                attrs.add(AttrTypes.ACTIVE);
+//            } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
+//                attrs.add(AttrTypes.ACTIVE);
+//            }
+//            existing.addIfAbsent(decl.getRuleID(), backgrounds.get(), attrs);
+//        }
         Supplier<Color> foregrounds = colors.foregroundColorSupplier();
         existing.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND, AttrTypes.BOLD));

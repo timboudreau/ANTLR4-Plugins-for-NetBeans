@@ -34,9 +34,7 @@ import java.io.StringReader;
 
 import java.nio.file.Path;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import java.util.logging.Logger;
@@ -64,7 +62,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.hyperlink.parser.HyperlinkP
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
 import org.nemesis.antlr.v4.netbeans.v8.project.ProjectType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 
@@ -85,9 +82,7 @@ public class ANTLRv4GrammarChecker {
     private final Optional<Path>                grammarFilePath;
     private       String                        grammarName;
     private       GrammarType                   grammarType;
-    private final Map<String, RuleDeclaration>  tokenRuleDeclarations;
     private       String                        firstParserRule;
-    private       String                        packageName;
     private       ANTLRv4SyntacticErrorListener syntacticErrorListener;
     private       ANTLRv4SemanticParser         semanticParser;
     private       List<ParsingError>            semanticErrors;
@@ -104,10 +99,6 @@ public class ANTLRv4GrammarChecker {
     
     public GrammarType getGrammarType() {
         return this.grammarType;
-    }
-    
-    public Map<String, RuleDeclaration> getTokenRuleDeclarations() {
-        return this.tokenRuleDeclarations;
     }
 
     public String getFirstParserRule() {
@@ -172,12 +163,10 @@ public class ANTLRv4GrammarChecker {
         this.parser = null;
         this.grammarName = null;
         this.grammarType = GrammarType.UNDEFINED;
-        this.tokenRuleDeclarations = new HashMap<>();
         this.firstParserRule = null;
         this.syntacticErrorListener = null;
         this.semanticParser = null;
 
-        this.packageName = null;
         this.semanticErrors = null;
         this.semanticWarnings = null;
     }
@@ -226,7 +215,6 @@ public class ANTLRv4GrammarChecker {
              // checkings
                 grammarName = semanticParser.getGrammarName();
                 grammarType = semanticParser.getGrammarType();
-                packageName = semanticParser.getPackageName();
              // We recover the first imported parser rule
                 firstParserRule = semanticParser.getFirstParserRule();
             

@@ -1,20 +1,15 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui;
 
 import java.text.DecimalFormat;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.TreeSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder.Cursors;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder.Cursors3;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder.Cursors4;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder.Interstices;
 
 /**
  *
@@ -196,45 +191,6 @@ public class CulpritFinderTest {
         }
     }
 
-//    @Test
-    public void testInterstices() {
-        Interstices in = new Interstices(8);
-        for (int i = 0; i < 2000; i++) {
-            int[] ints = in.nextInterstice();
-            if (ints == null) {
-                break;
-            }
-            System.out.println(Arrays.toString(ints));
-        }
-
-        System.out.println("\n------------\n");
-
-        Cursors4 cur = new Cursors4(8);
-        DecimalFormat fmt = new DecimalFormat("0000000000");
-        Set<Byte> expected = new TreeSet<>();
-        for (byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++) {
-            if (i != 0) {
-                expected.add(i);
-            }
-        }
-        for (int i = 0; i < 256; i++) {
-            BitShiftArray b = cur.next();
-            if (b == null) {
-                break;
-            }
-            byte bt = 0;
-            bt |= b.firstLong();
-            expected.remove(bt);
-            System.out.println(fmt.format(i) + ": " + b + " - " + bt);
-        }
-        if (expected.size() > 0) {
-            for (Byte b : expected) {
-                long l = (long) b & (long) -1;
-
-                System.out.println("MISS: " + BitShiftArray.toBinaryString(l, 8) + " - " + b);
-            }
-        }
-    }
 
 //    @Test(timeout = 1000 * 60 * 60 * 60)
     public void testCursors2() {
@@ -299,21 +255,6 @@ public class CulpritFinderTest {
             return true;
         }
 
-    }
-
-//    @Test
-    public void testSomeMethod() {
-        int max = 25;
-        Cursors cursors = new Cursors(max);
-        long count = (long) Math.pow(max, max);
-        for (long i = 0; i < count; i++) {
-            BitSet set = cursors.next();
-            if (set == null) {
-                System.out.println("DONE AT " + i);
-                break;
-            }
-            System.out.println(i + ":\t\t" + tos(set, max));
-        }
     }
 
     static String tos(BitSet set, int max) {

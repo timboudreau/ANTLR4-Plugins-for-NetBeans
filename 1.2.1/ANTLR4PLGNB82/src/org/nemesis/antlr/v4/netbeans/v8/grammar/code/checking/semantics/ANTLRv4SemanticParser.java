@@ -39,8 +39,6 @@ import java.nio.file.Paths;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -56,7 +54,6 @@ import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -71,7 +68,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ChannelsSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ClassIdentifierContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.DelegateGrammarContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.EbnfSuffixContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.FragmentRuleDeclarationContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarIdentifierContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.IdentifierContext;
@@ -84,24 +80,18 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleDeclarationContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleIdentifierContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.ParserRuleReferenceContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.SuperClassSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.BlockElement;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GrammarSource;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.EbnfElement;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleDeclaration;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElement;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.FRAGMENT;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.LEXER;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.PARSER;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaClassHelper;
@@ -116,6 +106,7 @@ import org.netbeans.spi.project.support.ant.PropertyUtils;
 
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -126,22 +117,10 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     private final GrammarSummary summary;
     private final GrammarType grammarType;
 
-    private final Map<String, RuleDeclaration> tokenRuleDeclarations = new HashMap<>();
-    private final Map<String, RuleDeclaration> parserRuleDeclarations = new HashMap<>();
-    private final Map<String, RuleDeclaration> fragmentRuleDeclarations = new HashMap<>();
-    private final Map<String, RuleDeclaration> namedAlternatives = new HashMap<>();
-    private final List<EbnfElement> ebnfs = new ArrayList<>();
-
     private final List<String> parserRuleIds = new LinkedList<>();
-    private final List<String> allParserRuleIds = new LinkedList<>();
 
     private String firstParserRuleDeclaration;
     private String firstImportedParserRule;
-    private final Map<String, RuleReference> lexerRuleReferences = new HashMap<>();
-    private final Map<String, RuleReference> parserRuleReferences = new HashMap<>();
-    private final Map<String, Collection<RuleReference>> allLexerRuleReferences = new HashMap<>();
-    private final Map<String, Collection<RuleReference>> allParserRuleReferences = new HashMap<>();
-    private final Map<String, Collection<RuleReference>> allFragmentRuleReferences = new HashMap<>();
     private final Map<String, Integer> numberOfRulesPassingInAMode = new HashMap<>();
 
     private final List<String> usedChannels = new ArrayList<>();
@@ -152,11 +131,8 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     private final List<ParsingError> semanticErrors = new LinkedList<>();
     private final List<ParsingError> semanticWarnings = new LinkedList<>();
     private final boolean semanticErrorRequired;
-    private RuleDeclaration lastParserRule;
-    private final List<BlockElement> blocks = new ArrayList<>();
-    private int blockDepth = 0;
     private final Optional<Path> grammarFilePath;
-    private RuleTree ruleTree;
+    private StringGraph ruleTree;
 
     public boolean encounteredError() {
         return getErrorNumber() != 0;
@@ -188,26 +164,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
 
     public String getGrammarName() {
         return summary.getGrammarName();
-    }
-
-    public Map<String, RuleDeclaration> getTokenRuleDeclarations() {
-        return tokenRuleDeclarations;
-    }
-
-    public Map<String, RuleDeclaration> getFragmentRuleDeclarations() {
-        return fragmentRuleDeclarations;
-    }
-
-    public Map<String, RuleDeclaration> getParserRuleDeclarations() {
-        return parserRuleDeclarations;
-    }
-
-    public Map<String, RuleReference> getParserRuleReferences() {
-        return parserRuleReferences;
-    }
-
-    public Map<String, RuleReference> getLexerRuleReferences() {
-        return lexerRuleReferences;
     }
 
     public String getFirstParserRule() {
@@ -273,8 +229,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         grammarType = summary.getGrammarType();
         semanticErrorRequired = checkSemanticErrorRequired();
         parserRuleIds.addAll(summary.getParserRuleIds());
-        allParserRuleIds.addAll(summary.getImportedParserRuleIds());
-        allParserRuleIds.addAll(parserRuleIds);
     }
 
     public GrammarSummary summary() {
@@ -322,289 +276,26 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         // Only at this point do we know which rules are fragments, so we
         // can shuffle them into our fragment reference collection - they
         // are indistinguishable at parse time
-        Set<String> fragmentIds = new HashSet<>(fragmentRuleDeclarations.keySet());
-        for (String id : fragmentIds) {
-            Collection<RuleReference> lexerRefs = lexerRuleReferencesFor(id, false);
-            if (lexerRefs != null) {
-                allLexerRuleReferences.remove(id);
-                allFragmentRuleReferences.put(id, lexerRefs);
-                for (RuleReference ref : lexerRefs) {
-                    ref.setTarget(FRAGMENT);
-                }
+//        RuleNameFinder rnf = new RuleNameFinder();
+//        ctx.accept(rnf);
+//        String[] pruleIds = rnf.names();
+//        BitSetTreeBuilder rtb2 = new BitSetTreeBuilder(pruleIds);
+//        ctx.accept(rtb2);
+//        ruleTree = rtb2.toRuleTree().strings(pruleIds);
+
+        GrammarSource<?> src = null;
+        if (this.grammarFilePath.isPresent()) {
+            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.get().toFile()));
+            if (fo != null) {
+                src = AntlrExtractor.grammarSource(fo);
             }
         }
-        RuleNameFinder rnf = new RuleNameFinder();
-        ctx.accept(rnf);
-        String[] pruleIds = rnf.names();
-        BitSetTreeBuilder rtb2 = new BitSetTreeBuilder(pruleIds);
-        ctx.accept(rtb2);
-        ruleTree = rtb2.toRuleTree().strings(pruleIds);
-
-        extraction = AntlrExtractor.getDefault().extract(ctx);
+        extraction = AntlrExtractor.getDefault().extract(ctx, src);
+        ruleTree = extraction.referenceGraph(AntlrExtractor.RULE_NAME_REFERENCES);
     }
 
-    public RuleTree ruleTree() {
+    public StringGraph ruleTree() {
         return ruleTree;
-    }
-
-    public RuleElement ruleElementAtPosition(int pos) {
-        for (RuleElement el : this.allElements()) {
-            if (el.overlaps(pos)) {
-                return el;
-            }
-        }
-        return null;
-    }
-
-    public List<RuleElement> allElementsOfType(RuleElementTarget target) {
-        Set<RuleElement> all = new HashSet<>();
-        Map<String, RuleDeclaration> declarations;
-        Map<String, Collection<RuleReference>> references;
-        switch (target) {
-            case FRAGMENT:
-                declarations = fragmentRuleDeclarations;
-                references = allFragmentRuleReferences;
-                break;
-            case LEXER:
-                declarations = tokenRuleDeclarations;
-                references = allLexerRuleReferences;
-                break;
-            case PARSER:
-                declarations = parserRuleDeclarations;
-                references = allParserRuleReferences;
-                break;
-            default:
-                throw new AssertionError(target);
-        }
-        all.addAll(declarations.values());
-        for (Collection<RuleReference> c : references.values()) {
-            all.addAll(c);
-        }
-        List<RuleElement> result = new ArrayList<>(all);
-        Collections.sort(result);
-        return result;
-    }
-
-    public RuleDeclaration declarationOf(RuleElement el) {
-        Map<String, RuleDeclaration> declarations;
-        switch (el.kind().target()) {
-            case FRAGMENT:
-                declarations = fragmentRuleDeclarations;
-                break;
-            case LEXER:
-                declarations = tokenRuleDeclarations;
-                break;
-            case PARSER:
-                declarations = parserRuleDeclarations;
-                break;
-            default:
-                throw new AssertionError(el.kind().target());
-        }
-        return declarations.get(el.getRuleID());
-    }
-
-    public List<RuleElement> allReferencesTo(RuleElement el) {
-        Set<RuleElement> all = new HashSet<>();
-        Map<String, RuleDeclaration> declarations;
-        Map<String, Collection<RuleReference>> references;
-        switch (el.kind().target()) {
-            case FRAGMENT:
-                declarations = fragmentRuleDeclarations;
-                references = allFragmentRuleReferences;
-                break;
-            case LEXER:
-                declarations = tokenRuleDeclarations;
-                references = allLexerRuleReferences;
-                break;
-            case PARSER:
-                declarations = parserRuleDeclarations;
-                references = allParserRuleReferences;
-                break;
-            default:
-                throw new AssertionError(el.kind().target());
-        }
-        RuleDeclaration decl = declarations.get(el.getRuleID());
-        if (decl != null) {
-            all.add(decl);
-        }
-        Collection<RuleReference> refs = references.get(el.getRuleID());
-        if (refs != null) {
-            all.addAll(refs);
-        }
-
-        List<RuleElement> result = new ArrayList<>(all);
-        Collections.sort(result);
-        return result;
-    }
-
-    Collection<RuleReference> parserRuleReferencesFor(String id, boolean create) {
-        Collection<RuleReference> result = allParserRuleReferences.get(id);
-        if (result == null && create) {
-            result = new ArrayList<>(10);
-            allParserRuleReferences.put(id, result);
-        }
-        return result;
-    }
-
-    Collection<RuleReference> lexerRuleReferencesFor(String id, boolean create) {
-        Collection<RuleReference> result = allLexerRuleReferences.get(id);
-        if (result == null && create) {
-            result = new ArrayList<>(10);
-            allLexerRuleReferences.put(id, result);
-        }
-        return result;
-    }
-
-    Collection<RuleReference> fragmentRuleReferencesFor(String id, boolean create) {
-        Collection<RuleReference> result = allFragmentRuleReferences.get(id);
-        if (result == null && create) {
-            result = new ArrayList<>(10);
-            allFragmentRuleReferences.put(id, result);
-        }
-        return result;
-    }
-
-    void addLexerRuleReference(String id, RuleReference ref) {
-        lexerRuleReferencesFor(id, true).add(ref);
-    }
-
-    void addParserRuleReference(String id, RuleReference ref) {
-        parserRuleReferencesFor(id, true).add(ref);
-    }
-
-    void addFragmentRuleReference(String id, RuleReference ref) {
-        fragmentRuleReferencesFor(id, true).add(ref);
-    }
-
-    public Collection<RuleReference> getParserRuleReferences(String id) {
-        Collection<RuleReference> result = parserRuleReferencesFor(id, false);
-        return result == null ? Collections.<RuleReference>emptySet() : result;
-    }
-
-    public Collection<RuleReference> getLexerRuleReferences(String id) {
-        Collection<RuleReference> result = lexerRuleReferencesFor(id, false);
-        return result == null ? Collections.<RuleReference>emptySet() : result;
-    }
-
-    public Collection<RuleReference> getFragmentRuleReferences(String id) {
-        Collection<RuleReference> result = fragmentRuleReferencesFor(id, false);
-        return result == null ? Collections.<RuleReference>emptySet() : result;
-    }
-
-    public RuleReference lexerRuleReferenceOverlapping(int position) {
-        for (Map.Entry<String, Collection<RuleReference>> e : allLexerRuleReferences.entrySet()) {
-            for (RuleReference ref : e.getValue()) {
-                if (ref.overlaps(position)) {
-                    return ref;
-                }
-            }
-        }
-        return null;
-    }
-
-    public RuleReference parserRuleReferenceOverlapping(int position) {
-        for (Map.Entry<String, Collection<RuleReference>> e : allParserRuleReferences.entrySet()) {
-            for (RuleReference ref : e.getValue()) {
-                if (ref.overlaps(position)) {
-                    return ref;
-                }
-            }
-        }
-        return null;
-    }
-
-    public RuleReference fragmentRuleReferenceOverlapping(int position) {
-        for (Map.Entry<String, Collection<RuleReference>> e : allFragmentRuleReferences.entrySet()) {
-            for (RuleReference ref : e.getValue()) {
-                if (ref.overlaps(position)) {
-                    return ref;
-                }
-            }
-        }
-        return null;
-    }
-
-    public List<RuleDeclaration> allDeclarations() {
-        Set<RuleDeclaration> all = new HashSet<>(
-                parserRuleDeclarations.size() + tokenRuleDeclarations.size()
-                + fragmentRuleDeclarations.size());
-        all.addAll(parserRuleDeclarations.values());
-        all.addAll(tokenRuleDeclarations.values());
-        all.addAll(fragmentRuleDeclarations.values());
-        List<RuleDeclaration> result = new ArrayList<>(all);
-        Collections.sort(result);
-        return result;
-    }
-
-    public List<RuleElement> allElements() {
-        Set<RuleElement> all = new HashSet<>();
-        for (Map.Entry<String, Collection<RuleReference>> e : allLexerRuleReferences.entrySet()) {
-            all.addAll(e.getValue());
-        }
-        for (Map.Entry<String, Collection<RuleReference>> e : allParserRuleReferences.entrySet()) {
-            all.addAll(e.getValue());
-        }
-        for (Map.Entry<String, Collection<RuleReference>> e : allFragmentRuleReferences.entrySet()) {
-            all.addAll(e.getValue());
-        }
-        all.addAll(parserRuleDeclarations.values());
-        all.addAll(tokenRuleDeclarations.values());
-        all.addAll(fragmentRuleDeclarations.values());
-        List<RuleElement> result = new ArrayList<>(all);
-        Collections.sort(result);
-        return result;
-    }
-
-    public RuleDeclaration getParserRuleDeclaration(String id) {
-        return parserRuleDeclarations.get(id);
-    }
-
-    public RuleDeclaration getLexerRuleDeclaration(String id) {
-        return tokenRuleDeclarations.get(id);
-    }
-
-    public RuleDeclaration getFragmentRuleDeclaration(String id) {
-        return fragmentRuleDeclarations.get(id);
-    }
-
-    @Override
-    public String toString() {
-        Optional<String> gn = this.grammarNameFromFile();
-        StringBuilder sb = new StringBuilder(gn.isPresent() ? gn.get() : "<no-file>").append('{');
-        sb.append("\n parserRules:");
-        for (Map.Entry<String, RuleDeclaration> e : parserRuleDeclarations.entrySet()) {
-            sb.append("\n  ").append(e.getValue());
-        }
-        sb.append("\n parserRuleReferences:");
-        for (Map.Entry<String, Collection<RuleReference>> e : allParserRuleReferences.entrySet()) {
-            sb.append("\n  ").append(e.getKey());
-            for (RuleReference ref : e.getValue()) {
-                sb.append("\n    ").append(ref);
-            }
-        }
-        sb.append("lexerRules:");
-        for (Map.Entry<String, RuleDeclaration> e : tokenRuleDeclarations.entrySet()) {
-            sb.append("\n  ").append(e.getValue());
-        }
-        sb.append("\n lexerRuleReferences:");
-        for (Map.Entry<String, Collection<RuleReference>> e : allParserRuleReferences.entrySet()) {
-            sb.append("\n  ").append(e.getKey());
-            for (RuleReference ref : e.getValue()) {
-                sb.append("\n    ").append(ref);
-            }
-        }
-        sb.append("fragmentRules:");
-        for (Map.Entry<String, RuleDeclaration> e : fragmentRuleDeclarations.entrySet()) {
-            sb.append("\n  ").append(e.getValue());
-        }
-        sb.append("\n fragmentRuleReferences:");
-        for (Map.Entry<String, Collection<RuleReference>> e : allFragmentRuleReferences.entrySet()) {
-            sb.append("\n  ").append(e.getKey());
-            for (RuleReference ref : e.getValue()) {
-                sb.append("\n    ").append(ref);
-            }
-        }
-        return sb.append('}').toString();
     }
 
     /**
@@ -840,15 +531,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                         }
                         default:
                     }
-                    String nm = parserRuleId;
-                    RuleDeclaration newRule
-                            = new RuleDeclaration(PARSER,
-                                    nm, decl.parserRuleIdentifier().getStart().getStartIndex(),
-                                    decl.parserRuleIdentifier().getStop().getStopIndex() + 1,
-                                    ctx.getStart().getStartIndex(),
-                                    ctx.getStop().getStopIndex() + 1);
-                    parserRuleDeclarations.put(nm, newRule);
-                    lastParserRule = newRule;
                 }
             }
         }
@@ -863,10 +545,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                 Token labelToken = idTN.getSymbol();
                 if (labelToken != null) {
                     String altnvLabel = labelToken.getText();
-                    if (lastParserRule != null) {
-                        RuleDeclaration namedAlternative = lastParserRule.addNamedAlternative(altnvLabel, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
-                        namedAlternatives.put(altnvLabel, namedAlternative);
-                    }
 //                    namedVariantRuleDeclarations.put(altnvLabel, new RuleDeclaration())
                     if (!altnvLabel.equals("<missing ID>")) {
                         // We test if current parser rule has already an
@@ -921,27 +599,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         }
     }
 
-    @Override
-    public void exitParserRuleReference(ParserRuleReferenceContext ctx) {
-        ParserRuleIdentifierContext pric = ctx.parserRuleIdentifier();
-        if (pric != null) {
-            TerminalNode pridTN = pric.PARSER_RULE_ID();
-            if (pridTN != null) {
-                Token parserRuleRefIdToken = pridTN.getSymbol();
-                if (parserRuleRefIdToken != null) {
-                    String parserRuleRefId = parserRuleRefIdToken.getText();
-                    int startOffset = parserRuleRefIdToken.getStartIndex();
-                    int endOffset = parserRuleRefIdToken.getStopIndex() + 1;
-                    RuleReference ruleRef = new RuleReference(PARSER, parserRuleRefId, startOffset, endOffset);
-                    if (!parserRuleReferences.containsKey(parserRuleRefId)) {
-                        parserRuleReferences.put(parserRuleRefId, ruleRef);
-                    }
-                    addParserRuleReference(parserRuleRefId, ruleRef);
-                }
-            }
-        }
-    }
-
     /**
      * Is called from a lexer or parser rule when its definition contains a
      * string literal or a lexer rule reference.
@@ -951,17 +608,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     @Override
     public void exitTerminal(TerminalContext ctx) {
         TerminalNode idTN = ctx.TOKEN_ID();
-        if (idTN != null) {
-            Token idToken = idTN.getSymbol();
-            String id = idToken.getText();
-            int startOffset = idToken.getStartIndex();
-            int endOffset = idToken.getStopIndex() + 1;
-            RuleReference ruleRef = new RuleReference(LEXER, id, startOffset, endOffset);
-            if (!lexerRuleReferences.containsKey(id)) {
-                lexerRuleReferences.put(id, ruleRef);
-            }
-            addLexerRuleReference(id, ruleRef);
-        } else {
+        if (idTN == null) {
             // A parser grammar cannot define implicitly a new token, so if we find
             // a literal and that literal is not defined in a token declaration
             // (through tokens) or an imported token file (through tokenVocab option)
@@ -1003,15 +650,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
             int startOffset = idToken.getStartIndex();
             int endOffset = idToken.getStopIndex() + 1;
             String lexerRuleId = idToken.getText();
-            TerminalNode ident = ctx.TOKEN_ID();
-            if (ident != null) { // broken source?
-                tokenRuleDeclarations.put(lexerRuleId,
-                        new RuleDeclaration(LEXER,
-                                lexerRuleId, ident.getSymbol().getStartIndex(),
-                                ident.getSymbol().getStopIndex() + 1,
-                                ctx.getStart().getStartIndex(),
-                                ctx.getStop().getStopIndex() + 1));
-            }
             if (grammarType == GrammarType.PARSER
                     && semanticErrorRequired) {
                 String key = "antlr.error.parser.grammar.can.only."
@@ -1044,13 +682,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                         String description = displayName + "\n"
                                 + "rule " + fragmentRuleId + " is a lexer rule";
                         addError(key, startOffset, endOffset, displayName, description);
-                    } else {
-                        fragmentRuleDeclarations.put(fragmentRuleId,
-                                new RuleDeclaration(FRAGMENT,
-                                        fragmentRuleId, idToken.getStartIndex(),
-                                        idToken.getStopIndex() + 1,
-                                        ctx.getStart().getStartIndex(),
-                                        ctx.getStop().getStopIndex() + 1));
                     }
                 }
             }
@@ -1218,13 +849,13 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
 
                     checkThereIsNoForbiddenFragmentId();
                     checkThereIsNoDuplicateLexerRuleId();
-                    checkFragmentRuleReferences();
                     break;
                 case PARSER:
 
                     checkThereIsNoDuplicateParserRuleIds();
                     checkThereIsNoForbiddenParserRuleId();
                     checkRuleReferences();
+                    checkDuplicateLabels();
                     checkAllDeclaredParserRulesAreUsed();
                     break;
                 case COMBINED:
@@ -1235,6 +866,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                     checkThereIsNoForbiddenParserRuleId();
                     checkRuleReferences();
                     checkAllDeclaredParserRulesAreUsed();
+                    checkDuplicateLabels();
                     break;
                 default:
             }
@@ -1844,40 +1476,20 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     protected void checkThereIsNoForbiddenFragmentId() {
-        List<String> fragmentRuleIds = summary.getFragmentRuleIds();
-        for (String fragmentRuleId : fragmentRuleIds) {
-            if (EOF.equals(fragmentRuleId)) {
-                String key = "antlr.error.fragment.id.forbiden.value";
-                int startOffset
-                        = summary.getFragmentRuleIdStartOffsets().get(fragmentRuleId);
-                int endOffset
-                        = summary.getFragmentRuleIdEndOffsets().get(fragmentRuleId) + 1;
-                String displayName = "You cannot use '" + fragmentRuleId
-                        + "' for identifying a fragment\n"
-                        + "It is a reserved fragment id identifying the end of file";
-                String description = displayName;
-                addError(key, startOffset, endOffset, displayName, description);
-            }
-        }
-    }
+        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+        if (names.contains(EOF)) {
+            NamedSemanticRegion<RuleTypes> eofRegion = names.regionFor(EOF);
+            String key = "antlr.error.fragment.id.forbiden.value";
+            int startOffset
+                    = eofRegion.start();
+            int endOffset
+                    = eofRegion.end();
+            String displayName = "You cannot use '" + EOF
+                    + "' for identifying a fragment\n"
+                    + "It is a reserved fragment id identifying the end of file";
+            String description = displayName;
+            addError(key, startOffset, endOffset, displayName, description);
 
-    protected void checkFragmentRuleReferences() {
-        List<String> fragmentRuleIds = summary.getFragmentRuleIds();
-        Set<String> lexerRuleReferenceIds = lexerRuleReferences.keySet();
-        for (String lexerRuleReferenceId : lexerRuleReferenceIds) {
-            // We check this lexer reference points to an existing fragment rule
-            if (!fragmentRuleIds.contains(lexerRuleReferenceId)) {
-                if (!lexerRuleReferenceId.equals(EOF)) {
-                    RuleReference lexerRuleReference = lexerRuleReferences.get(lexerRuleReferenceId);
-                    String key = "antlr.error.semantic.unable.to.find.fragment.rule";
-                    int startOffset = lexerRuleReference.getStartOffset();
-                    int endOffset = lexerRuleReference.getEndOffset();
-                    String displayName = "unable to find a fragment rule called "
-                            + lexerRuleReferenceId;
-                    String description = displayName;
-                    addError(key, startOffset, endOffset, displayName, description);
-                }
-            }
         }
     }
 
@@ -1892,56 +1504,42 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * refernece appears).
      */
     protected void checkRuleReferences() {
-        // We check parser rule references
-        Set<String> parserRuleReferenceIds = parserRuleReferences.keySet();
-        for (String parserRuleReferenceId : parserRuleReferenceIds) {
-            boolean hasReference = allParserRuleIds.contains(parserRuleReferenceId);
-            if (!hasReference) {
-//                System.out.println("RULE " + parserRuleReferenceId + " is not in " + allParserRuleIds);
+        Extraction.ResolutionInfo<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegions.NamedSemanticRegion<RuleTypes>, RuleTypes> resInfo;
+        try {
+            resInfo = extraction.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
+        } catch (IOException ioe) {
+            Exceptions.printStackTrace(ioe);
+            return;
+        }
+        // XXX we need to track which unknown refs were likely trying to be a parser
+        // rule reference
+        SemanticRegions<NamedRegionExtractorBuilder.UnknownNameReference> unresolved = resInfo.unresolved();
+        for (SemanticRegions.SemanticRegion<UnknownNameReference> r : unresolved) {
+            UnknownNameReference<?> k = r.key();
+            if (EOF.equals(k.name())) {
+                continue;
+            }
+            if (k.expectedKind() == RuleTypes.PARSER) {
                 String key = "antlr.error.parserRule.rule.reference.has.no"
                         + ".correspondent.declaration";
-                RuleReference parserRuleReference = parserRuleReferences.get(parserRuleReferenceId);
-                int startOffset = parserRuleReference.getStartOffset();
-                int endOffset = parserRuleReference.getEndOffset();
+                int startOffset = r.start();
+                int endOffset = r.end();
                 String displayName = "The rule reference "
-                        + parserRuleReferenceId
+                        + r.key().name()
                         + " has no correspondent declaration";
                 String description = displayName;
                 addError(key, startOffset, endOffset, displayName, description);
-            }
-        }
-        // We check lexer rule references that is token and fragment rule references
-        List<String> localTokenRuleIds = summary.getTokenRuleIds();
-        List<String> localFragmentRuleIds = summary.getFragmentRuleIds();
-        List<String> localTokenIds = summary.getTokens();
-        List<String> importedTokenRuleIds = summary.getImportedTokenIds();
-        List<String> importedFragmentRuleIds
-                = summary.getImportedFragmentRuleIds();
-        List<String> allLexerIds = new ArrayList<>();
-        allLexerIds.addAll(localTokenRuleIds);
-        allLexerIds.addAll(localFragmentRuleIds);
-        allLexerIds.addAll(localTokenIds);
-        allLexerIds.addAll(importedTokenRuleIds);
-        allLexerIds.addAll(importedFragmentRuleIds);
-        Set<String> lexerReferenceIds = lexerRuleReferences.keySet();
-        for (String lexerReferenceId : lexerReferenceIds) {
-            if (!"EOF".equals(lexerReferenceId) && !allLexerIds.contains(lexerReferenceId)) {
-                // If the rule reference references a lexer rule (token or fragment rule)
-                // then a simple warning if it is not found
+            } else {
                 String key = "antlr.warning.lexerRule.implicit.definition.of"
                         + ".token";
-                RuleReference lexerReference
-                        = lexerRuleReferences.get(lexerReferenceId);
-                int startOffset = lexerReference.getStartOffset();
-                int endOffset = lexerReference.getEndOffset();
                 String displayName = "implicit definition of token "
-                        + lexerReferenceId;
+                        + k.name();
                 String description = displayName;
                 addError(
                         Severity.WARNING,
                         key,
-                        startOffset,
-                        endOffset,
+                        r.start(),
+                        r.end(),
                         displayName,
                         description);
             }
@@ -1949,27 +1547,16 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     protected void checkThereIsNoDuplicateParserRuleIds() {
-        // We scan only local parser rules...
-        for (String parserRuleId : parserRuleIds) {
-            // ... But we look for its position in the set of all parser rules
-            // (local and imported ones)...
-            int firstIndex = allParserRuleIds.indexOf(parserRuleId);
-            // ... and we compare it with the last occurrence of this id in the
-            // same set
-            int lastIndex = allParserRuleIds.lastIndexOf(parserRuleId);
-            if (firstIndex != lastIndex) {
-                String key = "antlr.error.parserRule.duplicate.rule.id";
-                // If there is a duplicate, then the start and end offset for
-                // parserRuleId point to the last occurrence of parserRuleId
-                // declaration
-                int startOffset
-                        = summary.getParserRuleIdStartOffsets().get(parserRuleId);
-                int endOffset
-                        = summary.getParserRuleIdEndOffsets().get(parserRuleId) + 1;
-                String displayName = "The parser rule declaration "
-                        + parserRuleId + " already exists";
+
+        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrExtractor.RULE_NAMES);
+        for (Map.Entry<String, Set<NamedSemanticRegion<RuleTypes>>> e : duplicates.entrySet()) {
+            for (NamedSemanticRegion<RuleTypes> r : e.getValue()) {
+
+                String key = "antlr.error." + r.kind() + ".duplicate.rule.id";
+                String displayName = "The " + r.kind() + " rule declaration "
+                        + e.getKey() + " occurs more than once";
                 String description = displayName;
-                addError(key, startOffset, endOffset, displayName, description);
+                addError(key, r.start(), r.end(), displayName, description);
             }
         }
     }
@@ -2032,82 +1619,45 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * entry points so we generate only a warning.
      */
     protected void checkAllDeclaredParserRulesAreUsed() {
-        for (String parserRuleId : parserRuleIds) {
-            if (!parserRuleReferences.containsKey(parserRuleId)
-                    && !parserRuleId.equals(firstParserRuleDeclaration)) {
+        NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+        if (refs == null || refs.isEmpty()) {
+            return;
+        }
+        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+        names.collectNames(item -> {
+            return item.kind() == RuleTypes.PARSER;
+        }).forEach(ruleName -> {
+            NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> set = refs.references(ruleName);
+            if (set == null || set.isEmpty()) {
+                NamedSemanticRegions.NamedSemanticRegion<RuleTypes> reg = names.regionFor(ruleName);
+                if (reg == null || reg.ordering() == 0) {
+                    return;
+                }
                 String key = "antlr.warning.parserRule.declaration.used.nowhere";
-                int startOffset = summary.getParserRuleIdStartOffsets().get(parserRuleId);
-                int endOffset = summary.getParserRuleIdEndOffsets().get(parserRuleId);
-                String displayName = "The rule declaration " + parserRuleId
+                String displayName = "The rule declaration " + ruleName
                         + " is used nowhere";
                 String description = displayName;
                 addError(
                         Severity.WARNING,
                         key,
-                        startOffset,
-                        endOffset,
+                        reg.start(),
+                        reg.end(),
                         displayName,
                         description);
+            };
+        });
+    }
+
+    protected void checkDuplicateLabels() {
+        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrExtractor.NAMED_ALTERNATIVES);
+        if (duplicates != null) {
+            for (Map.Entry<String, Set<NamedSemanticRegion<RuleTypes>>> e : duplicates.entrySet()) {
+                for (NamedSemanticRegion<RuleTypes> nr : e.getValue()) {
+                    addError("antlr.dup.label", nr.start(), nr.end(), "Duplicate label",
+                            "The label '" + nr.name() + " occurs more than once");
+                }
             }
         }
-    }
-
-    public List<EbnfElement> ebnfRanges() {
-        return EbnfElement.coalesce(ebnfs);
-    }
-
-    private void addEbnf(ParserRuleContext repeated, EbnfSuffixContext suffix) {
-        if (suffix == null || repeated == null) {
-            return;
-        }
-        String ebnfString = suffix.getText();
-        if (!ebnfString.isEmpty()) {
-            boolean isAtLeastOne = suffix.PLUS() != null;
-            boolean isGreedy = suffix.QUESTION() == null || suffix.QUESTION().isEmpty();
-            int start = repeated.getStart().getStartIndex();
-            int end = suffix.getStop().getStopIndex() + 1;
-            boolean isQuestionMark = "?".equals(ebnfString);
-            ebnfs.add(new EbnfElement(start, end, isAtLeastOne, isGreedy, isQuestionMark));
-        }
-    }
-
-    @Override
-    public void exitEbnf(ANTLRv4Parser.EbnfContext ctx) {
-        addEbnf(ctx.block(), ctx.ebnfSuffix());
-    }
-
-    @Override
-    public void exitParserRuleElement(ANTLRv4Parser.ParserRuleElementContext ctx) {
-        if (ctx.parserRuleAtom() != null) {
-            addEbnf(ctx.parserRuleAtom(), ctx.ebnfSuffix());
-        } else if (ctx.labeledParserRuleElement() != null) {
-            addEbnf(ctx.labeledParserRuleElement(), ctx.ebnfSuffix());
-        }
-    }
-
-    @Override
-    public void exitLexerRuleElement(ANTLRv4Parser.LexerRuleElementContext ctx) {
-        if (ctx.lexerRuleAtom() != null) {
-            addEbnf(ctx.lexerRuleAtom(), ctx.ebnfSuffix());
-        } else if (ctx.lexerRuleElementBlock() != null) {
-            addEbnf(ctx.lexerRuleElementBlock(), ctx.ebnfSuffix());
-        }
-    }
-
-    public List<BlockElement> blocks() {
-        return blocks;
-    }
-
-    @Override
-    public void enterBlock(ANTLRv4Parser.BlockContext ctx) {
-        blockDepth++;
-    }
-
-    @Override
-    public void exitBlock(ANTLRv4Parser.BlockContext ctx) {
-        blocks.add(new BlockElement(ctx.getStart().getStopIndex() + 1,
-                ctx.getStop().getStartIndex(), blockDepth));
-        blockDepth--;
     }
 
     protected void checkThereIsAtLeastARule() {
