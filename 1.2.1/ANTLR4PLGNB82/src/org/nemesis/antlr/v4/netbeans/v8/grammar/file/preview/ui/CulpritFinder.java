@@ -26,8 +26,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrRunOption;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeElement;
@@ -129,8 +131,8 @@ public class CulpritFinder {
 
     private void loadRules(ANTLRv4SemanticParser parse) throws IOException {
         String text = loadGrammarText(parse.grammarFilePath().get());
-        NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
-        for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> d : decls) {
+        NamedSemanticRegions<RuleTypes> decls = parse.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+        for (NamedSemanticRegion<RuleTypes> d : decls) {
             ruleTextForRule.put(d.name(), text.substring(d.start(), d.end()));
         }
     }
@@ -146,10 +148,10 @@ public class CulpritFinder {
             loadRules(parse.getSemanticParser());
         }
 
-        public List<NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarations() {
-            NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
-            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> result = new ArrayList<>(decls.size());
-            for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> rule : decls) {
+        public List<NamedSemanticRegion<RuleTypes>> declarations() {
+            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            List<NamedSemanticRegion<RuleTypes>> result = new ArrayList<>(decls.size());
+            for (NamedSemanticRegion<RuleTypes> rule : decls) {
                 result.add(new OffsetNamedSemanticRegion(rule, locationOffset));
             }
             return result;
@@ -158,8 +160,8 @@ public class CulpritFinder {
         public void appendRules(StringBuilder into) throws IOException {
             System.out.println("Append rules for imported: " + parse.getSemanticParser().grammarFilePath().get());
             String text = FileUtil.toFileObject(parse.getSemanticParser().grammarFilePath().get().toFile()).asText();
-            NamedSemanticRegions<AntlrExtractor.RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
-            for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> rule : decls) {
+            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            for (NamedSemanticRegion<RuleTypes> rule : decls) {
                 String ruleDef = text.substring(rule.start(), rule.end());
                 into.append("\n// import ").append(parse.getSemanticParser().grammarFilePath());
                 into.append(ruleDef).append(";\n");
@@ -168,18 +170,18 @@ public class CulpritFinder {
 
     }
 
-    private static final class OffsetNamedSemanticRegion implements NamedSemanticRegion<AntlrExtractor.RuleTypes> {
+    private static final class OffsetNamedSemanticRegion implements NamedSemanticRegion<RuleTypes> {
 
-        private final NamedSemanticRegion<AntlrExtractor.RuleTypes> orig;
+        private final NamedSemanticRegion<RuleTypes> orig;
         private final int offset;
 
-        public OffsetNamedSemanticRegion(NamedSemanticRegion<AntlrExtractor.RuleTypes> orig, int offset) {
+        public OffsetNamedSemanticRegion(NamedSemanticRegion<RuleTypes> orig, int offset) {
             this.orig = orig;
             this.offset = offset;
         }
 
         @Override
-        public AntlrExtractor.RuleTypes kind() {
+        public RuleTypes kind() {
             return orig.kind();
         }
 
@@ -238,16 +240,16 @@ public class CulpritFinder {
      */
     public interface Monitor {
 
-        void onAttempt(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, long attempt, long of);
+        void onAttempt(Set<NamedSemanticRegion<RuleTypes>> omitted, long attempt, long of);
 
-        void onCompleted(boolean success, Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext);
+        void onCompleted(boolean success, Set<NamedSemanticRegion<RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext);
 
         void onStatus(String status);
 
         default Monitor replan() {
             return new Monitor() {
                 @Override
-                public void onAttempt(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, long attempt, long of) {
+                public void onAttempt(Set<NamedSemanticRegion<RuleTypes>> omitted, long attempt, long of) {
                     EventQueue.invokeLater(() -> {
                         Monitor.this.onAttempt(omitted, attempt, of);
                     });
@@ -259,7 +261,7 @@ public class CulpritFinder {
                 }
 
                 @Override
-                public void onCompleted(boolean success, Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext) {
+                public void onCompleted(boolean success, Set<NamedSemanticRegion<RuleTypes>> omitted, GenerateBuildAndRunGrammarResult proxy, Runnable runNext) {
                     EventQueue.invokeLater(() -> {
                         Monitor.this.onCompleted(success, omitted, proxy, runNext);
                     });
@@ -304,13 +306,13 @@ public class CulpritFinder {
         }
 
         public GenerateBuildAndRunGrammarResult next() throws IOException {
-            AtomicReference<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> ref = new AtomicReference<>();
+            AtomicReference<Set<NamedSemanticRegion<RuleTypes>>> ref = new AtomicReference<>();
             try {
                 String grammar = hellscape.nextGrammar(l -> {
                     ref.set(l);
                 });
                 List<String> ruleNames = new ArrayList<>();
-                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> r : ref.get()) {
+                for (NamedSemanticRegion<RuleTypes> r : ref.get()) {
                     ruleNames.add(r.name());
                 }
                 System.out.println("--------------------- GEN-GRAMMAR -" + ruleNames + " --------------");
@@ -360,9 +362,9 @@ public class CulpritFinder {
                 }
             }
         }
-        NamedSemanticRegions<AntlrExtractor.RuleTypes> rules = parseInfo.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+        NamedSemanticRegions<RuleTypes> rules = parseInfo.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
         if (candidateLexerRules.size() < 3) {
-            for (NamedSemanticRegion<AntlrExtractor.RuleTypes> d : rules) {
+            for (NamedSemanticRegion<RuleTypes> d : rules) {
                 switch (d.kind()) {
                     case LEXER:
                         candidateLexerRules.add(d.name());
@@ -370,33 +372,33 @@ public class CulpritFinder {
             }
         }
         System.out.println("CANDIDATE LEXER RULES: " + candidateLexerRules);
-        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarations = new ArrayList<>();
-        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> r : rules) {
+        List<NamedSemanticRegion<RuleTypes>> declarations = new ArrayList<>();
+        for (NamedSemanticRegion<RuleTypes> r : rules) {
             declarations.add(r);
         }
-        Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched = new HashSet<>();
-        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> lexerRules = new ArrayList<>();
+        Set<NamedSemanticRegion<RuleTypes>> touched = new HashSet<>();
+        List<NamedSemanticRegion<RuleTypes>> lexerRules = new ArrayList<>();
         for (String lexerRuleName : candidateLexerRules) {
             if (rules.contains(lexerRuleName)) {
-                NamedSemanticRegion<AntlrExtractor.RuleTypes> rule = rules.regionFor(lexerRuleName);
+                NamedSemanticRegion<RuleTypes> rule = rules.regionFor(lexerRuleName);
                 touched.add(rule);
-                if (rule.kind() == AntlrExtractor.RuleTypes.LEXER) {
+                if (rule.kind() == RuleTypes.LEXER) {
                     lexerRules.add(rule);
                 }
             }
         }
         for (String parserRuleName : candidateParserRules) {
             if (rules.contains(parserRuleName)) {
-                NamedSemanticRegion<AntlrExtractor.RuleTypes> rule = rules.regionFor(parserRuleName);
+                NamedSemanticRegion<RuleTypes> rule = rules.regionFor(parserRuleName);
                 if (rule != null) {
                     touched.add(rule);
                 }
             }
         }
         for (ImportedGrammar grammar : this.imports) {
-            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> imported = grammar.declarations();
+            List<NamedSemanticRegion<RuleTypes>> imported = grammar.declarations();
             declarations.addAll(imported);
-            for (NamedSemanticRegion<AntlrExtractor.RuleTypes> d : imported) {
+            for (NamedSemanticRegion<RuleTypes> d : imported) {
                 switch (d.kind()) {
                     case LEXER:
                         lexerRules.add(d);
@@ -405,7 +407,7 @@ public class CulpritFinder {
             }
         }
         Collections.sort(declarations);
-        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touchedSorted = new ArrayList<>(touched);
+        List<NamedSemanticRegion<RuleTypes>> touchedSorted = new ArrayList<>(touched);
 //        if (true || touchedSorted.size() <= 2) {
 //            System.out.println("too few touched - try lexer rules - " + lexerRules.size());
 //            touchedSorted = lexerRules;
@@ -420,18 +422,18 @@ public class CulpritFinder {
 
     public final class CombinatoricHellscape {
 
-        private final List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> allDeclarations;
-        private final List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched;
+        private final List<NamedSemanticRegion<RuleTypes>> allDeclarations;
+        private final List<NamedSemanticRegion<RuleTypes>> touched;
         private CartesianProductizer product;
 
-        public CombinatoricHellscape(List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> allDeclarations, List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> touched) throws IOException {
+        public CombinatoricHellscape(List<NamedSemanticRegion<RuleTypes>> allDeclarations, List<NamedSemanticRegion<RuleTypes>> touched) throws IOException {
             this.allDeclarations = new ArrayList<>(allDeclarations);
             this.touched = new ArrayList<>(touched);
             product = new CartesianProductizer();
         }
 
-        public String nextGrammar(Consumer<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> c) {
-            List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> all = product.next(c);
+        public String nextGrammar(Consumer<Set<NamedSemanticRegion<RuleTypes>>> c) {
+            List<NamedSemanticRegion<RuleTypes>> all = product.next(c);
             System.out.println("NEXT GRAMMAR with " + all.size());
             StringBuilder sb = new StringBuilder();
             try {
@@ -448,7 +450,7 @@ public class CulpritFinder {
                         break;
                 }
                 sb.append(parseInfo.getGrammarName()).append(";\n\n");
-                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> rd : all) {
+                for (NamedSemanticRegion<RuleTypes> rd : all) {
 //                    String sub = orig.substring(rd.getRuleStartOffset(), rd.getRuleEndOffset());
                     String sub = ruleTextForRule.get(rd.name());
                     sb.append(sub).append('\n');
@@ -464,23 +466,23 @@ public class CulpritFinder {
         private class CartesianProductizer {
 
             private final Cursors3 cursors;
-            private final Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> latestOmitted = new LinkedHashSet<>();
+            private final Set<NamedSemanticRegion<RuleTypes>> latestOmitted = new LinkedHashSet<>();
 
             public CartesianProductizer() {
                 cursors = new Cursors3(touched.size());
             }
 
-            private void pruneDependencies(Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> kept) {
+            private void pruneDependencies(Set<NamedSemanticRegion<RuleTypes>> omitted, List<NamedSemanticRegion<RuleTypes>> kept) {
                 if (true) {
                     // Reverse closure we're getting is larger than it should be
                     // hold this for a rewrite
                     return;
                 }
-                Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>> alsoRemoved = new LinkedHashSet<>(omitted);
-                for (NamedSemanticRegion<AntlrExtractor.RuleTypes> om : omitted) {
+                Set<NamedSemanticRegion<RuleTypes>> alsoRemoved = new LinkedHashSet<>(omitted);
+                for (NamedSemanticRegion<RuleTypes> om : omitted) {
                     Set<String> closure = parseInfo.ruleTree().reverseClosureOf(om.name());
                     for (String s : closure) {
-                        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> rd : kept) {
+                        for (NamedSemanticRegion<RuleTypes> rd : kept) {
                             if (s.equals(rd.name())) {
                                 alsoRemoved.add(rd);
                             }
@@ -494,7 +496,7 @@ public class CulpritFinder {
 
             private BitShiftArray last;
 
-            public List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> next(Consumer<Set<NamedSemanticRegion<AntlrExtractor.RuleTypes>>> c) {
+            public List<NamedSemanticRegion<RuleTypes>> next(Consumer<Set<NamedSemanticRegion<RuleTypes>>> c) {
                 for (;;) {
                     latestOmitted.clear();
                     BitShiftArray set = cursors.next();
@@ -509,7 +511,7 @@ public class CulpritFinder {
                         continue;
                     }
                     last = set.copy();
-                    List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> nue = new LinkedList<>(allDeclarations);
+                    List<NamedSemanticRegion<RuleTypes>> nue = new LinkedList<>(allDeclarations);
                     latestOmitted.addAll(nue);
                     set.pruneList(nue);
                     latestOmitted.removeAll(nue);

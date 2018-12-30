@@ -6,10 +6,12 @@ import javax.swing.text.Document;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_NAMED_ALTERNATIVE_SUBRULE;
 
@@ -53,10 +55,10 @@ final class AntlrDeclarationHighlighter extends AbstractAntlrHighlighter.Documen
     protected void refresh(Document doc, Void argument, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
         Extraction ext = semantics.extraction();
         bag.clear();
-        NamedSemanticRegions<AntlrExtractor.RuleTypes> lbls = ext.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES);
+        NamedSemanticRegions<RuleTypes> lbls = ext.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES);
         Map<RuleElementKind, AttributeSet> colorings = RuleElementKind.colorings();
         AttributeSet alternativeColorings = colorings.get(PARSER_NAMED_ALTERNATIVE_SUBRULE);
-        for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> l : lbls.index()) {
+        for (NamedSemanticRegion<RuleTypes> l : lbls.index()) {
             bag.addHighlight(l.start(), l.end(), alternativeColorings);
         }
         NamedSemanticRegions<RuleTypes> names = ext.namedRegions(AntlrExtractor.RULE_NAMES);

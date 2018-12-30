@@ -3,7 +3,8 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator;
 import javax.swing.ListModel;
 import javax.swing.event.ListDataListener;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 
 /**
  *
@@ -11,7 +12,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSem
  */
 final class EmptyListModel<T> implements ListModel<T> {
 
-    static final ListModel<NamedSemanticRegion<AntlrExtractor.RuleTypes>> EMPTY_MODEL = new EmptyListModel<>();
+    static final ListModel<NamedSemanticRegion<RuleTypes>> EMPTY_MODEL = new EmptyListModel<>();
 
     @Override
     public int getSize() {

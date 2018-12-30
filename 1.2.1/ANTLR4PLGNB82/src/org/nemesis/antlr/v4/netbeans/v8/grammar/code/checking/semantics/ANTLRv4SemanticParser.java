@@ -28,6 +28,10 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.NamedRegionExtractorBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraph;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
@@ -83,11 +87,15 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.SuperClassSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedRegionExtractorBuilder.UnknownNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Attributions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
@@ -1504,7 +1512,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * refernece appears).
      */
     protected void checkRuleReferences() {
-        Extraction.ResolutionInfo<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegions.NamedSemanticRegion<RuleTypes>, RuleTypes> resInfo;
+        Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resInfo;
         try {
             resInfo = extraction.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
         } catch (IOException ioe) {
@@ -1513,7 +1521,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         }
         // XXX we need to track which unknown refs were likely trying to be a parser
         // rule reference
-        SemanticRegions<NamedRegionExtractorBuilder.UnknownNameReference> unresolved = resInfo.unresolved();
+        SemanticRegions<UnknownNameReference> unresolved = resInfo.remainingUnattributed();
         for (SemanticRegions.SemanticRegion<UnknownNameReference> r : unresolved) {
             UnknownNameReference<?> k = r.key();
             if (EOF.equals(k.name())) {
@@ -1619,7 +1627,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * entry points so we generate only a warning.
      */
     protected void checkAllDeclaredParserRulesAreUsed() {
-        NamedSemanticRegions.NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+        NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
         if (refs == null || refs.isEmpty()) {
             return;
         }
@@ -1627,9 +1635,9 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         names.collectNames(item -> {
             return item.kind() == RuleTypes.PARSER;
         }).forEach(ruleName -> {
-            NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> set = refs.references(ruleName);
+            NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> set = refs.references(ruleName);
             if (set == null || set.isEmpty()) {
-                NamedSemanticRegions.NamedSemanticRegion<RuleTypes> reg = names.regionFor(ruleName);
+                NamedSemanticRegion<RuleTypes> reg = names.regionFor(ruleName);
                 if (reg == null || reg.ordering() == 0) {
                     return;
                 }

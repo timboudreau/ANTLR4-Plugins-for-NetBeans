@@ -30,9 +30,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.openide.filesystems.FileObject;
@@ -42,7 +43,8 @@ import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 import org.openide.util.lookup.ServiceProvider;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.StringGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 
 /**
  *
@@ -191,8 +193,8 @@ public final class AdhocColoringsRegistry {
         importantRules.addAll(tree.bottomLevelRules());
 
         Extraction ext = sem.extraction();
-        NamedSemanticRegions<AntlrExtractor.RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
-        for (NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> decl : nameds) {
+        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+        for (NamedSemanticRegion<RuleTypes> decl : nameds) {
             String id = decl.name();
             if (existing.contains(id)) {
                 continue;

@@ -1,7 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -16,9 +16,18 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarTypeContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.NamedRegionData;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference.UnknownNameReferenceResolver;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource.RelativeFileObjectResolver;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import org.openide.cookies.EditorCookie;
@@ -31,27 +40,28 @@ import org.openide.loaders.DataObject;
  */
 public final class AntlrExtractor {
 
-    static final String MISSING_TOKEN_ID = "<missing TOKEN_ID>";
-    static final String MISSING_ID = "<missing ID>";
-    public static final NamedRegionExtractorBuilder.NamedRegionKey<ImportKinds> IMPORTS = NamedRegionExtractorBuilder.NamedRegionKey.create("imports", ImportKinds.class);
-    public static final NamedRegionExtractorBuilder.NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionExtractorBuilder.NamedRegionKey.create("labels", RuleTypes.class);
-    public static final NamedRegionExtractorBuilder.NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionExtractorBuilder.NamedRegionKey.create("ruleNames", RuleTypes.class);
-    public static final NamedRegionExtractorBuilder.NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionExtractorBuilder.NamedRegionKey.create("ruleBounds", RuleTypes.class);
-    public static final NamedRegionExtractorBuilder.NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = NamedRegionExtractorBuilder.NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
-    public static final GenericExtractorBuilder.RegionsKey<Void> BLOCKS = GenericExtractorBuilder.RegionsKey.create(Void.class, "blocks");
-    public static final GenericExtractorBuilder.RegionsKey<HeaderMatter> HEADER_MATTER = GenericExtractorBuilder.RegionsKey.create(HeaderMatter.class, "headerMatter");
-    public static final GenericExtractorBuilder.RegionsKey<Set<EbnfProperty>> EBNFS = GenericExtractorBuilder.RegionsKey.create(Set.class, "ebnfs");
-    public static final GenericExtractorBuilder.SingleObjectKey<GrammarType> GRAMMAR_TYPE = GenericExtractorBuilder.SingleObjectKey.create(GrammarType.class);
+    public static final String MISSING_TOKEN_ID = "<missing TOKEN_ID>";
+    public static final String MISSING_ID = "<missing ID>";
+    public static final NamedRegionKey<ImportKinds> IMPORTS = NamedRegionKey.create("imports", ImportKinds.class);
+    public static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("labels", RuleTypes.class);
+    public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
+    public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
+    public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
+    public static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
+    public static final RegionsKey<HeaderMatter> HEADER_MATTER = RegionsKey.create(HeaderMatter.class, "headerMatter");
+    public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
+    public static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
 
-    private final GenericExtractorBuilder.GenericExtractor<ANTLRv4Parser.GrammarFileContext> extractor;
+    private final Extractor<ANTLRv4Parser.GrammarFileContext> extractor;
 
     AntlrExtractor() {
-        extractor = new GenericExtractorBuilder<>(ANTLRv4Parser.GrammarFileContext.class)
+        extractor = Extractor.builder(ANTLRv4Parser.GrammarFileContext.class)
+                // Extract a singleton, the grammar type
                 .extractingSingletonUnder(GRAMMAR_TYPE)
-                .whereRuleIs(GrammarTypeContext.class)
+                .using(GrammarTypeContext.class)
                 .extractingObjectWith(AntlrExtractor::findGrammarType)
                 .finishObjectExtraction()
-
+                // No extract imports
                 .extractNamedRegions(ImportKinds.class)
                 .recordingNamePositionUnder(IMPORTS)
                 .whereRuleIs(ANTLRv4Parser.TokenVocabSpecContext.class)
@@ -95,13 +105,13 @@ public final class AntlrExtractor {
                 .finishReferenceCollector()
                 .finishNamedRegions()
                 // Just collect the offsets of all BlockContext trees, in a nested data structure
-                .extractingRegionsTo(BLOCKS)
+                .extractingRegionsUnder(BLOCKS)
                 .whenRuleType(ANTLRv4Parser.BlockContext.class)
                 .extractingBoundsFromRule()
                 .finishRegionExtractor()
                 // More complex nested region extraction for EBNF contexts, so we can progressively
                 // darket the background color in the editor of nested repetitions
-                .extractingRegionsTo(EBNFS)
+                .extractingRegionsUnder(EBNFS)
                 .whenRuleType(ANTLRv4Parser.EbnfContext.class)
                 .extractingKeyAndBoundsFromWith(AntlrExtractor::extractEbnfPropertiesFromEbnfContext)
                 .whenRuleType(ANTLRv4Parser.ParserRuleElementContext.class)
@@ -117,7 +127,7 @@ public final class AntlrExtractor {
                 .derivingNameWith(AntlrExtractor::extractAlternativeLabelInfo)
                 .finishNamedRegions()
                 // Collect various header stuff we want to italicize
-                .extractingRegionsTo(HEADER_MATTER)
+                .extractingRegionsUnder(HEADER_MATTER)
                 .whenRuleType(ANTLRv4Parser.MemberActionContext.class)
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.MEMBERS_DECL)
                 .whenRuleType(ANTLRv4Parser.HeaderActionBlockContext.class)
@@ -136,53 +146,6 @@ public final class AntlrExtractor {
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.DIRECTIVE)
                 .finishRegionExtractor()
                 .build();
-    }
-
-    public enum HeaderMatter {
-        MEMBERS_DECL,
-        HEADER_ACTION,
-        IMPORT,
-        TOKENS,
-        OPTIONS,
-        PACKAGE,
-        DIRECTIVE,
-    }
-
-    public enum RuleTypes {
-        FRAGMENT,
-        LEXER,
-        PARSER,
-        NAMED_ALTERNATIVES; // only used for names, not bounds
-
-        public String toString() {
-            return name().toLowerCase();
-        }
-    }
-
-    public enum ImportKinds {
-        TOKEN_VOCAB,
-        DELEGATE_GRAMMAR
-    }
-
-    public enum EbnfProperty {
-        STAR,
-        QUESTION,
-        PLUS;
-
-        static Set<EbnfProperty> forSuffix(ANTLRv4Parser.EbnfSuffixContext ctx) {
-            Set<EbnfProperty> result = EnumSet.noneOf(EbnfProperty.class);
-            if (ctx.PLUS() != null) {
-                result.add(PLUS);
-            }
-            if (ctx.STAR() != null) {
-                result.add(STAR);
-            }
-            if (ctx.QUESTION() != null && ctx.QUESTION().size() > 0) {
-//                System.out.println("question; " + ctx.QUESTION());
-                result.add(QUESTION);
-            }
-            return result;
-        }
     }
 
     static GrammarType findGrammarType(ANTLRv4Parser.GrammarTypeContext gtc) {
@@ -208,7 +171,7 @@ public final class AntlrExtractor {
         return grammarType;
     }
 
-    static final GenericExtractorBuilder.RelativeFileObjectResolver ANTLR_RESOLVER = (rt, nm, in) -> {
+    static final RelativeFileObjectResolver ANTLR_RESOLVER = (rt, nm, in) -> {
         return ProjectHelper.resolveRelativeGrammar(rt, nm);
     };
 
@@ -246,7 +209,9 @@ public final class AntlrExtractor {
 
     public Extraction extract(GrammarSource<?> src) throws IOException {
         ANTLRv4Lexer lex = new ANTLRv4Lexer(src.stream());
+        lex.removeErrorListeners();
         ANTLRv4Parser parser = new ANTLRv4Parser(new CommonTokenStream(lex, 0));
+        parser.removeErrorListeners();
         return extract(parser.grammarFile(), src);
     }
 
@@ -256,18 +221,18 @@ public final class AntlrExtractor {
         return INSTANCE;
     }
 
-    private static NamedRegionExtractorBuilder.NamedRegionData<RuleTypes> deriveIdFromLexerRule(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
+    private static NamedRegionData<RuleTypes> deriveIdFromLexerRule(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
         TerminalNode tn = ctx.TOKEN_ID();
         if (tn != null) {
             org.antlr.v4.runtime.Token tok = tn.getSymbol();
             if (tok != null) {
-                return new NamedRegionExtractorBuilder.NamedRegionData(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
+                return NamedRegionData.create(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
             }
         }
         return null;
     }
 
-    private static NamedRegionExtractorBuilder.NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
+    private static NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
         ANTLRv4Parser.ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
         if (decl != null) {
             ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
@@ -278,7 +243,7 @@ public final class AntlrExtractor {
                     if (id != null) {
                         String ruleId = id.getText();
                         if (!MISSING_ID.equals(ruleId)) {
-                            return new NamedRegionExtractorBuilder.NamedRegionData(ruleId, RuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
+                            return NamedRegionData.create(ruleId, RuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
                         }
                     }
                 }
@@ -287,12 +252,12 @@ public final class AntlrExtractor {
         return null;
     }
 
-    private static NamedRegionExtractorBuilder.NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+    private static NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
         TerminalNode idTN = ctx.TOKEN_ID();
         if (idTN != null) {
             Token idToken = idTN.getSymbol();
             if (idToken != null && !MISSING_TOKEN_ID.equals(idToken.getText())) {
-                return new NamedRegionExtractorBuilder.NamedRegionData(idToken.getText(), RuleTypes.FRAGMENT, idToken.getStartIndex(), idToken.getStopIndex() + 1);
+                return NamedRegionData.create(idToken.getText(), RuleTypes.FRAGMENT, idToken.getStartIndex(), idToken.getStopIndex() + 1);
 //                    names.add(idToken.getText(), AntlrRuleKind.FRAGMENT_RULE, idToken.getStartIndex(), idToken.getStopIndex() + 1);
             }
         }
@@ -353,7 +318,7 @@ public final class AntlrExtractor {
         }
     }
 
-    static NamedRegionExtractorBuilder.NamedRegionData<RuleTypes> extractAlternativeLabelInfo(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
+    private static NamedRegionData<RuleTypes> extractAlternativeLabelInfo(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
         ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
         if (idc != null && ctx.SHARP() != null) {
             TerminalNode idTN = idc.ID();
@@ -362,7 +327,7 @@ public final class AntlrExtractor {
                 Token labelToken = idTN.getSymbol();
                 if (labelToken != null) {
                     String altnvLabel = labelToken.getText();
-                    return new NamedRegionExtractorBuilder.NamedRegionData<>(altnvLabel,
+                    return NamedRegionData.create(altnvLabel,
                             RuleTypes.NAMED_ALTERNATIVES, ctx.SHARP().getSymbol().getStartIndex(), labelToken.getStopIndex() + 1);
                 }
             }
@@ -370,7 +335,7 @@ public final class AntlrExtractor {
         return null;
     }
 
-    static Token extractImportFromTokenVocab(ANTLRv4Parser.TokenVocabSpecContext ctx) {
+    private static Token extractImportFromTokenVocab(ANTLRv4Parser.TokenVocabSpecContext ctx) {
         ANTLRv4Parser.IdentifierContext idctx = ctx.identifier();
         if (idctx != null) {
             TerminalNode tn = idctx.ID();
@@ -381,7 +346,7 @@ public final class AntlrExtractor {
         return null;
     }
 
-    static TerminalNode extractImportFromDelegateGrammar(ANTLRv4Parser.DelegateGrammarContext ctx) {
+    private static TerminalNode extractImportFromDelegateGrammar(ANTLRv4Parser.DelegateGrammarContext ctx) {
         ANTLRv4Parser.GrammarIdentifierContext gic = ctx.grammarIdentifier();
         if (gic != null) {
             ANTLRv4Parser.IdentifierContext ic = gic.identifier();
@@ -407,16 +372,16 @@ public final class AntlrExtractor {
         }
     }
 
-    private static UnknownResolver resolver;
+    private static UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolver;
 
-    public static NamedRegionExtractorBuilder.UnknownNameReference.UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolver() {
+    public static UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolver() {
         if (resolver == null) {
             resolver = new UnknownResolver();
         }
         return resolver;
     }
 
-    static Extraction resolveImport(Extraction in, String importedGrammarName) {
+    private static Extraction resolveImport(Extraction in, String importedGrammarName) {
         return in.resolveExtraction(AntlrExtractor.getDefault().extractor, importedGrammarName, gs -> {
             try {
                 return AntlrExtractor.getDefault().extract(gs);
@@ -426,12 +391,10 @@ public final class AntlrExtractor {
         });
     }
 
-    static class UnknownResolver implements NamedRegionExtractorBuilder.UnknownNameReference.UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> {
+    private static class UnknownResolver implements UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> {
 
         @Override
-        public <X> X resolve(Extraction extraction, NamedRegionExtractorBuilder.UnknownNameReference ref,
-                NamedRegionExtractorBuilder.UnknownNameReference.ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c) {
-
+        public <X> X resolve(Extraction extraction, UnknownNameReference<RuleTypes> ref, UnknownNameReference.ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c) throws IOException {
             Set<String> imports = extraction.allKeys(IMPORTS);
             for (String importedGrammarName : imports) {
                 Extraction impExt = resolveImport(extraction, importedGrammarName);
@@ -439,7 +402,7 @@ public final class AntlrExtractor {
                     String name = ref.name();
                     NamedSemanticRegions<RuleTypes> names = impExt.namedRegions(RULE_NAMES);
                     if (names.contains(name)) {
-                        NamedSemanticRegions.NamedSemanticRegion<RuleTypes> decl = names.regionFor(name);
+                        NamedSemanticRegion<RuleTypes> decl = names.regionFor(name);
                         if (decl != null) {
                             return c.resolved(ref, impExt.source(), names, decl);
                         }

@@ -1,7 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator;
 
 import javax.swing.DefaultListModel;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.openide.cookies.EditorCookie;
 
 /**

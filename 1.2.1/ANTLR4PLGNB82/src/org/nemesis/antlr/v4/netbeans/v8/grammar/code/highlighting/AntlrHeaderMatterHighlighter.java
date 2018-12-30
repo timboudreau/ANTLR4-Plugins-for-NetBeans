@@ -7,8 +7,10 @@ import javax.swing.text.Document;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.SemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.HeaderMatter;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ExtractorBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.highlighting.AbstractAntlrHighlighter.GET_SEMANTICS;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
@@ -41,10 +43,10 @@ public class AntlrHeaderMatterHighlighter extends AbstractAntlrHighlighter.Docum
 
     @Override
     protected void refresh(Document doc, Void argument, ANTLRv4SemanticParser semantics, NBANTLRv4Parser.ANTLRv4ParserResult result) {
-        GenericExtractorBuilder.Extraction ext = semantics.extraction();
-        SemanticRegions<AntlrExtractor.HeaderMatter> hms = ext.regions(AntlrExtractor.HEADER_MATTER);
+        Extraction ext = semantics.extraction();
+        SemanticRegions<HeaderMatter> hms = ext.regions(AntlrExtractor.HEADER_MATTER);
         AttributeSet attrs = colorings().get(COLORING_NAMES[0]);
-        for (SemanticRegions.SemanticRegion<AntlrExtractor.HeaderMatter> e : hms.outermostElements()) {
+        for (SemanticRegions.SemanticRegion<HeaderMatter> e : hms.outermostElements()) {
             bag.addHighlight(e.start(), e.end(), attrs);
         }
     }

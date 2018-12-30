@@ -1,5 +1,9 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetStringGraph;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -20,10 +24,16 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.EbnfProperty;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.GenericExtractorBuilder.GrammarSource;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.EbnfProperty;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.AttributedForeignNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Attributions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 
@@ -35,25 +45,25 @@ public class AntlrExtractorTest {
 
     @Test
     public void testForeignReferences() throws Throwable {
-        GenericExtractorBuilder.Extraction ext = AntlrExtractor.getDefault().extract(rust);
+        Extraction ext = AntlrExtractor.getDefault().extract(rust);
 
         assertNotNull("Grammar type not encountered", ext.encounters(AntlrExtractor.GRAMMAR_TYPE));
         assertFalse("Multiple grammar statements claimed to be present", ext.encounters(AntlrExtractor.GRAMMAR_TYPE).hasMultiple());
         assertTrue("Wrong grammar type found", ext.encounters(AntlrExtractor.GRAMMAR_TYPE).is(GrammarType.COMBINED));
 
-        SemanticRegions<NamedRegionExtractorBuilder.UnknownNameReference<?>> unknowns = ext.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
+        SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = ext.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
         System.out.println("---------------------- UNKNOWNS -----------------------------");
         Set<String> unknownNames = new HashSet<>();
         Set<String> expectedUnknownNames = setOf("XID_Start", "XID_Continue", "EOF");
 
-        for (SemanticRegions.SemanticRegion<NamedRegionExtractorBuilder.UnknownNameReference<?>> u : unknowns) {
+        for (SemanticRegions.SemanticRegion<UnknownNameReference<RuleTypes>> u : unknowns) {
             unknownNames.add(u.key().name());
         }
         assertEquals(expectedUnknownNames, unknownNames);
-        GenericExtractorBuilder.Extraction.ResolutionInfo<GrammarSource<?>, NamedSemanticRegions<AntlrExtractor.RuleTypes>, NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>, AntlrExtractor.RuleTypes> resolved = ext.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
-        SemanticRegions<NamedRegionExtractorBuilder.ResolvedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<AntlrExtractor.RuleTypes>, NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>, AntlrExtractor.RuleTypes>> resolvedItems = resolved.resolved();
+        Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = ext.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
+        SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> resolvedItems = resolved.attributed();
         System.out.println("---------------------- RESOLVED TO -----------------------------");
-        for (SemanticRegions.SemanticRegion<NamedRegionExtractorBuilder.ResolvedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<AntlrExtractor.RuleTypes>, NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>, AntlrExtractor.RuleTypes>> item : resolvedItems) {
+        for (SemanticRegions.SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> item : resolvedItems) {
             unknownNames.remove(item.key().name());
             GrammarSource<?> src = item.key().source();
             assertTrue(src + "", src instanceof GS);
@@ -89,7 +99,7 @@ public class AntlrExtractorTest {
         System.out.println("EBNFS: \n" + ri.regions(AntlrExtractor.EBNFS));
 
         int ec = 0;
-        for (SemanticRegions.SemanticRegion<Set<AntlrExtractor.EbnfProperty>> ebnf : ri.regions(AntlrExtractor.EBNFS)) {
+        for (SemanticRegions.SemanticRegion<Set<EbnfProperty>> ebnf : ri.regions(AntlrExtractor.EBNFS)) {
             assertEquals(ec, ebnf.index());
             switch (ec++) {
                 case 0:
@@ -142,7 +152,7 @@ public class AntlrExtractorTest {
 
         Set<String> labels = new HashSet<>();
         int lc = 0;
-        for (NamedSemanticRegions.NamedSemanticRegion<RuleTypes> i : ri.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES)) {
+        for (NamedSemanticRegion<RuleTypes> i : ri.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES)) {
             labels.add(i.name());
             assertEquals("#" + i.name(), txt.substring(i.start(), i.end()));
             switch (lc) {
@@ -176,7 +186,7 @@ public class AntlrExtractorTest {
 
         assertEquals(setOf("Whitespace", "items"), g.topLevelOrOrphanNodes());
 
-        for (NamedSemanticRegions.NamedSemanticRegion<RuleTypes> o : ri.namedRegions(AntlrExtractor.RULE_NAMES)) {
+        for (NamedSemanticRegion<RuleTypes> o : ri.namedRegions(AntlrExtractor.RULE_NAMES)) {
             IndexAddressable.IndexAddressableItem ruleBounds = ri.namedRegions(AntlrExtractor.RULE_BOUNDS).regionFor(o.name());
             assertNotNull(ruleBounds);
             assertTrue(ruleBounds.containsPosition(o.start()));
@@ -193,11 +203,11 @@ public class AntlrExtractorTest {
         }
         assertEquals(Arrays.asList(expectedNmmBlocks), subs);
 
-        NamedSemanticRegions.NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> bvs = ri.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES).references("booleanValue");
+        NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> bvs = ri.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES).references("booleanValue");
         assertEquals(1, bvs.size());
-        NamedSemanticRegions.NamedSemanticRegionReference<RuleTypes> bv = bvs.iterator().next();
+        NamedSemanticRegionReference<RuleTypes> bv = bvs.iterator().next();
         assertEquals("booleanValue", txt.substring(bv.start(), bv.end()));
-        NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes> valueRule = ri.namedRegions(AntlrExtractor.RULE_BOUNDS).regionFor("value");
+        NamedSemanticRegion<RuleTypes> valueRule = ri.namedRegions(AntlrExtractor.RULE_BOUNDS).regionFor("value");
         assertNotNull(valueRule);
         assertTrue(valueRule.containsPosition(bv.start()));
         assertTrue(valueRule.containsPosition(bv.end()));
@@ -228,7 +238,7 @@ public class AntlrExtractorTest {
         nmg = new GS2("NestedMapGrammar", "NestedMapGrammar.g4");
     }
 
-    static class GS implements GrammarSource<String> {
+    public static class GS extends GrammarSource<String> {
 
         private final String name;
         final String path;
@@ -302,7 +312,7 @@ public class AntlrExtractorTest {
         }
 
         @Override
-        public GrammarSource<?> resolveImport(String name, GenericExtractorBuilder.Extraction extraction) {
+        public GrammarSource<?> resolveImport(String name, Extraction extraction) {
             if (kids == null) {
                 return null;
             }
@@ -326,7 +336,7 @@ public class AntlrExtractorTest {
         }
     }
 
-    static class GS2 extends GS {
+    public static class GS2 extends GS {
 
         public GS2(String name, String path) {
             super(name, path);

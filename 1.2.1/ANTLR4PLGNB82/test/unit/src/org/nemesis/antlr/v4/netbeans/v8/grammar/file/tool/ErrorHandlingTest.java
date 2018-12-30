@@ -26,7 +26,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChec
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
@@ -235,12 +236,12 @@ public class ErrorHandlingTest {
             new Item(377, 381, 368, 394, "WORD")
         });
         assertEquals(all.size(), sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).size());
-        Iterable<NamedSemanticRegion<AntlrExtractor.RuleTypes>> decls = sem.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS).index();
-        Iterable<NamedSemanticRegion<AntlrExtractor.RuleTypes>> names = sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).index();
-        Iterator<NamedSemanticRegion<AntlrExtractor.RuleTypes>> declarationsIterator = decls.iterator();
+        Iterable<NamedSemanticRegion<RuleTypes>> decls = sem.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS).index();
+        Iterable<NamedSemanticRegion<RuleTypes>> names = sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).index();
+        Iterator<NamedSemanticRegion<RuleTypes>> declarationsIterator = decls.iterator();
         Iterator<Item> itemsIterator = all.iterator();
-        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> name : names) {
-            NamedSemanticRegion<AntlrExtractor.RuleTypes> ruleBounds = declarationsIterator.next();
+        for (NamedSemanticRegion<RuleTypes> name : names) {
+            NamedSemanticRegion<RuleTypes> ruleBounds = declarationsIterator.next();
             Item item = itemsIterator.next();
             assertTrue(name.start() < name.end());
             assertTrue(name.start() < name.end());

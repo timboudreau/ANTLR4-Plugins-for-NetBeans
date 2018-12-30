@@ -40,8 +40,10 @@ import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.NamedSemanticRegions.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.MonitorPanel.Attempt.AttemptState;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ParsedAntlrError;
@@ -241,11 +243,11 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
         return -1;
     }
 
-    private String toRuleList(Set<NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>> decls) {
-        List<NamedSemanticRegion<AntlrExtractor.RuleTypes>> all = new ArrayList<>(decls);
+    private String toRuleList(Set<NamedSemanticRegion<RuleTypes>> decls) {
+        List<NamedSemanticRegion<RuleTypes>> all = new ArrayList<>(decls);
         Collections.sort(all);
         StringBuilder sb = new StringBuilder();
-        for (NamedSemanticRegion<AntlrExtractor.RuleTypes> d : all) {
+        for (NamedSemanticRegion<RuleTypes> d : all) {
             if (sb.length() > 0) {
                 sb.append(", ");
             }
@@ -255,7 +257,7 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
     }
 
     @Override
-    public void onAttempt(Set<NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, long attempt, long of) {
+    public void onAttempt(Set<NamedSemanticRegion<RuleTypes>> omitted, long attempt, long of) {
         String rules = toRuleList(omitted);
         StringBuilder sb = new StringBuilder();
         sb.append("\n--------------------- OMITTING: ").append(rules).append(" --------------------------\n");
@@ -272,7 +274,7 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
     }
 
     @Override
-    public void onCompleted(boolean success, Set<NamedSemanticRegions.NamedSemanticRegion<AntlrExtractor.RuleTypes>> omitted, GenerateBuildAndRunGrammarResult result, Runnable runNext) {
+    public void onCompleted(boolean success, Set<NamedSemanticRegion<RuleTypes>> omitted, GenerateBuildAndRunGrammarResult result, Runnable runNext) {
         StringBuilder sb = new StringBuilder(omitted.size() + " rules omitted. ");
         String ruleList = toRuleList(omitted);
         AttemptState state;

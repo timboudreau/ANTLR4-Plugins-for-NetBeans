@@ -1,6 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project-private xmlns="http://www.netbeans.org/ns/project-private/1">
-    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="4">
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="6">
+        <file>
+            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataLoader.java</url>
+            <bookmark id="2">
+                <name/>
+                <line>116</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ANTLRv4SemanticParser.java</url>
+            <bookmark id="5">
+                <name/>
+                <line>1403</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedRegionExtractorBuilder.java</url>
+            <bookmark id="3">
+                <name/>
+                <line>276</line>
+                <key/>
+            </bookmark>
+            <bookmark id="6">
+                <name/>
+                <line>440</line>
+                <key/>
+            </bookmark>
+        </file>
         <file>
             <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedSemanticRegions.java</url>
             <bookmark id="4">
@@ -17,75 +46,128 @@
                 <key/>
             </bookmark>
         </file>
-        <file>
-            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataLoader.java</url>
-            <bookmark id="2">
-                <name/>
-                <line>116</line>
-                <key/>
-            </bookmark>
-        </file>
-        <file>
-            <url>src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedRegionExtractorBuilder.java</url>
-            <bookmark id="3">
-                <name/>
-                <line>196</line>
-                <key/>
-            </bookmark>
-        </file>
     </editor-bookmarks>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4</file>
         </group>
         <group name="primal">
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/key/NamedRegionKey.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrMarkOccurrencesHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/Collector.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/actions/NextUsageAction.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedRegionReferenceSets.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/project/helper/ProjectHelper.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/UnknownNameReference.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/SemanticParserTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/DoubleIntFunction.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/SerializationCallback.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrNestingDepthHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/ErrorHandlingTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetTreeBuilder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleElementKind.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/HeaderMatter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/integration/GrammarFileLanguage.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/Named.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocDataObject.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/Hashable.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/G4DataObject.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegion.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AbstractAntlrHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/RuleTreeBuilder.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrFragmentHighlighter.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/AntlrExtractorTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinderTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/IndexAddressable.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ImportKinds.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/src/DocumentGrammarSource.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/ScoreImpl.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/StringGraphVisitor.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegionsBuilder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetSliceSet.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/Bundle.properties</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/key/NameReferenceSetKey.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/UnknownNameReferenceImpl.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegionPositionIndex.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/RuleTreeTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NameExtractionStrategy.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/SingletonEncounters.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/coloring/LexerState.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/GenericExtractorBuilder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/AntlrFolders.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/formatting/AntlrFormatter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/SortTypes.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/MonitorPanel.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/StringGraph.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/RegionExtractionStrategies.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/RuleTypes.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/key/RegionsKey.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrEbnfHighlighter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrMarkOccurrencesHighlighter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/project/ProjectType.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedSemanticRegionsTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/IntGraphVisitor.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/EbnfProperty.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/coloring/FontAndColors.xml</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/project/helper/ProjectHelper.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/SemanticRegionsTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/src/StringGrammarSource.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/EmptyListModel.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/AntlrRuleTreeNavigatorPanel.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetStringGraph.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/ANTLRv4GrammarChecker.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrHighlightingLayerFactory.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/SemanticParser.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetTree.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrNestingDepthHighlighter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ArrayUtil.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/GrammarSummary.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/ReferenceExtractionStrategy.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NameInfoStore.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/RegionExtractionStrategy.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/ANTLRv4SemanticParser.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/util/reflection/ReflectionPath.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/Bundle.properties</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/SemanticRegions.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrHeaderMatterHighlighter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrDeclarationHighlighter.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleDeclaration.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/RuleElementKind.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetSet.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetTreeBuilder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/org-nemesis-antlr-v4-netbeans-keybindings.xml</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedSemanticRegions.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/HashableTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/integration/GrammarFileLanguage.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/SemanticParserTest.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/IndexAddressable.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/Hashable.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/Named.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetHeteroObjectGraph.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/AntlrExtractor.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/summary/EbnfElement.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegionsTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/key/ExtractionKey.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/Extraction.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/EmptyNamedRegionReferenceSets.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/Indexed.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegionSnapshot.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/ui/CulpritFinder.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/preview/AdhocColoringsRegistry.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/layer.xml</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/StringRuleTree.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/SingletonExtractionStrategy.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/G4Template.g4</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/GenericExtractorBuilder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/G4DataObject.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/coloring/LexerState.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/Indexed.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegionReference.java</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/AntlrNavigatorPanel.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/AntlrFolders.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/BitSetStringGraph.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/NamedRegionExtractorBuilder.java</file>
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AbstractAntlrHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetHeteroObjectGraph.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetSet.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/graph/BitSetGraph.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/src/GrammarSource.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/AbstractAntlrNavigatorPanel.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NamesAndReferencesExtractionStrategy.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/HashableTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/project/ProjectType.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/SemanticRegions.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/Attributions.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedRegionReferenceSetsBuilder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/AbstractParseBuildJob.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/SingletonExtractionStrategies.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NamedRegionData.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/Extractor.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrHeaderMatterHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/src/FileObjectGrammarSource.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/highlighting/AntlrDeclarationHighlighter.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/SerializationContext.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/QualifierPredicate.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/org-nemesis-antlr-v4-netbeans-keybindings.xml</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NamedExtractionKey.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/AntlrExtractor.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NamedRegionExtractorBuilder.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/impl/ArrayUtil.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/NameAndOffsets.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/layer.xml</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/project/ParsingWithoutFilesTest.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/data/named/NamedSemanticRegions.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/navigator/EditorAndChangeAwareListModel.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/grammar/imports/LexBasic.g4</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/NBANTLRv4Parser.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/ExtractionParserResult.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/AttributedForeignNameReference.java</file>
+            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/semantics/extraction/ReferenceExtractorPair.java</file>
         </group>
     </open-files>
 </project-private>
