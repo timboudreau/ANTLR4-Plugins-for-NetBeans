@@ -57,6 +57,8 @@ public class ExtractionKeyTest {
         iterList("FOO IDL: " , foo1.identityList());
 
         iterList("EV IDL: " , TypeKey.identityList(ev.getClass()));
+
+//        ExtractionValue<Thing<Map<String, Integer>>> x = m.get(foo1);
     }
 
     static void iterList(String msg, List<?> l) {
