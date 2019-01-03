@@ -1,6 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -9,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.impl.ArrayUtil;
 
 /**
  *
@@ -84,10 +84,9 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
         return this;
     }
 
-    @SuppressWarnings(value = "unchecked")
     public NamedSemanticRegions<K> build() {
         String[] names = typeForName.keySet().toArray(new String[typeForName.size()]);
-        K[] kinds = (K[]) Array.newInstance(type, names.length);
+        K[] kinds = ArrayUtil.genericArray(type, names.length);
         String last = null;
         for (int i = 0; i < names.length; i++) {
             String name = names[i];

@@ -43,10 +43,7 @@ public class NamedRegionData<T extends Enum<T>> extends NameAndOffsets {
             return false;
         }
         final NamedRegionData<?> other = (NamedRegionData<?>) obj;
-        if (!Objects.equals(this.name, other.name)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.name, other.name);
     }
 
 }

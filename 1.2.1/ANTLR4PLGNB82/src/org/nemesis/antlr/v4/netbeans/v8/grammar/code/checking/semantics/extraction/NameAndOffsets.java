@@ -56,10 +56,7 @@ public class NameAndOffsets {
         if (this.end != other.end) {
             return false;
         }
-        if (!Objects.equals(this.name, other.name)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.name, other.name);
     }
 
 }

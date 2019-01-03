@@ -19,11 +19,11 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
     final Predicate<RuleNode> ancestorQualifier;
     final T typeHint;
 
-    public ReferenceExtractionStrategy(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier) {
+    ReferenceExtractionStrategy(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier) {
         this(ruleType, offsetsExtractor, rtype, ancestorQualifier, null);
     }
 
-    public ReferenceExtractionStrategy(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier, T typeHint) {
+    ReferenceExtractionStrategy(Class<R> ruleType, Function<R, ?> offsetsExtractor, ExtractorReturnType rtype, Predicate<RuleNode> ancestorQualifier, T typeHint) {
         this.ruleType = ruleType;
         this.typeHint = typeHint;
         this.offsetsExtractor = rtype.wrap(offsetsExtractor, typeHint);
@@ -62,7 +62,7 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
             private final Function<R, ?> func;
             private final T typeHint;
 
-            public HashableAndThen(ExtractorReturnType rt, Function<R, ?> func, T typeHint) {
+            HashableAndThen(ExtractorReturnType rt, Function<R, ?> func, T typeHint) {
                 this.rt = rt;
                 this.func = func;
                 this.typeHint = typeHint;

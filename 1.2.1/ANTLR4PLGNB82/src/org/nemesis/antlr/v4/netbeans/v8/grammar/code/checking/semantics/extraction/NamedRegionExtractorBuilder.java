@@ -1,7 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -14,6 +12,8 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ReferenceExtractionStrategy.ExtractorReturnType;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
 import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionContext;
 

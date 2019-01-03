@@ -47,10 +47,7 @@ final class QualifierPredicate implements Predicate<RuleNode>, Hashable {
             return false;
         }
         final QualifierPredicate other = (QualifierPredicate) obj;
-        if (!Objects.equals(this.qualifyingType, other.qualifyingType)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.qualifyingType, other.qualifyingType);
     }
 
 }

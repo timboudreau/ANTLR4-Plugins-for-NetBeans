@@ -258,7 +258,7 @@ public class SemanticParserTest {
                 .extractingObjectWith(SemanticParserTest::findGrammarType)
                 .finishObjectExtraction()
                 // Extract named regions so they are addressable by name or position in file
-                .extractNamedRegions(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(RuleTypes.class)
                 // Store the bounds of the entire rule in the resulting Extraction under the key
                 // RULE_BOUNDS, which will be parameterized on RuleTypes so we can query for a
                 // NamedSemanticRegions<RuleTypes>
@@ -291,7 +291,7 @@ public class SemanticParserTest {
                 // Done specifying how to collect references
                 .finishReferenceCollector()
                 .finishNamedRegions()
-                .extractNamedRegions(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(RuleTypes.class)
                 .recordingNamePositionUnder(NAMED_ALTERNATIVES)
                 .whereRuleIs(ParserRuleLabeledAlternativeContext.class)
                 //                .derivingNameWith(SemanticParserTest::extractAlternativeLabelInfo)
@@ -306,11 +306,11 @@ public class SemanticParserTest {
                 // darket the background color in the editor of nested repetitions
                 .extractingRegionsUnder(EBNFS)
                 .whenRuleType(EbnfContext.class)
-                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfPropertiesFromEbnfContext)
+                .extractingKeyAndBoundsWith(SemanticParserTest::extractEbnfPropertiesFromEbnfContext)
                 .whenRuleType(ParserRuleElementContext.class)
-                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfRegionFromParserRuleElement)
+                .extractingKeyAndBoundsWith(SemanticParserTest::extractEbnfRegionFromParserRuleElement)
                 .whenRuleType(LexerRuleElementContext.class)
-                .extractingKeyAndBoundsFromWith(SemanticParserTest::extractEbnfRegionFromLexerRuleElement)
+                .extractingKeyAndBoundsWith(SemanticParserTest::extractEbnfRegionFromLexerRuleElement)
                 .finishRegionExtractor()
                 .build();
 

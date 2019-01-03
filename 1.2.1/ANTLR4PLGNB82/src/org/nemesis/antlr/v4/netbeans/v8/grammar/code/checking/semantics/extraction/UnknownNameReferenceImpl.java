@@ -14,7 +14,7 @@ final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameRe
     private final String name;
     private final int index;
 
-    public UnknownNameReferenceImpl(T expectedKind, int start, int end, String name, int index) {
+    UnknownNameReferenceImpl(T expectedKind, int start, int end, String name, int index) {
         this.expectedKind = expectedKind;
         this.start = start;
         this.end = end;

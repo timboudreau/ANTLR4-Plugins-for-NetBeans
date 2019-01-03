@@ -1,12 +1,12 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
 
 /**
  *
@@ -40,7 +40,7 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         private final RegionExtractionStrategy<?, ?, ?>[] extractors;
         private final int[] activatedCount;
 
-        public V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<RegionExtractionStrategy<?, ?, ?>> extractors) {
+        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<RegionExtractionStrategy<?, ?, ?>> extractors) {
             this.c = c;
             this.extractors = extractors.toArray(new RegionExtractionStrategy<?, ?, ?>[extractors.size()]);
             this.activatedCount = new int[this.extractors.length];

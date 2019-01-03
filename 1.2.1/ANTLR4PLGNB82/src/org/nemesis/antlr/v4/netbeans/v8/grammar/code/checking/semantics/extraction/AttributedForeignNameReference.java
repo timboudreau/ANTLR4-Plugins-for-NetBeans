@@ -103,10 +103,7 @@ public final class AttributedForeignNameReference<R, I extends IndexAddressable.
         if (!Objects.equals(this.resolutionSource, other.resolutionSource)) {
             return false;
         }
-        if (!Objects.equals(this.in, other.in)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.in, other.in);
     }
 
 }

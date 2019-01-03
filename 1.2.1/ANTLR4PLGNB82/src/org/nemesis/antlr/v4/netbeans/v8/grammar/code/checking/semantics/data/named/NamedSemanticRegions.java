@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.io.Serializable;
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,7 +77,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     @SuppressWarnings("unchecked")
     private <X extends Enum<X>> void finishReadExternal(ObjectInput in, Class<X> kindType, int sz) throws IOException, ClassNotFoundException {
         X[] allKinds = kindType.getEnumConstants();
-        X[] kinds = (X[]) Array.newInstance(kindType, sz);
+        X[] kinds = ArrayUtil.ofType(allKinds, sz);
         int[] starts = new int[sz];
         String[] names = new String[sz];
         SerializationContext ctx = SerializationContext.SER.get();
@@ -460,7 +459,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
         int[] newStarts = new int[newCount];
         int[] newEnds = new int[newCount];
-        K[] newKinds = (K[]) Array.newInstance(kType(), newCount);
+        K[] newKinds = ArrayUtil.genericArray(kType(), newCount);
         String[] newNames = new String[newCount];
         int cursor = 0;
         for (int i = 0; i < size(); i++) {

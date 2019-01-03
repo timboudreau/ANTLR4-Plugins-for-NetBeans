@@ -62,7 +62,7 @@ public final class AntlrExtractor {
                 .extractingObjectWith(AntlrExtractor::findGrammarType)
                 .finishObjectExtraction()
                 // No extract imports
-                .extractNamedRegions(ImportKinds.class)
+                .extractNamedRegionsKeyedTo(ImportKinds.class)
                 .recordingNamePositionUnder(IMPORTS)
                 .whereRuleIs(ANTLRv4Parser.TokenVocabSpecContext.class)
                 .derivingNameFromTokenWith(ImportKinds.TOKEN_VOCAB, AntlrExtractor::extractImportFromTokenVocab)
@@ -70,7 +70,7 @@ public final class AntlrExtractor {
                 .derivingNameFromTerminalNodeWith(ImportKinds.DELEGATE_GRAMMAR, AntlrExtractor::extractImportFromDelegateGrammar)
                 .finishNamedRegions()
                 // Extract named regions so they are addressable by name or position in file
-                .extractNamedRegions(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(RuleTypes.class)
                 // Store the bounds of the entire rule in the resulting Extraction under the key
                 // RULE_BOUNDS, which will be parameterized on RuleTypes so we can query for a
                 // NamedSemanticRegions<RuleTypes>
@@ -113,14 +113,14 @@ public final class AntlrExtractor {
                 // darket the background color in the editor of nested repetitions
                 .extractingRegionsUnder(EBNFS)
                 .whenRuleType(ANTLRv4Parser.EbnfContext.class)
-                .extractingKeyAndBoundsFromWith(AntlrExtractor::extractEbnfPropertiesFromEbnfContext)
+                .extractingKeyAndBoundsWith(AntlrExtractor::extractEbnfPropertiesFromEbnfContext)
                 .whenRuleType(ANTLRv4Parser.ParserRuleElementContext.class)
-                .extractingKeyAndBoundsFromWith(AntlrExtractor::extractEbnfRegionFromParserRuleElement)
+                .extractingKeyAndBoundsWith(AntlrExtractor::extractEbnfRegionFromParserRuleElement)
                 .whenRuleType(ANTLRv4Parser.LexerRuleElementContext.class)
-                .extractingKeyAndBoundsFromWith(AntlrExtractor::extractEbnfRegionFromLexerRuleElement)
+                .extractingKeyAndBoundsWith(AntlrExtractor::extractEbnfRegionFromLexerRuleElement)
                 .finishRegionExtractor()
                 // Extract named regions
-                .extractNamedRegions(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(RuleTypes.class)
                 .recordingNamePositionUnder(NAMED_ALTERNATIVES)
                 .whereRuleIs(ANTLRv4Parser.ParserRuleLabeledAlternativeContext.class)
                 //                .derivingNameWith("identifier().ID()", Alternatives.NAMED_ALTERNATIVES)

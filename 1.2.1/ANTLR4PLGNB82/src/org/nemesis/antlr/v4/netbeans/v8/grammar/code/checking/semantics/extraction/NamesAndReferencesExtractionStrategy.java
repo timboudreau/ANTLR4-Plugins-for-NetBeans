@@ -1,6 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
 import java.util.BitSet;
 import java.util.Set;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -16,6 +15,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.nam
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionsBuilder;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
 
 /**
  *
@@ -29,7 +29,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
     private final NameExtractionStrategy<?, T>[] nameExtractors;
     private final ReferenceExtractorPair<?>[] referenceExtractors;
 
-    public NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors) {
+    NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors) {
         this.keyType = keyType;
         assert namePositionKey != null || ruleRegionKey != null;
         this.namePositionKey = namePositionKey;
@@ -190,7 +190,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         private final NamedSemanticRegionsBuilder<T> ruleBoundsBuilder;
         private final int[] activations;
 
-        public RuleNameAndBoundsVisitor() {
+        RuleNameAndBoundsVisitor() {
             activations = new int[nameExtractors.length];
             for (int i = 0; i < activations.length; i++) {
                 if (nameExtractors[i].ancestorQualifier == null) {

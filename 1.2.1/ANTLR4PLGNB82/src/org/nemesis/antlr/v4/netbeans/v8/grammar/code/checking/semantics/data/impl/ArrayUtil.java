@@ -1,6 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.impl;
 
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.impl.ArrayUtil.Bias.BACKWARD;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.impl.ArrayUtil.Bias.FORWARD;
@@ -14,6 +15,16 @@ import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.d
  * @author Tim Boudreau
  */
 public final class ArrayUtil {
+
+    @SuppressWarnings("unchecked")
+    public static <T> T[] genericArray(Class<? super T> type, int size) {
+        return (T[]) Array.newInstance(type, size);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T[] ofType(T[] array, int newSize) {
+        return genericArray((Class<T>) array.getClass().getComponentType(), newSize);
+    }
 
     /**
      * Perform a binary search for the offset of a start/end pair which contains

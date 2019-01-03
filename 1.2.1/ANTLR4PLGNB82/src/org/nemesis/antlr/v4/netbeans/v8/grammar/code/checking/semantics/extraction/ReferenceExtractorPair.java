@@ -1,9 +1,9 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
 import java.util.HashSet;
 import java.util.Set;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
 
 /**
  *

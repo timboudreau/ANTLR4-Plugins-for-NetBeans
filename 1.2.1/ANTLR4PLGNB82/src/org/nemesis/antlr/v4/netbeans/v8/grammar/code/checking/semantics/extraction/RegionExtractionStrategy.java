@@ -14,9 +14,9 @@ final class RegionExtractionStrategy<KeyType, RuleType extends RuleNode, TType> 
     final Class<RuleType> ruleType;
     final Predicate<RuleNode> ancestorQualifier;
     final BiConsumer<RuleType, BiConsumer<KeyType, TType>> extractor;
-    private final ExtractorBuilder.RegionExtractType ttype;
+    private final RegionExtractType ttype;
 
-    RegionExtractionStrategy(Class<RuleType> ruleType, Predicate<RuleNode> ancestorQualifier, BiConsumer<RuleType, BiConsumer<KeyType, TType>> tok, ExtractorBuilder.RegionExtractType ttype) {
+    RegionExtractionStrategy(Class<RuleType> ruleType, Predicate<RuleNode> ancestorQualifier, BiConsumer<RuleType, BiConsumer<KeyType, TType>> tok, RegionExtractType ttype) {
         this.ruleType = ruleType;
         this.ancestorQualifier = ancestorQualifier;
         this.extractor = tok;

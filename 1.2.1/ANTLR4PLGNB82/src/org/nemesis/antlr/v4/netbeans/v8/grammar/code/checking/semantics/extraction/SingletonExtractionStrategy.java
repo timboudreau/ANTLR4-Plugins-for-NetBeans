@@ -1,12 +1,12 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 
 /**
  * Information an extractor uses to extract singletons.
@@ -66,10 +66,7 @@ final class SingletonExtractionStrategy<KeyType, R extends ParserRuleContext> im
         if (!Objects.equals(this.ruleType, other.ruleType)) {
             return false;
         }
-        if (!Objects.equals(this.extractor, other.extractor)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.extractor, other.extractor);
     }
 
 }

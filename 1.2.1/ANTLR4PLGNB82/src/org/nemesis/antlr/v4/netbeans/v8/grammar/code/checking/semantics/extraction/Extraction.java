@@ -1,12 +1,5 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedExtractionKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.ExtractionKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -27,6 +20,13 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.nam
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.SerializationContext;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.ExtractionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedExtractionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
 import org.openide.util.Exceptions;
 
 /**
@@ -290,9 +290,7 @@ public final class Extraction implements Externalizable {
     public Set<String> allKeys(NamedExtractionKey<?> first, NamedExtractionKey<?>... more) {
         Set<ExtractionKey<?>> keys = new HashSet<>();
         keys.add(first);
-        for (ExtractionKey<?> k : more) {
-            keys.add(k);
-        }
+        keys.addAll(Arrays.asList(more));
         Set<String> result = keysCache == null ? null : keysCache.get(keys);
         if (result == null) {
             result = new HashSet<>();
