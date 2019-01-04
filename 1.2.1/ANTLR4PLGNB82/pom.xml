@@ -13,28 +13,43 @@
     <packaging>nbm</packaging>
     <name>ANTLR 4 Plugin for NetBeans 8.2</name>
     <description>ANTLR plugins for NetBeans 8.2 packaged in a unique module</description>
-    <url>https://github.com/fredyvonvinet/ANTLR4-Plugins-for-NetBeans</url>
+    <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
     <licenses>
         <license>
-            <name>Apache 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <name>3-Clause BSD License</name>
+            <url>https://opensource.org/licenses/BSD-3-Clause</url>
         </license>
     </licenses>
     <developers>
         <developer>
-            <name>Frédéric Yvon Vinet, Tim Boudreau</name>
+            <name>Frédéric Yvon Vinet</name>
+        </developer>
+        <developer>
+            <name>Tim Boudreau</name>
+            <email>tim@timboudreau.com</email>
+            <url>https://timboudreau.com</url>
         </developer>
     </developers>
     <scm>
-        <url>https://github.com/timboudreau/netbeans-contrib</url>
-        <connection>scm:git:https://github.com/timboudreau/netbeans-contrib.git</connection>
-        <developerConnection>git@github.com/timboudreau/netbeans-contrib.git</developerConnection>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
+        <connection>scm:git:https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
     </scm>
     <properties>
         <module.display.category>ANTLR</module.display.category>
         <java.source.level>1.8</java.source.level>
     </properties>
     <dependencies>
+        <!-- See Milos' answer here for why this is needed
+        https://stackoverflow.com/questions/17592630/netbeans-new-language-support-with-maven
+        This is needed only on the annotation processor path.
+        -->
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
+            <version>${netbeans.version}</version>
+            <scope>provided</scope>
+        </dependency>      
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>
@@ -281,6 +296,25 @@
                 <configuration>
                     <compilerArgument>-deprecation</compilerArgument>
                 </configuration>
+                <!-- See Milos' answer here for why this is needed
+                https://stackoverflow.com/questions/17592630/netbeans-new-language-support-with-maven -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.netbeans.api</groupId>
+                        <artifactId>org-netbeans-modules-editor-codetemplates</artifactId>
+                        <version>${netbeans.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.netbeans.modules</groupId>
+                        <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
+                        <version>${netbeans.version}</version>
+                    </dependency>      
+                    <dependency>
+                        <groupId>org.netbeans.api</groupId>
+                        <artifactId>org-netbeans-modules-editor-errorstripe-api</artifactId>
+                        <version>RELEASE100-dev</version>
+                    </dependency>
+                </dependencies>                
             </plugin>
             
             <plugin>
