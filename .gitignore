@@ -4,7 +4,8 @@ ehthumbs.db
 private.xml
 platform-private.properties
 nbproject/private/
-1.2.1/ANTLR4PLGNB82/nbproject/private/private.xml
+antlr-plugin/nbproject/private/private.xml
+antlr-plugin/nbproject/private/profiler/
 target/
 
 # Folder config file

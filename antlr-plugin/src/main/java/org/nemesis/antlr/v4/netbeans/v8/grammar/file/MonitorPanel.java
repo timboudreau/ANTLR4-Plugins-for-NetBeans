@@ -39,10 +39,7 @@ import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.MonitorPanel.Attempt.AttemptState;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;
@@ -215,6 +212,7 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private void scrollToTextOffset(int charOffset) {
         try {
             Rectangle r = pane.modelToView(charOffset);

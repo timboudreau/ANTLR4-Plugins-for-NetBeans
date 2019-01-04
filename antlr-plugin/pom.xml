@@ -8,11 +8,11 @@
         <version>2.0</version>
         <relativePath>..</relativePath>
     </parent>
-    <artifactId>org-nemesis-antlr-v4-netbeans-v8</artifactId>
+    <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
     <version>2.0</version>
     <packaging>nbm</packaging>
-    <name>ANTLR 4 Plugin for NetBeans 8.2</name>
-    <description>ANTLR plugins for NetBeans 8.2 packaged in a unique module</description>
+    <name>ANTLR 4 Plugin for NetBeans</name>
+    <description>ANTLR plugins for NetBeans</description>
     <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
     <licenses>
         <license>
@@ -40,14 +40,13 @@
         <java.source.level>1.8</java.source.level>
     </properties>
     <dependencies>
-        <!-- See Milos' answer here for why this is needed
-        https://stackoverflow.com/questions/17592630/netbeans-new-language-support-with-maven
-        This is needed only on the annotation processor path.
-        -->
         <dependency>
+            <!-- See Milos' answer here for why this is needed
+            https://stackoverflow.com/questions/17592630/netbeans-new-language-support-with-maven
+            This is needed only on the annotation processor path.
+            -->
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
-            <version>${netbeans.version}</version>
             <scope>provided</scope>
         </dependency>      
         <dependency>
