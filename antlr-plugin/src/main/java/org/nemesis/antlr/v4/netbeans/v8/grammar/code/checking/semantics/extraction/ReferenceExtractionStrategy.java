@@ -53,7 +53,7 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
         }
 
         <R extends ParserRuleContext, T extends Enum<T>> Function<R, NameAndOffsets> wrap(Function<R, ?> func, T typeHint) {
-            return new HashableAndThen(this, func, typeHint);
+            return new HashableAndThen<>(this, func, typeHint);
         }
 
         static class HashableAndThen<R extends ParserRuleContext, T extends Enum<T>> implements Function<R, NameAndOffsets>, Hashable {

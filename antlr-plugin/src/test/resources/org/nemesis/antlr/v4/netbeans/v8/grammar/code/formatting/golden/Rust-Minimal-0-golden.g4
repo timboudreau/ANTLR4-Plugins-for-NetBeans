@@ -92,14 +92,14 @@ array_literal : ( LeftBracket RightBracket) #EmptyArray
 
 match : Match deref=Asterisk? var=expression match_block;
 
-match_block : LeftBrace ( first=match_case_element ( Comma more=match_case_element)*)? defaultCase=default_match_case? Comma? RightBrace;
+match_block : LeftBrace ( first=match_case ( Comma more=match_case)*)? defaultCase=default_match_case? Comma? RightBrace;
 
-match_case_element : ( first=literal ( Pipe more=literal)* FatArrow ( statement_body | expression | block)) #MultiCaseLiteral
-                   | ( range=RangeExclusive FatArrow ( statement_body | expression | block)) #ExclusiveRangeCase
-                   | ( range=MatchRangeInclusive FatArrow ( statement_body | expression | block)) #InclusiveRangeCase
-                   | ( var=variable_name_pattern If boolean_expression FatArrow ( statement_body | expression | block)) #PatternCase
-                   | ( exp=expression ( Pipe more=expression)* If boolean_expression FatArrow ( statement_body | expression | block)) #ExpressionCase
-                   | ( first=expression ( Pipe more=expression)* FatArrow ( statement_body | expression | block)) #MultiCaseExpression;
+match_case : ( first=literal ( Pipe more=literal)* FatArrow ( statement_body | expression | block)) #MultiCaseLiteral
+           | ( range=RangeExclusive FatArrow ( statement_body | expression | block)) #ExclusiveRangeCase
+           | ( range=MatchRangeInclusive FatArrow ( statement_body | expression | block)) #InclusiveRangeCase
+           | ( var=variable_name_pattern If boolean_expression FatArrow ( statement_body | expression | block)) #PatternCase
+           | ( exp=expression ( Pipe more=expression)* If boolean_expression FatArrow ( statement_body | expression | block)) #ExpressionCase
+           | ( first=expression ( Pipe more=expression)* FatArrow ( statement_body | expression | block)) #MultiCaseExpression;
 
 default_match_case : Comma? Underscore FatArrow ( statement_body | expression | block);
 
@@ -192,8 +192,6 @@ closure : ( attrs=outer_attribute* lifetimes=lifetime_spec? mv=Move? Pipe params
 
 struct : ( doc=doc_comment? outer_attribute* Struct name=Ident lifetimes=lifetime_spec? LeftBrace ( struct_item ( Comma struct_item)* Comma?)? RightBrace) #PlainStruct// XXX could split this out and include it in statement_body - checking for Semicolon here may cause problems
        | ( doc=doc_comment? outer_attribute* Struct name=Ident lifetimes=lifetime_spec? LeftParen ( type_spec ( Comma type_spec)* Comma?)? RightParen Semicolon) #TupleStruct;
-
-foo : ( doc_comment ( Struct Ident ( LeftBrace RightBrace ( LeftBracket RightBracket ( Crate LeftParen)))));
 
 struct_item : ( doc=doc_comment? outer_attribute* inner_attribute* name=Ident Colon props=param_props type=type_spec);
 
@@ -316,6 +314,8 @@ intrinsic_type : I8
 doc_comment : DocCommentLine+;
 
 enclosing_doc_comment : EnclosingDocCommentLine+;
+
+aawoo : EnclosingDocCommentLine;
 
 EnclosingDocCommentLine : EnclosingDocCommentPrefix ~[\r\n]*; // Lexer
 DocCommentLine : DocCommentPrefix ~[\r\n]*;

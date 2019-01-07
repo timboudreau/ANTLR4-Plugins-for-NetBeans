@@ -10,8 +10,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Has
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 
 /**
- * Represents a group of strategies for extracting singletons using
- * various rule nodes.
+ * Represents a group of strategies for extracting singletons using various rule
+ * nodes.
  *
  * @author Tim Boudreau
  */
@@ -51,6 +51,7 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
         private int[] activations;
         private final SingletonEncounters<KeyType> encounters = new SingletonEncounters<>();
 
+        @SuppressWarnings("unchecked")
         SingleVisitor(Set<SingletonExtractionStrategy<KeyType, ?>> infos) {
             this.infos = infos.toArray((SingletonExtractionStrategy<KeyType, ?>[]) Array.newInstance(SingletonExtractionStrategy.class, infos.size()));
             activations = new int[this.infos.length];

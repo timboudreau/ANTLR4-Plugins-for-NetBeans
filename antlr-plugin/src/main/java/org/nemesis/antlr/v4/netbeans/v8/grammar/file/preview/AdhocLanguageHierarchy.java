@@ -221,6 +221,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Supplier<Iterator<Token<AdhocTokenId>>> cursorSupplier(LexerRestartInfo<AdhocTokenId> info) {
         if (info.state() instanceof LexerInputCursor) {
             return () -> {

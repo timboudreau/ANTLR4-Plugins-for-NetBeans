@@ -18,7 +18,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticListener;
+import javax.tools.FileObject;
 import javax.tools.JavaCompiler;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
 import static javax.tools.JavaFileObject.Kind.SOURCE;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_PATH;
@@ -33,10 +39,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFS;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSClassLoader;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSTest.LogIt;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSClassLoader;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrRunOption;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.LanguageReplaceabilityTest;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
@@ -44,7 +49,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.P
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyDetailedSyntaxError;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxySyntaxError;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.JavacOptions;
+import org.nemesis.jfs.javac.JavacOptions;
 import org.openide.filesystems.FileUtil;
 
 /**
@@ -205,7 +210,7 @@ public class MemoryToolTest {
 
     @Before
     public void setup() throws IOException {
-        jfs = new JFS(UTF_16);
+        jfs = JFS.builder().withCharset(UTF_16).build();
         String grammarText;
 
         try (InputStream in = LanguageReplaceabilityTest.class.getResourceAsStream("NestedMapGrammar.g4")) {
@@ -304,5 +309,27 @@ public class MemoryToolTest {
             }
         }
         return result;
+    }
+
+    public static final class LogIt implements BiConsumer<JavaFileManager.Location, FileObject>, DiagnosticListener<JavaFileObject> {
+
+        private Set<String> errors = new HashSet<>();
+
+        @Override
+        public void accept(JavaFileManager.Location t, FileObject u) {
+            System.out.println("jfs: " + t + ": " + u);
+        }
+
+        @Override
+        public void report(Diagnostic<? extends JavaFileObject> diagnostic) {
+            System.out.println("javac: " + diagnostic);
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                errors.add(diagnostic.toString());
+            }
+        }
+
+        public void assertNoErrors() {
+            assertTrue(errors.toString(), errors.isEmpty());
+        }
     }
 }

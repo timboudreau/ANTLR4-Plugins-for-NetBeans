@@ -1,5 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import org.nemesis.jfs.javac.CompileResult;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Optional;
@@ -63,7 +65,7 @@ public class GenerateBuildAndRunGrammarResult {
         sb.append("\n").append("compileResult=");
         if (compileResult.isPresent()) {
             CompileResult res = compileResult.get();
-            sb.append(" success=").append(res.callResult);
+            sb.append(" success=").append(res.ok());
             if (res.thrown().isPresent()) {
                 sb.append(" thrown=").append(res.thrown().get());
             } else {

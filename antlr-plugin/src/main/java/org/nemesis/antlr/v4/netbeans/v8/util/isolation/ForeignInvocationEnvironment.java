@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.util.isolation;
 
+import org.nemesis.jfs.isolation.IsolationClassLoader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;

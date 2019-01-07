@@ -13,8 +13,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.JavaFileObject;
 import static javax.tools.StandardLocation.SOURCE_PATH;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFS;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 import org.openide.filesystems.FileUtil;
 
 /**

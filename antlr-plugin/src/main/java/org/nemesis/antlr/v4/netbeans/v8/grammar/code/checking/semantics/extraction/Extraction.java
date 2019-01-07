@@ -87,6 +87,7 @@ public final class Extraction implements Externalizable {
      * @param key The key
      * @return A map of duplicates, or an empty map
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public <T extends Enum<T>> Map<String, Set<NamedSemanticRegion<T>>> duplicates(NamedRegionKey<T> key) {
         Map result = duplicates.get(key);
         if (result == null) {
@@ -147,6 +148,7 @@ public final class Extraction implements Externalizable {
      * @return A region from one of the sets matching some key in the
      * collection, or null
      */
+    @SuppressWarnings("unchecked")
     public <T extends Enum<T>> NamedSemanticRegion<T> regionOrReferenceAt(int pos, Iterable<? extends NamedExtractionKey<T>> keys) {
         NamedSemanticRegion<T> result = null;
         for (NamedExtractionKey<T> key : keys) {
@@ -394,6 +396,7 @@ public final class Extraction implements Externalizable {
         regions.put(key, oneRegion);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Enum<T>> NamedRegionReferenceSets<T> references(NameReferenceSetKey<T> key) {
         NamedRegionReferenceSets<?> result = refs.get(key);
         return (NamedRegionReferenceSets<T>) result;
@@ -403,11 +406,13 @@ public final class Extraction implements Externalizable {
         return graphs.get(key);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Enum<T>> NamedSemanticRegions<T> namedRegions(NamedRegionKey<T> key) {
         NamedSemanticRegions<?> result = nameds.get(key);
         return result == null ? NamedSemanticRegions.empty() : (NamedSemanticRegions<T>) result;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Enum<T>> NamedRegionReferenceSets<T> nameReferences(NameReferenceSetKey<T> key) {
         NamedRegionReferenceSets<?> result = refs.get(key);
         return result == null ? NamedRegionReferenceSets.empty() : (NamedRegionReferenceSets<T>) result;
@@ -420,6 +425,7 @@ public final class Extraction implements Externalizable {
         return result == null ? SemanticRegions.empty() : (SemanticRegions<T>) result;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Enum<T>> SemanticRegions<UnknownNameReference<T>> unknowns(NameReferenceSetKey<T> key) {
         SemanticRegions<UnknownNameReference<?>> result = unknowns.get(key);
         if (result == null) {
@@ -433,6 +439,7 @@ public final class Extraction implements Externalizable {
         resolutionCache = null;
     }
 
+    @SuppressWarnings("unchecked")
     public <R, I extends IndexAddressable.NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> Attributions<R, I, N, T> resolveUnknowns(NameReferenceSetKey<T> key, UnknownNameReference.UnknownNameReferenceResolver<R, I, N, T> res) throws IOException {
         Map<NameReferenceSetKey<?>, Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> rc = this.resolutionCache;
         Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>> perResolverCache = null;
@@ -469,6 +476,7 @@ public final class Extraction implements Externalizable {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     public <K> SingletonEncounters<K> encounters(SingletonKey<K> key) {
         SingletonEncounters<K> result = (SingletonEncounters<K>) singles.get(key);
         return result == null ? new SingletonEncounters<>() : result;
@@ -490,11 +498,13 @@ public final class Extraction implements Externalizable {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T extends Enum<T>> void addReferenceGraph(NameReferenceSetKey<T> refSetKey, BitSetStringGraph stringGraph) {
             graphs.put(refSetKey, stringGraph);
         }
 
         @Override
+        @SuppressWarnings({"unchecked", "rawtypes"})
         public <T extends Enum<T>> void addUnknownReferences(NameReferenceSetKey<T> refSetKey, SemanticRegions<UnknownNameReference<T>> unknownReferences) {
             SemanticRegions s = unknownReferences;
             unknowns.put(refSetKey, s);

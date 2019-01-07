@@ -44,6 +44,7 @@ public final class SingletonKey<T> implements Serializable, Hashable, Extraction
         }
     }
 
+    @SuppressWarnings("unchecked")
     public Class<T> type() {
         return (Class<T>) type;
     }

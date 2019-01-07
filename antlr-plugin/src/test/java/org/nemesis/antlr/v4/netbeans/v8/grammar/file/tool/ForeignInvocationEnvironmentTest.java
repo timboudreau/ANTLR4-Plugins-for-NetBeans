@@ -103,9 +103,9 @@ public class ForeignInvocationEnvironmentTest {
         env = new ForeignInvocationEnvironment(new UnitTestAntlrLibrary());
 
         Path baseDir = projectBaseDir();
-        importdir = baseDir.resolve("grammar/imports");
-        lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
-        grammar = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
+        importdir = baseDir.resolve("src/main/antlr4/imports");
+        lexer = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.g4");
+        grammar = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.g4");
         output = Paths.get(System.getProperty("java.io.tmpdir"), ForeignInvocationEnvironmentTest.class.getSimpleName() + "-" + System.currentTimeMillis());
         Files.createDirectories(output);
         Files.createDirectories(output.resolve("com/toolenvironment"));

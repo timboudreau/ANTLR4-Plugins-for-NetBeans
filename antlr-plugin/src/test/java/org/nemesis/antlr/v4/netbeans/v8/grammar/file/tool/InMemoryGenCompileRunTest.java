@@ -154,13 +154,13 @@ public class InMemoryGenCompileRunTest {
     public void setup() throws URISyntaxException, IOException {
         System.setProperty("fs.off.heap", "true");
         Path baseDir = projectBaseDir();
-        importdir = baseDir.resolve("grammar/imports");
-        lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
-        grammar = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
-        tokens = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.tokens");
-        interp = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.interp");
-        lextokens = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.tokens");
-        lexinterp = baseDir.resolve("src/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.interp");
+        importdir = baseDir.resolve("src/main/antlr4/imports");
+        lexer = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.g4");
+        grammar = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.g4");
+        tokens = baseDir.resolve("target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.tokens");
+        interp = baseDir.resolve("target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.interp");
+        lextokens = baseDir.resolve("target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.tokens");
+        lexinterp = baseDir.resolve("target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.interp");
 
         rust = testResourcePath(InMemoryGenCompileRunTest.class, "Rust-Minimal._g4");
         xidstart = testResourcePath(InMemoryGenCompileRunTest.class, "xidstart._g4");

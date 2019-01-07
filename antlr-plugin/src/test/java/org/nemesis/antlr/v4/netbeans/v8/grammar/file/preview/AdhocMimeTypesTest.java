@@ -68,9 +68,11 @@ public class AdhocMimeTypesTest {
         String old=msg.toString();
 
         Set<String> all = AdhocMimeTypes.allExtensionsForMimeType(mime);
+        System.out.println("\nNOW REINIT");
         AdhocMimeTypes._reinit();
         assertEquals(msg.toString(), all, AdhocMimeTypes.allExtensionsForMimeType(mime));
         assertEquals(msg.toString(), ext, AdhocMimeTypes.fileExtensionFor(mime));
+        
         assertEquals(mime, AdhocMimeTypes.EXTENSIONS_REGISTRY.mimeTypeForExt("map"));
         assertEquals(mime, AdhocMimeTypes.EXTENSIONS_REGISTRY.mimeTypeForExt("foo"));
         assertTrue(AdhocMimeTypes.EXTENSIONS_REGISTRY.isRegisteredExtension("map"));
@@ -419,31 +421,40 @@ public class AdhocMimeTypesTest {
         testOne(mt, p);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    private void assertInvalid(Path p) {
+        // @Test(expected=IllegalArgumentException.class) swallows
+        // too much information about what did happen instead
+        try {
+            String mt = AdhocMimeTypes.mimeTypeForPath(p);
+            fail("IllegalArgumentException should have been thrown for Path '" + p + "', but got " + mt);
+        } catch (IllegalArgumentException ex) {
+            // ok
+        }
+    }
+
+    @Test
     public void testEmptyPath1() {
-        Path p = Paths.get("/");
-        String mt = AdhocMimeTypes.mimeTypeForPath(p);
+        assertInvalid(Paths.get("/"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testEmptyPath2() {
-        Path p = Paths.get("");
-        String mt = AdhocMimeTypes.mimeTypeForPath(p);
+        assertInvalid(Paths.get(""));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testRelativePathsIllegal1() {
-        AdhocMimeTypes.mimeTypeForPath(Paths.get("foo/bar/Nothing.g4"));
+        assertInvalid(Paths.get("foo/bar/Nothing.g4"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testRelativePathsIllegal2() {
-        AdhocMimeTypes.mimeTypeForPath(Paths.get("/foo/bar/../Nothing.g4"));
+        assertInvalid(Paths.get("/foo/bar/../Nothing.g4"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testRelativePathsIllegal3() {
-        AdhocMimeTypes.mimeTypeForPath(Paths.get("/foo/bar/./Nothing.g4"));
+        assertInvalid(Paths.get("/foo/bar/./Nothing.g4"));
     }
 
     static final class MimeToPathTestSet {

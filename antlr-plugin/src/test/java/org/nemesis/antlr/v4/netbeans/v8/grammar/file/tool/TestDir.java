@@ -72,13 +72,13 @@ public final class TestDir {
     public static Path projectBaseDir() throws URISyntaxException {
         Path baseDir = Paths.get(ProjectTypeTest.class
                 .getProtectionDomain().getCodeSource()
-                .getLocation().toURI()).getParent().getParent().getParent().getParent();
+                .getLocation().toURI()).getParent().getParent();
         return baseDir;
     }
 
     public static Path testResourcePath(Class<?> relativeTo, String name) throws URISyntaxException {
         Path base = projectBaseDir();
-        return base.resolve(Paths.get("test", "unit", "src",
+        return base.resolve(Paths.get("src", "test", "resources",
                 relativeTo.getPackage().getName().replace('.', '/'), name));
     }
 
@@ -172,5 +172,4 @@ public final class TestDir {
             FileUtil.copy(in, out);
         }
     }
-
 }

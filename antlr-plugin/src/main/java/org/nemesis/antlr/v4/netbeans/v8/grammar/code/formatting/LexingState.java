@@ -134,11 +134,13 @@ public final class LexingState {
         return booleans[item.ordinal()];
     }
 
-    public <T extends Enum<T>> int getFirst(T first, T... all) {
+    @SafeVarargs
+    public final <T extends Enum<T>> int getFirst(T first, T... all) {
         checkType(first);
         int result = get(first);
         if (result == -1) {
             for (T other : all) {
+                checkType(other);
                 result = get(other);
                 if (result != -1) {
                     break;

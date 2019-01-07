@@ -1,5 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import org.nemesis.jfs.javac.CompileResult;
+import org.nemesis.jfs.javac.CompileJavaSources;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Objects;
@@ -8,7 +10,7 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSClassLoader;
+import org.nemesis.jfs.JFSClassLoader;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrSourceGenerationResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
@@ -102,7 +104,7 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
 
     private CompileResult doCompile(Consumer<String> status) {
         status.accept(Bundle.COMPILING_ANTLR_SOURCES(bldr.sourceFile()));
-        CompileResult res =  new CompileAntlrSources().compile(bldr.jfs());
+        CompileResult res =  new CompileJavaSources().compile(bldr.jfs());
         if (onRecompile != null) {
             onRecompile.accept(res);
         }

@@ -24,7 +24,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGen
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ParsedAntlrError;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
-import org.nemesis.antlr.v4.netbeans.v8.util.TimedCache;
+import org.nemesis.misc.utils.TimedCache;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.api.Snapshot;

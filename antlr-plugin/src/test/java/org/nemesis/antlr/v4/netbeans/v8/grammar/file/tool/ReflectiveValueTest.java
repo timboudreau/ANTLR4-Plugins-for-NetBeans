@@ -5,11 +5,11 @@
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
+import org.nemesis.misc.utils.reflection.ReflectionPath;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionResultType;
+import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionResultType;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ReflectiveValueTest.ErrB.ERRB_B;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ReflectiveValueTest.ErrB.ERRB_C;
 

@@ -12,9 +12,9 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavi
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.JavacDiagnostic;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.netbeans.editor.BaseDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;

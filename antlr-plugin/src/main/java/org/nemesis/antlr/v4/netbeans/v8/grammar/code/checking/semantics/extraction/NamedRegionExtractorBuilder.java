@@ -14,8 +14,8 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ReferenceExtractionStrategy.ExtractorReturnType;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionContext;
+import org.nemesis.misc.utils.reflection.ReflectionPath;
+import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionContext;
 
 /**
  * Builder for extracting &quot;named regions&quot; during a parse. You supply:

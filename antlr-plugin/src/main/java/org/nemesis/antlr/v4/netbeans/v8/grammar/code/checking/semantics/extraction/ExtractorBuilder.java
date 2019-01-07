@@ -74,6 +74,7 @@ public class ExtractorBuilder<T extends ParserRuleContext> {
         return new RegionExtractionBuilder<>(this, key);
     }
 
+    @SuppressWarnings("unchecked")
     <KeyType> ExtractorBuilder<T> addSingletons(SingletonKey<KeyType> key, Set<SingletonExtractionStrategy<KeyType, ?>> single) {
         if (singles.containsKey(key)) {
             SingletonExtractionStrategies<KeyType> infos = (SingletonExtractionStrategies<KeyType>) singles.get(key);

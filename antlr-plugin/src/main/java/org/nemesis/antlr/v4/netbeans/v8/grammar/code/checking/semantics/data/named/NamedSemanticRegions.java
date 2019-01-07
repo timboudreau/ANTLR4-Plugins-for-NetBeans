@@ -187,8 +187,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     }
 
     /**
-     * Fetch the raw, uncopied name array that is the sorted backing
-     * store of names.  Do not modify!
+     * Fetch the raw, uncopied name array that is the sorted backing store of
+     * names. Do not modify!
      *
      * @return
      */
@@ -303,7 +303,6 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return size;
         }
     }
-
 
     @SuppressWarnings("unchecked")
     private Class<K> kType() {
@@ -790,6 +789,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public boolean isChildType(IndexAddressableItem item) {
             boolean result = item != null && item.getClass() == RefItem.class
                     && ((RefItem) item).owner() == this;
@@ -802,6 +802,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public int indexOf(Object o) {
             if (o instanceof IndexAddressableItem && isChildType((IndexAddressableItem) o)) {
                 if (o.getClass() == NamedRegionReferenceSetImpl.ReferenceSetWrapper.class) {
@@ -935,6 +936,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public boolean isChildType(IndexAddressableItem item) {
                 if (item == null) {
                     return false;
@@ -1510,6 +1512,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Iterator<NamedSemanticRegion<T>> iterator() {
             return new CIter(positionSort, coll);
         }
@@ -1518,6 +1521,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
             private final List<IteratorHolder<T>> holders;
 
+            @SuppressWarnings("unchecked")
             CIter(boolean positionSort, Collection<? extends NamedIndexAddressable<NamedSemanticRegion<T>>> coll) {
                 holders = new ArrayList(coll.size());
                 for (NamedIndexAddressable<NamedSemanticRegion<T>> r : coll) {

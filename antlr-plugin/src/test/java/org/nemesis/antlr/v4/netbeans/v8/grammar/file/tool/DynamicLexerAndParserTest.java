@@ -36,9 +36,9 @@ import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.RecompilationTe
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyTokenType;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.JavacDiagnostic;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.antlr.v4.netbeans.v8.project.ParsingTestEnvironment;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.junit.MockServices;

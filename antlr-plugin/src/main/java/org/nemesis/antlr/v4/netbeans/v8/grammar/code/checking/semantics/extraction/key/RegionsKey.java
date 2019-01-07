@@ -5,8 +5,7 @@ import java.util.Objects;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
 
 /**
- * Key used to retrieve SemanticRegions&lt;T&gt; instances from an
- * Extraction.
+ * Key used to retrieve SemanticRegions&lt;T&gt; instances from an Extraction.
  *
  * @param <T>
  */
@@ -36,11 +35,12 @@ public final class RegionsKey<T> implements Serializable, Hashable, ExtractionKe
     @Override
     public void hashInto(Hasher hasher) {
         hasher.writeString(type.getName());
-        if (name != type.getSimpleName()) {
+        if (name != null && !Objects.equals(name, type.getSimpleName())) {
             hasher.writeString(name);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public Class<T> type() {
         return (Class<T>) type;
     }

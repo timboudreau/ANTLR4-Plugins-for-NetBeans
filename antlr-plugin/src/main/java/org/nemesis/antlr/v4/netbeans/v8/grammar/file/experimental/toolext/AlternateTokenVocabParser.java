@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
+import org.nemesis.jfs.JFSFileObject;
 
 public class AlternateTokenVocabParser {
 

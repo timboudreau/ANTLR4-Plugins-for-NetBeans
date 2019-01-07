@@ -118,7 +118,7 @@ public final class Extractor<T extends ParserRuleContext> {
 
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
-        ParseTreeVisitor v = info.createVisitor((k, bounds) -> {
+        ParseTreeVisitor<?> v = info.createVisitor((k, bounds) -> {
             bldr.add(k, bounds[0], bounds[1]);
         });
         ruleNode.accept(v);

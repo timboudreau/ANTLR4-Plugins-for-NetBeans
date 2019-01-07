@@ -72,7 +72,8 @@ public enum SimpleFormattingAction implements FormattingAction {
         return new KeyAction<>(amountKey, this);
     }
 
-    public <T extends Enum<T>> FormattingAction by(T amountKey, T... more) {
+    @SafeVarargs
+    public final <T extends Enum<T>> FormattingAction by(T amountKey, T... more) {
         if (!KeyAction.SUPPORTED.contains(this)) {
             throw new IllegalArgumentException("Not supported for keys: " + this);
         }

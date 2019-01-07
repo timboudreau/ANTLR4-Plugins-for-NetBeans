@@ -25,6 +25,7 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.openide.filesystems.FileUtil;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraphVisitor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 
 /**
  *
@@ -59,10 +60,12 @@ public class ParsingWithoutFilesTest {
     @Test
     public void testRuleTrees() throws Throwable {
         Path baseDir = projectBaseDir();
-        Path importdir = baseDir.resolve("grammar/imports");
-        Path lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
+        Path importdir = baseDir.resolve("src/main/antlr4/imports");
+        Path lexer = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.g4");
 //        Path grammar = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
-        Path grammar = Paths.get("/home/tim/work/foreign/rust-netbeans/src/main/antlr4/com/github/drrb/rust/antlr/Rust.g4");
+//        Path grammar = Paths.get("/home/tim/work/foreign/rust-netbeans/src/main/antlr4/com/github/drrb/rust/antlr/Rust.g4");
+        Path grammar = TestDir.testResourcePath(TestDir.class, "Rust-Minimal._g4");
+//                Paths.get("/home/tim/work/foreign/rust-netbeans/src/main/antlr4/com/github/drrb/rust/antlr/Rust.g4");
 //        Path grammar = baseDir.resolve("test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/NestedMapGrammar.g4");
         Path output = Paths.get(System.getProperty("java.io.tmpdir"), ForeignInvocationEnvironmentTest.class.getSimpleName() + "-" + System.currentTimeMillis());
 

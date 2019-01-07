@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import org.nemesis.jfs.javac.CompileJavaSources;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -22,7 +23,7 @@ public class CompiledParserRunner {
     public CompiledParserRunner(Path classpathRoot, String pkg, AntlrLibrary lib) {
         this.pkg = pkg;
         try {
-            this.lib = lib.with(CompileAntlrSources.class
+            this.lib = lib.with(CompileJavaSources.class
                     .getProtectionDomain().getCodeSource()
                     .getLocation().toURI().toURL(),
                     classpathRoot.toUri().toURL());

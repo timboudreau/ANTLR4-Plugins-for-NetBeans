@@ -1,6 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath;
+import org.nemesis.misc.utils.reflection.ReflectionPath;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ReflectiveInvoker;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ForeignInvocationResult;
 import java.io.File;
@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.nemesis.antlr.v4.netbeans.v8.util.reflection.ReflectionPath.ResolutionResultType;
+import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionResultType;
 
 /**
  *

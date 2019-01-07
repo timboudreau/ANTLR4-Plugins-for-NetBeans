@@ -26,11 +26,11 @@ public final class NamedRegionKey<T extends Enum<T>> implements Serializable, Ha
     }
 
     public static <T extends Enum<T>> NamedRegionKey<T> create(Class<T> type) {
-        return new NamedRegionKey(type.getSimpleName(), type);
+        return new NamedRegionKey<>(type.getSimpleName(), type);
     }
 
     public static <T extends Enum<T>> NamedRegionKey<T> create(String name, Class<T> type) {
-        return new NamedRegionKey(name, type);
+        return new NamedRegionKey<>(name, type);
     }
 
     public String toString() {

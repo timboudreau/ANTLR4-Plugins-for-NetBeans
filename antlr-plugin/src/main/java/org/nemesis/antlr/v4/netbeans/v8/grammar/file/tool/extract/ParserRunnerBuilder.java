@@ -5,6 +5,8 @@
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract;
 
+import org.nemesis.jfs.javac.CompileResult;
+import org.nemesis.jfs.javac.CompileJavaSources;
 import org.nemesis.antlr.v4.netbeans.v8.util.ReplanningStatusConsumer;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -135,7 +137,7 @@ public class ParserRunnerBuilder implements ParseProxyBuilder {
                 ExtractionCodeGenerator.saveExtractorSourceTo(genResult.sourceFile(),
                         genResult.packageName(), genResult.grammarName(),
                         genResult.outputPackageFolder(), !hasParser);
-                CompileAntlrSources cp = new CompileAntlrSources();
+                CompileJavaSources cp = new CompileJavaSources(ParserRunnerBuilder.class);
                 statusUpdate.accept(Bundle.COMPILING_ANTLR_SOURCES(path));
                 cr = cp.compile(
                         genResult.outputClasspathRoot(),

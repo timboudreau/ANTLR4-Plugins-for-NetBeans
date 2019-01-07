@@ -293,11 +293,11 @@ public class ProjectTypeTest {
                 return ProjectTypeTest.class.getResourceAsStream("pom-2.xml");
             case "ANTLRv4Lexer.g4":
             case "ANTLRv4.g4":
-                Path grammarPath = baseDir.resolve("grammar/grammar_syntax_checking/").resolve(name);
+                Path grammarPath = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl").resolve(name);
                 assertTrue("Missing test file: " + grammarPath, Files.exists(grammarPath));
                 return Files.newInputStream(grammarPath);
             case "LexBasic.g4":
-                Path lexerPath = baseDir.resolve("grammar/imports/").resolve(name);
+                Path lexerPath = baseDir.resolve("src/main/antlr4/imports/").resolve(name);
                 assertTrue("Missing test file: " + lexerPath, Files.exists(lexerPath));
                 return Files.newInputStream(lexerPath);
             // file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/build/test/unit/classes/

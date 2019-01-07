@@ -23,6 +23,7 @@ public class UnitTestAntlrLibrary implements AntlrLibrary {
     public UnitTestAntlrLibrary() throws URISyntaxException, IOException {
         List<Path> paths = new LinkedList<>();
         Path libsDir = TestDir.projectBaseDir().resolve(Paths.get("release", "libs"));
+        assert Files.exists(libsDir) : "Does not exist: " + libsDir;
         Files.list(libsDir).filter(p -> {
             String fn = p.getFileName().toString();
             return fn.endsWith(".jar") && !fn.contains("javadoc");

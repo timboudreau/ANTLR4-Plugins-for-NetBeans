@@ -29,6 +29,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
     private final NameExtractionStrategy<?, T>[] nameExtractors;
     private final ReferenceExtractorPair<?>[] referenceExtractors;
 
+    @SuppressWarnings("unchecked")
     NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors) {
         this.keyType = keyType;
         assert namePositionKey != null || ruleRegionKey != null;
@@ -90,6 +91,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         private final BitSet[][] references;
         private final BitSet[][] reverseReferences;
 
+        @SuppressWarnings("unchecked")
         ReferenceExtractorVisitor(NamedSemanticRegions<T> regions) {
             activations = new int[referenceExtractors.length][];
             lengths = new int[referenceExtractors.length];
@@ -116,6 +118,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             this.regions = regions;
         }
 
+        @SuppressWarnings("unchecked")
         void conclude(NameInfoStore store) {
             for (int i = 0; i < referenceExtractors.length; i++) {
                 ReferenceExtractorPair r = referenceExtractors[i];
@@ -136,6 +139,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Void visitChildren(RuleNode node) {
             boolean[][] activeScratch = new boolean[referenceExtractors.length][];
             for (int i = 0; i < lengths.length; i++) {
@@ -164,7 +168,6 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                                     reverseReferences[i][referenceIndex].set(referencedIndex);
                                 }
                             } else {
-                                System.out.println("ADD UNKNOWN: " + referenceOffsets);
                                 T kind = referenceOffsets instanceof NamedRegionData<?> && ((NamedRegionData<?>) referenceOffsets).kind != null ? (T) ((NamedRegionData<?>) referenceOffsets).kind : null;
                                 unknown.add(new UnknownNameReferenceImpl(kind, referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
                             }

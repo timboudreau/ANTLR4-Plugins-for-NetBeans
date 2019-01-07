@@ -34,7 +34,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
     public static <TI extends IndexAddressable.IndexAddressableItem, RI extends IndexAddressable.IndexAddressableItem, T extends IndexAddressable<TI>, R extends IndexAddressable<RI>>
             BitSetHeteroObjectGraph<TI, RI, T, R> create(BitSetGraph tree, T first, R second) {
-        return new BitSetHeteroObjectGraph(tree, first, second);
+        return new BitSetHeteroObjectGraph<>(tree, first, second);
     }
 
     public T first() {
@@ -46,15 +46,15 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     }
 
     private Set<TI> toSetFirst(BitSet set) {
-        return new BitSetSliceSet(first, set, 0);
+        return new BitSetSliceSet<>(first, set, 0);
     }
 
     private Set<RI> toSetSecond(BitSet set) {
-        return new BitSetSliceSet(second, set, first.size());
+        return new BitSetSliceSet<>(second, set, first.size());
     }
 
     private Set<Object> toSetAll(BitSet set) {
-        return new BitSetSet(new AllIndexed(), set);
+        return new BitSetSet<>(new AllIndexed(), set);
     }
 
     private int bitSetIndex(RI item) {

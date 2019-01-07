@@ -1,5 +1,11 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting;
 
+import com.github.difflib.DiffUtils;
+import com.github.difflib.algorithm.DiffException;
+import com.github.difflib.algorithm.myers.MyersDiff;
+import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.Chunk;
+import com.github.difflib.patch.Patch;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,8 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +34,7 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.tree.ErrorNode;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
@@ -298,36 +307,103 @@ public class AntlrFormatterTest {
         return sb.toString();
     }
 
-    private String compare(String name, int index, String expected, String got) {
-        String[] expectedLines = expected.split("\n");
-        String[] gotLines = got.split("\n");
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < Math.min(expectedLines.length, gotLines.length); i++) {
-            String e = expectedLines[i];
-            String g = gotLines[i];
-            if (!e.equals(g)) {
-                sb.append(i).append(": Text differed").append(" in ")
-                        .append(name).append("-").append(index)
-                        .append(".\n\n'").append(e)
-                        .append("'\n'").append(g).append("'\n")
-                        .append(charDiff(i, e, g));
-                break;
+    private List<String> toLines(String text) {
+        String[] lines = text.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            if (!lines[i].isEmpty() && lines[i].charAt(lines[i].length() - 1) == '\r') {
+                lines[i] = lines[i].substring(0, lines[i].length() - 1);
             }
         }
-        if (expectedLines.length != gotLines.length) {
-            sb.append("\nExpected ").append(expectedLines.length)
-                    .append(" but got ").append(gotLines.length).append('\n');
-        }
-        if (sb.length() != 0) {
-            sb.append("\n");
-            sb.append("\nEXPECTED:\n").append(expected);
-            sb.append("\nGOT:\n").append(got);
-            sb.append("\n------------------------------------------------------------------------\n");
-        }
-        return sb.length() == 0 ? null : sb.toString();
+        return Arrays.asList(lines);
     }
 
-    private String compareGolden(String name, int configIndex, String formattedText) throws IOException, URISyntaxException {
+    private List<String> splitBySemi(String text) {
+        String[] rules = text.split(";");
+        for (int i = 0; i < rules.length; i++) {
+            StringBuilder sb = new StringBuilder();
+
+        }
+        return Arrays.asList(rules);
+    }
+
+    private String compare(String name, int index, String expected, String got) throws DiffException {
+        List<String> expectedRules = splitBySemi(expected);
+        List<String> gotRules = splitBySemi(got);
+        StringBuilder sb = new StringBuilder();
+        assertEquals(expectedRules.size(), gotRules.size());
+        Iterator<String> origRules = expectedRules.iterator();
+        Iterator<String> revRules = gotRules.iterator();
+        int deltaIndex = 0;
+        int ruleIndex=0;
+        while (origRules.hasNext()) {
+            String ot = origRules.next();
+            String rt = revRules.next();
+            List<String> origLines = toLines(ot);
+            List<String> revLines = toLines(rt);
+            Patch<String> patch = DiffUtils.diff(origLines, revLines, new MyersDiff<>());
+            List<AbstractDelta<String>> deltas = patch.getDeltas();
+            if (!deltas.isEmpty()) {
+                if (sb.length() == 0) {
+                    sb.append("\n************************* ").append(name).append("-").append(index).append(" ******************\n");
+                }
+                if (!ot.equals(rt)) {
+                    System.out.println(ruleIndex + "a: " + ot);
+                    System.out.println(ruleIndex + "b: " + rt);
+                }
+                int ix = 0;
+                for (AbstractDelta<String> d : deltas) {
+                    sb.append(ix++).append(": ")
+                            .append('\n');
+                    Chunk<String> orig = d.getSource();
+                    Chunk<String> rev = d.getTarget();
+                    List<String> ol = orig.getLines();
+                    List<String> rl = rev.getLines();
+                    for (int i = 0; i < Math.max(ol.size(), rl.size()); i++) {
+                        String o = i < ol.size() ? ol.get(i) : "-------------------------";
+                        String r = i < rl.size() ? rl.get(i) : "-------------------------";
+                        sb.append("  ");
+                        sb.append(deltaIndex++).append("a: ");
+                        sb.append(o).append('\n');
+                        sb.append("  ").append(deltaIndex - 1).append("b: ").append(r).append('\n');
+                    }
+                }
+            }
+            ruleIndex++;
+        }
+        if (deltaIndex > 0) {
+            return sb.toString();
+        }
+        return null;
+
+//        List<String> expectedLines = toLines(expected);
+//        List<String> gotLines = toLines(got);
+//        StringBuilder sb = new StringBuilder();
+//        for (int i = 0; i < Math.min(expectedLines.size(), gotLines.size()); i++) {
+//            String e = expectedLines.get(i);
+//            String g = gotLines.get(i);
+//            if (!e.equals(g)) {
+//                sb.append(i).append(": Text differed").append(" in ")
+//                        .append(name).append("-").append(index)
+//                        .append(".\n\n'").append(e)
+//                        .append("'\n'").append(g).append("'\n")
+//                        .append(charDiff(i, e, g));
+//                break;
+//            }
+//        }
+//        if (expectedLines.size() != gotLines.size()) {
+//            sb.append("\nExpected ").append(expectedLines.size())
+//                    .append(" but got ").append(gotLines.size()).append('\n');
+//        }
+//        if (sb.length() != 0) {
+//            sb.append("\n");
+//            sb.append("\nEXPECTED:\n").append(expected);
+//            sb.append("\nGOT:\n").append(got);
+//            sb.append("\n------------------------------------------------------------------------\n");
+//        }
+//        return sb.length() == 0 ? null : sb.toString();
+    }
+
+    private String compareGolden(String name, int configIndex, String formattedText) throws IOException, URISyntaxException, DiffException {
         String goldenContent = loadGolden(name, configIndex);
         if (goldenContent != null) {
             return compare(name, configIndex, goldenContent, formattedText);
@@ -379,8 +455,8 @@ public class AntlrFormatterTest {
         testSix = loadToMap("TestSix.g4");
         testSeven = loadToMap("TestSeven.g4");
         Path baseDir = projectBaseDir();
-        Path lexer = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4Lexer.g4");
-        Path grammar = baseDir.resolve("grammar/grammar_syntax_checking/ANTLRv4.g4");
+        Path lexer = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.g4");
+        Path grammar = baseDir.resolve("src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.g4");
 
         antlrGrammar = loadToMap(grammar);
         try (InputStream in = Files.newInputStream(lexer, StandardOpenOption.READ)) {

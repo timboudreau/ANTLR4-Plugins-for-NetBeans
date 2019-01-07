@@ -118,7 +118,9 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         this.hasNesting = hasNesting;
     }
 
+    @SuppressWarnings("unchecked")
     private static SemanticRegions<?> EMPTY = new SemanticRegions(null);
+    @SuppressWarnings("unchecked")
     public static <T> SemanticRegions<T> empty() {
         return (SemanticRegions<T>) EMPTY;
     }
@@ -141,9 +143,10 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         if (keys != null) {
             newKeys = Arrays.copyOf(keys, size);
         }
-        return new SemanticRegions(newStarts, newEnds, newKeys, size, firstUnsortedEndsEntry, hasNesting);
+        return new SemanticRegions<>(newStarts, newEnds, newKeys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
+    @SuppressWarnings("unchecked")
     public int indexOf(Object o) {
         if (o != null && o.getClass() == SemanticRegionImpl.class && ((SemanticRegionImpl) o).owner() == this) {
             return ((SemanticRegion<?>) o).index();
@@ -178,6 +181,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return item instanceof SemanticRegion<?>;
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> SemanticRegionsBuilder<T> builder(Class<? super T> type) {
         return new SemanticRegionsBuilder<>((Class<T>) type);
     }

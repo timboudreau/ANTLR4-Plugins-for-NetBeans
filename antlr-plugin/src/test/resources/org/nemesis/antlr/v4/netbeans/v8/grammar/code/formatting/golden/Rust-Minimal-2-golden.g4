@@ -169,40 +169,31 @@ match : Match deref=Asterisk?
            var=expression
            match_block;
 
-match_block : LeftBrace ( first=match_case_element (
-                 Comma more=match_case_element )*)?
+match_block : LeftBrace ( first=match_case (
+                 Comma more=match_case )*)?
                  defaultCase=default_match_case? Comma? RightBrace;
 
-match_case_element : ( first=literal (
-                        Pipe
-                        more=literal )* FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #MultiCaseLiteral
-                   | ( range=RangeExclusive FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #ExclusiveRangeCase
-                   | ( range=MatchRangeInclusive FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #InclusiveRangeCase
-                   | ( var=variable_name_pattern If boolean_expression FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #PatternCase
-                   | ( exp=expression (
-                        Pipe
-                        more=expression )* If boolean_expression FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #ExpressionCase
-                   | ( first=expression (
-                        Pipe
-                        more=expression )* FatArrow (
-                        statement_body
-                       | expression
-                       | block )) #MultiCaseExpression;
+match_case : ( first=literal (
+                Pipe more=literal )* FatArrow (
+                statement_body | expression
+               | block )) #MultiCaseLiteral
+           | ( range=RangeExclusive FatArrow (
+                statement_body | expression
+               | block )) #ExclusiveRangeCase
+           | ( range=MatchRangeInclusive FatArrow (
+                statement_body | expression
+               | block )) #InclusiveRangeCase
+           | ( var=variable_name_pattern If boolean_expression FatArrow (
+                statement_body | expression
+               | block )) #PatternCase
+           | ( exp=expression (
+                Pipe more=expression )* If boolean_expression FatArrow (
+                statement_body | expression
+               | block )) #ExpressionCase
+           | ( first=expression (
+                Pipe more=expression )* FatArrow (
+                statement_body | expression
+               | block )) #MultiCaseExpression;
 
 default_match_case : Comma? Underscore FatArrow (
                         statement_body
@@ -390,10 +381,6 @@ struct : ( doc=doc_comment?
             type_spec )* Comma?)? RightParen
             Semicolon ) #TupleStruct;
 
-foo : ( doc_comment ( Struct Ident (
-         LeftBrace RightBrace ( LeftBracket RightBracket (
-         Crate LeftParen )))));
-
 struct_item : ( doc=doc_comment?
                  outer_attribute*
                  inner_attribute*
@@ -572,6 +559,8 @@ doc_comment : DocCommentLine+;
 
 enclosing_doc_comment :
                            EnclosingDocCommentLine+;
+
+aawoo : EnclosingDocCommentLine;
 
 EnclosingDocCommentLine : EnclosingDocCommentPrefix ~[\r\n]*; // Lexer
 DocCommentLine : DocCommentPrefix ~[\r\n]*;

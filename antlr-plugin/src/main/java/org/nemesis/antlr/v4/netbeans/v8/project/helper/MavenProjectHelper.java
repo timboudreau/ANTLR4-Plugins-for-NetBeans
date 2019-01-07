@@ -3,7 +3,7 @@ package org.nemesis.antlr.v4.netbeans.v8.project.helper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.nemesis.antlr.v4.netbeans.v8.util.Callback;
+import org.nemesis.misc.utils.function.Callback;
 import java.util.Optional;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.netbeans.api.project.FileOwnerQuery;
@@ -13,7 +13,7 @@ import org.netbeans.modules.maven.api.PluginPropertyUtils;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
-import org.nemesis.antlr.v4.netbeans.v8.util.CallbackTransform;
+import org.nemesis.misc.utils.function.CallbackTransform;
 import org.openide.util.Parameters;
 
 /**

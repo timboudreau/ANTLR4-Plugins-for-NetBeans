@@ -227,9 +227,9 @@ public class AntlrExtractorTest {
 
     @Before
     public void setup() {
-        antlr = new GS("ANTLRv4", "grammar/grammar_syntax_checking/ANTLRv4.g4")
-                .addChild("ANTLRv4Lexer", "grammar/grammar_syntax_checking/ANTLRv4Lexer.g4")
-                .addChild("LexBasic", "grammar/imports/LexBasic.g4");
+        antlr = new GS("ANTLRv4", "src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4.g4")
+                .addChild("ANTLRv4Lexer", "src/main/antlr4/org/nemesis/antlr/v4/netbeans/v8/grammar/code/checking/impl/ANTLRv4Lexer.g4")
+                .addChild("LexBasic", "src/main/antlr4/imports/LexBasic.g4");
 
         rust = new GS2("Rust", "Rust-Minimal._g4")
                 .addChild("xidcontinue", "xidcontinue._g4")

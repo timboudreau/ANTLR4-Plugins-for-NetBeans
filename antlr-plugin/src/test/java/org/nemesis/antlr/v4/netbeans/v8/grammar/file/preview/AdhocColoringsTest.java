@@ -310,7 +310,7 @@ public class AdhocColoringsTest {
     public void setup() throws Throwable {
         ParsingTestEnvironment.init(ADP.class);
         Path baseDir = TestDir.projectBaseDir();
-        Path src = baseDir.resolve(Paths.get("src", AntlrFolders.class.getPackage().getName().replace('.', '/'),
+        Path src = baseDir.resolve(Paths.get("src", "main", "resources", AntlrFolders.class.getPackage().getName().replace('.', '/'),
                 "antlr-options-preview.g4"));
         assertTrue(src + "", Files.exists(src));
         mimeType = AdhocMimeTypes.mimeTypeForPath(src);

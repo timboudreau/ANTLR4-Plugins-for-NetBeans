@@ -29,11 +29,11 @@ import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFS;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.toolext.MemoryTool;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.toolext.MemoryTool.AttemptedExit;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileAntlrSources;
+import org.nemesis.jfs.javac.CompileJavaSources;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.InMemoryParseProxyBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
@@ -60,10 +60,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
 
     private static final Logger LOG = Logger.getLogger(InMemoryAntlrSourceGenerationBuilder.class.getName());
 
-//    static {
-//        LOG.setLevel(Level.ALL);
-//    }
-    private final JFS jfs = new JFS(UTF_8);
+    private final JFS jfs;
     private final Set<Path> classpath = new LinkedHashSet<>();
     private AtomicBoolean cancellation = new AtomicBoolean();
     private String pkg = newPackageName();
@@ -80,6 +77,11 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
     private String virtualGrammarBody;
 
     InMemoryAntlrSourceGenerationBuilder(Path sourceFile) {
+        try {
+            jfs = JFS.builder().withCharset(UTF_8).build();
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex); // won't happen
+        }
         this.sourceFile = sourceFile;
     }
 
@@ -142,7 +144,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         LOG.log(Level.FINE, "Initial build of {0}", sourceFile);
         AntlrLibrary lib = this.lib != null ? this.lib : AntlrLibrary.forOwnerOf(sourceFile);
         List<Path> classpath = new ArrayList<>(Arrays.asList(lib.paths()));
-        classpath.add(CompileAntlrSources.moduleJar());
+        classpath.add(CompileJavaSources.jarPathFor(AntlrLibrary.class));
         jfs.setClasspath(classpath);
         Set<Path> masqueraded = new HashSet<>();
         if (importDir == null) {

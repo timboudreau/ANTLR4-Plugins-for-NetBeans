@@ -27,8 +27,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.nemesis.antlr.v4.netbeans.v8.util.TimedCache;
-import org.nemesis.antlr.v4.netbeans.v8.util.TimedCache.BidiCache;
+import org.nemesis.misc.utils.TimedCache;
+import org.nemesis.misc.utils.TimedCache.BidiCache;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -96,7 +96,7 @@ public class AdhocMimeTypes {
     private static final Logger LOG = Logger.getLogger(AdhocMimeTypes.class.getName());
 
     static {
-        LOG.setLevel(Level.SEVERE);
+        LOG.setLevel(Level.ALL);
     }
 
     static BidiCache<Path, String, RuntimeException> typeForPath
@@ -294,6 +294,11 @@ public class AdhocMimeTypes {
      * @return A mime type
      */
     public static String mimeTypeForPath(Path path) {
+        if (path.getNameCount() == 0) {
+            throw new IllegalArgumentException("Empty path");
+        } else if ("".equals(path.toString()) || "/".equals(path.toString())) {
+            throw new IllegalArgumentException("Path is /");
+        }
         if (isAdhocMimeTypeFileExtension(path)) {
             return _mimeTypeForFilePath(path);
         }
@@ -750,6 +755,9 @@ public class AdhocMimeTypes {
         private boolean loaded;
 
         synchronized void reinit(boolean deleteCache) throws IOException {
+            if (!deleteCache) {
+                _flushCache();
+            }
             loaded = false;
             loading = false;
             pathForMimeType.clear();
@@ -928,8 +936,11 @@ public class AdhocMimeTypes {
         }
 
         void reinit(boolean deleteCache) throws IOException {
+            LOG.log(Level.FINEST, "Reinit GrammarFileExtensionRegistry deleteCache? {0}", deleteCache);
             if (deleteCache) {
                 THREAD_POOL.shutdown();
+            } else {
+                save();
             }
             extensionsForMimeType.clear();
             mimeTypeForExtension.clear();
@@ -969,11 +980,13 @@ public class AdhocMimeTypes {
             synchronized (this) {
                 copy.addAll(listeners);
             }
-            for (Iterator<Reference<BiConsumer<String, String>>> it = listeners.iterator(); it.hasNext();) {
+            LOG.log(Level.FINEST, "Notify {0} listeners {1} -> {2}", new Object[]{copy.size(), ext, mimeType});
+            List<Reference<BiConsumer<String, String>>> toRemove = new LinkedList<>();
+            for (Iterator<Reference<BiConsumer<String, String>>> it = copy.iterator(); it.hasNext();) {
                 Reference<BiConsumer<String, String>> ref = it.next();
                 BiConsumer<String, String> listener = ref.get();
                 if (listener == null) {
-                    it.remove();
+                    toRemove.add(ref);
                 } else {
                     try {
                         listener.accept(ext, mimeType);
@@ -982,6 +995,7 @@ public class AdhocMimeTypes {
                     }
                 }
             }
+            listeners.removeAll(toRemove);
         }
 
         public GrammarFileExtensionRegistry visitAll(BiConsumer<String, String> cons) {
@@ -1019,6 +1033,7 @@ public class AdhocMimeTypes {
         private boolean firstLoad = true;
 
         public void unregister(String mimeType) {
+            LOG.log(Level.FINEST, "GrammarFileExtensionRegistry unregister {0}", mimeType);
             Set<String> exts = extensionsForMimeType.remove(mimeType);
             for (String ext : exts) {
                 mimeTypeForExtension.remove(ext);
@@ -1027,6 +1042,7 @@ public class AdhocMimeTypes {
         }
 
         public void unregister(String ext, String mimeType) {
+            LOG.log(Level.FINEST, "GrammarFileExtensionRegistry unregister {0}, {1}", new Object[]{ext, mimeType});
             if (extensionsForMimeType.removeElement(mimeType, ext)) {
                 mimeTypeForExtension.remove(ext);
                 save();
@@ -1034,6 +1050,7 @@ public class AdhocMimeTypes {
         }
 
         public boolean register(String ext, String mimeType) {
+            LOG.log(Level.FINEST, "GrammarFileExtensionRegistry.register({0}, {1} - loading {2})", new Object[]{ext, mimeType, loading});
             checkLoaded();
             if (!loading && !AdhocMimeTypes.isAdhocMimeType(mimeType)) {
                 throw new IllegalArgumentException("Not an adhoc mime type: " + mimeType);
@@ -1049,18 +1066,19 @@ public class AdhocMimeTypes {
                     }
                 }
             }
-            boolean isNew = extensionsForMimeType.putValue(mimeType, ext) && !loading;
+            boolean isNew = extensionsForMimeType.putValue(mimeType, ext);
             if (isNew) {
                 mimeTypeForExtension.put(ext, mimeType);
-                if (!save()) {
-                    THREAD_POOL.post(this::save, 100);
+                if (!loading) {
+                    if (!save()) {
+                        THREAD_POOL.post(this::save, 100);
+                    }
+                    THREAD_POOL.post(() -> {
+                        notifyListeners(ext, mimeType);
+                    }, 200);
                 }
-                THREAD_POOL.post(() -> {
-                    notifyListeners(ext, mimeType);
-                }, 200);
             }
-
-            return isNew;
+            return isNew && !loading;
         }
 
         private void checkLoaded() {
@@ -1074,6 +1092,7 @@ public class AdhocMimeTypes {
 
         private synchronized boolean save() {
             if (loading) {
+                LOG.log(Level.FINEST, "GrammarFileExtensionRegistry.save() call during load ignored");
                 return false;
             }
             try {
@@ -1086,6 +1105,7 @@ public class AdhocMimeTypes {
 
         private synchronized void _save() throws IOException {
             List<String> types = new ArrayList<>(extensionsForMimeType.keySet());
+            LOG.log(Level.FINEST, "GrammarFileExtensionRegistry._save() with {0} types", types.size());
             if (types.isEmpty()) {
                 return;
             }
@@ -1124,12 +1144,14 @@ public class AdhocMimeTypes {
 
         private void _load() throws IOException {
             FileObject fo = FileUtil.getConfigFile(SFS_PATH);
+            LOG.log(Level.FINER, "GrammarFileExtensionRegistry._load {0} file exists? {1}", new Object[]{SFS_PATH, fo != null});
             if (fo != null) {
-                LOG.log(Level.FINER, "Read explicit mime registrations cache {0}", fo.getPath());
+                LOG.log(Level.FINE, "Read explicit mime registrations cache {0}", fo.getPath());
                 try (InputStream in = fo.getInputStream()) {
                     EditableProperties props = new EditableProperties(false);
                     props.load(in);
                     for (Map.Entry<String, String> e : props.entrySet()) {
+                        LOG.log(Level.FINEST, "GrammarFileExtensionRegistry._load read one from cache: {0}", e);
                         register(e.getKey(), e.getValue());
                     }
                 }

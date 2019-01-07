@@ -26,11 +26,11 @@ public final class NameReferenceSetKey<T extends Enum<T>> implements Serializabl
     }
 
     public static final <T extends Enum<T>> NameReferenceSetKey<T> create(Class<T> type) {
-        return new NameReferenceSetKey(type.getSimpleName(), type);
+        return new NameReferenceSetKey<>(type.getSimpleName(), type);
     }
 
     public static final <T extends Enum<T>> NameReferenceSetKey<T> create(String name, Class<T> type) {
-        return new NameReferenceSetKey(name, type);
+        return new NameReferenceSetKey<>(name, type);
     }
 
     public String toString() {

@@ -15,6 +15,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  enum RegionExtractType implements Function<Object, int[]> {
     TOKEN, TERMINAL_NODE, INT_ARRAY, PARSER_RULE_CONTEXT, TERMINAL_NODE_LIST;
 
+    @SuppressWarnings("unchecked")
     public <K, TType> BiConsumer<K, TType> wrap(BiConsumer<K, int[]> c) {
         return (K t, TType u) -> {
             if (RegionExtractType.this == TERMINAL_NODE_LIST && u instanceof List<?>) {

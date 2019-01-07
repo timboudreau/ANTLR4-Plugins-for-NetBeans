@@ -31,7 +31,7 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
     }
 
     ParseTreeVisitor<Void> createVisitor(BiConsumer<RegionKeyType, int[]> c) {
-        return new V(key.type(), c, extractors);
+        return new V<RegionKeyType>(key.type(), c, extractors);
     }
 
     static class V<RegionKeyType> extends AbstractParseTreeVisitor<Void> {
@@ -40,7 +40,7 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         private final RegionExtractionStrategy<?, ?, ?>[] extractors;
         private final int[] activatedCount;
 
-        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<RegionExtractionStrategy<?, ?, ?>> extractors) {
+        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors) {
             this.c = c;
             this.extractors = extractors.toArray(new RegionExtractionStrategy<?, ?, ?>[extractors.size()]);
             this.activatedCount = new int[this.extractors.length];
@@ -52,6 +52,7 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Void visitChildren(RuleNode node) {
             boolean[] scratch = new boolean[extractors.length];
             for (int i = 0; i < scratch.length; i++) {

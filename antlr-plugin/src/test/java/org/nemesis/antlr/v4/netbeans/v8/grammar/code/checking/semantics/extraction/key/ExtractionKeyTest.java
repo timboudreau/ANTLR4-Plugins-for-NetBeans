@@ -284,6 +284,7 @@ public class ExtractionKeyTest {
             }
         }
 
+        @SuppressWarnings("unchecked")
         public ExtractionValue<T> ifCompatibleCast(ExtractionValue<?> o) {
 
             return (ExtractionValue<T>) o;

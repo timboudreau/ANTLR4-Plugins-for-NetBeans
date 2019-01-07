@@ -46,9 +46,9 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ParsedAntlrError;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.JavacDiagnostic;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.openide.awt.HtmlRenderer;
 import org.openide.util.Exceptions;
 import org.openide.util.NbBundle.Messages;
@@ -72,7 +72,6 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
     private final JList<Attempt> list = new JList<>(tried);
     private final JTextArea successes = new JTextArea(Bundle.placeholder());
     private final JCheckBox stopOnSuccess = new JCheckBox(Bundle.stopOnSuccess(), true);
-
 
     @Messages({"attempts=Attempts", //NOI18N
         "placeholder=(rules which, when omitted, result in a successful parse will appear here)",
@@ -124,7 +123,7 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
         });
         successes.setBorder(emptyBorder);
         JScrollPane succScroll = new JScrollPane(successes);
-        succScroll.setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
+        succScroll.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         succScroll.setViewportBorder(emptyBorder);
         succScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         succScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
@@ -392,6 +391,7 @@ public class MonitorPanel extends JPanel implements CulpritFinder.Monitor {
         private final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
 
         @Override
+        @SuppressWarnings("unchecked")
         public Component getListCellRendererComponent(JList<? extends Attempt> list, Attempt value, int index, boolean isSelected, boolean cellHasFocus) {
             Component c = renderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             renderer.setHtml(true);

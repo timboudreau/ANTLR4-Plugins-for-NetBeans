@@ -26,8 +26,8 @@ import org.antlr.v4.tool.GrammarTransformPipeline;
 import org.antlr.v4.tool.LexerGrammar;
 import org.antlr.v4.tool.ast.GrammarAST;
 import org.antlr.v4.tool.ast.GrammarRootAST;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFS;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.experimental.JFSFileObject;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ParsedAntlrError;
 import org.stringtemplate.v4.ST;
 

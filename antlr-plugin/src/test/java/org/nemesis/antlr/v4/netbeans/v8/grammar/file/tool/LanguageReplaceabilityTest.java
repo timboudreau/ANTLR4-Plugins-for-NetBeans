@@ -85,7 +85,7 @@ public class LanguageReplaceabilityTest {
     private static final String FOO = "text/x-foo+stuff$$tmp$$Foo.g4";
     private static final String BAR = "text/x-bar";
 
-    @Test(timeout = 15000)
+    @Test(timeout = 30000)
     public final void testLanguageIsNotCached() throws Throwable {
         Logger.getLogger(AbstractLookup.class.getName()).setLevel(Level.ALL);
         ParserProvider pp = Lookup.getDefault().lookup(ParserProvider.class);
@@ -208,7 +208,8 @@ public class LanguageReplaceabilityTest {
         assertEquals(1, prov.fooInvocations);
         assertEquals(0, prov.barInvocations);
 
-        assertNull("Test is broken - system prop not honored", Language.find(BAR));
+        Language<? extends TokenId> ll = Language.find(BAR);
+        assertNull("Test is broken - system prop not honored: " + ll, ll);
 
         prov.tokenCount(10);
         Language<FakeTokenId> fooLang2 = (Language<FakeTokenId>) Language.find(FOO);
@@ -275,9 +276,9 @@ public class LanguageReplaceabilityTest {
 
     @BeforeClass
     public static void enable() {
+        System.setProperty("LanguageReplaceabilityTest", "true");
         ParsingTestEnvironment.init(Prov.class, ParserProvider.class, MimeRec.class, 
                 EMI.class, ADP.class);
-        System.setProperty("LanguageReplaceabilityTest", "true");
         prov = Lookup.getDefault().lookup(Prov.class);
         System.out.println("looked up " + prov);
         assertNotNull(prov);

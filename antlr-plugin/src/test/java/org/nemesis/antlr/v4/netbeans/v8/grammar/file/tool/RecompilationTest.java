@@ -12,7 +12,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxySyntaxError;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunnerBuilder;

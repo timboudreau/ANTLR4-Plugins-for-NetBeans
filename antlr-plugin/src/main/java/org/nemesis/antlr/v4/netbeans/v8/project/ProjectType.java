@@ -41,7 +41,7 @@ import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.OUTPUT;
 import static org.nemesis.antlr.v4.netbeans.v8.AntlrFolders.SOURCE;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.AntBasedProjectHelper;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.MavenProjectHelper;
-import org.nemesis.antlr.v4.netbeans.v8.util.Callback;
+import org.nemesis.misc.utils.function.Callback;
 import static org.nemesis.antlr.v4.netbeans.v8.util.FileLocationHeuristic.ancestorNameContains;
 import static org.nemesis.antlr.v4.netbeans.v8.util.FileLocationHeuristic.ancestorNamed;
 import static org.nemesis.antlr.v4.netbeans.v8.util.FileLocationHeuristic.ancestorWithChildNamed;

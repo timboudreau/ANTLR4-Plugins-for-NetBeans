@@ -45,8 +45,6 @@ public interface AntlrSourceGenerationBuilder {
     default AntlrSourceGenerationBuilder withImportDir(Optional<Path> importDir) {
         if (importDir.isPresent()) {
             return withImportDir(importDir.get());
-        } else {
-            new Exception("SET TO MISSING IMPORT DIR").printStackTrace();
         }
         return this;
     }

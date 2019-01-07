@@ -1,7 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 
 import java.io.ByteArrayOutputStream;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileAntlrSources;
+import org.nemesis.jfs.javac.CompileJavaSources;
 import org.nemesis.antlr.v4.netbeans.v8.util.isolation.ForeignInvocationResult;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,15 +28,14 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompileResult;
+import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.CompiledParserRunner;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunnerBuilder;
 import org.openide.filesystems.FileUtil;
 
 /**
@@ -153,7 +152,7 @@ public class ErrorHandlingTest {
         Path lexerExtractor = ExtractionCodeGenerator.saveExtractorSourceTo(
                 goodFile, "com.foo", "NoErrors", goodOutputDir1);
 
-        CompileAntlrSources comp = new CompileAntlrSources();
+        CompileJavaSources comp = new CompileJavaSources(ParserRunnerBuilder.class);
         CompileResult compRes = comp.compile(goodClasspathRoot, goodClasspathRoot, lib.paths());
 
         System.out.println("COMP RESULT IN " + goodClasspathRoot + ": " + compRes.ok());
@@ -184,27 +183,6 @@ public class ErrorHandlingTest {
         assertNull(st3);
 
         System.out.println("\n************************************\n\n");
-    }
-
-    @Test
-    public void testBuilderReuse() {
-
-    }
-
-    @Test
-    public void generateSer() throws IOException {
-        Path pth = Paths.get("/home/tim/work/personal/yasl/yasl-parser/src/main/antlr4/com/mastfrog/yasl/antlr/Types.g4");
-        if (!Files.exists(pth)) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String line : Files.readAllLines(pth)) {
-            sb.append(line).append('\n');
-        }
-        AntlrProxies.ParseTreeProxy proxies = ParserExtractor.extract(sb.toString());
-        System.out.println("PARSE TREE:");
-
-        proxies.save(Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/1.2.1/ANTLR4PLGNB82/test/unit/src/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool").resolve(pth.getFileName() + ".ser"));
     }
 
     @Test

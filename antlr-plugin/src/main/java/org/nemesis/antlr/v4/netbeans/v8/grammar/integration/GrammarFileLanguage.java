@@ -46,7 +46,6 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ImportKinds;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
@@ -303,7 +302,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
 
     static final class DecFinder implements DeclarationFinder {
 
-        private DeclarationLocation locationFrom(FileObject file, NamedSemanticRegion decl) {
+        private DeclarationLocation locationFrom(FileObject file, NamedSemanticRegion<RuleTypes> decl) {
             return new DeclarationLocation(file, decl.start(),
                     new EH(decl, file));
         }
