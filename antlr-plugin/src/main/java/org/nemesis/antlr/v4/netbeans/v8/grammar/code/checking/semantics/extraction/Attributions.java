@@ -1,8 +1,8 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegion;
 
 /**
  * Object returned when you resolve unknown references on an Extraction.

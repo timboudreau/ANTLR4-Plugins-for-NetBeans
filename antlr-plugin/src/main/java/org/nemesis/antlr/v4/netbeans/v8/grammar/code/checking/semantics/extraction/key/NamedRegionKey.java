@@ -2,7 +2,8 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extract
 
 import java.io.Serializable;
 import java.util.Objects;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
+import org.nemesis.data.Hashable;
+import org.nemesis.data.Hashable.Hasher;
 
 /**
  * Key type for named regions, used in <code>Extraction.namedRegions()</code>.

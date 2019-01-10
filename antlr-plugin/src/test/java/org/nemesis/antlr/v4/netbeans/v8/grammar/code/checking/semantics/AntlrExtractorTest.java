@@ -1,9 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetStringGraph;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.graph.BitSetStringGraph;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -24,18 +22,21 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.EbnfProperty;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.AttributedForeignNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Attributions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.spi.GrammarSourceImplementation;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.spi.access.GSAccessor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 
 public class AntlrExtractorTest {
 
@@ -45,7 +46,7 @@ public class AntlrExtractorTest {
 
     @Test
     public void testForeignReferences() throws Throwable {
-        Extraction ext = AntlrExtractor.getDefault().extract(rust);
+        Extraction ext = AntlrExtractor.getDefault().extract(GSAccessor.getDefault().newGrammarSource(rust));
 
         assertNotNull("Grammar type not encountered", ext.encounters(AntlrExtractor.GRAMMAR_TYPE));
         assertFalse("Multiple grammar statements claimed to be present", ext.encounters(AntlrExtractor.GRAMMAR_TYPE).hasMultiple());
@@ -56,18 +57,18 @@ public class AntlrExtractorTest {
         Set<String> unknownNames = new HashSet<>();
         Set<String> expectedUnknownNames = setOf("XID_Start", "XID_Continue", "EOF");
 
-        for (SemanticRegions.SemanticRegion<UnknownNameReference<RuleTypes>> u : unknowns) {
+        for (SemanticRegion<UnknownNameReference<RuleTypes>> u : unknowns) {
             unknownNames.add(u.key().name());
         }
         assertEquals(expectedUnknownNames, unknownNames);
         Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = ext.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
         SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> resolvedItems = resolved.attributed();
         System.out.println("---------------------- RESOLVED TO -----------------------------");
-        for (SemanticRegions.SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> item : resolvedItems) {
+        for (SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> item : resolvedItems) {
             unknownNames.remove(item.key().name());
             GrammarSource<?> src = item.key().source();
-            assertTrue(src + "", src instanceof GS);
-            GS gs = (GS) src;
+            assertTrue(src + "", src.lookup(GS.class) instanceof GS);
+            GS gs = (GS) src.lookup(GS.class);
             switch (item.key().name()) {
                 case "XID_Continue":
                     assertEquals("xidcontinue", item.key().source().name());
@@ -92,14 +93,14 @@ public class AntlrExtractorTest {
 
     @Test
     public void testSimpleGrammar() throws Throwable {
-        Extraction ri = AntlrExtractor.getDefault().extract(nmg);
+        Extraction ri = AntlrExtractor.getDefault().extract(GSAccessor.getDefault().newGrammarSource(nmg));
 
         String txt = nmg.text();
 
         System.out.println("EBNFS: \n" + ri.regions(AntlrExtractor.EBNFS));
 
         int ec = 0;
-        for (SemanticRegions.SemanticRegion<Set<EbnfProperty>> ebnf : ri.regions(AntlrExtractor.EBNFS)) {
+        for (SemanticRegion<Set<EbnfProperty>> ebnf : ri.regions(AntlrExtractor.EBNFS)) {
             assertEquals(ec, ebnf.index());
             switch (ec++) {
                 case 0:
@@ -195,7 +196,7 @@ public class AntlrExtractorTest {
         SemanticRegions<Void> blocks = ri.regions(AntlrExtractor.BLOCKS);
         System.out.println("BLOCKS: " + blocks);
         List<String> subs = new ArrayList<>();
-        for (SemanticRegions.SemanticRegion<Void> b : blocks) {
+        for (SemanticRegion<Void> b : blocks) {
             String blk = txt.substring(b.start(), b.end());
             subs.add(blk);
             assertEquals(b, blocks.at(b.start()));
@@ -238,18 +239,19 @@ public class AntlrExtractorTest {
         nmg = new GS2("NestedMapGrammar", "NestedMapGrammar.g4");
     }
 
-    public static class GS extends GrammarSource<String> {
+    public static class GS extends GrammarSourceImplementation<String> {
 
         private final String name;
         final String path;
-        List<GrammarSource<String>> kids;
+        List<GrammarSourceImplementation<String>> kids;
         private String text;
 
         public GS(String name, String path) {
             this(name, path, null);
         }
 
-        public GS(String name, String path, List<GrammarSource<String>> kids) {
+        public GS(String name, String path, List<GrammarSourceImplementation<String>> kids) {
+            super(String.class);
             this.name = name;
             this.path = path;
             this.kids = kids;
@@ -267,9 +269,9 @@ public class AntlrExtractorTest {
             if (kids == null) {
                 return null;
             }
-            for (GrammarSource<String> k : kids) {
+            for (GrammarSourceImplementation<String> k : kids) {
                 if (name.equals(k.name())) {
-                    return (GS) k;
+                    return k.lookup(GS.class);
                 }
             }
             return null;
@@ -312,11 +314,11 @@ public class AntlrExtractorTest {
         }
 
         @Override
-        public GrammarSource<?> resolveImport(String name, Extraction extraction) {
+        public GrammarSourceImplementation<?> resolveImport(String name) {
             if (kids == null) {
                 return null;
             }
-            for (GrammarSource<String> kid : kids) {
+            for (GrammarSourceImplementation<String> kid : kids) {
                 if (name.equals(kid.name())) {
                     System.out.println("RESOLVING CHILD " + name + " with " + kid);
                     return kid;

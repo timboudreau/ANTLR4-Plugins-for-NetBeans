@@ -142,6 +142,7 @@
         <module>antlr-plugin</module>
         <module>jfs</module>
         <module>misc-utils</module>
+        <module>extraction-data-models</module>
     </modules>
     <repositories>
         <repository>
@@ -191,6 +192,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>misc-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>extraction-data-models</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

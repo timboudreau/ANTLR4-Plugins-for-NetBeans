@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.text.Document;
+import org.nemesis.antlr.v4.netbeans.v8.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4LanguageHierarchy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4TokenId;
 
@@ -47,17 +48,17 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExt
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ImportKinds;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable.IndexAddressableItem;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions.SemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.AttributedForeignNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatter;
+import org.nemesis.data.IndexAddressable.IndexAddressableItem;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 
 import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.csl.api.CodeCompletionHandler;
@@ -332,7 +333,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                         try {
                             resolved = unknownRef.resolve(extractions, AntlrExtractor.resolver());
                             if (resolved != null) {
-                                FileObject fo = resolved.source().toFileObject();
+                                FileObject fo = AbstractFileObjectGrammarSourceImplementation.fileObjectFor(resolved.source());
                                 if (fo != null) {
                                     NamedSemanticRegion<RuleTypes> refItem = resolved.element();
                                     return locationFrom(fo, refItem);
@@ -347,7 +348,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                     if (importItem != null) {
                         GrammarSource<?> src = extractions.resolveRelative(importItem.name());
                         if (src != null) {
-                            FileObject fo = src.toFileObject();
+                            FileObject fo = AbstractFileObjectGrammarSourceImplementation.fileObjectFor(src);
                             if (fo != null) {
                                 return new DeclarationLocation(fo, 0, new FileStartHandle(fo, importItem.name()));
                             }

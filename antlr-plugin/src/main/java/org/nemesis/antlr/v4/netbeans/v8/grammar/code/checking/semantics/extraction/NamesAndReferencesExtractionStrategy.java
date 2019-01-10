@@ -7,15 +7,16 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetGraph;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetStringGraph;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSetsBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionsBuilder;
+import org.nemesis.data.graph.BitSetGraph;
+import org.nemesis.data.graph.BitSetStringGraph;
+import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
+import org.nemesis.data.Hashable;
+import org.nemesis.data.Hashable.Hasher;
+import org.nemesis.data.SemanticRegions;
 
 /**
  *

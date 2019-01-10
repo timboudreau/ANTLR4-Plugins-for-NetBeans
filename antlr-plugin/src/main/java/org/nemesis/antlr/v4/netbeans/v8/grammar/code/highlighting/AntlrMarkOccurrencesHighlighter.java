@@ -7,11 +7,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets.NamedRegionReferenceSet;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedRegionReferenceSets.NamedRegionReferenceSet;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorNames;

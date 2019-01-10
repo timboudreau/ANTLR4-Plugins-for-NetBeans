@@ -9,9 +9,9 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExt
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementKind.PARSER_NAMED_ALTERNATIVE_SUBRULE;
 

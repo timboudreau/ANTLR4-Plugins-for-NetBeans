@@ -6,8 +6,9 @@ import java.util.Set;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
+import org.nemesis.data.Hashable;
+import org.nemesis.data.Hashable.Hasher;
 
 /**
  * Represents a group of strategies for extracting singletons using various rule

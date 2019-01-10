@@ -1,6 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegions;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -18,7 +18,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.GrammarTypeContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.NamedRegionData;
@@ -27,9 +27,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extracti
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference.UnknownNameReferenceResolver;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource.RelativeFileObjectResolver;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
@@ -171,16 +169,13 @@ public final class AntlrExtractor {
         return grammarType;
     }
 
-    static final RelativeFileObjectResolver ANTLR_RESOLVER = (rt, nm, in) -> {
-        return ProjectHelper.resolveRelativeGrammar(rt, nm);
-    };
-
-    public static GrammarSource<?> grammarSource(Document doc) {
-        return GrammarSource.forDocument(doc, ANTLR_RESOLVER);
+    private static final String MIME_TYPE = "text/x-g4";
+    public static GrammarSource<Document> grammarSource(Document doc) {
+        return GrammarSource.find(doc, MIME_TYPE);
     }
 
     public static GrammarSource<?> grammarSource(FileObject fo) {
-        return GrammarSource.forFileObject(fo, ANTLR_RESOLVER);
+        return GrammarSource.find(fo, MIME_TYPE);
     }
 
     public Extraction extract(FileObject fo) throws IOException {
@@ -200,7 +195,7 @@ public final class AntlrExtractor {
     }
 
     public Extraction extract(CharStream stream) throws IOException {
-        return extract(GrammarSource.forSingleCharStream("x", stream));
+        return extract(GrammarSource.find(stream, MIME_TYPE));
     }
 
     public Extraction extract(GrammarFileContext ctx, GrammarSource<?> src) {

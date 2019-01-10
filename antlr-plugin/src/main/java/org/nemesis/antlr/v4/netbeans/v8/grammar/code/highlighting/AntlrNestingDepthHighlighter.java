@@ -11,7 +11,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.AN
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
@@ -35,7 +36,7 @@ final class AntlrNestingDepthHighlighter extends AbstractAntlrHighlighter.Docume
         if (ext != null) {
             SemanticRegions<Void> blocks = ext.regions(AntlrExtractor.BLOCKS);
             Set<HighlightElement> els = new TreeSet<>();
-            for (SemanticRegions.SemanticRegion<Void> block : blocks) {
+            for (SemanticRegion<Void> block : blocks) {
                 int depth = block.nestingDepth();
                 if (depth > 1) {
                     els.add(new HighlightElement(block.start(), block.end(), depth));

@@ -17,11 +17,11 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetStringGraph;
+import org.nemesis.data.graph.BitSetStringGraph;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraph.Score;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.graph.StringGraph.Score;
 import org.openide.util.NbBundle;
 
 /**

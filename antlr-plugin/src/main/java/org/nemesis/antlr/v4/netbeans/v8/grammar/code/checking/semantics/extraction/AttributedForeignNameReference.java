@@ -1,9 +1,9 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction;
 
 import java.util.Objects;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Named;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.Named;
+import org.nemesis.data.named.NamedSemanticRegion;
 
 /**
  *

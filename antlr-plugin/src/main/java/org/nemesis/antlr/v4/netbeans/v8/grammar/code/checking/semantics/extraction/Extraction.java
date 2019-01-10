@@ -12,14 +12,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Function;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.BitSetStringGraph;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegionReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.SerializationContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.ExtractionKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedExtractionKey;
@@ -27,6 +19,15 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extracti
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.graph.BitSetStringGraph;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.SerializationContext;
 import org.openide.util.Exceptions;
 
 /**
@@ -74,7 +75,7 @@ public final class Extraction implements Externalizable {
      * @return A source, or null if the grammar source cannot resolve the name
      */
     public GrammarSource<?> resolveRelative(String name) {
-        return source.resolveImport(name, this);
+        return source.resolveImport(name);
     }
 
     /**
@@ -240,7 +241,7 @@ public final class Extraction implements Externalizable {
             sb.append("\n******************* UNNAMED REGIONS **********************");
             for (Map.Entry<RegionsKey<?>, SemanticRegions<?>> e : regions.entrySet()) {
                 sb.append("\n ------------- REGIONS ").append(e.getKey()).append(" -----------------");
-                for (SemanticRegions.SemanticRegion<?> reg : e.getValue()) {
+                for (SemanticRegion<?> reg : e.getValue()) {
                     sb.append("\n  ").append(reg);
                 }
             }
@@ -274,7 +275,7 @@ public final class Extraction implements Externalizable {
             sb.append("\n******************* UNKNOWN REFERENCES **********************");
             for (Map.Entry<NameReferenceSetKey<?>, SemanticRegions<UnknownNameReference<?>>> e : unknowns.entrySet()) {
                 sb.append("\n ------------- UNKNOWNS ").append(e.getKey()).append(" -----------------");
-                for (SemanticRegions.SemanticRegion<UnknownNameReference<?>> v : e.getValue()) {
+                for (SemanticRegion<UnknownNameReference<?>> v : e.getValue()) {
                     sb.append("\n  ").append(v);
                 }
             }
@@ -463,7 +464,7 @@ public final class Extraction implements Externalizable {
         Class c = AttributedForeignNameReference.class;
         SemanticRegions.SemanticRegionsBuilder<AttributedForeignNameReference<R, I, N, T>> bldr = SemanticRegions.builder(c);
         SemanticRegions.SemanticRegionsBuilder<UnknownNameReference> remaining = SemanticRegions.builder(UnknownNameReference.class);
-        for (SemanticRegions.SemanticRegion<UnknownNameReference<T>> reg : u) {
+        for (SemanticRegion<UnknownNameReference<T>> reg : u) {
             AttributedForeignNameReference<R, I, N, T> r = reg.key().resolve(this, res);
             if (r != null) {
                 bldr.add(r, reg.start(), reg.end());

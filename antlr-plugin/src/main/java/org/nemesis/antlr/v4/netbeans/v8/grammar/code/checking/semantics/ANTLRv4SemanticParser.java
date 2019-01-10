@@ -28,19 +28,13 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.NamedRegionExtractorBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraph;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,19 +47,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.swing.text.BadLocationException;
-
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
-
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.bcel.classfile.JavaClass;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
-
 import org.nemesis.antlr.v4.netbeans.v8.generic.parsing.ParsingError;
-
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseListener;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
@@ -87,31 +77,26 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.SuperClassSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Attributions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
-
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaClassHelper;
-
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
 import org.netbeans.api.project.Project;
-
 import org.netbeans.modules.csl.api.Severity;
-
 import org.netbeans.spi.project.support.ant.PropertyEvaluator;
 import org.netbeans.spi.project.support.ant.PropertyProvider;
 import org.netbeans.spi.project.support.ant.PropertyUtils;
-
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
@@ -1522,7 +1507,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         // XXX we need to track which unknown refs were likely trying to be a parser
         // rule reference
         SemanticRegions<UnknownNameReference> unresolved = resInfo.remainingUnattributed();
-        for (SemanticRegions.SemanticRegion<UnknownNameReference> r : unresolved) {
+        for (SemanticRegion<UnknownNameReference> r : unresolved) {
             UnknownNameReference<?> k = r.key();
             if (EOF.equals(k.name())) {
                 continue;

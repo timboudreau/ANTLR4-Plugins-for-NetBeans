@@ -4,10 +4,10 @@ import java.util.Map;
 import java.util.Set;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
+import org.nemesis.data.Hashable;
+import org.nemesis.data.SemanticRegions;
 
 /**
  * An object which extracts information about source regions using strategies

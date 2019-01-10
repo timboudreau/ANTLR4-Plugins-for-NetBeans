@@ -3,7 +3,8 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extract
 import java.util.Objects;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.tree.RuleNode;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.Hashable;
+import org.nemesis.data.Hashable;
+import org.nemesis.data.Hashable.Hasher;
 
 /**
  *

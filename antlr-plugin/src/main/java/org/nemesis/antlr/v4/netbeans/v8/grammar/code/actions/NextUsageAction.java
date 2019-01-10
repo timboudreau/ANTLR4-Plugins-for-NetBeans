@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.actions;
 
 import java.awt.EventQueue;
@@ -18,13 +13,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ExtractorBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.IndexAddressable.IndexAddressableItem;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedRegionReferenceSets;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.netbeans.api.editor.EditorActionRegistration;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.modules.parsing.api.ParserManager;

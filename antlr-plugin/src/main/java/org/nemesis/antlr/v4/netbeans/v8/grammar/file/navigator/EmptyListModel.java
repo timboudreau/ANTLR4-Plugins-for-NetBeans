@@ -4,7 +4,7 @@ import javax.swing.ListModel;
 import javax.swing.event.ListDataListener;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegion;
 
 /**
  *

@@ -8,10 +8,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.HeaderMatter;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ExtractorBuilder;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.highlighting.AbstractAntlrHighlighter.GET_SEMANTICS;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
@@ -46,7 +46,7 @@ public class AntlrHeaderMatterHighlighter extends AbstractAntlrHighlighter.Docum
         Extraction ext = semantics.extraction();
         SemanticRegions<HeaderMatter> hms = ext.regions(AntlrExtractor.HEADER_MATTER);
         AttributeSet attrs = colorings().get(COLORING_NAMES[0]);
-        for (SemanticRegions.SemanticRegion<HeaderMatter> e : hms.outermostElements()) {
+        for (SemanticRegion<HeaderMatter> e : hms.outermostElements()) {
             bag.addHighlight(e.start(), e.end(), attrs);
         }
     }

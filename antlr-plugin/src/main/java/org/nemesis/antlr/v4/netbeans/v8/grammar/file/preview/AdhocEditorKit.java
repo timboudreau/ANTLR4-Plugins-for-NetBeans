@@ -23,7 +23,7 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraphVisitor;
+import org.nemesis.data.graph.StringGraphVisitor;
 
 /**
  *

@@ -10,14 +10,17 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.EbnfProperty;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.SemanticRegions;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
 
 /**
  *
- * @author Tim Boudreau
+ * @author Timimport org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
+ Boudreau
  */
 final class AntlrEbnfHighlighter extends AbstractAntlrHighlighter.DocumentOriented<Void, ANTLRv4ParserResult, ANTLRv4SemanticParser> {
 
@@ -29,7 +32,7 @@ final class AntlrEbnfHighlighter extends AbstractAntlrHighlighter.DocumentOrient
         Extraction ext = semantics.extraction();
         SemanticRegions<Set<EbnfProperty>> ebnfs = ext.regions(AntlrExtractor.EBNFS);
         Map<String, AttributeSet> ebnfColorings = colorings();
-        for (SemanticRegions.SemanticRegion<Set<EbnfProperty>> e : ebnfs) {
+        for (SemanticRegion<Set<EbnfProperty>> e : ebnfs) {
             bag.addHighlight(e.start(), e.end(), ebnfColorings.get(coloringName(e.key())));
         }
     }

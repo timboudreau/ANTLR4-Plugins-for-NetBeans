@@ -11,13 +11,13 @@ import javax.swing.JEditorPane;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraphVisitor;
+import org.nemesis.data.graph.StringGraphVisitor;
 
 /**
  * Displays the parser rule tree.

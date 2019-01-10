@@ -15,6 +15,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -39,11 +40,11 @@ public final class TestDir {
     final Path antlrSourceFile;
     final Path tmp;
 
-    TestDir(Path root, String name, String grammarStreamName, String packageName) throws IOException {
+    public TestDir(Path root, String name, String grammarStreamName, String packageName) throws IOException {
         this(root, name, grammarStreamName, packageName, null);
     }
 
-    TestDir(Path root, String name, String grammarStreamName, String packageName, Class<?> grammarStreamRelativeTo) throws IOException {
+    public TestDir(Path root, String name, String grammarStreamName, String packageName, Class<?> grammarStreamRelativeTo) throws IOException {
         this.name = name;
         this.packageName = packageName;
         this.root = root;
@@ -61,12 +62,66 @@ public final class TestDir {
         outputPackage = javaClasspathRoot.resolve(packageName.replace('.', '/'));
         tmp = antlrSources.resolve("tmp");
         InputStream in = grammarStreamRelativeTo.getResourceAsStream(grammarStreamName);
-        Assert.assertNotNull("Missing " + grammarStreamName + " on classpath adjacent to " + RecompilationTest.class.getName(), in);
+        Assert.assertNotNull("Missing " + grammarStreamName + " on classpath adjacent to " + grammarStreamRelativeTo.getName(), in);
         Files.createDirectories(outputPackage);
         Files.createDirectories(tmp);
         try (final OutputStream out = Files.newOutputStream(antlrSourceFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
             FileUtil.copy(in, out);
         }
+    }
+
+    public Path root() {
+        return root;
+    }
+
+    public Path sources() {
+        return antlrSources;
+    }
+
+    public Path grammar() {
+        return antlrSourceFile;
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            Files.walkFileTree(root, new FileVisitor<Path>() {
+                int depth;
+
+                char[] indent() {
+                    char[] result = new char[depth * 2];
+                    Arrays.fill(result, ' ');
+                    return result;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    sb.append(indent()).append("> ").append(dir.getFileName()).append('\n');
+                    depth++;
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    sb.append(indent()).append("- ").append(file.getFileName()).append('\n');
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    depth--;
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException ex) {
+            throw new AssertionError(ex);
+        }
+        return sb.toString();
     }
 
     public static Path projectBaseDir() throws URISyntaxException {
@@ -80,6 +135,15 @@ public final class TestDir {
         Path base = projectBaseDir();
         return base.resolve(Paths.get("src", "test", "resources",
                 relativeTo.getPackage().getName().replace('.', '/'), name));
+    }
+
+    public static String readFile(String name) throws URISyntaxException, IOException {
+        return readFile(TestDir.class, name);
+    }
+
+    public static String readFile(Class<?> relativeTo, String name) throws URISyntaxException, IOException {
+        Path p = testResourcePath(relativeTo, name);
+        return new String(Files.readAllBytes(p), UTF_8);
     }
 
     public TestDir addImportFile(String name, Path orig) throws IOException {

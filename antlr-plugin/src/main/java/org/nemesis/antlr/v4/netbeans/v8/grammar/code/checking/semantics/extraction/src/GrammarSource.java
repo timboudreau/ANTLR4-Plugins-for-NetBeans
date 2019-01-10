@@ -2,51 +2,112 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extract
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Optional;
-import javax.swing.text.Document;
+import java.util.Objects;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.openide.filesystems.FileObject;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.spi.GrammarSourceImplementation;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.spi.access.GSAccessor;
 
 /**
+ * Abstraction for files, documents or even text strings which can provide
+ * input, and can resolve sibling documents/files/whatever.
  *
  * @author Tim Boudreau
  */
-public abstract class GrammarSource<T> implements Serializable {
+public final class GrammarSource<T> implements Serializable {
 
-    public abstract String name();
+    private final GrammarSourceImplementation<T> impl;
 
-    public abstract CharStream stream() throws IOException;
-
-    public abstract GrammarSource<?> resolveImport(String name, Extraction extraction);
-
-    public abstract T source();
-
-    public static GrammarSource<FileObject> forFileObject(FileObject fo, RelativeFileObjectResolver resolver) {
-        return new FileObjectGrammarSource(fo, resolver);
+    private GrammarSource(GrammarSourceImplementation<T> impl) {
+        assert impl != null : "impl null";
+        this.impl = impl;
     }
 
-    public static GrammarSource<CharStream> forSingleCharStream(String name, CharStream stream) {
-        return new StringGrammarSource(name, stream);
+    public final String name() {
+        return GSAccessor.getDefault().nameOf(impl);
     }
 
-    public static GrammarSource<CharStream> forText(String name, String grammarBody) {
-        return forSingleCharStream(name, CharStreams.fromString(grammarBody));
+    public final CharStream stream() throws IOException {
+        return GSAccessor.getDefault().stream(impl);
     }
 
-    public static GrammarSource<?> forDocument(Document doc, RelativeFileObjectResolver resolver) {
-        return new DocumentGrammarSource(doc, resolver);
+    public final GrammarSource<?> resolveImport(String name) {
+        return GSAccessor.getDefault().resolve(impl, name);
     }
 
-    public FileObject toFileObject() {
-        return null;
+    public final T source() throws IOException {
+        return GSAccessor.getDefault().source(impl);
     }
 
-    @FunctionalInterface
-    public interface RelativeFileObjectResolver extends Serializable {
-
-        Optional<FileObject> resolve(FileObject relativeTo, String name, Extraction in);
+    public final long lastModified() throws IOException {
+        return GSAccessor.getDefault().lastModified(impl);
     }
 
+    public final <R> R lookup(Class<R> type) {
+        if (type.isInstance(this)) {
+            return type.cast(this);
+        }
+        return GSAccessor.getDefault().lookup(impl, type);
+    }
+
+    public final String toString() {
+        return impl.toString();
+    }
+
+    @Override
+    public final int hashCode() {
+        int hash = 5;
+        hash = 79 * hash + Objects.hashCode(this.impl);
+        return hash;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GrammarSource<?> other = (GrammarSource<?>) obj;
+        if (!Objects.equals(this.impl, other.impl)) {
+            return false;
+        }
+        return true;
+    }
+
+    public static <T> GrammarSource<T> find(T document, String mimeType) {
+        return GSAccessor.getDefault().newGrammarSource(mimeType, document);
+    }
+
+//
+//    public static GrammarSource<FileObject> forFileObject(FileObject fo, RelativeResolver<FileObject> resolver) {
+//        return new FileObjectGrammarSource(fo, resolver);
+//    }
+//
+//    public static GrammarSource<CharStream> forSingleCharStream(String name, CharStream stream) {
+//        return new StringGrammarSource(name, stream);
+//    }
+//
+//    public static GrammarSource<CharStream> forText(String name, String grammarBody) {
+//        return forSingleCharStream(name, CharStreams.fromString(grammarBody));
+//    }
+//
+//    public static GrammarSource<?> forDocument(Document doc, RelativeResolver<FileObject> resolver) {
+//        return new DocumentGrammarSource(doc, resolver);
+//    }
+
+    static final class GSAccessorImpl extends GSAccessor {
+
+        @Override
+        public <T> GrammarSource<T> newGrammarSource(GrammarSourceImplementation<T> impl) {
+            return new GrammarSource<>(impl);
+        }
+    }
+
+    static {
+        GSAccessor.DEFAULT = new GSAccessorImpl();
+    }
 }

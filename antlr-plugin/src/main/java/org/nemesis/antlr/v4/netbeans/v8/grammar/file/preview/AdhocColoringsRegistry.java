@@ -33,7 +33,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExt
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegions;
+import org.nemesis.data.named.NamedSemanticRegions;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.openide.filesystems.FileObject;
@@ -43,8 +43,8 @@ import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 import org.openide.util.lookup.ServiceProvider;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.graph.StringGraph;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.data.named.NamedSemanticRegion;
+import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.named.NamedSemanticRegion;
 
 /**
  *
