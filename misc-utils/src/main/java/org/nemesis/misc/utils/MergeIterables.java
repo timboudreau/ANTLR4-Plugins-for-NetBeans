@@ -12,16 +12,22 @@ import java.util.NoSuchElementException;
  *
  * @author Tim Boudreau
  */
-public final class MergeIterables<T> implements Iterable<T> {
+final class MergeIterables<T> implements Iterable<T> {
 
     private final List<Iterable<T>> all = new LinkedList<>();
 
     @SafeVarargs
-    public MergeIterables(Iterable<T>... iterables) {
+     MergeIterables(Iterable<T>... iterables) {
         all.addAll(Arrays.asList(iterables));
     }
 
-    public MergeIterables() {
+    MergeIterables(Iterable<Iterable<T>> all) {
+        for (Iterable<T> iter : all) {
+            this.all.add(iter);
+        }
+    }
+
+    MergeIterables() {
 
     }
 
@@ -86,5 +92,4 @@ public final class MergeIterables<T> implements Iterable<T> {
             iter.remove();
         }
     }
-
 }

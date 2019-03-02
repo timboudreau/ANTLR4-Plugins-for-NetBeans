@@ -29,6 +29,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.completion;
 
 import javax.swing.text.JTextComponent;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
@@ -41,7 +42,7 @@ import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
  *
  * @author Frédéric Yvon Vinet
  */
-@MimeRegistration(mimeType = "text/x-g4"            ,
+@MimeRegistration(mimeType = ANTLR_MIME_TYPE            ,
                   service = CompletionProvider.class,
                   position = 668                    )
 public class GrammarCodeCompletion implements CompletionProvider {

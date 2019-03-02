@@ -32,6 +32,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import static org.nemesis.antlr.common.AntlrConstants.ACTION_PATH;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.text.MultiViewEditorElement;
@@ -55,63 +58,63 @@ import org.openide.windows.TopComponent;
 })
 @MIMEResolver.ExtensionRegistration(
         displayName = "#LBL_G4_LOADER",
-        mimeType = "text/x-g4",
+        mimeType = ANTLR_MIME_TYPE,
         extension = {"g4"}
 )
 @DataObject.Registration(
-        mimeType = "text/x-g4",
-        iconBase = "org/nemesis/antlr/v4/netbeans/v8/grammar/file/antlr-g4-file-type.png",
+        mimeType = ANTLR_MIME_TYPE,
+        iconBase = ICON_PATH,
         displayName = "#LBL_G4_LOADER",
         position = 300
 )
 @ActionReferences({
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.OpenAction"),
             position = 100,
             separatorAfter = 200
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "Edit", id = "org.openide.actions.CutAction"),
             position = 300
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "Edit", id = "org.openide.actions.CopyAction"),
             position = 400,
             separatorAfter = 500
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "Edit", id = "org.openide.actions.DeleteAction"),
             position = 600
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.RenameAction"),
             position = 700,
             separatorAfter = 800
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.SaveAsTemplateAction"),
             position = 900,
             separatorAfter = 1000
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.FileSystemAction"),
             position = 1100,
             separatorAfter = 1200
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.ToolsAction"),
             position = 1300
     ),
     @ActionReference(
-            path = "Loaders/text/x-g4/Actions",
+            path = ACTION_PATH,
             id = @ActionID(category = "System", id = "org.openide.actions.PropertiesAction"),
             position = 1400
     )
@@ -122,7 +125,7 @@ public class G4DataObject extends MultiDataObject {
             MultiFileLoader loader)
             throws DataObjectExistsException {
         super(pf, loader);
-        registerEditor("text/x-g4", true);
+        registerEditor(ANTLR_MIME_TYPE, true);
     }
 
     @Override
@@ -132,8 +135,8 @@ public class G4DataObject extends MultiDataObject {
 
     @MultiViewElement.Registration(
             displayName = "#LBL_G4_EDITOR",
-            iconBase = "org/nemesis/antlr/v4/netbeans/v8/grammar/file/antlr-g4-file-type.png",
-            mimeType = "text/x-g4",
+            iconBase = ICON_PATH,
+            mimeType = ANTLR_MIME_TYPE,
             persistenceType = TopComponent.PERSISTENCE_ONLY_OPENED,
             preferredID = "G4",
             position = 1000

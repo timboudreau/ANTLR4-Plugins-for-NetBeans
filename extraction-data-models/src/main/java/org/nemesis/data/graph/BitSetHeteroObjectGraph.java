@@ -2,20 +2,20 @@ package org.nemesis.data.graph;
 
 import java.util.BitSet;
 import java.util.Set;
-import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.Indexed;
 
 /**
  * A graph of container and containee, where the types of the two are
  * heterogenous, such a {} delimited blocks which contain variable references.
- * Basically, a graph where there are two types of node, A and B, and
- * A -&gt; B edges or B &gt; A edges are possible, but not a &gt; A or
- * B &gt; B.  This allows us to coalesce, for example, a SemanticRegions
- * defining all of the {} delimited blocks in a source file with, say, a
- * NamedSemanticRegions containing all defined variables to quickly and simply
- * get a graph of which variables are defined in which blocks, which can be
- * queried in either direction.
+ * Basically, a graph where there are two types of node, A and B, and A -&gt; B
+ * edges or B -&gt; A edges are possible, but not S -&gt; A or B -&gt; B. This
+ * allows us to coalesce, for example, a SemanticRegions defining all of the {}
+ * delimited blocks in a source file with, say, a NamedSemanticRegions
+ * containing all defined variables to quickly and simply get a graph of which
+ * variables are defined in which blocks, which can be queried in either
+ * direction.
  *
  * @author Tim Boudreau
  */
@@ -36,10 +36,20 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return new BitSetHeteroObjectGraph<>(tree, first, second);
     }
 
+    /**
+     * Get the left-side collection from which this graph is composed.
+     *
+     * @return The left side collection
+     */
     public T first() {
         return first;
     }
 
+    /**
+     * Get the right-side collection from which this graph is composed.
+     *
+     * @return The left side collection
+     */
     public R second() {
         return second;
     }
@@ -52,7 +62,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return new BitSetSliceSet<>(second, set, first.size());
     }
 
-    private Set<Object> toSetAll(BitSet set) {
+    private Set<IndexAddressableItem> toSetAll(BitSet set) {
         return new BitSetSet<>(new AllIndexed(), set);
     }
 
@@ -60,33 +70,68 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return item.index() + first.size();
     }
 
-    public Set<Object> topLevelOrOrphanRules() {
+    /**
+     * Get the set of items which have no antecedents in the graph.
+     *
+     * @return Items from either side which have no antecedents
+     */
+    public Set<IndexAddressableItem> topLevelOrOrphanItems() {
         return toSetAll(tree.topLevelOrOrphanRules());
     }
 
-    public Set<Object> bottomLevelRules() {
+    /**
+     * Get the set of items which have no children in the graph.
+     *
+     * @return The set of items with no children
+     */
+    public Set<IndexAddressableItem> bottomLevelItems() {
         return toSetAll(tree.bottomLevelRules());
     }
 
+    /**
+     * Get the minimum distance between one item and another in the graph.
+     *
+     * @param a One item in the graph
+     * @param b Another item in the graph
+     * @return The distance, or Integer.MAX_VALUE if a is not reachable from b
+     * and b is not reachable from a.
+     */
     public int distance(IndexAddressableItem a, IndexAddressableItem b) {
         int aix = first.isChildType(a) ? a.index() : first.size() + a.index();
         int bix = first.isChildType(b) ? b.index() : first.size() + b.index();
         return tree.distance(aix, bix);
     }
 
+    /**
+     * Get a typed graph slice for left-side edges.
+     *
+     * @return The slice
+     */
     public Slice<TI, RI> leftSlice() {
         return new FirstSliceImpl();
     }
 
+    /**
+     * Get a typed graph for right-side edges.
+     *
+     * @return The right slice
+     */
     public Slice<RI, TI> rightSlice() {
         return new SecondSliceImpl();
     }
 
+    /**
+     * A slice of the graph which can return typed information about
+     * elements from one side of the graph.
+     *
+     * @param <T>
+     * @param <R>
+     */
     public interface Slice<T, R> {
 
-        Set<Object> closureOf(T obj);
+        Set<IndexAddressableItem> closureOf(T obj);
 
-        Set<Object> reverseClosureOf(T obj);
+        Set<IndexAddressableItem> reverseClosureOf(T obj);
 
         Set<R> parents(T obj);
 
@@ -110,7 +155,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     }
 
     public void walk(HeteroGraphVisitor<TI, RI> v) {
-        tree.walk(new IntGraphVisitor() {
+        tree.walk(new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 if (ruleId < first.size()) {
@@ -132,7 +177,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
     }
 
-    interface HeteroGraphVisitor<T, R> {
+    public interface HeteroGraphVisitor<T, R> {
 
         void enterFirst(T ruleId, int depth);
 
@@ -150,12 +195,12 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     class SecondSliceImpl implements Slice<RI, TI> {
 
         @Override
-        public Set<Object> closureOf(RI obj) {
+        public Set<IndexAddressableItem> closureOf(RI obj) {
             return toSetAll(tree.closureOf(bitSetIndex(obj)));
         }
 
         @Override
-        public Set<Object> reverseClosureOf(RI obj) {
+        public Set<IndexAddressableItem> reverseClosureOf(RI obj) {
             return toSetAll(tree.reverseClosureOf(bitSetIndex(obj)));
         }
 
@@ -213,12 +258,12 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
     class FirstSliceImpl implements Slice<TI, RI> {
 
         @Override
-        public Set<Object> closureOf(TI obj) {
+        public Set<IndexAddressableItem> closureOf(TI obj) {
             return toSetAll(tree.closureOf(obj.index()));
         }
 
         @Override
-        public Set<Object> reverseClosureOf(TI obj) {
+        public Set<IndexAddressableItem> reverseClosureOf(TI obj) {
             return toSetAll(tree.reverseClosureOf(obj.index()));
         }
 
@@ -230,14 +275,17 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
             return toSetSecond(tree.children(obj.index()));
         }
 
+        @Override
         public boolean hasOutboundEdge(TI obj, RI k) {
             return tree.hasOutboundEdge(obj.index(), bitSetIndex(k));
         }
 
+        @Override
         public boolean hasInboundEdge(TI obj, RI k) {
             return tree.hasInboundEdge(obj.index(), bitSetIndex(k));
         }
 
+        @Override
         public int distance(TI obj, RI k) {
             return tree.distance(obj.index(), bitSetIndex(k));
         }
@@ -268,7 +316,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         }
     }
 
-    private class AllIndexed implements Indexed<Object> {
+    private class AllIndexed implements Indexed<IndexAddressableItem> {
 
         @Override
         public int indexOf(Object o) {
@@ -284,7 +332,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         }
 
         @Override
-        public Object forIndex(int index) {
+        public IndexAddressableItem forIndex(int index) {
             if (index < first.size()) {
                 return first.forIndex(index);
             }
@@ -297,6 +345,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         }
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         walk(new HeteroGraphVisitor<TI, RI>() {

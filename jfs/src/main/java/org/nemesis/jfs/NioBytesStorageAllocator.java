@@ -25,7 +25,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
 
     private final BlockStorage storage;
 
-    public NioBytesStorageAllocator() throws IOException {
+    NioBytesStorageAllocator() throws IOException {
         this(DEFAULT_BLOCK_SIZE, DEFAULT_INITIAL_BLOCKS);
     }
 
@@ -76,7 +76,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
         final Name name;
         private final Object lock = NioBytesStorageAllocator.this;
 
-        public BytesStorageWrapper(JFSStorage storage, Name name, JavaFileManager.Location loc) {
+        BytesStorageWrapper(JFSStorage storage, Name name, JavaFileManager.Location loc) {
             this.storage = storage;
             this.name = name;
         }

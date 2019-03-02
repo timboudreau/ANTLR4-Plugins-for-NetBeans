@@ -15,7 +15,7 @@ import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ForeignInvocationEnvironmentTest;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir.projectBaseDir;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -52,12 +52,12 @@ public class ParsingWithoutFilesTest {
         assertNotNull(result);
         ANTLRv4SemanticParser sem = result.semanticParser();
         assertNotNull(sem);
-        result.extraction().namedRegions(AntlrExtractor.RULE_NAMES).forEach(decl -> {
+        result.extraction().namedRegions(AntlrKeys.RULE_NAMES).forEach(decl -> {
             System.out.println(decl);
         });
     }
 
-    @Test
+    @Test(timeout=30000)
     public void testRuleTrees() throws Throwable {
         Path baseDir = projectBaseDir();
         Path importdir = baseDir.resolve("src/main/antlr4/imports");

@@ -234,7 +234,7 @@ public class CompileJavaSources {
 
         final CompileResult.Builder res;
 
-        public L(CompileResult.Builder res) {
+        L(CompileResult.Builder res) {
             this.res = res;
         }
 

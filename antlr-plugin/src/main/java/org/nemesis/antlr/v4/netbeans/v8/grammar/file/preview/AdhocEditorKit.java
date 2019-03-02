@@ -14,6 +14,7 @@ import javax.swing.JToolBar;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
+import org.nemesis.data.graph.StringGraphVisitor;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.BaseDocument;
@@ -23,7 +24,6 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
-import org.nemesis.data.graph.StringGraphVisitor;
 
 /**
  *
@@ -173,7 +173,7 @@ public class AdhocEditorKit extends ExtKit {
     static final class Doc extends NbEditorDocument implements Consumer<ANTLRv4ParserResult> {
 
         private JToolBar bar;
-        public Doc(String mimeType) {
+        Doc(String mimeType) {
             super(mimeType);
             putProperty("mimeType", mimeType);
         }

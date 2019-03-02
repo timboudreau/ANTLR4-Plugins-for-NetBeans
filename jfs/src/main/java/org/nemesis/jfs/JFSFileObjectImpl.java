@@ -27,7 +27,7 @@ class JFSFileObjectImpl implements JFSFileObject {
     private final Name name;
     private final Charset encoding;
 
-    public JFSFileObjectImpl(JFSBytesStorage storage, Location location, Name name, Charset encoding) {
+    JFSFileObjectImpl(JFSBytesStorage storage, Location location, Name name, Charset encoding) {
         this.storage = storage;
         this.location = location;
         this.name = name;

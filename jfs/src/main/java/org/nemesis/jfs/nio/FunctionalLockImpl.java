@@ -21,11 +21,11 @@ final class FunctionalLockImpl implements FunctionalLock {
     private final ThreadLocal<Exception> readLockedAt = new ThreadLocal<>();
     private final String name;
 
-    public FunctionalLockImpl(String name) {
+    FunctionalLockImpl(String name) {
         this(false, name);
     }
 
-    public FunctionalLockImpl(boolean fair, String name) {
+    FunctionalLockImpl(boolean fair, String name) {
         lock = new ReentrantReadWriteLock(fair);
         readLock = lock.readLock();
         writeLock = lock.writeLock();

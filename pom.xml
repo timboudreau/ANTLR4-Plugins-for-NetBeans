@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.nemesis</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
@@ -10,10 +9,14 @@
     <description>NetBeans ANTLR modules parent POM</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <netbeans.version>RELEASE100-dev</netbeans.version>
+        <netbeans.version>RELEASE110-dev</netbeans.version>
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/License.txt</netbeans.hint.licensePath>
         <antlr.version>4.7.2</antlr.version>
+        <module.display.category>ANTLR</module.display.category>
+        <maven.test.skip>true</maven.test.skip>
+        <nbcluster>antlr</nbcluster>
+        <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
     </properties>
     <licenses>
         <license>
@@ -41,10 +44,14 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>nbm-maven-plugin</artifactId>
-                    <version>4.1</version>
+                    <version>4.2-SNAPSHOT</version>
                     <extensions>true</extensions>
                     <configuration>
-                        <cluster>extra</cluster>
+                        <branding.token>${nbcluster}</branding.token>
+                        <cluster>${nbcluster}</cluster>
+                        <licenseName>BSD</licenseName>
+                        <licenseFile>${project.parent.relativePath}/../License.txt</licenseFile>
+                        <requiresRestart>false</requiresRestart>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -143,6 +150,18 @@
         <module>jfs</module>
         <module>misc-utils</module>
         <module>extraction-data-models</module>
+        <module>antlr-input</module>
+        <module>antlr-wrapper</module>
+        <module>antlr-suite</module>
+        <module>extraction</module>
+        <module>antlr-input-nb</module>
+        <module>antlr-formatters</module>
+        <module>registration-annotation-processors</module>
+        <module>antlr-common</module>
+        <module>antlr-navigators</module>
+        <module>antlr-code-folding</module>
+        <module>antlr-language-spi</module>
+        <module>antlr-highlighting</module>
     </modules>
     <repositories>
         <repository>
@@ -191,7 +210,18 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>registration-annotation-processors</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>misc-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-highlighting</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -199,6 +229,56 @@
                 <artifactId>extraction-data-models</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-input</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-wrapper</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>extraction</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-input-nb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-formatters</artifactId>
+                <version>${project.version}</version>
+            </dependency>            
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>            
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-navigators</artifactId>
+                <version>${project.version}</version>
+            </dependency>            
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-code-folding</artifactId>
+                <version>${project.version}</version>
+            </dependency>            
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-language-spi</artifactId>
+                <version>${project.version}</version>
+            </dependency>            
             <dependency>
                 <groupId>org.apache.bcel</groupId>
                 <artifactId>bcel</artifactId>
@@ -235,6 +315,11 @@
                 <!-- currently used only by annotation processor path -->
                 <groupId>org.netbeans.modules</groupId>
                 <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org.netbeans.bootstrap</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>

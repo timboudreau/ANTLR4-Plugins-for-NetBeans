@@ -2,9 +2,9 @@ package org.nemesis.data;
 
 import org.nemesis.data.graph.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.NamedSemanticRegions;
-import org.nemesis.data.graph.BitSetStringGraph;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -16,6 +16,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.antlr.v4.runtime.BufferedTokenStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -40,21 +41,24 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExt
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractorTest;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.MISSING_ID;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.MISSING_TOKEN_ID;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.RULE_NAME_REFERENCES;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.RegionsKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.SingletonKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NameReferenceSetKey;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.NamedRegionData;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key.NamedRegionKey;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.Extractor;
+import org.nemesis.extraction.key.RegionsKey;
+import org.nemesis.extraction.key.SingletonKey;
+import org.nemesis.extraction.key.NameReferenceSetKey;
+import org.nemesis.extraction.NamedRegionData;
+import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.spi.access.GSAccessor;
+import org.nemesis.extraction.UnknownNameReference;
+import org.nemesis.source.impl.GSAccessor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.data.graph.BitSetGraph;
+import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.named.NamedRegionReferenceSet;
+import org.nemesis.source.api.GrammarSource;
 
 /**
  *
@@ -313,11 +317,18 @@ public class SemanticParserTest {
                 .finishRegionExtractor()
                 .build();
 
-//        Extraction extraction = nestedMapLoader.charStream("NestedMapGrammar", (lm, s) -> {
         ANTLRv4Lexer lex = new ANTLRv4Lexer(nmg.stream());
         CommonTokenStream cts = new CommonTokenStream(lex, 0);
         ANTLRv4Parser p = new ANTLRv4Parser(cts);
-        Extraction extraction = ext.extract(p.grammarFile(), GSAccessor.getDefault().newGrammarSource(nmg));
+        GrammarSource<String> nmgSource = GSAccessor.getDefault().newGrammarSource(nmg);
+        Extraction extraction = ext.extract(p.grammarFile(), nmgSource, () -> {
+            try {
+                ANTLRv4Lexer lexer = new ANTLRv4Lexer(nmgSource.stream());
+                return new BufferedTokenStream(lexer);
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+        });
 //        });
 
         System.out.println("GRAMMAR TYPE: " + extraction.encounters(GRAMMAR_TYPE));
@@ -361,14 +372,14 @@ public class SemanticParserTest {
         NamedRegionReferenceSets<RuleTypes> refs = extraction.references(REFS);
 
         System.out.println("\n\n-------------------------- REFS -------------------------------");
-        for (NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> r : refs) {
+        for (NamedRegionReferenceSet<RuleTypes> r : refs) {
             System.out.println("   ----------------- " + r.name() + " -----------------");
             for (NamedSemanticRegion<RuleTypes> i : r) {
                 System.out.println("  " + i);
             }
         }
 
-        BitSetStringGraph graph = extraction.referenceGraph(REFS);
+        StringGraph graph = extraction.referenceGraph(REFS);
 
         System.out.println("GRAPH: \n" + graph);
 
@@ -427,26 +438,26 @@ public class SemanticParserTest {
     public void testSomeMethod() throws Throwable {
         Extraction ri = AntlrExtractor.getDefault().extract(GSAccessor.getDefault().newGrammarSource(rust));
 
-        assertNotNull("Refs missing", ri.nameReferences(RULE_NAME_REFERENCES));
+        assertNotNull("Refs missing", ri.nameReferences(AntlrKeys.RULE_NAME_REFERENCES));
 
         int ix = 0;
         ix = 0;
         System.out.println("\n-------------------------- RULES --------------------------------");
-        for (NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> i : ri.namedRegions(AntlrExtractor.RULE_BOUNDS)) {
+        for (NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes> i : ri.namedRegions(AntlrKeys.RULE_BOUNDS)) {
             System.out.println(ix++ + ": " + i);
         }
         System.out.println("\n-------------------------- UNKNOWN REFS --------------------------------");
         ix = 0;
-        for (SemanticRegion<UnknownNameReference<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes>> e : ri.unknowns(AntlrExtractor.RULE_NAME_REFERENCES)) {
+        for (SemanticRegion<UnknownNameReference<org.nemesis.antlr.common.extractiontypes.RuleTypes>> e : ri.unknowns(AntlrKeys.RULE_NAME_REFERENCES)) {
             System.out.println(e);
         }
 
         System.out.println("\n-------------------------- USAGES --------------------------------");
-        System.out.println(ri.referenceGraph(AntlrExtractor.RULE_NAME_REFERENCES));
+        System.out.println(ri.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES));
 
         ix = 0;
         System.out.println("\n-------------------------- LABELS --------------------------------");
-        for (NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> i : ri.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES)) {
+        for (NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes> i : ri.namedRegions(AntlrKeys.NAMED_ALTERNATIVES)) {
             System.out.println(ix++ + ": " + i);
         }
 
@@ -460,12 +471,12 @@ public class SemanticParserTest {
         ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(b));
 //        RulesInfo deserialized = RulesInfo.load(in);
         Extraction deserialized = (Extraction) in.readObject();
-        Iterator<NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes>> ai = allItems(ri).iterator();
-        Iterator<NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes>> bi = allItems(deserialized).iterator();
+        Iterator<NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes>> ai = allItems(ri).iterator();
+        Iterator<NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes>> bi = allItems(deserialized).iterator();
         assert ai.hasNext() && bi.hasNext();
         while (ai.hasNext() && bi.hasNext()) {
-            NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> i1 = ai.next();
-            NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> i2 = bi.next();
+            NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes> i1 = ai.next();
+            NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes> i2 = bi.next();
             assertEquals(i1.name(), i2.name());
             assertEquals(i1.isReference(), i2.isReference());
             assertEquals(i1.index(), i2.index());
@@ -479,17 +490,17 @@ public class SemanticParserTest {
         assertTrue(ri.regions(BLOCKS).equalTo(deserialized.regions(BLOCKS)));
     }
 
-    private List<NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes>> allItems(Extraction ext) {
-        List<NamedSemanticRegion<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes>> result = new ArrayList<>();
-        NamedSemanticRegions<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> rn = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+    private List<NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes>> allItems(Extraction ext) {
+        List<NamedSemanticRegion<org.nemesis.antlr.common.extractiontypes.RuleTypes>> result = new ArrayList<>();
+        NamedSemanticRegions<org.nemesis.antlr.common.extractiontypes.RuleTypes> rn = ext.namedRegions(AntlrKeys.RULE_NAMES);
         assertNotNull("Names missing or not deserialized", rn);
         rn.collectItems(result);
 
-        NamedSemanticRegions<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> na = ext.namedRegions(AntlrExtractor.NAMED_ALTERNATIVES);
+        NamedSemanticRegions<org.nemesis.antlr.common.extractiontypes.RuleTypes> na = ext.namedRegions(AntlrKeys.NAMED_ALTERNATIVES);
         assertNotNull("Alternatives missing or not deserialized", na);
         na.collectItems(result);
 
-        NamedRegionReferenceSets<org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes> refs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+        NamedRegionReferenceSets<org.nemesis.antlr.common.extractiontypes.RuleTypes> refs = ext.nameReferences(AntlrKeys.RULE_NAME_REFERENCES);
         assertNotNull("Refs missing or not deserialized", refs);
         refs.collectItems(result);
         Collections.sort(result);
@@ -514,7 +525,7 @@ public class SemanticParserTest {
             }
         }
         BitSetGraph bst = new BitSetGraph(bsa);
-        BitSetStringGraph g = BitSetStringGraph.create(bst, new String[]{"A", "B", "C"});
+        StringGraph g = StringGraph.create(bst, new String[]{"A", "B", "C"});
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ObjectOutputStream oout = new ObjectOutputStream(out)) {
             bst.save(oout);
@@ -531,7 +542,7 @@ public class SemanticParserTest {
         }
         out.close();
         b = out.toByteArray();
-        BitSetStringGraph g2 = BitSetStringGraph.load(new ObjectInputStream(new ByteArrayInputStream(b)));
+        StringGraph g2 = StringGraph.load(new ObjectInputStream(new ByteArrayInputStream(b)));
         assertEquals(g, g2);
     }
 

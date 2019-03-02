@@ -20,14 +20,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrRunOption;
@@ -39,6 +39,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildA
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.project.ProjectType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
+import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.project.Project;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
@@ -104,7 +105,7 @@ public class CulpritFinder {
     }
 
     private int processImportedGrammar(int offset, String s, Path imp) throws IOException, BadLocationException {
-        ANTLRv4GrammarChecker res = NBANTLRv4Parser.parse(imp);
+        ANTLRv4GrammarChecker res = NBANTLRv4Parser.parse(GrammarSource.find(imp, ANTLR_MIME_TYPE));
         imports.add(new ImportedGrammar(res, offset));
         return offset + (int) Files.size(imp);
     }
@@ -131,7 +132,7 @@ public class CulpritFinder {
 
     private void loadRules(ANTLRv4SemanticParser parse) throws IOException {
         String text = loadGrammarText(parse.grammarFilePath().get());
-        NamedSemanticRegions<RuleTypes> decls = parse.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+        NamedSemanticRegions<RuleTypes> decls = parse.extraction().namedRegions(AntlrKeys.RULE_BOUNDS);
         for (NamedSemanticRegion<RuleTypes> d : decls) {
             ruleTextForRule.put(d.name(), text.substring(d.start(), d.end()));
         }
@@ -149,7 +150,7 @@ public class CulpritFinder {
         }
 
         public List<NamedSemanticRegion<RuleTypes>> declarations() {
-            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrKeys.RULE_BOUNDS);
             List<NamedSemanticRegion<RuleTypes>> result = new ArrayList<>(decls.size());
             for (NamedSemanticRegion<RuleTypes> rule : decls) {
                 result.add(new OffsetNamedSemanticRegion(rule, locationOffset));
@@ -160,7 +161,7 @@ public class CulpritFinder {
         public void appendRules(StringBuilder into) throws IOException {
             System.out.println("Append rules for imported: " + parse.getSemanticParser().grammarFilePath().get());
             String text = FileUtil.toFileObject(parse.getSemanticParser().grammarFilePath().get().toFile()).asText();
-            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+            NamedSemanticRegions<RuleTypes> decls = parse.getSemanticParser().extraction().namedRegions(AntlrKeys.RULE_BOUNDS);
             for (NamedSemanticRegion<RuleTypes> rule : decls) {
                 String ruleDef = text.substring(rule.start(), rule.end());
                 into.append("\n// import ").append(parse.getSemanticParser().grammarFilePath());
@@ -362,7 +363,7 @@ public class CulpritFinder {
                 }
             }
         }
-        NamedSemanticRegions<RuleTypes> rules = parseInfo.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS);
+        NamedSemanticRegions<RuleTypes> rules = parseInfo.extraction().namedRegions(AntlrKeys.RULE_BOUNDS);
         if (candidateLexerRules.size() < 3) {
             for (NamedSemanticRegion<RuleTypes> d : rules) {
                 switch (d.kind()) {

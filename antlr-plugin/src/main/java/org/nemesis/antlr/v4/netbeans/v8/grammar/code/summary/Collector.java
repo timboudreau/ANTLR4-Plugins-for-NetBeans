@@ -28,16 +28,10 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
 
-import java.io.IOException;
-
-import java.nio.file.Path;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
 import javax.swing.text.Document;
 
 import org.antlr.v4.runtime.Token;
@@ -69,8 +63,8 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenVocabSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokensSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.impl.ANTLRv4Lexer;
+import org.nemesis.source.api.ParsingBag;
 
-import org.openide.loaders.DataObjectNotFoundException;
 
 
 /**
@@ -78,28 +72,26 @@ import org.openide.loaders.DataObjectNotFoundException;
  * @author Frédéric Yvon Vinet
  */
 public class Collector extends ANTLRv4BaseListener {
-    protected final Optional<Path>           sourceFilePath;
-    protected final Document       doc;
     protected       GrammarSummary summary;
-    
     protected       String         currentMode;
 
     
-    public Collector(Document doc, Optional<Path> sourceFilePath)
-            throws DataObjectNotFoundException, IOException  {
+    public Collector(ParsingBag bag) {
 //        System.out.println("Collector:Collector(Document, Path) : begin");
-//        System.out.println("- source file path=" + sourceFilePath);
-        assert doc != null;
-        assert sourceFilePath != null;
-        this.sourceFilePath = sourceFilePath;
-        this.doc            = doc;
-        this.summary        = new GrammarSummary(sourceFilePath);
+//        System.out.println("- source file path=" + source);
+        this.summary        = new GrammarSummary(bag);
      // If doc had a previous summary then it is garbage collected
-        this.doc.putProperty(GrammarSummary.class, summary);
+        bag.source().lookup(Document.class, doc -> {
+            doc.putProperty(GrammarSummary.class, summary);
+        });
         this.currentMode = DEFAULT_MODE;
      // We add the default mode to the list of modes at the end because we need
      // to do it only for lexer grammar so we nned to have grammar type.
 //        System.out.println("Collector:Collector(Document, Path) : end");
+    }
+
+    public GrammarSummary summary() {
+        return summary;
     }
     
  // normally DEFAULT_MODE = "DEFAULT_MODE"
@@ -107,7 +99,7 @@ public class Collector extends ANTLRv4BaseListener {
     @Override
     public void exitGrammarFile(GrammarFileContext ctx) {
 //        System.out.println("Collector:exitGrammarFile(GrammarFileContext) : begin");
-//        System.out.println("- processing of " + sourceFilePath);
+//        System.out.println("- processing of " + source);
      // At the end of file processing we are able to deduce the beginning of 
      // default mode
         GrammarType grammarType = summary.getGrammarType();

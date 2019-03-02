@@ -140,7 +140,7 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
             private final K kind;
             private final int ordering;
 
-            public Dup(int start, int end, K kind, int ordering) {
+            Dup(int start, int end, K kind, int ordering) {
                 this.start = start;
                 this.end = end;
                 this.kind = kind;

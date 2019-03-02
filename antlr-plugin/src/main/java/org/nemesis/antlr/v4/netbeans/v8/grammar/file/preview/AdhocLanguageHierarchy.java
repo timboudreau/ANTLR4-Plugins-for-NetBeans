@@ -210,13 +210,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                     System.out.println(ff.getName() + " = " + null);
                 }
             }
-        } catch (NoSuchFieldException ex) {
-            Exceptions.printStackTrace(ex);
-        } catch (SecurityException ex) {
-            Exceptions.printStackTrace(ex);
-        } catch (IllegalArgumentException ex) {
-            Exceptions.printStackTrace(ex);
-        } catch (IllegalAccessException ex) {
+        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
             Exceptions.printStackTrace(ex);
         }
     }
@@ -298,7 +292,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         private int lriPosition;
         private final List<AdhocTokenId> origIds;
 
-        public LexerInputCursor(List<ProxyToken> tokens, LexerRestartInfo<AdhocTokenId> info, int inputLength, TokenFactory<AdhocTokenId> fac, List<AdhocTokenId> tokenIds, List<AdhocTokenId> origIds) {
+        LexerInputCursor(List<ProxyToken> tokens, LexerRestartInfo<AdhocTokenId> info, int inputLength, TokenFactory<AdhocTokenId> fac, List<AdhocTokenId> tokenIds, List<AdhocTokenId> origIds) {
             this.tokens = tokens;
             this.info = info;
             this.inputLength = inputLength;
@@ -472,7 +466,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
         private final AdhocTokenId dummyId;
         private final List<AdhocTokenId> tokenIds;
 
-        public XLexerInputCursor(List<ProxyToken> tokens, LexerRestartInfo<AdhocTokenId> info, int inputLength, TokenFactory<AdhocTokenId> fac, List<AdhocTokenId> tokenIds) {
+        XLexerInputCursor(List<ProxyToken> tokens, LexerRestartInfo<AdhocTokenId> info, int inputLength, TokenFactory<AdhocTokenId> fac, List<AdhocTokenId> tokenIds) {
             this.tokens = tokens;
             this.info = info;
             this.inputLength = inputLength;
@@ -499,10 +493,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> {
                     if (tok.getText().length() > 0) {
                         return true;
                     }
-                    if (textPosition < inputLength) {
-                        return true;
-                    }
-                    return false;
+                    return textPosition < inputLength;
                 }
             }
             return cursor < tokens.size();

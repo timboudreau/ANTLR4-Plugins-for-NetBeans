@@ -69,7 +69,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
 
         private final AbstractLookup lkp;
 
-        public DebugLookup(AbstractLookup lkp) {
+        DebugLookup(AbstractLookup lkp) {
             this.lkp = lkp;
         }
 
@@ -98,7 +98,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         private final FontColorsIC fcic;
         private final TaskFactory errorHighlighter;
 
-        public MimeEntry(GenerateBuildAndRunGrammarResult buildResult,
+        MimeEntry(GenerateBuildAndRunGrammarResult buildResult,
                 AntlrProxies.ParseTreeProxy prox, LanguageIC cvt, FontColorsIC fcic) {
             this.cvt = cvt;
             this.fcic = fcic;

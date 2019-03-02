@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
 import javax.swing.text.Element;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavigatorPanel;
+import org.nemesis.antlr.common.AntlrConstants;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.DynamicLanguageSupport;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
@@ -85,7 +85,7 @@ final class ErrorUpdater implements Runnable {
         InputOutput io = IOProvider.getDefault().getIO(Bundle.io_tab(prx.grammarName()), false);
         if (IOTab.isSupported(io)) {
             IOTab.setToolTipText(io, Bundle.tip());
-            IOTab.setIcon(io, AbstractAntlrNavigatorPanel.parserIcon());
+            IOTab.setIcon(io, AntlrConstants.parserIcon());
         }
         boolean failure = prx.isUnparsed() || !prx.syntaxErrors().isEmpty();
         boolean folds = IOFolding.isSupported(io);

@@ -28,18 +28,21 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.folding;
 
+import org.nemesis.antlr.common.extractiontypes.FoldableRegion;
 import org.netbeans.api.editor.fold.FoldTemplate;
 import org.netbeans.api.editor.fold.FoldType;
+import org.openide.util.NbBundle.Messages;
 
 /**
  *
  * @author Frédéric Yvon Vinet
  */
+@Messages({"comment=Comment", "action=Action", "rule=Rule"})
 public class GrammarFoldType {
     private static final String FOLDED_COMMENT = "/*...*/";
     public static final FoldType COMMENT_FOLD_TYPE = FoldType.create
                    ("comment"           ,
-                    "Comment"           ,
+                    Bundle.comment()           ,
                     new FoldTemplate
                         (2             , // length of the guarded starting token
                          2             , // length of the guarded end token
@@ -47,9 +50,31 @@ public class GrammarFoldType {
     private static final String FOLDED_ACTION = "{...}";
     public static final FoldType ACTION_FOLD_TYPE = FoldType.create
                    ("action"            ,
-                    "Action"            ,
+                    Bundle.action()            ,
                     new FoldTemplate
                         (1             , // length of the guarded starting token
                          1             , // length of the guarded end token
                          FOLDED_ACTION));
+    private static final String FOLDED_RULE = "<rule>";
+    public static final FoldType RULE_FOLD_TYPE = FoldType.create
+                   ("rule"            ,
+                    Bundle.rule()            ,
+                    new FoldTemplate
+                        (0             , // length of the guarded starting token
+                         0             , // length of the guarded end token
+                         FOLDED_RULE));
+
+    public static FoldType forFoldableRegion(FoldableRegion region) {
+        switch (region.kind) {
+            case ACTION:
+                return ACTION_FOLD_TYPE;
+            case COMMENT:
+            case DOC_COMMENT:
+                return COMMENT_FOLD_TYPE;
+            case RULE:
+                return RULE_FOLD_TYPE;
+            default:
+                throw new AssertionError(region.kind);
+        }
+    }
 }

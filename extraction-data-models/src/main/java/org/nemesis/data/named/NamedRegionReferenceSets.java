@@ -5,9 +5,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.nemesis.data.IndexAddressable;
-import org.nemesis.data.named.NamedRegionReferenceSets.NamedRegionReferenceSet;
 
 /**
+ * A set of sets of references to different names within a
+ * {@link NamedSemanticRegions}. Essentially: A NamedSemanticRegions contains a
+ * set of named regions within a file or document. The file or document may also
+ * contain usages of the name of a region. This data structure represents
+ * regions of the same file which are usages or pointers back to a named region.
  *
  * @author Tim Boudreau
  */
@@ -26,25 +30,6 @@ public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<Na
     default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {
         for (NamedRegionReferenceSet<K> refs : this) {
             for (NamedSemanticRegionReference<K> item : refs) {
-                into.add(item);
-            }
-        }
-    }
-
-    public static interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<NamedSemanticRegionReference<K>>, Serializable, NamedIndexAddressable<NamedSemanticRegionReference<K>> {
-
-        int size();
-
-        boolean contains(int pos);
-
-        String name();
-
-        NamedSemanticRegionReference<K> at(int pos);
-
-        NamedSemanticRegion<K> original();
-
-        default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {
-            for (NamedSemanticRegionReference<K> item : this) {
                 into.add(item);
             }
         }

@@ -39,7 +39,7 @@ import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.MonitorPanel.Attempt.AttemptState;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;

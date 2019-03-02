@@ -8,6 +8,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary;
 import java.util.EnumMap;
 import java.util.Map;
 import javax.swing.text.AttributeSet;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.FRAGMENT;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.LEXER;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.RuleElementTarget.PARSER;
@@ -80,7 +81,7 @@ public enum RuleElementKind {
 
     public static Map<RuleElementKind, AttributeSet> colorings() {
         // Do not cache - user can edit these
-        MimePath mimePath = MimePath.parse("text/x-g4");
+        MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
         FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
         EnumMap<RuleElementKind, AttributeSet> result = new EnumMap<>(RuleElementKind.class);
         for (RuleElementKind kind : RuleElementKind.values()) {

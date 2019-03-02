@@ -19,7 +19,7 @@ final class JFSUrlStreamHandler extends URLStreamHandler {
     private final Supplier<Iterable<JFS>> filesystemsProvider;
 
     // do nothing
-    public JFSUrlStreamHandler(Supplier<Iterable<JFS>> filesystemsProvider) {
+    JFSUrlStreamHandler(Supplier<Iterable<JFS>> filesystemsProvider) {
         this.filesystemsProvider = filesystemsProvider;
     }
 
@@ -74,7 +74,7 @@ final class JFSUrlStreamHandler extends URLStreamHandler {
 
         private final JFSFileObject file;
 
-        public JFSURLConnection(URL url, JFSFileObject file) {
+        JFSURLConnection(URL url, JFSFileObject file) {
             super(url);
             this.file = file;
             setUseCaches(false);

@@ -32,22 +32,19 @@ import java.awt.EventQueue;
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
-import java.util.logging.Logger;
 
 import javax.swing.event.ChangeListener;
-import javax.swing.text.BadLocationException;
 
 import javax.swing.text.Document;
-import javax.swing.text.PlainDocument;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 
 import org.nemesis.antlr.v4.netbeans.v8.generic.parsing.ParsingError;
 
@@ -56,10 +53,11 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4S
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.syntax.ANTLRv4SyntacticErrorListener;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.ExtractionParserResult;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.ExtractionParserResult;
 
-import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
+import org.nemesis.source.api.GrammarSource;
+import org.nemesis.source.api.ParsingBag;
 
 import org.netbeans.modules.csl.spi.ParserResult;
 
@@ -67,9 +65,7 @@ import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Task;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
-
-import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -77,12 +73,8 @@ import org.openide.filesystems.FileUtil;
  */
 public class NBANTLRv4Parser extends Parser {
 
-    private static final Logger LOG = Logger.getLogger("ANTLR plugin:" + NBANTLRv4Parser.class.getName());
     // source document of snapshot
-    private Document doc;
     private ANTLRv4Lexer lexer;
-    private ANTLRv4GrammarChecker grammarChecker;
-    private ANTLRv4SyntacticErrorListener errorListener;
     private ANTLRv4ParserResult result;
 
     public ANTLRv4Lexer getLexer() {
@@ -94,30 +86,13 @@ public class NBANTLRv4Parser extends Parser {
             Task task,
             SourceModificationEvent event) {
         assert snapshot != null;
-        assert snapshot.getSource() != null;
-//        assert snapshot.getSource().getFileObject() != null : "No file object";
 
-        // With next two statements, if document is already open in an editor
-        // then doc variable is non null else it is null:
-        // this.doc = snapshot.getSource().getDocument(false);
-        // this.doc = NbDocument.getDocument(snapshot.getSource().getFileObject());
-        // We do not want to open an editor containing the document. We just
-        // want to open / load it in memory. For that, we use EditorCookie
-        // (that's more than surprising to use EditorCookie for not editing!)
-        Document doc = snapshot.getSource().getDocument(false);
-        FileObject grammarFO = snapshot.getSource().getFileObject();
-        if (doc == null && grammarFO != null) {
-            doc = ProjectHelper.getDocument(grammarFO);
+        GrammarSource<Snapshot> snapshotSource = GrammarSource.find(snapshot, ANTLR_MIME_TYPE);
+        try {
+            parse(snapshotSource, task);
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
         }
-        this.doc = doc;
-
-        String contentToBeParsed = snapshot.getText().toString();
-
-        Path grammarFilePath = null;
-        if (grammarFO != null) {
-            grammarFilePath = FileUtil.toFile(grammarFO).toPath();
-        }
-        parse(doc, grammarFilePath, snapshot, contentToBeParsed);
     }
 
     public static final Map<Document, List<Reference<Consumer<ANTLRv4ParserResult>>>> notifyOnParse = new WeakHashMap<>();
@@ -151,27 +126,24 @@ public class NBANTLRv4Parser extends Parser {
         }
     }
 
-    public ANTLRv4ParserResult parse(Document doc, Path grammarFilePath, Snapshot snapshot, String contentToBeParsed) {
-        grammarChecker = new ANTLRv4GrammarChecker(doc, grammarFilePath);
-        grammarChecker.check(contentToBeParsed);
-        errorListener = grammarChecker.getSyntacticErrorListener();
-        ANTLRv4SemanticParser semanticParser = grammarChecker.getSemanticParser();
-        result = new ANTLRv4ParserResult(snapshot, errorListener, semanticParser);
-        onReparse(doc, result);
-        return result;
+    public ANTLRv4ParserResult parse(GrammarSource<Snapshot> src, Task task) throws IOException {
+        ParsingBag bag = ParsingBag.forGrammarSource(src);
+        ANTLRv4GrammarChecker checker = parse(bag);
+        ANTLRv4ParserResult result = new ANTLRv4ParserResult(src.source(), checker.getSyntacticErrorListener(), checker.getSemanticParser());
+        Optional<Document> doc = src.lookup(Document.class);
+        if (doc.isPresent()) {
+            onReparse(doc.get(), result);
+        }
+        return this.result = result;
     }
 
-    public static ANTLRv4GrammarChecker parse(Path path) throws IOException, BadLocationException {
-        Document doc = new PlainDocument();
-        int pos = 0;
-        StringBuilder sb = new StringBuilder();
-        for (String s : Files.readAllLines(path)) {
-            sb.append(s).append("\n");
-            doc.insertString(pos, s, null);
-            pos += s.length();
-        }
-        ANTLRv4GrammarChecker grammarChecker = new ANTLRv4GrammarChecker(doc, path);
-        grammarChecker.check(sb.toString());
+    public static ANTLRv4GrammarChecker parse(GrammarSource<?> src) throws IOException {
+        return parse(ParsingBag.forGrammarSource(src));
+    }
+
+    public static ANTLRv4GrammarChecker parse(ParsingBag src) throws IOException {
+        ANTLRv4GrammarChecker grammarChecker = new ANTLRv4GrammarChecker(src);
+        grammarChecker.check();
         return grammarChecker;
     }
 

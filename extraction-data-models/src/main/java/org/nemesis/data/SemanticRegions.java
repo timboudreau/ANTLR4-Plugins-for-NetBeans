@@ -1,11 +1,11 @@
 package org.nemesis.data;
 
-import org.nemesis.data.impl.ArrayUtil;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -13,8 +13,10 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.nemesis.data.SemanticRegions.SemanticRegionImpl;
+import org.nemesis.data.impl.ArrayUtil;
 
 /**
  * A collection of nestable semantic regions, which have some (optional) data
@@ -27,7 +29,7 @@ import org.nemesis.data.SemanticRegions.SemanticRegionImpl;
  * This class takes advantage of the order in which an Antlr parser scans
  * elements, and has some very specific associated constraints. In particular,
  * it creates an <i>arbitrarily nested</i> data structure, using only two arrays
- * of start end end offsets under the hood, and using a modified binary search
+ * of start and end offsets, under the hood, and using a modified binary search
  * algorithms for fast lookups within it. In particular:
  * </p>
  * <ul>
@@ -119,6 +121,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     @SuppressWarnings("unchecked")
     private static SemanticRegions<?> EMPTY = new SemanticRegions(null);
+
     @SuppressWarnings("unchecked")
     public static <T> SemanticRegions<T> empty() {
         return (SemanticRegions<T>) EMPTY;
@@ -154,8 +157,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     }
 
     /**
-     * Iterate all regions and collect those where the key matches the
-     * passed predicate.
+     * Iterate all regions and collect those where the key matches the passed
+     * predicate.
      *
      * @param pred A predicate
      * @return A list of regions
@@ -187,6 +190,85 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     public static SemanticRegionsBuilder<Void> builder() {
         return new SemanticRegionsBuilder<>(Void.class);
+    }
+
+    public SemanticRegions<T> combineWith(SemanticRegions<T> other) {
+        assert keyType() == other.keyType() : "Incompatible key types " + keyType() + " and " + other.keyType();
+        int firstUnsortedEndsEntry = Integer.MAX_VALUE;
+        boolean nested = false;
+        int sz = other.size() + size();
+        int[] sts = new int[sz];
+        int[] es = new int[sz];
+        T[] ks = ArrayUtil.genericArray(keyType(), sz);
+
+        int sizeA = size;
+        int sizeB = other.size;
+        int cursorA = 0;
+        int cursorB = 0;
+        for (int i = 0; i < sz; i++) {
+            int startA, startB, endA, endB;
+            T keyA, keyB;
+            keyA = keyB = null;
+            startA = startB = endA = endB = -1;
+            if (cursorA < sizeA) {
+                startA = starts[cursorA];
+                endA = ends[cursorA];
+                keyA = keys[cursorA];
+            }
+            if (cursorB < sizeB) {
+                startB = other.starts[cursorB];
+                endB = other.ends[cursorB];
+                keyB = other.keys[cursorB];
+            }
+            if (startA == -1) {
+                sts[i] = startB;
+                es[i] = endB;
+                ks[i] = keyB;
+                cursorB++;
+            } else if (startB == -1) {
+                sts[i] = startA;
+                es[i] = endA;
+                ks[i] = keyA;
+                cursorA++;
+            } else {
+                if (startA == startB) {
+                    if (endB > endA) {
+                        sts[i] = startB;
+                        es[i] = endB;
+                        ks[i] = keyB;
+                        cursorB++;
+                    } else if (endB <= endA) {
+                        sts[i] = startA;
+                        es[i] = endA;
+                        ks[i] = keyA;
+                        cursorA++;
+                    }
+                    firstUnsortedEndsEntry = Math.min(i, firstUnsortedEndsEntry);
+                } else if (startA > startB) {
+                    sts[i] = startB;
+                    es[i] = endB;
+                    ks[i] = keyB;
+                    cursorB++;
+                } else {
+                    sts[i] = startA;
+                    es[i] = endA;
+                    ks[i] = keyA;
+                    cursorA++;
+                }
+            }
+            if (i > 0) {
+                int prevStart = sts[i - 1];
+                int prevEnd = es[i - 1];
+                int currStart = sts[i];
+                int currEnd = es[i];
+                if (currStart > prevStart && currStart < prevEnd && currEnd > prevEnd) {
+                    throw new IllegalStateException("Regions cannot straddle "
+                            + "one another, but " + ks[i - 1] + " and "
+                            + ks[i] + " will.  These region sets cannot be combined.");
+                }
+            }
+        }
+        return new SemanticRegions<>(sts, es, ks, sz, firstUnsortedEndsEntry, nested);
     }
 
     @SuppressWarnings("unchecked")
@@ -423,6 +505,74 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return new OutermostKeysIterator();
     }
 
+    public static <T, R> boolean differences(SemanticRegions<T> a, SemanticRegions<R> b, BiConsumer<Set<SemanticRegion<T>>, Set<SemanticRegion<R>>> consumer) {
+        if (a == b || (a.size == b.size && Arrays.equals(a.starts, b.starts) && Arrays.equals(a.ends, b.ends))) {
+            consumer.accept(Collections.emptySet(), Collections.emptySet());
+            return false;
+        }
+        int start = 0;
+        for (int i = 0; i < Math.min(a.size, b.size); i++) {
+            if (a.starts[i] == b.starts[i] && a.ends[i] == b.ends[i]) {
+                start++;
+            } else {
+                break;
+            }
+        }
+        Set<SemanticRegion<T>> removed = new HashSet<>();
+        Set<SemanticRegion<R>> added = new HashSet<>();
+        for (int i = start; i < Math.max(a.size, b.size); i++) {
+            if (i < a.size && i < b.size) {
+                if (!a.containsExactBounds(b.starts[i], b.ends[i])) {
+                    added.add(b.forIndex(i));
+                }
+                if (!b.containsExactBounds(a.starts[i], a.ends[i])) {
+                    removed.add(a.forIndex(i));
+                }
+            } else if (i < a.size && i >= b.size) {
+                if (!b.containsExactBounds(a.starts[i], a.ends[i])) {
+                    removed.add(a.forIndex(i));
+                }
+            } else if (i >= a.size && i < b.size) {
+                if (!a.containsExactBounds(b.starts[i], b.ends[i])) {
+                    added.add(b.forIndex(i));
+                }
+            }
+        }
+        consumer.accept(removed, added);
+        return !removed.isEmpty() || !added.isEmpty();
+    }
+
+    private boolean containsExactBounds(int start, int end) {
+        for (int i = 0; i < size; i++) {
+            if (starts[i] == start && ends[i] == end) {
+                return true;
+            }
+            if (starts[i] > start) {
+                return false;
+            }
+        }
+        return false;
+        // Fixme - this could be done more efficiently
+//        int offset = ArrayUtil.lastOffsetLessThanOrEqualTo(start, starts, size, Bias.BACKWARD);
+//        while (offset >= 0 && starts[offset] >= start) {
+//            offset--;
+//        }
+//        if (offset < 0 || starts[offset] != start) {
+//            return false;
+//        }
+//        int foundEnd = ends[offset];
+//        if (foundEnd == end) {
+//            return true;
+//        }
+//        while (offset < size && starts[offset] == start) {
+//            if (ends[offset] == end) {
+//                return true;
+//            }
+//            offset++;
+//        }
+//        return false;
+    }
+
     /**
      * Return whether or not the contents of this SemanticRegions are equal -
      * this is not implemented in equals() because SemanticRegions instances are
@@ -443,7 +593,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 && ((keys == null) == (other.keys == null))
                 && Arrays.equals(starts, other.starts)
                 && Arrays.equals(ends, other.ends);
-        if (keys != null) {
+        if (result && keys != null) {
             result &= Arrays.equals(keys, other.keys);
         }
         return result;
@@ -528,6 +678,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             }
         }
 
+        @Override
         public int size() {
             return keysSorted.length;
         }
@@ -544,7 +695,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         final T key;
         final int originalIndex;
 
-        public ComparableStub(T key, int originalIndex) {
+        ComparableStub(T key, int originalIndex) {
             this.key = key;
             this.originalIndex = originalIndex;
         }
@@ -645,7 +796,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         private final int index;
         private int depth;
 
-        public SemanticRegionImpl(int index, int depth) {
+        SemanticRegionImpl(int index, int depth) {
             this.index = index;
             this.depth = depth;
         }
@@ -671,10 +822,10 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 return true;
             } else if (o instanceof SemanticRegion<?>) {
                 SemanticRegion<?> other = (SemanticRegion<?>) o;
-                if (other.getClass() == getClass()) {
-                    SemanticRegionImpl i = (SemanticRegionImpl) other;
-                    return owner() == i.owner() && index == i.index;
-                }
+//                if (other.getClass() == getClass()) {
+//                    SemanticRegionImpl i = (SemanticRegionImpl) other;
+//                    return owner() == i.owner() && index == i.index;
+//                }
                 return other.start() == start() && other.end() == end() && Objects.equals(key(), other.key());
             }
             return false;

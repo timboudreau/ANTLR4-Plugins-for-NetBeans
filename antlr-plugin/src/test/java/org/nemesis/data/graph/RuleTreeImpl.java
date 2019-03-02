@@ -1,5 +1,7 @@
 package org.nemesis.data.graph;
 
+import java.io.IOException;
+import java.io.ObjectOutput;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +31,11 @@ final class RuleTreeImpl implements StringGraph {
         topLevel.removeAll(ruleReferencedBy.keySet());
         bottomLevel.addAll(ruleReferencedBy.keySet());
         bottomLevel.removeAll(ruleReferences.keySet());
+    }
+
+    @Override
+    public void save(ObjectOutput out) throws IOException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override

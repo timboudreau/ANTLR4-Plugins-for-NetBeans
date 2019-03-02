@@ -18,7 +18,7 @@ import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionPositionIndex;
 import org.nemesis.data.named.NamedRegionReferenceSets;
-import org.nemesis.data.named.NamedRegionReferenceSets.NamedRegionReferenceSet;
+import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
 import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.SemanticParserTest.RuleTypes;

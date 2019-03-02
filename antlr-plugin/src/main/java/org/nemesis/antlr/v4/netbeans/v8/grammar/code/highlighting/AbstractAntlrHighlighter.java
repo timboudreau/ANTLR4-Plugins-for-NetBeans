@@ -16,8 +16,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -52,11 +52,6 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
     private final Function<R, S> semanticsDeriver;
     protected final Logger LOG = Logger.getLogger(getClass().getName());
 
-//    {
-//        if (getClass().getName().startsWith("Ad")) {
-//            LOG.setLevel(Level.ALL);
-//        }
-//    }
     public AbstractAntlrHighlighter(Document doc, Class<R> parserResultType, Function<R, S> semanticsDeriver) {
         this.parserResultType = parserResultType;
         this.semanticsDeriver = semanticsDeriver;
@@ -108,12 +103,6 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
     }
 
     protected final void scheduleRefresh() {
-        Future<?> fut = future.get();
-        if (fut != null) {
-//            LOG.log(Level.FINEST, "Cancel a previously "
-//                    + "scheduled run for new refresh");
-//            fut.cancel(true);
-        }
         if (refreshTask == null) {
             refreshTask = threadPool.create(this);
         }
@@ -196,6 +185,7 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
             }
         }
 
+        @Override
         public String toString() {
             return "Task-" + AbstractAntlrHighlighter.this.toString();
         }
@@ -248,13 +238,15 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
         }
     }
 
-    public static final Function<ANTLRv4ParserResult, ANTLRv4SemanticParser> GET_SEMANTICS
-            = (ANTLRv4ParserResult result) -> {
-                return result.semanticParser();
-            };
+    protected static final <R extends Parser.Result & ExtractionParserResult> Function<R, Extraction> findExtraction() {
+        return res -> {
+            return res.extraction();
+        };
+    }
 
     public static abstract class DocumentOriented<T, R extends Parser.Result, S> extends AbstractAntlrHighlighter<T, R, S> implements DocumentListener {
 
+        @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Document doc, Class<R> type, Function<R, S> func) {
             super(doc, type, func);
             doc.addDocumentListener(WeakListeners.document(this, doc));
@@ -269,17 +261,17 @@ public abstract class AbstractAntlrHighlighter<T, R extends Parser.Result, S> im
         }
 
         @Override
-        public void insertUpdate(DocumentEvent e) {
+        public final void insertUpdate(DocumentEvent e) {
             scheduleRefresh();
         }
 
         @Override
-        public void removeUpdate(DocumentEvent e) {
+        public final void removeUpdate(DocumentEvent e) {
             scheduleRefresh();
         }
 
         @Override
-        public void changedUpdate(DocumentEvent e) {
+        public final void changedUpdate(DocumentEvent e) {
             scheduleRefresh();
         }
     }

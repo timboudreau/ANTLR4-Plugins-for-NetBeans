@@ -37,7 +37,6 @@ import org.nemesis.jfs.JFSUrlStreamHandlerFactory;
 public abstract class JFSUtilities {
 
     protected JFSUtilities() {
-
     }
 
     private static JFSUtilities INSTANCE;

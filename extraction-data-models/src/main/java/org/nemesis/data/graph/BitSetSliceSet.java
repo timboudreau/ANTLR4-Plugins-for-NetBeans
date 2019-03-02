@@ -23,7 +23,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
     private final Indexed<T> data;
     private final int start;
 
-    public BitSetSliceSet(Indexed<T> data, BitSet set, int start) {
+    BitSetSliceSet(Indexed<T> data, BitSet set, int start) {
         this.data = data;
         this.set = set;
         this.start = start;

@@ -35,6 +35,8 @@ import java.util.Iterator;
 
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.source.api.ParsingBag;
 
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
@@ -59,7 +61,7 @@ import org.openide.util.Lookup;
  *
  * @author Frédéric Yvon Vinet
  */
-@MimeRegistration(mimeType = "text/x-g4", service = HyperlinkProvider.class)
+@MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = HyperlinkProvider.class)
 public class GrammarHyperlinkProvider implements HyperlinkProvider {
     public GrammarHyperlinkProvider() {
     }
@@ -68,7 +70,8 @@ public class GrammarHyperlinkProvider implements HyperlinkProvider {
     @Override
     public boolean isHyperlinkPoint(Document doc, int offset) {
         boolean answer = false;
-        Hyperlinks links = (Hyperlinks) doc.getProperty(Hyperlinks.class);
+//        Hyperlinks links = (Hyperlinks) doc.getProperty(Hyperlinks.class);
+        Hyperlinks links = ParsingBag.get(doc, ANTLR_MIME_TYPE).get(Hyperlinks.class);
         if (links != null) {
 //            System.out.println("Links exists");
             ArrayList<Hyperlink> possibleLinks = links.getLinks(offset);

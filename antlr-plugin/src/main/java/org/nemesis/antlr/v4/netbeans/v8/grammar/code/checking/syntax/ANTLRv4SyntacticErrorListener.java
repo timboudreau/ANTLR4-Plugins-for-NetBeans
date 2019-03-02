@@ -40,10 +40,10 @@ import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.misc.IntervalSet;
+import org.nemesis.source.api.GrammarSource;
 
 import org.netbeans.modules.csl.api.Severity;
 
-import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -51,7 +51,7 @@ import org.openide.filesystems.FileObject;
  */
 public class ANTLRv4SyntacticErrorListener extends BaseErrorListener {
     private final List<ParsingError> parsingErrors;
-    private final FileObject         objectToBeParsed;
+    private final GrammarSource<?>         objectToBeParsed;
     
     public boolean encounteredError() {
         return getErrorNumber() != 0;
@@ -63,7 +63,7 @@ public class ANTLRv4SyntacticErrorListener extends BaseErrorListener {
         return parsingErrors;
     }
     
-    public ANTLRv4SyntacticErrorListener(FileObject objectToBeParsed) {
+    public ANTLRv4SyntacticErrorListener(GrammarSource<?> objectToBeParsed) {
         this.parsingErrors = new ArrayList<>();
         this.objectToBeParsed = objectToBeParsed;
     }

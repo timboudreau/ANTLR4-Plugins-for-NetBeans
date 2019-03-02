@@ -63,7 +63,7 @@ public class RuleTreeTest {
 
     @Test
     public void testCentrality() {
-        BitSetStringGraph irt = (BitSetStringGraph) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().strings(names2);
+        BitSetStringGraph irt = (BitSetStringGraph) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().toStringGraph(names2);
         System.out.println("\n************* EIGENVECTOR ************");
         for (Score score : irt.eigenvectorCentrality()) {
             System.out.println("  " + score + " closureSize " + irt.closureSize(score.node()));
@@ -82,7 +82,7 @@ public class RuleTreeTest {
 
     @Test
     public void testSomeMethod() {
-        StringGraph irt = traverseAll(RULES_1, new BitSetTreeBuilder(names)).toRuleTree().strings(names);
+        StringGraph irt = traverseAll(RULES_1, new BitSetTreeBuilder(names)).toRuleTree().toStringGraph(names);
         StringGraph srt = traverseAll(RULES_1, new RuleTreeBuilder()).toRuleTree();
         Iterator<String> a = srt.edgeStrings().iterator();
         Iterator<String> b = irt.edgeStrings().iterator();

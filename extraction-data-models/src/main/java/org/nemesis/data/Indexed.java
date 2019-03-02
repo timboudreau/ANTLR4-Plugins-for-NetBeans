@@ -23,8 +23,10 @@
  */
 package org.nemesis.data;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -100,30 +102,6 @@ public interface Indexed<T> {
         return new StringArrayIndexed(sortedArray);
     }
 
-    static class StringArrayIndexed implements Indexed<String> {
-
-        private final String[] sortedStrings;
-
-        public StringArrayIndexed(String[] sortedStrings) {
-            this.sortedStrings = sortedStrings;
-        }
-
-        @Override
-        public int indexOf(Object o) {
-            return Arrays.binarySearch(sortedStrings, Objects.toString(o, ""));
-        }
-
-        @Override
-        public String forIndex(int index) {
-            return sortedStrings[index];
-        }
-
-        @Override
-        public int size() {
-            return sortedStrings.length;
-        }
-
-    }
 
     static <T> Indexed<T> forList(List<T> list) {
         assert new HashSet<>(list).size() == list.size();
@@ -141,6 +119,98 @@ public interface Indexed<T> {
             @Override
             public int size() {
                 return list.size();
+            }
+        };
+    }
+
+    default Collection<T> asCollection() {
+        return new Collection<T>(){
+            @Override
+            public int size() {
+                return Indexed.this.size();
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return Indexed.this.size() == 0;
+            }
+
+            @Override
+            public boolean contains(Object o) {
+                int sz = size();
+                for (int i=0; i < sz; i++) {
+                    if (Objects.equals(o, Indexed.this.forIndex(i))) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return asIterable().iterator();
+            }
+
+            @Override
+            public Object[] toArray() {
+                Object[] objs = new Object[size()];
+                for (int i = 0; i < objs.length; i++) {
+                    objs[i] = forIndex(i);
+                }
+                return objs;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> T[] toArray(T[] a) {
+                int sz = size();
+                if (sz != a.length) {
+                    a = (T[]) Array.newInstance(a.getClass().getComponentType(), sz);
+                }
+                for (int i=0; i < sz; i++) {
+                    a[i] = (T) forIndex(i);
+                }
+                return a;
+            }
+
+            @Override
+            public boolean containsAll(Collection<?> c) {
+                for (Object o : c) {
+                    if (!contains(o)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public boolean add(T e) {
+                throw new UnsupportedOperationException("read-only");
+            }
+
+            @Override
+            public boolean remove(Object o) {
+                throw new UnsupportedOperationException("read-only");
+            }
+
+            @Override
+            public boolean addAll(Collection<? extends T> c) {
+                throw new UnsupportedOperationException("read-only");
+            }
+
+            @Override
+            public boolean removeAll(Collection<?> c) {
+                throw new UnsupportedOperationException("read-only");
+            }
+
+            @Override
+            public boolean retainAll(Collection<?> c) {
+                throw new UnsupportedOperationException("read-only");
+            }
+
+            @Override
+            public void clear() {
+                throw new UnsupportedOperationException("read-only");
             }
         };
     }

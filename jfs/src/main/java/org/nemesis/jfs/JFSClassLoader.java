@@ -152,7 +152,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
         private final T obj;
         private volatile boolean done;
 
-        public SingletonEnumeration(T obj) {
+        SingletonEnumeration(T obj) {
             this.obj = obj;
         }
 

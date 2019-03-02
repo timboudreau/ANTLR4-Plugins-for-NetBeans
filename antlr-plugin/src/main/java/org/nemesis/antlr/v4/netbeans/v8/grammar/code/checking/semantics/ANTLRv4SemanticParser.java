@@ -28,10 +28,9 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import java.io.File;
 import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -46,16 +45,13 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.Document;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.bcel.classfile.JavaClass;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.generic.parsing.ParsingError;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseListener;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
@@ -77,11 +73,10 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.SuperClassSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenRuleDeclarationContext;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Attributions;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.Collector;
+import org.nemesis.extraction.Attributions;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.UnknownNameReference;
+import org.nemesis.source.api.GrammarSource;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
@@ -89,9 +84,11 @@ import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaClassHelper;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.source.api.ParsingBag;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.csl.api.Severity;
 import org.netbeans.spi.project.support.ant.PropertyEvaluator;
@@ -124,8 +121,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     private final List<ParsingError> semanticErrors = new LinkedList<>();
     private final List<ParsingError> semanticWarnings = new LinkedList<>();
     private final boolean semanticErrorRequired;
-    private final Optional<Path> grammarFilePath;
-    private StringGraph ruleTree;
+    private final GrammarSource<?> source;
 
     public boolean encounteredError() {
         return getErrorNumber() != 0;
@@ -174,10 +170,11 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     public Optional<Path> grammarFilePath() {
-        return grammarFilePath;
+        return source.lookup(Path.class);
     }
 
     private Optional<Path> grammarFileParent() {
+        Optional<Path> grammarFilePath = grammarFilePath();
         if (grammarFilePath.isPresent()) {
             return Optional.of(grammarFilePath.get().getParent());
         }
@@ -185,24 +182,19 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     private Optional<String> grammarNameFromFile() {
+        Optional<Path> grammarFilePath = source.lookup(Path.class);
         if (grammarFilePath.isPresent()) {
-            Path file = grammarFilePath.get();
-            if (file.getNameCount() > 0) {
-                String result = file.getName(file.getNameCount() - 1).toString();
-                if (result.endsWith(".g4")) {
-                    result = result.substring(0, result.length() - 3);
-                }
-                return Optional.of(result);
+            String filename = grammarFilePath.get().getFileName().toString();
+            int ix = filename.lastIndexOf('.');
+            if (ix > 0) {
+                return Optional.of(filename.substring(0, ix));
             }
         }
         return Optional.empty();
     }
 
     public Optional<Project> project() {
-        if (grammarFilePath.isPresent()) {
-            return ProjectHelper.getProject(grammarFilePath.get());
-        }
-        return Optional.empty();
+        return source.lookup(Project.class);
     }
 
     public Optional<Path> projectDirectory() {
@@ -215,9 +207,9 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         return Optional.empty();
     }
 
-    public ANTLRv4SemanticParser(Optional<Path> grammarFilePath, GrammarSummary summary) {
+    public ANTLRv4SemanticParser(GrammarSource<?> src, GrammarSummary summary) {
         assert summary != null;
-        this.grammarFilePath = grammarFilePath;
+        this.source = src;
         this.summary = summary;
         grammarType = summary.getGrammarType();
         semanticErrorRequired = checkSemanticErrorRequired();
@@ -266,29 +258,11 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
 
     @Override
     public void exitGrammarFile(ANTLRv4Parser.GrammarFileContext ctx) {
-        // Only at this point do we know which rules are fragments, so we
-        // can shuffle them into our fragment reference collection - they
-        // are indistinguishable at parse time
-//        RuleNameFinder rnf = new RuleNameFinder();
-//        ctx.accept(rnf);
-//        String[] pruleIds = rnf.names();
-//        BitSetTreeBuilder rtb2 = new BitSetTreeBuilder(pruleIds);
-//        ctx.accept(rtb2);
-//        ruleTree = rtb2.toRuleTree().strings(pruleIds);
-
-        GrammarSource<?> src = null;
-        if (this.grammarFilePath.isPresent()) {
-            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.get().toFile()));
-            if (fo != null) {
-                src = AntlrExtractor.grammarSource(fo);
-            }
-        }
-        extraction = AntlrExtractor.getDefault().extract(ctx, src);
-        ruleTree = extraction.referenceGraph(AntlrExtractor.RULE_NAME_REFERENCES);
+        extraction = AntlrExtractor.getDefault().extract(ctx, source);
     }
 
     public StringGraph ruleTree() {
-        return ruleTree;
+        return extraction == null ? null : extraction.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
     }
 
     /**
@@ -887,23 +861,8 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
         }
     }
 
-    private Optional<Path> resolveGrammarFile(String name) {
-        Optional<Path> parent = this.grammarFileParent();
-        if (parent.isPresent()) {
-            Path sibling = parent.get().resolve(name);
-            if (Files.exists(sibling)) {
-                return Optional.of(sibling);
-            }
-        }
-        Optional<Path> importDir = this.importDir();
-        if (importDir.isPresent()) {
-            Path result = importDir.get().resolve(name);
-            if (Files.exists(result)) {
-                return Optional.of(result);
-            }
-            return Optional.empty();
-        }
-        return Optional.empty();
+    private Optional<GrammarSource<?>> resolveGrammarFile(String name) {
+        return Optional.ofNullable(source.resolveImport(name));
     }
 
     private String grammarNameString() {
@@ -922,49 +881,14 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     public Optional<Path> importDir() {
-        return AntlrFolders.IMPORT.getPath(project(), grammarFilePath);
+        return AntlrFolders.IMPORT.getPath(project(), grammarFilePath());
     }
 
     protected void checkImportedGrammars() {
         List<String> importedGrammars = summary.getImportedGrammars();
 
         for (String importedGrammar : importedGrammars) {
-            String importedGrammarFileName = importedGrammar + ".g4";
-            Optional<Path> imported = resolveGrammarFile(importedGrammarFileName);
-            /*
-            // We look for imported grammar from the same directory as current
-            // grammar file.
-            // We build the grammar file path as a local path from that directory
-            Path importedGrammarFilePath = Paths.get(parsedGrammarDirectory,
-                    importedGrammarFileName);
-            File importedGrammarFile = importedGrammarFilePath.toFile();
-            if (!importedGrammarFile.exists()) {
-                // We didn't find the file in that directory so now we look for it
-                // in import directory if import dir is different from parsed
-                // grammar directory
-                File importDir = ProjectHelper.getANTLRImportDir(project, grammarFilePath);
-                // import directory may be null if we use that plugin in a project
-                // type not supported: it must not lead to an error!
-                if (importDir != null) {
-                    String importDirString = importDir.getPath();
-                    // If the parsed grammar is already in import directory, it is
-                    // useless to test if file is in import directory
-                    if (!importDirString.equals(parsedGrammarDirectory)) {
-                        importedGrammarFilePath = Paths.get(importDirString,
-                                importedGrammarFileName);
-                        importedGrammarFile = importedGrammarFilePath.toFile();
-                    } else {
-                        importedGrammarFilePath = null;
-                        importedGrammarFile = null;
-                    }
-//                } else {
-                    // Project type is not supported, so we are unable to find
-                    // where file might be
-//                    importedGrammarFilePath = null;
-//                    importedGrammarFile = null;
-                }
-            }
-             */
+            Optional<GrammarSource<?>> imported = resolveGrammarFile(importedGrammar);
             Map<String, Integer> importedGrammarIdStartOffsets
                     = summary.getImportedGrammarIdStartOffsets();
             Map<String, Integer> importedGrammarIdEndOffsets
@@ -975,45 +899,36 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
             if (!imported.isPresent()) {
                 String key = "antlr.error.import.grammar.not.found";
                 String displayName = "Unable to import the grammar file "
-                        + importedGrammarFileName + " in the directory of "
+                        + importedGrammar + " in the directory of "
                         + fileParentString() + " or in ANTLR import directory "
                         + importPath();
                 String description = displayName;
                 addError(key, startOffset, endOffset, displayName, description);
             } else {
+                GrammarSource<?> importedSource = imported.get();
                 // The imported file exists!
                 // We must check if its type is compatible with the type of current
                 // grammar. But we don't have this data that is placed in its
                 // summary
-                FileObject importedGrammarFO
-                        = FileUtil.toFileObject(imported.get().toFile());
-                Document importedGrammarDoc
-                        = ProjectHelper.getDocument(importedGrammarFO);
-                // We recover its summary
-                GrammarSummary importedGrammarSummary
-                        = importedGrammarDoc == null ? null
-                                : (GrammarSummary) importedGrammarDoc.getProperty(GrammarSummary.class);
-                Optional<Project> prj = project();
 
-                if (importedGrammarSummary == null && prj.isPresent() && importedGrammarDoc != null) {
-                    // No summary is associated with this doc. It just means the
-                    // document has been loaded from disk into memory by our
-                    // previous getDocument() statement
-                    // So we try to load it from disk
-                    importedGrammarSummary = GrammarSummary.load(prj.get(),
-                            imported.get().toString());
-                    // If that grammar has never been edited and it is the first
-                    // time, we parse the current grammar, then there is no summary
-                    // on disk. So we have to collect it
+                ParsingBag bag = ParsingBag.forGrammarSource(importedSource);
+                GrammarSummary importedGrammarSummary = bag.get(GrammarSummary.class);
+                if (importedGrammarSummary == null) {
+//                    NBANTLRv4Parser.parse(bag);
+                    Optional<Project> prj = source.lookup(Project.class);
+                    if (prj.isPresent()) {
+                        importedGrammarSummary = GrammarSummary.load(importedSource);
+                    }
                     if (importedGrammarSummary == null) {
-                        parseGrammarFile(importedGrammarDoc,
-                                imported.get());
-                        // Now there should have a summary associated to the document
-                        // So we try again to recover it
-                        importedGrammarSummary
-                                = (GrammarSummary) importedGrammarDoc.getProperty(GrammarSummary.class);
+                        try {
+                            ANTLRv4GrammarChecker parsed = NBANTLRv4Parser.parse(imported.get());
+                            importedGrammarSummary = parsed.check();
+                        } catch (IOException ioe) {
+                            Exceptions.printStackTrace(ioe);
+                        }
                     }
                 }
+
                 // At this step, summary must be non null except if an exception
                 // occurred in parseGrammarFile() method
                 if (summary != null && importedGrammarSummary != null) {
@@ -1082,7 +997,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     public void addError(Severity severity, String key, int startOffset, int endOffset, String displayName, String description) {
-        ParsingError semanticError = new ParsingError(grammarFilePath,
+        ParsingError semanticError = new ParsingError(source,
                 severity,
                 key,
                 startOffset,
@@ -1100,93 +1015,14 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * We check that imported token files exist
      */
     protected void checkImportedTokenFiles() {
-        if (!grammarFilePath.isPresent()) {
-            return;
-        }
-        Optional<Path> antlrSrcDir = AntlrFolders.SOURCE.getPath(project(), grammarFilePath);
-
-        Optional<Path> par = this.grammarFileParent();
-        if (!antlrSrcDir.isPresent() || !par.isPresent()) {
-            return;
-        }
-        Path parsedGrammarDirPath = par.get();
-        Path parsedGrammarDirRelativePath
-                = antlrSrcDir.get().relativize(parsedGrammarDirPath);
-
-        String parsedGrammarDirRelativePathString
-                = parsedGrammarDirRelativePath.toString();
-//        System.out.println("parsed grammar dir relative path=" +
-//                           parsedGrammarDirRelativePath         );
-        Optional<Path> importDir = AntlrFolders.IMPORT.getPath(project(), grammarFilePath);
-
-        Optional<Path> destDir = AntlrFolders.OUTPUT.getPath(project(), grammarFilePath);
-
         List<String> importedTokenFileNames = summary.getImportedTokenFiles();
         Map<String, Integer> importedTokenFileStartOffsets
                 = summary.getImportedTokenFileIdStartOffsets();
         Map<String, Integer> importedTokenFileEndOffsets
                 = summary.getImportedTokenFileIdEndOffsets();
         for (String importedTokenFileName : importedTokenFileNames) {
-            String importedTokenFileWithExt = importedTokenFileName + ".tokens";
-            // We look for the token file in the same directory as its importing
-            // grammar
-            Path importedTokenFilePath = par.get().resolve(importedTokenFileWithExt);
-            boolean found = false;
-//            System.out.println("We look for in: " + importedTokenFilePath);
-            if (!Files.exists(importedTokenFilePath)) {
-                System.out.println("Token file path nonexistent: " + importedTokenFilePath
-                        + " parsedGrammarDirectory " + par.get()
-                        + " antlrImportDir " + importDir
-                        + " importedTokenFileWithExt " + importedTokenFileWithExt
-                        + " importedTokenFileName " + importedTokenFileName);
-
-                if (grammarFilePath.isPresent()) {
-                    importedTokenFilePath = grammarFilePath.get().getParent().resolve(
-                            importedTokenFileWithExt);
-                }
-                if (Files.exists(importedTokenFilePath)) {
-                    found = true;
-                } else if (importDir.isPresent() && !importDir.get().equals(par.get())) {
-                    importedTokenFilePath = Paths.get(importDir.get().toString(),
-                            importedTokenFileWithExt);
-//                    System.out.println("We look for in: " + importedTokenFilePath);
-                    if (!Files.exists(importedTokenFilePath)) {
-//                        System.out.println("File not found in import directory");
-                        // We look for the token file in destination directory
-                        // appended with local importing grammar directory
-                        importedTokenFilePath
-                                = destDir.get().resolve(parsedGrammarDirRelativePathString);
-//                                Paths.get(antlrDestinationDir,
-//                                parsedGrammaDirRelativePathString,
-//                                importedTokenFileWithExt);
-//                        System.out.println("We look for in: " + importedTokenFilePath);
-                        if (!Files.exists(importedTokenFilePath)) {
-                            found = false;
-                            importedTokenFilePath = null;
-                        } else {
-                            found = true;
-                        }
-                    }
-                } else {
-                    found = true;
-                }
-                if (!found || importedTokenFilePath == null) {
-                    // We look for the token file in destination directory
-                    // appended with local importing grammar directory
-                    importedTokenFilePath
-                            = destDir.get().resolve(parsedGrammarDirRelativePathString)
-                                    .resolve(importedTokenFileWithExt);
-                    if (!Files.exists(importedTokenFilePath)) {
-                        found = false;
-                        importedTokenFilePath = null;
-                    } else {
-                        found = true;
-                    }
-                }
-            } else {
-                found = true;
-            }
-            if (!found) {
+            Optional<Path> tokensFilePath = ProjectHelper.findTokensFile(importedTokenFileName, source);
+            if (!tokensFilePath.isPresent()) {
                 int startOffset
                         = importedTokenFileStartOffsets.get(importedTokenFileName);
                 int endOffset
@@ -1202,43 +1038,6 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
                 String description = displayName;
                 addError(key, startOffset, endOffset, displayName, description);
             }
-        }
-    }
-
-    private void parseGrammarFile(Document grammarDoc,
-            Path grammarFilePath) {
-//        System.out.println("ANTLRv4SemanticParser : grammarFileName=" +
-//                           grammarFileName);
-        // We does not need to generate hyperlinks for that imported grammar file
-        // Its hyperlinks will be generated when user will open it (if he does it)
-        try {
-            if (grammarDoc == null) {
-//                System.err.println("GRAMMAR DOC FOR " + grammarFilePath + " is null");
-                return;
-            }
-            String contentToBeParsed = grammarDoc.getText(0, grammarDoc.getLength());
-            try (
-                    Reader sr = new StringReader(contentToBeParsed);) {
-                ANTLRv4Lexer lexer = new ANTLRv4Lexer(CharStreams.fromReader(sr));
-                lexer.removeErrorListeners();
-
-                CommonTokenStream tokens = new CommonTokenStream(lexer);
-                ANTLRv4Parser parser = new ANTLRv4Parser(tokens);
-                parser.removeErrorListeners(); // remove ConsoleErrorListener
-                Collector collector = new Collector(grammarDoc, Optional.of(grammarFilePath));
-                parser.addParseListener(collector);
-                parser.grammarFile();
-            }
-        } catch (IOException
-                | RecognitionException
-                | BadLocationException ex) {
-            // Impossible to have BadLocationException with parameter used with
-            // getText().
-            // A recognitionException is still possible if lexer or parser had a
-            // problem.
-            // Idem for IOException because we have already everything in memory.
-            // So there is nothing to do
-            ex.printStackTrace();
         }
     }
 
@@ -1469,7 +1268,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     protected void checkThereIsNoForbiddenFragmentId() {
-        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrKeys.RULE_NAMES);
         if (names.contains(EOF)) {
             NamedSemanticRegion<RuleTypes> eofRegion = names.regionFor(EOF);
             String key = "antlr.error.fragment.id.forbiden.value";
@@ -1499,7 +1298,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     protected void checkRuleReferences() {
         Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resInfo;
         try {
-            resInfo = extraction.resolveUnknowns(AntlrExtractor.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
+            resInfo = extraction.resolveUnknowns(AntlrKeys.RULE_NAME_REFERENCES, AntlrExtractor.resolver());
         } catch (IOException ioe) {
             Exceptions.printStackTrace(ioe);
             return;
@@ -1541,7 +1340,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
 
     protected void checkThereIsNoDuplicateParserRuleIds() {
 
-        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrExtractor.RULE_NAMES);
+        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrKeys.RULE_NAMES);
         for (Map.Entry<String, Set<NamedSemanticRegion<RuleTypes>>> e : duplicates.entrySet()) {
             for (NamedSemanticRegion<RuleTypes> r : e.getValue()) {
 
@@ -1612,15 +1411,15 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
      * entry points so we generate only a warning.
      */
     protected void checkAllDeclaredParserRulesAreUsed() {
-        NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+        NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(AntlrKeys.RULE_NAME_REFERENCES);
         if (refs == null || refs.isEmpty()) {
             return;
         }
-        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrKeys.RULE_NAMES);
         names.collectNames(item -> {
             return item.kind() == RuleTypes.PARSER;
         }).forEach(ruleName -> {
-            NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> set = refs.references(ruleName);
+            NamedRegionReferenceSet<RuleTypes> set = refs.references(ruleName);
             if (set == null || set.isEmpty()) {
                 NamedSemanticRegion<RuleTypes> reg = names.regionFor(ruleName);
                 if (reg == null || reg.ordering() == 0) {
@@ -1642,7 +1441,7 @@ public class ANTLRv4SemanticParser extends ANTLRv4BaseListener {
     }
 
     protected void checkDuplicateLabels() {
-        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrExtractor.NAMED_ALTERNATIVES);
+        Map<String, Set<NamedSemanticRegion<RuleTypes>>> duplicates = extraction.duplicates(AntlrKeys.NAMED_ALTERNATIVES);
         if (duplicates != null) {
             for (Map.Entry<String, Set<NamedSemanticRegion<RuleTypes>>> e : duplicates.entrySet()) {
                 for (NamedSemanticRegion<RuleTypes> nr : e.getValue()) {

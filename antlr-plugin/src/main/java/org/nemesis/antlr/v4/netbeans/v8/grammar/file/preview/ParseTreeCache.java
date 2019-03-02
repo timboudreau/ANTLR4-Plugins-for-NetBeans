@@ -226,7 +226,7 @@ final class ParseTreeCache implements Runnable {
         private final long lastModified;
         private final String text;
 
-        public CacheKey(long lastModified, String text) {
+        CacheKey(long lastModified, String text) {
             this.lastModified = lastModified;
             this.text = text;
         }

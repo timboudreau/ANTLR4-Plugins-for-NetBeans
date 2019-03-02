@@ -145,7 +145,7 @@ public class AdhocMimeResolver extends MIMEResolver {
         private final Reference<FileObject> fo;
         private final String type;
 
-        public Pair(FileObject fo, String type) {
+        Pair(FileObject fo, String type) {
             this.fo = fo == null ? null : new WeakReference<FileObject>(fo);
             this.type = type;
         }

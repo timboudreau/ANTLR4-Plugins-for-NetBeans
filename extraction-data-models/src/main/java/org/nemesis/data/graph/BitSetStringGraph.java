@@ -12,15 +12,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.data.graph.StringGraph.Score;
-import org.nemesis.data.graph.IntGraphVisitor;
 import org.nemesis.data.Indexed;
+import static org.nemesis.data.graph.BitSetUtils.forEach;
+import org.nemesis.data.graph.StringGraph.Score;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class BitSetStringGraph implements StringGraph {
+class BitSetStringGraph implements StringGraph {
 
     private final BitSetGraph tree;
     private final String[] items;
@@ -30,12 +30,7 @@ public class BitSetStringGraph implements StringGraph {
         this.items = sortedArray;
     }
 
-    public static BitSetStringGraph create(BitSetGraph tree, String[] sortedArray) {
-        assert sanityCheckArray(sortedArray);
-        return new BitSetStringGraph(tree, sortedArray);
-    }
-
-    private static boolean sanityCheckArray(String[] sortedArray) {
+    static boolean sanityCheckArray(String[] sortedArray) {
         assert new HashSet<>(Arrays.asList(sortedArray)).size() == sortedArray.length :
                 "Array contains duplicates: " + Arrays.toString(sortedArray);
         List<String> a = Arrays.asList(sortedArray);
@@ -64,7 +59,7 @@ public class BitSetStringGraph implements StringGraph {
         tree.save(out);
     }
 
-    public static BitSetStringGraph load(ObjectInput in) throws IOException, ClassNotFoundException {
+    static BitSetStringGraph load(ObjectInput in) throws IOException, ClassNotFoundException {
         int v = in.readInt();
         if (v != 1) {
             throw new IOException("Unsupoorted version " + v);
@@ -95,7 +90,7 @@ public class BitSetStringGraph implements StringGraph {
     }
 
     public void walk(StringGraphVisitor v) {
-        tree.walk(new IntGraphVisitor() {
+        tree.walk(new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -113,7 +108,7 @@ public class BitSetStringGraph implements StringGraph {
         if (ix < 0) {
             return;
         }
-        tree.walk(ix, new IntGraphVisitor() {
+        tree.walk(ix, new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -131,7 +126,7 @@ public class BitSetStringGraph implements StringGraph {
         if (ix < 0) {
             return;
         }
-        tree.walkUpwards(ix, new IntGraphVisitor() {
+        tree.walkUpwards(ix, new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -154,11 +149,11 @@ public class BitSetStringGraph implements StringGraph {
     }
 
     public Set<String> disjointItems() {
-        Set<Integer> all = tree.disjointItems();
+        BitSet all = tree.disjointItems();
         Set<String> result = new HashSet<>();
-        for (int a : all) {
-            result.add(nameOf(a));
-        }
+        forEach(all, i -> {
+            result.add(nameOf(i));
+        });
         return result;
     }
 
@@ -358,13 +353,13 @@ public class BitSetStringGraph implements StringGraph {
     }
 
     private void topsString(StringBuilder into) {
-        BitSetGraph.forEach(tree.topLevelOrOrphanRules(), i -> {
+        BitSetUtils.forEach(tree.topLevelOrOrphanRules(), i -> {
             into.append(' ').append(nameOf(i));
         });
     }
 
     private void bottomsString(StringBuilder into) {
-        BitSetGraph.forEach(tree.bottomLevelRules(), i -> {
+        BitSetUtils.forEach(tree.bottomLevelRules(), i -> {
             into.append(' ').append(nameOf(i));
         });
     }
@@ -392,9 +387,6 @@ public class BitSetStringGraph implements StringGraph {
         if (!Objects.equals(this.tree, other.tree)) {
             return false;
         }
-        if (!Arrays.deepEquals(this.items, other.items)) {
-            return false;
-        }
-        return true;
+        return Arrays.deepEquals(this.items, other.items);
     }
 }

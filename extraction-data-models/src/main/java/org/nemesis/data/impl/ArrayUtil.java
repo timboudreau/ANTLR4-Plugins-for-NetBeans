@@ -10,7 +10,7 @@ import static org.nemesis.data.impl.ArrayUtil.Bias.NONE;
 /**
  * Utilities for manipulating and searching in arrays and paris of start/end
  * arrays which may contain duplicate entries, or where the ends array may be
- * unsorted.
+ * unsorted.  Non-API.
  *
  * @author Tim Boudreau
  */
@@ -237,7 +237,7 @@ public final class ArrayUtil {
 
         private final int[] arr;
 
-        public Arr(int[] arr) {
+        Arr(int[] arr) {
             this.arr = arr;
         }
 

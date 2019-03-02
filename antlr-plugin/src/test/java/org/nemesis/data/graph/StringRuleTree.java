@@ -1,5 +1,7 @@
 package org.nemesis.data.graph;
 
+import java.io.IOException;
+import java.io.ObjectOutput;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -8,11 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.data.graph.BitSetGraph;
-import org.nemesis.data.graph.ScoreImpl;
-import org.nemesis.data.graph.IntGraphVisitor;
-import org.nemesis.data.graph.StringGraph;
-import org.nemesis.data.graph.StringGraphVisitor;
 
 /**
  *
@@ -38,7 +35,7 @@ final class StringRuleTree implements StringGraph {
     }
 
     public void walk(StringGraphVisitor v) {
-        tree.walk(new IntGraphVisitor() {
+        tree.walk(new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -56,7 +53,7 @@ final class StringRuleTree implements StringGraph {
         if (ix < 0) {
             return;
         }
-        tree.walk(ix, new IntGraphVisitor() {
+        tree.walk(ix, new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -74,7 +71,7 @@ final class StringRuleTree implements StringGraph {
         if (ix < 0) {
             return;
         }
-        tree.walkUpwards(ix, new IntGraphVisitor() {
+        tree.walkUpwards(ix, new BitSetGraphVisitor() {
             @Override
             public void enterRule(int ruleId, int depth) {
                 v.enterRule(nameOf(ruleId), depth);
@@ -98,11 +95,11 @@ final class StringRuleTree implements StringGraph {
     }
 
     public Set<String> disjointItems() {
-        Set<Integer> all = tree.disjointItems();
+        BitSet all = tree.disjointItems();
         Set<String> result = new HashSet<>();
-        for (int a : all) {
-            result.add(nameOf(a));
-        }
+        BitSetUtils.forEach(all, i -> {
+            result.add(nameOf(i));
+        });
         return result;
     }
 
@@ -159,7 +156,6 @@ final class StringRuleTree implements StringGraph {
         Collections.sort(result);
         return result;
     }
-
 
     public List<String> byClosureSize() {
         int[] cs = tree.byClosureSize();
@@ -277,15 +273,20 @@ final class StringRuleTree implements StringGraph {
     @Override
     public Set<String> reverseClosureOf(String rule) {
         int ix = indexOf(rule);
-        return ix < 0 ? Collections.emptySet() 
+        return ix < 0 ? Collections.emptySet()
                 : collect(tree.reverseClosureOf(ix));
     }
 
     @Override
     public Set<String> closureOf(String rule) {
         int ix = indexOf(rule);
-        return ix < 0 ? Collections.emptySet() 
+        return ix < 0 ? Collections.emptySet()
                 : collect(tree.closureOf(ix));
+    }
+
+    @Override
+    public void save(ObjectOutput out) throws IOException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
 }

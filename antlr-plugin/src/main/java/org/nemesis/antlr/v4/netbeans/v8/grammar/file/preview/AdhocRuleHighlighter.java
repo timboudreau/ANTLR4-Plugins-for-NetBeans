@@ -261,7 +261,7 @@ public class AdhocRuleHighlighter extends AbstractAntlrHighlighter.DocumentOrien
         final int end;
         final AttributeSet attrs;
 
-        public HL(int start, int end, AttributeSet attrs) {
+        HL(int start, int end, AttributeSet attrs) {
             this.start = start;
             this.end = end;
             this.attrs = attrs;

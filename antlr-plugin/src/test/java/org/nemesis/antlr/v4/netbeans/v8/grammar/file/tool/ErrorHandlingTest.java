@@ -22,11 +22,12 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ProxyToken;
@@ -36,6 +37,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCode
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParserRunnerBuilder;
+import org.nemesis.source.api.GrammarSource;
 import org.openide.filesystems.FileUtil;
 
 /**
@@ -195,7 +197,7 @@ public class ErrorHandlingTest {
             }
         }
 
-        ANTLRv4GrammarChecker gc = NBANTLRv4Parser.parse(goodFile);
+        ANTLRv4GrammarChecker gc = NBANTLRv4Parser.parse(GrammarSource.find(goodFile, ANTLR_MIME_TYPE));
         ANTLRv4SemanticParser sem = gc.getSemanticParser();
         assertNotNull(sem);
 
@@ -213,9 +215,9 @@ public class ErrorHandlingTest {
             new Item(343, 353, 334, 367, "WHITESPACE"),
             new Item(377, 381, 368, 394, "WORD")
         });
-        assertEquals(all.size(), sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).size());
-        Iterable<NamedSemanticRegion<RuleTypes>> decls = sem.extraction().namedRegions(AntlrExtractor.RULE_BOUNDS).index();
-        Iterable<NamedSemanticRegion<RuleTypes>> names = sem.extraction().namedRegions(AntlrExtractor.RULE_NAMES).index();
+        assertEquals(all.size(), sem.extraction().namedRegions(AntlrKeys.RULE_NAMES).size());
+        Iterable<NamedSemanticRegion<RuleTypes>> decls = sem.extraction().namedRegions(AntlrKeys.RULE_BOUNDS).index();
+        Iterable<NamedSemanticRegion<RuleTypes>> names = sem.extraction().namedRegions(AntlrKeys.RULE_NAMES).index();
         Iterator<NamedSemanticRegion<RuleTypes>> declarationsIterator = decls.iterator();
         Iterator<Item> itemsIterator = all.iterator();
         for (NamedSemanticRegion<RuleTypes> name : names) {
@@ -260,8 +262,8 @@ public class ErrorHandlingTest {
         public void assertMatches(NamedSemanticRegion<?> name, NamedSemanticRegion<?> ruleBounds) {
             assertEquals("name", this.name, name.name());
             assertEquals("name", this.name, ruleBounds.name());
-            assertEquals("nameStart",nameStart, name.start());
-            assertEquals("ruleStart",ruleStart, ruleBounds.start());
+            assertEquals("nameStart", nameStart, name.start());
+            assertEquals("ruleStart", ruleStart, ruleBounds.start());
             assertEquals("nameEnd", nameEnd, name.end());
             assertEquals("ruleEnd", ruleEnd, ruleBounds.end());
         }

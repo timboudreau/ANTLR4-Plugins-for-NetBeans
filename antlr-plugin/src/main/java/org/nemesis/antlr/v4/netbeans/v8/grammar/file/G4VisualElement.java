@@ -49,6 +49,8 @@ import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.UndoRedoProvider;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
@@ -76,8 +78,8 @@ import org.openide.windows.WindowManager;
 
 @MultiViewElement.Registration(
         displayName = "#LBL_G4_VISUAL",
-        iconBase = "org/nemesis/antlr/v4/netbeans/v8/grammar/file/antlr-g4-file-type.png",
-        mimeType = "text/x-g4",
+        iconBase = ICON_PATH,
+        mimeType = ANTLR_MIME_TYPE,
         persistenceType = TopComponent.PERSISTENCE_NEVER,
         preferredID = "G4Visual",
         position = 2000

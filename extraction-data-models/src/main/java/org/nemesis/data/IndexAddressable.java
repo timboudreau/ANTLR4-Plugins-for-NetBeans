@@ -1,12 +1,12 @@
 package org.nemesis.data;
 
-import org.nemesis.data.graph.BitSetHeteroObjectGraph;
-import org.nemesis.data.graph.BitSetGraph;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import org.nemesis.data.graph.BitSetGraph;
+import org.nemesis.data.graph.BitSetHeteroObjectGraph;
 
 /**
  * Base interface for collections of that can be indexed and represent a range

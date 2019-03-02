@@ -7,10 +7,10 @@ import java.util.TreeSet;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
 import javax.swing.text.StyleConstants;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -23,18 +23,17 @@ import org.openide.util.Exceptions;
  *
  * @author Tim Boudreau
  */
-final class AntlrNestingDepthHighlighter extends AbstractAntlrHighlighter.DocumentOriented<Void, ANTLRv4ParserResult, ANTLRv4SemanticParser> {
+final class AntlrNestingDepthHighlighter extends AbstractAntlrHighlighter.DocumentOriented<Void, ANTLRv4ParserResult, Extraction> {
 
     public AntlrNestingDepthHighlighter(Document doc) {
-        super(doc, ANTLRv4ParserResult.class, GET_SEMANTICS);
+        super(doc, ANTLRv4ParserResult.class, findExtraction());
     }
 
     Set<HighlightElement> lastElements;
 
-    public void refresh(Document doc, Void argument, ANTLRv4SemanticParser semantics, ANTLRv4ParserResult result) {
-        Extraction ext = semantics.extraction();
+    public void refresh(Document doc, Void argument, Extraction ext, ANTLRv4ParserResult result) {
         if (ext != null) {
-            SemanticRegions<Void> blocks = ext.regions(AntlrExtractor.BLOCKS);
+            SemanticRegions<Void> blocks = ext.regions(AntlrKeys.BLOCKS);
             Set<HighlightElement> els = new TreeSet<>();
             for (SemanticRegion<Void> block : blocks) {
                 int depth = block.nestingDepth();
@@ -133,7 +132,7 @@ final class AntlrNestingDepthHighlighter extends AbstractAntlrHighlighter.Docume
 
     public static AttributeSet coloring() {
         // Do not cache - user can edit these
-        MimePath mimePath = MimePath.parse("text/x-g4");
+        MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
         FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
         AttributeSet result = fcs.getTokenFontColors("nested_blocks");
         assert result != null : "nested_block missing from colors";

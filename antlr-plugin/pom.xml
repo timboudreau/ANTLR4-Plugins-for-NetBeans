@@ -37,10 +37,10 @@
         <developerConnection>git@github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
     </scm>
     <properties>
-        <module.display.category>ANTLR</module.display.category>
         <java.source.level>1.8</java.source.level>
-        <maven.test.skip>false</maven.test.skip>
-        <maven.test.skip.exec>false</maven.test.skip.exec>
+        <maven.test.skip>true</maven.test.skip>
+        <maven.test.skip.exec>true</maven.test.skip.exec>
+        <maven.compiler.verbose>true</maven.compiler.verbose>
     </properties>
     <dependencies>
         <dependency>
@@ -49,11 +49,55 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-wrapper</artifactId>
+            <!--<type>jar</type>-->
+            <!--<version>${project.version}</version>-->
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-highlighting</artifactId>
+            <version>${project.version}</version>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>extraction</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-input</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-input-nb</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-formatters</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-code-folding</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-spi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-common</artifactId>
+        </dependency>         
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>registration-annotation-processors</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.github.wumpz</groupId>
@@ -69,14 +113,6 @@
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4-runtime</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>antlr4</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.bcel</groupId>
@@ -325,6 +361,10 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.nemesis</groupId>
+            <artifactId>antlr-navigators</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -410,9 +450,18 @@
                 <artifactId>nbm-maven-plugin</artifactId>
                 <configuration>
                     <codeNameBase>org.nemesis.antlr.v4.netbeans.v8</codeNameBase>
-                    <cluster>extra</cluster>
                     <requiresRestart>true</requiresRestart>
                     <author>Frédéric Yvon Vinet, Tim Boudreau</author>
+                    <cluster>antlr</cluster>
+                    <nbmResources>
+                        <nbmResource>
+                            <directory>release/libs</directory>
+                            <targetPath>libs</targetPath>
+                            <includes>
+                                <include>*.jar</include>
+                            </includes>
+                        </nbmResource>
+                    </nbmResources>
                     <moduleDependencies>
                         <dependency>
                             <id>org.netbeans.api:org-apache-tools-ant-module</id>

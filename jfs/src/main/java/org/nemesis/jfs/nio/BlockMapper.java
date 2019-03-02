@@ -111,11 +111,11 @@ final class BlockMapper implements BlockStorage {
         private final Blocks blocks;
         private volatile int physicalSize;
 
-        public MappedBytes(Blocks blocks) {
+        MappedBytes(Blocks blocks) {
             this.blocks = blocks;
         }
 
-        public MappedBytes(Blocks blocks, int physicalSize) {
+        MappedBytes(Blocks blocks, int physicalSize) {
             this.blocks = blocks;
             this.physicalSize = physicalSize;
         }

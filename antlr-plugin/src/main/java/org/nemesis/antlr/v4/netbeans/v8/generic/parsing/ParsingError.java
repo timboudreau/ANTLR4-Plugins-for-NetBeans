@@ -28,13 +28,11 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package org.nemesis.antlr.v4.netbeans.v8.generic.parsing;
 
-import java.nio.file.Path;
-import java.util.Optional;
+import org.nemesis.source.api.GrammarSource;
 import org.netbeans.modules.csl.api.Error.Badging;
 import org.netbeans.modules.csl.api.Severity;
 
 import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
 
 /**
  * It is mandatory to implement Error.Badging rather than Error because, we want 
@@ -52,14 +50,16 @@ public class ParsingError implements Badging {
     protected String     description;
     
     public ParsingError
-        (FileObject fileObject             ,
+        (GrammarSource<?> src,
          Severity   severity               ,
          String     key                    ,
          int        parsingErrorStartOffset,
          int        parsingErrorEndOffset  ,
          String     displayName            ,
          String     description            ) {
-        this.fileObject = fileObject;
+        src.lookup(FileObject.class, fo -> {
+            this.fileObject = fo;
+        });
         this.severity = severity;
         this.key = key;
         this.parsingErrorStartOffset = parsingErrorStartOffset;
@@ -69,18 +69,14 @@ public class ParsingError implements Badging {
     }
 
     public ParsingError
-        (Optional<Path> path,
+        (FileObject fo,
          Severity   severity               ,
          String     key                    ,
          int        parsingErrorStartOffset,
          int        parsingErrorEndOffset  ,
          String     displayName            ,
          String     description            ) {
-        if (path.isPresent()) {
-            this.fileObject = FileUtil.toFileObject(path.get().toFile());
-        } else {
-            this.fileObject = null;
-        }
+        this.fileObject = fo;
         this.severity = severity;
         this.key = key;
         this.parsingErrorStartOffset = parsingErrorStartOffset;
@@ -89,7 +85,6 @@ public class ParsingError implements Badging {
         this.description = description;
     }
 
-    
  /**
   * @return Provide a short user-visible (and therefore localized) description
   * of this error
@@ -175,7 +170,7 @@ public class ParsingError implements Badging {
   */
     @Override
     public Object[] getParameters() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return new Object[0];
     }
 
     
@@ -184,7 +179,6 @@ public class ParsingError implements Badging {
         return true;
     }
     
-
     public boolean equals(ParsingError err) {
         boolean answer = true;
         if (!fileObject.equals(err.fileObject))

@@ -338,7 +338,7 @@ public class TimedCache<T, R, E extends Exception> {
         private final T key;
         private final R value;
 
-        public CacheEntry(T key, R value) {
+        CacheEntry(T key, R value) {
             this.key = key;
             this.value = value;
         }

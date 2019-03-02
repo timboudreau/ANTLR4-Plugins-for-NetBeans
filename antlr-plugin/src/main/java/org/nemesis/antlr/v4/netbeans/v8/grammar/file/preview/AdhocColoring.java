@@ -324,9 +324,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
         if (this.flags != other.flags) {
             return false;
         }
-        if (!Objects.equals(this.color, other.color)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.color, other.color);
     }
 }

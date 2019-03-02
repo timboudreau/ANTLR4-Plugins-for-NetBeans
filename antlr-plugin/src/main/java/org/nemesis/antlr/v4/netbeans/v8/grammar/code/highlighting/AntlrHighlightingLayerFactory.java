@@ -2,6 +2,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.highlighting;
 
 import java.util.function.Supplier;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
@@ -13,7 +14,7 @@ import org.netbeans.spi.editor.highlighting.ZOrder;
  * @author Tim Boudreau
  */
 @MimeRegistrations({
-    @MimeRegistration(mimeType = "text/x-g4", service = HighlightsLayerFactory.class)
+    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = HighlightsLayerFactory.class)
 })
 public class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
 

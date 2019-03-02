@@ -20,8 +20,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.mimeTypeForPath;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.POST_INIT;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrRunOption;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies;
@@ -29,15 +31,13 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.P
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.GenerateBuildAndRunGrammarResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ParseProxyBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
+import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.POST_INIT;
-import org.netbeans.api.project.Project;
 import org.openide.util.RequestProcessor;
 import org.openide.windows.WindowManager;
 
@@ -197,7 +197,7 @@ public class DynamicLanguageSupport {
                         new Object[]{grammarFile, loggableMimeType(mimeType)});
                 return null;
             }
-            return INSTANCE._registerGrammar(fo, text, text != null ? true : false, statusMonitor, reason);
+            return INSTANCE._registerGrammar(fo, text, (text != null), statusMonitor, reason);
         }
         return result;
     }
@@ -304,13 +304,13 @@ public class DynamicLanguageSupport {
         private final Supplier<String> supplier;
         private final String mimeType;
 
-        public TextContext(String mimeType, String text) {
+        TextContext(String mimeType, String text) {
             this(mimeType, () -> {
                 return text;
             });
         }
 
-        public TextContext(String mimeType, Supplier<String> supp) {
+        TextContext(String mimeType, Supplier<String> supp) {
             this.supplier = supp;
             this.mimeType = mimeType;
         }

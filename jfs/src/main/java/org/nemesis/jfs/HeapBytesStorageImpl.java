@@ -16,7 +16,7 @@ final class HeapBytesStorageImpl implements JFSBytesStorage {
     private volatile long lastModified = 0;
     private volatile boolean writing;
 
-    public HeapBytesStorageImpl(JFSStorage storage) {
+    HeapBytesStorageImpl(JFSStorage storage) {
         this.storage = storage;
     }
 

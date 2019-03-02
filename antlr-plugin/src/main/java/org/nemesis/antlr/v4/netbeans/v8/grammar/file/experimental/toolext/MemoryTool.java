@@ -41,15 +41,16 @@ public final class MemoryTool extends Tool {
     private final Location location;
     private final Path dir;
     private PrintStream logStream;
+    private static final String OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT = "vs2005";
 
     public MemoryTool(JFS jfs, Location location, Path dir, String... args) {
         super(args);
         this.jfs = jfs;
         this.location = location;
         this.dir = dir;
-        this.msgFormat = "vs2005";
+        this.msgFormat = OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT;
         this.errMgr = new ErrM(this);
-        errMgr.setFormat("vs2005");
+        errMgr.setFormat(msgFormat);
         grammarEncoding = jfs.encoding().name();
     }
 
@@ -58,7 +59,7 @@ public final class MemoryTool extends Tool {
     }
 
     public MemoryTool setLogStream(PrintStream printStream) {
-        this.logStream = logStream;
+        this.logStream = printStream;
         return this;
     }
 

@@ -20,7 +20,7 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
     private byte[] bytes;
     private volatile long lastModifiedAtLoad = 0;
 
-    public FileBytesStorageWrapper(JFSStorage storage, Path path) {
+    FileBytesStorageWrapper(JFSStorage storage, Path path) {
         this.storage = storage;
         this.path = path;
     }

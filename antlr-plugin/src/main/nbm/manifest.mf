@@ -4,3 +4,5 @@ OpenIDE-Module: org.nemesis.antlr.v4.netbeans.v8/1
 OpenIDE-Module-Implementation-Version: 1
 OpenIDE-Module-Layer: org/nemesis/antlr/v4/netbeans/v8/layer.xml
 OpenIDE-Module-Localizing-Bundle: org/nemesis/antlr/v4/netbeans/v8/Bundle.properties
+OpenIDE-Module-Needs: org.nemesis.grammar.source.Nb
+

@@ -33,7 +33,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter.DocumentOrie
 
     public static AttributeSet coloring() {
         // Do not cache - user can edit these
-//        MimePath mimePath = MimePath.parse("text/x-g4");
+//        MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
 //        FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
 //        AttributeSet result = fcs.getFontColors("nested_blocks");
 //        assert result != null : "nested_block missing from colors";

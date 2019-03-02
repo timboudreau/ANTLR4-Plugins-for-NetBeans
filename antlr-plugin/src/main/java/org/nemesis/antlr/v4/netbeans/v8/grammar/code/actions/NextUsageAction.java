@@ -12,12 +12,14 @@ import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
+import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.netbeans.api.editor.EditorActionRegistration;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.modules.parsing.api.ParserManager;
@@ -69,7 +71,7 @@ public class NextUsageAction extends BaseAction {
                         NBANTLRv4Parser.ANTLRv4ParserResult pr = (NBANTLRv4Parser.ANTLRv4ParserResult) res;
                         ANTLRv4SemanticParser semantics = pr.semanticParser();
                         Extraction ext = semantics.extraction();
-                        NamedSemanticRegion<RuleTypes> caretToken = ext.regionOrReferenceAt(caret, AntlrExtractor.RULE_NAMES, AntlrExtractor.RULE_NAME_REFERENCES);
+                        NamedSemanticRegion<RuleTypes> caretToken = ext.regionOrReferenceAt(caret, AntlrKeys.RULE_NAMES, AntlrKeys.RULE_NAME_REFERENCES);
                         if (caretToken != null) {
                             moveCaretToNext(caretToken, doc, jtc, ext, caret);
                         } else {
@@ -97,12 +99,12 @@ public class NextUsageAction extends BaseAction {
     }
 
     private void moveCaretToNext(NamedSemanticRegion<RuleTypes> caretToken, Document doc, JTextComponent jtc, Extraction ext, int caret) {
-        NamedRegionReferenceSets<RuleTypes> refs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
-        NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> refSet = refs.references(caretToken.name());
+        NamedRegionReferenceSets<RuleTypes> refs = ext.nameReferences(AntlrKeys.RULE_NAME_REFERENCES);
+        NamedRegionReferenceSet<RuleTypes> refSet = refs.references(caretToken.name());
         List<NamedSemanticRegion<RuleTypes>> regions = new ArrayList<>();
         refSet.collectItems(regions);
         regions.add(caretToken);
-        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
         if (nameds.contains(caretToken.name())) {
             NamedSemanticRegion<RuleTypes> declaration = nameds.regionFor(caretToken.name());
             if (declaration != null) {

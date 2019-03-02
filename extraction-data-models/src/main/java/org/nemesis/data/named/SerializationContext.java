@@ -87,7 +87,7 @@ public final class SerializationContext implements Serializable {
 
         private final short[] keys;
 
-        public ArrayCacheKey(short[] keys) {
+        ArrayCacheKey(short[] keys) {
             this.keys = keys;
         }
 

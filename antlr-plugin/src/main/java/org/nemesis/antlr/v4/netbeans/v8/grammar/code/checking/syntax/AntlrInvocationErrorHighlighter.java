@@ -15,9 +15,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.v4.netbeans.v8.AntlrFolders;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrLibrary;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrSourceGenerationResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
@@ -52,7 +52,7 @@ public class AntlrInvocationErrorHighlighter extends ParserResultTask<NBANTLRv4P
 
     private Future<?> future;
 
-    @MimeRegistration(mimeType = "text/x-g4", service = TaskFactory.class)
+    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = TaskFactory.class)
     public static class Factory extends TaskFactory {
 
         @Override
@@ -110,7 +110,6 @@ public class AntlrInvocationErrorHighlighter extends ParserResultTask<NBANTLRv4P
                 }
                 FileObject fo = t.getSnapshot().getSource().getFileObject();
                 if (fo != null) {
-                    ANTLRv4SemanticParser sem = t.semanticParser();
                     Path sourceFile = FileUtil.toFile(fo).toPath();
                     AntlrLibrary lib = AntlrLibrary
                             .forOwnerOf(sourceFile);

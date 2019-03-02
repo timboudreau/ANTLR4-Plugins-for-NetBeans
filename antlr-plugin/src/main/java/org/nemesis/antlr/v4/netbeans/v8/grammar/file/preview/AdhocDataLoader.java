@@ -90,7 +90,7 @@ public class AdhocDataLoader extends DataLoader implements BiConsumer<String, St
         private final Map<FileObject, DataObject> files = Collections.synchronizedMap(new HashMap<>());
         private final Set<FileObject> toReopen = new HashSet<>();
 
-        public MimeTypeUpdaterForFilesAndDataObjects(String ext, String mimeType) {
+        MimeTypeUpdaterForFilesAndDataObjects(String ext, String mimeType) {
             this.ext = ext;
             this.mimeType = mimeType;
         }

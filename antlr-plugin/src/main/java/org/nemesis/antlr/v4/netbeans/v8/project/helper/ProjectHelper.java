@@ -66,6 +66,7 @@ import org.nemesis.antlr.v4.netbeans.v8.project.ProjectType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaSourceType;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaClassHelper;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaSourceClass;
+import org.nemesis.source.api.GrammarSource;
 
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.ClassPath.Entry;
@@ -95,6 +96,54 @@ import org.openide.util.Lookup;
 public class ProjectHelper {
 
     private static final String[] ANTLR_EXTENSIONS = {"g4", "g", "G4", "G"};
+
+    public static Optional<Path> findTokensFile(String name, GrammarSource<?> src) {
+        Optional<Path> grammarFilePathOpt = src.lookup(Path.class);
+        // If no path, we're dealing with in-memory documents or similar
+        if (grammarFilePathOpt.isPresent()) {
+            // First try looking next to the grammar file we're parsing
+            Optional<Project> projectOpt = src.lookup(Project.class);
+            Path grammarParent = grammarFilePathOpt.get().getParent();
+            Path tokensFileProposal = grammarParent.resolve(name + ".tokens");
+            if (Files.exists(grammarParent.resolve(name + ".tokens"))) {
+                return Optional.of(tokensFileProposal);
+            }
+            // Then try the import dir
+            Optional<Path> importDirOpt = AntlrFolders.IMPORT.getPath(projectOpt, grammarFilePathOpt);
+            if (importDirOpt.isPresent()) {
+                tokensFileProposal = importDirOpt.get().resolve(tokensFileProposal.getFileName());
+                if (Files.exists(tokensFileProposal)) {
+                    return Optional.of(tokensFileProposal);
+                }
+            }
+            Optional<Path> outputDirOpt = AntlrFolders.OUTPUT.getPath(projectOpt, grammarFilePathOpt);
+            Optional<Path> srcDirOpt = AntlrFolders.SOURCE.getPath(projectOpt, grammarFilePathOpt);
+            // Then try the output dir, same package as the input
+
+            // XXX - if the grammar specifies a Java package name, we probably
+            // need to look in the relative directory for that.  Since it can
+            // also be specified as a command-line argument, this probably means
+            // parsing the project configuration and trying to find it as a
+            // parameter
+            if (outputDirOpt.isPresent() && srcDirOpt.isPresent()) {
+                Path outputDir = outputDirOpt.get();
+                Path sourceDir = srcDirOpt.get();
+                Path relativeSourceDir = sourceDir.relativize(grammarParent);
+                Path destDir;
+                if (relativeSourceDir.getNameCount() > 0) {
+                    destDir = outputDir.resolve(relativeSourceDir);
+                } else {
+                    destDir = outputDir;
+                }
+                tokensFileProposal = destDir.resolve(tokensFileProposal.getFileName());
+                if (Files.exists(tokensFileProposal)) {
+                    return Optional.of(tokensFileProposal);
+                }
+            }
+
+        }
+        return Optional.empty();
+    }
 
     private static Optional<Path> findSiblingGrammar(Path path, String nameNoExtension) {
         return findChildGrammarFile(path.getParent(), nameNoExtension);
@@ -270,6 +319,90 @@ public class ProjectHelper {
         return result.isPresent() ? result.get().toFile() : null;
     }
 
+    private static Iterable<Path> possibleClassFileNames(String fqn) {
+        return new ClassFileNameIterable(fqn);
+    }
+
+    public static Optional<Path> getJavaSourceFile(String fqn, GrammarSource<?> relativeTo) {
+        Optional<Project> project = relativeTo.lookup(Project.class);
+        if (project.isPresent()) {
+            return getJavaSourceFile(fqn, project.get());
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Path> getJavaSourceFile(String fqn, Project project) {
+        String relativeSourcePath = fqn.replace('.', '/') + ".java";
+        Optional<Path> outputDirOpt = AntlrFolders.OUTPUT.getPath(Optional.of(project));
+        if (outputDirOpt.isPresent()) {
+            Path outputDir = outputDirOpt.get();
+            Path sourceFileProposal = outputDir.resolve(relativeSourcePath);
+            if (Files.exists(sourceFileProposal)) {
+                return Optional.of(sourceFileProposal);
+            }
+        }
+        Path srcDir = getJavaSourceDir(project).toPath();
+        Path sourceFileProposal = srcDir.resolve(relativeSourcePath);
+        if (Files.exists(sourceFileProposal)) {
+            return Optional.of(sourceFileProposal);
+        }
+        Path relativeClassFile = getRootRelativeJavaClassFile(fqn, project);
+        if (relativeClassFile != null) {
+            String fn = relativeClassFile.getFileName().toString();
+            int ix = fn.indexOf('$');
+            if (ix > 0) {
+                fn = fn.substring(0, ix);
+            } else if (fn.endsWith(".class")) {
+                fn = fn.substring(0, fn.length() - 6);
+            }
+            Path packagePath = relativeClassFile.getParent();
+            Path sourceRelativePath = packagePath.resolve(fn + ".java");
+            if (Files.exists(srcDir.resolve(sourceRelativePath))) {
+                return Optional.of(srcDir.resolve(sourceRelativePath));
+            }
+            if (outputDirOpt.isPresent()) {
+                Path outputDir = outputDirOpt.get();
+                sourceFileProposal = outputDir.resolve(sourceRelativePath);
+                if (Files.exists(sourceFileProposal)) {
+                    return Optional.of(sourceFileProposal);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Path> getJavaClassFile(String fqn, GrammarSource<?> relativeTo) {
+        Optional<Project> prj = relativeTo.lookup(Project.class);
+        if (prj.isPresent()) {
+            return getJavaClassFile(fqn, prj.get());
+        }
+        return Optional.empty();
+    }
+
+    public static Path getRootRelativeJavaClassFile(String fqn, Project project) {
+        Path buildDir = ProjectHelper.getJavaBuildDirectory(project).toPath();
+        if (Files.exists(buildDir)) {
+            // XXX when the project has been cleaned, this test will fail -
+            // so hyperlinks to sources that are inner classes may appear
+            // and disappear
+            for (Path candidate : possibleClassFileNames(fqn)) {
+                Path proposedClassFile = buildDir.resolve(candidate);
+                if (Files.exists(proposedClassFile)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+    public static Optional<Path> getJavaClassFile(String fqn, Project project) {
+        Path candidate = getRootRelativeJavaClassFile(fqn, project);
+        if (candidate != null) {
+            Path buildDir = ProjectHelper.getJavaBuildDirectory(project).toPath();
+            return Optional.of(buildDir.resolve(candidate));
+        }
+        return null;
+    }
+
     public static File getJavaSourceDir(Project project) {
         assert project != null;
         ProjectType projectType = getProjectType(project);
@@ -279,6 +412,8 @@ public class ProjectHelper {
                 javaSrcDir = AntBasedProjectHelper.getAntProjectProperty(project, "src.dir");
                 break;
             case MAVEN_BASED:
+                // XXX should really parse the pom here - this can be altered by
+                // the <build> section and sometimes is in legacy projects
                 javaSrcDir = "src/main/java";
                 break;
             default:
@@ -696,7 +831,7 @@ public class ProjectHelper {
     public static List<String> retrieveJavaClassesExtendingANTLRParser(Project project) {
         assert project != null;
         File javaSourceDir = getJavaSourceDir(project);
-        Path javaSrcDirPath = Paths.get(javaSourceDir.getPath());
+        Path javaSrcDirPath = javaSourceDir.toPath();
         List<String> answer = retrieveProjectJavaClassesExtendingANTLRParser(project, javaSrcDirPath);
         List<String> answer2 = retrieveLibraryJavaClassesExtendingANTLRParser(project);
         answer.addAll(answer2);

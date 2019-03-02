@@ -9,6 +9,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import static org.nemesis.antlr.common.AntlrConstants.WRAPPER_MODULE_CNB;
 import org.openide.modules.InstalledFileLocator;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -31,7 +32,7 @@ public final class DefaultAntlrLibrary implements AntlrLibrary {
         URL[] result = new URL[LIB_FILES.length];
         for (int i = 0; i < LIB_FILES.length; i++) {
             String libPath = "libs/" + LIB_FILES[i];
-            File file = loc.locate(libPath, "org.nemesis.antlr.v4.netbeans.v8", false);
+            File file = loc.locate(libPath, WRAPPER_MODULE_CNB, false);
             if (file == null) {
                 throw new IllegalStateException("Failed to locate " + libPath
                         + " relative to module with " + loc);
@@ -44,5 +45,4 @@ public final class DefaultAntlrLibrary implements AntlrLibrary {
         }
         return result;
     }
-
 }

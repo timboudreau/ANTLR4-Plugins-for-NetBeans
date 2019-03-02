@@ -37,7 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.text.Document;
-import org.nemesis.antlr.v4.netbeans.v8.AbstractFileObjectGrammarSourceImplementation;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4LanguageHierarchy;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.coloring.ANTLRv4TokenId;
 
@@ -45,20 +46,22 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ImportKinds;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
+import org.nemesis.antlr.common.extractiontypes.ImportKinds;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegionReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.AttributedForeignNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.UnknownNameReference;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.src.GrammarSource;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.formatting.AntlrFormatter;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.UnknownNameReference;
+import org.nemesis.source.api.GrammarSource;
+import org.nemesis.antlrformatting.api.AntlrFormatters;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.NamedRegionReferenceSet;
 
 import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.csl.api.CodeCompletionHandler;
@@ -83,7 +86,7 @@ import org.netbeans.modules.parsing.spi.SchedulerEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
 
-@LanguageRegistration(mimeType = "text/x-g4")
+@LanguageRegistration(mimeType = ANTLR_MIME_TYPE)
 public class GrammarFileLanguage extends DefaultLanguageConfig {
 
     @Override
@@ -146,8 +149,8 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                 Extraction ex = sem.extraction();
                 if (ex != null) {
                     // First see if the caret is in a rule definition's name
-                    NamedSemanticRegion<?> el = ex.namedRegions(AntlrExtractor.RULE_NAMES).at(pos);
-                    NamedRegionReferenceSets<RuleTypes> refs = ex.references(AntlrExtractor.RULE_NAME_REFERENCES);
+                    NamedSemanticRegion<?> el = ex.namedRegions(AntlrKeys.RULE_NAMES).at(pos);
+                    NamedRegionReferenceSets<RuleTypes> refs = ex.references(AntlrKeys.RULE_NAME_REFERENCES);
                     if (el == null && refs != null) {
                         // If not, see if the caret is on a reference name
                         el = refs.at(pos);
@@ -156,13 +159,13 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                         // If we were in a name or reference to one, highlight
                         // its declaration and all references
                         String name = el.name();
-                        NamedSemanticRegion<?> decl = ex.namedRegions(AntlrExtractor.RULE_NAMES).regionFor(name);
+                        NamedSemanticRegion<?> decl = ex.namedRegions(AntlrKeys.RULE_NAMES).regionFor(name);
                         if (decl != null) {
                             occurrences.put(toOffsetRange(decl), ColoringAttributes.MARK_OCCURRENCES);
                         }
                         if (refs != null) {
                             // Highlight reference occurrences
-                            NamedRegionReferenceSets.NamedRegionReferenceSet<RuleTypes> refsToName = refs.references(name);
+                            NamedRegionReferenceSet<RuleTypes> refsToName = refs.references(name);
                             if (refsToName != null && refsToName.size() > 0) {
                                 for (NamedSemanticRegionReference<RuleTypes> ref : refsToName) {
                                     occurrences.put(toOffsetRange(ref), ColoringAttributes.MARK_OCCURRENCES);
@@ -176,7 +179,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                     } else {
                         // Not a name, but we might be in a foreign (unresolved) name reference, so
                         // check for that
-                        SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = ex.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
+                        SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = ex.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
                         SemanticRegion<UnknownNameReference<RuleTypes>> reg = unknowns.at(pos);
                         if (reg != null) {
                             List<? extends SemanticRegion<UnknownNameReference<RuleTypes>>> others = unknowns.collect(r -> {
@@ -218,12 +221,12 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
 
     @Override
     public Formatter getFormatter() {
-        return new AntlrFormatter();
+        return AntlrFormatters.forMimeType(ANTLR_MIME_TYPE);
     }
 
     @Override
     public boolean hasFormatter() {
-        return true;
+        return AntlrFormatters.hasFormatter(ANTLR_MIME_TYPE);
     }
 
     @Override
@@ -245,9 +248,9 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                 ANTLRv4SemanticParser sem = res.semanticParser();
                 if (sem != null) {
                     Extraction ext = sem.extraction();
-                    NamedSemanticRegion<RuleTypes> elem = ext.namedRegions(AntlrExtractor.RULE_NAMES).at(pos);
+                    NamedSemanticRegion<RuleTypes> elem = ext.namedRegions(AntlrKeys.RULE_NAMES).at(pos);
                     if (elem == null) {
-                        elem = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES).at(pos);
+                        elem = ext.nameReferences(AntlrKeys.RULE_NAME_REFERENCES).at(pos);
                     }
                     if (elem != null) {
                         switch (elem.kind()) {
@@ -269,9 +272,9 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                 ANTLRv4SemanticParser sem = res.semanticParser();
                 if (sem != null) {
                     Extraction ext = sem.extraction();
-                    NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+                    NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
                     NamedSemanticRegion<RuleTypes> elem = nameds.at(pos);
-                    NamedRegionReferenceSets<RuleTypes> refs = ext.nameReferences(AntlrExtractor.RULE_NAME_REFERENCES);
+                    NamedRegionReferenceSets<RuleTypes> refs = ext.nameReferences(AntlrKeys.RULE_NAME_REFERENCES);
                     if (elem == null) {
                         elem = refs.at(pos);
                     }
@@ -320,12 +323,12 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                 if (sem != null) {
                     Extraction extractions = sem.extraction();
                     // First check references
-                    NamedRegionReferenceSets<RuleTypes> refs = extractions.references(AntlrExtractor.RULE_NAME_REFERENCES);
+                    NamedRegionReferenceSets<RuleTypes> refs = extractions.references(AntlrKeys.RULE_NAME_REFERENCES);
                     NamedSemanticRegionReference<RuleTypes> ref = refs.at(pos);
                     if (ref != null) {
                         return locationFrom(file, ref.referencing());
                     }
-                    SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = extractions.unknowns(AntlrExtractor.RULE_NAME_REFERENCES);
+                    SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = extractions.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
                     SemanticRegion<UnknownNameReference<RuleTypes>> unknownRefRegion = unknowns.at(pos);
                     if (unknownRefRegion != null) {
                         UnknownNameReference<RuleTypes> unknownRef = unknownRefRegion.key();
@@ -343,7 +346,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                             Exceptions.printStackTrace(ex);
                         }
                     }
-                    NamedSemanticRegions<ImportKinds> imports = extractions.namedRegions(AntlrExtractor.IMPORTS);
+                    NamedSemanticRegions<ImportKinds> imports = extractions.namedRegions(AntlrKeys.IMPORTS);
                     NamedSemanticRegion<ImportKinds> importItem = imports.at(pos);
                     if (importItem != null) {
                         GrammarSource<?> src = extractions.resolveRelative(importItem.name());
@@ -468,7 +471,7 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
                     ANTLRv4SemanticParser sem = res.semanticParser();
                     if (sem != null) {
                         Extraction extraction = sem.extraction();
-                        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrExtractor.RULE_NAMES);
+                        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrKeys.RULE_NAMES);
                         if (names.contains(getName())) {
                             return toOffsetRange(names.regionFor(getName()));
                         }
@@ -484,6 +487,5 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
             // position, return the span
             return OffsetRange.NONE;
         }
-
     }
 }

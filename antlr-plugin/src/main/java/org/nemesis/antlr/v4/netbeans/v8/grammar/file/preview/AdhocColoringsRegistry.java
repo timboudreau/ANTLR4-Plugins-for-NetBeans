@@ -25,16 +25,19 @@ import java.util.logging.Logger;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.text.BadLocationException;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.ANTLRv4GrammarChecker;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.ANTLRv4SemanticParser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.RuleTypes;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.Extraction;
-import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.loggableMimeType;
+import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.source.api.GrammarSource;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -43,8 +46,6 @@ import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 import org.openide.util.lookup.ServiceProvider;
-import org.nemesis.data.graph.StringGraph;
-import org.nemesis.data.named.NamedSemanticRegion;
 
 /**
  *
@@ -165,7 +166,7 @@ public final class AdhocColoringsRegistry {
             // manager, but it is much more expensive - only done once
             // on initialization, but still - should have a way to get a
             // cached result
-            ANTLRv4GrammarChecker checker = NBANTLRv4Parser.parse(path);
+            ANTLRv4GrammarChecker checker = NBANTLRv4Parser.parse(GrammarSource.find(path, ANTLR_MIME_TYPE));
             update(checker.getSemanticParser(), mimeType);
 //            ParserManager.parse(Collections.singleton(Source.create(FileUtil.toFileObject(path.toFile()))), new UserTask() {
 //                @Override
@@ -193,7 +194,7 @@ public final class AdhocColoringsRegistry {
         importantRules.addAll(tree.bottomLevelRules());
 
         Extraction ext = sem.extraction();
-        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrExtractor.RULE_NAMES);
+        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
         for (NamedSemanticRegion<RuleTypes> decl : nameds) {
             String id = decl.name();
             if (existing.contains(id)) {

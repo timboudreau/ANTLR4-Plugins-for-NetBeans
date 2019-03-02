@@ -30,6 +30,7 @@ package org.nemesis.antlr.v4.netbeans.v8.project.action;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.AntBasedProject;
 import org.nemesis.antlr.v4.netbeans.v8.project.MavenBasedProject;
@@ -61,7 +62,7 @@ import org.openide.windows.OutputWriter;
         id = "org.nemesis.antlr.v4.netbeans.v8.project.action.AddANTLRSupport"
 )
 @ActionRegistration(
-        iconBase = "org/nemesis/antlr/v4/netbeans/v8/grammar/file/antlr-g4-file-type.png",
+        iconBase = ICON_PATH,
         displayName = "#CTL_AddANTLRSupport"
 )
 @ActionReference(

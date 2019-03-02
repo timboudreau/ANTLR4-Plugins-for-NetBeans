@@ -103,7 +103,7 @@ final class BlockManager {
         return result;
     }
 
-    protected int expand(int minimumBlocks) throws IOException {
+    int expand(int minimumBlocks) throws IOException {
         return lock.underWriteLockIntIO(() -> {
             return _expand(minimumBlocks);
         });

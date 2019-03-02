@@ -488,7 +488,7 @@ public class MavenBasedProject extends J2SEProjectToBeAdapted {
         out.write(LINE_TERMINATOR.getBytes());
         out.write((prefix + "            <artifactId>antlr4-maven-plugin</artifactId>").getBytes());
         out.write(LINE_TERMINATOR.getBytes());
-        out.write((prefix + "            <version>4.6</version>").getBytes());
+        out.write((prefix + "            <version>4.7.2</version>").getBytes());
         out.write(LINE_TERMINATOR.getBytes());
         out.write((prefix + "            <type>maven-plugin</type>").getBytes());
         out.write(LINE_TERMINATOR.getBytes());

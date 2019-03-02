@@ -16,7 +16,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.AbstractAntlrNavigatorPanel;
+import org.nemesis.antlr.common.AntlrConstants;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.rawGrammarNameForMimeType;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.DATA_OBJECT_INIT;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.Reason.OPEN_DATA_OBJECT;
@@ -143,7 +143,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         private static final long serialVersionUID = 1;
         final String mimeType;
 
-        public DES(DataObject d, String mimeType) {
+        DES(DataObject d, String mimeType) {
             super(d, d.getLookup(), new DEnv(d));
             super.setMIMEType(mimeType);
             this.mimeType = mimeType;
@@ -181,7 +181,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
         private static final long serialVersionUID = 1;
 
-        public DEnv(DataObject obj) {
+        DEnv(DataObject obj) {
             super(obj);
         }
 
@@ -391,7 +391,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             this(obj, new ShowGrammarChildren(obj));
         }
 
-        public AdhocDataNode(AdhocDataObject obj, Children ch) {
+        AdhocDataNode(AdhocDataObject obj, Children ch) {
             super(obj, ch);
             FileObject fo = findGrammarFile();
             hasGrammarFile = fo != null;
@@ -510,7 +510,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
         @Override
         public Image getIcon(int type) {
-            return ImageUtilities.icon2Image(AbstractAntlrNavigatorPanel.parserIcon());
+            return ImageUtilities.icon2Image(AntlrConstants.parserIcon());
         }
 
         @Override
@@ -550,7 +550,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         private final AdhocDataObject obj;
         private static final String GRAMMAR_KEY = "grammar";
 
-        public ShowGrammarChildren(AdhocDataObject obj) {
+        ShowGrammarChildren(AdhocDataObject obj) {
             super(true);
             this.obj = obj;
         }
@@ -614,7 +614,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
 
         @Override
         public Image getIcon(int type) {
-            return ImageUtilities.loadImage("org/nemesis/antlr/v4/netbeans/v8/grammar/file/antlr-g4-file-type.png");
+            return ImageUtilities.loadImage(AntlrConstants.ICON_PATH);
         }
     }
 }

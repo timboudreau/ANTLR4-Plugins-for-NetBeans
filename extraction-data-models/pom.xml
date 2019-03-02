@@ -7,5 +7,40 @@
         <version>2.0</version>
     </parent>
     <artifactId>extraction-data-models</artifactId>
-    <packaging>jar</packaging>
+    <packaging>nbm</packaging>
+    <properties>
+        <maven.test.skip>false</maven.test.skip>
+        <maven.test.skip.exec>false</maven.test.skip.exec>
+    </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>nbm-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <cluster>antlr</cluster>
+                    <moduleType>autoload</moduleType>
+                    <useOSGiDependencies>false</useOSGiDependencies>
+                    <publicPackages>
+                        <publicPackage>org.nemesis.data</publicPackage>
+                        <publicPackage>org.nemesis.data.graph</publicPackage>
+                        <publicPackage>org.nemesis.data.named</publicPackage>
+                    </publicPackages>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>

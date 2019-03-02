@@ -11,7 +11,7 @@ import javax.tools.JavaFileManager;
  */
 final class JFSJavaFileObjectImpl extends JFSFileObjectImpl implements JFSJavaFileObject {
 
-    public JFSJavaFileObjectImpl(JFSBytesStorage storage, JavaFileManager.Location location, Name name, Charset encoding) {
+    JFSJavaFileObjectImpl(JFSBytesStorage storage, JavaFileManager.Location location, Name name, Charset encoding) {
         super(storage, location, name, encoding);
     }
 

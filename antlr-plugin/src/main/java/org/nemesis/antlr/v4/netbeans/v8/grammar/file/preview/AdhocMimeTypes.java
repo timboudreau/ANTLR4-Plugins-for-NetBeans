@@ -27,18 +27,18 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.InvalidMimeTypeRegistrationException.Reason;
 import org.nemesis.misc.utils.TimedCache;
 import org.nemesis.misc.utils.TimedCache.BidiCache;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.util.EditableProperties;
-import org.openide.util.RequestProcessor;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.InvalidMimeTypeRegistrationException.Reason;
 import org.openide.loaders.DataLoader;
 import org.openide.loaders.DataLoaderPool;
+import org.openide.util.EditableProperties;
 import org.openide.util.Parameters;
+import org.openide.util.RequestProcessor;
 
 /**
  * As a way to freely pass references to a grammar file throughout the vast
@@ -149,10 +149,7 @@ public class AdhocMimeTypes {
             return false;
         }
         FileObject fo = FileUtil.getConfigFile("Editors/" + mimeType);
-        if (fo != null) {
-            return false;
-        }
-        return true;
+        return fo == null;
     }
 
     public static void validatePotentialRegistration(String extension, String mimeType) throws InvalidMimeTypeRegistrationException {
@@ -495,7 +492,7 @@ public class AdhocMimeTypes {
                 return ALL_MIME_TYPES_CATEGORY + "x-" + raw.toLowerCase()
                         + "-" + pathHashString(p);
             }
-            int ix = s.lastIndexOf("-");
+            int ix = s.lastIndexOf('-');
             String result = s.substring(0, ix);
             if (result.length() > 1) {
                 if (result.charAt(result.length() - 1) == '-') {

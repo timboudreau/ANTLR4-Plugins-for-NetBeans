@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.nemesis</groupId>
+        <artifactId>antlr-netbeans-parent</artifactId>
+        <version>2.0</version>
+    </parent>
+    <artifactId>antlr-common</artifactId>
+    <packaging>nbm</packaging>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>nbm-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <author>Tim Boudreau</author>
+                    <useOSGiDependencies>false</useOSGiDependencies>
+                    <moduleType>autoload</moduleType>
+                    <publicPackages>
+                        <publicPackage>org.nemesis.antlr.common</publicPackage>
+                        <publicPackage>org.nemesis.antlr.common.extractiontypes</publicPackage>
+                    </publicPackages>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <dependencies>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-api-annotations-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util-ui</artifactId>
+            <version>RELEASE100-dev</version>
+            <type>jar</type>
+        </dependency>
+    </dependencies>
+</project>

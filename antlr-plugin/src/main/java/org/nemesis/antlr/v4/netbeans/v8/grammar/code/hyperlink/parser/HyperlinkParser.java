@@ -30,7 +30,6 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.hyperlink.parser;
 
 import java.io.File;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import javax.swing.text.Document;
 
 import org.antlr.v4.runtime.Token;
 
@@ -68,27 +66,23 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TerminalContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenLabelTypeSpecContext;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.TokenVocabSpecContext;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrExtractor.MISSING_ID;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarSummary;
 
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
-
+import org.nemesis.source.api.GrammarSource;
+import org.nemesis.source.api.ParsingBag;
 import org.netbeans.api.project.Project;
-
-import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
 
 /**
  *
  * @author Frédéric Yvon Vinet
  */
 public class HyperlinkParser extends ANTLRv4BaseListener {
-    private final Document       doc;
-    private final FileObject     docFO;
     private final GrammarSummary summary;
     private final Hyperlinks     links;
     
-    private final Optional<Project>        project;
     
     private final List<String>                 javaImports;
     
@@ -118,22 +112,22 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
     private final Map<String, Integer>         allParserRuleIdStartOffsets;
     private final Map<String, Integer>         allParserRuleIdEndOffsets;
     private final Map<String, String>          allParserRuleIdFilePaths;
-    
+    private final ParsingBag bag;
     
     public HyperlinkParser
-            (Document                     doc) {
-        assert null != doc;
-        this.doc = doc;
+            (ParsingBag  bag) {
+        assert null != bag : "bag null";
+        this.bag = bag;
+        this.summary = bag.get(GrammarSummary.class);
+        assert summary != null : "summary not present in parsing bag";
         this.links = new Hyperlinks();
-        this.summary = (GrammarSummary) doc.getProperty(GrammarSummary.class);
-     // If doc has a previous hyperlinks then it is overwritten
-        this.doc.putProperty(Hyperlinks.class, links);
+        // If doc has a previous hyperlinks then it is overwritten
+        bag.put(Hyperlinks.class, links);
+
      // We recover the FileObject of the current document
-        this.docFO = ProjectHelper.getFileObject(doc);
         
      // We will need to know in which project we are for being able to determine
      // the project type (ant-based or Maven-based)
-        this.project = ProjectHelper.getProject(doc);
         this.javaImports = summary.getJavaImports();
         
         this.allTokenIds = new ArrayList<>();
@@ -224,30 +218,17 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
         
             if (!targetWord.equals("<missing ID>")) {
                 String importedGrammarName = ic.getText();
-                StringBuilder importedGrammarFileName = new StringBuilder();
-                importedGrammarFileName.append(importedGrammarName);
-                importedGrammarFileName.append(".g4");
 
-                if (docFO == null) {
+                GrammarSource<?> importedSource = bag.source().resolveImport(importedGrammarName);
+                if (importedSource == null) {
 //                    System.out.println("NO docFO in HyperlinkParser " + this);
                     return;
                 }
-
-             // We recover the directory of the current document
-                FileObject docDirFO = docFO.getParent();
-                String docAbsoluteDir = docDirFO.getPath();
-        
-             // We recover the file we want to open in: 
-             // - the same directory as current grammar file or in 
-             //   antlr.generator.import.dir directory if it is an ant-based project,
-             // - the same directory as current grammar file or in 
-             //   src/main/antlr4/imports directory if it is a Maven-Based project.
-     
-             // Step 1: We recover the file in the same directory as current grammar
-             // file
-                Path importedGrammarFilePath = Paths.get
-                                           (docAbsoluteDir                    ,
-                                            importedGrammarFileName.toString());
+                Optional<Path> importedGrammarFilePathOpt = importedSource.lookup(Path.class);
+                if (!importedGrammarFilePathOpt.isPresent()) {
+                    return;
+                }
+                Path importedGrammarFilePath = importedGrammarFilePathOpt.get();
                 File importedGrammarFile = importedGrammarFilePath.toFile();
                 Hyperlink link = new Hyperlink(start                    ,
                                                end                      , 
@@ -256,23 +237,6 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
                                                targetWord               ,
                                                0                        );
                 links.addLink(link);
-        
-             // Step 2: We recover it in import directory
-                Optional<Path> importDir = AntlrFolders.IMPORT.getPath(                        project, Optional.of(FileUtil.toFile(docFO).toPath()));
-                if (importDir.isPresent()) {
-                    String importedGrammarDir = importDir.get().toString();
-                    Path importedGrammarPath = Paths.get
-                                           (importedGrammarDir                ,
-                                            importedGrammarFileName.toString());
-                    importedGrammarFile = importedGrammarPath.toFile();
-                    link = new Hyperlink(start                    ,
-                                 end                      , 
-                                 HyperlinkCategory.GRAMMAR,
-                                 importedGrammarFile      ,
-                                 targetWord               ,
-                                 0                        );
-                    links.addLink(link);
-                }
             }
         }
     }
@@ -284,12 +248,27 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
   */
     @Override
     public void exitSuperClassSpec(SuperClassSpecContext ctx) {
+        Optional<Path> sourceFolder = AntlrFolders.SOURCE.getPath(bag.source().lookup(Project.class), bag.source().lookup(Path.class));
+
+        Optional<Project> projectOpt = bag.source().lookup(Project.class);
+        if (!projectOpt.isPresent()) {
+            return;
+        }
+        Project project = projectOpt.get();
+
+        // XXX it is very clear that the original version of this code never
+        // worked and never was tested - fullQualifiedImportedTokenClass.replace(".", "/") was
+        // never going to work as intended ("." will replace the first character in the string
+        // and nothing more).  This code also will not hyperlink correctly if the
+        // file is in a JAR on the classpath.  Perhaps we should delete all of it.
+
+        
 //        System.out.println("HyperlinkParser:exitSuperClassSpec() : begin");
      // A class identifier may contain a package name so identifier returns
      // a list of identifiers
         ClassIdentifierContext cic = ctx.classIdentifier();
         if (cic != null) {
-            if (!cic.identifier(0).getText().equals("<missing ID>")) {
+            if (!MISSING_ID.equals(cic.identifier(0).getText())) {
                 int targetStart = cic.getStart().getStartIndex();
                 int targetEnd   = cic.getStop().getStopIndex() + 1;
 //                System.out.println("- target start =" + targetStart);
@@ -310,7 +289,7 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
         
              // There is a link to fullQualifiedSuperClass transformed in directory
                 String superClassFilePathString = fullQualifiedSuperClass.replace
-                                                                     (".", "/");
+                                                                     ('.', '/');
                 superClassFilePathString += ".java";
 //                System.out.println("- super class file path string = " +
 //                                   superClassFilePathString             );
@@ -321,8 +300,8 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
              //   ant-based,
              // - in src/main/java concatenated with its potential package transformed
              //   in directory structure if project is Maven-based.
-                String srcDirPathString = project.isPresent() ?
-                              ProjectHelper.getJavaSourceDir(project.get()).getPath() : null;
+                String srcDirPathString = 
+                              ProjectHelper.getJavaSourceDir(project).getPath();
                 if (srcDirPathString != null) {
                     Path superClassPath = Paths.get(srcDirPathString        ,
                                                     superClassFilePathString);
@@ -356,7 +335,7 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
                                 found = true;
                                 superClassFilePathString =
                                           fullQualifiedImportedClassName.replace
-                                                                     (".", "/");
+                                                                     ('.', '/');
                                 superClassFilePathString += ".java";
 //                                System.out.println("- super Class File Path String=" + superClassFilePathString);
                                 superClassPath = Paths.get
@@ -383,8 +362,7 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
         }
 //        System.out.println("HyperlinkParser:exitSuperClassSpec() : end");
     }
-    
-    
+
  /**
   * Called at the end of a tokenVocab option declaration
   * @param ctx 
@@ -400,22 +378,12 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
                     int targetStart = token.getStartIndex();
                     int targetEnd   = token.getStopIndex() + 1;
                     String targetWord = token.getText();
-                    if (!targetWord.equals("<missing ID>")) {
-                        String tokenFileName = targetWord + ".tokens";
-                        if (docFO == null) {
-                            return;
-                        }
-                     // There are three places where the token file may be:
-                     // - in the same directory as its importing grammar,
-                     // - in ANTLR import directory
-                     // - in ANTLR destination directory concatenated with
-                     //   relative grammar directory
-                        String grammarDirPathString = docFO.getParent().getPath();
-                        Path tokenFilePath = Paths.get(grammarDirPathString,
-                                                       tokenFileName       );
-                        if (Files.exists(tokenFilePath)) {
-                         // We add the hyperlink
-                            File tokenClassFile = tokenFilePath.toFile();
+                    if (!targetWord.equals(MISSING_ID)) {
+
+                        Optional<Path> existingTokensFile = ProjectHelper
+                                .findTokensFile(targetWord, bag.source());
+                        if (existingTokensFile.isPresent()) {
+                            File tokenClassFile = existingTokensFile.get().toFile();
                             Hyperlink link = new Hyperlink
                                           (targetStart             ,
                                            targetEnd               ,
@@ -424,60 +392,6 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
                                            targetWord              ,
                                            0                       );
                             links.addLink(link);
-                        } else {
-                            Optional<Path> importDir =
-                                    AntlrFolders.IMPORT.getPath(project,
-                                            Optional.of(FileUtil.toFile(docFO).toPath()));
-
-                            String importDirPathString = !importDir.isPresent()
-                                    ? null : importDir.get().toFile().getAbsolutePath();
-
-                            tokenFilePath = importDirPathString == null ? null : Paths.get(importDirPathString,
-                                                       tokenFileName     );
-                            if (tokenFilePath != null && Files.exists(tokenFilePath)) {
-                             // We add the hyperlink
-                                File tokenClassFile = tokenFilePath.toFile();
-                                Hyperlink link = new Hyperlink
-                                          (targetStart             ,
-                                           targetEnd               ,
-                                           HyperlinkCategory.TOKENS,
-                                           tokenClassFile          ,
-                                           targetWord              ,
-                                           0                       );
-                                links.addLink(link);
-                            } else {
-                                Optional<Path> antlrSrcDir =
-                                       AntlrFolders.SOURCE.getPath(                                               project, Optional.of(FileUtil.toFile(docFO).toPath()));
-                                if (!antlrSrcDir.isPresent()) {
-                                    return;
-                                }
-                                Path antlrSrcDirPath = antlrSrcDir.get();
-                                Path grammarDirPath =
-                                                 Paths.get(grammarDirPathString);
-                                Path relativeGrammarDirPath = 
-                                     antlrSrcDirPath.relativize(grammarDirPath);
-                                Optional<Path> outputDir =
-                                        AntlrFolders.OUTPUT.getPath(project, Optional.of(FileUtil.toFile(docFO).toPath()));
-                                if (outputDir.isPresent()) {
-                                    String destDirPathString = outputDir.get().toString();
-                                    tokenFilePath = Paths.get
-                                                (destDirPathString                ,
-                                                 relativeGrammarDirPath.toString(),
-                                                 tokenFileName                    );
-                                    if (Files.exists(tokenFilePath)) {
-                                     // We add the hyperlink
-                                        File tokenClassFile = tokenFilePath.toFile();
-                                        Hyperlink link = new Hyperlink
-                                              (targetStart             ,
-                                               targetEnd               ,
-                                               HyperlinkCategory.TOKENS,
-                                               tokenClassFile          ,
-                                               targetWord              ,
-                                               0                       );
-                                        links.addLink(link);
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -498,93 +412,29 @@ public class HyperlinkParser extends ANTLRv4BaseListener {
         if (cic != null) {
             if (cic.identifier(0).ID() != null) {
                 if (cic.identifier(0).ID().getSymbol() != null) {
-                    if (!cic.identifier(0).ID().getSymbol().getText().equals("<missing ID>")) {
+                    if (!cic.identifier(0).ID().getSymbol().getText().equals(MISSING_ID)) {
                         int targetStart = cic.getStart().getStartIndex();
                         int targetEnd   = cic.getStop().getStopIndex() + 1;
                         String fullQualifiedTokenClass = getClassNameWithPackage(cic);
- 
-                        int start = fullQualifiedTokenClass.lastIndexOf(".");
-                     // Next statement is valid even if start = -1
-                        String targetWord = fullQualifiedTokenClass.substring(start + 1);
-                        String tokenClassPackage;
-                        if (start == -1)
-                            tokenClassPackage = "";
-                        else
-                            tokenClassPackage = fullQualifiedTokenClass.substring
-                                                                     (0, start);
-
-//                        System.out.println("HyperlinkParser : targetWord=" + targetWord);
-//                        System.out.println("HyperlinkParser : packageName=" + superClassPackageName);
-        
-                     // There is a link to fullQualifiedTokenClass transformed in directory
-                        String tokenClassFilePathString =
-                                      fullQualifiedTokenClass.replace(".", "/");
-                        tokenClassFilePathString = tokenClassFilePathString + ".java";
-//                        System.out.println("HyperlinkParser : tokenClassFilePathString 1=" + tokenClassFilePathString);
-        
                      // The first place where Java source may be is:
                      // - in antlr.generator.dest.dir (mandatory property) concatenated with
-                     //   its potential package transformed in directory structure if the project is 
+                     //   its potential package transformed in directory structure if the project is
                      //   ant-based,
-                     // - in target/generated-sources/antlr4 concatenated with its potential 
+                     // - in target/generated-sources/antlr4 concatenated with its potential
                      //   package transformed in directory structure if project is Maven-based.
-                        String srcDirPathString = project.isPresent() 
-                                ? ProjectHelper.getJavaSourceDir(project.get()).getPath()
-                                : null;
-                        if (srcDirPathString != null) {
-                            Path superClassPath = Paths.get
-                                               (srcDirPathString        ,
-                                                tokenClassFilePathString);
-                         // We add the hyperlink
-                            File superClassFile = superClassPath.toFile();
+
+                        Optional<Path> sourceFile = ProjectHelper.getJavaSourceFile(MISSING_ID, bag.source());
+                        if (sourceFile.isPresent()){
+                            int start = fullQualifiedTokenClass.lastIndexOf(".");
+                            // Next statement is valid even if start = -1
+                            String targetWord = fullQualifiedTokenClass.substring(start + 1);
                             Hyperlink link = new Hyperlink(targetStart           ,
                                                targetEnd             ,
                                                HyperlinkCategory.JAVA,
-                                               superClassFile        ,
+                                               sourceFile.get().toFile()        ,
                                                targetWord            ,
                                                0                     );
                             links.addLink(link);
-
-                         // If no package has been specified, it is also possible
-                         // that package is defined in a Java import statement
-                            if ("".equals(tokenClassPackage)) {
-                                Iterator<String> it2 = javaImports.iterator();
-                                String fullQualifiedImportedTokenClass;
-                                String importedTokenClass;
-                                boolean found = false;
-                                while (it2.hasNext() && !found) {
-                                    fullQualifiedImportedTokenClass = it2.next();
-                                    start = fullQualifiedImportedTokenClass.lastIndexOf(".");
-                                    importedTokenClass = fullQualifiedImportedTokenClass.substring(start + 1);
-
-//                                    System.out.println("HyperlinkParser : importedClassName=" + importedClassName);
-//                                    System.out.println("HyperlinkParser : targetWord=" + targetWord);
-                                    if (importedTokenClass.equals(targetWord)) {
-                                        found = true;
-                                        tokenClassFilePathString =
-                                            fullQualifiedImportedTokenClass.replace
-                                                                     (".", "/");
-                                        tokenClassFilePathString += ".java";
-//                                        System.out.println("HyperlinkParser : tokenClassFilePathString 2=" + tokenClassFilePathString);
-                                        superClassPath = Paths.get
-                                                     (srcDirPathString        ,
-                                                      tokenClassFilePathString);
-                                     // We add the hyperlink
-                                        superClassFile = superClassPath.toFile();
-                                     // A package has been found so there is no doubt the only
-                                     // possible link is the next qualified link so we remove
-                                     // the previous link
-                                        links.removeLink(link);
-                                        link = new Hyperlink(targetStart           ,
-                                                 targetEnd             ,
-                                                 HyperlinkCategory.JAVA,
-                                                 superClassFile        ,
-                                                 targetWord            ,
-                                                 0                     );
-                                        links.addLink(link);
-                                    }
-                                }
-                            }
                         }
                     }
                 }

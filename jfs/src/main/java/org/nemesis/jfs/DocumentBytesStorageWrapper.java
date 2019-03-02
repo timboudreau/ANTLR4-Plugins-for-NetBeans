@@ -1,6 +1,5 @@
 package org.nemesis.jfs;
 
-import org.nemesis.jfs.spi.JFSUtilities;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -15,6 +14,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Segment;
+import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
  *

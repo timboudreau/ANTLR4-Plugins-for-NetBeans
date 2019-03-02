@@ -1,5 +1,6 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.extraction.key;
 
+import org.nemesis.extraction.key.ExtractionKey;
 import java.io.Serializable;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;

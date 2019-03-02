@@ -22,7 +22,7 @@ final class Blocks implements Comparable<Blocks>, Range {
     private final FunctionalLock lock;
     private static final int[] EMPTY = new int[0];
 
-    public Blocks(int start, int size) {
+    Blocks(int start, int size) {
         this(start, size, ids.getAndIncrement());
     }
 
@@ -530,7 +530,7 @@ final class Blocks implements Comparable<Blocks>, Range {
         private final Blocks blocks;
         private final BlockToBytesConverter mapper;
 
-        public PhysRange(Blocks blocks, BlockToBytesConverter mapper) {
+        PhysRange(Blocks blocks, BlockToBytesConverter mapper) {
             this.blocks = blocks;
             this.mapper = mapper;
         }

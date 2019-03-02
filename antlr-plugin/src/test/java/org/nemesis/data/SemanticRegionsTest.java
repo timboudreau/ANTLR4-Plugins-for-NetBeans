@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -20,6 +21,173 @@ import org.junit.Test;
  * @author Tim Boudreau
  */
 public class SemanticRegionsTest {
+
+
+    @Test
+    public void testCombineWith() {
+        SemanticRegions<String> a = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("c", 40, 60)
+                .add("e", 80, 100)
+                .add("g", 120, 140).add("g1", 122, 137)
+                .add("i", 160, 180)
+                .build();
+        
+        SemanticRegions<String> b = SemanticRegions.builder(String.class)
+                .add("b", 20, 40).add("b1", 22, 27).add("b11", 23, 25)
+                .add("d", 60, 80)
+                .add("f", 100, 120)
+                .add("h", 140, 160).add("h1", 142, 157)
+                .add("j", 180, 200)
+                .build();
+
+        SemanticRegions<String> expect = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("b", 20, 40).add("b1", 22, 27).add("b11", 23, 25)
+                .add("c", 40, 60)
+                .add("d", 60, 80)
+                .add("e", 80, 100)
+                .add("f", 100, 120)
+                .add("g", 120, 140).add("g1", 122, 137)
+                .add("h", 140, 160).add("h1", 142, 157)
+                .add("i", 160, 180)
+                .add("j", 180, 200)
+                .build();
+
+        SemanticRegions<String> combined = a.combineWith(b);
+        assertTrue("Not equal - expected " + expect + "\n got " + combined, combined.equalTo(expect));
+
+        SemanticRegions<String> combinedWithSelf = a.combineWith(a);
+        SemanticRegions<String> doubled = SemanticRegions.builder(String.class)
+                .add("a", 0, 20)
+                .add("a", 0, 20)
+                .add("a1", 0, 10)
+                .add("a1", 0, 10)
+                .add("a11", 1, 5)
+                .add("a11", 1, 5)
+                .add("c", 40, 60)
+                .add("c", 40, 60)
+                .add("e", 80, 100)
+                .add("e", 80, 100)
+                .add("g", 120, 140)
+                .add("g", 120, 140)
+                .add("g1", 122, 137)
+                .add("g1", 122, 137)
+                .add("i", 160, 180)
+                .add("i", 160, 180)
+                .build();
+
+        assertTrue("Not equal - expected " + doubled + "\n got " + combinedWithSelf, combinedWithSelf.equalTo(doubled));
+
+        SemanticRegions<String> aInsert = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("c", 40, 60).build();
+
+        SemanticRegions<String> bInsert = SemanticRegions.builder(String.class)
+                .add("a12", 15, 17)
+                .add("b", 22, 40)
+                .add("c1", 42, 50).build();
+
+        SemanticRegions<String> insertExpected= SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5).add("a12", 15, 17)
+                .add("b", 22, 40)
+                .add("c", 40, 60)
+                .add("c1", 42, 50)
+                .build();
+
+        SemanticRegions<String> insertCombo = aInsert.combineWith(bInsert);
+
+        assertTrue("Not equal - expected " + insertExpected + "\n got " + insertCombo, insertCombo.equalTo(insertExpected));
+    }
+
+    @Test(expected=IllegalStateException.class)
+    public void testCombineMustBeConsistent() {
+        SemanticRegions<String> a = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("c", 40, 60).build();
+
+        SemanticRegions<String> b = SemanticRegions.builder(String.class)
+                .add("c1", 45, 70).build();
+
+        a.combineWith(b);
+    }
+
+    @Test
+    public void testDifferences() {
+        SemanticRegions<String> a = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70).build();
+
+        SemanticRegions<String> b = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70).build();
+
+        assertNoDifferences(a, b);
+        assertNoDifferences(a, a);
+
+        b = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70)
+                .add("f", 71, 75).add("f1", 72, 74).add("g", 80, 90)
+                .build();
+
+        assertAdded(a, b, "f", "f1", "g");
+        b = SemanticRegions.builder(String.class)
+                .add("a", 0, 21).add("a1", 0, 10).add("a11", 1, 5)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70).build();
+        assertAdded(a, b, "a");
+        assertRemoved(a, b, "a");
+
+        b = SemanticRegions.builder(String.class)
+                .add("a", 0, 21).add("a11", 1, 5)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70).build();
+
+        assertRemoved(a, b, "a", "a1");
+
+        b = SemanticRegions.builder(String.class)
+                .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5).add("a12", 7, 9)
+                .add("b", 22, 24).add("c", 30, 40).add("d", 40, 50)
+                .add("d1", 42, 47).add("e", 50, 70).build();
+
+        assertAdded(a, b, "a12");
+    }
+
+    private void assertRemoved(SemanticRegions<String> a, SemanticRegions<String> b, String... removedKeys) {
+        boolean hadDifferences = SemanticRegions.differences(a, b, (removed, added) -> {
+            assertFalse("Nothing removed; added: " + added, removed.isEmpty());
+            Set<String> foundRemovedKeys = new TreeSet<>();
+            for (SemanticRegion<String> rem : removed) {
+                foundRemovedKeys.add(rem.key());
+            }
+            assertEquals("Removed keys differ", new TreeSet<>(Arrays.asList(removedKeys)), foundRemovedKeys);
+        });
+        assertTrue("Method did not return true but presumably found differences", hadDifferences);
+    }
+
+    private void assertAdded(SemanticRegions<String> a, SemanticRegions<String> b, String... addedKeys) {
+        boolean hadDifferences = SemanticRegions.differences(a, b, (removed, added) -> {
+            assertFalse("No added items; removed items: " + removed, added.isEmpty());
+            Set<String> foundAddedKeys = new TreeSet<>();
+            for (SemanticRegion<String> ad : added) {
+                foundAddedKeys.add(ad.key());
+            }
+            assertEquals("Added keys differ", new TreeSet<>(Arrays.asList(addedKeys)), foundAddedKeys);
+        });
+        assertTrue("Method did not return true but presumably found differences",hadDifferences);
+    }
+
+    private void assertNoDifferences(SemanticRegions<String> a, SemanticRegions<String> b) {
+        boolean hadDifferences = SemanticRegions.differences(a, b, (removed, added) -> {
+            assertTrue(removed.isEmpty());
+            assertTrue(added.isEmpty());
+        });
+        assertFalse("No differences, but method returned true as if there were",hadDifferences);
+    }
 
     @Test
     public void testLastOffsetFinding() {

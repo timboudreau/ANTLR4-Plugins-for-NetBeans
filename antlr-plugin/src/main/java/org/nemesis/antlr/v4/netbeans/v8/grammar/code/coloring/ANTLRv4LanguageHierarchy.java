@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 
 import org.netbeans.api.lexer.Language;
 import org.netbeans.spi.lexer.LanguageHierarchy;
@@ -94,6 +95,6 @@ public class ANTLRv4LanguageHierarchy extends LanguageHierarchy<ANTLRv4TokenId> 
 
     @Override
     protected String mimeType() {
-        return "text/x-g4";
+        return ANTLR_MIME_TYPE;
     }
 }

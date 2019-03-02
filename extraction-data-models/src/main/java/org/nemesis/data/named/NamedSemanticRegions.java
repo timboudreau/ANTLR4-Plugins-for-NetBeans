@@ -23,13 +23,10 @@
  */
 package org.nemesis.data.named;
 
-import org.nemesis.data.impl.ArrayUtil;
-import org.nemesis.data.graph.BitSetSet;
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,15 +43,16 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
+import org.nemesis.data.Indexed;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.graph.BitSetSet;
+import org.nemesis.data.impl.ArrayUtil;
 import org.nemesis.data.impl.ArrayUtil.ArrayEndSupplier;
 import org.nemesis.data.impl.ArrayUtil.EndSupplier;
 import org.nemesis.data.impl.ArrayUtil.MutableEndSupplier;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
-import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
-import org.nemesis.data.Indexed;
-import org.nemesis.data.named.NamedRegionReferenceSets.NamedRegionReferenceSet;
-import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.SemanticRegion;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in
@@ -659,7 +657,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         private final int index;
 
-        public EmptyReferenceSet(int index) {
+        EmptyReferenceSet(int index) {
             this.index = index;
         }
 
@@ -870,7 +868,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             private final int[] keys;
             private final int origIndex;
 
-            public NamedRegionReferenceSetImpl(int origIndex, int[] keys) {
+            NamedRegionReferenceSetImpl(int origIndex, int[] keys) {
                 this.keys = keys;
                 this.origIndex = origIndex;
             }
@@ -981,7 +979,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 private final RefItem ri;
                 private final int setIndex;
 
-                public ReferenceSetWrapper(RefItem ri, int setIndex) {
+                ReferenceSetWrapper(RefItem ri, int setIndex) {
                     this.ri = ri;
                     this.setIndex = setIndex;
                 }
@@ -1094,7 +1092,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             private final SemanticRegion<Integer> reg;
             private final int ix;
 
-            public RefItem(SemanticRegion<Integer> reg) {
+            RefItem(SemanticRegion<Integer> reg) {
                 this.reg = reg;
                 ix = reg.key();
             }
@@ -1238,7 +1236,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         private final int[] ends;
         private final int[] indices;
 
-        public IndexImpl(int[] starts, int[] ends, int[] indices) {
+        IndexImpl(int[] starts, int[] ends, int[] indices) {
             this.starts = starts;
             this.ends = ends;
             this.indices = indices;
@@ -1248,7 +1246,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         public String toString() {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < starts.length; i++) {
-                sb.append(names[indices[i]] + "@" + starts[i] + ":" + ends[i]);
+                sb.append(names[indices[i]]).append("@").append(starts[i]).append(":").append(ends[i]);
                 if (i != starts.length - 1) {
                     sb.append(", ");
                 }
@@ -1306,7 +1304,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         private final int index;
 
-        public IndexNamedSemanticRegionImpl(int index) {
+        IndexNamedSemanticRegionImpl(int index) {
             this.index = index;
         }
 
@@ -1366,127 +1364,6 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         public int hashCode() {
             return name().hashCode();
-        }
-    }
-
-    public interface ForeignNamedSemanticRegion<K extends Enum<K>, O> extends NamedSemanticRegion<K>, Serializable {
-
-        NamedSemanticRegions<K> originOffsets();
-
-        O origin();
-
-        public NamedSemanticRegion<K> originalItem();
-    }
-
-    <O> ForeignNamedSemanticRegion<K, O> newForeignItem(String name, O origin, int start, int end) {
-        int ix = indexOf(name);
-        if (ix >= 0) {
-            return new ForeignNamedSemanticRegionImpl<O>(ix, origin, start, end);
-        }
-        return null;
-    }
-
-    private class ForeignNamedSemanticRegionImpl<O> implements ForeignNamedSemanticRegion<K, O> {
-
-        private final O origin;
-        private final int index;
-        private final int start;
-
-        ForeignNamedSemanticRegionImpl(int index, O origin, int start, int end) {
-            this.index = index;
-            this.origin = origin;
-            this.start = start;
-        }
-
-        public boolean isForeign() {
-            return true;
-        }
-
-        public NamedSemanticRegion<K> originalItem() {
-            return new IndexNamedSemanticRegionImpl(index);
-        }
-
-        public NamedSemanticRegions<K> originOffsets() {
-            return NamedSemanticRegions.this;
-        }
-
-        public O origin() {
-            return origin;
-        }
-
-        @Override
-        public int start() {
-            return start;
-        }
-
-        @Override
-        public int end() {
-            return start() + name().length();
-        }
-
-        @Override
-        public K kind() {
-            return kinds[index];
-        }
-
-        @Override
-        public int ordering() {
-            return orderingOf(index);
-        }
-
-        @Override
-        public boolean isReference() {
-            return true;
-        }
-
-        @Override
-        public String name() {
-            return names[index];
-        }
-
-        @Override
-        public int index() {
-            return index;
-        }
-
-        @Override
-        public int hashCode() {
-            int hash = 5;
-            hash = 79 * hash + Objects.hashCode(this.origin);
-            hash = 79 * hash + this.index;
-            hash = 79 * hash + this.start;
-            return hash;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final ForeignNamedSemanticRegionImpl<?> other = (ForeignNamedSemanticRegionImpl<?>) obj;
-            if (this.index != other.index) {
-                return false;
-            }
-            if (this.start != other.start) {
-                return false;
-            }
-            if (!Objects.equals(this.origin, other.origin)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "foreign-ref:" + name() + "@" + start + ":" + end() + "<-" + origin
-                    + ":" + originalItem();
         }
     }
 
@@ -1558,7 +1435,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             private NamedSemanticRegion<T> next;
             private final boolean positionSort;
 
-            public IteratorHolder(Iterator<NamedSemanticRegion<T>> iter, boolean positionSort) {
+            IteratorHolder(Iterator<NamedSemanticRegion<T>> iter, boolean positionSort) {
                 this.iter = iter;
                 next = iter.hasNext() ? iter.next() : null;
                 this.positionSort = positionSort;

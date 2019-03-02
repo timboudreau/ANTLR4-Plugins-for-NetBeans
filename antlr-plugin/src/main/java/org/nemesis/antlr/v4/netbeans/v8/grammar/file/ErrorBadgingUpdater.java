@@ -36,6 +36,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.swing.text.StyledDocument;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
 
@@ -102,14 +103,13 @@ public class ErrorBadgingUpdater extends EmbeddingIndexer {
     
     
     public static class Factory extends EmbeddingIndexerFactory {
-        private static final String MIME = "text/x-g4";
         private static final int    VERSION = 1;
         private static final String NAME = "antlr.grammar.errors";
 
         @Override
         public EmbeddingIndexer createIndexer(Indexable indxbl, Snapshot snpsht) {
             EmbeddingIndexer answer;
-            if (indxbl.getMimeType().equals(MIME))
+            if (indxbl.getMimeType().equals(ANTLR_MIME_TYPE))
                 answer = new ErrorBadgingUpdater();
             else
                 answer = null;
