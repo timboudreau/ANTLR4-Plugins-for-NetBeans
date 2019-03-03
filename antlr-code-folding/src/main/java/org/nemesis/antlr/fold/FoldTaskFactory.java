@@ -1,4 +1,4 @@
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -19,7 +19,7 @@ final class FoldTaskFactory extends TaskFactory {
 
     @Override
     public Collection<? extends SchedulerTask> create(Snapshot snapshot) {
-        FoldTask task = FoldTasks.getDefault().forSnapshot(snapshot, false);
+        FoldTask task = FoldTasks.getDefault().forSnapshot(snapshot, true);
         if (task != null) {
             LOG.log(Level.FINE, "Found FoldTask for {0}: {1}", new Object[]{snapshot, task});
             return Collections.singleton(task);

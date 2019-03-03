@@ -49,6 +49,7 @@ abstract class AbstractParseBuildJob extends UserTask implements Runnable {
         }
     }
 
+    @Override
     public void run(ResultIterator ri) throws Exception {
         if (forChange != changeCount.get()) {
             onNoModel();
@@ -68,5 +69,4 @@ abstract class AbstractParseBuildJob extends UserTask implements Runnable {
             onNoModel();
         }
     }
-
 }

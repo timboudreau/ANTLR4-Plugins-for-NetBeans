@@ -106,7 +106,8 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     protected void invalidate() {
 //        syntaxErrors.clear();
 //        pairs.clear();
-//        extraction = null;
+//        extraction.dispose();
+//        helper = null;
     }
 
     public static final <T> Key<T> key(String name, Class<T> type) {
@@ -125,38 +126,6 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         return new ParseResultInput();
     }
 
-    public static abstract class ParseResultContents {
-
-        private ParseResultContents() {
-        }
-
-        public final <T> Optional<T> get(Key<T> key) {
-            return _get(key);
-        }
-
-        public abstract ParseResultContents addErrorDescription(ErrorDescription err);
-
-        abstract void setSyntaxErrors(List<? extends SyntaxError> errors, NbParserHelper helper);
-
-        abstract void addSyntaxError(SyntaxError err) ;
-
-        abstract <T> Optional<T> _get(Key<T> key);
-
-        public final <T> ParseResultContents put(Key<T> key, T obj) {
-            if (obj != null) {
-                if (!key.type().isInstance(obj)) {
-                    throw new ClassCastException("Value is not an instance of "
-                            + "key's type: " + key.type().getName()
-                            + " vs " + obj.getClass().getName()
-                            + " (" + obj + ")");
-                }
-                _put(key, obj);
-            }
-            return this;
-        }
-
-        abstract <T> void _put(Key<T> key, T obj);
-    }
 
     /**
      * A (mostly) write-only input to the parser result, so it has no

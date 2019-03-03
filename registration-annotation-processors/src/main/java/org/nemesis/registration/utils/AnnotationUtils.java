@@ -75,6 +75,7 @@ public final class AnnotationUtils {
     }
 
     static boolean forcedLogging;
+
     public static void forceLogging() {
         forcedLogging = true;
         for (AnnotationUtils u : INSTANCES) {
@@ -1399,23 +1400,36 @@ public final class AnnotationUtils {
             return (B) this;
         }
 
-        public B isSubTypeOf(String typeName) {
+        public B isSubTypeOf(String typeName, String... moreTypeNames) {
             return addPredicate(e -> {
                 if (e == null) {
                     return true;
                 }
-                TypeComparisonResult res = utils.isSubtypeOf(e, typeName);
-                if (!res.isSubtype()) {
-                    switch (res) {
-                        case FALSE:
-                            utils.fail("Not a subtype of " + typeName + ": " + e.asType(), e);
-                            break;
-                        case TYPE_NAME_NOT_RESOLVABLE:
-                            utils.fail("Could not resolve on classpath: " + typeName, e);
-                            break;
+                if (moreTypeNames.length == 0) {
+                    TypeComparisonResult res = utils.isSubtypeOf(e, typeName);
+                    if (!res.isSubtype()) {
+                        switch (res) {
+                            case FALSE:
+                                utils.fail("Not a subtype of " + typeName + ": " + e.asType(), e);
+                                break;
+                            case TYPE_NAME_NOT_RESOLVABLE:
+                                utils.fail("Could not resolve on classpath: " + typeName, e);
+                                break;
+                        }
                     }
+                    return res.isSubtype();
+                } else {
+                    List<String> all = new ArrayList<>(Arrays.asList(typeName));
+                    all.addAll(Arrays.asList(moreTypeNames));
+                    for (String test : all) {
+                        TypeComparisonResult res = utils.isSubtypeOf(e, test);
+                        if (res.isSubtype()) {
+                            return true;
+                        }
+                    }
+                    utils.fail("Not a subtype of any of " + join(',', all.toArray(new String[0])) + ": " + e.asType(), e);
+                    return false;
                 }
-                return res.isSubtype();
             });
         }
     }

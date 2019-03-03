@@ -60,6 +60,29 @@ public final class Extraction implements Externalizable {
         this.source = source;
     }
 
+    public void dispose() {
+        regions.clear();
+        nameds.clear();
+        duplicates.clear();
+        refs.clear();
+        graphs.clear();
+        unknowns.clear();
+        singles.clear();
+        if (resolutionCache != null) {
+            resolutionCache.clear();
+            resolutionCache = null;
+        }
+        if (keysCache != null) {
+            keysCache.clear();
+            keysCache = null;
+        }
+        if (cachedExtractions != null) {
+            cachedExtractions.clear();
+            cachedExtractions = null;
+        }
+        source = GrammarSource.none();
+    }
+
     private String _logString() {
         int count = regions.size() + nameds.size() + duplicates.size() + refs.size()
                 + singles.size();
@@ -90,7 +113,9 @@ public final class Extraction implements Externalizable {
     }
 
     static final class LSP implements Supplier<String> {
+
         private final Extraction extraction;
+
         LSP(Extraction ext) {
             this.extraction = ext;
         }

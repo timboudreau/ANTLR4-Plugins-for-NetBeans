@@ -11,10 +11,11 @@ import javax.swing.text.Document;
 /**
  * For complex parses using multiple visitors or listeners, provides a means of
  * collecting the results of different passes over a grammar source in a single
- * place.  If a Document can be looked up from the document, the results will be
- * stored with the document; otherwise, the results will be stored independently.
- * Parsing bags are weakly cached so two calls to forGrammarSource() over the same
- * grammar source instance will return the same object.
+ * place. If a Document can be looked up from the document, the results will be
+ * stored with the document; otherwise, the results will be stored
+ * independently. Parsing bags are weakly cached so two calls to
+ * forGrammarSource() over the same grammar source instance will return the same
+ * object.
  *
  * @author Tim Boudreau
  */
@@ -63,6 +64,9 @@ public abstract class ParsingBag {
      */
     @SuppressWarnings("unchecked")
     public static synchronized <T> ParsingBag forGrammarSource(GrammarSource<T> source) {
+        if (source == GrammarSource.NONE) {
+            return new BlackHole();
+        }
         ParsingBag result = INSTANCES.get(source);
         if (result == null) {
             Optional<Document> doc = source.lookup(Document.class);
@@ -154,5 +158,28 @@ public abstract class ParsingBag {
         public synchronized <R> void clear(Class<R> type) {
             cache.remove(type);
         }
+    }
+
+    static final class BlackHole extends ParsingBag {
+
+        public BlackHole() {
+            super(GrammarSource.NONE);
+        }
+
+        @Override
+        public <R> R get(Class<R> type) {
+            return null;
+        }
+
+        @Override
+        public <R> void put(Class<R> type, R value) {
+            // do nothing
+        }
+
+        @Override
+        public <R> void clear(Class<R> type) {
+            // do nothing
+        }
+
     }
 }

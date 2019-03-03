@@ -3,7 +3,7 @@ package org.nemesis.antlr.spi.language;
 import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Vocabulary;
-import org.nemesis.antlr.spi.language.AntlrParseResult.ParseResultContents;
+import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.modules.parsing.api.Snapshot;

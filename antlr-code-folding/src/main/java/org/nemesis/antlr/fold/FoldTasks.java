@@ -1,21 +1,18 @@
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
-import javax.swing.text.JTextComponent;
-import org.netbeans.api.editor.document.EditorDocumentUtils;
-import org.netbeans.api.editor.fold.FoldHierarchy;
+import static org.nemesis.antlr.fold.FoldUtils.documentFor;
+import static org.nemesis.antlr.fold.FoldUtils.fileObjectForDocument;
+import static org.nemesis.antlr.fold.FoldUtils.opStringSupplier;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.spi.editor.fold.FoldOperation;
-import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
-import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 
 /**
@@ -24,9 +21,10 @@ import org.openide.util.Exceptions;
  */
 final class FoldTasks {
 
-    private static final int GC_INTERVAL = 5;
-    private final Map<DocOrFileKey, FoldTask> taskForKey = new HashMap<>();
     static final Logger LOG = Logger.getLogger(FoldTasks.class.getName());
+    private static final int GC_INTERVAL = 5;
+
+    private final Map<DocOrFileKey, FoldTask> taskForKey = new HashMap<>();
     private int gcCountdown;
     private static final FoldTasks INSTANCE = new FoldTasks();
 
@@ -44,9 +42,16 @@ final class FoldTasks {
                 LOG.log(Level.FINE, "Created FoldTask {0} for key {1} for "
                         + "snap {2}", new Object[]{result, key, snapshot});
                 taskForKey.put(key, result);
+            } else {
+                if (result != null) {
+                    LOG.log(Level.FINEST, "Existing FoldTask {0} for key {1} for "
+                            + "snap {2}", new Object[]{result, key, snapshot});
+                } else {
+                    LOG.log(Level.FINEST, "Not creating FoldTask for {0}", key);
+                }
             }
         }
-        maybeGc();
+//        maybeGc(result);
         return result;
     }
 
@@ -57,32 +62,40 @@ final class FoldTasks {
             result = taskForKey.get(key);
             if (result == null && create) {
                 result = newFoldTask(key);
-                LOG.log(Level.FINE, "Created FoldTask {0} for key {1} for "
-                        + "op {2}", new Object[]{result, key, op});
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.log(Level.FINE, "Created FoldTask {0} for key {1} for "
+                            + "op {2}", new Object[]{result, key, opStringSupplier(op)});
+                } else {
+                    LOG.log(Level.FINEST, "Existing FoldTask {0} for key {1} for "
+                            + "snap {2}", new Object[]{result, key, opStringSupplier(op)});
+                }
                 taskForKey.put(key, result);
             }
         }
-        maybeGc();
+//        maybeGc(result);
         return result;
     }
 
     private FoldTask newFoldTask(DocOrFileKey key) {
-        return new FoldTask();
+        return new FoldTask(key.toString());
     }
 
-    private void maybeGc() {
+    private void maybeGc(FoldTask newlyCreated) {
         if (gcCountdown++ % GC_INTERVAL == 0) {
-            gc();
+            gc(newlyCreated);
         }
     }
 
-    private void gc() {
+    private void gc(FoldTask newlyCreated) {
         try {
             LOG.log(Level.FINER, "FoldTasks.gc with {0} tasks", taskForKey.size());
             for (Iterator<Map.Entry<DocOrFileKey, FoldTask>> it = taskForKey.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<DocOrFileKey, FoldTask> e = it.next();
+                if (e.getValue() == newlyCreated) {
+                    continue;
+                }
                 DocOrFileKey key = e.getKey();
-                if (key.isDead() || e.getValue().isEmpty()) {
+                if (key.isDead() /* || e.getValue().isEmpty() */) {
                     LOG.log(Level.FINEST, "  Dead key or fold task for {0}", key);
                     it.remove();
                 }
@@ -92,41 +105,13 @@ final class FoldTasks {
         }
     }
 
-    static FileObject fileObjectForDocument(Document doc) {
-        return EditorDocumentUtils.getFileObject(doc);
-    }
-
-    static Document documentForFileObject(FileObject file) {
-        try {
-            DataObject dob = DataObject.find(file);
-            EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-            return ck.openDocument();
-        } catch (IOException ex) {
-            LOG.log(Level.FINE, "Exception looking up data object for " + file, ex);
-        }
-        return null;
-    }
-
-    static Document documentFor(FoldOperation op) {
-        if (op == null) {
-            return null;
-        }
-        FoldHierarchy hierarchy = op.getHierarchy();
-        if (hierarchy == null) {
-            return null;
-        }
-        JTextComponent comp = hierarchy.getComponent();
-        if (comp == null) {
-            return null;
-        }
-        return comp.getDocument();
-    }
-
     private static DocOrFileKey keyFor(FoldOperation op) {
         Document doc = documentFor(op);
         if (doc != null) {
             FileObject file = fileObjectForDocument(doc);
             return new DocOrFileKey(doc, file);
+        } else {
+            LOG.log(Level.INFO, "Could not find a document for {0}", opStringSupplier(op));
         }
         return null;
     }

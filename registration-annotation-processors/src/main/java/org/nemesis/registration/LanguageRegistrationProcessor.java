@@ -489,7 +489,9 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                                         .trying()
                                         .lineComment("Call the hook method to let the helper run any additional analysis,")
                                         .lineComment("semantic error checking, etc")
-                                        .invoke("parseCompleted").withArgument("tree").withArgument("extraction")
+                                        .invoke("parseCompleted")
+                                        .withArgument(prefix + "Token.MIME_TYPE")
+                                        .withArgument("tree").withArgument("extraction")
                                         .withArgument("contents").withArgument("cancelled")
                                         .withArgument("errors")
                                         .on("HELPER")
@@ -762,7 +764,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         "org.nemesis.antlr.spi.language.NbAntlrUtils", "org.netbeans.spi.lexer.Lexer",
                         "org.antlr.v4.runtime.CharStream", "org.nemesis.antlr.spi.language.NbLexerAdapter",
                         "java.util.Map", "java.util.HashMap", "java.util.ArrayList", "org.antlr.v4.runtime.CharStream",
-                        "java.util.function.BiConsumer", "org.nemesis.antlr.spi.language.AntlrParseResult.ParseResultContents",
+                        "java.util.function.BiConsumer", "org.nemesis.antlr.spi.language.ParseResultContents",
                         "org.netbeans.modules.parsing.api.Snapshot", "org.nemesis.extraction.Extraction",
                         "org.nemesis.antlr.spi.language.AntlrParseResult", "org.netbeans.api.editor.mimelookup.MimeRegistration",
                         "org.antlr.v4.runtime.Vocabulary"
@@ -867,7 +869,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .lineComment("This method will be exposed on the implementation type")
                 .lineComment("but is not exposed in the parent class Lexer")
                 .returning("lexer.getInitialStackedModeNumber()").endBlock().withModifier(PUBLIC).closeMethod()
-                // createParseResult(Snapshot snapshot, Extraction extraction, BiConsumer<AntlrParseResult, ParseResultContents> receiver)
                 .method("newParseResult", mth -> {
                     mth.addArgument("Snapshot", "snapshot")
                             .addArgument("Extraction", "extraction")

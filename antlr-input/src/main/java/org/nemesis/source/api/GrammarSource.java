@@ -16,6 +16,7 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Lexer;
 import org.nemesis.source.impl.GSAccessor;
 import org.nemesis.source.spi.GrammarSourceImplementation;
@@ -29,6 +30,13 @@ import org.nemesis.source.spi.GrammarSourceImplementation;
 public final class GrammarSource<T> implements Serializable {
 
     private final GrammarSourceImplementation<T> impl;
+
+    static final GrammarSource<Object> NONE = new GrammarSource<>(new None());
+
+    @SuppressWarnings("unchecked")
+    public static <X> GrammarSource<X> none() {
+        return (GrammarSource<X>) NONE;
+    }
 
     private GrammarSource(GrammarSourceImplementation<T> impl) {
         assert impl != null : "impl null";
@@ -239,5 +247,43 @@ public final class GrammarSource<T> implements Serializable {
 
     static {
         GSAccessor.DEFAULT = new GSAccessorImpl();
+    }
+
+
+    private static final class None extends GrammarSourceImplementation<Object> {
+
+        None() {
+            super(Object.class);
+        }
+
+        @Override
+        public String name() {
+            return "<disposed>";
+        }
+
+        @Override
+        public CharStream stream() throws IOException {
+            return CharStreams.fromString("");
+        }
+
+        @Override
+        public GrammarSourceImplementation<?> resolveImport(String name) {
+            return null;
+        }
+
+        @Override
+        public Object source() {
+            return this;
+        }
+
+        @Override
+        public String toString() {
+            return "<disposed-grammar-source>";
+        }
+
+        @Override
+        public long lastModified() throws IOException {
+            return 0;
+        }
     }
 }

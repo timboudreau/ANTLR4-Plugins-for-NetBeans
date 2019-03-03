@@ -865,6 +865,14 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return body(new boolean[1]);
         }
 
+        public MethodBuilder<T> body(String body) {
+            return body(new boolean[1]).statement(body).endBlock();
+        }
+
+        public MethodBuilder<T> bodyReturning(String body) {
+            return body(new boolean[1]).returning(body).endBlock();
+        }
+
         private BlockBuilder<MethodBuilder<T>> body(boolean[] built) {
             return new BlockBuilder<>(bb -> {
                 MethodBuilder.this.block = bb;

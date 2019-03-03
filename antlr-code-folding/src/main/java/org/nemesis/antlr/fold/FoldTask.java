@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.awt.EventQueue;
 import java.util.ArrayList;
@@ -30,6 +30,25 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
     private final AtomicLong rev = new AtomicLong();
     private final Set<FoldMgr> managers = Collections.synchronizedSet(new WeakSet<>());
     private static final Logger LOG = Logger.getLogger(FoldTask.class.getName());
+    private final String identifier;
+
+    FoldTask(String identifier) {
+        this.identifier = identifier;
+    }
+
+    @Override
+    public String toString() {
+        List<FoldMgr> mgrs = new ArrayList<>(managers);
+        StringBuilder sb = new StringBuilder("FoldTask{")
+                .append(System.identityHashCode(this))
+                .append(": ").append(identifier)
+                .append("; managerCount=").append(mgrs.size())
+                .append("managers=[");
+        for (FoldMgr m : mgrs) {
+            sb.append(m).append("; ");
+        }
+        return sb.append("]}").toString();
+    }
 
     void invalidate() {
         rev.incrementAndGet();
@@ -40,19 +59,28 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
     }
 
     void add(FoldMgr mgr) {
+        LOG.log(Level.FINEST, "Add manager {0} to task {1}",
+                new Object[]{mgr, this});
         managers.add(mgr);
+    }
+
+    void remove(FoldMgr mgr) {
+        LOG.log(Level.FINEST, "Remove manager {0} from task {1}",
+                new Object[]{mgr, this});
+        managers.remove(mgr);
     }
 
     boolean isEmpty() {
         return managers.isEmpty();
     }
 
-    void remove(FoldMgr mgr) {
-        managers.remove(mgr);
-    }
-
     @Override
     public void run(P result, SchedulerEvent event) {
+        if (isEmpty()) {
+            LOG.log(Level.FINER, "Parse result received on empty task {0}", this);
+            return;
+        }
+        LOG.log(Level.FINE, "Run {0} with parse result {1} for {2}", new Object[]{this, result, event});
         // do our synchronization here and be done with it
         Extraction extraction = result.extraction();
         if (extraction != null) {
@@ -82,7 +110,8 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
 
     @Override
     public void cancel() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        LOG.log(Level.WARNING, "Cancel not implemented for {0}", this);
+        // XXX what here?  Increment rev?
     }
 
     static final class AggregateRunnable implements Runnable {

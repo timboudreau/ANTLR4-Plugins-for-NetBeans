@@ -1,10 +1,12 @@
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
+import static org.nemesis.antlr.fold.FoldUtils.opStringSupplier;
+import static org.nemesis.antlr.fold.FoldUtils.opToString;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
@@ -19,7 +21,7 @@ import org.netbeans.spi.editor.fold.FoldOperation;
  *
  * @author Tim Boudreau
  */
-public class FoldMgr<P extends Parser.Result & ExtractionParserResult> implements FoldManager {
+final class FoldMgr<P extends Parser.Result & ExtractionParserResult> implements FoldManager {
 
     private static final Logger LOG = Logger.getLogger(FoldMgr.class.getName());
     private FoldOperation operation;
@@ -33,34 +35,45 @@ public class FoldMgr<P extends Parser.Result & ExtractionParserResult> implement
     }
 
     @Override
+    public String toString() {
+        return "FoldMgr{" + updater.toString() + ", first=" + first.get() + ", op=" + opToString(operation) + "}";
+    }
+
+    @Override
     public void init(FoldOperation operation) {
         this.operation = operation;
-        LOG.log(Level.FINE, "Initialize {0} with {1}", new Object[]{this, operation});
+        LOG.log(Level.FINE, "Initialize {0} with {1}", new Object[]{this, opStringSupplier(operation)});
     }
 
     @Override
     public synchronized void initFolds(FoldHierarchyTransaction transaction) {
         task = FoldTasks.getDefault().forOperation(operation, true);
+        LOG.log(Level.FINE, "initFolds on {0} with {1} got task {2}", new Object[]{this, transaction, task});
         task.add(this);
     }
 
     Runnable withNewExtraction(Extraction extraction) {
-        FoldTask task;
-        synchronized(this) {
-            task = this.task;
+        FoldTask currTask;
+        synchronized (this) {
+            currTask = this.task;
         }
-        if (operation != null && task != null) {
+        if (operation != null && currTask != null) {
             try {
-                return updater.updateFolds(operation, extraction, first.compareAndSet(false, true), task::version);
+                return updater.updateFolds(operation, extraction, first.compareAndSet(false, true), currTask::version);
             } catch (Exception ex) {
                 LOG.log(Level.SEVERE, "Updater threw exception: " + updater, ex);
             }
+        } else {
+            LOG.log(Level.FINE, "Tried to run {0} with extraction {1}, but "
+                    + "operation or task is null",
+                    new Object[]{this, extraction.logString()});
         }
         return null;
     }
 
     private synchronized void invalidate() {
         if (task != null) {
+            LOG.log(Level.FINEST, "Invalidate folds on {0}", this);
             task.invalidate();
         }
     }
@@ -68,6 +81,7 @@ public class FoldMgr<P extends Parser.Result & ExtractionParserResult> implement
     @Override
     public synchronized void release() {
         if (task != null) {
+            LOG.log(Level.FINEST, "Release {0}", this);
             task.remove(this);
         }
     }

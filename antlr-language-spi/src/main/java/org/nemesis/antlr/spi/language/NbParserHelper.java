@@ -14,7 +14,7 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.nemesis.antlr.spi.language.AntlrParseResult.ParseResultContents;
+import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser.Result;
@@ -126,7 +126,7 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         return false;
     }
 
-    public final void parseCompleted(T tree, Extraction extraction, ParseResultContents populate, BooleanSupplier cancelled, Supplier<List<? extends SyntaxError>> errorSupplier) throws Exception {
+    public final void parseCompleted(String mimeType, T tree, Extraction extraction, ParseResultContents populate, BooleanSupplier cancelled, Supplier<List<? extends SyntaxError>> errorSupplier) throws Exception {
         assert errorSupplier != null : "null error supplier";
         assert populate != null : "null populator";
         assert extraction != null : "extraction null";
@@ -141,6 +141,7 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
             List<? extends SyntaxError> errors = errorSupplier.get();
             LOG.log(Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{errors.size(), errorSupplier});
             populate.setSyntaxErrors(errors, this);
+            ParseResultHook.runForMimeType(mimeType, tree, extraction, populate);
             onParseCompleted(tree, extraction, populate, cancelled);
         } else {
             LOG.log(Level.FINEST, "Not using parse result {0} due to cancellation", populate);

@@ -1,7 +1,9 @@
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.util.logging.Level;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.fold.FoldUtils.documentForFileObject;
+import static org.nemesis.antlr.fold.FoldUtils.fileObjectForDocument;
 import org.netbeans.modules.parsing.api.Source;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileStateInvalidException;
@@ -56,7 +58,7 @@ final class DocOrFileKey {
         if (result == null) {
             FileObject file = fileRef.get();
             if (file != null) {
-                result = FoldTasks.documentForFileObject(file);
+                result = documentForFileObject(file);
             }
         }
         return result;
@@ -67,7 +69,7 @@ final class DocOrFileKey {
         if (result == null) {
             Document doc = _document();
             if (doc != null) {
-                return FoldTasks.fileObjectForDocument(doc);
+                return fileObjectForDocument(doc);
             }
         }
         return result;
@@ -109,5 +111,4 @@ final class DocOrFileKey {
     public int hashCode() {
         return docRef.hashCode() + (51 * fileRef.hashCode());
     }
-
 }

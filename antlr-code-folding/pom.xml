@@ -20,6 +20,7 @@
                     <moduleType>autoload</moduleType>
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.fold</publicPackage>
+                        <publicPackage>org.nemesis.antlr.fold.revised</publicPackage>
                     </publicPackages>
                 </configuration>                
             </plugin>

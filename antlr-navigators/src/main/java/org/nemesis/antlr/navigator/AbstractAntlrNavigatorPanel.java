@@ -233,14 +233,17 @@ abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
             super(doc, forChange, ck, changeCount);
         }
 
+        @Override
         protected void onNoModel() {
             setNoModel(forChange);
         }
 
+        @Override
         protected void onParseFailed() {
             onNoModel();
         }
 
+        @Override
         protected void onReplaceExtraction(Extraction semantics) {
             withNewModel(semantics, ck, forChange);
         }

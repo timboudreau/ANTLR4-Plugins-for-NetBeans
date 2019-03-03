@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,8 @@ import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
-import static org.nemesis.antlr.fold.revised.FoldTasks.documentFor;
+import static org.nemesis.antlr.fold.FoldUtils.documentFor;
+import static org.nemesis.antlr.fold.FoldUtils.opStringSupplier;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.ExtractionKey;
@@ -23,7 +24,7 @@ import org.netbeans.spi.editor.fold.FoldOperation;
  *
  * @author Tim Boudreau
  */
-public class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>> {
+class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>> {
 
     private final K key;
     private final KeyToFoldConverter<? super I> converter;
@@ -43,7 +44,15 @@ public class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressab
     }
 
     Runnable updateFolds(FoldOperation operation, Extraction extraction, boolean first, LongSupplier version) {
-        LOG.log(Level.FINE, "Run folds for extraction of {0}", extraction.source());
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.log(Level.FINE, "Run folds {0} first={1} on {2} for extraction of {3} version {4}", new Object[] {
+                key,
+                first,
+                opStringSupplier(operation),
+                extraction.source(),
+                version.getAsLong()
+            });
+        }
         C collection = extractionFetcher.apply(extraction);
         long startTime = System.currentTimeMillis();
 
@@ -57,7 +66,7 @@ public class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressab
         createFolds(extraction, collection, folds, anchors);
         final long stamp = version.getAsLong();
         Runnable result = new FoldCommitter(doc, folds, anchors, version, stamp, operation, first);
-        
+
         long endTime = System.currentTimeMillis();
         Logger.getLogger("TIMER").log(Level.FINE, "AntlrFolds - 1",
                 new Object[]{

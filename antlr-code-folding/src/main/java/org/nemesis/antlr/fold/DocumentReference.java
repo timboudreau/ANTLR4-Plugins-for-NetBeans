@@ -1,4 +1,4 @@
-package org.nemesis.antlr.fold.revised;
+package org.nemesis.antlr.fold;
 
 import java.lang.ref.WeakReference;
 import java.util.Objects;
