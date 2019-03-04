@@ -4,7 +4,7 @@ import static java.lang.annotation.ElementType.FIELD;
 import java.lang.annotation.Retention;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 import java.lang.annotation.Target;
-import org.nemesis.antlr.navigator.NavigatorPanelConfig.Appearance;
+import org.nemesis.antlr.navigator.Appearance;
 
 /**
  * Apply this annotation to a NamedRegionKey to create a navigator
@@ -54,5 +54,5 @@ public @interface SimpleNavigatorRegistration {
      *
      * @return An appearance type
      */
-    Class<? extends Appearance<?>> appearance() default NavigatorPanelConfig.NoAppearance.class;
+    Class<? extends Appearance<?>> appearance() default NoAppearance.class;
 }

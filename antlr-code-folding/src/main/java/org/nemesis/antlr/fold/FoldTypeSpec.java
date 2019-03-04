@@ -6,49 +6,45 @@
 package org.nemesis.antlr.fold;
 
 /**
+ * Defines a new fold type, with template.
  *
  * @author Tim Boudreau
  */
 public @interface FoldTypeSpec {
 
+    /**
+     * The programmatic name of this fold type, used to differentiate it.
+     *
+     * @return A name
+     */
     String name();
 
+    /**
+     * The display name of this fold type.
+     *
+     * @return The display name
+     */
     String displayName() default "";
 
+    /**
+     * Parameter to FoldTemplate constructor.
+     *
+     * @return zero
+     */
     int guardedStart() default 0;
 
+    /**
+     * Parameter to FoldTemplate constructor.
+     *
+     * @return zero
+     */
     int guardedEnd() default 0;
 
     /**
-     * Set the display text to use
-     * 
-     * @return 
+     * Set the display text for this fold type, used if no name can be derived
+     * from the object being folded.
+     *
+     * @return Localized display text
      */
     String displayText() default "";
-
-    /*
-    public static final FoldType COMMENT_FOLD_TYPE = FoldType.create
-                   ("comment"           ,
-                    Bundle.comment()           ,
-                    new FoldTemplate
-                        (2             , // length of the guarded starting token
-                         2             , // length of the guarded end token
-                         FOLDED_COMMENT));
-    private static final String FOLDED_ACTION = "{...}";
-    public static final FoldType ACTION_FOLD_TYPE = FoldType.create
-                   ("action"            ,
-                    Bundle.action()            ,
-                    new FoldTemplate
-                        (1             , // length of the guarded starting token
-                         1             , // length of the guarded end token
-                         FOLDED_ACTION));
-    private static final String FOLDED_RULE = "<rule>";
-    public static final FoldType RULE_FOLD_TYPE = FoldType.create
-                   ("rule"            ,
-                    Bundle.rule()            ,
-                    new FoldTemplate
-                        (0             , // length of the guarded starting token
-                         0             , // length of the guarded end token
-                         FOLDED_RULE));
-     */
 }

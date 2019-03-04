@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
@@ -48,6 +50,7 @@ public final class Extractor<T extends ParserRuleContext> {
     final Set<RegionExtractionStrategies<?>> regionsInfo;
     private String extractorsHash;
     final Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles;
+    private static final Logger LOG = Logger.getLogger(Extractor.class.getName());
 
     Extractor(Class<T> documentRootType, Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors, Set<RegionExtractionStrategies<?>> regionsInfo2, Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles) {
         this.documentRootType = documentRootType;
@@ -118,6 +121,7 @@ public final class Extractor<T extends ParserRuleContext> {
      */
     public Extraction extract(T ruleNode, GrammarSource<?> source, Supplier<? extends TokenStream> streamSupplier) {
         Extraction extraction = new Extraction(extractorsHash(), source);
+        long then = System.currentTimeMillis();
         for (RegionExtractionStrategies<?> r : regionsInfo) {
             runRegions2(r, ruleNode, extraction, streamSupplier);
         }
@@ -127,6 +131,8 @@ public final class Extractor<T extends ParserRuleContext> {
         for (Map.Entry<SingletonKey<?>, SingletonExtractionStrategies<?>> e : singles.entrySet()) {
             runSingles(e.getValue(), ruleNode, extraction);
         }
+        long elapsed = System.currentTimeMillis() - then;
+        LOG.log(Level.FINEST, "Extraction of {0} took {1}ms", new Object[]{source.id(), elapsed});
         return extraction;
     }
 
@@ -142,7 +148,9 @@ public final class Extractor<T extends ParserRuleContext> {
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Supplier<? extends TokenStream> streamSupplier) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
         ParseTreeVisitor<?> v = info.createVisitor((k, bounds) -> {
-            bldr.add(k, bounds[0], bounds[1]);
+            if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0)) {
+                bldr.add(k, bounds[0], bounds[1]);
+            }
         });
         ruleNode.accept(v);
         RegionsCombiner<K> combiner = new RegionsCombiner<>(bldr.build());
@@ -202,7 +210,11 @@ public final class Extractor<T extends ParserRuleContext> {
             return Extractor.empty(entryPointType);
         }
         ExtractorBuilder<T> eb = new ExtractorBuilder<>(entryPointType);
+        long then = System.currentTimeMillis();
         consumer.accept(eb);
+        long elapsed = System.currentTimeMillis() - then;
+        LOG.log(Level.FINEST, "Composing ExtractorBuilder took {0}ms with {1} consumers", new Object[] {elapsed, all.size()});
+
         return eb.build();
     }
 

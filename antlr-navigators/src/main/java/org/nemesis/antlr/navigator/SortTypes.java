@@ -77,6 +77,7 @@ public enum SortTypes implements Comparator<NamedSemanticRegion<?>> {
      */
     EIGENVECTOR_CENTRALITY;
 
+    @Override
     public String toString() {
         return NbBundle.getMessage(SortTypes.class, name());
     }

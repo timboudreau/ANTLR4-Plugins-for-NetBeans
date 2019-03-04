@@ -134,7 +134,10 @@ public final class SyntaxError implements Comparable<SyntaxError> {
                     result &= originalException != null && originalException.getExpectedTokens().size() > 0;
                 } catch (IllegalArgumentException ex) {
                     errored = true;
-                    LOG.log(Level.FINEST, "Exception computing expected tokens", ex);
+                    LOG.log(Level.FINEST, "Exception computing expected "
+                            + "tokens for " + originalException
+                            + " state "
+                            + originalException.getOffendingState(), ex);
 
                 }
             }

@@ -15,6 +15,15 @@ import org.junit.jupiter.api.Test;
 public class ARGBColorTest {
 
     @Test
+    public void testOmittingHex() throws Throwable {
+        ARGBColor color = new ARGBColor(10, 20, 30, 255);
+        assertEquals(6, color.toString().length());
+        assertEquals("ff" + color.toString(), color.toHexString(false));
+        assertEquals(color, new ARGBColor(color.toString()));
+        assertEquals(color, new ARGBColor(color.toHexString(false)));
+    }
+
+    @Test
     public void testConstants() throws IllegalArgumentException, IllegalAccessException {
         Set<String> all = new TreeSet<>();
         for (Field f : ARGBColor.class.getDeclaredFields()) {

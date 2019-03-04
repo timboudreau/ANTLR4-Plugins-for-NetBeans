@@ -63,9 +63,6 @@ final class FoldCommitter implements Runnable {
     private final long stamp;
     private static final Logger LOG = Logger.getLogger(FoldCommitter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
     private final boolean first;
     private final FoldOperation op;
 

@@ -9,9 +9,9 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileStateInvalidException;
 
 /**
- * A map key which holds a weak reference to a document and associated
- * file, and is equal to another instance if it references the same file
- * by path OR document by identity hash code.
+ * A map key which holds a weak reference to a document and associated file, and
+ * is equal to another instance if it references the same file by path OR
+ * document by identity hash code.
  *
  * @author Tim Boudreau
  */
@@ -34,7 +34,8 @@ final class DocOrFileKey {
 
     @Override
     public String toString() {
-        return fileRef.path + "-doc-" + docRef.idHash + " alive? " + !isDead();
+        return (fileRef == null ? "<no-file>" : fileRef.path) + "-doc-"
+                + (docRef == null ? 0 : docRef.idHash) + " alive? " + !isDead();
     }
 
     boolean isDead() {
@@ -55,7 +56,7 @@ final class DocOrFileKey {
 
     public Document document() {
         Document result = _document();
-        if (result == null) {
+        if (result == null && fileRef != null) {
             FileObject file = fileRef.get();
             if (file != null) {
                 result = documentForFileObject(file);
@@ -109,6 +110,7 @@ final class DocOrFileKey {
 
     @Override
     public int hashCode() {
-        return docRef.hashCode() + (51 * fileRef.hashCode());
+        return (docRef == null ? 0 : docRef.hashCode())
+                + (fileRef == null ? 0 : (51 * fileRef.hashCode()));
     }
 }

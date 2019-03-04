@@ -270,7 +270,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .method("createFoldManagerFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning(FOLD_MANAGER_FACTORY_NAME)
-                //                .annotateWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", FOLD_MANAGER_FACTORY_NAME)
+                //                .annotatedWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", FOLD_MANAGER_FACTORY_NAME)
                 //                .addArgument("position", "" + (670 + layerPos)).closeAnnotation()
                 .body(bb -> {
                     bb.log("Create a " + genClassName);
@@ -284,7 +284,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .method("createFoldRefreshTaskFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning("TaskFactory")
-                .annotateWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", "TaskFactory")
+                .annotatedWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", "TaskFactory")
                 .addArgument("position", "" + (670 + (layerPos))).closeAnnotation()
                 .body(bb -> {
                     bb.log(Level.FINE).stringLiteral(mime)
@@ -338,7 +338,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 "javax.annotation.processing.Generated", "org.netbeans.api.editor.fold.FoldTemplate",
                 MIME_REGISTRATION_ANNOT_TYPE)
                 .implementing("FoldTypeProvider")
-                .addModifier(PUBLIC).addModifier(FINAL)
+                .withModifier(PUBLIC).withModifier(FINAL)
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName())
                 .addStringArgument("comments", versionString())
                 .closeAnnotation()
@@ -364,7 +364,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .initializedFromInvocationOf("singleton").withArgument(foldFieldName)
                 .on("Collections").ofType("Collection<FoldType>")
                 .override("getValues").withModifier(PUBLIC)
-                .annotateWith("SuppressWarnings").addArrayArgument("value").stringLiteral("unchecked").stringLiteral("rawTypes").closeArray().closeAnnotation()
+                .annotatedWith("SuppressWarnings").addArrayArgument("value").stringLiteral("unchecked").stringLiteral("rawTypes").closeArray().closeAnnotation()
                 .addArgument("Class", "type")
                 .returning("Collection")
                 .body().returning("ALL").endBlock()

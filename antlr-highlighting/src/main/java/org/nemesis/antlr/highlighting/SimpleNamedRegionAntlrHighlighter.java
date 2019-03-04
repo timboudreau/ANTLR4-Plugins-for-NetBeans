@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.highlighting;
 
 import java.util.HashMap;
@@ -33,10 +28,6 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
     private final int cacheSize;
 
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     private static void log(String msg, Object... args) {
         LOG.log(Level.FINER, msg, args);
@@ -70,9 +61,9 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag) {
+    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer ignored) {
         NamedSemanticRegions<T> regions = ext.namedRegions(key);
-        log("refresh {0} NamedSemanticRegions for {1}", regions.size(), doc);
+        log("{0} refresh {1} NamedSemanticRegions for {2}", key, regions.size(), doc);
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
             for (NamedSemanticRegion<T> region : regions) {

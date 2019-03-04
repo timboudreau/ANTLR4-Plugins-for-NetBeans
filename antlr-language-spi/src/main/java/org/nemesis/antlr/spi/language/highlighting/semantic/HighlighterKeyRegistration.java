@@ -39,6 +39,13 @@ public @interface HighlighterKeyRegistration {
     String coloringName() default "";
 
     /**
+     * The precedence of this highlight among others.
+     *
+     * @return Typically a multiple of 100 so other modules can insert.
+     */
+    int order() default 0;
+
+    /**
      * Use the function type returned here to map a semantic region, or a named
      * semantic region or named reference to a coloring name. The returned type
      * must be public and have a public no-argument constructor.

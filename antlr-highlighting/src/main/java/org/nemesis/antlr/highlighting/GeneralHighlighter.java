@@ -49,10 +49,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
     private final AntlrHighlighter implementation;
     private final Object key = new Object();
 
-    {
-        LOG.setLevel(Level.ALL);
-    }
-
     public GeneralHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
         doc = ctx.getDocument();
         this.refreshDelay = refreshDelay <= 0 ? REFRESH_DELAY : refreshDelay;
@@ -75,7 +71,8 @@ abstract class GeneralHighlighter<T> implements Runnable {
     }
 
     protected final void refresh(Document doc, T argument, Extraction ext, Parser.Result result, OffsetsBag bag) {
-        implementation.refresh(doc, ext, result, bag);
+        Integer caret = argument instanceof Integer ? (Integer) argument : null;
+        implementation.refresh(doc, ext, result, bag, caret);
     }
 
     protected void postInit(JTextComponent pane, Document doc) {
@@ -259,6 +256,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
     static final class CaretOriented extends GeneralHighlighter<Integer> implements CaretListener {
 
         private Reference<JTextComponent> component;
+
         public CaretOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
         }

@@ -1,8 +1,8 @@
 package org.nemesis.data.named;
 
 /**
- * A region which references a name defined elsewhere within the smae document and
- * is able to dereference the location of that definition.
+ * A region which references a name defined elsewhere within the smae document
+ * and is able to dereference the location of that definition.
  *
  * @author Tim Boudreau
  */
@@ -21,4 +21,6 @@ public interface NamedSemanticRegionReference<K extends Enum<K>> extends NamedSe
      * @return An index
      */
     public int referencedIndex();
+
+    public NamedSemanticRegions<K> ownedBy();
 }

@@ -2,6 +2,7 @@ package org.nemesis.registration.utils;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -75,4 +76,92 @@ public class StringUtils {
             return Objects.toString(o);
         }
     }
+
+    /**
+     * Concatenate strings using a delimiter.
+     *
+     * @param delim The delimiter
+     * @param strings The strings
+     * @return A string that concatenates the passed one placing delimiters
+     * between elements as necessary
+     */
+    public static String join(char delim, String... strings) {
+        StringBuilder sb = new StringBuilder(strings.length * 20);
+        for (int i = 0; i < strings.length; i++) {
+            sb.append(strings[i]);
+            if (i != strings.length - 1) {
+                sb.append(delim);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Concatenate strings using a delimiter.
+     *
+     * @param delim The delimiter
+     * @param strings The strings
+     * @return A string that concatenates the passed one placing delimiters
+     * between elements as necessary
+     */
+    public static String join(char delim, Iterable<?> strings) {
+        StringBuilder sb = new StringBuilder(250);
+        for (Iterator<?> it = strings.iterator(); it.hasNext();) {
+            sb.append(it.next());
+            if (it.hasNext()) {
+                sb.append(',');
+            }
+        }
+        return sb.toString();
+    }
+
+    public static String commas(Object first, Object... strings) {
+        Object[] all = new Object[strings.length + 1];
+        System.arraycopy(strings, 0, all, 1, strings.length);
+        all[0] = first;
+        return join(", ", strings);
+    }
+
+    public static String commas(Collection<?> strings) {
+        return join(", ", strings);
+    }
+
+    /**
+     * Concatenate strings using a delimiter.
+     *
+     * @param delim The delimiter
+     * @param strings The strings
+     * @return A string that concatenates the passed one placing delimiters
+     * between elements as necessary
+     */
+    public static String join(String delim, Object... strings) {
+        StringBuilder sb = new StringBuilder(strings.length * 20);
+        for (int i = 0; i < strings.length; i++) {
+            sb.append(strings[i]);
+            if (i != strings.length - 1) {
+                sb.append(delim);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Concatenate strings using a delimiter.
+     *
+     * @param delim The delimiter
+     * @param strings The strings
+     * @return A string that concatenates the passed one placing delimiters
+     * between elements as necessary
+     */
+    public static String join(String delim, Collection<?> strings) {
+        StringBuilder sb = new StringBuilder(24 * strings.size());
+        for (Iterator<?> it = strings.iterator(); it.hasNext();) {
+            sb.append(it.next());
+            if (it.hasNext()) {
+                sb.append(',');
+            }
+        }
+        return sb.toString();
+    }
+
 }

@@ -8,6 +8,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 import javax.swing.AbstractAction;
 import javax.swing.JEditorPane;
@@ -17,28 +18,24 @@ import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.data.named.NamedSemanticRegion;
-import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
+import org.nemesis.data.SemanticRegion;
 import org.openide.awt.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
-import org.openide.util.NbBundle.Messages;
-import org.openide.util.NbPreferences;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrNavigatorPanel<NamedSemanticRegion<K>> {
+final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigatorPanel<SemanticRegion<K>> {
 
     private static final String PREFERENCES_KEY_NAVIGATOR_SORT = "navigator-sort";
 
-    private SortTypes sort = SortTypes.NATURAL;
     private final String mimeType;
-    private final NavigatorPanelConfig<K> config;
+    private final SemanticRegionPanelConfig<K> config;
 
-    public GenericAntlrNavigatorPanel(String mimeType, NavigatorPanelConfig<K> config) {
+    public GenericSemanticRegionNavigatorPanel(String mimeType, SemanticRegionPanelConfig<K> config) {
         this.mimeType = mimeType;
         this.config = config;
     }
@@ -60,18 +57,9 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
 
     @Override
     protected void onBeforeCreateComponent() {
-        String savedSort = NbPreferences.forModule(GenericAntlrNavigatorPanel.class)
-                .get(sortKey(), NATURAL.name());
-        if (sort.name().equals(savedSort)) {
-            this.sort = SortTypes.valueOf(savedSort);
-        }
     }
 
-    SortTypes getSort() {
-        return sort;
-    }
-
-    private void rebuildModel(EditorAndChangeAwareListModel<NamedSemanticRegion<K>> oldModel, SortTypes modelSortedAs) {
+    private void rebuildModel(EditorAndChangeAwareListModel<SemanticRegion<K>> oldModel, SortTypes modelSortedAs) {
         if (oldModel.change != changeCount.get()) {
             return;
         }
@@ -80,36 +68,20 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
 
     @Override
     protected void withNewModel(Extraction extraction, EditorCookie ck, int forChange) {
-        NamedSemanticRegion<K> oldSelection = null;
+        SemanticRegion<K> oldSelection = null;
         if (list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
             oldSelection = list.getSelectedValue();
         }
-        EditorAndChangeAwareListModel<NamedSemanticRegion<K>> newModel
+        EditorAndChangeAwareListModel<SemanticRegion<K>> newModel
                 = new EditorAndChangeAwareListModel<>(ck, forChange, extraction);
 
-        int newSelectedIndex = config.populateListModel(extraction, newModel, oldSelection, sort);
+        int newSelectedIndex = config.populateListModel(extraction, newModel, oldSelection, SortTypes.NATURAL);
         setNewModel(newModel, forChange, newSelectedIndex);
     }
 
     @SuppressWarnings("unchecked")
-    void setSort(SortTypes sort) {
-        SortTypes old = this.sort;
-        if (old != sort) {
-            ListModel<NamedSemanticRegion<K>> mdl = list.getModel();
-            this.sort = sort;
-            if (mdl instanceof EditorAndChangeAwareListModel<?> && mdl.getSize() > 0) {
-                rebuildModel((EditorAndChangeAwareListModel<NamedSemanticRegion<K>>) mdl, old);
-            }
-            NbPreferences.forModule(GenericAntlrNavigatorPanel.class).put(
-                    sortKey(), sort.name());
-        }
-    }
-
-    @Messages({
-        "the-list-tootip=Click to navigate; right click to show popup"})
-    @SuppressWarnings("unchecked")
-    protected ActivatedTcPreCheckJList<NamedSemanticRegion<K>> createList() {
-        final ActivatedTcPreCheckJList<NamedSemanticRegion<K>> result = new ActivatedTcPreCheckJList<>();
+    protected ActivatedTcPreCheckJList<SemanticRegion<K>> createList() {
+        final ActivatedTcPreCheckJList<SemanticRegion<K>> result = new ActivatedTcPreCheckJList<>();
         result.setToolTipText(Bundle.the_list_tootip());
         // Listen for clicks, not selection events
         result.addMouseListener(new MouseAdapter() {
@@ -118,22 +90,16 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
                 if (e.isPopupTrigger() || e.getButton() != MouseEvent.BUTTON1) {
                     // Dynamic popup menu to set sort order and showing labels
                     JPopupMenu menu = new JPopupMenu();
-                    for (SortTypes sort : SortTypes.values()) {
-                        if (config.isSortTypeEnabled(sort)) {
-                            menu.add(sort.toMenuItem(GenericAntlrNavigatorPanel.this::getSort,
-                                    GenericAntlrNavigatorPanel.this::setSort));
-                        }
-                    }
                     config.onPopulatePopupMenu(menu);
                     menu.show(list, e.getX(), e.getY());
                 } else {
-                    EditorAndChangeAwareListModel<NamedSemanticRegion<K>> mdl
+                    EditorAndChangeAwareListModel<SemanticRegion<K>> mdl
                             = result.getModel() instanceof EditorAndChangeAwareListModel<?>
-                            ? (EditorAndChangeAwareListModel<NamedSemanticRegion<K>>) result.getModel() : null;
+                            ? (EditorAndChangeAwareListModel<SemanticRegion<K>>) result.getModel() : null;
                     if (mdl != null) {
                         int loc = result.locationToIndex(e.getPoint());
                         if (loc >= 0 && loc < result.getModel().getSize()) {
-                            NamedSemanticRegion<K> el = result.getModel().getElementAt(loc);
+                            SemanticRegion<K> el = result.getModel().getElementAt(loc);
                             moveTo(mdl.cookie, el);
                         }
                     }
@@ -147,7 +113,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
             @SuppressWarnings("unchecked")
             public void actionPerformed(ActionEvent e) {
                 if (list != null && list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
-                    EditorAndChangeAwareListModel<NamedSemanticRegion<K>> mdl = (EditorAndChangeAwareListModel<NamedSemanticRegion<K>>) list.getModel();
+                    EditorAndChangeAwareListModel<SemanticRegion<K>> mdl = (EditorAndChangeAwareListModel<SemanticRegion<K>>) list.getModel();
                     int selected = list.getSelectedIndex();
                     if (selected >= 0 && selected < mdl.getSize()) {
                         moveTo(mdl.cookie, mdl.elementAt(selected));
@@ -156,26 +122,26 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
             }
         });
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
-        result.setCellRenderer(new Ren(config, this::getSort));
+        result.setCellRenderer(new Ren(config, () -> SortTypes.NATURAL));
         return result;
     }
 
-    private static final class Ren<K extends Enum<K>> implements ListCellRenderer<NamedSemanticRegion<K>> {
+    private static final class Ren<K> implements ListCellRenderer<SemanticRegion<K>> {
 
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         private final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
-        private final NavigatorPanelConfig<K> config;
+        private final SemanticRegionPanelConfig<K> config;
         private final Supplier<SortTypes> sortSupplier;
 
-        public Ren(NavigatorPanelConfig<K> config, Supplier<SortTypes> sortSupplier) {
+        public Ren(SemanticRegionPanelConfig<K> config, Supplier<SortTypes> sortSupplier) {
             this.config = config;
             this.sortSupplier = sortSupplier;
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        public Component getListCellRendererComponent(JList<? extends NamedSemanticRegion<K>> list, NamedSemanticRegion<K> value, int index, boolean isSelected, boolean cellHasFocus) {
-            String txt = value.name();
+        public Component getListCellRendererComponent(JList<? extends SemanticRegion<K>> list, SemanticRegion<K> value, int index, boolean isSelected, boolean cellHasFocus) {
+            String txt = Objects.toString(value.key());
             Component render = renderer.getListCellRendererComponent(list, txt, index, isSelected, cellHasFocus);
             renderer.setRenderStyle(HtmlRenderer.STYLE_CLIP);
             boolean active = list != null && list instanceof ActivatedTcPreCheckJList<?> && ((ActivatedTcPreCheckJList) list).isActive();
@@ -184,7 +150,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
         }
     }
 
-    private void moveTo(EditorCookie cookie, NamedSemanticRegion<K> el) {
+    private void moveTo(EditorCookie cookie, SemanticRegion<K> el) {
         try {
             cookie.openDocument();
             JEditorPane[] panes = cookie.getOpenedPanes();
@@ -197,7 +163,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
     }
 
     @SuppressWarnings("deprecation")
-    private void moveTo(JEditorPane pane, NamedSemanticRegion<K> el) {
+    private void moveTo(JEditorPane pane, SemanticRegion<K> el) {
         assert EventQueue.isDispatchThread();
         int len = pane.getDocument().getLength();
         if (el.start() < len && el.end() <= len) {
@@ -205,7 +171,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
         }
     }
 
-    void setNewModel(EditorAndChangeAwareListModel<NamedSemanticRegion<K>> mdl, int expectedChange, int selectedIndex) {
+    void setNewModel(EditorAndChangeAwareListModel<SemanticRegion<K>> mdl, int expectedChange, int selectedIndex) {
         Mutex.EVENT.readAccess(() -> {
             if (list == null) {
                 return;
@@ -214,7 +180,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
                 return;
             }
             if (mdl == null) {
-                ListModel<NamedSemanticRegion<K>> old = list.getModel();
+                ListModel<SemanticRegion<K>> old = list.getModel();
                 if (old.getSize() > 0) {
                     list.setModel(EmptyListModel.emptyModel());
                 }

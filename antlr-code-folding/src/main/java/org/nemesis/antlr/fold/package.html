@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Antlr Code Folding Annotations and Plumbing</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <h1>Antlr Code Folding Annotations and Plumbing</h1>
+        <div>
+            <p>
+                This package allows code-folding to be added to any project using
+                the extraction framework (i.e. the parser result is an 
+                <code>ExtractionParseResult</code>, regardless if any other
+                of the related modules are used.
+            </p>
+            <p>
+                To use, have ExtractionContributors registered which will scan the
+                parse tree on a reparse and generate useful data for code-folding - 
+                for example, collecting the bounds of all nodes belonging to a certain
+                parse rule.  An Extraction contains a bunch of collections of such
+                data, in highly compact yet performant form - each collection
+                tied to a particular <code>ExtractionKey</code>, which is typically
+                stored as a static field.  Simply annotate those static fields
+                with <code><a href='AntlrFoldsRegistration.html'>&#064;AntlrFoldsRegistration</a></code>
+                to add code folds to them, and the necessary code will be generated
+                by the annotation processor.
+            </p>
+        </div>
+        <h3>Implementation Notes</h3>
+        <div>
+            <p>
+                All code folding implementations in the NetBeans codebase seem to
+                be hacked together copy/paste implementations of the Java module's
+                original spaghetti-code implementation.
+            </p>
+            <p>
+                The code here was written by taking a careful look at exactly what
+                that code did, and rewriting it with concerns cleanly separated 
+                so it is maintainable.
+            </p>
+        </div>
+    </body>
+</html>

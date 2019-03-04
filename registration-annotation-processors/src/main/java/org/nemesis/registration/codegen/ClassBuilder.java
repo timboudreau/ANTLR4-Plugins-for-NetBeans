@@ -163,15 +163,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
     }
 
     public ClassBuilder<T> makePublic() {
-        return addModifier(PUBLIC);
+        return withModifier(PUBLIC);
     }
 
     public ClassBuilder<T> makeStatic() {
-        return addModifier(STATIC);
+        return withModifier(STATIC);
     }
 
     public ClassBuilder<T> makeFinal() {
-        return addModifier(FINAL);
+        return withModifier(FINAL);
     }
 
     public ClassBuilder<T> publicStatic() {
@@ -214,6 +214,16 @@ public final class ClassBuilder<T> implements BodyBuilder {
     }
 
     private final List<ConstructorBuilder<?>> constructors = new LinkedList<>();
+
+    /**
+     * Creates a private constructor which simply throws an assertion error.
+     *
+     * @return
+     */
+    public ClassBuilder<T> utilityClassConstructor() {
+        return constructor().addModifier(PRIVATE).body()
+                .statement("throw new AssertionError()").endBlock().endConstructor();
+    }
 
     public ClassBuilder<T> constructor(Consumer<ConstructorBuilder<?>> c) {
         boolean[] built = new boolean[1];
@@ -524,7 +534,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return this;
     }
 
-    public ClassBuilder<T> addModifier(Modifier m) {
+    public ClassBuilder<T> withModifier(Modifier m, Modifier... more) {
+        _addModifier(m);
+        for (Modifier mm : more) {
+            _addModifier(mm);
+        }
+        return this;
+    }
+
+    private ClassBuilder<T> _addModifier(Modifier m) {
         switch (m) {
             case DEFAULT:
             case NATIVE:
@@ -825,9 +843,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
-        public MethodBuilder<T> annotateWith(String annotationType, Consumer<AnnotationBuilder<?>> c) {
+        public MethodBuilder<T> annotatedWith(String annotationType, Consumer<AnnotationBuilder<?>> c) {
             boolean[] built = new boolean[1];
-            AnnotationBuilder<MethodBuilder<T>> bldr = annotateWith(annotationType, built);
+            AnnotationBuilder<MethodBuilder<T>> bldr = annotatedWith(annotationType, built);
             c.accept(bldr);
             if (!built[0]) {
                 throw new IllegalStateException("closeAnnotation() not called");
@@ -835,11 +853,11 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
-        public AnnotationBuilder<MethodBuilder<T>> annotateWith(String annotationType) {
-            return annotateWith(annotationType, new boolean[1]);
+        public AnnotationBuilder<MethodBuilder<T>> annotatedWith(String annotationType) {
+            return annotatedWith(annotationType, new boolean[1]);
         }
 
-        private AnnotationBuilder<MethodBuilder<T>> annotateWith(String annotationType, boolean[] built) {
+        private AnnotationBuilder<MethodBuilder<T>> annotatedWith(String annotationType, boolean[] built) {
             return new AnnotationBuilder<>(ab -> {
                 annotations.add(ab);
                 built[0] = true;
@@ -848,7 +866,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public MethodBuilder<T> override() {
-            return annotateWith("Override").closeAnnotation();
+            return annotatedWith("Override").closeAnnotation();
         }
 
         public MethodBuilder<T> body(Consumer<BlockBuilder<?>> c) {
@@ -1895,6 +1913,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public BlockBuilder<T> statement(String stmt) {
+            if (stmt.endsWith(";")) {
+                stmt = stmt.substring(0, stmt.length() - 1);
+            }
             statements.add(new OneStatement(stmt));
             return this;
         }
@@ -2807,6 +2828,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         private BodyBuilder initializer;
         private final Set<Modifier> modifiers = new TreeSet<>();
         private final String name;
+        private LinkedHashSet<AnnotationBuilder> annotations = new LinkedHashSet<>();
 
         FieldBuilder(Function<FieldBuilder<T>, T> converter, String name) {
             this.converter = converter;
@@ -2815,6 +2837,28 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         boolean isStatic() {
             return modifiers.contains(Modifier.STATIC);
+        }
+
+        public AnnotationBuilder<FieldBuilder<T>> annotatedWith(String anno) {
+            return annotatedWith(anno, new boolean[1]);
+        }
+
+        public FieldBuilder<T> annotatedWith(String anno, Consumer<AnnotationBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            AnnotationBuilder<?> ab = annotatedWith(anno, built);
+            c.accept(ab);
+            if (!built[0]) {
+                throw new IllegalStateException("closeAnnotation() not called");
+            }
+            return this;
+        }
+
+        private AnnotationBuilder<FieldBuilder<T>> annotatedWith(String anno, boolean[] built) {
+            return new AnnotationBuilder<>(ab -> {
+                annotations.add(ab);
+                built[0] = true;
+                return this;
+            }, anno);
         }
 
         public T initializedWithStringLiteral(String lit) {
@@ -2828,6 +2872,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         @Override
         public void buildInto(LinesBuilder lines) {
+            lines.onNewLine();
+            for (AnnotationBuilder<?> ab : annotations) {
+                ab.buildInto(lines);
+            }
             lines.statement(lb -> {
                 for (Modifier m : modifiers) {
                     lb.word(m.toString());

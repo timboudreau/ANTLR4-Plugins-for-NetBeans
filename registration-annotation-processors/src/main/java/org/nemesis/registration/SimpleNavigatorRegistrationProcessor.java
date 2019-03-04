@@ -23,7 +23,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
-import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.ANTLR_NAVIGATOR_PACKAGE;
+import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.*;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
 import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
@@ -41,6 +41,10 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
     public static final String SIMPLE_ANNOTATION_CLASS = ANTLR_NAVIGATOR_PACKAGE + ".SimpleNavigatorRegistration";
     private Predicate<AnnotationMirror> annoTest;
     private Predicate<Element> typeTest;
+
+    static {
+        AnnotationUtils.forceLogging();
+    }
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -61,7 +65,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                 .testMember("mimeType").validateStringValueAsMimeType().build()
                 .build();
         typeTest = utils.testsBuilder().hasModifier(STATIC).doesNotHaveModifier(PRIVATE)
-                .isSubTypeOf("org.nemesis.extraction.key.NamedRegionKey")
+                .isSubTypeOf(NAMED_REGION_KEY_TYPE, SEMANTIC_REGION_KEY_TYPE)
                 .testContainingClass().doesNotHaveModifier(PRIVATE).build().build();
     }
 
@@ -118,6 +122,8 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
     }
 
     private void generateNavigatorPanelFactory(VariableElement var, AnnotationMirror mirror, String pkg, RoundEnvironment roundEnv, TypeElement on) throws IOException {
+        boolean isSemanticRegion = utils().isSubtypeOf(var, SEMANTIC_REGION_KEY_TYPE).isSubtype();
+
         final String generatedClassName = classNamePrefix(var) + "_" + var.getSimpleName() + "_NavRegistration";
         final String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         String ic = utils().annotationValue(mirror, "icon", String.class, "");
@@ -145,20 +151,28 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
         }
         final String keyType = param.toString();
 
+        String configType = isSemanticRegion ? SEMANTIC_REGION_PANEL_CONFIG_TYPE
+                : NAVIGATOR_PANEL_CONFIG_TYPE;
+
+        String configTypeName = isSemanticRegion ? SEMANTIC_REGION_PANEL_CONFIG_NAME
+                : NAVIGATOR_PANEL_CONFIG_NAME;
+
         ClassBuilder<String> bldr = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                .importing(NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_CONFIG,
-                        NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
+                .importing(configType,
+                        NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
                         "javax.annotation.processing.Generated"
                 )
+                .generateDebugLogCode()
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
-                .addModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock().endConstructor()
+                .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock().endConstructor()
                 .method("create", mb -> {
                     mb.withModifier(PUBLIC).withModifier(STATIC)
-                            .annotateWith("AntlrNavigatorPanelRegistration")
+                            .annotatedWith("AntlrNavigatorPanelRegistration")
                             .addStringArgument("mimeType", mimeType)
+                            .addStringArgument("displayName", displayName)
                             .addArgument("order", order).closeAnnotation()
-                            .returning("NavigatorPanelConfig")
+                            .returning(configTypeName)
                             .body(bb -> {
 
                                 ClassBuilder.DeclarationBuilder<?> dnDeclaration = bb.declare("displayName");
@@ -171,8 +185,8 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                                 // return NavigatorPanelConfig.builder( NAMES )
                                 //.setDisplayName( Bundle.namedTypes() ).sortable().build();
                                 bb.declare("result").initializedByInvoking("builder")
-                                        .withArgument(var.getSimpleName().toString()).on("NavigatorPanelConfig")
-                                        .as("NavigatorPanelConfig.Builder<" + keyType + ">");
+                                        .withArgument(var.getSimpleName().toString()).on(configTypeName)
+                                        .as(configTypeName + ".Builder<" + keyType + ">");
                                 if (!icon.isEmpty()) {
                                     bb.invoke("setSingleIcon").withStringLiteral(icon).on("result");
                                 }

@@ -47,10 +47,8 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.tools.JavaFileObject;
-import org.nemesis.registration.utils.AnnotationUtils.TypeComparisonResult;
 import static org.nemesis.registration.utils.AnnotationUtils.enclosingType;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import org.nemesis.registration.codegen.ClassBuilder;
@@ -72,11 +70,17 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
 
     public static final String ANTLR_NAVIGATOR_PACKAGE = "org.nemesis.antlr.navigator";
     public static final String NAVIGATOR_PANEL_REGISTRATION_ANNOTATION = ANTLR_NAVIGATOR_PACKAGE + ".AntlrNavigatorPanelRegistration";
-    public static final String NAVIGATOR_PANEL_CONFIG = ANTLR_NAVIGATOR_PACKAGE + ".NavigatorPanelConfig";
+    public static final String NAVIGATOR_PANEL_CONFIG_NAME = "NavigatorPanelConfig";
+    public static final String NAVIGATOR_PANEL_CONFIG_TYPE = ANTLR_NAVIGATOR_PACKAGE + "." + NAVIGATOR_PANEL_CONFIG_NAME;
+    public static final String SEMANTIC_REGION_PANEL_CONFIG_NAME = "SemanticRegionPanelConfig";
+    public static final String SEMANTIC_REGION_PANEL_CONFIG_TYPE = ANTLR_NAVIGATOR_PACKAGE + "." + SEMANTIC_REGION_PANEL_CONFIG_NAME;
     public static final String NAV_PANEL_REGISTRATION_ANNO = "NavigatorPanel.Registration";
     public static final String NAV_PANEL_TYPE = "org.netbeans.spi.navigator.NavigatorPanel";
+    public static final String NAMED_REGION_KEY_TYPE = "org.nemesis.extraction.key.NamedRegionKey";
+    public static final String SEMANTIC_REGION_KEY_TYPE = "org.nemesis.extraction.key.RegionsKey";
     private final Set<String> handled = new HashSet<>();
     private Predicate<ExecutableElement> factoryMethodChecks;
+    private Predicate<AnnotationMirror> annotationChecks;
 
     @Override
     protected boolean processMethodAnnotation(ExecutableElement method, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
@@ -85,18 +89,6 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
             return true;
         }
         Elements els = processingEnv.getElementUtils();
-        TypeMirror retType = method.getReturnType();
-        String returnTypeName = utils().canonicalize(retType);
-        TypeElement el = els.getTypeElement(returnTypeName);
-        TypeComparisonResult sr = utils().isSubtypeOf(el, NAVIGATOR_PANEL_CONFIG);
-        switch (sr) {
-            case TYPE_NAME_NOT_RESOLVABLE:
-                utils().fail("Cannot resolve " + NAVIGATOR_PANEL_CONFIG + " on classpath", el);
-                return true;
-            case FALSE:
-                utils().fail(returnTypeName + " is not a subclass of " + NAVIGATOR_PANEL_CONFIG);
-                return true;
-        }
         TypeElement owningClass = enclosingType(method);
         String className = owningClass.getSimpleName().toString();
         PackageElement pkg = els.getPackageOf(method);
@@ -115,12 +107,21 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
         super.onInit(env, utils);
         factoryMethodChecks = utils.methodTestBuilder()
                 .hasModifier(Modifier.STATIC)
+                .returns(NAVIGATOR_PANEL_CONFIG_TYPE, SEMANTIC_REGION_PANEL_CONFIG_TYPE)
                 .doesNotHaveModifier(Modifier.PRIVATE)
                 .mustNotTakeArguments()
                 .testContainingClass()
                 .doesNotHaveModifier(Modifier.PRIVATE)
                 .build()
                 .build();
+
+        annotationChecks = utils.testMirror().testMember("mimeType")
+                .validateStringValueAsMimeType().build().build();
+    }
+
+    @Override
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror) {
+        return annotationChecks.test(mirror);
     }
 
     private void handleOne(String className, String packageName, String methodName, ExecutableElement method, TypeElement owningClass, AnnotationMirror anno) throws IOException {
@@ -157,9 +158,10 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
         return true;
     }
 
-    private String generateJavaSource(String pkg, String className, String method, AnnotationMirror anno, ExecutableElement origin) {
+    private String generateJavaSource(String pkg, String className, String method, AnnotationMirror anno, ExecutableElement on) {
+//        boolean isSemantic = utils().isSubtypeOf(on, SEMANTIC_REGION_PANEL_CONFIG_TYPE).isSubtype();
         String mimeType = utils().annotationValue(anno, "mimeType", String.class);
-        if (!validateMimeType(mimeType, origin)) {
+        if (!validateMimeType(mimeType, on)) {
             return null;
         }
         Integer order = utils().annotationValue(anno, "order", Integer.class, Integer.MAX_VALUE);
@@ -171,17 +173,19 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
                 .importing("javax.annotation.processing.Generated")
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString())
                 .closeAnnotation()
-                .method("create")
-                .withModifier(Modifier.PUBLIC).withModifier(Modifier.STATIC)
-                .returning("NavigatorPanel")
-                .annotateWith(NAV_PANEL_REGISTRATION_ANNO)
-                .addStringArgument("displayName", displayName)
-                .addStringArgument("mimeType", mimeType)
-                .addArgument("position", order + "")
-                .closeAnnotation()
-                .body()
-                .returning(pkg + "." + className + "." + method + "().toNavigatorPanel(" + LinesBuilder.stringLiteral(mimeType) + ")").endBlock()
-                .closeMethod();
+                .method("create", mb -> {
+                    mb.withModifier(Modifier.PUBLIC).withModifier(Modifier.STATIC)
+                            .returning("NavigatorPanel")
+                            .annotatedWith(NAV_PANEL_REGISTRATION_ANNO)
+                            .addStringArgument("displayName", displayName)
+                            .addStringArgument("mimeType", mimeType)
+                            .addArgument("position", order + "")
+                            .closeAnnotation()
+                            .body()
+                            .returning(pkg + "." + className + "." + method + "().toNavigatorPanel(" + LinesBuilder.stringLiteral(mimeType) + ")").endBlock()
+                            .closeMethod();
+
+                });
         return cb.build();
     }
 }

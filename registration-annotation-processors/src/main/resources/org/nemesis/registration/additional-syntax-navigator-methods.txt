@@ -1,0 +1,30 @@
+    private static void ruleToString(ParserRuleContext ctx, BiConsumer<String, ParserRuleContext> bi) {
+        String nm = ctx.getClass().getSimpleName();
+        if ( nm.endsWith( "Context" ) ) {
+            nm = nm.substring( 0, nm.length() - 7 );
+        }
+        Token start = ctx.getStart();
+        Token stop = ctx.getStop();
+        if ( start != null && ( start == stop || start.equals( stop ) ) ) {
+            if ( !hasRuleChildren( ctx ) ) {
+                String text = start.getText();
+                if ( text.length() > 12 ) {
+                    text = text.substring( 0, 12 ) + "...";
+                }
+                bi.accept( "<i>" + text + "</i>:" + nm, ctx );
+                return;
+            }
+        }
+        bi.accept( nm, ctx );
+    }
+
+    private static boolean hasRuleChildren(ParserRuleContext ctx) {
+        int max = ctx.getChildCount();
+        for ( int i = 0; i < max; i++ ) {
+            ParseTree tree = ctx.getChild( i );
+            if ( tree instanceof ParserRuleContext ) {
+                return true;
+            }
+        }
+        return false;
+    }

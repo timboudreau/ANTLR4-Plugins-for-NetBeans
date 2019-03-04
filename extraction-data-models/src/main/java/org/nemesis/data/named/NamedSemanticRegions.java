@@ -821,12 +821,16 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return reg == null ? null : new RefItem(reg);
         }
 
+        private transient EmptyNamedRegionReferenceSets.EmptyRS<K> emptyRefs;
+
         @Override
         public NamedRegionReferenceSet<K> references(String name) {
             int ix = internalIndexOf(name);
             int[][] ices = this.keyIndex();
             if (ices[ix] == null) {
-                return null;
+                return emptyRefs == null
+                        ? emptyRefs = new EmptyNamedRegionReferenceSets.EmptyRS<>()
+                        : emptyRefs;
             }
             return new NamedRegionReferenceSetImpl(ix, ices[ix]);
         }
@@ -842,6 +846,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             collectItems(refs);
             Collections.sort(refs);
             return refs.iterator();
+        }
+
+        @Override
+        public NamedSemanticRegions<K> originals() {
+            return NamedSemanticRegions.this;
         }
 
         private class RefI implements Iterator<NamedRegionReferenceSet<K>> {
@@ -1053,6 +1062,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 public String toString() {
                     return "set:" + setIndex + ":" + ri;
                 }
+
+                @Override
+                public NamedSemanticRegions<K> ownedBy() {
+                    return NamedSemanticRegions.this;
+                }
             }
         }
 
@@ -1163,6 +1177,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
             public String toString() {
                 return "ref:" + index() + ":" + name() + "@" + start() + ":" + end() + "->" + referencedIndex();
+            }
+
+            @Override
+            public NamedSemanticRegions<K> ownedBy() {
+                return NamedSemanticRegions.this;
             }
         }
     }

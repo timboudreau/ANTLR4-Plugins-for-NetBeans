@@ -385,7 +385,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     void add(T key, int start, int end) {
         if (start >= end) {
-            throw new IllegalArgumentException("Start is <= end - "
+            throw new IllegalArgumentException("Start is >= end - "
                     + start + ":" + end);
         } else if (start < 0 || end < 0) {
             throw new IllegalArgumentException("Negative offsets " + start + ":" + end);

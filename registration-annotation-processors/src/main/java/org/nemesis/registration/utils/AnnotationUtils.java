@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -152,16 +151,37 @@ public final class AnnotationUtils {
         if (namedType == null) {
             return TypeComparisonResult.TYPE_NAME_NOT_RESOLVABLE;
         }
-        TypeMirror tp = erasureOf(e.asType());
+        TypeMirror tp;
+        if (e instanceof ExecutableElement) {
+            tp = erasureOf(((ExecutableElement) e).getReturnType());
+        } else {
+            tp = erasureOf(e.asType());
+        }
+
         TypeMirror named = erasureOf(namedType.asType());
-
         boolean res = types.isSubtype(tp, named);
-//        System.out.println("Is Subtype " + named + " and " + tp + " " + res
-//                + " reverse? " + types.isSubtype(named, tp) + " assignable? "
-//                + types.isAssignable(named, tp) + " reverse assignable? "
-//                + types.isAssignable(tp, namedType.asType()));
-
         return TypeComparisonResult.forBoolean(res);
+    }
+
+    public TypeComparisonResult isSubtypeOf(TypeMirror tp, String typeName) {
+        Types types = processingEnv.getTypeUtils();
+        Elements elementUtils = processingEnv.getElementUtils();
+        TypeElement namedType = elementUtils.getTypeElement(typeName);
+        if (namedType == null) {
+            return TypeComparisonResult.TYPE_NAME_NOT_RESOLVABLE;
+        }
+        tp = erasureOf(tp);
+        TypeMirror named = erasureOf(namedType.asType());
+        boolean res = types.isSubtype(tp, named);
+        return TypeComparisonResult.forBoolean(res);
+    }
+
+    public boolean isAssignable(TypeMirror tp, TypeMirror other) {
+        return processingEnv.getTypeUtils().isAssignable(tp, other);
+    }
+
+    public boolean isSubtypeOf(TypeMirror tp, TypeMirror other) {
+        return processingEnv.getTypeUtils().isSubtype(tp, other);
     }
 
     public TypeMirror erasureOf(TypeMirror mir) {
@@ -323,14 +343,7 @@ public final class AnnotationUtils {
      * between elements as necessary
      */
     public static String join(char delim, String... strings) {
-        StringBuilder sb = new StringBuilder(strings.length * 20);
-        for (int i = 0; i < strings.length; i++) {
-            sb.append(strings[i]);
-            if (i != strings.length - 1) {
-                sb.append(delim);
-            }
-        }
-        return sb.toString();
+        return StringUtils.join(delim, strings);
     }
 
     /**
@@ -341,15 +354,8 @@ public final class AnnotationUtils {
      * @return A string that concatenates the passed one placing delimiters
      * between elements as necessary
      */
-    public static String join(char delim, Iterable<String> strings) {
-        StringBuilder sb = new StringBuilder(250);
-        for (Iterator<String> it = strings.iterator(); it.hasNext();) {
-            sb.append(it.next());
-            if (it.hasNext()) {
-                sb.append(',');
-            }
-        }
-        return sb.toString();
+    public static String join(char delim, Iterable<?> strings) {
+        return StringUtils.join(delim, strings);
     }
 
     /**
@@ -443,6 +449,65 @@ public final class AnnotationUtils {
             }
         }
         return result;
+    }
+
+    /**
+     * Get an enum constant from an annotation member as a string, returning a
+     * default value if not present.
+     *
+     * @param mirror An annotation
+     * @param param The annotation attribute name
+     * @param defaultValue The default value to use if not present
+     * @return A value from the annotation as a string, or the default
+     */
+    public String enumConstantValue(AnnotationMirror mirror, String param, String defaultValue) {
+        String result = enumConstantValue(mirror, param);
+        return result == null ? defaultValue : result;
+    }
+
+    /**
+     * Get an enum constant from an annotation member as a string, returning
+     * null if not present.
+     *
+     * @param mirror An annotation
+     * @param param The annotation attribute name
+     * @return A value from the annotation as a string, or the default
+     */
+    public String enumConstantValue(AnnotationMirror mirror, String param) {
+        Set<String> result = enumConstantValues(mirror, param);
+        switch (result.size()) {
+            case 0:
+                return null;
+            case 1:
+                return result.iterator().next();
+            default:
+                fail("Expecting a single value, but got an array for '" + param + "' of "
+                        + mirror.getAnnotationType() + ": " + result, null, mirror);
+                return result.iterator().next();
+        }
+    }
+
+    /**
+     * For cases where an array of enum constant values is expected, return
+     * them, optionally returning a default set, as strings rather than
+     * VariableElement instances as they are represented internally.
+     *
+     * @param mirror An annotation mirror
+     * @param param A parameter name
+     * @param defaultValues An array of default values to use if no value is
+     * present (careful if there can legitimately be an empty value array)
+     * @return A set of strings representing enum constant names
+     */
+    public Set<String> enumConstantValues(AnnotationMirror mirror, String param, String... defaultValues) {
+        Set<String> all = new HashSet<>();
+        List<VariableElement> els = annotationValues(mirror, param, VariableElement.class);
+        for (VariableElement e : els) {
+            all.add(e.getSimpleName().toString());
+        }
+        if (defaultValues.length > 0 && all.isEmpty()) {
+            all.addAll(Arrays.asList(defaultValues));
+        }
+        return all;
     }
 
     /**
@@ -665,7 +730,7 @@ public final class AnnotationUtils {
      * @param el The element
      */
     public void warn(String msg, Element el, AnnotationMirror mir) {
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING, msg, el, mir);
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING, message(msg), el, mir);
     }
 
     /**
@@ -675,7 +740,7 @@ public final class AnnotationUtils {
      * @param el The element
      */
     public void warn(String msg, Element el) {
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING, msg, el);
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING, message(msg), el);
     }
 
     /**
@@ -685,7 +750,7 @@ public final class AnnotationUtils {
      * @param el The element
      */
     public void fail(String msg, Element el) {
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, msg, el);
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message(msg), el);
     }
 
     /**
@@ -695,7 +760,7 @@ public final class AnnotationUtils {
      * @param el The element
      */
     public void fail(String msg, Element el, AnnotationMirror mir) {
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, msg, el, mir);
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message(msg), el, mir);
     }
 
     /**
@@ -704,7 +769,27 @@ public final class AnnotationUtils {
      * @param msg The message
      */
     public void fail(String msg) {
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, msg);
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message(msg));
+    }
+
+    private String message(String msg) {
+        if (log) {
+            StackTraceElement el = new Exception().getStackTrace()[2];
+            return el + ": " + msg;
+        }
+        return msg;
+    }
+
+    public static String simpleName(TypeMirror mirror) {
+        return simpleName(mirror.toString().replace('$', '.'));
+    }
+
+    public static String simpleName(String dotted) {
+        int ix = dotted.lastIndexOf('.');
+        if (ix > 0 && ix < dotted.length() - 1) {
+            return dotted.substring(ix + 1);
+        }
+        return dotted;
     }
 
     /**
@@ -913,6 +998,9 @@ public final class AnnotationUtils {
                 utils.fail("Whitespace at " + i + " in mime type '" + value + "'");
                 return false;
             }
+            if (Character.isUpperCase(value.charAt(i))) {
+                utils.fail("Mime type should not contain upper case letters");
+            }
             if (';' == value.charAt(i)) {
                 utils.fail("Complex mime types unsupported");
                 return false;
@@ -993,6 +1081,21 @@ public final class AnnotationUtils {
             return new AnnotationMirrorMemberTestBuilder<>(ammtb -> {
                 if (ammtb.predicate != null) {
                     addPredicate(ammtb.predicate);
+                }
+                return this;
+            }, memberName, utils);
+        }
+
+        public AnnotationMirrorMemberTestBuilder<AnnotationMirrorTestBuilder<T>> testMemberIfPresent(String memberName) {
+            return new AnnotationMirrorMemberTestBuilder<>(ammtb -> {
+                if (ammtb.predicate != null) {
+                    addPredicate(outer -> {
+                        List<AnnotationMirror> values = utils.annotationValues(outer, memberName, AnnotationMirror.class);
+                        if (values.isEmpty()) {
+                            return true;
+                        }
+                        return ammtb.predicate.test(outer);
+                    });
                 }
                 return this;
             }, memberName, utils);
@@ -1157,6 +1260,23 @@ public final class AnnotationUtils {
 
         public MethodTestBuilder(AnnotationUtils utils, Function<B, R> builder) {
             super(utils, builder);
+        }
+
+        public B returns(String type, String... moreTypes) {
+            Set<String> all = new HashSet<>(Arrays.asList(moreTypes));
+            all.add(type);
+            System.out.println("check return type " + all);
+            Predicate<E> pred = el -> {
+                for (String oneType : all) {
+                    TypeComparisonResult res = utils.isSubtypeOf(el, oneType);
+                    if (res.isSubtype()) {
+                        return true;
+                    }
+                }
+                utils.fail("Return type is not one of " + join(',', all), el);
+                return false;
+            };
+            return addPredicate(pred);
         }
 
         public B mustNotTakeArguments() {

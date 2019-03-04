@@ -12,6 +12,7 @@ package org.nemesis.registration;
  enum FontStyle {
     BOLD, ITALIC;
 
+    @Override
     public String toString() {
         return "<font style=\"" + name().toLowerCase() + "\"/>";
     }

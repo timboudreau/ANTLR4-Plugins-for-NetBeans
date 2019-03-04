@@ -23,8 +23,14 @@ public interface NamedRegionReferenceSets<K extends Enum<K>> extends Iterable<Na
 
     Set<String> collectNames(Predicate<NamedSemanticRegionReference<K>> pred);
 
+    NamedSemanticRegions<K> originals();
+
     static <Q extends Enum<Q>> NamedRegionReferenceSets<Q> empty() {
-        return new EmptyNamedRegionReferenceSets<>();
+        return empty(NamedSemanticRegions.<Q>empty());
+    }
+
+    static <Q extends Enum<Q>> NamedRegionReferenceSets<Q> empty(NamedSemanticRegions<Q> owner) {
+        return new EmptyNamedRegionReferenceSets<>(owner);
     }
 
     default void collectItems(List<? super NamedSemanticRegionReference<K>> into) {

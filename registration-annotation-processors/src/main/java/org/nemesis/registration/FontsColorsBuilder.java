@@ -81,12 +81,22 @@ final class FontsColorsBuilder implements Iterable<Fc> {
         this.theme = theme;
     }
 
-    public Set<String> names() {
-        Set<String> all = new HashSet<>();
-        for (Fc fc : this) {
-            all.add(fc.name());
+    ReadableFc getExisting(String name) {
+        // for tests
+        for (ReadableFc fc : all) {
+            if (name.equals(fc.name())) {
+                return fc;
+            }
         }
-        return all;
+        return null;
+    }
+
+    public Set<String> names() {
+        Set<String> result = new HashSet<>();
+        for (Fc fc : this) {
+            result.add(fc.name());
+        }
+        return result;
     }
 
     public void loadExisting(InputStream in) throws IOException, SAXException {
@@ -129,6 +139,12 @@ final class FontsColorsBuilder implements Iterable<Fc> {
                                         case "italic":
                                             styles.add(FontStyle.ITALIC);
                                             break;
+                                        case "bold+italic" :
+                                            styles.add(FontStyle.BOLD);
+                                            styles.add(FontStyle.ITALIC);
+                                            break;
+                                        default :
+                                            throw new IOException("Could not parse font style '" + style + "'");
                                     }
                                 }
                             }
@@ -147,7 +163,7 @@ final class FontsColorsBuilder implements Iterable<Fc> {
         return theme;
     }
 
-    public FcEntry add(String name) {
+    public Fc add(String name) {
         FcEntry en = new FcEntry(name);
         all.add(en);
         return en;
@@ -354,7 +370,16 @@ final class FontsColorsBuilder implements Iterable<Fc> {
         }
     }
 
-    private static final class FcEntry implements Fc {
+    interface ReadableFc extends Fc {
+        ARGBColor backColor();
+        ARGBColor foreColor();
+        ARGBColor waveColor();
+        ARGBColor underlineColor();
+        String defawlt();
+        Set<FontStyle> styles();
+    }
+
+    private static final class FcEntry implements ReadableFc {
 
         private static final String INDENT = "    ";
         private ARGBColor foreColor;
@@ -369,6 +394,24 @@ final class FontsColorsBuilder implements Iterable<Fc> {
             this.name = name;
         }
 
+        String styleString() {
+            if (styles.isEmpty()) {
+                return null;
+            } else if (styles.size() == 1) {
+                return styles.iterator().next().toString();
+            }
+            String head = "<font style=\"";
+            StringBuilder sb = new StringBuilder(head);
+            for (FontStyle f : styles) {
+                if (sb.length() > head.length()) {
+                    sb.append("+");
+                }
+                sb.append(f.name().toLowerCase());
+            }
+            return sb.append("\"/>").toString();
+        }
+
+        @Override
         public String name() {
             return name;
         }
@@ -408,6 +451,9 @@ final class FontsColorsBuilder implements Iterable<Fc> {
 
         @Override
         public FcEntry setDefault(String def) {
+            if (def == null || def.isEmpty()) {
+                def = null;
+            }
             this.defawlt = def;
             return this;
         }
@@ -464,9 +510,7 @@ final class FontsColorsBuilder implements Iterable<Fc> {
             }
             if (!styles.isEmpty()) {
                 sb.append(">");
-                styles.forEach((style) -> {
-                    sb.append('\n').append(INDENT).append(INDENT).append(style);
-                });
+                sb.append('\n').append(INDENT).append(INDENT).append(styleString());
                 sb.append("\n").append(INDENT).append("</fontcolor>\n");
             } else {
                 sb.append("/>\n");
@@ -494,6 +538,36 @@ final class FontsColorsBuilder implements Iterable<Fc> {
             }
             final FcEntry other = (FcEntry) obj;
             return Objects.equals(this.name, other.name);
+        }
+
+        @Override
+        public ARGBColor backColor() {
+            return backColor;
+        }
+
+        @Override
+        public ARGBColor foreColor() {
+            return foreColor;
+        }
+
+        @Override
+        public ARGBColor waveColor() {
+            return waveUnderlineColor;
+        }
+
+        @Override
+        public ARGBColor underlineColor() {
+            return underlineColor;
+        }
+
+        @Override
+        public String defawlt() {
+            return defawlt;
+        }
+
+        @Override
+        public Set<FontStyle> styles() {
+            return Collections.unmodifiableSet(styles);
         }
     }
 }

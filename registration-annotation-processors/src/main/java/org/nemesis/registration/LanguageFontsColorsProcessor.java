@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -93,195 +92,12 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         return false;
     }
 
-    private static List<Integer> ints(AnnotationMirror mir, String attribute, AnnotationUtils utils) {
+    static List<Integer> ints(AnnotationMirror mir, String attribute, AnnotationUtils utils) {
         List<Integer> result = utils.annotationValues(mir, attribute, Integer.class);
         if (result == null) {
             result = Collections.emptyList();
         }
         return result;
-    }
-
-    private static class ColoringProxy implements Iterable<String> {
-
-        List<Integer> fg;
-        List<Integer> bg;
-        List<Integer> und;
-        List<Integer> wave;
-        String def;
-        boolean bold;
-        boolean italic;
-        Set<String> themes;
-        final String mimeType;
-        final String categoryName;
-
-        ColoringProxy(String mimeType, String categoryName, AnnotationMirror coloration, AnnotationUtils utils) {
-            this.mimeType = mimeType;
-            this.categoryName = categoryName;
-            fg = ints(coloration, "fg", utils);
-            bg = ints(coloration, "bg", utils);
-            und = ints(coloration, "underline", utils);
-            wave = ints(coloration, "waveUnderline", utils);
-            def = utils.annotationValue(coloration, "derivedFrom", String.class);
-            bold = utils.annotationValue(coloration, "bold", Boolean.class, false);
-            italic = utils.annotationValue(coloration, "italic", Boolean.class, false);
-            themes = new HashSet<>(utils.annotationValues(coloration, "themes", String.class));
-            if (themes.isEmpty()) {
-                themes = Collections.singleton("NetBeans");
-            }
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder(categoryName).append(" ").append(mimeType);
-            ann("fg", fg(), sb);
-            ann("bg", bg(), sb);
-            ann("wv", waveUnderline(), sb);
-            ann("un", underline(), sb);
-            sb.append(" themes=").append(themes);
-            if (bold) {
-                sb.append(" bold");
-            }
-            if (italic) {
-                sb.append(" italic");
-            }
-            return sb.toString();
-        }
-
-        private void ann(String name, Object o, StringBuilder sb) {
-            if (o != null) {
-                sb.append(' ').append(name).append('=').append(o);
-            }
-        }
-
-        @Override
-        public Iterator<String> iterator() {
-            return themes.iterator();
-        }
-
-        private int valueOrDefault(int index, List<Integer> ints, int def) {
-            if (ints.size() <= index) {
-                return def;
-            }
-            return ints.get(index);
-        }
-
-        public boolean isBold() {
-            return bold;
-        }
-
-        public boolean isItalic() {
-            return italic;
-        }
-
-        public ARGBColor fg() {
-            return toColor(fg);
-        }
-
-        public ARGBColor bg() {
-            return toColor(bg);
-        }
-
-        public ARGBColor underline() {
-            return toColor(und);
-        }
-
-        public ARGBColor waveUnderline() {
-            return toColor(wave);
-        }
-
-        private ARGBColor toColor(List<Integer> ints) {
-            if (ints.isEmpty()) {
-                return null;
-            }
-            int r = valueOrDefault(0, ints, 0);
-            int g = valueOrDefault(1, ints, 0);
-            int b = valueOrDefault(2, ints, 0);
-            int a = valueOrDefault(3, ints, 255);
-            return new ARGBColor(r, g, b, a);
-        }
-
-        public List<String> validate() {
-            List<String> errors = new ArrayList<>();
-            validateColorArray("fg", fg, errors);
-            validateColorArray("bg", bg, errors);
-            validateColorArray("underline", und, errors);
-            validateColorArray("waveUnderline", wave, errors);
-            return errors;
-        }
-
-        private String themesString() {
-            StringBuilder sb = new StringBuilder();
-            for (Iterator<String> it = themes.iterator(); it.hasNext();) {
-                sb.append(it.next());
-                if (it.hasNext()) {
-                    sb.append(", ");
-                }
-            }
-            return sb.toString();
-        }
-
-        void updateFC(Fc fc) {
-            fc.setBackColor(bg());
-            fc.setForeColor(fg());
-            fc.setWaveUnderlineColor(waveUnderline());
-            fc.setUnderlineColor(underline());
-            fc.setDefault(def);
-            if (isBold()) {
-                fc.setBold();
-            }
-            if (isItalic()) {
-                fc.setItalic();
-            }
-        }
-
-        private void validateColorArray(String attr, List<Integer> rgba, List<String> errors) {
-            if (rgba.isEmpty()) {
-                return;
-            }
-            if (rgba.size() != 3 && rgba.size() != 4) {
-                String err = "Colors for attribute " + attr + " on " + categoryName
-                        + " of " + mimeType
-                        + " for themes " + themesString() + " mis-specified as "
-                        + rgba + ".  Colors must have 0 values (unspecified), "
-                        + "or 3 RGB values, or 4 RGBA values, but "
-                        + rgba.size() + " are present.";
-                errors.add(err);
-            }
-            loop:
-            for (int i = 0; i < rgba.size(); i++) {
-                if (i < 0 || i > 255) {
-                    String name;
-                    switch (i) {
-                        case 0:
-                            name = "red";
-                            break;
-                        case 1:
-                            name = "green";
-                            break;
-                        case 2:
-                            name = "blue";
-                            break;
-                        case 3:
-                            name = "alpha";
-                            break;
-                        default:
-                            break loop; // error already recorded
-                    }
-                    String err = "Color value for " + name + " of " + attr + " on "
-                            + categoryName + " of " + mimeType
-                            + " for " + themesString() + " is "
-                            + "outside the allowed range of 0 to 255.  Colors "
-                            + "must be specified as red,green,blue or "
-                            + "red,green,blue,alpha values from 0-255.";
-                    errors.add(err);
-                }
-            }
-        }
-
-        public boolean isDefaults() {
-            return fg.isEmpty() && bg.isEmpty() && und.isEmpty() && wave.isEmpty() && ("default".equals(def) || "".equals(def))
-                    && !bold && !italic && (themes.isEmpty() || Arrays.asList("NetBeans").equals(themes));
-        }
     }
 
     private List<ColoringProxy> processTokenCategories(String mimeType, Element on, List<AnnotationMirror> tokenCategories) throws IOException {
@@ -340,7 +156,6 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     }
 
     private final Map<String, String> destPathForMimeType = new HashMap<>();
-    private final Map<String, String> prefixForMimeType = new HashMap<>();
     private final Map<String, String> sampleForMimeType = new HashMap<>();
     private final Map<String, String> bundleForMimeType = new HashMap<>();
     private final Map<String, String> extForMimeType = new HashMap<>();
@@ -380,10 +195,10 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     }
 
     private String updateDestPath(String mimeType, String prefix, Element on) {
-        if (prefix != null && !prefix.isEmpty()) {
-            prefixForMimeType.put(mimeType, prefix);
-        }
         String destPath = destPathForMimeType.getOrDefault(mimeType, "");
+        if (!destPath.isEmpty()) {
+            return destPath;
+        }
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(on);
         if (pkg != null && !pkg.getQualifiedName().toString().isEmpty()) {
             String dp = pkg.getQualifiedName().toString().replace('.', '/');
@@ -398,26 +213,19 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     }
 
     String prefix(String mimeType) {
-        String result = prefixForMimeType.get(mimeType);
-        if (result == null) {
-            int ix = mimeType.lastIndexOf('/');
-            if (ix >= 0 && ix < mimeType.length() - 1) {
-                result = mimeType.substring(ix + 1);
-            } else if (ix < 0) {
-                result = mimeType;
-            } else {
-                result = mimeType.substring(0, mimeType.length() - 1);
-            }
+        mimeType = mimeType.toLowerCase();
+        int ix = mimeType.indexOf('/');
+        if (ix > 0 && ix < mimeType.length() - 1) {
+            mimeType = mimeType.substring(ix + 1);
         }
-        return result;
+        if (mimeType.length() > 2 && mimeType.startsWith("x-")) {
+            mimeType = mimeType.substring(2);
+        }
+        return mimeType.replace('/', '-').replace('+', '-');
     }
 
     String destPath(String mimeType) {
-        String destPath = destPathForMimeType.getOrDefault(mimeType, "");
-        if (destPath.isEmpty()) {
-            return "com/foo/unspecified";
-        }
-        return destPath;
+        return destPathForMimeType.getOrDefault(mimeType, "com/foo/unspecified");
     }
 
     void updateExt(String mimeType, String ext) {
@@ -429,22 +237,14 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     String extension(String mimeType) {
         String result = extForMimeType.get(mimeType);
         if (result == null) {
-            int ix = mimeType.indexOf('/');
-            if (ix >= 0) {
-                String res = mimeType.substring(ix + 1);
-                if (res.startsWith("x-") && res.length() > 2) {
-                    res = res.substring(2);
-                }
-                result = res;
-            } else {
-                result = mimeType;
-            }
+            return prefix(mimeType).toLowerCase();
         }
         return result;
     }
 
     /**
      * Handle the colorings specified by @AntlrLanguageRegistration
+     *
      * @param mimeType The mime type
      * @param prefix The file name prefix
      * @param tokenCategories The token categories
@@ -568,6 +368,8 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         }
     }
 
+    private final Set<String> writtenSamples = new HashSet<>();
+
     private boolean generateThemeFiles(String mimeType, MultiThemeFontsColorsBuilder bldr, boolean saveTheme, boolean saveLayer) throws IOException {
 
         Element[] declaringElements = elementsForMimeType(mimeType);
@@ -595,6 +397,20 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
             locBundle.setProperty(name, capitalize(name));
         }
 
+        String sampleLayerPath = "OptionsDialog/PreviewExamples/" + mimeType;
+        String sampleFilePath = destPath + "/" + pfx.toLowerCase() + "-sample." + ext;
+        if (sample != null && !writtenSamples.contains(mimeType)) {
+            try {
+                FileObject res = filer.createResource(StandardLocation.CLASS_OUTPUT, "", sampleFilePath, declaringElements);
+                try (OutputStream out = res.openOutputStream()) {
+                    out.write(sample.getBytes(UTF_8));
+                }
+                writtenSamples.add(mimeType);
+            } catch (IOException ioe) {
+                logException(ioe, true);
+            }
+        }
+
         bldr.build((theme, fontsColors) -> {
             String themeFilePath = themeFilePath(mimeType, theme);
             themeFileResourcePathForTheme.put(theme, themeFilePath);
@@ -613,38 +429,24 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         });
         if (saveLayer) {
             LayerBuilder layer = layer(declaringElements);
+            LayerBuilder.File file = layer.file(sampleLayerPath)
+                    .url("nbres:/" + sampleFilePath);
+            if (!bundle.isEmpty()) {
+                file.stringvalue("SystemFileSystem.localizingBundle", bundle);
+            }
+            file.write();
+
             themeFileResourcePathForTheme.forEach((theme, pathInJar) -> {
                 String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
-                LayerBuilder.File file = layer.file(layerPath);
-                file.url("nbres:/" + pathInJar);
+                LayerBuilder.File themeLayerFile = layer.file(layerPath);
+                themeLayerFile.url("nbres:/" + pathInJar);
                 if (!bundle.isEmpty()) {
-                    file.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
                 } else {
-                    file.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
                 }
-                file.write();
+                themeLayerFile.write();
             });
-
-            if (sample != null) {
-                try {
-                    String sampleFilePath = destPath + "/" + pfx.toLowerCase() + "-sample." + ext;
-                    FileObject res = filer.createResource(StandardLocation.CLASS_OUTPUT, "", sampleFilePath, declaringElements);
-                    try (OutputStream out = res.openOutputStream()) {
-                        out.write(sample.getBytes(UTF_8));
-                    }
-                    String sampleLayerPath = "OptionsDialog/PreviewExamples/" + mimeType;
-
-                    LayerBuilder.File file = layer.file(sampleLayerPath)
-                            .url("nbres:/" + sampleFilePath);
-//                            .contents(sample);
-                    if (!bundle.isEmpty()) {
-                        file.stringvalue("SystemFileSystem.localizingBundle", bundle);
-                    }
-                    file.write();
-                } catch (IOException ioe) {
-                    logException(ioe, true);
-                }
-            }
         }
         // Returning true could stop LanguageRegistrationProcessor from being run
         if (saveTheme) {

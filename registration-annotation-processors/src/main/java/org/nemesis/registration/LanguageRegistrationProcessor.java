@@ -1,18 +1,24 @@
 package org.nemesis.registration;
 
+import java.io.ByteArrayOutputStream;
 import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
 import org.nemesis.registration.utils.AnnotationUtils;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Level;
+import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -35,6 +41,8 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.StandardLocation;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageRegistrationProcessor.ANNO;
@@ -42,7 +50,9 @@ import org.nemesis.registration.api.Delegates;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.codegen.LinesBuilder;
 import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
-import org.openide.filesystems.annotations.LayerBuilder;
+import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
+import org.openide.filesystems.FileUtil;
+import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -106,7 +116,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             }
         }
         tokenNameForIndex.put(-1, "EOF");
-        tokenNameForIndex.put(last+1, "$ERRONEOUS");
+        tokenNameForIndex.put(last + 1, "$ERRONEOUS");
         String prefix = generateTokensClasses(tokenNameForIndex, type, mirror, lexerClass, tokenCategorizerClass);
 
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
@@ -196,8 +206,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 ).staticImport(fqn + ".ACTION_PATH")
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .extending("MultiDataObject")
-                .generateDebugLogCode()
-                .addModifier(PUBLIC).addModifier(FINAL)
+                .withModifier(PUBLIC).withModifier(FINAL)
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
                 .withModifier(FINAL).withInitializer(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
 
@@ -239,7 +248,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
 
         if (multiview) {
             cl.method("createEditor").addArgument("Lookup", "lkp").withModifier(PUBLIC).withModifier(STATIC)
-                    .annotateWith("MultiViewElement.Registration", ab -> {
+                    .annotatedWith("MultiViewElement.Registration", ab -> {
                         ab.addStringArgument("displayName", msgName)
                                 .addStringArgument("iconBase", iconBase)
                                 .addStringArgument("mimeType", mimeType)
@@ -270,8 +279,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         String editorKitName = prefix + "EditorKit";
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage)
                 .named(editorKitName)
-                .generateDebugLogCode()
-                .addModifier(FINAL).addModifier(PUBLIC)
+                .withModifier(FINAL).withModifier(PUBLIC)
                 .importing("javax.annotation.processing.Generated", NB_EDITOR_KIT_TYPE,
                         EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
                 .extending("NbEditorKit")
@@ -349,7 +357,9 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
     }
 
     // Parser generation
-    private void generateParserClasses(Map<Integer, String> ruleIdForName, ExecutableElement parserEntryPointMethod, TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror parserClass, AnnotationMirror parserInfo, String prefix) throws IOException {
+    private void generateParserClasses(Map<Integer, String> ruleIdForName, ExecutableElement parserEntryPointMethod,
+            TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror parserClass,
+            AnnotationMirror parserInfo, String prefix) throws IOException {
         String nbParserName = prefix + "NbParser";
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
         String tokenTypeName = prefix + "Token";
@@ -375,7 +385,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         String parserResultType = "AntlrParseResult";
 
         ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(nbParserName)
-                .addModifier(PUBLIC).addModifier(FINAL)
+                .withModifier(PUBLIC).withModifier(FINAL)
                 .importing("org.netbeans.modules.parsing.api.Snapshot", "org.netbeans.modules.parsing.api.Task",
                         "org.netbeans.modules.parsing.spi.Parser", "org.netbeans.modules.parsing.spi.SourceModificationEvent",
                         "javax.annotation.processing.Generated", "org.nemesis.source.api.GrammarSource",
@@ -389,7 +399,6 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 )
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .extending("Parser")
-                .generateDebugLogCode()
                 .docComment("NetBeans parser wrapping ", parserClass, " using entry point method ", parserEntryPointMethod.getSimpleName(), "()");
         if (changeSupport) {
             cl.importing("java.util.Set", "org.openide.util.WeakSet", "org.openide.util.ChangeSupport")
@@ -545,7 +554,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             // <P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
             cl.innerClass(helperClassName).extending("NbParserHelper<" + parserClass + ", " + lexerClass
                     + ", AntlrParseResult, " + eSimple + ">")
-                    .addModifier(PRIVATE).addModifier(FINAL).addModifier(STATIC).build();
+                    .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC).build();
         }
 
         /*
@@ -565,7 +574,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 "org.nemesis.antlr.spi.language.NbAntlrUtils")
                 .method("createErrorHighlighter", mb -> {
                     mb.withModifier(PUBLIC).withModifier(STATIC)
-                            .annotateWith("MimeRegistration").addArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
+                            .annotatedWith("MimeRegistration").addArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
                             .addClassArgument("service", "TaskFactory").closeAnnotation()
                             .returning("TaskFactory")
                             .body(bb -> {
@@ -577,6 +586,75 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 });
 
         writeOne(cl);
+        if (utils().annotationValue(parserInfo, "generateSyntaxTreeNavigatorPanel", Boolean.class, false)) {
+            generateSyntaxTreeNavigatorPanel(type, mirror, parserInfo, parserEntryPointMethod);
+        }
+    }
+
+    // Navigator generation
+    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, AnnotationMirror parserInfo, ExecutableElement entryPointMethod) throws IOException {
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
+        
+        String icon = fileType == null ? null : utils().annotationValue(fileType, "iconBase", String.class);
+        Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
+        String generatedClassName = type.getSimpleName() + "_SyntaxTreeNavigator_Registration";
+        String entryPointType = entryPointMethod.getReturnType().toString();
+        String entryPointSimple = simpleName(entryPointType.toString());
+        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
+                .importing("java.util.function.BiConsumer", "org.antlr.v4.runtime.ParserRuleContext",
+                        "org.antlr.v4.runtime.tree.ParseTree", "org.nemesis.antlr.navigator.SimpleNavigatorRegistration",
+                        "org.nemesis.extraction.ExtractionRegistration", "org.nemesis.extraction.ExtractorBuilder",
+                        "org.nemesis.extraction.key.RegionsKey", "org.antlr.v4.runtime.Token", entryPointType)
+                .withModifier(PUBLIC)
+                .constructor(c -> {
+                    c.addModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock().endConstructor();
+                }).field("TREE_NODES", fb -> {
+            fb.annotatedWith("SimpleNavigatorRegistration", ab -> {
+                if (icon != null) {
+                    ab.addStringArgument("icon", icon);
+                }
+                ab.addStringArgument("mimeType", mimeType)
+                        .addArgument("order", 20000)
+                        .addStringArgument("displayName", "Syntax Tree").closeAnnotation();
+            });
+            fb.withModifier(STATIC).withModifier(FINAL)
+                    .initializedFromInvocationOf("create").withArgument("String.class").withStringLiteral("tree")
+                    .on("RegionsKey").ofType("RegionsKey<String>");
+            ;
+        }).method("extractTree", mb -> {
+            mb.withModifier(STATIC)
+                    .annotatedWith("ExtractionRegistration")
+                    .addStringArgument("mimeType", mimeType)
+                    .addClassArgument("entryPoint", entryPointSimple)
+                    .closeAnnotation()
+                    .addArgument("ExtractorBuilder<? super " + entryPointSimple + ">", "bldr")
+                    .body(bb -> {
+                        bb.statement("bldr.extractingRegionsUnder( TREE_NODES ).whenRuleType( ParserRuleContext.class )\n"
+                                + "                .extractingKeyAndBoundsFromRuleWith( " + generatedClassName + "::ruleToString ).finishRegionExtractor()")
+                                .endBlock();
+                    })
+                    .closeMethod();
+        }).insertText(additionalSyntaxNavigatorMethods());
+        writeOne(cb);
+    }
+
+    private String additionalSyntaxNavigatorMethods() throws IOException {
+        InputStream in = LanguageRegistrationProcessor.class.getResourceAsStream("additional-syntax-navigator-methods.txt");
+        if (in == null) {
+            throw new Error("additional-syntax-navigator-methods.txt is not on classpath next to " + LanguageRegistrationProcessor.class);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        FileUtil.copy(in, out);
+        StringBuilder sb = new StringBuilder();
+        for (String line : new String(out.toByteArray(), UTF_8).split("\n")) {
+            String l = line.trim();
+            if (l.startsWith("//") || l.startsWith("#")) {
+                continue;
+            }
+            sb.append(line).append('\n');
+        }
+        return sb.toString();
     }
 
     // Lexer generation
@@ -616,7 +694,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .method("primaryCategory").override().returning(STRING).closeMethod()
                 .method("compareTo").override().returning("int").addArgument(tokenTypeName, "other").withModifier(DEFAULT)
                 .body().returning("ordinal() > other.ordinal() ? 1 : ordinal() == other.ordinal() ? 0 : -1").endBlock().closeMethod()
-                .method("name").annotateWith("Override").closeAnnotation().returning("String").withModifier(DEFAULT)
+                .method("name").annotatedWith("Override").closeAnnotation().returning("String").withModifier(DEFAULT)
                 .body().returning("literalName() != null ? literalName() : symbolicName() != null ? symbolicName() : "
                         + "displayName() != null ? displayName() : Integer.toString(ordinal())").endBlock().closeMethod();
 
@@ -701,20 +779,20 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
         // Our implementation of the TokenId sub-interface defined as the first class above,
         // implementing all of its methods
-        toks.innerClass(tokensImplName).addModifier(FINAL).addModifier(STATIC).addModifier(PRIVATE)
+        toks.innerClass(tokensImplName).withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
                 .docComment("Implementation of " + tokenTypeName + " implementing NetBeans' TokenId class from the Lexer API.")
                 .field("id").withModifier(PRIVATE).withModifier(FINAL).ofType("int")
                 .implementing(tokenTypeName).constructor().addArgument("int", "id").body()
                 .statement("this.id = id").endBlock().endConstructor()
-                .method("ordinal").annotateWith("Override").closeAnnotation().withModifier(PUBLIC).returning("int").body().returning("this.id").endBlock().closeMethod()
-                .method("symbolicName").annotateWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("stripQuotes(" + lexerClass + ".VOCABULARY.getSymbolicName(id))").endBlock().closeMethod()
-                .method("literalName").annotateWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getLiteralName(id)").endBlock().closeMethod()
-                .method("displayName").annotateWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getDisplayName(id)").endBlock().closeMethod()
-                .method("primaryCategory").annotateWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("CATEGORIZER.categoryFor(ordinal(), displayName(), symbolicName(), literalName())").endBlock().closeMethod()
-                .method("toString").withModifier(PUBLIC).annotateWith("Override").closeAnnotation().returning("String").body().returning("ordinal() + \"/\" + displayName()").endBlock().closeMethod()
-                .method("equals").withModifier(PUBLIC).annotateWith("Override").closeAnnotation().addArgument("Object", "o")
+                .method("ordinal").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("int").body().returning("this.id").endBlock().closeMethod()
+                .method("symbolicName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("stripQuotes(" + lexerClass + ".VOCABULARY.getSymbolicName(id))").endBlock().closeMethod()
+                .method("literalName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getLiteralName(id)").endBlock().closeMethod()
+                .method("displayName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getDisplayName(id)").endBlock().closeMethod()
+                .method("primaryCategory").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("CATEGORIZER.categoryFor(ordinal(), displayName(), symbolicName(), literalName())").endBlock().closeMethod()
+                .method("toString").withModifier(PUBLIC).annotatedWith("Override").closeAnnotation().returning("String").body().returning("ordinal() + \"/\" + displayName()").endBlock().closeMethod()
+                .method("equals").withModifier(PUBLIC).annotatedWith("Override").closeAnnotation().addArgument("Object", "o")
                 .returning("boolean").body().returning("o == this || (o instanceof " + tokensImplName + " && ((" + tokensImplName + ") o).ordinal() == ordinal())").endBlock().closeMethod()
-                .method("hashCode").withModifier(PUBLIC).annotateWith("Override").closeAnnotation().returning("int").body().returning("id * 51").endBlock().closeMethod()
+                .method("hashCode").withModifier(PUBLIC).annotatedWith("Override").closeAnnotation().returning("int").body().returning("id * 51").endBlock().closeMethod()
                 .build();
 
         // Now build a giant switch statement for lookup by id
@@ -769,7 +847,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         "org.nemesis.antlr.spi.language.AntlrParseResult", "org.netbeans.api.editor.mimelookup.MimeRegistration",
                         "org.antlr.v4.runtime.Vocabulary"
                 )
-                .generateDebugLogCode()
                 .docComment("LanguageHierarchy implementation for ", prefix,
                         ". Generated by ", getClass().getSimpleName(), " from fields on ", lexerClass, ".")
                 .importing("javax.annotation.processing.Generated")
@@ -804,11 +881,11 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 //                .withInitializer("Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()))").ofType("Collection<" + tokenTypeName + ">")
                 .method("mimeType")
                 .returning(STRING)
-                .annotateWith("Override").closeAnnotation()
+                .annotatedWith("Override").closeAnnotation()
                 .withModifier(PROTECTED).withModifier(FINAL).body()
                 .returning(tokenTypeName + ".MIME_TYPE").endBlock().closeMethod()
                 .method(languageMethodName).withModifier(PUBLIC).withModifier(STATIC).returning("Language<" + tokenTypeName + ">")
-                //                .annotateWith("MimeRegistration", ab -> {
+                //                .annotatedWith("MimeRegistration", ab -> {
                 //                    ab.addStringArgument("mimeType", mimeType)
                 //                            .addClassArgument("service", "Language")
                 //                            .addArgument("position", 500).closeAnnotation();
@@ -845,7 +922,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // Inner implementation of NbLexerAdapter, which allows us to use a generic
         // Lexer class and takes care of creating the Antlr lexer and calling methods
         // that will exist on the lexer implementation class but not on the parent class
-        lh.innerClass(adapterClassName).addModifier(PRIVATE).addModifier(STATIC).addModifier(FINAL)
+        lh.innerClass(adapterClassName).withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .extending("NbLexerAdapter<" + tokenTypeName + ", " + lexerClass + ">")
                 .method("createLexer").override().withModifier(PUBLIC).returning(lexerClass.toString()).addArgument("CharStream", "stream")
                 .body(bb -> {
@@ -895,23 +972,48 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         if (categories != null) {
             handleCategories(categories, tokenNameForIndex, type, mirror, lexerClass, tokenCategorizerClass, tokenCatName, pkg);
         }
-
         String bundle = utils().annotationValue(mirror, "localizingBundle", String.class);
+
+        String layerFileName = hierFqn.replace('.', '-');
+        String languageRegistrationPath = "Editors/" + mimeType + "/" + layerFileName + ".instance";
+
+        String genBundleName = prefix + "LanguageBundle";
+        String genBundleInfo = pkg + "." + genBundleName;
+        Filer filer = processingEnv.getFiler();
+        String bundlePath = genBundleInfo.replace('.', '/') + ".properties";
+        FileObject altBundle = filer.createResource(StandardLocation.CLASS_OUTPUT, "", bundlePath, type);
+        Properties props = new Properties();
+        props.setProperty("prefix", prefix);
+        props.setProperty(mimeType, prefix);
+        props.setProperty("Editors/" + mimeType, prefix);
+        props.setProperty(languageRegistrationPath, prefix);
+
+        try (OutputStream out = altBundle.openOutputStream()) {
+            props.store(out, getClass().getName());
+        }
+
         addLayerTask(lb -> {
             // For some reason, the generated @MimeRegistration annotation is resulting
             // in an attempt to load a *class* named with the fqn + method name.
             // So, do it the old fashioned way
-            String layerFileName = hierFqn.replace('.', '-');
-            LayerBuilder.File reg = lb.file("Editors/" + mimeType + "/" + layerFileName + ".instance")
-                    //            LayerBuilder.File reg = lb.instanceFile("Editors/" + mimeType, layerFileName)
-                    .methodvalue("instanceCreate", hierFqn, languageMethodName)
-                    .stringvalue("instanceOf", "org.netbeans.api.lexer.Language")
-                    .intvalue("position", 1000);
+            try {
+                lb.folder("Editors/" + mimeType).bundlevalue("displayName",
+                        bundle + "#" + mimeType).write();
 
-            if (bundle != null) {
-                reg.stringvalue("SystemFilesystem.localizingBundle", bundle);
+                lb.file(languageRegistrationPath)
+                        //            LayerBuilder.File reg = lb.instanceFile("Editors/" + mimeType, layerFileName)
+                        .methodvalue("instanceCreate", hierFqn, languageMethodName)
+                        .stringvalue("instanceOf", "org.netbeans.api.lexer.Language")
+                        .intvalue("position", 1000)
+                        .bundlevalue("displayName", bundle + "#" + mimeType)
+                        .write();
+            } catch (LayerGenerationException ex) {
+                logException(ex, true);
+                utils().fail("No bundle key found for the language name in the"
+                        + " specified bundle. Try specifying '"
+                        + mimeType + "=" + prefix
+                        + "' in the properties file " + bundle, type);
             }
-            reg.write();
         }, type);
         return prefix;
     }
@@ -925,7 +1027,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
     private void handleCategories(List<AnnotationMirror> categories, Map<Integer, String> tokenNameForIndex, TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror tokenCategorizerClass, String catName, Name pkg) throws Exception {
         // Create an implementation of TokenCategorizer based on the annotation values
-        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(catName).addModifier(FINAL)
+        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(catName).withModifier(FINAL)
                 .importing("org.nemesis.antlr.spi.language.highlighting.TokenCategorizer")
                 .implementing("TokenCategorizer");
 

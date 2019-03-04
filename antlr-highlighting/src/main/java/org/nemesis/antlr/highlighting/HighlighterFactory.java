@@ -1,9 +1,9 @@
 package org.nemesis.antlr.highlighting;
 
-import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.swing.text.Document;
+import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.ZOrder;
@@ -34,6 +34,11 @@ final class HighlighterFactory {
 
         Function<Context, GeneralHighlighter<?>> f = ctx -> {
             AntlrHighlighter impl = supp.get();
+            if (trigger == HighlightRefreshTrigger.CARET_MOVED && impl instanceof SimpleNamedRegionReferenceAntlrHighlighter<?>) {
+                SimpleNamedRegionReferenceAntlrHighlighter<?> s
+                        = (SimpleNamedRegionReferenceAntlrHighlighter<?>) impl;
+                s.highlightReferencesUnderCaret();
+            }
             int refreshDelay = trigger.refreshDelay();
             return createHighlighter(ctx, refreshDelay, impl, trigger);
         };

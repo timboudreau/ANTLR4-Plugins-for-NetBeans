@@ -30,14 +30,14 @@ package org.nemesis.antlr.navigator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.DefaultListModel;
 import javax.swing.JPopupMenu;
-import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.SemanticRegion;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.key.NameReferenceSetKey;
-import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.extraction.key.RegionsKey;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.awt.HtmlRenderer;
 
@@ -47,22 +47,20 @@ import org.openide.awt.HtmlRenderer;
  *
  * @author Tim Boudreau
  */
-public final class NavigatorPanelConfig<K extends Enum<K>> {
+public final class SemanticRegionPanelConfig<K> {
 
-    private final NameReferenceSetKey<K> centralityKey;
-    private final Appearance<NamedSemanticRegion<K>> appearance;
+    private final Appearance<SemanticRegion<K>> appearance;
     private final ListModelPopulator<K> populator;
     private final Consumer<JPopupMenu> popupMenuPopulator;
-    private final BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher;
+    private final BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher;
     private final boolean sortable;
     private final String displayName;
     private final String hint;
 
-    private NavigatorPanelConfig(NameReferenceSetKey<K> centralityKey, Appearance<NamedSemanticRegion<K>> appearance,
+    private SemanticRegionPanelConfig(Appearance<SemanticRegion<K>> appearance,
             ListModelPopulator<K> populator, Consumer<JPopupMenu> popupMenuPopulator,
-            BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher,
+            BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher,
             String displayName, boolean sortable, String hint) {
-        this.centralityKey = centralityKey;
         this.appearance = appearance;
         this.populator = populator;
         this.popupMenuPopulator = popupMenuPopulator;
@@ -81,65 +79,44 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
      *
      * @param <K>
      */
-    public static final class Builder<K extends Enum<K>> {
+    public static final class Builder<K> {
 
         private boolean sortable;
         private Consumer<JPopupMenu> popupMenuPopulator;
-        private BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher;
+        private BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher;
         private ListModelPopulator<K> populator;
         private String displayName;
         private String hint;
-        private Appearance<NamedSemanticRegion<K>> appearance;
-        private NameReferenceSetKey<K> centralityKey;
+        private Appearance<SemanticRegion<K>> appearance;
 
         private Builder() {
 
         }
 
-        public NavigatorPanelConfig<K> build() {
+        public SemanticRegionPanelConfig<K> build() {
             if (elementFetcher == null) {
                 throw new IllegalStateException("Element fetcher must be set");
             }
             if (displayName == null) {
                 throw new IllegalStateException("Display name must be set");
             }
-            return new NavigatorPanelConfig<>(centralityKey, appearance, populator == null ? new DefaultPopulator<K>() : populator,
+            return new SemanticRegionPanelConfig<>(appearance, populator == null ? new DefaultPopulator<K>() : populator,
                     popupMenuPopulator, elementFetcher, displayName, sortable, hint);
         }
 
-        static final class DefaultPopulator<K extends Enum<K>> implements ListModelPopulator<K> {
+        static final class DefaultPopulator<K> implements ListModelPopulator<K> {
 
             @Override
-            public int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort) {
+            public int populateListModel(Extraction extraction, List<SemanticRegion<K>> fetched, DefaultListModel<SemanticRegion<K>> model, SemanticRegion<K> oldSelection, SortTypes sort) {
                 int sel = -1;
-                for (NamedSemanticRegion<K> region : fetched) {
-                    if (sel == -1 && oldSelection != null && region.name().equals(oldSelection.name())) {
+                for (SemanticRegion<K> region : fetched) {
+                    if (sel == -1 && oldSelection != null && Objects.equals(region.key(), oldSelection.key())) {
                         sel = model.size();
                     }
                     model.addElement(region);
                 }
                 return sel;
             }
-        }
-
-        /**
-         * Supply a key which will look up a reference graph of the regions you
-         * wnat to display (you need to have set up your ExtractorBuilder to
-         * create one), to enable the PAGE_RANK and EIGENVECTOR_CENTRALITY sort
-         * modes, which sort most-important nodes to the top. Sets the sortable
-         * flag.
-         *
-         * @param centralityKey A key which references the same nodes you want
-         * to display
-         * @return this
-         */
-        public Builder<K> withCentralityKey(NameReferenceSetKey<K> centralityKey) {
-            if (this.centralityKey != null) {
-                throw new IllegalStateException("Centrality key already set to " + this.centralityKey);
-            }
-            this.centralityKey = centralityKey;
-            sortable = true;
-            return this;
         }
 
         /**
@@ -186,12 +163,12 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
             return this;
         }
 
-        Builder<K> fetchingWith(NamedRegionKey<K> key) {
+        Builder<K> fetchingWith(RegionsKey<K> key) {
             return fetchingWith(new FetchByKey<>(key));
         }
 
         public Builder<K> setSingleIcon(String icon) {
-            return withAppearance(new IconAppearance<NamedSemanticRegion<K>> (icon));
+            return withAppearance(new IconAppearance<SemanticRegion<K>> (icon));
         }
 
         /**
@@ -201,21 +178,21 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @param key The key
          * @return this
          */
-        public Builder<K> alsoFetchingWith(NamedRegionKey<K> key) {
+        public Builder<K> alsoFetchingWith(RegionsKey<K> key) {
             return fetchingWith(new FetchByKey<>(key));
         }
 
-        private static final class FetchByKey<K extends Enum<K>> implements BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> {
+        private static final class FetchByKey<K> implements BiConsumer<Extraction, List<? super SemanticRegion<K>>> {
 
-            private final NamedRegionKey<K> key;
+            private final RegionsKey<K> key;
 
-            public FetchByKey(NamedRegionKey<K> key) {
+            public FetchByKey(RegionsKey<K> key) {
                 this.key = key;
             }
 
             @Override
-            public void accept(Extraction t, List<? super NamedSemanticRegion<K>> u) {
-                for (NamedSemanticRegion<K> region : t.namedRegions(key)) {
+            public void accept(Extraction t, List<? super SemanticRegion<K>> u) {
+                for (SemanticRegion<K> region : t.regions(key)) {
                     u.add(region);
                 }
             }
@@ -228,11 +205,11 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @param key The key
          * @return this
          */
-        public Builder<K> alsoFetchingWith(BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> fetcher) {
+        public Builder<K> alsoFetchingWith(BiConsumer<Extraction, List<? super SemanticRegion<K>>> fetcher) {
             return fetchingWith(fetcher);
         }
 
-        Builder<K> fetchingWith(BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> fetcher) {
+        Builder<K> fetchingWith(BiConsumer<Extraction, List<? super SemanticRegion<K>>> fetcher) {
             if (this.elementFetcher != null) {
                 this.elementFetcher = this.elementFetcher.andThen(fetcher);
             } else {
@@ -248,7 +225,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @param appearance An appearance configurer
          * @return
          */
-        public Builder<K> withAppearance(Appearance<NamedSemanticRegion<K>> appearance) {
+        public Builder<K> withAppearance(Appearance<SemanticRegion<K>> appearance) {
             if (this.appearance != null) {
                 this.appearance = this.appearance.and(appearance);
             } else {
@@ -297,15 +274,15 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         return sortable;
     }
 
-    public static <K extends Enum<K>> Builder<K> builder(NamedRegionKey<K> key) {
+    public static <K> Builder<K> builder(RegionsKey<K> key) {
         return new Builder<K>().fetchingWith(key);
     }
 
-    public static <K extends Enum<K>> Builder<K> builder(BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher) {
+    public static <K> Builder<K> builder(BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher) {
         return new Builder<K>().fetchingWith(elementFetcher);
     }
 
-    void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<K> region, boolean componentActive, SortTypes sort) {
+    void configureAppearance(HtmlRenderer.Renderer on, SemanticRegion<K> region, boolean componentActive, SortTypes sort) {
         if (appearance != null) {
             appearance.configureAppearance(on, region, componentActive, sort);
         } else {
@@ -319,22 +296,12 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         }
     }
 
-    boolean isSortTypeEnabled(SortTypes type) {
-        if (!sortable) {
-            return false;
-        }
-        if (centralityKey == null) {
-            return !type.isCentralitySort();
-        }
-        return true;
-    }
-
     /**
      * Updates a list model and sorts it.
      *
      * @param <K> The enum type
      */
-    public interface ListModelPopulator<K extends Enum<K>> {
+    public interface ListModelPopulator<K> {
 
         /**
          * Populate the list model with whatever objects this panel should find
@@ -347,15 +314,12 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @return The index of the old selection (if not null) in the new set
          * of model elements, or -1 if not found
          */
-        int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort);
+        int populateListModel(Extraction extraction, List<SemanticRegion<K>> fetched, DefaultListModel<SemanticRegion<K>> model, SemanticRegion<K> oldSelection, SortTypes sort);
     }
 
-    int populateListModel(Extraction extraction, DefaultListModel<NamedSemanticRegion<K>> newListModel, NamedSemanticRegion<K> oldSelection, SortTypes requestedSort) {
-        List<NamedSemanticRegion<K>> items = new ArrayList<>(100);
+    int populateListModel(Extraction extraction, DefaultListModel<SemanticRegion<K>> newListModel, SemanticRegion<K> oldSelection, SortTypes requestedSort) {
+        List<SemanticRegion<K>> items = new ArrayList<>(100);
         elementFetcher.accept(extraction, items);
-        if (sortable && isSortTypeEnabled(requestedSort)) {
-            requestedSort.sort(items, extraction, centralityKey);
-        }
         return populator.populateListModel(extraction, items, newListModel, oldSelection, requestedSort);
     }
 
@@ -364,6 +328,6 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
     }
 
     public NavigatorPanel toNavigatorPanel(String mimeType) {
-        return new GenericAntlrNavigatorPanel<>(mimeType, this);
+        return new GenericSemanticRegionNavigatorPanel<>(mimeType, this);
     }
 }

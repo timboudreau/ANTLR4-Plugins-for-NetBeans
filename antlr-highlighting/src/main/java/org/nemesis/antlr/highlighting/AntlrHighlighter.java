@@ -19,7 +19,7 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
  */
 interface AntlrHighlighter {
 
-    void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag);
+    void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer caret);
 
     default boolean mergeHighlights() {
         return false;

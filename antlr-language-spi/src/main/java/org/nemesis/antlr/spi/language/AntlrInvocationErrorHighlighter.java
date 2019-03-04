@@ -48,7 +48,6 @@ final class AntlrInvocationErrorHighlighter extends ParserResultTask<AntlrParseR
         return new Factory(mimeType);
     }
 
-//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = TaskFactory.class)
     private static class Factory extends TaskFactory {
 
         private final String mimeType;

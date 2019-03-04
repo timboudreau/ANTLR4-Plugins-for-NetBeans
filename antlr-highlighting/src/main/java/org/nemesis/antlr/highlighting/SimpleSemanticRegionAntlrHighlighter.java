@@ -30,10 +30,6 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
     private final Function<SemanticRegion<T>, AttributeSet> coloringLookup;
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static void log(String msg, Object... args) {
         LOG.log(Level.FINER, msg, args);
     }
@@ -65,6 +61,7 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
 
     // Don't use lambdas, for loggability
     private static final class ColoringSupplier implements Supplier<AttributeSet> {
+
         private final String coloringName;
         private final ColoringLookup lkp;
 
@@ -83,7 +80,8 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
         }
     }
 
-    private static final class ColoringLookup implements Function<String,AttributeSet> {
+    private static final class ColoringLookup implements Function<String, AttributeSet> {
+
         private final String mimeType;
         private static final Set<String> missing = new HashSet<>();
 
@@ -109,7 +107,6 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
         public String toString() {
             return "ColoringLookup for " + mimeType;
         }
-
     }
 
     static <T> Function<String, AttributeSet> coloringForMimeType(String mimeType) {
@@ -127,7 +124,7 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag) {
+    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer ignored) {
         SemanticRegions<T> regions = ext.regions(key);
         log("refresh {0} NamedRegionReferenceSets for {1}", regions.size(), doc);
         if (!regions.isEmpty()) {

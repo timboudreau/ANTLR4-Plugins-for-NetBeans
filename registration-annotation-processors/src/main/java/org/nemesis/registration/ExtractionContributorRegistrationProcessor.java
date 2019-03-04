@@ -7,6 +7,7 @@ package org.nemesis.registration;
 
 import org.nemesis.registration.api.AbstractRegistrationProcessor;
 import java.util.function.Predicate;
+import java.util.logging.Level;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -84,7 +85,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
         String generatedClassName = owner.getSimpleName() + "_ExtractionContributor" + "_" + method.getSimpleName();
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg == null ? null : pkg.getQualifiedName())
                 .named(generatedClassName).implementing(EC_NAME + "<" + entrySimple + ">")
-                .addModifier(PUBLIC).addModifier(FINAL)
+                .withModifier(PUBLIC).withModifier(FINAL)
                 .importing("javax.annotation.processing.Generated", "org.openide.util.lookup.ServiceProvider",
                         EC_TYPE, "org.nemesis.extraction.ExtractorBuilder", entryPointType.toString())
                 .docComment("Generated from ", ANNO, " on method ", method.getSimpleName(), " of ", ownerTypeSimple,
@@ -94,6 +95,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
                 .method("accept", mb -> {
                     mb.override().withModifier(PUBLIC).addArgument("ExtractorBuilder<? super " + entrySimple + ">", "builder")
                             .body(bb -> {
+                                bb.log(generatedClassName + " populate ExtractionBuilder", Level.SEVERE);
                                 bb.invoke(method.getSimpleName().toString())
                                         .withArgument("builder")
                                         .on(ownerTypeSimple).endBlock();

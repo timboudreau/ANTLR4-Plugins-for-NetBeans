@@ -1,12 +1,12 @@
 package org.nemesis.antlr.highlighting;
 
-import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.swing.text.AttributeSet;
+import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
@@ -18,9 +18,9 @@ import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 
 /**
- * Base class for Antlr-based highlights layer factory.  To use, create
- * one with a builder, and then delegate to it from one you register in
- * mime lookup for your mime type.
+ * Base class for Antlr-based highlights layer factory. To use, create one with
+ * a builder, and then delegate to it from one you register in mime lookup for
+ * your mime type.
  *
  * @author Tim Boudreau
  */
@@ -35,12 +35,15 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
     @Override
     public HighlightsLayer[] createLayers(Context context) {
         List<HighlightsLayer> layers = new ArrayList<>(this.all.size());
-        for (HighlighterFactory f : all) {
-            HighlightsLayer layer = f.createLayer(context);
-            if (layer != null) {
-                layers.add(layer);
-            }
-        }
+        all.stream().map((f) -> f.createLayer(context)).filter((layer) -> (layer != null)).forEach((layer) -> {
+            layers.add(layer);
+        });
+//        for (HighlighterFactory f : all) {
+//            HighlightsLayer layer = f.createLayer(context);
+//            if (layer != null) {
+//                layers.add(layer);
+//            }
+//        }
         return layers.toArray(new HighlightsLayer[layers.size()]);
     }
 
@@ -79,6 +82,13 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
                 int positionInZOrder, String mimeType, NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, String> coloringNameProvider) {
             Supplier<AntlrHighlighter> supp = ()
                     -> AntlrHighlighter.create(mimeType, key, coloringNameProvider);
+            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+        }
+
+        public Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
+                int positionInZOrder, NameReferenceSetKey<?> key, String mimeType, String coloringName) {
+            Supplier<AntlrHighlighter> supp = ()
+                    -> AntlrHighlighter.create(mimeType, key, coloringName);
             return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
         }
 

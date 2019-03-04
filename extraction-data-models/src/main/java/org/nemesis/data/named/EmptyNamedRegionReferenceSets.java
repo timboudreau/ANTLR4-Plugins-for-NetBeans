@@ -11,6 +11,12 @@ import java.util.function.Predicate;
  */
 final class EmptyNamedRegionReferenceSets<K extends Enum<K>> implements NamedRegionReferenceSets<K> {
 
+    private final NamedSemanticRegions<K> owner;
+
+    EmptyNamedRegionReferenceSets(NamedSemanticRegions<K> owner) {
+        this.owner = owner;
+    }
+
     @Override
     public NamedRegionReferenceSet<K> references(String name) {
         return new EmptyRS<>();
@@ -61,7 +67,17 @@ final class EmptyNamedRegionReferenceSets<K extends Enum<K>> implements NamedReg
         return 0;
     }
 
-    private static class EmptyRS<K extends Enum<K>> implements NamedRegionReferenceSet<K> {
+    @Override
+    public boolean isEmpty() {
+        return true;
+    }
+
+    @Override
+    public NamedSemanticRegions<K> originals() {
+        return owner;
+    }
+
+    static class EmptyRS<K extends Enum<K>> implements NamedRegionReferenceSet<K> {
 
         @Override
         public int size() {

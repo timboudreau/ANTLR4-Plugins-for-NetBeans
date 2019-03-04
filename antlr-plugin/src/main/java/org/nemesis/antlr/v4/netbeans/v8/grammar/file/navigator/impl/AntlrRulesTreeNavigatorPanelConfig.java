@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.navigator.AntlrNavigatorPanelRegistration;
+import org.nemesis.antlr.navigator.Appearance;
 import org.nemesis.antlr.navigator.NavigatorPanelConfig;
 import org.nemesis.antlr.navigator.SortTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
@@ -47,7 +48,7 @@ import org.openide.util.NbBundle.Messages;
  *
  * @author Tim Boudreau
  */
-class AntlrRulesTreeNavigatorPanelConfig implements NavigatorPanelConfig.Appearance<NamedSemanticRegion<RuleTypes>>, BiConsumer<Extraction, List<? super NamedSemanticRegion<RuleTypes>>> {
+class AntlrRulesTreeNavigatorPanelConfig implements Appearance<NamedSemanticRegion<RuleTypes>>, BiConsumer<Extraction, List<? super NamedSemanticRegion<RuleTypes>>> {
 
     private final Map<String, Integer> depths = new HashMap<>();
     private static final int PIXELS_PER_DEPTH_INCREMENT = 8;

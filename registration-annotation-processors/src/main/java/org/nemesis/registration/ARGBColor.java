@@ -197,8 +197,14 @@ public final class ARGBColor {
     }
 
     public String toHexString() {
+        return toHexString(true);
+    }
+
+    public String toHexString(boolean omitAlphaIfMaximum) {
         StringBuilder sb = new StringBuilder();
-        sb.append(toHex(a));
+        if (a != 255 || !omitAlphaIfMaximum) {
+            sb.append(toHex(a));
+        }
         sb.append(toHex(r));
         sb.append(toHex(g));
         sb.append(toHex(b));
@@ -298,8 +304,9 @@ public final class ARGBColor {
     }
 
     private static int[] hexToIntArray(String argb) {
+        int len = argb.length();
         int[] result = new int[4];
-        if (argb.length() != 8) {
+        if (len != 8 && len != 6) {
             throw new IllegalArgumentException("Argument length should be 8 but is " + argb.length() + " in '" + argb + "'");
         }
         argb = argb.toLowerCase();
@@ -313,10 +320,17 @@ public final class ARGBColor {
                 }
             }
         }
-        result[0] = Integer.parseInt(argb.substring(0, 2), 16);
-        result[1] = Integer.parseInt(argb.substring(2, 4), 16);
-        result[2] = Integer.parseInt(argb.substring(4, 6), 16);
-        result[3] = Integer.parseInt(argb.substring(6, 8), 16);
+        if (len == 6) {
+            result[0] = 255;
+            result[1] = Integer.parseInt(argb.substring(0, 2), 16);
+            result[2] = Integer.parseInt(argb.substring(2, 4), 16);
+            result[3] = Integer.parseInt(argb.substring(4, 6), 16);
+        } else {
+            result[0] = Integer.parseInt(argb.substring(0, 2), 16);
+            result[1] = Integer.parseInt(argb.substring(2, 4), 16);
+            result[2] = Integer.parseInt(argb.substring(4, 6), 16);
+            result[3] = Integer.parseInt(argb.substring(6, 8), 16);
+        }
         return result;
     }
 }
