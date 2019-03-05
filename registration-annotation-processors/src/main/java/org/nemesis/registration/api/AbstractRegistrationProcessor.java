@@ -174,8 +174,8 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
                     }
                 }
             }
-            done &= onRoundCompleted(elementForAnnotation, roundEnv);
             try {
+                done &= onRoundCompleted(elementForAnnotation, roundEnv);
                 done &= delegates.onRoundCompleted(elementForAnnotation, roundEnv, used);
             } catch (Exception ex) {
                 utils().logException(ex, true);
@@ -188,7 +188,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
         }
     }
 
-    protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment roundEnv) {
+    protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment roundEnv) throws Exception {
         return true;
     }
 

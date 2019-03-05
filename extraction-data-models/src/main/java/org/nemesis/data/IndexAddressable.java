@@ -106,7 +106,7 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
             RI foreignItem = b.at(item.start());
             // Check for either containing the other
             if (foreignItem != null && item.contains(foreignItem)) {
-                System.out.println("cross ref " + item + " -> " + foreignItem);
+//                System.out.println("cross ref " + item + " -> " + foreignItem);
                 int foreignOffset = foreignItemOffset.apply(foreignItem.index());
                 setOne.set(foreignItem.index(), foreignOffset);
             } else if (foreignItem != null && foreignItem.contains(item)) {

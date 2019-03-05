@@ -32,10 +32,6 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     private boolean highlightReferencesUnderCaret;
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static void log(String msg, Object... args) {
         LOG.log(Level.FINER, msg, args);
     }
@@ -148,7 +144,6 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
                                 // Don't highlight the element the caret is in,
                                 // for consistency with other NetBeans
                                 // highlighters
-//                                if (ref.start() == target.start() && ref.end() == target.end()) {
                                 if (ref.containsPosition(caret)) {
                                     if (log) {
                                         LOG.log(Level.FINEST, "Skip {0}:{1} ref for {2}", new Object[]{target.start(), target.end(), target.name()});

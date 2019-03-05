@@ -3,6 +3,7 @@ package org.nemesis.extraction;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -12,6 +13,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.nemesis.data.Hashable;
 import org.nemesis.extraction.key.RegionsKey;
 
 /**
@@ -37,8 +39,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
     }
 
     public TokenRegionExtractorBuilder<EntryPointType, RegionKeyType> whenTokenTypeMatches(int tokenType, int... moreTypes) {
-        IntPredicate tokenTypeMatcher = new MultiIntPredicate(tokenType, moreTypes);
-        return new TokenRegionExtractorBuilder<>(bldr, key, tokenTypeMatcher);
+        return whenTokenTypeMatches(new MultiIntPredicate(tokenType, moreTypes));
     }
 
     public static final class TokenRegionExtractorBuilder<EntryPointType extends ParserRuleContext, RegionKeyType> {
@@ -65,6 +66,34 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             tokenExtractors.add(new TokenRegionExtractionStrategy<>(key.type(), tokenTypeMatcher, func));
             return new FinishableRegionExtractorBuilder<>(bldr, key, extractors, tokenExtractors);
         }
+        
+        public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> usingKey(RegionKeyType fixedKey) {
+            return derivingKeyWith(new FixedKey<>(fixedKey));
+        }
+        
+        static final class FixedKey<T> implements Function<Token, T>, Hashable {
+            private final T key;
+
+            public FixedKey(T key) {
+                this.key = key;
+            }
+
+            @Override
+            public T apply(Token t) {
+                return key;
+            }
+            
+            @Override
+            public String toString() {
+                return Objects.toString(key);
+            }
+
+            @Override
+            public void hashInto(Hasher hasher) {
+                hasher.hashObject(key);
+            }
+        }
+
     }
 
     public static final class RegionExtractionBuilderForOneRuleType<EntryPointType extends ParserRuleContext, RegionKeyType, RuleType extends ParserRuleContext> {

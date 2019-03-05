@@ -180,6 +180,15 @@ public final class AnnotationUtils {
         return processingEnv.getTypeUtils().isAssignable(tp, other);
     }
 
+    public boolean isAssignable(TypeMirror what, String to) {
+        TypeElement el = processingEnv.getElementUtils().getTypeElement(to);
+        if (el == null) {
+            return false;
+        }
+        TypeMirror type = el.asType();
+        return isAssignable(what, type);
+    }
+
     public boolean isSubtypeOf(TypeMirror tp, TypeMirror other) {
         return processingEnv.getTypeUtils().isSubtype(tp, other);
     }

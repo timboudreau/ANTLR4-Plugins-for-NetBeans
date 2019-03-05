@@ -2,7 +2,9 @@ package org.nemesis.extraction;
 
 import java.lang.reflect.Array;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
@@ -33,6 +35,20 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
     }
 
     @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(key).append("<");
+        for (Iterator<SingletonExtractionStrategy<KeyType, ?>> it = infos.iterator(); it.hasNext();) {
+            SingletonExtractionStrategy<KeyType, ?> i = it.next();
+            sb.append(i);
+            if (it.hasNext()) {
+                sb.append(", ");
+            }
+        }
+        return sb.append('>').toString();
+    }
+
+    @Override
     public void hashInto(Hasher hasher) {
         hasher.hashObject(key);
         for (SingletonExtractionStrategy i : infos) {
@@ -40,8 +56,8 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
         }
     }
 
-    public SingletonEncounters<KeyType> extract(ParserRuleContext node) {
-        SingleVisitor<KeyType> v = new SingleVisitor<>(infos);
+    public SingletonEncounters<KeyType> extract(ParserRuleContext node, BooleanSupplier cancelled) {
+        SingleVisitor<KeyType> v = new SingleVisitor<>(infos, cancelled);
         node.accept(v);
         return v.encounters;
     }
@@ -49,11 +65,13 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
     static final class SingleVisitor<KeyType> extends AbstractParseTreeVisitor<Void> {
 
         private final SingletonExtractionStrategy<KeyType, ?>[] infos;
-        private int[] activations;
+        private final int[] activations;
         private final SingletonEncounters<KeyType> encounters = new SingletonEncounters<>();
+        private final BooleanSupplier cancelled;
 
         @SuppressWarnings("unchecked")
-        SingleVisitor(Set<SingletonExtractionStrategy<KeyType, ?>> infos) {
+        SingleVisitor(Set<SingletonExtractionStrategy<KeyType, ?>> infos, BooleanSupplier cancelled) {
+            this.cancelled = cancelled;
             this.infos = infos.toArray((SingletonExtractionStrategy<KeyType, ?>[]) Array.newInstance(SingletonExtractionStrategy.class, infos.size()));
             activations = new int[this.infos.length];
             for (int i = 0; i < this.infos.length; i++) {
@@ -66,6 +84,9 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
 
         @Override
         public Void visitChildren(RuleNode node) {
+            if (cancelled.getAsBoolean()) {
+                return null;
+            }
             if (node instanceof ParserRuleContext) {
                 visitRule((ParserRuleContext) node);
             } else {

@@ -29,6 +29,16 @@ final class SingletonExtractionStrategy<KeyType, R extends ParserRuleContext> im
     }
 
     @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(ruleType.getSimpleName());
+        if (ancestorQualifier != null) {
+            sb.append("qual=").append(ancestorQualifier).append(", ");
+        }
+        sb.append(extractor);
+        return sb.toString();
+    }
+
+    @Override
     public void hashInto(Hasher hasher) {
         hasher.hashObject(key);
         hasher.hashObject(ancestorQualifier);

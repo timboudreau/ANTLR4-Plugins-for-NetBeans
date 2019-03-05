@@ -38,6 +38,7 @@ public final class SingletonKey<T> implements Serializable, Hashable, Extraction
     }
 
     @Override
+    @SuppressWarnings("StringEquality")
     public void hashInto(Hasher hasher) {
         hasher.writeString(type.getName());
         if (name != type.getSimpleName()) {
@@ -54,6 +55,7 @@ public final class SingletonKey<T> implements Serializable, Hashable, Extraction
         return name;
     }
 
+    @Override
     public String toString() {
         String nm = type.getSimpleName();
         return nm.equals(name) ? nm : name + ":" + nm;

@@ -3,7 +3,6 @@ package org.nemesis.antlr.spi.language;
 import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Vocabulary;
-import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.modules.parsing.api.Snapshot;
@@ -60,12 +59,16 @@ public abstract class NbLexerAdapter<T extends TokenId, L extends org.antlr.v4.r
      */
     protected abstract T tokenId(int ordinal);
 
-    protected void createParseResult(Snapshot snapshot, Extraction extraction, BiConsumer<AntlrParseResult, ParseResultContents> receiver) {
+    protected final void createParseResult(Snapshot snapshot, Extraction extraction, BiConsumer<AntlrParseResult, ParseResultContents> receiver) {
         ParseResultContents[] cts = new ParseResultContents[1];
         AntlrParseResult res = new AntlrParseResult(this, snapshot, extraction, input -> {
             cts[0] = input;
         });
         receiver.accept(res, cts[0]);
+    }
+
+    protected final IterableTokenSource wrapLexer(L lexer) {
+        return new WrapLexer<>(lexer);
     }
 
 }

@@ -46,6 +46,10 @@ public interface Hashable {
         return new Hasher();
     }
 
+    public static int hashHashCode(Hashable hash) {
+        return newHasher().hashObject(hash).hash().hashCode();
+    }
+
     public static final class Hasher {
 
         private final ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
@@ -66,6 +70,10 @@ public interface Hashable {
             }
             if (obj instanceof Hashable) {
                 ((Hashable) obj).hashInto(this);
+            } else if (obj instanceof Enum<?>) {
+                Enum<?> e = (Enum<?>) obj;
+                writeInt(e.ordinal());
+                writeInt(e.getClass().hashCode());
             } else {
                 writeInt(obj.hashCode());
                 writeString(obj.toString());

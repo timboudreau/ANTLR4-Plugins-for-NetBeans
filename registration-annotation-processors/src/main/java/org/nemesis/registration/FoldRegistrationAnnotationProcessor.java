@@ -233,7 +233,6 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkgEl.getQualifiedName())
                 .named(genClassName)
-                .generateDebugLogCode()
                 .importing("javax.annotation.processing.Generated", "org.netbeans.modules.parsing.spi.TaskFactory",
                         REGION_TO_FOLD_CONVERTER_TYPE,
                         MIME_REGISTRATION_ANNOT_TYPE, itemType,

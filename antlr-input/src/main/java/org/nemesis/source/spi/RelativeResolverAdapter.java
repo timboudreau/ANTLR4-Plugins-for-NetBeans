@@ -77,13 +77,6 @@ public class RelativeResolverAdapter<F, T> {
 
     @SuppressWarnings("unchecked")
     <I> RelativeResolverImplementation<F> castIfMatches(RelativeResolverImplementation<I> r) {
-//        if (r.type() == fromType) {
-        System.out.println("\n" + r.type().getName() + " and " + fromType.getName()
-                + " eq? " + (r.type() == fromType)
-                + " assig1 " + (r.type().isAssignableFrom(fromType))
-                + " assig2 " + (fromType.isAssignableFrom(r.type()))
-                + "\n");
-
         if (r.type() == fromType || r.type().isAssignableFrom(fromType)) {
             return (RelativeResolverImplementation<F>) r;
         }
@@ -98,8 +91,6 @@ public class RelativeResolverAdapter<F, T> {
                 RelativeResolverAdapter<I, J> castAdapter = (RelativeResolverAdapter<I, J>) this;
                 return castAdapter.adapt(impl);
             }
-        } else {
-            System.out.println("  no match " + toType.getName() + " and " + doc.getClass().getName());
         }
         return null;
     }

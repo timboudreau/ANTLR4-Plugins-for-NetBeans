@@ -180,8 +180,8 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
                     }
                 }
             }
-            done &= onRoundCompleted(elementForAnnotation, roundEnv);
             try {
+                done &= onRoundCompleted(elementForAnnotation, roundEnv);
                 done &= delegates.onRoundCompleted(elementForAnnotation, roundEnv, used);
             } catch (Exception ex) {
                 utils().logException(ex, true);
@@ -265,7 +265,7 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
 
     }
 
-    protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) {
+    protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws Exception {
         return true;
     }
 

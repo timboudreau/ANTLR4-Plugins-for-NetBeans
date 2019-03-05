@@ -53,7 +53,8 @@ public final class SyntaxError implements Comparable<SyntaxError> {
                 return result;
             }
         }
-        LazyFixList fixes = originalException != null ? new Fixes(adapter, snapshot) : NO_FIXES;
+        LazyFixList fixes = originalException != null && originalException.getOffendingState() != -1
+                ? new Fixes(adapter, snapshot) : NO_FIXES;
 
         FileObject fo = snapshot == null ? null : snapshot.getSource().getFileObject();
         if (fo != null) {

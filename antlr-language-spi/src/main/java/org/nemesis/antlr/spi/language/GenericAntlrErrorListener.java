@@ -26,7 +26,6 @@ final class GenericAntlrErrorListener implements ANTLRErrorListener, Supplier<Li
 
     GenericAntlrErrorListener(Snapshot snapshot) {
         this.snapshot = snapshot;
-        System.out.println("CREATE GENERIC LISTENER FOR " + snapshot);
     }
 
     Snapshot snapshot() {
@@ -35,7 +34,6 @@ final class GenericAntlrErrorListener implements ANTLRErrorListener, Supplier<Li
 
     @Override
     public void syntaxError(Recognizer<?, ?> rcgnzr, Object offendingSymbol, int startIndex, int stopIndex, String message, RecognitionException re) {
-        System.out.println("SYNTAX ERROR " + message + " " + offendingSymbol + " " + startIndex + " " + stopIndex);
         int endOffset = stopIndex + 1;
         if (re != null) {
             re.printStackTrace(System.out);
@@ -65,7 +63,6 @@ final class GenericAntlrErrorListener implements ANTLRErrorListener, Supplier<Li
 
     @Override
     public List<? extends SyntaxError> get() {
-        System.out.println("  GET SYNTAX ERRORS WITH " + syntaxErrors);
         return Collections.unmodifiableList(syntaxErrors);
     }
 }

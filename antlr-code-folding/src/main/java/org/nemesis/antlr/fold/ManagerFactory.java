@@ -104,11 +104,8 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
                     actualType = FoldType.INITIAL_COMMENT;
                 }
             }
-            System.out.println("T is " + t.getClass().getName());
             if (t instanceof Named) {
                 String name = ((Named) t).name();
-                System.out.println("  DERIVE TYPE WITH " + name);
-//                actualType = foldType.override(name, foldType.getTemplate());
                 FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
                 actualType = foldType.derive(name, name, ft);
             }

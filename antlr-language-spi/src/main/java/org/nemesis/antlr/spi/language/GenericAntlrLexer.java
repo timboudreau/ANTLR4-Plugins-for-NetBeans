@@ -1,5 +1,7 @@
 package org.nemesis.antlr.spi.language;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.misc.IntegerStack;
 import org.netbeans.api.lexer.Token;
@@ -18,6 +20,7 @@ final class GenericAntlrLexer<T extends TokenId, L extends org.antlr.v4.runtime.
     private final L antlrLexer;
     private LexerState lexerState;
     private final NbLexerAdapter<T, L> adapter;
+    private static final Logger LOG = Logger.getLogger(GenericAntlrLexer.class.getName());
 
     public GenericAntlrLexer(LexerRestartInfo<T> info, NbLexerAdapter<T, L> adapter) {
         this.info = info;
@@ -70,12 +73,9 @@ final class GenericAntlrLexer<T extends TokenId, L extends org.antlr.v4.runtime.
         int tokenType = antlrToken.getType();
         boolean returningNullNoEof = false;
         if (info.input().readLength() < 1) {
-            System.out.println("RETURN NULL FOR READLENGTH " + info.input().readLength() + " token " + antlrToken);
             returningNullNoEof = true;
         }
         if (!returningNullNoEof && antlrToken.getType() == -1 && antlrToken.getStopIndex() < antlrToken.getStartIndex()) {
-            System.out.println("RETURN NULL FOR " + antlrToken + " " + antlrToken.getStartIndex() + " " + antlrToken.getStopIndex()
-                    + " '" + antlrToken.getText() + "'");
             returningNullNoEof = true;
         }
         if (!returningNullNoEof && tokenType != CharStream.EOF) {
@@ -94,15 +94,20 @@ final class GenericAntlrLexer<T extends TokenId, L extends org.antlr.v4.runtime.
             returningNullNoEof = true;
         }
         if (returningNullNoEof) {
+            // Devour any remaining input
             LexerInput in = info.input();
             int remaining = in.readLength();
             if (remaining > 0) {
-                System.out.println("Return a bogus token for '" + in.readText() + "'");
+                LOG.log(Level.WARNING, "Antlr lexer {0} did not consume "
+                        + "{1} characters at end of input. Returning error token",
+                        new Object[] {antlrLexer.getClass().getSimpleName(), remaining});
                 // The lexer has given up and did not tokenize everything that
                 // was read - but we must.  So use the $ERRONEOUS token generated
                 // by the annotation processor to capture whatever is left
-                return info.tokenFactory().createToken(
+                Token<T> result = info.tokenFactory().createToken(
                         adapter.tokenId(getErroneousTokenId()), remaining);
+                LOG.log(Level.FINEST, "Returning bogus token {0}", result);
+                return result;
             }
         }
         return null;

@@ -177,6 +177,17 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         return true;
     }
 
+    static String stripMimeType(String mt) {
+        int ix = mt.indexOf('/');
+        if (ix > 0 && ix < mt.length() - 1) {
+            mt = mt.substring(ix + 1);
+        }
+        if (mt.startsWith("x-")) {
+            mt = mt.substring(2);
+        }
+        return mt;
+    }
+
     // DataObject generation
     private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type) throws Exception {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
@@ -269,6 +280,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             }
         }
         generateEditorKitClassAndRegistration(dataObjectPackage, dataObjectClassName, fileInfo, extension, mirror, prefix, type, mimeType);
+        layer(type).folder("Actions/" + stripMimeType(mimeType))
+                .stringvalue("displayName", prefix).write();
         writeOne(cl);
     }
 
@@ -395,7 +408,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         "org.nemesis.antlr.spi.language.NbParserHelper", "org.nemesis.antlr.spi.language.AntlrParseResult",
                         "org.nemesis.antlr.spi.language.SyntaxError", "java.util.function.Supplier",
                         "org.nemesis.extraction.Extractor", "org.nemesis.extraction.Extraction",
-                        "org.antlr.v4.runtime.CommonTokenStream", "java.util.Optional", "java.util.List"
+                        "org.antlr.v4.runtime.CommonTokenStream", "java.util.Optional", "java.util.List",
+                        "org.nemesis.antlr.spi.language.IterableTokenSource"
                 )
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .extending("Parser")
@@ -449,7 +463,10 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                             .body(bb -> {
                                 bb.declare("lexer").initializedByInvoking("createAntlrLexer").withArgument("bag.source().stream()")
                                         .on(prefix + "Hierarchy").as(lexerClass.toString());
-                                bb.declare("stream").initializedWith("new CommonTokenStream(lexer, " + streamChannel + ")")
+                                bb.declare("tokenSource").initializedByInvoking("createWrappedTokenSource")
+                                        .withArgument("lexer")
+                                        .on(prefix + "Hierarchy").as("IterableTokenSource");
+                                bb.declare("stream").initializedWith("new CommonTokenStream(tokenSource, " + streamChannel + ")")
                                         .as("CommonTokenStream");
                                 bb.declare("parser").initializedWith("new " + parserClass.toString() + "(stream)").as(parserClass.toString());
                                 bb.blankLine();
@@ -483,9 +500,13 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                                 bb.declare("extraction").initializedByInvoking("extract")
                                         .withArgument("tree")
                                         .withArgumentFromInvoking("source").on("bag")
+                                        .withArgument("cancelled")
+                                        .withArgument("tokenSource")
                                         //.withArgument("bag.source()")
-                                        .withLambdaArgument().body().returning("new CommonTokenStream(lexer)").endBlock()
+//                                        .withLambdaArgument().body().returning("new CommonTokenStream(lexer, -1)").endBlock()
                                         .on("extractor").as("Extraction");
+                                bb.lineComment("// discard the cached tokens used for token extraction");
+                                bb.invoke("dispose").on("tokenSource");
                                 bb.blankLine();
                                 bb.lineComment("Now create a parser result and object to populate it, and allow the");
                                 bb.lineComment("helper's hook method to add anything it needs, such as semantic error");
@@ -595,7 +616,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
     private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, AnnotationMirror parserInfo, ExecutableElement entryPointMethod) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
-        
+
         String icon = fileType == null ? null : utils().annotationValue(fileType, "iconBase", String.class);
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
         String generatedClassName = type.getSimpleName() + "_SyntaxTreeNavigator_Registration";
@@ -835,6 +856,8 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         String hierName = prefix + "Hierarchy";
         String hierFqn = pkg + "." + hierName;
         String languageMethodName = lc(prefix) + "Language";
+        String lexerClassName = lexerClass.toString();
+        String lexerClassSimple = simpleName(lexerClassName);
         ClassBuilder<String> lh = ClassBuilder.forPackage(pkg).named(hierName)
                 .importing("org.netbeans.api.lexer.Language", "org.netbeans.spi.lexer.LanguageHierarchy",
                         "org.netbeans.spi.lexer.Lexer", "org.netbeans.spi.lexer.LexerRestartInfo",
@@ -844,8 +867,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         "java.util.Map", "java.util.HashMap", "java.util.ArrayList", "org.antlr.v4.runtime.CharStream",
                         "java.util.function.BiConsumer", "org.nemesis.antlr.spi.language.ParseResultContents",
                         "org.netbeans.modules.parsing.api.Snapshot", "org.nemesis.extraction.Extraction",
-                        "org.nemesis.antlr.spi.language.AntlrParseResult", "org.netbeans.api.editor.mimelookup.MimeRegistration",
-                        "org.antlr.v4.runtime.Vocabulary"
+                        "org.nemesis.antlr.spi.language.AntlrParseResult", "org.nemesis.antlr.spi.language.IterableTokenSource",
+                        "org.netbeans.api.editor.mimelookup.MimeRegistration",
+                        "org.antlr.v4.runtime.Vocabulary", lexerClassName
                 )
                 .docComment("LanguageHierarchy implementation for ", prefix,
                         ". Generated by ", getClass().getSimpleName(), " from fields on ", lexerClass, ".")
@@ -902,7 +926,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .method("createTokenCategories").override().withModifier(PROTECTED).withModifier(FINAL)
                 .returning("Map<String, Collection<" + tokenTypeName + ">>").body().returning("CATEGORIES").endBlock().closeMethod()
                 .method("createAntlrLexer").addArgument("CharStream", "stream")
-                .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock().returning(lexerClass.toString()).withModifier(PUBLIC).withModifier(STATIC).closeMethod()
+                .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock().returning(lexerClassSimple).withModifier(PUBLIC).withModifier(STATIC).closeMethod()
                 .method("newParseResult", mth -> {
                     mth.withModifier(STATIC)
                             .addArgument("Snapshot", "snapshot")
@@ -917,6 +941,16 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                                         .withArgument("receiver").on("LEXER_ADAPTER").endBlock();
                             })
                             .closeMethod();
+                })
+                .method("createWrappedTokenSource", mb -> {
+                    mb.addArgument(lexerClassSimple, "lexer")
+                            .withModifier(STATIC)
+                            .body(body -> {
+                                body.returningInvocationOf("createWrappedTokenSource")
+                                        .withArgument("lexer").on("LEXER_ADAPTER").endBlock();
+                            })
+                            .returning("IterableTokenSource")
+                            .closeMethod();
                 });
 
         // Inner implementation of NbLexerAdapter, which allows us to use a generic
@@ -926,12 +960,18 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .extending("NbLexerAdapter<" + tokenTypeName + ", " + lexerClass + ">")
                 .method("createLexer").override().withModifier(PUBLIC).returning(lexerClass.toString()).addArgument("CharStream", "stream")
                 .body(bb -> {
-                    bb.declare("result").initializedWith("new " + lexerClass + "(stream)").as(lexerClass.toString());
+                    bb.declare("result").initializedWith("new " + lexerClassSimple + "(stream)").as(lexerClass.toString());
                     bb.invoke("removeErrorListeners").on("result");
                     bb.returning("result").endBlock();
                 })
-                //                .body().returning("new " + lexerClass + "(stream)").endBlock().withModifier(PUBLIC)
                 .closeMethod()
+                .method("createWrappedTokenSource", mb -> {
+                    mb.addArgument(lexerClassSimple, "lexer")
+                            .body().returningInvocationOf("wrapLexer")
+                            .withArgument("lexer").on("super").endBlock()
+                            .returning("IterableTokenSource")
+                            .closeMethod();
+                })
                 .override("vocabulary").withModifier(PROTECTED).returning("Vocabulary")
                 .body().returning(lexerClass + ".VOCABULARY").endBlock().closeMethod()
                 .method("tokenId").override().addArgument("int", "ordinal").returning(tokenTypeName)

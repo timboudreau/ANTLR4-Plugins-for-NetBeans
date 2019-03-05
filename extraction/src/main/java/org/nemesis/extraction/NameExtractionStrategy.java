@@ -39,6 +39,23 @@ final class NameExtractionStrategy<R extends ParserRuleContext, T extends Enum<T
         this.terminalFinder = terminalFinder;
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder(NameExtractionStrategy.class.getName())
+                .append('@').append(System.identityHashCode(this));
+        if (argType != null) {
+            sb.append(':').append(argType);
+        }
+        if (ancestorQualifier != null) {
+            sb.append("q=").append(ancestorQualifier);
+        }
+        sb.append("ext=").append(extractor);
+        if (terminalFinder != null) {
+            sb.append("term=").append(terminalFinder);
+        }
+
+        return sb.toString();
+    }
+
     @Override
     public void hashInto(Hasher hasher) {
         hasher.writeString(type.getName());

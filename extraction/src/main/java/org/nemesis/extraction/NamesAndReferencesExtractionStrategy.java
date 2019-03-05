@@ -2,6 +2,7 @@ package org.nemesis.extraction;
 
 import java.util.BitSet;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
@@ -40,8 +41,31 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         this.referenceExtractors = referenceExtractors.toArray(new ReferenceExtractorPair<?>[referenceExtractors.size()]);
     }
 
-    void invoke(ParserRuleContext ctx, NameInfoStore store) {
-        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor();
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(NamesAndReferencesExtractionStrategy.class.getName());
+        sb.append('@').append(System.identityHashCode(this)).append('<');
+        sb.append(keyType.getClass().getSimpleName()).append(':');
+        sb.append("nameExtractors={");
+        for (int i = 0; i < nameExtractors.length; i++) {
+            sb.append(nameExtractors[i]);
+            if (i != nameExtractors.length - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append("}, referenceExtractors={");
+        for (int i = 0; i < referenceExtractors.length; i++) {
+            sb.append(referenceExtractors[i]);
+            if (i != referenceExtractors.length - 1) {
+                sb.append(", ");
+            }
+        }
+        sb.append('}');
+        return sb.append('>').toString();
+    }
+
+    void invoke(ParserRuleContext ctx, NameInfoStore store, BooleanSupplier cancelled) {
+        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor(cancelled);
         ctx.accept(v);
         NamedSemanticRegions<T> names = v.namesBuilder == null ? null : v.namesBuilder.build();
         NamedSemanticRegions<T> ruleBounds = v.ruleBoundsBuilder.build();
@@ -61,6 +85,11 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 store.addDuplicateNamedRegions(ruleRegionKey, name, duplicates);
             });
         }
+        // TODO: If we use names, that fixes highlighting of the rule being referenced
+        // but breaks graphs, since the name will not contain the reference.
+        // Add a way to provide another reference key for that.
+        
+//        ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(names == null ? ruleBounds : names);
         ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(ruleBounds);
         ctx.accept(v1);
         v1.conclude(store);
@@ -193,8 +222,10 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         private final NamedSemanticRegionsBuilder<T> namesBuilder;
         private final NamedSemanticRegionsBuilder<T> ruleBoundsBuilder;
         private final int[] activations;
+        private final BooleanSupplier cancelled;
 
-        RuleNameAndBoundsVisitor() {
+        RuleNameAndBoundsVisitor(BooleanSupplier cancelled) {
+            this.cancelled = cancelled;
             activations = new int[nameExtractors.length];
             for (int i = 0; i < activations.length; i++) {
                 if (nameExtractors[i].ancestorQualifier == null) {
@@ -212,6 +243,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
 
         @Override
         public Void visitChildren(RuleNode node) {
+            if (cancelled.getAsBoolean()) {
+                return null;
+            }
             if (node instanceof ParserRuleContext) {
                 onVisit((ParserRuleContext) node);
             } else {

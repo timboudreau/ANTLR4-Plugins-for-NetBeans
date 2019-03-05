@@ -3,13 +3,16 @@ package org.nemesis.extraction;
 import java.util.Collection;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.nemesis.data.Hashable;
@@ -57,6 +60,56 @@ public final class Extractor<T extends ParserRuleContext> {
         this.nameExtractors = nameExtractors;
         this.regionsInfo = regionsInfo2;
         this.singles = singles;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("Extractors:")
+                .append(extractorsHash())
+                .append(':').append(documentRootType.getSimpleName()).append('{');
+        if (singles.isEmpty() && regionsInfo.isEmpty() && nameExtractors.isEmpty()) {
+            sb.append("<empty>");
+        }
+        if (!singles.isEmpty()) {
+            sb.append("singletons=[");
+            for (Iterator<Map.Entry<SingletonKey<?>, SingletonExtractionStrategies<?>>> it = singles.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<SingletonKey<?>, SingletonExtractionStrategies<?>> e = it.next();
+                sb.append(e.getKey()).append("->").append(e.getValue());
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+            sb.append("]");
+            if (!nameExtractors.isEmpty() || !regionsInfo.isEmpty()) {
+                sb.append(", ");
+            }
+        }
+        if (!regionsInfo.isEmpty()) {
+            sb.append("regions=[");
+            for (Iterator<RegionExtractionStrategies<?>> it = regionsInfo.iterator(); it.hasNext();) {
+                RegionExtractionStrategies<?> e = it.next();
+                sb.append(e);
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+            sb.append("]");
+            if (!nameExtractors.isEmpty()) {
+                sb.append(", ");
+            }
+        }
+        if (!nameExtractors.isEmpty()) {
+            sb.append("regions=[");
+            for (Iterator<NamesAndReferencesExtractionStrategy<?>> it = nameExtractors.iterator(); it.hasNext();) {
+                NamesAndReferencesExtractionStrategy<?> e = it.next();
+                sb.append(e);
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+            sb.append("]");
+        }
+        return sb.toString();
     }
 
     public static Extractor<ParserRuleContext> empty() {
@@ -120,41 +173,72 @@ public final class Extractor<T extends ParserRuleContext> {
      * extractor's builder.
      */
     public Extraction extract(T ruleNode, GrammarSource<?> source, Supplier<? extends TokenStream> streamSupplier) {
+        return extract(ruleNode, source, FALSE, streamSupplier);
+    }
+
+    /**
+     * Run extraction, passing a rule node and grammar source (which is used to
+     * resolve imports).
+     *
+     * @param ruleNode The root node of the parse tree to walk
+     * @param source The source (document, file, whatever) where the content is
+     * found, which optionally can resolve references to other sources.
+     * @param cancelled A cancellation check which will halt extraction
+     *
+     * @return An extraction - a database of information about the content of
+     * this file, whose contents can be retrieved by keys provided to this
+     * extractor's builder.
+     */
+    public Extraction extract(T ruleNode, GrammarSource<?> source, BooleanSupplier cancelled, Iterable<? extends Token> tokens) {
         Extraction extraction = new Extraction(extractorsHash(), source);
         long then = System.currentTimeMillis();
         for (RegionExtractionStrategies<?> r : regionsInfo) {
-            runRegions2(r, ruleNode, extraction, streamSupplier);
+            if (cancelled.getAsBoolean()) {
+                LOG.log(Level.FINEST, "Extraction cancelled at {0}", r);
+                return extraction;
+            }
+            runRegions2(r, ruleNode, extraction, tokens, cancelled);
         }
         for (NamesAndReferencesExtractionStrategy<?> n : nameExtractors) {
-            runNames(ruleNode, n, extraction);
+            if (cancelled.getAsBoolean()) {
+                LOG.log(Level.FINEST, "Extraction cancelled at {0}", n);
+                return extraction;
+            }
+            runNames(ruleNode, n, extraction, cancelled);
         }
         for (Map.Entry<SingletonKey<?>, SingletonExtractionStrategies<?>> e : singles.entrySet()) {
-            runSingles(e.getValue(), ruleNode, extraction);
+            if (cancelled.getAsBoolean()) {
+                LOG.log(Level.FINEST, "Extraction cancelled at {0}", e);
+                return extraction;
+            }
+            runSingles(e.getValue(), ruleNode, extraction, cancelled);
         }
         long elapsed = System.currentTimeMillis() - then;
         LOG.log(Level.FINEST, "Extraction of {0} took {1}ms", new Object[]{source.id(), elapsed});
         return extraction;
     }
 
-    private <K> void runSingles(SingletonExtractionStrategies<K> single, T ruleNode, Extraction extraction) {
-        SingletonEncounters<K> encounters = single.extract(ruleNode);
+    private <K> void runSingles(SingletonExtractionStrategies<K> single, T ruleNode, Extraction extraction, BooleanSupplier cancelled) {
+        SingletonEncounters<K> encounters = single.extract(ruleNode, cancelled);
         extraction.addSingle(single.key, encounters);
     }
 
-    private <L extends Enum<L>> void runNames(T ruleNode, NamesAndReferencesExtractionStrategy<L> x, Extraction into) {
-        x.invoke(ruleNode, into.store);
+    private static final BooleanSupplier FALSE = () -> false;
+
+    private <L extends Enum<L>> void runNames(T ruleNode, NamesAndReferencesExtractionStrategy<L> x, Extraction into, BooleanSupplier cancelled) {
+        x.invoke(ruleNode, into.store, cancelled);
     }
 
-    private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Supplier<? extends TokenStream> streamSupplier) {
+    private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
         ParseTreeVisitor<?> v = info.createVisitor((k, bounds) -> {
             if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0)) {
                 bldr.add(k, bounds[0], bounds[1]);
             }
-        });
+        }, cancelled);
         ruleNode.accept(v);
         RegionsCombiner<K> combiner = new RegionsCombiner<>(bldr.build());
-        info.runTokenExtrationStrategies(combiner, streamSupplier);
+        info.runTokenExtrationStrategies(combiner, tokens, cancelled);
         extraction.add(info.key, combiner.get());
     }
 
@@ -196,7 +280,7 @@ public final class Extractor<T extends ParserRuleContext> {
         String path = registrationPath(mimeType, entryPointType);
         Collection<? extends ExtractionContributor> all = Lookups.forPath(path)
                 .lookupAll(ExtractionContributor.class);
-        System.out.println("Look up extractors in " + path + " getting " + all.size());
+        LOG.log(Level.FINER, "Look up extractors in {0} gets {1} extractors", new Object[]{path, all.size()});
         Consumer<ExtractorBuilder<? extends T>> consumer = null;
         for (ExtractionContributor c : all) {
             if (consumer == null) {
@@ -206,16 +290,15 @@ public final class Extractor<T extends ParserRuleContext> {
             }
         }
         if (consumer == null) {
-            System.out.println("no extractors, use empty");
             return Extractor.empty(entryPointType);
         }
         ExtractorBuilder<T> eb = new ExtractorBuilder<>(entryPointType);
         long then = System.currentTimeMillis();
         consumer.accept(eb);
+        Extractor result = eb.build();
         long elapsed = System.currentTimeMillis() - then;
-        LOG.log(Level.FINEST, "Composing ExtractorBuilder took {0}ms with {1} consumers", new Object[] {elapsed, all.size()});
-
-        return eb.build();
+        LOG.log(Level.FINEST, "Composing ExtractorBuilder took {0}ms with {1} consumers to create {2}", new Object[]{elapsed, all.size(), result});
+        return result;
     }
 
     /*

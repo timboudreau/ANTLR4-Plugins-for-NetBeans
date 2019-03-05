@@ -1,10 +1,13 @@
 package org.nemesis.extraction;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
-import org.antlr.v4.runtime.TokenStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
@@ -23,11 +26,48 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
     final Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors;
     final Set<? extends TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors;
 
+    private static final Logger LOG = Logger.getLogger(RegionExtractionStrategies.class.getName());
+
     RegionExtractionStrategies(RegionsKey<RegionKeyType> key, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, Set<? extends TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors) {
         this.key = key;
         this.extractors = extractors;
         this.tokenExtractors = tokenExtractors;
-        System.out.println("CREATE A REGION EXTRACTION STRATEGIES WITH " + tokenExtractors.size());
+        LOG.log(Level.FINE, "Create a region extractors strategy for {0} "
+                + "with {1} token extractors and {2} rule extractors",
+                new Object[]{key, tokenExtractors.size(), extractors.size()});
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(RegionExtractionStrategies.class.getName());
+        sb.append('@').append(System.identityHashCode(this)).append(":");
+        if (tokenExtractors != null && !tokenExtractors.isEmpty()) {
+            sb.append("tokens=[");
+            Iterator<? extends TokenRegionExtractionStrategy<RegionKeyType>> it;
+            for (it = tokenExtractors.iterator(); it.hasNext();) {
+                TokenRegionExtractionStrategy<?> t = it.next();
+                sb.append(t);
+            }
+            sb.append(']');
+            it = null;
+            if (extractors != null && !extractors.isEmpty()) {
+                sb.append(", ");
+            }
+        }
+        if (extractors != null && !extractors.isEmpty()) {
+            sb.append("rules=[");
+            Iterator<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> it;
+            for (it = extractors.iterator(); it.hasNext();) {
+                RegionExtractionStrategy<RegionKeyType, ?, ?> e = it.next();
+                sb.append(e);
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+            it = null;
+            sb.append(']');
+        }
+        return sb.toString();
     }
 
     @Override
@@ -44,38 +84,39 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         }
     }
 
-    boolean runTokenExtrationStrategies(Consumer<SemanticRegions<RegionKeyType>> tokenRegions, Supplier<? extends TokenStream> streamSupplier) {
-        System.out.println("run token extractions");
-        TokenStream stream = streamSupplier.get();
-        int oldIndex = stream.index();
+    boolean runTokenExtrationStrategies(Consumer<SemanticRegions<RegionKeyType>> tokenRegions, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
+        LOG.log(Level.FINER, "Run token extractions on {0} on stream {1}", new Object[]{this, tokens});
         if (tokenExtractors == null || tokenExtractors.isEmpty()) {
-            System.out.println("no token extractors");
+            LOG.log(Level.FINER, "No token extractors in {0}", this);
             return false;
+        } else {
+            LOG.log(Level.FINEST, "Will run {0} extractors for {1}", new Object[]{tokenExtractors.size(), this});
         }
         SemanticRegions<RegionKeyType> result = null;
         for (TokenRegionExtractionStrategy<RegionKeyType> strategy : tokenExtractors) {
-            System.out.println("run one strategy " + strategy);
-            stream.seek(0);
-            SemanticRegions<RegionKeyType> curr = strategy.scan(stream);
-            System.out.println("scan got " + curr);
-            if (result == null) {
+            if (cancelled.getAsBoolean()) {
+                LOG.log(Level.FINE, "Token extraction cancelled on {0}", this);
+                return false;
+            }
+            SemanticRegions<RegionKeyType> curr = strategy.scan(tokens, cancelled);
+            LOG.log(Level.FINEST, "Strategy {0} found {1} items", new Object[]{strategy, curr == null ? -1 : curr.size()});
+            if (result == null || result.isEmpty()) {
                 result = curr;
             } else if (!curr.isEmpty()) {
                 SemanticRegions<RegionKeyType> nue = result.combineWith(curr);
-                System.out.println("COMBINE " + result + "\nWITH:" + curr + "\nTO GET: " + nue);
+                LOG.log(Level.FINEST, "Merged {0} and {1} to get {2}", new Object[]{result, curr, nue});
                 result = nue;
             }
         }
         if (result != null && !result.isEmpty()) {
-            System.out.println("HAVE A RESULT - " + result);
+            LOG.log(Level.FINEST, "Passing result to {0} - {1}", new Object[]{tokenRegions, result});
             tokenRegions.accept(result);
         }
-        stream.seek(Math.max(0, oldIndex));
         return result != null && !result.isEmpty();
     }
 
-    ParseTreeVisitor<Void> createVisitor(BiConsumer<RegionKeyType, int[]> c) {
-        return new V<>(key.type(), c, extractors);
+    ParseTreeVisitor<Void> createVisitor(BiConsumer<RegionKeyType, int[]> c, BooleanSupplier cancelled) {
+        return new V<>(key.type(), c, extractors, cancelled);
     }
 
     static class V<RegionKeyType> extends AbstractParseTreeVisitor<Void> {
@@ -83,9 +124,11 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         private final BiConsumer<RegionKeyType, int[]> c;
         private final RegionExtractionStrategy<?, ?, ?>[] extractors;
         private final int[] activatedCount;
+        private final BooleanSupplier cancelled;
 
-        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors) {
+        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, BooleanSupplier cancelled) {
             this.c = c;
+            this.cancelled = cancelled;
             this.extractors = extractors.toArray(new RegionExtractionStrategy<?, ?, ?>[extractors.size()]);
             this.activatedCount = new int[this.extractors.length];
             for (int i = 0; i < this.extractors.length; i++) {
@@ -98,6 +141,9 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         @Override
         @SuppressWarnings("unchecked")
         public Void visitChildren(RuleNode node) {
+            if (cancelled.getAsBoolean()) {
+                return null;
+            }
             boolean[] scratch = new boolean[extractors.length];
             for (int i = 0; i < scratch.length; i++) {
                 RegionExtractionStrategy<RegionKeyType, ?, ?> e = (RegionExtractionStrategy<RegionKeyType, ?, ?>) extractors[i];
@@ -130,5 +176,4 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
             e.extract(node, c);
         }
     }
-
 }

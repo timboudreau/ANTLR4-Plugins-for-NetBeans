@@ -162,7 +162,6 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                         NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
                         "javax.annotation.processing.Generated"
                 )
-                .generateDebugLogCode()
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
                 .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock().endConstructor()

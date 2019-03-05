@@ -25,10 +25,6 @@ final class AntlrInvocationErrorHighlighter extends ParserResultTask<AntlrParseR
 
     private static final Logger LOG = Logger.getLogger(AntlrInvocationErrorHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private final AtomicBoolean cancelled = new AtomicBoolean();
 
     private final String id;

@@ -447,6 +447,10 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
             this.cons = cons;
         }
 
+        public String toString() {
+            return "TokenConvert<" + kind + "->" + cons + ">";
+        }
+
         @Override
         public NamedRegionData<T> apply(R t) {
             Ref<Token> ref = new Ref<>();

@@ -14,7 +14,6 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser.Result;
@@ -29,10 +28,6 @@ import org.netbeans.spi.editor.hints.ErrorDescription;
 public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
 
     private final Logger LOG = Logger.getLogger(getClass().getName());
-
-    {
-        LOG.setLevel(Level.ALL);
-    }
 
     protected NbParserHelper() {
     }

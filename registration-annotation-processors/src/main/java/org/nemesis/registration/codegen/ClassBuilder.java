@@ -44,7 +44,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
     private boolean loggerField;
     private static ThreadLocal<ClassBuilder<?>> CONTEXT = new ThreadLocal<>();
     private ClassBuilder<?> prev;
-    boolean generateDebugCode;
+    private boolean generateDebugCode;
 
     @SuppressWarnings("LeakingThisInConstructor")
     ClassBuilder(Object pkg, Object name, Function<ClassBuilder<T>, T> converter) {
@@ -513,6 +513,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
     }
 
+    public ClassBuilder<T> importing(Iterable<String> types) {
+        for (String type : types) {
+            importing(type);
+        }
+        return this;
+    }
+
     public ClassBuilder<T> importing(String className, String... more) {
         if (!(converter.getClass() == ClassBuilderStringFunction.class)) {
             throw new IllegalStateException("Imports may only be added to top level classes");
@@ -656,7 +663,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
                     return null;
                 }, "LOGGER");
                 fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
-                        .withInitializer("Logger.getLogger(" + LinesBuilder.stringLiteral(pkg + "." + name) + ")")
+                        .withInitializer("Logger.getLogger(" + LinesBuilder.stringLiteral(fqn()) + ")")
                         .ofType("Logger");
                 fb.buildInto(lines);
                 if (generateDebugCode) {
@@ -666,7 +673,6 @@ public final class ClassBuilder<T> implements BodyBuilder {
                         lg.statement(sb -> {
                             sb.word("LOGGER").appendRaw(".").word("setLevel(").word("Level").appendRaw(".").word("ALL").appendRaw(")");
                         });
-//                        lg.statement("LOGGER.setLevel(Level.ALL)");
                     });
                 }
             }
@@ -1180,19 +1186,34 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return withArgumentFromInvoking(new boolean[1], name);
         }
 
+        public InvocationBuilder<T> withLambdaArgument(Consumer<LambdaBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            LambdaBuilder<?> builder = withLambdaArgument(built);
+            c.accept(builder);
+            if (!built[0]) {
+                throw new IllegalStateException("Lambda builder not finished");
+            }
+            return this;
+        }
+
+        public LambdaBuilder<InvocationBuilder<T>> withLambdaArgument() {
+            return withLambdaArgument(new boolean[1]);
+        }
+
+        private LambdaBuilder<InvocationBuilder<T>> withLambdaArgument(boolean[] built) {
+            return new LambdaBuilder<>(lb -> {
+                arguments.add(lb);
+                built[0] = true;
+                return InvocationBuilder.this;
+            });
+        }
+
         private InvocationBuilder<InvocationBuilder<T>> withArgumentFromInvoking(boolean[] built, String name) {
             return new InvocationBuilder<>(ib -> {
                 arguments.add(ib);
                 built[0] = true;
                 return InvocationBuilder.this;
             }, name);
-        }
-
-        public LambdaBuilder<InvocationBuilder<T>> withLambdaArgument() {
-            return new LambdaBuilder<>(lb -> {
-                arguments.add(lb);
-                return this;
-            });
         }
 
         @Override
@@ -1509,9 +1530,21 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return block();
         }
 
+        public T body(Consumer<BlockBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            BlockBuilder<T> block = block(built);
+            c.accept(block);
+            return converter.apply(this);
+        }
+
         BlockBuilder<T> block() {
+            return block(new boolean[1]);
+        }
+
+        private BlockBuilder<T> block(boolean[] built) {
             return new BlockBuilder<>(bb -> {
                 body = bb;
+                built[0] = true;
                 return converter.apply(this);
             }, true);
         }
@@ -2161,6 +2194,12 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public BlockBuilder<IfBuilder<T>> elseDo() {
             return elseIf(new Empty());
+        }
+
+        public IfBuilder<T> elseDo(Consumer<BlockBuilder<?>> c) {
+            BlockBuilder<IfBuilder<T>> bldr = elseDo();
+            c.accept(bldr);
+            return this;
         }
 
         @Override

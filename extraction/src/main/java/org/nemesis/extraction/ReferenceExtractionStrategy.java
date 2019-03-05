@@ -32,6 +32,20 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
     }
 
     @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(super.toString()).append('<');
+        sb.append(ruleType == null ? null : ruleType.getSimpleName());
+        if (ancestorQualifier != null) {
+            sb.append("q=").append(ancestorQualifier).append(", ");
+        }
+        if (typeHint != null) {
+            sb.append("typeHint=").append(typeHint);
+        }
+        sb.append("extractor=").append(offsetsExtractor);
+        return sb.append('>').toString();
+    }
+
+    @Override
     public void hashInto(Hasher hasher) {
         hasher.writeString(ruleType.getName());
         hasher.hashObject(offsetsExtractor);
@@ -67,6 +81,10 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
                 this.rt = rt;
                 this.func = func;
                 this.typeHint = typeHint;
+            }
+
+            public String toString() {
+                return "HashableAndThen{" + typeHint + ", " + func + ", " + rt + "}";
             }
 
             @Override

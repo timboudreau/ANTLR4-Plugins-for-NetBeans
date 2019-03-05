@@ -662,9 +662,9 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 }
             }
             int sz = temp.size();
-            if (sz < size) {
-                System.err.println("Duplicate keys encountered - index will omit them");
-            }
+//            if (sz < size) {
+//                System.err.println("Duplicate keys encountered - index will omit them");
+//            }
             T[] sortedKeys = (T[]) Array.newInstance(SemanticRegions.this.keys.getClass().getComponentType(), sz);
             keysSorted = sortedKeys;
 
