@@ -2,6 +2,8 @@ package org.nemesis.antlr.highlighting;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
@@ -20,6 +22,7 @@ final class HighlighterFactory {
     private final int positionInZOrder;
     private final IdKey id;
     private static final String BASE = HighlighterFactory.class.getName().replace('.', '-');
+    private static final Logger LOG = Logger.getLogger(HighlighterFactory.class.getName());
 
     HighlighterFactory(String id, ZOrder zorder, boolean fixedSize, int positionInZOrder, Function<Context, GeneralHighlighter<?>> factory) {
         this.zorder = zorder;
@@ -27,6 +30,8 @@ final class HighlighterFactory {
         this.positionInZOrder = positionInZOrder;
         this.factory = factory;
         this.id = new IdKey(id);
+        LOG.log(Level.FINE, "Created a HighlighterFactory {0} fixed {1} z {2} pos {3}", new Object[] {id, fixedSize,
+            zorder, positionInZOrder});
     }
 
     static HighlighterFactory forRefreshTrigger(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
@@ -70,15 +75,22 @@ final class HighlighterFactory {
         GeneralHighlighter<?> result = existingHighlighter(ctx);
         if (result == null) {
             result = factory.apply(ctx);
+            LOG.log(Level.FINEST, "Create a GeneralHighlighter for {0}: {1}",
+                    new Object[] { this, result });
             if (result != null) {
                 doc.putProperty(id, result);
             }
+        } else {
+            LOG.log(Level.FINEST, "Use existing GeneralHighlighter for {0}: {1}",
+                    new Object[] { this, result });
         }
         return result;
     }
 
     public HighlightsLayer createLayer(Context ctx) {
         GeneralHighlighter<?> highlighter = createHighlighter(ctx);
+        LOG.log(Level.FINER, "Create highlights layer for {0}", highlighter);
+        System.out.println("CREATE LAYER " + highlighter);
         return highlighter == null ? null
                 : HighlightsLayer.create(id.toString(), zorder.forPosition(positionInZOrder),
                         fixedSize, highlighter.getHighlightsBag());
@@ -88,9 +100,12 @@ final class HighlighterFactory {
      * Gives us a key type that is guaranteed not to be used by anything else,
      * since we're storing the highlighter as a document property.
      */
+    private static int intIds = 0;
+
     private static final class IdKey {
 
         private final String id;
+        private final int intId = intIds++;
 
         private IdKey(String id) {
             assert id != null : "null id";
@@ -99,17 +114,19 @@ final class HighlighterFactory {
 
         @Override
         public String toString() {
-            return BASE + '-' + id;
+            return BASE + '-' + id + "-" + intId;
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof IdKey && id.equals(((IdKey) o).id);
+            return o instanceof IdKey
+                    && intId == (((IdKey) o).intId)
+                    && id.equals(((IdKey) o).id);
         }
 
         @Override
         public int hashCode() {
-            return 51 * id.hashCode();
+            return (intId + 1) * (51 * id.hashCode());
         }
     }
 }

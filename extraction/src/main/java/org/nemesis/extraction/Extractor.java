@@ -8,12 +8,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.SemanticRegions;
@@ -172,8 +170,8 @@ public final class Extractor<T extends ParserRuleContext> {
      * this file, whose contents can be retrieved by keys provided to this
      * extractor's builder.
      */
-    public Extraction extract(T ruleNode, GrammarSource<?> source, Supplier<? extends TokenStream> streamSupplier) {
-        return extract(ruleNode, source, FALSE, streamSupplier);
+    public Extraction extract(T ruleNode, GrammarSource<?> source, Iterable<? extends Token> tokens) {
+        return extract(ruleNode, source, FALSE, tokens);
     }
 
     /**

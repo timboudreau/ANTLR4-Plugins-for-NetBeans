@@ -114,5 +114,5 @@ public @interface HighlighterKeyRegistration {
      *
      * @return Fixed size or not
      */
-    boolean fixedSize() default false;
+    boolean fixedSize() default true;
 }

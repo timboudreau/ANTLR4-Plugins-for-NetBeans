@@ -32,14 +32,20 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     private boolean highlightReferencesUnderCaret;
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     private static void log(String msg, Object... args) {
         LOG.log(Level.FINER, msg, args);
     }
 
+    @SuppressWarnings("LeakingThisInConstructor")
     SimpleNamedRegionReferenceAntlrHighlighter(NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, AttributeSet> coloringLookup) {
         this.key = key;
         this.coloringLookup = coloringLookup;
         cacheSize = key.type().getEnumConstants().length;
+        log("Create {0}", this);
     }
 
     void highlightReferencesUnderCaret() {
@@ -48,7 +54,7 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
 
     @Override
     public String toString() {
-        return "SimpleNamedRegionReferenceAntlrHighlighter{" + key + '}';
+        return "SimpleNamedRegionReferenceAntlrHighlighter{" + key + ", coloring=" + coloringLookup + '}';
     }
 
     static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(NameReferenceSetKey<T> key, Supplier<AttributeSet> lookup) {

@@ -25,6 +25,8 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
+import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
+import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
 import org.nemesis.registration.api.LayerGeneratingDelegate;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
@@ -42,9 +44,12 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
     static final String PKG_NAME = "org.nemesis.antlr.spi.language.highlighting.semantic";
     static final String ANNO_NAME = "HighlighterKeyRegistration";
+    static final String GROUP_ANNO_NAME = "HighlighterKeyRegistrations";
     static final String ANNO = PKG_NAME + "." + ANNO_NAME;
+    static final String GROUP_ANNO = PKG_NAME + "." + GROUP_ANNO_NAME;
     static final String[] COLORING_ATTR_NAMES = new String[]{"coloringName", "colorFinder", "attributeSetFinder", "colors"};
     private Predicate<AnnotationMirror> mirrorTest;
+    private Predicate<AnnotationMirror> groupMirrorTest;
     private Predicate<Element> typeTest;
 
     @Override
@@ -58,6 +63,9 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 .atLeastOneMemberMayBeSet(COLORING_ATTR_NAMES)
                 .onlyOneMemberMayBeSet(COLORING_ATTR_NAMES)
                 .build();
+
+        groupMirrorTest = utils().testMirror()
+                .testMemberAsAnnotation("value").addPredicate(mirrorTest).build().build();
 
         typeTest = utils.testsBuilder().doesNotHaveModifier(PRIVATE)
                 .hasModifier(PUBLIC)
@@ -76,13 +84,13 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             this.mimeType = mimeType;
         }
 
-        HighlightingInfo update(VariableElement var, AnnotationMirror mirror, ConversionKind kind) {
+        HighlightingInfo update(VariableElement var, AnnotationMirror mirror, ConversionKind kind, int index) {
             log("HighlightingInfo.update {0} with {1}", kind);
-            entries.add(new Entry(var, mirror, kind));
+            entries.add(new Entry(var, mirror, kind, index));
             sorted = false;
             return this;
         }
-        
+
         int order() {
             return orderForFqn.getOrDefault(fqn(), Integer.MAX_VALUE);
         }
@@ -91,9 +99,14 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             return packageName() + "." + generatedClassName();
         }
 
+        @Override
         public Iterator<HighlightingInfo.Entry> iterator() {
             if (!sorted) {
-                Collections.sort(entries);
+                Collections.sort(entries, (a, b) -> {
+                    int ap = a.positionInZOrder(0);
+                    int bp = b.positionInZOrder(0);
+                    return ap > bp ? 1 : ap == bp ? 0 : -1;
+                });
                 sorted = true;
             }
             return entries.iterator();
@@ -119,8 +132,8 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 return "Highlighter_NoEntries";
             }
             Entry e = iterator().next();
-            return e.enclosingType.getSimpleName() + "_" + e.var.getSimpleName()
-                    + "_Highlighting";
+            return e.enclosingType.getSimpleName() + "_" 
+                    + "_HighlighterRegistrations";
         }
 
         public String generatedFqn() {
@@ -163,12 +176,14 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             private final AnnotationMirror mirror;
             private final ConversionKind kind;
             private final TypeElement enclosingType;
+            private final int index;
 
-            public Entry(VariableElement var, AnnotationMirror mirror, ConversionKind kind) {
+            public Entry(VariableElement var, AnnotationMirror mirror, ConversionKind kind, int index) {
                 this.var = var;
                 this.mirror = mirror;
                 this.kind = kind;
                 enclosingType = AnnotationUtils.enclosingType(var);
+                this.index = index;
             }
 
             void generateConstructorCode(BlockBuilder<?> bb, String builderVar, int entryIndex) {
@@ -176,6 +191,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, String mimeType,
                  */
+                bb.lineComment(mirror.toString());
                 ClassBuilder.InvocationBuilder<?> iv = bb.invoke("add")
                         .withArgument(refreshTrigger()).withArgument(zOrder())
                         .withArgument(fixedSize()).withArgument(positionInZOrder(entryIndex)) //                        .withStringLiteral(mimeType)
@@ -286,8 +302,8 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
         return result;
     }
 
-    private HighlightingInfo updateInfo(String mimeType, VariableElement var, AnnotationMirror mirror, ConversionKind kind) {
-        return infoForMimeType(mimeType).update(var, mirror, kind);
+    private HighlightingInfo updateInfo(String mimeType, VariableElement var, AnnotationMirror mirror, ConversionKind kind, int index) {
+        return infoForMimeType(mimeType).update(var, mirror, kind, index);
     }
 
     @Override
@@ -302,25 +318,45 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        boolean result = true;
+        if (GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
+            List<AnnotationMirror> multi = utils().annotationValues(mirror, "value", AnnotationMirror.class);
+            log("Process multiple annotations of size {0}", multi.size());
+            int ix = 0;
+            for (AnnotationMirror individual : multi) {
+                result &= processSingleFieldAnnotation(var, individual, roundEnv, ix++);
+            }
+        } else {
+            log("Process individual annotation");
+            result = processSingleFieldAnnotation(var, mirror, roundEnv, 0);
+        }
+        return result;
+    }
+
+    boolean processSingleFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv, int index) throws Exception {
+        if (!SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
+            throw new IllegalArgumentException("Wrong annotation type: " + mirror.getAnnotationType());
+        }
         if (!typeTest.test(var)) {
             return true;
         }
         ConversionKind conversion = ConversionKind.forAnnotationMirror(mirror, utils());
         if (conversion == null) {
-            utils().fail("Could not determine what code to generate for coloration", var);
+            utils().fail("Could not determine what code to generate for coloration for " + mirror, var);
             return false;
         }
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
 
         int position = utils().annotationValue(mirror, "order", Integer.class, 100);
 
-        HighlightingInfo info = updateInfo(mimeType, var, mirror, conversion);
+        HighlightingInfo info = updateInfo(mimeType, var, mirror, conversion, index);
         generateForMimeType(mimeType, info, true, false, position);
         return false;
     }
 
     private final Set<String> savedToLayer = new HashSet<>();
     private final Map<String, Integer> orderForFqn = new HashMap<>();
+
     private boolean generateForMimeType(String mimeType, HighlightingInfo info, boolean saveLayer, boolean saveClass, int position) throws IOException {
         log("Generate highlighting for {0} saveLayer {1}, saveClass {2}", mimeType, saveLayer, saveClass);
         String generatedClassName = info.generatedClassName();
@@ -387,14 +423,18 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                     .stringvalue("instanceOf", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory")
                     .intvalue("position", position)
                     .write();
-            ;
         }
         return false;
     }
 
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        return mirrorTest.test(mirror);
+        System.out.println("ANNO TYPE '" + mirror.getAnnotationType() + "'");
+        System.out.println("GROP TYPE '" + GROUP_SEMANTIC_HIGHLIGHTING_ANNO + "'");
+        if (!GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
+            return mirrorTest.test(mirror);
+        }
+        return true;
     }
 
     static enum ConversionKind {

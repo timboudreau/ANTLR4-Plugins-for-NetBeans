@@ -66,6 +66,10 @@ abstract class GeneralHighlighter<T> implements Runnable {
         });
     }
 
+    public String toString() {
+        return "GeneralHighlighter{" + implementation + "}";
+    }
+
     final void log(Level level, String msg, Object... args) {
         LOG.log(level, msg, args);
     }
@@ -86,11 +90,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         refreshTask.schedule(refreshDelay);
     }
 
-    @Override
-    public String toString() {
-        return getClass().getSimpleName();
-    }
-
     protected final Optional<Document> document() {
         return Optional.of(doc);
     }
@@ -109,20 +108,18 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
     @Override
     public final void run() {
-        Optional<Document> doc = document();
-        if (doc.isPresent()) {
             if (Thread.interrupted()) {
+                LOG.log(Level.FINEST, "Skip highlighting for thread interrupt", this);
                 return;
             }
-            Document d = doc.get();
-            LOG.log(Level.FINEST, "Run with {0}", doc.get());
+            LOG.log(Level.FINEST, "Run with {0}", doc);
             T argument = getArgument();
             if (!shouldProceed(argument)) {
                 LOG.log(Level.FINEST, "Should not proceed for {0}", argument);
                 return;
             }
             try {
-                Source src = Source.create(d);
+                Source src = Source.create(doc);
                 Collection<Source> sources = Collections.singleton(src);
                 Future<?> oldFuture = future.get();
                 if (oldFuture != null && !oldFuture.isDone()) {
@@ -133,9 +130,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
             } catch (ParseException ex) {
                 LOG.log(Level.FINE, "Exception parsing", ex);
             }
-        } else {
-            LOG.log(Level.FINE, "Document is absent");
-        }
     }
 
     interface OwnableTask {

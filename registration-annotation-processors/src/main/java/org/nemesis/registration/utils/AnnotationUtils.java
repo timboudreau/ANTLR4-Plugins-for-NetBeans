@@ -783,8 +783,15 @@ public final class AnnotationUtils {
 
     private String message(String msg) {
         if (log) {
-            StackTraceElement el = new Exception().getStackTrace()[2];
-            return el + ": " + msg;
+            StackTraceElement[] els = new Exception().getStackTrace();
+            String nm = AnnotationUtils.class.getName();
+            for (int i = 0; i < els.length; i++) {
+                String cn = els[i].getClassName();
+                if (nm.equals(cn) || (cn != null && (cn.startsWith(nm) || cn.startsWith("java.")))) {
+                    continue;
+                }
+                return els[i] + ": " + msg;
+            }
         }
         return msg;
     }

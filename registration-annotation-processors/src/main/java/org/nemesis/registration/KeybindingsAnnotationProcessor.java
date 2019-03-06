@@ -158,6 +158,9 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
 
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(method);
+
+        String defaultBundle = pkg.getQualifiedName() + "Bundle";
+
         String generatedClassName = owningClass.getSimpleName() + "_" + method.getSimpleName() + "_Action";
         List<String> argumentTypes = new ArrayList<>();
         for (VariableElement var : method.getParameters()) {
@@ -223,11 +226,6 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                                                     .body().ifCondition().variable("thrown").notEquals().literal("null")
                                                     .endCondition().thenDo().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
                                                     .endBlock().elseDo(invokeTheMethod).endIf().endBlock();
-//                                                    .body(lbb -> {
-//                                                        lbb.ifCondition().variable("thrown").notEquals().literal("null")
-//                                                                .endCondition().thenDo().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
-//                                                                .endBlock().elseDo(invokeTheMethod).endIf().endBlock();
-//                                                    });
                                         }).on(simpleName(ANTLR_UTILS_TYPE));
 
                                 bb.endBlock();
@@ -244,10 +242,12 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                         if (displayName.contains("#")) {
                             clazz.importing("org.openide.util.NbBundle");
                             int ix = displayName.indexOf('#');
+                            String bundleLookup = ix == 0 ? defaultBundle + displayName :
+                                    displayName.substring(ix + 1);
                             bb.invoke("putValue").withArgument("Action.NAME").
                                     withArgumentFromInvoking("getMessage")
                                     .withArgument(generatedClassName + ".class")
-                                    .withStringLiteral(displayName.substring(ix + 1))
+                                    .withStringLiteral(bundleLookup)
                                     .on("NbBundle")
                                     .inScope().endBlock();
                         } else {
@@ -279,7 +279,12 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                 .intvalue("position", 100);
         if (displayName != null) {
             if (displayName.contains("#")) {
-                layerFile.bundlevalue("displayName", displayName);
+                String bundleLookup = displayName;
+                if (displayName.startsWith("#")) {
+                    layerFile.bundlevalue("displayName", defaultBundle, bundleLookup);
+                } else {
+                    layerFile.bundlevalue("displayName", bundleLookup);
+                }
             } else {
                 layerFile.stringvalue("displayName", displayName);
             }

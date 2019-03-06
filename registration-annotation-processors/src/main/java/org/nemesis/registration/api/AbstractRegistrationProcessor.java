@@ -73,6 +73,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
         delegates.init(processingEnv, utils, this::writeOne);
         onInit(processingEnv, utils);
         used.clear();
+        System.out.println(getClass().getSimpleName() + " DELEGATES: \n" + delegates);
     }
 
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {

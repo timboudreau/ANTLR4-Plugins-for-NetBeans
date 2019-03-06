@@ -3,7 +3,6 @@ package org.nemesis.registration.api;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -53,14 +52,11 @@ public class Delegates {
             return "{}";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        for (Iterator<DelegateEntry> it = this.allEntries().iterator(); it.hasNext();) {
-            sb.append(it.next());
-            if (it.hasNext()) {
-                sb.append(", ");
-            }
+        sb.append('{');
+        for (Map.Entry<String, Set<DelegateEntry>> e : delegates.entrySet()) {
+            sb.append("\n    ").append(e.getKey() + ": " + e.getValue());
         }
-        return sb.append("}").toString();
+        return sb.append('}').toString();
     }
 
     private Set<DelegateEntry> allEntries() {

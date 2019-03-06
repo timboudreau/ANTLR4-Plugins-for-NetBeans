@@ -42,10 +42,24 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
 
     static final String SEMANTIC_HIGHLIGHTING_PKG = "org.nemesis.antlr.spi.language.highlighting.semantic";
     static final String SEMANTIC_HIGHLIGHTING_NAME = "HighlighterKeyRegistration";
+    static final String GROUP_SEMANTIC_HIGHLIGHTING_NAME = "HighlighterKeyRegistrations";
     static final String SEMANTIC_HIGHLIGHTING_ANNO = SEMANTIC_HIGHLIGHTING_PKG + "." + SEMANTIC_HIGHLIGHTING_NAME;
+    static final String GROUP_SEMANTIC_HIGHLIGHTING_ANNO = SEMANTIC_HIGHLIGHTING_PKG + "." + GROUP_SEMANTIC_HIGHLIGHTING_NAME;
 
     @Override
-    protected boolean processFieldAnnotation(VariableElement field, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+    protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        boolean result = true;
+        if (GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
+            for (AnnotationMirror individual : utils().annotationValues(mirror, "value", AnnotationMirror.class)) {
+                result &= processSingleFieldAnnotation(var, individual, roundEnv);
+            }
+        } else {
+            result = processSingleFieldAnnotation(var, mirror, roundEnv);
+        }
+        return result;
+    }
+
+    protected boolean processSingleFieldAnnotation(VariableElement field, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         log("LanguageFontsColorsProcessor processField " + mirror.getAnnotationType());
         if (!mirror.getAnnotationType().toString().equals(SEMANTIC_HIGHLIGHTING_ANNO)) {
             log("  - wrong anntation type - skipping - for not " + SEMANTIC_HIGHLIGHTING_ANNO);
@@ -63,7 +77,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         } else {
             log("  no coloration, can't do anything");
         }
-        return true;
+        return false;
     }
 
     @Override
@@ -349,12 +363,39 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         return result;
     }
 
-    private String capitalize(String s) {
-        char[] c = s.toCharArray();
-        if (c.length > 0) {
-            c[0] = Character.toUpperCase(c[0]);
+    public static String capitalize(CharSequence s) {
+        StringBuilder sb = new StringBuilder();
+        int max = s.length();
+        boolean capitalizeNext = true;
+        for (int i = 0; i < max; i++) {
+            char c = s.charAt(i);
+            if (capitalizeNext && Character.isLetter(c)) {
+                c = Character.toUpperCase(c);
+                sb.append(c);
+            capitalizeNext = false;
+                continue;
+            }
+            if (Character.isUpperCase(c)) {
+                if (sb.length() > 0) {
+                    sb.append(" ");
+                }
+                sb.append(c);
+                capitalizeNext = false;
+                continue;
+            }
+            switch(c) {
+                case '-':
+                case '_':
+                case '.':
+                case ' ':
+                    capitalizeNext = true;
+                    sb.append(' ');
+                    continue;
+            }
+            capitalizeNext = false;
+            sb.append(Character.toLowerCase(c));
         }
-        return new String(c);
+        return sb.toString();
     }
 
     private void loadExitingProperties(Filer filer, Properties into, String path) throws IOException {

@@ -29,6 +29,7 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
     private final List<? extends HighlighterFactory> all;
 
     AntlrHighlightingLayerFactory(List<HighlighterFactory> all) {
+        System.out.println("AntlrHighlightingLayerFactory with " + all.size() + " layers");
         this.all = Collections.unmodifiableList(all);
     }
 

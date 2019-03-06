@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -44,6 +45,7 @@ import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
+import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageRegistrationProcessor.ANNO;
 import org.nemesis.registration.api.Delegates;
@@ -60,23 +62,29 @@ import org.openide.util.lookup.ServiceProvider;
  * @author Tim Boudreau
  */
 @ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes({ANNO, SEMANTIC_HIGHLIGHTING_ANNO})
+@SupportedAnnotationTypes({ANNO, SEMANTIC_HIGHLIGHTING_ANNO, GROUP_SEMANTIC_HIGHLIGHTING_ANNO})
 @SupportedOptions(AU_LOG)
 public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
     public static final String ANNO = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";
 
-//    static {
-//        AnnotationUtils.forceLogging();
-//    }
     @Override
     protected void installDelegates(Delegates delegates) {
         LanguageFontsColorsProcessor proc = new LanguageFontsColorsProcessor();
         HighlighterKeyRegistrationProcessor hkProc = new HighlighterKeyRegistrationProcessor();
-        delegates.apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
+        delegates
+                .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
                 .onAnnotationTypesAnd(ANNO)
                 .to(ElementKind.FIELD).whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
-                .apply(hkProc).to(ElementKind.FIELD).whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO);
+                .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
+                .onAnnotationTypesAnd(ANNO)
+                .to(ElementKind.FIELD).whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO)
+                .apply(hkProc)
+                .to(ElementKind.FIELD)
+                .whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
+                .apply(hkProc)
+                .to(ElementKind.FIELD)
+                .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO);
         ;
     }
 
@@ -119,6 +127,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         tokenNameForIndex.put(last + 1, "$ERRONEOUS");
         String prefix = generateTokensClasses(tokenNameForIndex, type, mirror, lexerClass, tokenCategorizerClass);
 
+        Map<Integer, String> ruleIdForName = new TreeMap<>();
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
         if (parserHelper != null) {
             int entryPointRuleNumber = utils().annotationValue(parserHelper, "entryPointRule", Integer.class, Integer.MIN_VALUE);
@@ -127,7 +136,6 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 TypeElement parserClassElement = parserClass == null ? null
                         : processingEnv.getElementUtils().getTypeElement(parserClass.toString());
                 if (parserClassElement != null) {
-                    Map<Integer, String> ruleIdForName = new TreeMap<>();
                     ExecutableElement parserEntryPointMethod = null;
                     String entryPointRule = null;
                     for (Element el : parserClassElement.getEnclosedElements()) {
@@ -170,11 +178,215 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         return false;
                     }
                 }
-                generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type);
+                generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type, tokenNameForIndex, ruleIdForName);
             }
         }
         // Returning true could stop LanguageFontsColorsProcessor from being run
-        return true;
+        return false;
+    }
+    
+    private LexerProxy createLexerProxy(AnnotationMirror mirror) {
+        TypeMirror lexerClass = utils().typeForSingleClassAnnotationMember(mirror, "lexer");
+        TypeElement lexerClassElement = processingEnv.getElementUtils().getTypeElement(lexerClass.toString());
+
+        if (lexerClassElement == null) {
+            utils().fail("Cannot resolve " + lexerClass + " as an element");
+        }
+        Map<Integer, String> tokenNameForIndex = new HashMap<>();
+        Map<String,Integer> indexForTokenName = new HashMap<>();
+
+        int last = -2;
+        for (Element el : lexerClassElement.getEnclosedElements()) {
+            if (el instanceof VariableElement) {
+                VariableElement ve = (VariableElement) el;
+                String nm = ve.getSimpleName().toString();
+                if (nm == null || nm.startsWith("_") || !"int".equals(ve.asType().toString())) {
+                    continue;
+                }
+                if (ve.getConstantValue() != null) {
+                    Integer val = (Integer) ve.getConstantValue();
+                    if (val < last) {
+                        break;
+                    }
+                    tokenNameForIndex.put(val, nm);
+                    indexForTokenName.put(nm, val);
+                    last = val;
+                }
+            }
+        }
+        tokenNameForIndex.put(-1, "EOF");
+        tokenNameForIndex.put(last + 1, "$ERRONEOUS");
+        return new LexerProxy(lexerClass, lexerClassElement, tokenNameForIndex, indexForTokenName, last);
+    }
+
+    private static class LexerProxy {
+
+        private final TypeMirror lexerClass;
+        private final TypeElement lexerClassElement;
+        private final Map<Integer, String> tokenNameForIndex;
+        private final Map<String, Integer> indexForTokenName;
+        private final int last;
+
+        private LexerProxy(TypeMirror lexerClass, TypeElement lexerClassElement, Map<Integer, String> tokenNameForIndex, Map<String, Integer> indexForTokenName, int last) {
+            this.lexerClass = lexerClass;
+            this.lexerClassElement = lexerClassElement;
+            this.tokenNameForIndex = tokenNameForIndex;
+            this.indexForTokenName = indexForTokenName;
+            this.last = last;
+        }
+
+        public String tokenName(int type) {
+            return tokenNameForIndex.get(type);
+        }
+
+        public Integer tokenIndex(String name) {
+            return indexForTokenName.get(name);
+        }
+
+        public TypeMirror lexerType() {
+            return lexerClass;
+        }
+
+        public TypeElement lexerClass() {
+            return lexerClassElement;
+        }
+
+        public int lastDeclaredTokenType() {
+            return last;
+        }
+
+        public boolean isSynthetic(int tokenType) {
+            return tokenType < 0 || tokenType > last;
+        }
+
+        public String toFieldName(String tokenName) {
+            return "TOK_" + tokenName.toUpperCase();
+        }
+
+        public String toFieldName(int tokenId) {
+            String tokenName = tokenName(tokenId);
+            return tokenName == null ? null : toFieldName(tokenName);
+        }
+
+        public List<Integer> allTypesSorted() {
+            List<Integer> result = new ArrayList<>(tokenNameForIndex.keySet());
+            Collections.sort(result);
+            return result;
+        }
+
+        public List<Integer> allTypesSortedByName() {
+            List<Integer> result = new ArrayList<>(tokenNameForIndex.keySet());
+            Collections.sort(result, (a, b)-> {
+                String an = tokenName(a);
+                String bn = tokenName(b);
+                return an.compareToIgnoreCase(bn);
+            });
+            return result;
+        }
+
+    }
+
+    private ParserProxy createParserProxy(AnnotationMirror parserHelper) {
+        Map<Integer, String> ruleIdForName = new HashMap<>();
+        Map<String, Integer> nameForRuleId = new HashMap<>();
+        ExecutableElement parserEntryPointMethod = null;
+
+        int entryPointRuleId = utils().annotationValue(parserHelper, "entryPointRule", Integer.class, Integer.MIN_VALUE);
+        TypeMirror parserClass = utils().typeForSingleClassAnnotationMember(parserHelper, "type");
+        TypeElement parserClassElement = parserClass == null ? null
+                : processingEnv.getElementUtils().getTypeElement(parserClass.toString());
+        Map<String,ExecutableElement> methodsForNames = new HashMap<>();
+        if (parserClassElement != null) {
+            String entryPointRule = null;
+            for (Element el : parserClassElement.getEnclosedElements()) {
+                if (el instanceof VariableElement) {
+                    VariableElement ve = (VariableElement) el;
+                    String nm = ve.getSimpleName().toString();
+                    if (nm == null || !nm.startsWith("RULE_") || !"int".equals(ve.asType().toString())) {
+                        continue;
+                    }
+                    String ruleName = nm.substring(5);
+                    if (!ruleName.isEmpty() && ve.getConstantValue() != null) {
+                        int val = (Integer) ve.getConstantValue();
+                        ruleIdForName.put(val, ruleName);
+                        if (val == entryPointRuleId) {
+                            entryPointRule = ruleName;
+                        }
+                    }
+                } else if (entryPointRule != null && el instanceof ExecutableElement) {
+                    Name name = el.getSimpleName();
+                    if (name != null && name.contentEquals(entryPointRule)) {
+                        parserEntryPointMethod = (ExecutableElement) el;
+                    }
+                    methodsForNames.put(name.toString(), (ExecutableElement) el);
+                } else if (el instanceof ExecutableElement) {
+                    Name name = el.getSimpleName();
+                    methodsForNames.put(name.toString(), (ExecutableElement) el);
+                }
+            }
+        }
+        return new ParserProxy(ruleIdForName, nameForRuleId, parserEntryPointMethod, parserClassElement, parserClass, methodsForNames, entryPointRuleId);
+    }
+
+    private class ParserProxy {
+
+        private final Map<Integer, String> ruleIdForName;
+        private final Map<String, Integer> nameForRuleId;
+        private final ExecutableElement parserEntryPointMethod;
+        private final TypeElement parserClassElement;
+        private final TypeMirror parserClass;
+        private final Map<String, ExecutableElement> methodsForNames;
+        private final int entryPointRuleNumber;
+
+        public ExecutableElement parserEntryPoint() {
+            return parserEntryPointMethod;
+        }
+
+        public int entryPointRuleId() {
+            return entryPointRuleNumber;
+        }
+
+        public Integer ruleId(String name) {
+            return nameForRuleId.get(name);
+        }
+
+        public String nameForRule(int ruleId) {
+            return ruleIdForName.get(ruleId);
+        }
+
+        public TypeMirror parserClass() {
+            return parserClass;
+        }
+
+        public TypeElement parserType() {
+            return parserClassElement;
+        }
+
+        public ExecutableElement method(String name) {
+            return methodsForNames.get(name);
+        }
+
+        public ExecutableElement methodForId(int id) {
+            String name = ruleIdForName.get(id);
+            return name == null ? null : methodsForNames.get(name);
+        }
+
+        private ParserProxy(Map<Integer, String> ruleIdForName,
+                Map<String, Integer> nameForRuleId,
+                ExecutableElement parserEntryPointMethod,
+                TypeElement parserClassElement,
+                TypeMirror parserClass,
+                Map<String, ExecutableElement> methodsForNames,
+                int entryPointRuleNumber) {
+            this.ruleIdForName = ruleIdForName;
+            this.nameForRuleId = nameForRuleId;
+            this.parserEntryPointMethod = parserEntryPointMethod;
+            this.parserClassElement = parserClassElement;
+            this.parserClass = parserClass;
+            this.methodsForNames = methodsForNames;
+            this.entryPointRuleNumber = entryPointRuleNumber;
+        }
+
     }
 
     static String stripMimeType(String mt) {
@@ -189,7 +401,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
     }
 
     // DataObject generation
-    private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type) throws Exception {
+    private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, Map<Integer, String> tokenNameForIndex, Map<Integer, String> ruleIdForName) throws Exception {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if ("<error>".equals(mimeType)) {
             utils().fail("Could not get mime type", type);
@@ -279,7 +491,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 createFoMethod(cl, s, val);
             }
         }
-        generateEditorKitClassAndRegistration(dataObjectPackage, dataObjectClassName, fileInfo, extension, mirror, prefix, type, mimeType);
+        generateEditorKitClassAndRegistration(dataObjectPackage, dataObjectClassName, fileInfo, extension, mirror, prefix, type, mimeType, tokenNameForIndex, ruleIdForName);
         layer(type).folder("Actions/" + stripMimeType(mimeType))
                 .stringvalue("displayName", prefix).write();
         writeOne(cl);
@@ -287,15 +499,18 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
 
     private static final String EDITOR_KIT_TYPE = "javax.swing.text.EditorKit";
     private static final String NB_EDITOR_KIT_TYPE = "org.netbeans.modules.editor.NbEditorKit";
+    private static final String EXT_KIT_TYPE = "org.netbeans.editor.ext.ExtKit";
 
-    private void generateEditorKitClassAndRegistration(String dataObjectPackage, String dataObjectClassName, AnnotationMirror fileInfo, String extension, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType) throws Exception {
+    private void generateEditorKitClassAndRegistration(String dataObjectPackage, String dataObjectClassName, AnnotationMirror fileInfo, String extension, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType, Map<Integer, String> tokenNameForIndex, Map<Integer, String> ruleIdForName) throws Exception {
         String editorKitName = prefix + "EditorKit";
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage)
                 .named(editorKitName)
                 .withModifier(FINAL).withModifier(PUBLIC)
-                .importing("javax.annotation.processing.Generated", NB_EDITOR_KIT_TYPE,
+                .importing("javax.annotation.processing.Generated",
+                        //                        EXT_KIT_TYPE,
+                        NB_EDITOR_KIT_TYPE,
                         EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
-                .extending("NbEditorKit")
+                .extending(simpleName(NB_EDITOR_KIT_TYPE))
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .initializedWithStringLiteral(mimeType)
@@ -503,7 +718,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                                         .withArgument("cancelled")
                                         .withArgument("tokenSource")
                                         //.withArgument("bag.source()")
-//                                        .withLambdaArgument().body().returning("new CommonTokenStream(lexer, -1)").endBlock()
+                                        //                                        .withLambdaArgument().body().returning("new CommonTokenStream(lexer, -1)").endBlock()
                                         .on("extractor").as("Extraction");
                                 bb.lineComment("// discard the cached tokens used for token extraction");
                                 bb.invoke("dispose").on("tokenSource");
@@ -1156,6 +1371,5 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         "System/org.openide.actions.FileSystemAction",
         "System/org.openide.actions.ToolsAction",
         "System/org.openide.actions.PropertiesAction"
-
     };
 }

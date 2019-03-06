@@ -97,6 +97,15 @@ public final class ARGBColor {
         return a;
     }
 
+    public String toRGBorRGBAString() {
+        StringBuilder sb = new StringBuilder(24).append('{');
+        sb.append(r).append(',').append(g).append(',').append(b);
+        if (a != 255) {
+            sb.append(',').append('a');
+        }
+        return sb.append('}').toString();
+    }
+
     private String name() {
         if (a == 255) {
             switch (r) {
