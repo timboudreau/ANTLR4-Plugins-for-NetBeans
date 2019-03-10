@@ -25,7 +25,7 @@ import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionContext;
  * Builder for extracting &quot;named regions&quot; during a parse. You supply:
  * <ul>
  * <li>A <b>key</b> the resulting names will be retrievd from an
- * {@link Extraction} with</li>
+ * {@link Extraction} with, when using extraction results</li>
  * <li>One or more rule node classes which should trigger inspection</li>
  * <li>A function (or consumer) which accepts the node and returns a name or
  * null</li>
@@ -36,7 +36,10 @@ import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionContext;
  * node matched is also a child of one or more particular types of ancestor rule
  * nodes</li>
  * <li>Optionally, you may also specify similar parameters for finding all
- * <i>references to</i> a named region (such as uses of a variable)</li>
+ * <i>references to</i> a named region (such as uses of a variable)</li> - i.e.
+ * if one kind of rule <b>defines</b> names (such as a rule detecting Java&trade;
+ * methods) and another rule defines possible <b>calls</b> to those methods,
+ * you can scan for both here, and have your extraction contain keys for both.
  * </ul>
  *
  * @author Tim Boudreau
@@ -87,7 +90,11 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
     }
 
     Ret _build() {
-        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors));
+        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, null));
+    }
+
+    private Ret setScopingDelimiter(String delim) {
+        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, delim));
     }
 
     public static final class NamedRegionExtractorBuilderWithNameKey<T extends Enum<T>, Ret> {
@@ -601,6 +608,52 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         FinishableNamedRegionExtractorBuilder<T, Ret> addReferenceExtractorPair(ReferenceExtractorPair<T> pair) {
             bldr.addReferenceExtractorPair(pair);
             return this;
+        }
+
+        /**
+         * Build this region extractor, and specifying that nested names
+         * will be scoped with the name they occur inside, with the
+         * parent names separated by the passed delimiter.  This results
+         * in names being derived where, if you had the structure
+         * <pre>
+         * foo
+         *   bar
+         *   baz
+         *      foo
+         * </pre>
+         *
+         * you would get the names
+         * <pre>
+         * foo
+         * foo.bar
+         * foo.baz
+         * foo.baz.foo
+         * </pre>
+         *
+         * which makes it possible to have nested names, rather than detecting
+         * one occurrence of <code>foo</code> and one duplicate name.  Region
+         * detection will then expect names to be similarly scoped when they
+         * are encountered in the source, so a detected reference to "bar"
+         * would be an unknown reference, but a reference to "foo.bar" would
+         * not.
+         * <p>
+         * It should also be possible to go the other direction (e.g., mapping
+         * a raw class name to a Java&trade; import statement), but this is not yet
+         * implemented.
+         * </p>
+         * <p>
+         * If you are using the <code>antlr-navigators</code> project to
+         * generate navigator panels, the default <code>Appearance</code>
+         * will strip the prefix of a name, and indent by the number of
+         * delimiters found, to create the appearance of nesting without
+         * lengthy names.
+         * </p>
+         *
+         * @param delim A string delimiter.
+         * @return
+         */
+        public Ret scopingNestedNamesDelimitedBy(String delim) {
+            return bldr.setScopingDelimiter(delim);
         }
 
         public Ret finishNamedRegions() {

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -764,9 +765,28 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return method(name, new boolean[1]);
     }
 
+    public MethodBuilder<ClassBuilder<T>> publicMethod(String name) {
+        return method(name, new boolean[1]).withModifier(PUBLIC);
+    }
+
     public ClassBuilder<T> override(String name, Consumer<MethodBuilder<?>> c) {
+        return override(name, c, new Modifier[0]);
+    }
+
+    public ClassBuilder<T> overridePublic(String name, Consumer<MethodBuilder<?>> c) {
+        return override(name, c, new Modifier[]{PUBLIC});
+    }
+
+    public ClassBuilder<T> overrideProtected(String name, Consumer<MethodBuilder<?>> c) {
+        return override(name, c, new Modifier[]{PROTECTED});
+    }
+
+    private ClassBuilder<T> override(String name, Consumer<MethodBuilder<?>> c, Modifier[] modifiers) {
         boolean[] built = new boolean[1];
         MethodBuilder<?> m = method(name, built).override();
+        for (Modifier mm : modifiers) {
+            m.withModifier(mm);
+        }
         c.accept(m);
         if (!built[0]) {
             throw new IllegalStateException("Method not closed");
@@ -778,7 +798,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return method(name, new boolean[1]).override();
     }
 
-    private MethodBuilder<ClassBuilder<T>> method(String name, boolean[] built) {
+    public MethodBuilder<ClassBuilder<T>> overridePublic(String name) {
+        return method(name).withModifier(PUBLIC);
+    }
+
+    public MethodBuilder<ClassBuilder<T>> overrideProtected(String name) {
+        return method(name).withModifier(PROTECTED);
+    }
+
+    private MethodBuilder<ClassBuilder<T>> method(String name, boolean[] built, Modifier... modifiers) {
         return new MethodBuilder<>(mb -> {
             members.add(mb);
             built[0] = true;
@@ -796,9 +824,12 @@ public final class ClassBuilder<T> implements BodyBuilder {
         private String type = "void";
         private final String name;
 
-        MethodBuilder(Function<MethodBuilder<T>, T> converter, String name) {
+        MethodBuilder(Function<MethodBuilder<T>, T> converter, String name, Modifier... modifiers) {
             this.converter = converter;
             this.name = name;
+            for (Modifier m : modifiers) {
+                withModifier(m);
+            }
         }
 
         public MethodBuilder<T> throwing(String throwable) {
@@ -847,6 +878,11 @@ public final class ClassBuilder<T> implements BodyBuilder {
         public MethodBuilder<T> addArgument(String type, String name) {
             args.add(new String[]{type, name});
             return this;
+        }
+
+        public T emptyBody() {
+            body().lineComment("do nothing").endBlock();
+            return closeMethod();
         }
 
         public MethodBuilder<T> annotatedWith(String annotationType, Consumer<AnnotationBuilder<?>> c) {
@@ -1052,13 +1088,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
         @Override
         public void buildInto(LinesBuilder lines) {
             lines.word("new").word(type).appendRaw("[] {");
-            for (Iterator<BodyBuilder> it = all.iterator(); it.hasNext();) {
-                BodyBuilder bb = it.next();
-                bb.buildInto(lines);
-                if (it.hasNext()) {
-                    lines.appendRaw(",");
+            lines.wrappable(lb -> {
+                for (Iterator<BodyBuilder> it = all.iterator(); it.hasNext();) {
+                    BodyBuilder bb = it.next();
+                    bb.buildInto(lb);
+                    if (it.hasNext()) {
+                        lb.appendRaw(",");
+                    }
                 }
-            }
+            });
             lines.appendRaw("}");
         }
 
@@ -1188,7 +1226,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public InvocationBuilder<T> withLambdaArgument(Consumer<LambdaBuilder<?>> c) {
             boolean[] built = new boolean[1];
-            LambdaBuilder<?> builder = withLambdaArgument(built);
+            LambdaBuilder<?> builder = new LambdaBuilder<Void>(lb -> {
+                if (!arguments.contains(lb)) {
+                    arguments.add(lb);
+                }
+                built[0] = true;
+                return null;
+            });
             c.accept(builder);
             if (!built[0]) {
                 throw new IllegalStateException("Lambda builder not finished");
@@ -1255,9 +1299,29 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public BlockBuilder<T> over(String what) {
+            return over(what, new boolean[1]);
+        }
+
+        public T over(String what, Consumer<BlockBuilder<?>> cb) {
+            Holder<T> holder = new Holder<>();
+            BlockBuilder<Void> bldr = new BlockBuilder<>(bb -> {
+                this.body = bb;
+                this.from = new Adhoc(what);
+                holder.set(converter.apply(this));
+                return null;
+            }, true);
+            cb.accept(bldr);
+            if (!holder.isSet()) {
+                throw new IllegalStateException("endBlock() not called");
+            }
+            return holder.get();
+        }
+
+        private BlockBuilder<T> over(String what, boolean[] built) {
             this.from = new Adhoc(what);
             return new BlockBuilder<T>(bb -> {
                 this.body = bb;
+                built[0] = true;
                 return converter.apply(this);
             }, true);
         }
@@ -1534,6 +1598,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
             boolean[] built = new boolean[1];
             BlockBuilder<T> block = block(built);
             c.accept(block);
+            if (!built[0]) {
+                throw new IllegalStateException("Body not closed - call endBlock()");
+            }
+            body = block;
             return converter.apply(this);
         }
 
@@ -1551,6 +1619,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         @Override
         public void buildInto(LinesBuilder lines) {
+            if (body == null) {
+                throw new IllegalStateException("Body null", creation);
+            }
             if (arguments.isEmpty()) {
                 lines.word("()");
             } else if (arguments.size() == 1 && "".equals(arguments.get(arguments.keySet().iterator().next()))) {
@@ -1709,7 +1780,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
                         throw new IllegalArgumentException("At least "
                                 + arguments.size() + " logger arguments "
                                 + "present, but the template has no "
-                                + "occurrence of " + searchFor + " - that"
+                                + "occurrence of " + searchFor + " - that "
                                 + "argument will not be logged");
                     }
                 }
@@ -1958,6 +2029,11 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
+        public BlockBuilder<T> returning(Number num) {
+            statements.add(new OneStatement("return " + num.toString()));
+            return this;
+        }
+
         public BlockBuilder<T> returningStringLiteral(String s) {
             statements.add(new OneStatement("return " + LinesBuilder.stringLiteral(s)));
             return this;
@@ -2094,6 +2170,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return converter.apply(this);
         }
 
+        public InvocationBuilder<DeclarationBuilder<T>> initializedWithNew(String what) {
+            return new InvocationBuilder<>(ib -> {
+                initializer = ib;
+                return this;
+            }, "new " + what);
+        }
+
         public DeclarationBuilder<T> initializedWith(String init) {
             this.initializer = new Adhoc(init);
             return this;
@@ -2130,6 +2213,31 @@ public final class ClassBuilder<T> implements BodyBuilder {
                     initializer.buildInto(l);
                 }
             });
+        }
+
+        public ArrayLiteralBuilder<T> initializedAsNewArray(String type) {
+            return new ArrayLiteralBuilder<>(alb -> {
+                as = type + "[]";
+//                initializer = new Composite(new Adhoc("new"), new Adhoc(as), alb);
+                initializer = alb;
+                return converter.apply(this);
+            }, type);
+        }
+
+        public T initializedAsNewArray(String action, Consumer<ArrayLiteralBuilder<?>> c) {
+            Holder<T> holder = new Holder<>();
+            ArrayLiteralBuilder<Void> bldr = new ArrayLiteralBuilder<>(alb -> {
+                as = action + "[]";
+//                initializer = new Composite(new Adhoc("new"), new Adhoc(as), alb);
+                initializer = alb;
+                holder.set(converter.apply(this));
+                return null;
+            }, action);
+            c.accept(bldr);
+            if (!holder.isSet()) {
+                throw new IllegalStateException("Array not closed");
+            }
+            return holder.get();
         }
     }
 
@@ -2406,6 +2514,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return new ConditionRightSideBuilder<>(leftSide.converter, leftSide, ComparisonOperation.LTE);
         }
 
+        public ConditionRightSideBuilder<T> instanceOf() {
+            return new ConditionRightSideBuilder<>(leftSide.converter, leftSide, ComparisonOperation.INSTANCEOF);
+        }
+
         public T endCondition() {
             ConditionRightSideBuilder<T> right = new ConditionRightSideBuilder<>(leftSide.converter, leftSide, null);
             return new FinishableConditionBuilder<>(leftSide.converter, right, null).endCondition();
@@ -2584,7 +2696,8 @@ public final class ClassBuilder<T> implements BodyBuilder {
         LT("<"),
         GTE(">="),
         LTE("<="),
-        NE("!=");
+        NE("!="),
+        INSTANCEOF("instanceof");
         String s;
 
         private ComparisonOperation(String s) {
@@ -2700,22 +2813,22 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public ArrayValueBuilder<T> stringLiteral(String s) {
-            values.add(new Adhoc(LinesBuilder.stringLiteral(s)));
+            values.add(new Adhoc(LinesBuilder.stringLiteral(s), true));
             return this;
         }
 
         public ArrayValueBuilder<T> charLiteral(char c) {
-            values.add(new Adhoc(LinesBuilder.escapeCharLiteral(c)));
+            values.add(new Adhoc(LinesBuilder.escapeCharLiteral(c), true));
             return this;
         }
 
         public ArrayValueBuilder<T> number(Number n) {
-            values.add(new Adhoc(n.toString()));
+            values.add(new Adhoc(n.toString(), true));
             return this;
         }
 
         public ArrayValueBuilder<T> value(String s) {
-            values.add(new Adhoc(s));
+            values.add(new Adhoc(s, true));
             return this;
         }
 
@@ -2882,6 +2995,36 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return annotatedWith(anno, new boolean[1]);
         }
 
+        public ArrayLiteralBuilder<T> initializedAsArrayLiteral(String type) {
+            return initializedAsArrayLiteral(type, new boolean[1]);
+        }
+
+        private ArrayLiteralBuilder<T> initializedAsArrayLiteral(String type, boolean[] built) {
+            return new ArrayLiteralBuilder<>(alb -> {
+                this.type = type + "[]";
+                initializer = alb;
+                built[0] = true;
+                return converter.apply(this);
+            }, type);
+        }
+
+        public T initializedAsArrayLiteral(String type, Consumer<ArrayLiteralBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            AtomicReference<T> t = new AtomicReference<>();
+            ArrayLiteralBuilder<Void> bldr = new ArrayLiteralBuilder<>(alb -> {
+                this.type = type + "[]";
+                this.initializer = alb;
+                built[0] = true;
+                t.set(converter.apply(this));
+                return null;
+            }, type);
+            c.accept(bldr);
+            if (!built[0]) {
+                throw new IllegalStateException("Array literal builder not closed");
+            }
+            return t.get();
+        }
+
         public FieldBuilder<T> annotatedWith(String anno, Consumer<AnnotationBuilder<?>> c) {
             boolean[] built = new boolean[1];
             AnnotationBuilder<?> ab = annotatedWith(anno, built);
@@ -2970,7 +3113,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }, null);
         }
 
-        public FieldBuilder<T> withModifier(Modifier mod) {
+        public FieldBuilder<T> withModifier(Modifier mod, Modifier... mods) {
+            addModifier(mod);
+            for (Modifier m : mods) {
+                addModifier(m);
+            }
+            return this;
+        }
+
+        private void addModifier(Modifier mod) {
             switch (mod) {
                 case ABSTRACT:
                 case DEFAULT:
@@ -3005,7 +3156,6 @@ public final class ClassBuilder<T> implements BodyBuilder {
                     break;
             }
             modifiers.add(mod);
-            return this;
         }
 
         public T ofType(String type) {
@@ -3022,4 +3172,22 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return cb.text();
         }
     }
+
+    private static final class Holder<T> {
+
+        T obj;
+
+        void set(T obj) {
+            this.obj = obj;
+        }
+
+        boolean isSet() {
+            return obj != null;
+        }
+
+        T get() {
+            return obj;
+        }
+    }
+
 }

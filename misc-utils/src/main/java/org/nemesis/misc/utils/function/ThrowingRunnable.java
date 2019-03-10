@@ -1,4 +1,4 @@
-package org.nemesis.registration.utils.function;
+package org.nemesis.misc.utils.function;
 
 import java.util.concurrent.Callable;
 

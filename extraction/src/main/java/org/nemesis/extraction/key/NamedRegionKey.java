@@ -34,6 +34,11 @@ public final class NamedRegionKey<T extends Enum<T>> implements Serializable, Ha
         return new NamedRegionKey<>(name, type);
     }
 
+    public NameReferenceSetKey<T> createReferenceKey(String name) {
+        return new NameReferenceSetKey<>(name, this);
+    }
+
+    @Override
     public String toString() {
         return name + ":" + type.getSimpleName();
     }
@@ -73,5 +78,4 @@ public final class NamedRegionKey<T extends Enum<T>> implements Serializable, Ha
     public String name() {
         return name;
     }
-
 }

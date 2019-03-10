@@ -78,7 +78,7 @@
                         <target>${java.source.level}</target>
                         <showDeprecation>false</showDeprecation>
                         <showWarnings>false</showWarnings>
-                        <debug>true</debug>
+                        <!--<debug>true</debug>-->
                         <encoding>UTF-8</encoding>
                     </configuration>
                 </plugin>

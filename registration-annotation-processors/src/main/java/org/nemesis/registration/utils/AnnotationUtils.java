@@ -1,7 +1,7 @@
 package org.nemesis.registration.utils;
 
-import org.nemesis.registration.utils.function.ThrowingRunnable;
-import org.nemesis.registration.utils.function.ThrowingBooleanSupplier;
+import org.nemesis.misc.utils.function.ThrowingRunnable;
+import org.nemesis.misc.utils.function.ThrowingBooleanSupplier;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.AnnotationTypeMismatchException;
 import java.text.MessageFormat;
@@ -25,6 +25,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.element.VariableElement;
@@ -74,6 +75,11 @@ public final class AnnotationUtils {
     }
 
     static boolean forcedLogging;
+
+    public String packageName(Element el) {
+        PackageElement pkg = processingEnv.getElementUtils().getPackageOf(el);
+        return pkg == null ? null : pkg.getQualifiedName().toString();
+    }
 
     public static void forceLogging() {
         forcedLogging = true;
@@ -202,6 +208,23 @@ public final class AnnotationUtils {
             }
         }
         return mir;
+    }
+
+    public static String capitalize(String what) {
+        char[] c = what.toCharArray();
+        c[0] = Character.toUpperCase(c[0]);
+        return new String(c);
+    }
+
+    public static String stripMimeType(String mt) {
+        int ix = mt.indexOf('/');
+        if (ix > 0 && ix < mt.length() - 1) {
+            mt = mt.substring(ix + 1);
+        }
+        if (mt.startsWith("x-")) {
+            mt = mt.substring(2);
+        }
+        return mt;
     }
 
     /**

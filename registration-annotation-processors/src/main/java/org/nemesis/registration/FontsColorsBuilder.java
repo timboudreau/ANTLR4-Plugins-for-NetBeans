@@ -2,7 +2,6 @@ package org.nemesis.registration;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,7 +44,7 @@ final class FontsColorsBuilder implements Iterable<Fc> {
     private final Set<FcEntry> all = new HashSet<>();
     private final String theme;
 
-    private static final String LOCAL_DTD_RESOURCE = "/org/netbeans/modules/editor/settings/storage/fontscolors/EditorFontsColors-1_1.dtd";
+    private static final String LOCAL_DTD_RESOURCE = "/org/nemesis/registration/EditorFontsColors-1_1.dtd";
     private static final String PUBLIC_DTD_ID = "-//NetBeans//DTD Editor Fonts and Colors settings 1.1//EN";
     private static final String NETWORK_DTD_URL = "http://netbeans.org/dtds/EditorFontsColors-1_1.dtd";
     private static final ErrorHandler ERROR_HANDLER = new ErrorHandler() {
@@ -69,8 +68,8 @@ final class FontsColorsBuilder implements Iterable<Fc> {
         @Override
         public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
             if (PUBLIC_DTD_ID.equals(publicId)) {
-//                return new InputSource(FontsColorsBuilder.class.getResource(LOCAL_DTD_RESOURCE).toString());
-                return new InputSource(new URL(NETWORK_DTD_URL).openStream());
+                return new InputSource(FontsColorsBuilder.class.getResource(LOCAL_DTD_RESOURCE).toString());
+//                return new InputSource(new URL(NETWORK_DTD_URL).openStream());
             } else {
                 return null;
             }

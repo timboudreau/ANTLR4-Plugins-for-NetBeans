@@ -1,5 +1,6 @@
 package org.nemesis.antlr.spi.language;
 
+import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -18,6 +19,7 @@ import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser.Result;
 import org.netbeans.spi.editor.hints.ErrorDescription;
+import org.netbeans.spi.editor.hints.LazyFixList;
 
 /**
  * Helper class for intercepting parser creation and interacting with the syntax
@@ -80,8 +82,12 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * the instance created from this parse.
      * @throws Exception If something goes wrong
      */
-    protected final void onParseCompleted(T tree, Extraction extraction, ParseResultContents populate, BooleanSupplier cancelled) throws Exception {
+    protected void onParseCompleted(T tree, Extraction extraction, ParseResultContents populate, Fixes fixes, BooleanSupplier cancelled) throws Exception {
 
+    }
+
+    protected final LazyFixList emptyFixList() {
+        return Fixes.none();
     }
 
     /**
@@ -136,8 +142,9 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
             List<? extends SyntaxError> errors = errorSupplier.get();
             LOG.log(Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{errors.size(), errorSupplier});
             populate.setSyntaxErrors(errors, this);
-            ParseResultHook.runForMimeType(mimeType, tree, extraction, populate);
-            onParseCompleted(tree, extraction, populate, cancelled);
+            Fixes fixes = populate.fixes();
+            ParseResultHook.runForMimeType(mimeType, tree, extraction, populate, fixes);
+            onParseCompleted(tree, extraction, populate, fixes, cancelled);
         } else {
             LOG.log(Level.FINEST, "Not using parse result {0} due to cancellation", populate);
         }

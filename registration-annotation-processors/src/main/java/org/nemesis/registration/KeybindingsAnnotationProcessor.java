@@ -1,15 +1,9 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.registration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -39,12 +33,14 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
-import static org.nemesis.registration.LanguageRegistrationProcessor.stripMimeType;
+import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
+import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
 import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
+import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.util.lookup.ServiceProvider;
@@ -62,30 +58,54 @@ import org.xml.sax.SAXParseException;
  *
  * @author Tim Boudreau
  */
-@SupportedAnnotationTypes("org.nemesis.antlr.spi.language.keybindings.Keybindings")
+@SupportedAnnotationTypes({KEYBINDING_ANNO, GOTO_ANNOTATION})
 @SupportedOptions(AnnotationUtils.AU_LOG)
 @ServiceProvider(service = Processor.class)
 public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
-    private Element targetElement;
-    private Map<String, KeysFile> files = new HashMap<>();
+    static final String KEYBINDING_ANNO ="org.nemesis.antlr.spi.language.keybindings.Keybindings";
 
-    void updateTargetElement(Element targetElement) {
-        if (this.targetElement == null) {
-            this.targetElement = targetElement;
+    private Map<String, KeysFile> files = new HashMap<>();
+    private final Map<KeysFile, String> profileForKeysFile = new HashMap<>();
+    private final Map<String, Element> targetElementForMimeType = new HashMap<>();
+
+    void updateTargetElement(String mimeType, Element targetElement) {
+        if (!targetElementForMimeType.containsKey(mimeType)) {
+            targetElementForMimeType.put(mimeType, targetElement);
         }
     }
-    private Map<KeysFile, String> profileForKeysFile = new HashMap<>();
+
+    Element targetElement(String mimeType) {
+        Element result = targetElementForMimeType.get(mimeType);
+        if (result == null) {
+            throw new IllegalArgumentException("No element recorded for " + mimeType);
+        }
+        return result;
+    }
+
+    @Override
+    protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        if (mimeType != null) {
+            updateTargetElement(mimeType, var);
+            KeysFile keysFile = keysFile(mimeType, "NetBeans", false);
+            keysFile.add(new KeybindingInfo("D-B", false, "goto-declaration"), var);
+        }
+        return false;
+    }
 
     @Override
     protected boolean processMethodAnnotation(ExecutableElement method, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        updateTargetElement(method);
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        if (mimeType == null) {
+            return true;
+        }
+        updateTargetElement(mimeType, method);
         List<AnnotationMirror> bindings = utils().annotationValues(mirror, "keybindings", AnnotationMirror.class);
         if (bindings.isEmpty()) {
             utils().fail("Keybindings list may not be empty", method, mirror);
         }
 
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         TypeElement parent = AnnotationUtils.enclosingType(method);
         String actionName = (parent.getQualifiedName() + "-" + method.getSimpleName()).replace('.', '-').replace('$', '-').toLowerCase();
         Set<KeysFile> files = new HashSet<>();
@@ -133,15 +153,23 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
     private static final Set<String> legalMethodArguments = new HashSet<>(
             Arrays.asList(J_TEXT_COMPONENT_TYPE, DOCUMENT_TYPE, ACTION_EVENT_TYPE, EXTRACTION_TYPE));
 
+    private static int actionPosition = 11;
     private void generateActionRegistrationForMethodReturningAction(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) {
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         String fqn = owningClass.getQualifiedName() + "." + method.getSimpleName();
-        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
+//        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
+        String fqnDashes = fqn.replace('.', '-') ;
+        String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
+                + fqnDashes + ".instance";
         LayerBuilder layer = layer(method);
         layer.file(actionRegistration)
                 .methodvalue("instanceCreate", owningClass.getQualifiedName().toString(), method.getSimpleName().toString())
                 .stringvalue("instanceOf", ACTION_TYPE)
-                .intvalue("position", 100).write();
+                .intvalue("position", actionPosition).write();
+        layer.shadowFile(actionRegistration, "Editors/" + mimeType + "/Actions", fqnDashes)
+                .intvalue("position", actionPosition)
+                .write();
+        actionPosition++;
     }
 
     private void generateActionImplementation(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException, LayerGenerationException {
@@ -274,6 +302,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                 + fqnDashes + ".instance";
         LayerBuilder.File layerFile = layer
                 .file(actionRegistration)
+                .intvalue("position", actionPosition)
                 .stringvalue("instanceClass", clazz.fqn())
                 .stringvalue("instanceof", ACTION_TYPE)
                 .intvalue("position", 100);
@@ -289,14 +318,16 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                 layerFile.stringvalue("displayName", displayName);
             }
         }
-        layer.shadowFile(actionRegistration, "Editors/" + mimeType + "/Actions", fqnDashes).write();
+        layer.shadowFile(actionRegistration, "Editors/" + mimeType + "/Actions", fqnDashes)
+                .intvalue("position", actionPosition)
+                .write();
         layerFile.write();
-
+        actionPosition++;
     }
 
     private void writeOneKeysFileAndActions(KeysFile file, Element method) throws IOException {
         Filer filer = processingEnv.getFiler();
-        String path = packagePath() + file.name;
+        String path = packagePath(file.mimeType()) + file.name;
         FileObject resource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path, method);
         try (OutputStream out = resource.openOutputStream()) {
             out.write(file.toString().getBytes(UTF_8));
@@ -306,7 +337,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
     private void writeLayerEntriesForKeysFile(KeysFile file, String profile, Element method, String mimeType) throws IOException {
         String layerDir = "Editors/" + mimeType + "/Keybindings";
         String layerPath = layerDir + "/" + profile + "/Defaults/" + file.name;
-        String path = packagePath() + file.name;
+        String path = packagePath(file.mimeType()) + file.name;
         layer(method).file(layerPath).url("nbres:/" + path).write();
     }
 
@@ -328,18 +359,18 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         return (mac ? base + "-mac" : base) + ".xml";
     }
 
-    private String packagePath() {
-        PackageElement el = processingEnv.getElementUtils().getPackageOf(targetElement);
+    private String packagePath(String mimeType) {
+        PackageElement el = processingEnv.getElementUtils().getPackageOf(targetElement(mimeType));
         return el.getQualifiedName().toString().replace('.', '/') + '/';
     }
 
     private KeysFile keysFile(String mimeType, String profile, boolean mac) throws IOException, SAXException {
-        String nm = keysFileName(mimeType, profile, mac);
-        KeysFile file = files.get(nm);
+        String keysFileName = keysFileName(mimeType, profile, mac);
+        KeysFile file = files.get(keysFileName);
         if (file == null) {
-            file = new KeysFile(nm);
-            files.put(nm, file);
-            String path = packagePath() + nm;
+            file = new KeysFile(keysFileName, mimeType);
+            files.put(keysFileName, file);
+            String path = packagePath(mimeType) + keysFileName;
             Filer filer = processingEnv.getFiler();
             try {
                 FileObject existing = filer.getResource(StandardLocation.CLASS_OUTPUT, "", path);
@@ -354,14 +385,20 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         return file;
     }
 
-    static class KeysFile {
+    private static class KeysFile {
 
         final String name;
         private final Set<String> bindings = new TreeSet<>();
         private final Map<String, Element> elements = new HashMap<>();
+        private final String mimeType;
 
-        public KeysFile(String name) {
+        public KeysFile(String name, String mimeType) {
             this.name = name;
+            this.mimeType = mimeType;
+        }
+
+        String mimeType() {
+            return mimeType;
         }
 
         void add(KeybindingInfo info, Element element) {
@@ -449,7 +486,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             }
         }
 
-        private static final String LOCAL_DTD_RESOURCE = "/org/netbeans/modules/editor/settings/storage/keybindings/EditorKeyBindings-1_1.dtd";
+        private static final String LOCAL_DTD_RESOURCE = "/org/nemesis/registration/EditorKeyBindings-1_1.dtd";
         private static final String PUBLIC_DTD_ID = "-//NetBeans//DTD Editor KeyBindings settings 1.1//EN";
         private static final String NETWORK_DTD_URL = "http://www.netbeans.org/dtds/EditorKeyBindings-1_1.dtd";
         private static final ErrorHandler ERROR_HANDLER = new ErrorHandler() {
@@ -473,8 +510,8 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             @Override
             public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
                 if (PUBLIC_DTD_ID.equals(publicId)) {
-//                return new InputSource(FontsColorsBuilder.class.getResource(LOCAL_DTD_RESOURCE).toString());
-                    return new InputSource(new URL(NETWORK_DTD_URL).openStream());
+                return new InputSource(KeybindingsAnnotationProcessor.class.getResource(LOCAL_DTD_RESOURCE).toString());
+//                    return new InputSource(new URL(NETWORK_DTD_URL).openStream());
                 } else {
                     return null;
                 }

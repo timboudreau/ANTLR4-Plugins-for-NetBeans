@@ -1,5 +1,6 @@
 package org.nemesis.antlr.spi.language;
 
+import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.List;
 import java.util.Optional;
 import org.netbeans.spi.editor.hints.ErrorDescription;
@@ -62,5 +63,7 @@ public abstract class ParseResultContents {
     }
 
     abstract <T> void _put(AntlrParseResult.Key<T> key, T obj);
+
+    abstract Fixes fixes();
 
 }

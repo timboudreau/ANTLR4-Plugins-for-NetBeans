@@ -1,8 +1,10 @@
 package org.nemesis.extraction;
 
 import java.util.BitSet;
+import java.util.LinkedList;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
@@ -30,15 +32,18 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
     private final NamedRegionKey<T> ruleRegionKey;
     private final NameExtractionStrategy<?, T>[] nameExtractors;
     private final ReferenceExtractorPair<?>[] referenceExtractors;
+    private final String scopingDelimiter;
+    private static final Logger LOG = Logger.getLogger(NamesAndReferencesExtractionStrategy.class.getName());
 
     @SuppressWarnings("unchecked")
-    NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors) {
+    NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors, String scopingDelimiter) {
         this.keyType = keyType;
         assert namePositionKey != null || ruleRegionKey != null;
         this.namePositionKey = namePositionKey;
         this.ruleRegionKey = ruleRegionKey;
         this.nameExtractors = nameExtractors.toArray((NameExtractionStrategy<?, T>[]) new NameExtractionStrategy<?, ?>[nameExtractors.size()]);
         this.referenceExtractors = referenceExtractors.toArray(new ReferenceExtractorPair<?>[referenceExtractors.size()]);
+        this.scopingDelimiter = scopingDelimiter;
     }
 
     @Override
@@ -52,6 +57,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             if (i != nameExtractors.length - 1) {
                 sb.append(", ");
             }
+        }
+        if (scopingDelimiter != null) {
+            sb.append("}, scopingDelimiter={").append(scopingDelimiter);
         }
         sb.append("}, referenceExtractors={");
         for (int i = 0; i < referenceExtractors.length; i++) {
@@ -70,10 +78,10 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         NamedSemanticRegions<T> names = v.namesBuilder == null ? null : v.namesBuilder.build();
         NamedSemanticRegions<T> ruleBounds = v.ruleBoundsBuilder.build();
         if (namePositionKey != null) {
-            store.addNamedRegions(namePositionKey, names);
+            store.addNamedRegions(scopingDelimiter, namePositionKey, names);
         }
         if (ruleRegionKey != null) {
-            store.addNamedRegions(ruleRegionKey, ruleBounds);
+            store.addNamedRegions(scopingDelimiter, ruleRegionKey, ruleBounds);
         }
         if (v.namesBuilder != null) {
             v.namesBuilder.retrieveDuplicates((name, duplicates) -> {
@@ -88,7 +96,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         // TODO: If we use names, that fixes highlighting of the rule being referenced
         // but breaks graphs, since the name will not contain the reference.
         // Add a way to provide another reference key for that.
-        
+
 //        ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(names == null ? ruleBounds : names);
         ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(ruleBounds);
         ctx.accept(v1);
@@ -100,6 +108,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         hasher.writeString(keyType.getName());
         hasher.hashObject(namePositionKey);
         hasher.hashObject(ruleRegionKey);
+        if (scopingDelimiter != null) {
+            hasher.writeString(scopingDelimiter);
+        }
         for (NameExtractionStrategy<?, ?> ne : nameExtractors) {
             hasher.hashObject(ne);
         }
@@ -219,18 +230,27 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
 
     class RuleNameAndBoundsVisitor extends AbstractParseTreeVisitor<Void> {
 
+        // This is all old-school, array-based, 1990s programming for a reason
+        // - this code runs thousands of times, potentially every time a key
+        // is pressed.  It needs to be fast and low-allocation more than it
+        // needs to be pretty.
+
         private final NamedSemanticRegionsBuilder<T> namesBuilder;
         private final NamedSemanticRegionsBuilder<T> ruleBoundsBuilder;
         private final int[] activations;
         private final BooleanSupplier cancelled;
+        final LinkedList<String>[] nameStacks;
 
+        @SuppressWarnings("unchecked")
         RuleNameAndBoundsVisitor(BooleanSupplier cancelled) {
             this.cancelled = cancelled;
             activations = new int[nameExtractors.length];
+            nameStacks = (LinkedList<String>[]) new LinkedList<?>[nameExtractors.length];
             for (int i = 0; i < activations.length; i++) {
                 if (nameExtractors[i].ancestorQualifier == null) {
                     activations[i] = 1;
                 }
+                nameStacks[i] = new LinkedList<>();
             }
             if (namePositionKey != null) {
                 namesBuilder = NamedSemanticRegions.builder(keyType);
@@ -263,12 +283,30 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 }
             }
             try {
+                String[] foundNames = scopingDelimiter == null ? null : new String[nameExtractors.length];
+                boolean anyFoundNames = false;
                 for (int i = 0; i < nameExtractors.length; i++) {
                     if (activations[i] > 0) {
-                        runOne(node, nameExtractors[i]);
+                        String[] nm = runOne(node, nameExtractors[i], i);
+                        if (nm != null && scopingDelimiter != null && foundNames[i] == null) {
+                            foundNames[i] = nm[0];
+                            if (scopingDelimiter != null) {
+                                nameStacks[i].push(nm[1]);
+                                System.out.println("PUSHED " + nm + " onto " + nameStacks[i]);
+                                anyFoundNames = true;
+                            }
+                        }
                     }
                 }
                 super.visitChildren(node);
+                if (anyFoundNames) {
+                    for (int i = 0; i < nameExtractors.length; i++) {
+                        if (foundNames[i] != null) {
+                            String popped = nameStacks[i].pop();
+                            System.out.println("POPPED " + popped + " for " + foundNames[i] + " from " + nameStacks[i]);
+                        }
+                    }
+                }
             } finally {
                 for (int i = 0; i < activationScratch.length; i++) {
                     if (activationScratch[i]) {
@@ -278,13 +316,15 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             }
         }
 
-        private <R extends ParserRuleContext> void runOne(ParserRuleContext node, NameExtractionStrategy<R, T> nameExtractor) {
+        private <R extends ParserRuleContext> String[] runOne(ParserRuleContext node, NameExtractionStrategy<R, T> nameExtractor, int nameExtractorIndex) {
             if (nameExtractor.type.isInstance(node)) {
-                doRunOne(nameExtractor.type.cast(node), nameExtractor);
+                return doRunOne(nameExtractor.type.cast(node), nameExtractor, nameExtractorIndex);
             }
+            return null;
         }
 
-        private <R extends ParserRuleContext> void doRunOne(R node, NameExtractionStrategy<R, T> e) {
+        private <R extends ParserRuleContext> String[] doRunOne(R node, NameExtractionStrategy<R, T> e, int nameExtractorIndex) {
+            String[] result = new String[2];
             e.find(node, (NamedRegionData<T> nm, TerminalNode tn) -> {
                 // If we are iterating TerminalNodes, tn will be non-null; otherwise
                 // it will be null and we are doing single extraction - this is so we can,
@@ -293,21 +333,25 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 // definition, but we should not point the definition position for all
                 // of the names to the same spot
                 if (nm != null) {
+                    String name = nm.name(nameStacks == null ? null : nameStacks[nameExtractorIndex], scopingDelimiter);
+                    result[0] = name;
+                    result[1] = nm.name();
                     if (namesBuilder != null) {
                         // XXX, the names extractor actually needs to return the name AND the offsets of the name
                         // use the same code we use for finding the reference
-                        namesBuilder.add(nm.name, nm.kind, nm.start, nm.end);
+                        namesBuilder.add(name, nm.kind, nm.start, nm.end);
                     }
                     if (ruleBoundsBuilder != null) {
                         if (tn == null) {
-                            ruleBoundsBuilder.add(nm.name, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
+                            ruleBoundsBuilder.add(name, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
                         } else {
                             Token tok = tn.getSymbol();
-                            ruleBoundsBuilder.add(nm.name, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+                            ruleBoundsBuilder.add(name, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
                         }
                     }
                 }
             });
+            return result;
         }
     }
 }

@@ -28,11 +28,11 @@ import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import org.nemesis.registration.FontsColorsBuilder.Fc;
 import org.nemesis.registration.FontsColorsBuilder.MultiThemeFontsColorsBuilder;
-import static org.nemesis.registration.LanguageRegistrationProcessor.ANNO;
 import org.nemesis.registration.api.LayerGeneratingDelegate;
 import org.nemesis.registration.utils.AnnotationUtils;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.xml.sax.SAXException;
+import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 
 /**
  *
@@ -82,10 +82,10 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
 
     @Override
     protected boolean processTypeAnnotation(TypeElement on, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        if (mirror.getAnnotationType().toString().equals(ANNO)) {
+        if (mirror.getAnnotationType().toString().equals(REGISTRATION_ANNO)) {
             return processLanguageRegistration(on, mirror, roundEnv);
         } else {
-            log("  - wrong anntation type - skipping - for not " + ANNO);
+            log("  - wrong anntation type - skipping - for not " + REGISTRATION_ANNO);
         }
         return false;
     }

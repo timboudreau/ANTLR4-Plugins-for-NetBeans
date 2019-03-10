@@ -1,5 +1,6 @@
 package org.nemesis.antlr.navigator;
 
+import java.util.Set;
 import javax.swing.ImageIcon;
 import org.openide.awt.HtmlRenderer;
 import org.openide.util.ImageUtilities;
@@ -10,7 +11,7 @@ import org.openide.util.ImageUtilities;
  */
 final class IconAppearance<T> implements Appearance<T> {
 
-    private final NoAppearance no = new NoAppearance();
+    private final DefaultAppearance no = new DefaultAppearance();
     private final ImageIcon icon;
 
     IconAppearance(String iconBase) {
@@ -18,8 +19,8 @@ final class IconAppearance<T> implements Appearance<T> {
     }
 
     @Override
-    public void configureAppearance(HtmlRenderer.Renderer on, T region, boolean componentActive, SortTypes sort) {
-        no.configureAppearance(on, region, componentActive, sort);
+    public void configureAppearance(HtmlRenderer.Renderer on, T region, boolean componentActive, Set<String> scopingDelimiters, SortTypes sort) {
+        no.configureAppearance(on, region, componentActive, scopingDelimiters, sort);
         on.setIcon(icon);
     }
 

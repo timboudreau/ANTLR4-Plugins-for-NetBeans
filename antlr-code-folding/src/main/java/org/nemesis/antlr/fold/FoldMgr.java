@@ -100,13 +100,16 @@ final class FoldMgr<P extends Parser.Result & ExtractionParserResult> implements
     public void changedUpdate(DocumentEvent evt, FoldHierarchyTransaction transaction) {
     }
 
+    @Override
     public void removeEmptyNotify(Fold emptyFold) {
         removeDamagedNotify(emptyFold);
     }
 
+    @Override
     public void removeDamagedNotify(Fold damagedFold) {
     }
 
+    @Override
     public void expandNotify(Fold expandedFold) {
     }
 

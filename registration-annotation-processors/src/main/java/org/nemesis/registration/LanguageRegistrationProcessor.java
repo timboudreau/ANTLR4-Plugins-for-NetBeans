@@ -16,8 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -29,7 +30,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import static javax.lang.model.element.Modifier.DEFAULT;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
@@ -38,6 +38,7 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 import static javax.lang.model.element.Modifier.SYNCHRONIZED;
 import javax.lang.model.element.Name;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
@@ -45,28 +46,55 @@ import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
+import static org.nemesis.registration.GotoDeclarationProcessor.DECLARATION_TOKEN_PROCESSOR_TYPE;
+import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
-import static org.nemesis.registration.LanguageRegistrationProcessor.ANNO;
 import org.nemesis.registration.api.Delegates;
 import org.nemesis.registration.codegen.ClassBuilder;
+import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.codegen.LinesBuilder;
 import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
+import org.nemesis.registration.utils.StringUtils;
 import org.openide.filesystems.FileUtil;
+import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.util.lookup.ServiceProvider;
+import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
+import static org.nemesis.registration.utils.AnnotationUtils.capitalize;
+import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
 
 /**
  *
  * @author Tim Boudreau
  */
 @ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes({ANNO, SEMANTIC_HIGHLIGHTING_ANNO, GROUP_SEMANTIC_HIGHLIGHTING_ANNO})
+@SupportedAnnotationTypes({REGISTRATION_ANNO, SEMANTIC_HIGHLIGHTING_ANNO, GROUP_SEMANTIC_HIGHLIGHTING_ANNO, GOTO_ANNOTATION})
 @SupportedOptions(AU_LOG)
 public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
-    public static final String ANNO = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";
+    public static final String REGISTRATION_ANNO = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";
+
+    public static final int DEFAULT_MODE = 0;
+    public static final int MORE = -2;
+    public static final int SKIP = -3;
+    public static final int DEFAULT_TOKEN_CHANNEL = 0;
+    public static final int HIDDEN = 1;
+    public static final int MIN_CHAR_VALUE = 0;
+    public static final int MAX_CHAR_VALUE = 1114111;
+
+    private static final Map<String, Integer> lexerClassConstants() {
+        Map<String, Integer> result = new HashMap<>();
+        result.put("DEFAULT_MODE", 0);
+        result.put("MORE", -2);
+        result.put("SKIP", -3);
+        result.put("DEFAULT_TOKEN_CHANNEL", 0);
+        result.put("HIDDEN", 1);
+        result.put("MIN_CHAR_VALUE", 0);
+        result.put("MAX_CHAR_VALUE", 1114111);
+        return result;
+    }
 
     @Override
     protected void installDelegates(Delegates delegates) {
@@ -74,10 +102,10 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         HighlighterKeyRegistrationProcessor hkProc = new HighlighterKeyRegistrationProcessor();
         delegates
                 .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
-                .onAnnotationTypesAnd(ANNO)
+                .onAnnotationTypesAnd(REGISTRATION_ANNO)
                 .to(ElementKind.FIELD).whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
                 .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
-                .onAnnotationTypesAnd(ANNO)
+                .onAnnotationTypesAnd(REGISTRATION_ANNO)
                 .to(ElementKind.FIELD).whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO)
                 .apply(hkProc)
                 .to(ElementKind.FIELD)
@@ -85,89 +113,76 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 .apply(hkProc)
                 .to(ElementKind.FIELD)
                 .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO);
-        ;
     }
+
+    Predicate<AnnotationMirror> mirrorTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-        super.onInit(env, utils);
+        mirrorTest = utils.testMirror().testMember("name").stringValueMustNotBeEmpty()
+                .stringValueMustBeValidJavaIdentifier().build()
+                .testMember("mimeType").validateStringValueAsMimeType().build().build();
+    }
+
+    private final Map<String, Set<VariableElement>> gotos = new HashMap<>();
+
+    @Override
+    protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        if (GOTO_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
+            String mime = utils().annotationValue(mirror, "mimeType", String.class);
+            if (mime != null) {
+                Set<VariableElement> ves = gotos.get(mime);
+                if (ves == null) {
+                    ves = new HashSet<>();
+                    gotos.put(mime, ves);
+                }
+                ves.add(var);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private boolean useDeclarationTokenProcessor(String mimeType) {
+        return gotos.containsKey(mimeType);
+    }
+
+    private void preemptivelyCheckGotos(RoundEnvironment env) throws Exception {
+        for (Element e : utils().findAnnotatedElements(env, GOTO_ANNOTATION)) {
+            if (e instanceof VariableElement) {
+                AnnotationMirror am = utils().findAnnotationMirror(e, GOTO_ANNOTATION);
+                if (am != null) {
+                    processFieldAnnotation((VariableElement) e, am, env);
+                }
+            }
+        }
     }
 
     @Override
     protected boolean processTypeAnnotation(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        TypeMirror lexerClass = utils().typeForSingleClassAnnotationMember(mirror, "lexer");
+        if (!mirrorTest.test(mirror)) {
+            return true;
+        }
+        preemptivelyCheckGotos(roundEnv);
+        String prefix = utils().annotationValue(mirror, "name", String.class);
+        LexerProxy lexerProxy = createLexerProxy(mirror, type);
+        if (lexerProxy == null) {
+            return true;
+        }
         TypeMirror tokenCategorizerClass = utils().typeForSingleClassAnnotationMember(mirror, "tokenCategorizer");
 
-        TypeElement lexerClassElement = processingEnv.getElementUtils().getTypeElement(lexerClass.toString());
-
-        if (lexerClassElement == null) {
-            utils().fail("Cannot resolve " + lexerClass + " as an element");
-        }
-        Map<Integer, String> tokenNameForIndex = new HashMap<>();
-
-        int last = -2;
-        for (Element el : lexerClassElement.getEnclosedElements()) {
-            if (el instanceof VariableElement) {
-                VariableElement ve = (VariableElement) el;
-                String nm = ve.getSimpleName().toString();
-                if (nm == null || nm.startsWith("_") || !"int".equals(ve.asType().toString())) {
-                    continue;
-                }
-                if (ve.getConstantValue() != null) {
-                    Integer val = (Integer) ve.getConstantValue();
-                    if (val < last) {
-                        break;
-                    }
-                    tokenNameForIndex.put(val, nm);
-                    last = val;
-                }
-            }
-        }
-        tokenNameForIndex.put(-1, "EOF");
-        tokenNameForIndex.put(last + 1, "$ERRONEOUS");
-        String prefix = generateTokensClasses(tokenNameForIndex, type, mirror, lexerClass, tokenCategorizerClass);
-
-        Map<Integer, String> ruleIdForName = new TreeMap<>();
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
+        ParserProxy parser = null;
         if (parserHelper != null) {
-            int entryPointRuleNumber = utils().annotationValue(parserHelper, "entryPointRule", Integer.class, Integer.MIN_VALUE);
-            if (entryPointRuleNumber >= 0) {
-                TypeMirror parserClass = utils().typeForSingleClassAnnotationMember(parserHelper, "type");
-                TypeElement parserClassElement = parserClass == null ? null
-                        : processingEnv.getElementUtils().getTypeElement(parserClass.toString());
-                if (parserClassElement != null) {
-                    ExecutableElement parserEntryPointMethod = null;
-                    String entryPointRule = null;
-                    for (Element el : parserClassElement.getEnclosedElements()) {
-                        if (el instanceof VariableElement) {
-                            VariableElement ve = (VariableElement) el;
-                            String nm = ve.getSimpleName().toString();
-                            if (nm == null || !nm.startsWith("RULE_") || !"int".equals(ve.asType().toString())) {
-                                continue;
-                            }
-                            String ruleName = nm.substring(5);
-                            if (!ruleName.isEmpty() && ve.getConstantValue() != null) {
-                                int val = (Integer) ve.getConstantValue();
-                                ruleIdForName.put(val, ruleName);
-                                if (val == entryPointRuleNumber) {
-                                    entryPointRule = ruleName;
-                                }
-                            }
-                        } else if (entryPointRule != null && el instanceof ExecutableElement) {
-                            Name name = el.getSimpleName();
-                            if (name != null && name.contentEquals(entryPointRule)) {
-                                parserEntryPointMethod = (ExecutableElement) el;
-                            }
-                        }
-                    }
-                    if (parserEntryPointMethod == null) {
-                        utils().fail("Did not find a method named " + entryPointRule + " or a rule field with value " + entryPointRuleNumber);
-                    } else {
-                        generateParserClasses(ruleIdForName, parserEntryPointMethod, type, mirror, lexerClass, parserClass, parserHelper, prefix);
-                    }
-                }
+            parser = createParserProxy(parserHelper);
+            if (parser == null) {
+                return true;
             }
+            generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
         }
+
+        generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix);
+
         AnnotationMirror fileInfo = utils().annotationValue(mirror, "file", AnnotationMirror.class);
         if (fileInfo != null && !roundEnv.errorRaised()) {
             String extension = utils().annotationValue(fileInfo, "extension", String.class, ".");
@@ -178,22 +193,26 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         return false;
                     }
                 }
-                generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type, tokenNameForIndex, ruleIdForName);
+                generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type, parser, lexerProxy);
             }
         }
         // Returning true could stop LanguageFontsColorsProcessor from being run
         return false;
     }
-    
-    private LexerProxy createLexerProxy(AnnotationMirror mirror) {
-        TypeMirror lexerClass = utils().typeForSingleClassAnnotationMember(mirror, "lexer");
-        TypeElement lexerClassElement = processingEnv.getElementUtils().getTypeElement(lexerClass.toString());
 
+    private LexerProxy createLexerProxy(AnnotationMirror mirror, Element target) {
+        TypeMirror lexerClass = utils().typeForSingleClassAnnotationMember(mirror, "lexer");
+        if (mirror == null) {
+            utils().fail("Could not locate lexer class on classpath", target);
+            return null;
+        }
+        TypeElement lexerClassElement = processingEnv.getElementUtils().getTypeElement(lexerClass.toString());
         if (lexerClassElement == null) {
-            utils().fail("Cannot resolve " + lexerClass + " as an element");
+            utils().fail("Could not resolve a TypeElement for " + lexerClass, target);
+            return null;
         }
         Map<Integer, String> tokenNameForIndex = new HashMap<>();
-        Map<String,Integer> indexForTokenName = new HashMap<>();
+        Map<String, Integer> indexForTokenName = new HashMap<>();
 
         int last = -2;
         for (Element el : lexerClassElement.getEnclosedElements()) {
@@ -243,6 +262,14 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             return indexForTokenName.get(name);
         }
 
+        public String lexerClassFqn() {
+            return lexerClass.toString();
+        }
+
+        public String lexerClassSimple() {
+            return simpleName(lexerClassFqn());
+        }
+
         public TypeMirror lexerType() {
             return lexerClass;
         }
@@ -276,7 +303,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
 
         public List<Integer> allTypesSortedByName() {
             List<Integer> result = new ArrayList<>(tokenNameForIndex.keySet());
-            Collections.sort(result, (a, b)-> {
+            Collections.sort(result, (a, b) -> {
                 String an = tokenName(a);
                 String bn = tokenName(b);
                 return an.compareToIgnoreCase(bn);
@@ -284,6 +311,12 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             return result;
         }
 
+        private boolean typeExists(Integer val) {
+            if (val == null) {
+                throw new IllegalArgumentException("Null value");
+            }
+            return tokenNameForIndex.containsKey(val);
+        }
     }
 
     private ParserProxy createParserProxy(AnnotationMirror parserHelper) {
@@ -295,7 +328,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         TypeMirror parserClass = utils().typeForSingleClassAnnotationMember(parserHelper, "type");
         TypeElement parserClassElement = parserClass == null ? null
                 : processingEnv.getElementUtils().getTypeElement(parserClass.toString());
-        Map<String,ExecutableElement> methodsForNames = new HashMap<>();
+        Map<String, ExecutableElement> methodsForNames = new HashMap<>();
         if (parserClassElement != null) {
             String entryPointRule = null;
             for (Element el : parserClassElement.getEnclosedElements()) {
@@ -325,10 +358,14 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 }
             }
         }
+        if (parserEntryPointMethod == null) {
+            utils().fail("Could not find entry point method for rule id " + entryPointRuleId + " in " + parserClass);
+            return null;
+        }
         return new ParserProxy(ruleIdForName, nameForRuleId, parserEntryPointMethod, parserClassElement, parserClass, methodsForNames, entryPointRuleId);
     }
 
-    private class ParserProxy {
+    private static class ParserProxy {
 
         private final Map<Integer, String> ruleIdForName;
         private final Map<String, Integer> nameForRuleId;
@@ -338,8 +375,28 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         private final Map<String, ExecutableElement> methodsForNames;
         private final int entryPointRuleNumber;
 
+        static String typeName(TypeMirror mirror) {
+            String result = mirror.toString();
+            if (result.startsWith("()")) {
+                return result.substring(2);
+            }
+            return result;
+        }
+
         public ExecutableElement parserEntryPoint() {
             return parserEntryPointMethod;
+        }
+
+        public TypeMirror parserEntryPointReturnType() {
+            return parserEntryPointMethod.getReturnType();
+        }
+
+        public String parserEntryPointReturnTypeFqn() {
+            return typeName(parserEntryPointReturnType());
+        }
+
+        public String parserEntryPointReturnTypeSimple() {
+            return simpleName(parserEntryPointReturnType().toString());
         }
 
         public int entryPointRuleId() {
@@ -362,6 +419,14 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             return parserClassElement;
         }
 
+        public String parserClassFqn() {
+            return typeName(parserClass());
+        }
+
+        public String parserClassSimple() {
+            return simpleName(parserClassFqn());
+        }
+
         public ExecutableElement method(String name) {
             return methodsForNames.get(name);
         }
@@ -369,6 +434,16 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         public ExecutableElement methodForId(int id) {
             String name = ruleIdForName.get(id);
             return name == null ? null : methodsForNames.get(name);
+        }
+
+        public TypeMirror ruleTypeForId(int ix) {
+            ExecutableElement el = methodForId(ix);
+            return el == null ? null : el.getReturnType();
+        }
+
+        public TypeMirror ruleTypeForRuleName(String ruleName) {
+            Integer i = ruleId(ruleName);
+            return i == null ? null : ruleTypeForId(i);
         }
 
         private ParserProxy(Map<Integer, String> ruleIdForName,
@@ -389,19 +464,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
 
     }
 
-    static String stripMimeType(String mt) {
-        int ix = mt.indexOf('/');
-        if (ix > 0 && ix < mt.length() - 1) {
-            mt = mt.substring(ix + 1);
-        }
-        if (mt.startsWith("x-")) {
-            mt = mt.substring(2);
-        }
-        return mt;
-    }
-
     // DataObject generation
-    private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, Map<Integer, String> tokenNameForIndex, Map<Integer, String> ruleIdForName) throws Exception {
+    private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, ParserProxy parser, LexerProxy lexer) throws Exception {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if ("<error>".equals(mimeType)) {
             utils().fail("Could not get mime type", type);
@@ -416,7 +480,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         String iconBase = iconBaseTmp;
         String dataObjectPackage = pkg + ".file";
         String dataObjectClassName = prefix + "DataObject";
-        String fqn = dataObjectPackage + "." + dataObjectClassName;
+        String dataObjectFqn = dataObjectPackage + "." + dataObjectClassName;
         String actionPath = "Loaders/" + mimeType + "/Actions";
         boolean multiview = utils().annotationValue(fileInfo, "multiview", Boolean.class, false);
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage).named(dataObjectClassName)
@@ -426,7 +490,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         "org.openide.loaders.DataObjectExistsException", "org.openide.loaders.MultiDataObject",
                         "org.openide.loaders.MultiFileLoader", "org.openide.util.Lookup",
                         "org.openide.util.NbBundle.Messages", "javax.annotation.processing.Generated"
-                ).staticImport(fqn + ".ACTION_PATH")
+                ).staticImport(dataObjectFqn + ".ACTION_PATH")
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .extending("MultiDataObject")
                 .withModifier(PUBLIC).withModifier(FINAL)
@@ -491,53 +555,264 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 createFoMethod(cl, s, val);
             }
         }
-        generateEditorKitClassAndRegistration(dataObjectPackage, dataObjectClassName, fileInfo, extension, mirror, prefix, type, mimeType, tokenNameForIndex, ruleIdForName);
-        layer(type).folder("Actions/" + stripMimeType(mimeType))
+        String editorKitFqn = generateEditorKitClassAndRegistration(dataObjectPackage, mirror, prefix, type, mimeType, parser, lexer);
+        cl.importing(EDITOR_KIT_TYPE)
+                .method("createEditorKit", mb -> {
+                    mb.addArgument("FileObject", "file")
+                            .withModifier(STATIC)
+                            .body(bb -> {
+                                bb.log(Level.FINER)
+                                        .argument("file.getPath()")
+                                        .stringLiteral(simpleName(editorKitFqn))
+                                        .logging("Fetch editor kit {1} for {0}");
+                                bb.returning(simpleName(editorKitFqn) + ".INSTANCE").endBlock();
+                            }).returning("EditorKit")
+                            .closeMethod();
+                });
+
+        LayerBuilder layer = layer(type);
+
+        String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
+        layer(type).file(editorKitFile)
+                .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
+                .stringvalue("instanceOf", EDITOR_KIT_TYPE)
+                .write();
+
+        layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
                 .stringvalue("displayName", prefix).write();
         writeOne(cl);
     }
 
     private static final String EDITOR_KIT_TYPE = "javax.swing.text.EditorKit";
     private static final String NB_EDITOR_KIT_TYPE = "org.netbeans.modules.editor.NbEditorKit";
-    private static final String EXT_KIT_TYPE = "org.netbeans.editor.ext.ExtKit";
 
-    private void generateEditorKitClassAndRegistration(String dataObjectPackage, String dataObjectClassName, AnnotationMirror fileInfo, String extension, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType, Map<Integer, String> tokenNameForIndex, Map<Integer, String> ruleIdForName) throws Exception {
+    private String generateEditorKitClassAndRegistration(String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType, ParserProxy parser, LexerProxy lexer) throws Exception {
         String editorKitName = prefix + "EditorKit";
+        String syntaxName = generateSyntaxSupport(mimeType, type, dataObjectPackage, registrationAnno, prefix, lexer);
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage)
                 .named(editorKitName)
-                .withModifier(FINAL).withModifier(PUBLIC)
+                .withModifier(FINAL)
                 .importing("javax.annotation.processing.Generated",
-                        //                        EXT_KIT_TYPE,
                         NB_EDITOR_KIT_TYPE,
                         EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
                 .extending(simpleName(NB_EDITOR_KIT_TYPE))
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .initializedWithStringLiteral(mimeType)
-                .field("INSTANCE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
+                .field("INSTANCE").withModifier(STATIC).withModifier(FINAL)
                 .withInitializer("new " + editorKitName + "()").ofType("EditorKit")
                 .constructor().addModifier(PRIVATE).emptyBody()
-                .override("getContentType").withModifier(PUBLIC).returning(STRING).body().returning("MIME_TYPE").endBlock().closeMethod()
-                .method("create", mb -> {
-                    mb.addArgument("FileObject", "file")
-                            .withModifier(PUBLIC).withModifier(STATIC)
-                            .body(bb -> {
-                                bb.log(Level.FINER)
-                                        .argument("file.getPath()")
-                                        .stringLiteral(editorKitName)
-                                        .logging("Fetch editor kit {1} for {0}");
-                                bb.returning("INSTANCE").endBlock();
-                            }).returning("EditorKit")
-                            .closeMethod();
-                });
+                .override("getContentType").withModifier(PUBLIC).returning(STRING).body().returning("MIME_TYPE").endBlock().closeMethod();
+        if (syntaxName != null) {
+            cl.importing("org.netbeans.editor.SyntaxSupport", "org.netbeans.editor.BaseDocument")
+                    .override("createSyntaxSupport").returning("SyntaxSupport")
+                    .withModifier(PUBLIC).addArgument("BaseDocument", "doc")
+                    .body(bb -> {
+                        bb.log(Level.FINEST).argument("doc").logging(
+                                "Create ExtSyntax " + syntaxName + " for {0}");
+                        bb.returning("new " + syntaxName + "(doc)").endBlock();
+                    }).closeMethod();
+        }
+
+        String lineComment = utils().annotationValue(registrationAnno, "lineCommentPrefix", String.class);
+
+        List<String> actionTypes = new ArrayList<>();
+        if (lineComment != null) {
+            actionTypes.add("ToggleCommentAction");
+        }
+        if (gotos.containsKey(mimeType)) {
+//            actionTypes.add("org.netbeans.modules.editor.actions.GotoAction");
+//            actionTypes.add("GotoDeclarationAction");
+            String gotoDeclarationActionClassName = capitalize(stripMimeType(mimeType)) + "GotoDeclarationAction";
+            actionTypes.add(gotoDeclarationActionClassName);
+        }
+
+        if (!actionTypes.isEmpty()) {
+            cl.importing("javax.swing.Action", "javax.swing.text.TextAction");
+            for (String actionType : actionTypes) {
+                if (actionType.indexOf('.') > 0) {
+                    cl.importing(actionType);
+                }
+            }
+            cl.overrideProtected("createActions")
+                    .returning("Action[]")
+                    .body(bb -> {
+                        bb.log(Level.FINEST)
+                                .stringLiteral(lineComment)
+                                .logging("Return actions enhanced with ToggleCommentAction for ''{0}''");
+
+                        bb.declare("additionalActions").initializedAsNewArray("Action", alb -> {
+                            for (String tp : actionTypes) {
+                                if ("ToggleCommentAction".equals(tp)) {
+                                    alb.add("new " + simpleName(tp) + "(" + LinesBuilder.stringLiteral(lineComment) + ")");
+                                } else {
+                                    alb.add("new " + /*simpleName(tp)*/ tp + "()");
+                                }
+                            }
+                            alb.closeArrayLiteral();
+                        });
+                        /*
+        ArrayList<Action> all = new ArrayList<>(MimeLookup.getLookup( MIME_TYPE).lookupAll( Action.class));
+        all.addAll(Arrays.asList(additionalActions));
+        
+        return TextAction.augmentList(super.createActions(), all.toArray(new Action[0]));
+
+                         */
+                        cl.importing("java.util.Arrays", "java.util.ArrayList",
+                                "org.netbeans.api.editor.mimelookup.MimeLookup",
+                                "java.util.List");
+
+                        bb.declare("all").initializedWith("new ArrayList<>(MimeLookup.getLookup( MIME_TYPE).lookupAll( Action.class))")
+                                .as("List<Action>");
+                        bb.invoke("addAll").withArgument("Arrays.asList(additionalActions)").on("all");
+
+                        bb.returningInvocationOf("augmentList").withArgumentFromInvoking("createActions")
+                                .on("super").withArgument("all.toArray(new Action[all.size()])").on("TextAction")
+                                .endBlock();
+//                        bb.returningInvocationOf("augmentList").withArgumentFromInvoking("createActions")
+//                                .on("super").withArgument("additionalActions").on("TextAction")
+//                                .endBlock();
+                    })
+                    .closeMethod();
+        }
+
         writeOne(cl);
-        String editorKitFqn = dataObjectPackage + "." + editorKitName;
-        String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
-        layer(type).file(editorKitFile)
-                .methodvalue("instanceCreate", editorKitFqn, "create")
-                .stringvalue("instanceOf", EDITOR_KIT_TYPE)
-                //                .stringvalue("instanceOf", NB_EDITOR_KIT_TYPE)
-                .write();
+        return dataObjectPackage + "." + editorKitName;
+    }
+
+    private boolean hasSyntax(AnnotationMirror registrationAnno) {
+        AnnotationMirror syntax = utils().annotationValue(registrationAnno, "syntax", AnnotationMirror.class);
+        if (syntax == null) {
+            return false;
+        }
+        List<Integer> commentTokens = utils().annotationValues(syntax, "commentTokens", Integer.class);
+        List<Integer> whitespaceTokens = utils().annotationValues(syntax, "whitespaceTokens", Integer.class);
+        List<Integer> bracketSkipTokens = utils().annotationValues(syntax, "bracketSkipTokens", Integer.class);
+        return !commentTokens.isEmpty() || !whitespaceTokens.isEmpty() || !bracketSkipTokens.isEmpty();
+    }
+
+    private static final String EXT_SYNTAX_TYPE = "org.netbeans.editor.ext.ExtSyntaxSupport";
+    private static final String BASE_DOCUMENT_TYPE = "org.netbeans.editor.BaseDocument";
+    private static final String EDITOR_TOKEN_ID_TYPE = "org.netbeans.editor.TokenID";
+    private static final String EDITOR_TOKEN_CATEGORY_TYPE = "org.netbeans.editor.TokenCategory";
+
+    private String generateSyntaxSupport(String mimeType, Element on, String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, LexerProxy lexer) throws IOException {
+        PackageElement pkg = processingEnv.getElementUtils().getPackageOf(on);
+        AnnotationMirror syntax = utils().annotationValue(registrationAnno, "syntax", AnnotationMirror.class);
+        if (syntax == null) {
+            return null;
+        }
+        List<Integer> commentTokens = new ArrayList<>(new HashSet<>(utils().annotationValues(syntax, "commentTokens", Integer.class)));
+        List<Integer> whitespaceTokens = new ArrayList<>(new HashSet<>(utils().annotationValues(syntax, "whitespaceTokens", Integer.class)));
+        List<Integer> bracketSkipTokens = new ArrayList<>(new HashSet<>(utils().annotationValues(syntax, "bracketSkipTokens", Integer.class)));
+        Collections.sort(commentTokens);
+        Collections.sort(whitespaceTokens);
+        Collections.sort(bracketSkipTokens);
+        if (commentTokens.isEmpty() && whitespaceTokens.isEmpty() && bracketSkipTokens.isEmpty()) {
+            return null;
+        }
+        String generatedClassName = prefix + "ExtSyntax";
+        ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage).named(generatedClassName)
+                .importing(EXT_SYNTAX_TYPE, BASE_DOCUMENT_TYPE, EDITOR_TOKEN_ID_TYPE, "java.util.Arrays",
+                        pkg.getQualifiedName() + "." + prefix + "Tokens"
+                )
+                .extending(simpleName(EXT_SYNTAX_TYPE))
+                .withModifier(FINAL)
+                .constructor(cb -> {
+                    cb.addArgument(simpleName(BASE_DOCUMENT_TYPE), "doc");
+                    cb.body(bb -> {
+                        bb.invoke("super").withArgument("doc").inScope();
+                        bb.endBlock();
+                    }).endConstructor();
+                });
+        if (!commentTokens.isEmpty()) {
+            cl.field("COMMENT_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
+                    .withModifier(FINAL).withInitializer(tokensArraySpec(prefix, commentTokens, lexer))
+                    .ofType("TokenID[]");
+            cl.override("getCommentTokens").withModifier(PUBLIC).returning("TokenID[]")
+                    .body(fieldReturner("COMMENT_TOKENS"))
+                    .closeMethod();
+        }
+        if (!bracketSkipTokens.isEmpty()) {
+            cl.field("BRACKET_SKIP_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
+                    .withModifier(FINAL).withInitializer(tokensArraySpec(prefix, bracketSkipTokens, lexer))
+                    .ofType("TokenID[]");
+            cl.override("getBracketSkipTokens").withModifier(PROTECTED).returning("TokenID[]")
+                    .body(fieldReturner("BRACKET_SKIP_TOKENS"))
+                    .closeMethod();
+        }
+        if (!whitespaceTokens.isEmpty()) {
+            if (whitespaceTokens.size() == 1) {
+                cl.overridePublic("isWhitespaceToken").returning("boolean")
+                        .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
+                        .addArgument("int", "offset").addArgument("int", "tokenLength")
+                        .body(bb -> {
+                            bb.returning("tokenId.getNumericID() == " + whitespaceTokens.get(0)).endBlock();
+                        }).closeMethod();
+            } else {
+                cl.overridePublic("isWhitespaceToken").returning("boolean")
+                        .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
+                        .addArgument("int", "offset").addArgument("int", "tokenLength")
+                        .body(bb -> {
+                            bb.returning("tokenId.getNumericID() == " + whitespaceTokens.get(0)).endBlock();
+                        }).closeMethod();
+                cl.field("WHITESPACE_TOKEN_IDS", fb -> {
+                    fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL);
+                    fb.withInitializer("new int[] {" + StringUtils.commas(whitespaceTokens) + "}").ofType("int[]");
+                }).overridePublic("isWhitespaceToken").returning("boolean")
+                        .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
+                        .addArgument("int", "offset").addArgument("int", "tokenLength")
+                        .body(bb -> {
+                            bb.returning("Arrays.binarySearch(WHITESPACE_TOKEN_IDS, tokenId.getNumericID()) >= 0").endBlock();
+                        }).closeMethod();
+            }
+        }
+        if (useDeclarationTokenProcessor(mimeType)) {
+            String className = capitalize(stripMimeType(mimeType)) + simpleName(DECLARATION_TOKEN_PROCESSOR_TYPE);
+            cl.overridePublic("createDeclarationTokenProcessor").returning(DECLARATION_TOKEN_PROCESSOR_TYPE)
+                    .addArgument("String", "varName")
+                    .addArgument("int", "startPos")
+                    .addArgument("int", "endPos")
+                    .bodyReturning("new " + className + "(varName, startPos, endPos, getDocument())")
+                    .closeMethod();
+            cl.overridePublic("findDeclarationPosition")
+                    .addArgument("String", "varName")
+                    .addArgument("int", "varPos")
+                    .returning("int")
+                    .bodyReturning("new " + className + "(varName, varPos, -1, getDocument()).getDeclarationPosition()").closeMethod();
+            cl.overridePublic("findLocalDeclarationPosition")
+                    .addArgument("String", "varName")
+                    .addArgument("int", "varPos")
+                    .returning("int")
+                    .bodyReturning("new " + className + "(varName, varPos, -1, getDocument()).getDeclarationPosition()").closeMethod();
+        }
+        writeOne(cl);
+        return generatedClassName;
+    }
+
+    private Consumer<BlockBuilder<?>> fieldReturner(String name) {
+        return bb -> {
+//            bb.returning(name).endBlock();
+            bb.returningInvocationOf("copyOf").withArgument(name).withArgument(name + ".length").on("Arrays").endBlock();
+        };
+    }
+
+    String tokensArraySpec(String prefix, List<Integer> ids, LexerProxy lexer) {
+        String tokensClass = prefix + "Tokens";
+        StringBuilder sb = new StringBuilder();
+        for (Integer id : ids) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            String fieldName = lexer.toFieldName(id);
+            if (fieldName == null) {
+                utils().fail("No token id for " + id);
+                continue;
+            }
+            sb.append(tokensClass).append('.').append(fieldName);
+        }
+        sb.insert(0, "new TokenID[] {");
+        return sb.append('}').toString();
     }
 
     private void createFoMethod(ClassBuilder<String> bldr, String name, boolean value) {
@@ -585,8 +860,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
     }
 
     // Parser generation
-    private void generateParserClasses(Map<Integer, String> ruleIdForName, ExecutableElement parserEntryPointMethod,
-            TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror parserClass,
+    private void generateParserClasses(ParserProxy parser, LexerProxy lexer,
+            TypeElement type, AnnotationMirror mirror,
             AnnotationMirror parserInfo, String prefix) throws IOException {
         String nbParserName = prefix + "NbParser";
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
@@ -600,16 +875,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 && !"org.nemesis.antlr.spi.language.NbParserHelper".equals(helperClass.toString());
         String helperClassName = hasExplicitHelperClass ? helperClass.toString() : prefix + "ParserHelper";
 
-        String entryPointType = parserEntryPointMethod.asType().toString();
-        String entryPointSimple = entryPointType;
-        if (entryPointType.startsWith("()")) {
-            entryPointType = entryPointType.substring(2);
-        }
-        int ix = entryPointType.lastIndexOf('.');
-        if (ix > 0) {
-            entryPointSimple = entryPointType.substring(ix + 1);
-        }
-        final String eSimple = entryPointSimple;
+        String entryPointType = parser.parserEntryPointReturnTypeFqn();
+        String entryPointSimple = parser.parserEntryPointReturnTypeSimple();
         String parserResultType = "AntlrParseResult";
 
         ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(nbParserName)
@@ -624,11 +891,12 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         "org.nemesis.antlr.spi.language.SyntaxError", "java.util.function.Supplier",
                         "org.nemesis.extraction.Extractor", "org.nemesis.extraction.Extraction",
                         "org.antlr.v4.runtime.CommonTokenStream", "java.util.Optional", "java.util.List",
-                        "org.nemesis.antlr.spi.language.IterableTokenSource"
+                        "org.nemesis.antlr.spi.language.IterableTokenSource", lexer.lexerClassFqn(),
+                        parser.parserClassFqn()
                 )
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .extending("Parser")
-                .docComment("NetBeans parser wrapping ", parserClass, " using entry point method ", parserEntryPointMethod.getSimpleName(), "()");
+                .docComment("NetBeans parser wrapping ", parser.parserClassSimple(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()");
         if (changeSupport) {
             cl.importing("java.util.Set", "org.openide.util.WeakSet", "org.openide.util.ChangeSupport")
                     .field("INSTANCES").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).withInitializer("new WeakSet<>()").ofType("Set<" + nbParserName + ">")
@@ -677,13 +945,13 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                             .withModifier(PUBLIC).withModifier(STATIC)
                             .body(bb -> {
                                 bb.declare("lexer").initializedByInvoking("createAntlrLexer").withArgument("bag.source().stream()")
-                                        .on(prefix + "Hierarchy").as(lexerClass.toString());
+                                        .on(prefix + "Hierarchy").as(lexer.lexerClassSimple());
                                 bb.declare("tokenSource").initializedByInvoking("createWrappedTokenSource")
                                         .withArgument("lexer")
                                         .on(prefix + "Hierarchy").as("IterableTokenSource");
                                 bb.declare("stream").initializedWith("new CommonTokenStream(tokenSource, " + streamChannel + ")")
                                         .as("CommonTokenStream");
-                                bb.declare("parser").initializedWith("new " + parserClass.toString() + "(stream)").as(parserClass.toString());
+                                bb.declare("parser").initializedWith("new " + parser.parserClassSimple() + "(stream)").as(parser.parserClassSimple());
                                 bb.blankLine();
                                 bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
                                 bb.lineComment("configure the parser or lexer before using them.");
@@ -700,14 +968,14 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                                         .on("HELPER").as("Supplier<List<? extends SyntaxError>>");
                                 bb.blankLine();
                                 bb.lineComment("Here we actually trigger the Antlr parse");
-                                bb.declare("tree").initializedByInvoking(parserEntryPointMethod.getSimpleName().toString())
-                                        .on("parser").as(eSimple);
+                                bb.declare("tree").initializedByInvoking(parser.parserEntryPoint().getSimpleName().toString())
+                                        .on("parser").as(entryPointSimple);
                                 bb.blankLine();
                                 bb.lineComment("Look up the extrator(s) for this mime type");
                                 bb.declare("extractor")
                                         .initializedByInvoking("forTypes").withArgument(prefix + "Token.MIME_TYPE")
-                                        .withArgument(eSimple + ".class").on("Extractor")
-                                        .as("Extractor<? super " + eSimple + ">");
+                                        .withArgument(entryPointSimple + ".class").on("Extractor")
+                                        .as("Extractor<? super " + entryPointSimple + ">");
                                 bb.blankLine();
                                 bb.lineComment("Run extraction, pulling out data needed to create navigator panels,");
                                 bb.lineComment("code folds, etc.  Anything needing the extracted sets of regions and data");
@@ -758,7 +1026,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                             .addArgument("Task", "task").override().returning(parserResultType)
                             .body().returning("lastResult").endBlock().closeMethod();
                 })
-                .method("addChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC).override()
+                .override("addChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
                         bb.statement("changeSupport.addChangeListener(l)").endBlock();
@@ -766,13 +1034,27 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                         bb.lineComment("do nothing").endBlock();
                     }
                 }).closeMethod()
-                .method("removeChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC).override()
+                .override("removeChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
                         bb.statement("changeSupport.removeChangeListener(l)").endBlock();
                     } else {
                         bb.lineComment("do nothing").endBlock();
                     }
+                }).closeMethod()
+                // public void cancel (@NonNull CancelReason reason, @NullAllowed SourceModificationEvent event) {}
+                .override("cancel").withModifier(PUBLIC).addArgument("CancelReason", "reason")
+                .addArgument("SourceModificationEvent", "event")
+                .body(bb -> {
+                    bb.log("Parse cancelled", Level.FINEST);
+                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
+                }).closeMethod()
+                .override("cancel")
+                .annotatedWith("SuppressWarnings").addStringArgument("value", "deprecation").closeAnnotation()
+                .withModifier(PUBLIC)
+                .body(bb -> {
+                    bb.log("Parse cancelled", Level.FINEST);
+                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 }).closeMethod();
         if (changeSupport) {
             cl.method("forceReparse").withModifier(PRIVATE).body().invoke("fireChange").on("changeSupport").endBlock().closeMethod()
@@ -788,8 +1070,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
 
         if (!hasExplicitHelperClass) {
             // <P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
-            cl.innerClass(helperClassName).extending("NbParserHelper<" + parserClass + ", " + lexerClass
-                    + ", AntlrParseResult, " + eSimple + ">")
+            cl.innerClass(helperClassName).extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
+                    + ", AntlrParseResult, " + entryPointSimple + ">")
                     .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC).build();
         }
 
@@ -823,12 +1105,12 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
         writeOne(cl);
         if (utils().annotationValue(parserInfo, "generateSyntaxTreeNavigatorPanel", Boolean.class, false)) {
-            generateSyntaxTreeNavigatorPanel(type, mirror, parserInfo, parserEntryPointMethod);
+            generateSyntaxTreeNavigatorPanel(type, mirror, parser.parserEntryPoint());
         }
     }
 
     // Navigator generation
-    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, AnnotationMirror parserInfo, ExecutableElement entryPointMethod) throws IOException {
+    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
 
@@ -893,33 +1175,74 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         return sb.toString();
     }
 
+    private String generateTokenCategoryWrapper(TypeElement on, String prefix) throws IOException {
+        String generatedClassName = prefix + "TokenCategory";
+        ClassBuilder<String> cb = ClassBuilder.forPackage(processingEnv.getElementUtils().getPackageOf(on).getQualifiedName())
+                .named(generatedClassName)
+                .importing(EDITOR_TOKEN_CATEGORY_TYPE)
+                .implementing("TokenCategory")
+                .withModifier(FINAL)
+                .field("category").withModifier(PRIVATE, FINAL).ofType(STRING)
+                .constructor(con -> {
+                    con.addArgument(STRING, "category").body().statement("this.category = category").endBlock().endConstructor();
+                })
+                .override("getName").withModifier(PUBLIC).returning(STRING).body().returning("category").endBlock().closeMethod()
+                .override("getNumericID").withModifier(PUBLIC).returning("int").body().returning("0").endBlock().closeMethod()
+                .override("equals", mb -> {
+                    mb.withModifier(PUBLIC).returning("boolean").addArgument("Object", "o")
+                            .body(bb -> {
+                                bb.ifCondition().variable("this").equals().literal("o").endCondition()
+                                        .thenDo().returning("true").endBlock()
+                                        .elseIf().variable("o").equals().literal("null").endCondition()
+                                        .returning("false").endBlock()
+                                        .elseIf().variable("o").instanceOf().literal(generatedClassName).endCondition()
+                                        .returningInvocationOf("equals")
+                                        .withArgument("o.toString()")
+                                        .on("category").endBlock()
+                                        .elseDo().returning("false").endBlock().endIf().endBlock();
+                                ;
+                            }).closeMethod();
+                })
+                .override("hashCode", mb -> {
+                    mb.withModifier(PUBLIC).returning("int").body().returningInvocationOf("hashCode").on("category").endBlock().closeMethod();
+                })
+                .override("toString", mb -> {
+                    mb.withModifier(PUBLIC).returning(STRING).body().returning("category").endBlock().closeMethod();
+                });
+        writeOne(cb);
+        return generatedClassName;
+    }
+
     // Lexer generation
-    private String generateTokensClasses(Map<Integer, String> tokenNameForIndex, TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror tokenCategorizerClass) throws Exception {
+    private void generateTokensClasses(TypeElement type, AnnotationMirror mirror, LexerProxy proxy, TypeMirror tokenCategorizerClass, String prefix) throws Exception {
+
         List<AnnotationMirror> categories = utils().annotationValues(mirror, "categories", AnnotationMirror.class);
 
-        String prefix = utils().annotationValue(mirror, "name", String.class);
         // Figure out if we are generating a token categorizer now, so we have the class name for it
         String tokenCatName = willHandleCategories(categories, tokenCategorizerClass, prefix, utils());
         String tokenTypeName = prefix + "Token";
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if ("<error>".equals(mimeType)) {
             utils().fail("Mime type invalid: " + mimeType);
-            return null;
+            return;
         }
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
         String tokensTypeName = prefix + "Tokens";
+
+        boolean hasSyntaxInfo = hasSyntax(mirror);
+        String tokenWrapperClass = hasSyntaxInfo ? generateTokenCategoryWrapper(type, prefix) : null;
         // First class will be an interface that extends NetBeans' TokenId - we will implement it
         // as an inner class on our class with constants for each token type
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg)
                 .named(prefix + "Token").toInterface().extending("Comparable<" + tokenTypeName + ">")
                 .extending("TokenId")
                 .docComment("Token interface for ", prefix, " extending the TokenId type from NetBeans' Lexer API.",
-                        " Instances for types defined by the lexer " + lexerClass + " can be found as static fields on ",
+                        " Instances for types defined by the lexer " + proxy.lexerType() + " can be found as static fields on ",
                         tokensTypeName, " in this package (", pkg, "). ",
-                        "Generated by ", getClass().getSimpleName(), " from fields on ", lexerClass, " specified by "
+                        "Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), " specified by "
                         + "an annotation on ", type.getSimpleName())
                 .makePublic()
-                .importing("org.netbeans.api.lexer.TokenId")
+                .importing("org.netbeans.api.lexer.TokenId", proxy.lexerClassFqn())
                 .importing("javax.annotation.processing.Generated")
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(FINAL).withModifier(STATIC).withModifier(PUBLIC).withInitializer(LinesBuilder.stringLiteral(mimeType)).ofType("String")
@@ -934,6 +1257,19 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .body().returning("literalName() != null ? literalName() : symbolicName() != null ? symbolicName() : "
                         + "displayName() != null ? displayName() : Integer.toString(ordinal())").endBlock().closeMethod();
 
+        if (tokenWrapperClass != null) {
+            cb.implementing(EDITOR_TOKEN_ID_TYPE);
+            cb.importing(EDITOR_TOKEN_CATEGORY_TYPE);
+            cb.override("getCategory").returning("TokenCategory")
+                    .withModifier(DEFAULT).body()
+                    .returning("new " + tokenWrapperClass + "(primaryCategory())").endBlock().closeMethod();
+            cb.override("getName").returning(STRING)
+                    .withModifier(DEFAULT).body()
+                    .returning("name()").endBlock().closeMethod();
+            cb.override("getNumericID").returning("int").withModifier(DEFAULT).body()
+                    .returning("ordinal()").endBlock().closeMethod();
+        }
+
         String tokensImplName = prefix + "TokenImpl";
 
         // This class will contain constants for every token type, and methods
@@ -941,16 +1277,16 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         ClassBuilder<String> toks = ClassBuilder.forPackage(pkg).named(tokensTypeName)
                 .makePublic().makeFinal()
                 .docComment("Provides all tokens for the  ", prefix,
-                        "Generated by ", getClass().getSimpleName(), " from fields on ", lexerClass,
+                        "Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(),
                         " from annotation on ", type.getSimpleName(), ": <pre>",
                         mirror.toString().replaceAll("@", "&#064;"), "</pre>")
                 .importing("java.util.Arrays", "java.util.HashMap", "java.util.Map", "java.util.Optional",
                         "java.util.List", "java.util.ArrayList", "java.util.Collections",
                         "org.nemesis.antlr.spi.language.highlighting.TokenCategorizer",
-                        "javax.annotation.processing.Generated")
+                        "javax.annotation.processing.Generated", proxy.lexerClassFqn())
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 // Static categorizer field - fall back to a heuristic categorizer if nothing is specified
-                .field("CATEGORIZER").withModifier(Modifier.FINAL).withModifier(Modifier.PRIVATE).withModifier(STATIC)
+                .field("CATEGORIZER").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC)
                 .withInitializer(tokenCatName == null ? "TokenCategorizer.heuristicCategorizer()" : "new " + tokenCatName + "()")
                 .ofType("TokenCategorizer")
                 // Make it non-instantiable
@@ -1021,9 +1357,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .implementing(tokenTypeName).constructor().addArgument("int", "id").body()
                 .statement("this.id = id").endBlock().endConstructor()
                 .method("ordinal").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("int").body().returning("this.id").endBlock().closeMethod()
-                .method("symbolicName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("stripQuotes(" + lexerClass + ".VOCABULARY.getSymbolicName(id))").endBlock().closeMethod()
-                .method("literalName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getLiteralName(id)").endBlock().closeMethod()
-                .method("displayName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(lexerClass + ".VOCABULARY.getDisplayName(id)").endBlock().closeMethod()
+                .method("symbolicName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("stripQuotes(" + proxy.lexerClassSimple() + ".VOCABULARY.getSymbolicName(id))").endBlock().closeMethod()
+                .method("literalName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(proxy.lexerClassSimple() + ".VOCABULARY.getLiteralName(id)").endBlock().closeMethod()
+                .method("displayName").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning(proxy.lexerClassSimple() + ".VOCABULARY.getDisplayName(id)").endBlock().closeMethod()
                 .method("primaryCategory").annotatedWith("Override").closeAnnotation().withModifier(PUBLIC).returning("String").body().returning("CATEGORIZER.categoryFor(ordinal(), displayName(), symbolicName(), literalName())").endBlock().closeMethod()
                 .method("toString").withModifier(PUBLIC).annotatedWith("Override").closeAnnotation().returning("String").body().returning("ordinal() + \"/\" + displayName()").endBlock().closeMethod()
                 .method("equals").withModifier(PUBLIC).annotatedWith("Override").closeAnnotation().addArgument("Object", "o")
@@ -1032,7 +1368,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .build();
 
         // Now build a giant switch statement for lookup by id
-        List<Integer> keys = new ArrayList<>(tokenNameForIndex.keySet());
+        List<Integer> keys = proxy.allTypesSortedByName();
         ClassBuilder.SwitchBuilder<ClassBuilder.BlockBuilder<ClassBuilder.MethodBuilder<ClassBuilder<String>>>> idSwitch
                 = toks.method("forId").withModifier(PUBLIC).withModifier(STATIC).returning(tokenTypeName).addArgument("int", "id").body().switchingOn("id");
 
@@ -1044,7 +1380,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // Loop and build cases in the switch statement for each token id, plus EOF,
         // and also populate our static array field which contains all of the token types
         for (Integer k : keys) {
-            String fieldName = "TOK_" + tokenNameForIndex.get(k);
+            String fieldName = proxy.toFieldName(k);
             toks.field(fieldName).withModifier(STATIC).withModifier(PUBLIC).withModifier(FINAL)
                     .withInitializer("new " + tokensImplName + "(" + k + ")")
                     .ofType(tokenTypeName);
@@ -1071,8 +1407,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         String hierName = prefix + "Hierarchy";
         String hierFqn = pkg + "." + hierName;
         String languageMethodName = lc(prefix) + "Language";
-        String lexerClassName = lexerClass.toString();
-        String lexerClassSimple = simpleName(lexerClassName);
         ClassBuilder<String> lh = ClassBuilder.forPackage(pkg).named(hierName)
                 .importing("org.netbeans.api.lexer.Language", "org.netbeans.spi.lexer.LanguageHierarchy",
                         "org.netbeans.spi.lexer.Lexer", "org.netbeans.spi.lexer.LexerRestartInfo",
@@ -1084,10 +1418,10 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         "org.netbeans.modules.parsing.api.Snapshot", "org.nemesis.extraction.Extraction",
                         "org.nemesis.antlr.spi.language.AntlrParseResult", "org.nemesis.antlr.spi.language.IterableTokenSource",
                         "org.netbeans.api.editor.mimelookup.MimeRegistration",
-                        "org.antlr.v4.runtime.Vocabulary", lexerClassName
+                        "org.antlr.v4.runtime.Vocabulary", proxy.lexerClassFqn()
                 )
                 .docComment("LanguageHierarchy implementation for ", prefix,
-                        ". Generated by ", getClass().getSimpleName(), " from fields on ", lexerClass, ".")
+                        ". Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), ".")
                 .importing("javax.annotation.processing.Generated")
                 .makePublic().makeFinal()
                 .constructor().addModifier(PUBLIC).body().debugLog("Create a new " + hierName).endBlock().endConstructor()
@@ -1141,7 +1475,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .method("createTokenCategories").override().withModifier(PROTECTED).withModifier(FINAL)
                 .returning("Map<String, Collection<" + tokenTypeName + ">>").body().returning("CATEGORIES").endBlock().closeMethod()
                 .method("createAntlrLexer").addArgument("CharStream", "stream")
-                .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock().returning(lexerClassSimple).withModifier(PUBLIC).withModifier(STATIC).closeMethod()
+                .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock().returning(proxy.lexerClassSimple()).withModifier(PUBLIC).withModifier(STATIC).closeMethod()
                 .method("newParseResult", mth -> {
                     mth.withModifier(STATIC)
                             .addArgument("Snapshot", "snapshot")
@@ -1158,7 +1492,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             .closeMethod();
                 })
                 .method("createWrappedTokenSource", mb -> {
-                    mb.addArgument(lexerClassSimple, "lexer")
+                    mb.addArgument(proxy.lexerClassSimple(), "lexer")
                             .withModifier(STATIC)
                             .body(body -> {
                                 body.returningInvocationOf("createWrappedTokenSource")
@@ -1172,31 +1506,31 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // Lexer class and takes care of creating the Antlr lexer and calling methods
         // that will exist on the lexer implementation class but not on the parent class
         lh.innerClass(adapterClassName).withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
-                .extending("NbLexerAdapter<" + tokenTypeName + ", " + lexerClass + ">")
-                .method("createLexer").override().withModifier(PUBLIC).returning(lexerClass.toString()).addArgument("CharStream", "stream")
+                .extending("NbLexerAdapter<" + tokenTypeName + ", " + proxy.lexerClassSimple() + ">")
+                .method("createLexer").override().withModifier(PUBLIC).returning(proxy.lexerClassSimple()).addArgument("CharStream", "stream")
                 .body(bb -> {
-                    bb.declare("result").initializedWith("new " + lexerClassSimple + "(stream)").as(lexerClass.toString());
+                    bb.declare("result").initializedWith("new " + proxy.lexerClassSimple() + "(stream)").as(proxy.lexerClassSimple());
                     bb.invoke("removeErrorListeners").on("result");
                     bb.returning("result").endBlock();
                 })
                 .closeMethod()
                 .method("createWrappedTokenSource", mb -> {
-                    mb.addArgument(lexerClassSimple, "lexer")
+                    mb.addArgument(proxy.lexerClassSimple(), "lexer")
                             .body().returningInvocationOf("wrapLexer")
                             .withArgument("lexer").on("super").endBlock()
                             .returning("IterableTokenSource")
                             .closeMethod();
                 })
                 .override("vocabulary").withModifier(PROTECTED).returning("Vocabulary")
-                .body().returning(lexerClass + ".VOCABULARY").endBlock().closeMethod()
+                .body().returning(proxy.lexerClassSimple() + ".VOCABULARY").endBlock().closeMethod()
                 .method("tokenId").override().addArgument("int", "ordinal").returning(tokenTypeName)
                 .body().returning(tokensTypeName + ".forId(ordinal)").endBlock().withModifier(PUBLIC).closeMethod()
-                .method("setInitialStackedModeNumber").override().addArgument(lexerClass.toString(), "lexer")
+                .method("setInitialStackedModeNumber").override().addArgument(proxy.lexerClassSimple(), "lexer")
                 .addArgument("int", "modeNumber").body()
                 .lineComment("This method will be exposed on the implementation type")
                 .lineComment("but is not exposed in the parent class Lexer")
                 .statement("lexer.setInitialStackedModeNumber(modeNumber)").endBlock().withModifier(PUBLIC).closeMethod()
-                .method("getInitialStackedModeNumber").override().withModifier(PUBLIC).returning("int").addArgument(lexerClass.toString(), "lexer")
+                .method("getInitialStackedModeNumber").override().withModifier(PUBLIC).returning("int").addArgument(proxy.lexerClassSimple(), "lexer")
                 .body()
                 .lineComment("This method will be exposed on the implementation type")
                 .lineComment("but is not exposed in the parent class Lexer")
@@ -1225,7 +1559,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         writeOne(lh);
 
         if (categories != null) {
-            handleCategories(categories, tokenNameForIndex, type, mirror, lexerClass, tokenCategorizerClass, tokenCatName, pkg);
+            handleCategories(categories, proxy, type, mirror, tokenCategorizerClass, tokenCatName, pkg);
         }
         String bundle = utils().annotationValue(mirror, "localizingBundle", String.class);
 
@@ -1270,7 +1604,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         + "' in the properties file " + bundle, type);
             }
         }, type);
-        return prefix;
     }
 
     static String willHandleCategories(List<AnnotationMirror> categories, TypeMirror specifiedClass, String prefix, AnnotationUtils utils) {
@@ -1280,7 +1613,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         return prefix + "TokenCategorizer";
     }
 
-    private void handleCategories(List<AnnotationMirror> categories, Map<Integer, String> tokenNameForIndex, TypeElement type, AnnotationMirror mirror, TypeMirror lexerClass, TypeMirror tokenCategorizerClass, String catName, Name pkg) throws Exception {
+    private void handleCategories(List<AnnotationMirror> categories, LexerProxy proxy, TypeElement type, AnnotationMirror mirror, TypeMirror tokenCategorizerClass, String catName, Name pkg) throws Exception {
         // Create an implementation of TokenCategorizer based on the annotation values
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(catName).withModifier(FINAL)
                 .importing("org.nemesis.antlr.spi.language.highlighting.TokenCategorizer")
@@ -1312,11 +1645,34 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
             for (Integer val : values) {
                 if (dups.contains(val)) {
                     utils().fail("More than one token category specifies the token type " + val
-                            + " - " + tokenNameForIndex.get(val), type);
+                            + " - " + proxy.tokenName(val) + " - in category '" + name + "' of " + cat, type, cat);
+                    return;
+                }
+                if (!proxy.typeExists(val)) {
+                    Map<String, Integer> consts = lexerClassConstants();
+                    if (consts.values().contains(val)) {
+                        List<String> all = new ArrayList<>();
+                        for (Map.Entry<String, Integer> e : consts.entrySet()) {
+                            if (val.equals(e.getValue())) {
+                                all.add(e.getKey());
+                            }
+                        }
+                        if (all.size() == 1) {
+                            utils().fail(val + " is not a token type on your lexer; it is likely the constant "
+                                    + all.get(0) + ", declared on its parent class, Lexer"
+                                            + " and accidentally included.", type, cat);
+                        } else {
+                            utils().fail(val + " is not a token type on your lexer; it is likely a constant "
+                                    + "declared on its parent class Lexer, one of " + all, type, cat);
+                        }
+                        return;
+                    }
+                    utils().fail("No token with type " + val + " exists on as a field on " + proxy.lexerClassFqn()
+                            + " specified in category '" + name + "' of " + cat, type, cat);
                     return;
                 }
                 sw.inCase(val)
-                        .lineComment("Token " + tokenNameForIndex.get(val))
+                        .lineComment("Token " + proxy.tokenName(val))
                         .returning(LinesBuilder.stringLiteral(name)).endBlock();
                 dups.add(val);
             }
@@ -1325,7 +1681,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
         ClassBuilder.BlockBuilder<ClassBuilder.MethodBuilder<ClassBuilder<String>>> n = sw.build();
 
-        Set<Integer> unhandled = new TreeSet<>(tokenNameForIndex.keySet());
+        Set<Integer> unhandled = new TreeSet<>(proxy.tokenNameForIndex.keySet());
         unhandled.remove(-1);
         unhandled.removeAll(dups);
         if (!unhandled.isEmpty()) {
@@ -1333,7 +1689,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
             int ix = 0;
             for (Iterator<Integer> it = unhandled.iterator(); it.hasNext();) {
                 Integer unh = it.next();
-                String name = tokenNameForIndex.get(unh);
+                String name = proxy.tokenName(unh);
                 sb.append(name).append('(').append(unh).append(')');
                 if (it.hasNext()) {
                     if (++ix % 3 == 0) {

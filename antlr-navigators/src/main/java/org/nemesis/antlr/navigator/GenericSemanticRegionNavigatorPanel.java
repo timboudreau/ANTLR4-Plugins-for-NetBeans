@@ -30,14 +30,12 @@ import org.openide.util.Mutex;
  */
 final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigatorPanel<SemanticRegion<K>> {
 
-    private static final String PREFERENCES_KEY_NAVIGATOR_SORT = "navigator-sort";
-
-    private final String mimeType;
     private final SemanticRegionPanelConfig<K> config;
+    private final Appearance<? super SemanticRegion<K>> appearance;
 
-    public GenericSemanticRegionNavigatorPanel(String mimeType, SemanticRegionPanelConfig<K> config) {
-        this.mimeType = mimeType;
+    public GenericSemanticRegionNavigatorPanel(SemanticRegionPanelConfig<K> config, Appearance<? super SemanticRegion<K>> appearance) {
         this.config = config;
+        this.appearance = appearance;
     }
 
     @Override
@@ -48,22 +46,6 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
     @Override
     public String getDisplayName() {
         return config.displayName();
-    }
-
-    private String sortKey() {
-        String mt = mimeType.replace('/', '-');
-        return mt + "-" + PREFERENCES_KEY_NAVIGATOR_SORT;
-    }
-
-    @Override
-    protected void onBeforeCreateComponent() {
-    }
-
-    private void rebuildModel(EditorAndChangeAwareListModel<SemanticRegion<K>> oldModel, SortTypes modelSortedAs) {
-        if (oldModel.change != changeCount.get()) {
-            return;
-        }
-        withNewModel(oldModel.semantics, oldModel.cookie, oldModel.change);
     }
 
     @Override
@@ -122,7 +104,7 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
             }
         });
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
-        result.setCellRenderer(new Ren(config, () -> SortTypes.NATURAL));
+        result.setCellRenderer(new Ren(appearance, () -> SortTypes.NATURAL));
         return result;
     }
 
@@ -130,10 +112,10 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
 
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         private final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
-        private final SemanticRegionPanelConfig<K> config;
+        private final Appearance<? super SemanticRegion<K>>  config;
         private final Supplier<SortTypes> sortSupplier;
 
-        public Ren(SemanticRegionPanelConfig<K> config, Supplier<SortTypes> sortSupplier) {
+        public Ren(Appearance<SemanticRegion<K>> config, Supplier<SortTypes> sortSupplier) {
             this.config = config;
             this.sortSupplier = sortSupplier;
         }
@@ -145,7 +127,7 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
             Component render = renderer.getListCellRendererComponent(list, txt, index, isSelected, cellHasFocus);
             renderer.setRenderStyle(HtmlRenderer.STYLE_CLIP);
             boolean active = list != null && list instanceof ActivatedTcPreCheckJList<?> && ((ActivatedTcPreCheckJList) list).isActive();
-            config.configureAppearance(renderer, value, active, sortSupplier.get());
+            config.configureAppearance(renderer, value, active, null, sortSupplier.get());
             return render;
         }
     }

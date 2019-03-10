@@ -1,5 +1,6 @@
 package org.nemesis.extraction;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -8,7 +9,7 @@ import java.util.Objects;
  */
 public class NameAndOffsets {
 
-    final String name;
+    protected final String name;
     final int start;
     final int end;
 
@@ -23,6 +24,27 @@ public class NameAndOffsets {
 
     public static NameAndOffsets create(String name, int start, int end) {
         return new NameAndOffsets(name, start, end);
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String name(List<String> prefixes, String delimiter) {
+        if (prefixes != null && delimiter != null && !prefixes.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            int max = prefixes.size();
+            // Pushing into a LinkedList means we need to iterate it
+            // backwards
+            for (int i = max-1; i >=0 ; i--) {
+                String pfx = prefixes.get(i);
+                sb.append(pfx).append(delimiter);
+            }
+            sb.append(name);
+            return sb.toString();
+        } else {
+            return name;
+        }
     }
 
     public String toString() {

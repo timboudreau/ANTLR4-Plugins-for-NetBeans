@@ -76,6 +76,10 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     @Override
     public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer caret) {
         NamedRegionReferenceSets<T> regions = ext.references(key);
+        if (regions == null) {
+            LOG.log(Level.FINE, "Null regions for {0}.  Parse cancelled?", key);
+            return;
+        }
         log("refresh {0} NamedRegionReferenceSets for {1} track originals {2} caret {3}", regions.size(), doc, highlightReferencesUnderCaret, caret);
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);

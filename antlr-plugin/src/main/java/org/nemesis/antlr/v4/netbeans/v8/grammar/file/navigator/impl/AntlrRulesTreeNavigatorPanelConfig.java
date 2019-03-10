@@ -31,6 +31,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.navigator.impl;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.navigator.AntlrNavigatorPanelRegistration;
@@ -65,7 +66,7 @@ class AntlrRulesTreeNavigatorPanelConfig implements Appearance<NamedSemanticRegi
     }
 
     @Override
-    public void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<RuleTypes> region, boolean componentActive, SortTypes sort) {
+    public void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<RuleTypes> region, boolean componentActive, Set<String> scopingDelimiter, SortTypes sort) {
         AntlrGrammarLanguageNavigatorPanelConfig.configureAppearance(on, region, componentActive, SortTypes.NATURAL);
         Integer depth = depths.getOrDefault(region.name(), 0);
         on.setIndent(PIXELS_PER_DEPTH_INCREMENT * depth);

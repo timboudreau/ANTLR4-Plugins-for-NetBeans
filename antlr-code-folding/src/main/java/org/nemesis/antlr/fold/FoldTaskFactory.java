@@ -22,11 +22,10 @@ final class FoldTaskFactory extends TaskFactory {
         FoldTask task = FoldTasks.getDefault().forSnapshot(snapshot, true);
         if (task != null) {
             LOG.log(Level.FINE, "Found FoldTask for {0}: {1}", new Object[]{snapshot, task});
-            return Collections.singleton(task);
+            return Collections.singleton(task.uncancel());
         } else {
             LOG.log(Level.FINE, "NO FoldTask for {0}", snapshot);
             return Collections.emptySet();
         }
     }
-
 }

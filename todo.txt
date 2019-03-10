@@ -1,0 +1,25 @@
+
+
+Declarative registraton of resolvers, actual attribution phase
+
+Use new carets api to do inplace rename refactoring
+
+Actions should be added in editor kit createActions, since they don't seem to be
+done automatically from 
+
+Clean up ClassBuilder - should close methods and blocks automagically instead of throwing;  closeMethod should return T
+
+Supply an alternate reference key for region names, not just have types
+
+Add imports to yasl to test resolution
+
+Add arbitrary scoping using other elements.
+
+Get antlr-formatting off of csl/gsf
+
+Get the antlr module working
+
+Hooks for dataobject methods, needed for antlr module's grammar file delete handling
+
+
+

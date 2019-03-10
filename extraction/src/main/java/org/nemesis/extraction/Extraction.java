@@ -33,7 +33,9 @@ import org.nemesis.extraction.key.NamedExtractionKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
+import org.nemesis.misc.utils.TimedSoftReference;
 import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.annotations.common.NullAllowed;
 
 /**
  * A lightweight, high performance database of information about data extracted
@@ -51,13 +53,18 @@ public final class Extraction implements Externalizable {
     private final Map<SingletonKey<?>, SingletonEncounters<?>> singles = new HashMap<>(4);
     private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
-    private transient Map<Extractor<?>, Map<GrammarSource<?>, Extraction>> cachedExtractions;
+    private transient Map<Extractor<?>, Map<GrammarSource<?>, TimedSoftReference<Extraction>>> cachedExtractions;
+    private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>();
     private String extractorsHash;
     private GrammarSource<?> source;
 
     Extraction(String extractorsHash, GrammarSource<?> source) {
         this.extractorsHash = extractorsHash;
         this.source = source;
+    }
+
+    public boolean isPlaceholder() {
+        return extractorsHash == null && source == null;
     }
 
     public void dispose() {
@@ -326,11 +333,14 @@ public final class Extraction implements Externalizable {
             return this;
         }
         if (cachedExtractions != null) {
-            Map<GrammarSource<?>, Extraction> forSource = cachedExtractions.get(extractor);
+            Map<GrammarSource<?>, TimedSoftReference<Extraction>> forSource = cachedExtractions.get(extractor);
             if (forSource != null) {
-                Extraction cached = forSource.get(src);
+                TimedSoftReference<Extraction> cached = forSource.get(src);
                 if (cached != null) {
-                    return cached;
+                    Extraction ext = cached.get();
+                    if (ext != null) {
+                        return ext;
+                    }
                 }
             }
         }
@@ -338,12 +348,19 @@ public final class Extraction implements Externalizable {
         if (cachedExtractions == null) {
             cachedExtractions = new HashMap<>();
         }
-        Map<GrammarSource<?>, Extraction> forSource = cachedExtractions.get(extractor);
+        Map<GrammarSource<?>, TimedSoftReference<Extraction>> forSource = cachedExtractions.get(extractor);
         if (forSource == null) {
             forSource = new HashMap<>();
             cachedExtractions.put(extractor, forSource);
         }
-        forSource.put(src, nue);
+        TimedSoftReference<Extraction> ref = forSource.get(src);
+        if (ref == null) {
+            forSource.put(src, TimedSoftReference.create(nue));
+        } else {
+            ref.set(nue);
+        }
+        // Share one map between the tree of extractions created by
+        // attributing sources
         nue.cachedExtractions = cachedExtractions;
         return nue;
     }
@@ -527,6 +544,9 @@ public final class Extraction implements Externalizable {
     @SuppressWarnings("unchecked")
     public <T extends Enum<T>> NamedRegionReferenceSets<T> references(NameReferenceSetKey<T> key) {
         NamedRegionReferenceSets<?> result = refs.get(key);
+        if (result == null) {
+            result = NamedRegionReferenceSets.empty();
+        }
         return (NamedRegionReferenceSets<T>) result;
     }
 
@@ -614,9 +634,16 @@ public final class Extraction implements Externalizable {
         singles.put(key, encounters);
     }
 
+    public String getScopingDelimiter(ExtractionKey<?> key) {
+        return scopingDelimiters.get(key);
+    }
+
     NameInfoStore store = new NameInfoStore() {
         @Override
-        public <T extends Enum<T>> void addNamedRegions(NamedRegionKey<T> key, NamedSemanticRegions<T> regions) {
+        public <T extends Enum<T>> void addNamedRegions(@NullAllowed String scopingDelimiter, NamedRegionKey<T> key, NamedSemanticRegions<T> regions) {
+            if (scopingDelimiter != null) {
+                scopingDelimiters.put(key, scopingDelimiter);
+            }
             nameds.put(key, regions);
         }
 

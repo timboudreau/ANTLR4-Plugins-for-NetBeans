@@ -1,4 +1,5 @@
 Manifest-Version: 1.0
 OpenIDE-Module-Localizing-Bundle: org/nemesis/extraction/nb/Bundle.properties
 OpenIDE-Module-Provides: org.nemesis.grammar.source.Nb
+OpenIDE-Module-Java-Dependencies: Java > 9
 

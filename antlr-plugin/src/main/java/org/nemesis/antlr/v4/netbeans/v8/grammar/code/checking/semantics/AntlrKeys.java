@@ -36,8 +36,8 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
+import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
-import org.nemesis.antlr.fold.SemanticRegionToFoldConverter;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
@@ -45,14 +45,11 @@ import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.*;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.folding.GrammarFoldType;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.data.SemanticRegion;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
-import org.netbeans.spi.editor.fold.FoldInfo;
 
 /**
  *
@@ -60,34 +57,34 @@ import org.netbeans.spi.editor.fold.FoldInfo;
  */
 @AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
         parser = @ParserControl(type = ANTLRv4Parser.class, entryPointRule = ANTLRv4Parser.RULE_grammarFile),
-        file = @FileType(extension="g4", multiview = true, deleteAllowed = false, renameAllowed = true),
+        file = @FileType(extension = "g4", multiview = true, deleteAllowed = false, renameAllowed = true),
         categories = {
-            @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR}, colors = @Coloration(fg={255, 255, 0, 255})),
+            @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR}, colors = @Coloration(fg = {255, 255, 0, 255})),
             @TokenCategory(name = "symbol", tokenIds = {
         STAR, COLONCOLON, LBRACE, LT, GT, RARROW, RBRACE, RIGHT, AT, SHARP, NOT, COLON, ASSIGN,
         QUESTION, TOKDEC_LBRACE, PLUS_ASSIGN, RPAREN, LPAREN, LEFT, PLUS, DOLLAR,
         PARDEC_LBRACE, HEADER_END, HEADER_P_START, FRAGDEC_LBRACE, BEGIN_ARGUMENT, DOT,
         PARDEC_BEGIN_ARGUMENT, END_ACTION, BEGIN_ACTION, END_ARGUMENT
-    }, colors = @Coloration(fg={128, 164, 90, 255})),
+    }, colors = @Coloration(fg = {128, 164, 90, 255})),
             @TokenCategory(name = "whitespace", tokenIds = {
         PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
         HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
         OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS
-    }, colors = @Coloration(fg={128, 164, 90, 255})),
+    }, colors = @Coloration(fg = {128, 164, 90, 255})),
             @TokenCategory(name = "keywords", tokenIds = {
         INT, OPTIONS, TOKENS, CHANNELS, IMPORT, CATCH, FINALLY, MODE, THROWS,
         ASSOC, FAIL, RETURNS, LEXER, PARSER, GRAMMAR, INIT, LOCALS, HEADER,
         MEMBERS, TOKEN_VOCAB, LEXER_CHAR_SET, HEADER_IMPORT, HEADER_PACKAGE,
         FRAGMENT, AFTER, SUPER_CLASS, LEXCOM_CHANNEL, LEXCOM_MODE, LEXCOM_SKIP,
         IMPORT_UNTERMINATED, LEXCOM_TYPE, LEXCOM_MORE, LANGUAGE, TOKEN_LABEL_TYPE,
-        LEXCOM_PUSHMODE, LEXCOM_POPMODE, SKIP, HDR_IMPRT_STATIC
-    }, colors = @Coloration(fg={164, 90, 128, 255})),
+        LEXCOM_PUSHMODE, LEXCOM_POPMODE, HDR_IMPRT_STATIC
+    }, colors = @Coloration(fg = {164, 90, 128, 255})),
             @TokenCategory(name = "identifier", tokenIds = {
         ID, PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKEN_OR_PARSER_RULE_ID,
         TOKDEC_ID, TOKEN_ID, TYPE_TOKEN_ID, ID_UNTERMINATED, TOK_ID
-    }, colors = @Coloration(fg={164, 128, 90, 255}, bold=true)),
+    }, colors = @Coloration(fg = {164, 128, 90, 255}, bold = true)),
             @TokenCategory(name = "literal", tokenIds = {
-        STRING_LITERAL, UNTERMINATED_STRING_LITERAL,}, colors = @Coloration(fg={128, 164, 90, 255})),
+        STRING_LITERAL, UNTERMINATED_STRING_LITERAL,}, colors = @Coloration(fg = {128, 164, 90, 255})),
             @TokenCategory(name = "comment", tokenIds = {
         LINE_COMMENT, BLOCK_COMMENT, CHN_BLOCK_COMMENT,
         FRAGDEC_LINE_COMMENT, CHN_LINE_COMMENT, DOC_COMMENT,
@@ -108,20 +105,12 @@ public class AntlrKeys {
     public static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("labels", RuleTypes.class);
     public static final RegionsKey<HeaderMatter> HEADER_MATTER = RegionsKey.create(HeaderMatter.class, "headerMatter");
     public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
-    public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
+    public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
     public static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
     public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
     public static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
 
-    @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, converter = Conv.class)
+    @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldType = FoldTypeName.MEMBER)
     public static final RegionsKey<FoldableRegion> FOLDABLES = RegionsKey.create(FoldableRegion.class, "folds");
-
-    public static final class Conv implements SemanticRegionToFoldConverter<FoldableRegion> {
-
-        @Override
-        public FoldInfo apply(SemanticRegion<FoldableRegion> region) {
-            return FoldInfo.range(region.start(), region.end(), GrammarFoldType.forFoldableRegion(region.key()));
-        }
-    }
 
 }

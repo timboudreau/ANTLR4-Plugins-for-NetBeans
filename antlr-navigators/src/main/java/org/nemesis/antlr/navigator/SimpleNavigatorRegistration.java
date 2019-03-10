@@ -54,5 +54,5 @@ public @interface SimpleNavigatorRegistration {
      *
      * @return An appearance type
      */
-    Class<? extends Appearance<?>> appearance() default NoAppearance.class;
+    Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
 }

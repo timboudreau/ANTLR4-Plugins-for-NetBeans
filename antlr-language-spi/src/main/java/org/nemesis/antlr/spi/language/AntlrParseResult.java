@@ -1,5 +1,6 @@
 package org.nemesis.antlr.spi.language;
 
+import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -166,6 +167,10 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         @Override
         void addSyntaxError(SyntaxError err) {
             syntaxErrors.add(err);
+        }
+
+        Fixes fixes() {
+            return new Fixes(extraction, this);
         }
     }
 

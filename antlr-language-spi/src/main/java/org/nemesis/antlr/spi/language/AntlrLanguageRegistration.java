@@ -85,6 +85,37 @@ public @interface AntlrLanguageRegistration {
      */
     ParserControl parser() default @ParserControl(entryPointRule = Integer.MIN_VALUE, type = Parser.class);
 
+    SyntaxInfo syntax() default @SyntaxInfo;
+
+    String lineCommentPrefix() default "";
+
+    public @interface SyntaxInfo {
+
+        /**
+         * A list of token types (static fields on your generated lexer) that
+         * indicate comments.
+         *
+         * @return the comment tokens
+         */
+        int[] commentTokens() default {};
+
+        /**
+         * A list of token types (static fields on your generated lexer) which
+         * are whitespace.
+         *
+         * @return the whitespace tokens
+         */
+        int[] whitespaceTokens() default {};
+
+        /**
+         * A list of token types (static fields on your generated lexer) to skip
+         * when matching braces
+         *
+         * @return the whitespace tokens
+         */
+        int[] bracketSkipTokens() default {};
+    }
+
     public @interface ParserControl {
 
         /**
@@ -148,7 +179,8 @@ public @interface AntlrLanguageRegistration {
         /**
          * If true, generate a navigator panel which wil show the syntax tree of
          * this language. You will need the antlr-navigators project on the
-         * classpath for the generated class to compile.
+         * classpath for the generated class to compile. Useful when debugging
+         * parsers or language support.
          *
          * @return true if the panel will be generated
          */

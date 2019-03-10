@@ -6,7 +6,7 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
-import org.nemesis.registration.utils.function.IOBiConsumer;
+import org.nemesis.misc.utils.function.IOBiConsumer;
 import org.openide.filesystems.annotations.LayerBuilder;
 
 /**

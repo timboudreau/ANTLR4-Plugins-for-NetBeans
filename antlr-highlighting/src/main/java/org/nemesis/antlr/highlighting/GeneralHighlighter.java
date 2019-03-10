@@ -4,7 +4,6 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -14,6 +13,7 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.extraction.Extraction;
@@ -47,17 +47,18 @@ abstract class GeneralHighlighter<T> implements Runnable {
     protected final Logger LOG = Logger.getLogger(getClass().getName());
     private final int refreshDelay;
     private final AntlrHighlighter implementation;
-    private final Object key = new Object();
+    private final HighlighterBagKey key;
 
-    public GeneralHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
+    GeneralHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
         doc = ctx.getDocument();
         this.refreshDelay = refreshDelay <= 0 ? REFRESH_DELAY : refreshDelay;
         this.implementation = implementation;
+        key = new HighlighterBagKey(this, implementation);
         OffsetsBag bag = new OffsetsBag(doc, implementation.mergeHighlights());
         // This avoids us holding a reference from GeneralHighlighter -> OffsetsBag -> Document
         // forever
         doc.putProperty(key, bag);
-        log(Level.FINE, "Create for {0} with {1}", doc, implementation);
+        log(Level.FINE, "Create for {0} with {1} for key {2}", doc, implementation, key);
         // Ensure we access the text component on the event thread, since we
         // may add listeners to it
         Mutex.EVENT.readAccess(() -> {
@@ -66,8 +67,9 @@ abstract class GeneralHighlighter<T> implements Runnable {
         });
     }
 
+    @Override
     public String toString() {
-        return "GeneralHighlighter{" + implementation + "}";
+        return "GeneralHighlighter{" + implementation + " key=" + key + "}";
     }
 
     final void log(Level level, String msg, Object... args) {
@@ -90,10 +92,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         refreshTask.schedule(refreshDelay);
     }
 
-    protected final Optional<Document> document() {
-        return Optional.of(doc);
-    }
-
     public final OffsetsBag getHighlightsBag() {
         return (OffsetsBag) doc.getProperty(key);
     }
@@ -108,28 +106,28 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
     @Override
     public final void run() {
-            if (Thread.interrupted()) {
-                LOG.log(Level.FINEST, "Skip highlighting for thread interrupt", this);
-                return;
+        if (Thread.interrupted()) {
+            LOG.log(Level.FINEST, "Skip highlighting for thread interrupt", this);
+            return;
+        }
+        LOG.log(Level.FINEST, "Run with {0}", doc);
+        T argument = getArgument();
+        if (!shouldProceed(argument)) {
+            LOG.log(Level.FINEST, "Should not proceed for {0}", argument);
+            return;
+        }
+        try {
+            Source src = Source.create(doc);
+            Collection<Source> sources = Collections.singleton(src);
+            Future<?> oldFuture = future.get();
+            if (oldFuture != null && !oldFuture.isDone()) {
+                LOG.log(Level.FINEST, "Cancel a previously scheduled run");
+                oldFuture.cancel(true);
             }
-            LOG.log(Level.FINEST, "Run with {0}", doc);
-            T argument = getArgument();
-            if (!shouldProceed(argument)) {
-                LOG.log(Level.FINEST, "Should not proceed for {0}", argument);
-                return;
-            }
-            try {
-                Source src = Source.create(doc);
-                Collection<Source> sources = Collections.singleton(src);
-                Future<?> oldFuture = future.get();
-                if (oldFuture != null && !oldFuture.isDone()) {
-                    LOG.log(Level.FINEST, "Cancel a previously scheduled run");
-                    oldFuture.cancel(true);
-                }
-                future.set(ParserManager.parseWhenScanFinished(sources, ut));
-            } catch (ParseException ex) {
-                LOG.log(Level.FINE, "Exception parsing", ex);
-            }
+            future.set(ParserManager.parseWhenScanFinished(sources, ut));
+        } catch (ParseException ex) {
+            LOG.log(Level.FINE, "Exception parsing", ex);
+        }
     }
 
     interface OwnableTask {
@@ -178,7 +176,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
         }
     }
 
-    private Extraction deriveSemanticsObject(Parser.Result result) {
+    private Extraction findExtraction(Parser.Result result) {
         if (result instanceof ExtractionParserResult) {
             return ((ExtractionParserResult) result).extraction();
         }
@@ -186,11 +184,11 @@ abstract class GeneralHighlighter<T> implements Runnable {
     }
 
     private void refresh(Document doc, Parser.Result result, T argument) {
-        Extraction semantics = deriveSemanticsObject(result);
+        Extraction semantics = findExtraction(result);
         if (semantics == null) { // should be fixed now
             FileObject fo = result.getSnapshot().getSource().getFileObject();
             Logger.getLogger(GeneralHighlighter.class.getName()).log(Level.WARNING, "Null "
-                    + "semantic parser for " + fo == null ? "null" : fo.getPath());
+                    + "extraction for " + fo == null ? "null" : fo.getPath());
             return;
         }
         LOG.log(Level.FINEST, "Call refresh now");
@@ -219,7 +217,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
-            Document doc = ctx.getDocument();
             doc.addDocumentListener(WeakListeners.document(this, doc));
             scheduleRefresh();
         }
@@ -270,6 +267,13 @@ abstract class GeneralHighlighter<T> implements Runnable {
             if (comp == null) {
                 return -1;
             }
+            Caret caret = comp.getCaret();
+            if (caret == null) {
+                // avoid
+                // java.lang.NullPointerException
+                // at java.desktop/javax.swing.text.JTextComponent.getSelectionStart(JTextComponent.java:1825)
+                return -3;
+            }
             int start = comp.getSelectionStart();
             int end = comp.getSelectionEnd();
             if (start == end) {
@@ -290,6 +294,45 @@ abstract class GeneralHighlighter<T> implements Runnable {
                 bag.clear();
                 scheduleRefresh();
             }
+        }
+    }
+
+    // Just a loggable key object of a type that cannot possibly
+    // be created outside this class.
+    private static final class HighlighterBagKey {
+
+        private final int idHash;
+        private final int idHash2;
+
+        HighlighterBagKey(GeneralHighlighter<?> h, AntlrHighlighter implementation) {
+            idHash = System.identityHashCode(h);
+            idHash2 = System.identityHashCode(implementation);
+        }
+
+        @Override
+        public String toString() {
+            return "GeneralHighlighter-bag-" + idHash + "-" + idHash2;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 67 * hash + this.idHash;
+            hash = 67 * hash + this.idHash2;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            } else if (obj == null) {
+                return false;
+            } else if (!(obj instanceof HighlighterBagKey)) {
+                return false;
+            }
+            final HighlighterBagKey other = (HighlighterBagKey) obj;
+            return this.idHash == other.idHash && this.idHash2 == other.idHash2;
         }
     }
 }

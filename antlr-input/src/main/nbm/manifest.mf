@@ -1,2 +1,4 @@
 Manifest-Version: 1.0
 OpenIDE-Module-Localizing-Bundle: org/nemesis/source/api/Bundle.properties
+OpenIDE-Module-Java-Dependencies: Java > 9
+

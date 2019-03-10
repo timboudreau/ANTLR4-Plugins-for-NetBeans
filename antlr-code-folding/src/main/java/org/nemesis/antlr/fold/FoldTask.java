@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.fold;
 
 import java.awt.EventQueue;
@@ -10,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -31,9 +27,15 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
     private final Set<FoldMgr> managers = Collections.synchronizedSet(new WeakSet<>());
     private static final Logger LOG = Logger.getLogger(FoldTask.class.getName());
     private final String identifier;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
 
     FoldTask(String identifier) {
         this.identifier = identifier;
+    }
+
+    FoldTask uncancel() {
+        cancelled.set(false);
+        return this;
     }
 
     @Override
@@ -76,6 +78,9 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
 
     @Override
     public void run(P result, SchedulerEvent event) {
+        if (cancelled.compareAndSet(true, false)) {
+            return;
+        }
         if (isEmpty()) {
             LOG.log(Level.FINER, "Parse result received on empty task {0}", this);
             return;
@@ -110,7 +115,8 @@ class FoldTask<P extends Parser.Result & ExtractionParserResult> extends ParserR
 
     @Override
     public void cancel() {
-        LOG.log(Level.WARNING, "Cancel not implemented for {0}", this);
+        LOG.log(Level.FINE, "Cancel {0}", this);
+        cancelled.set(true);
         // XXX what here?  Increment rev?
     }
 

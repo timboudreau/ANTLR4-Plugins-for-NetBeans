@@ -1,7 +1,6 @@
 package org.nemesis.extraction.key;
 
 import java.io.Serializable;
-import java.util.Objects;
 import org.nemesis.data.Hashable;
 
 /**
@@ -12,37 +11,34 @@ import org.nemesis.data.Hashable;
 public final class NameReferenceSetKey<T extends Enum<T>> implements Serializable, Hashable, NamedExtractionKey<T> {
 
     final String name;
-    final Class<T> type;
+    private final NamedRegionKey<T> orig;
 
-    private NameReferenceSetKey(String name, Class<T> type) {
+    NameReferenceSetKey(String name, NamedRegionKey<T> orig) {
+        assert name != null : "Name null";
+        assert orig != null : "Orig null";
         this.name = name;
-        this.type = type;
+        this.orig = orig;
+    }
+
+    public NamedRegionKey<T> referencing() {
+        return orig;
     }
 
     @Override
     public void hashInto(Hashable.Hasher hasher) {
+        hasher.writeInt(720930);
         hasher.writeString(name);
-        hasher.writeString(type.getName());
+        orig.hashInto(hasher);
     }
 
-    public static final <T extends Enum<T>> NameReferenceSetKey<T> create(Class<T> type) {
-        return new NameReferenceSetKey<>(type.getSimpleName(), type);
-    }
-
-    public static final <T extends Enum<T>> NameReferenceSetKey<T> create(String name, Class<T> type) {
-        return new NameReferenceSetKey<>(name, type);
-    }
-
+    @Override
     public String toString() {
-        return name + "(" + type.getName() + ")";
+        return name + "(" + name + "-" + orig + ")";
     }
 
     @Override
     public int hashCode() {
-        int hash = 3;
-        hash = 37 * hash + Objects.hashCode(this.name);
-        hash = 37 * hash + Objects.hashCode(this.type);
-        return hash;
+        return (37 * orig.hashCode()) + name.hashCode();
     }
 
     @Override
@@ -53,19 +49,16 @@ public final class NameReferenceSetKey<T extends Enum<T>> implements Serializabl
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
-            return false;
+        if (obj instanceof NameReferenceSetKey<?>) {
+            NameReferenceSetKey<?> nr = (NameReferenceSetKey<?>) obj;
+            return name.equals(nr.name) && orig.equals(nr.orig);
         }
-        final NameReferenceSetKey<?> other = (NameReferenceSetKey<?>) obj;
-        if (!Objects.equals(this.name, other.name)) {
-            return false;
-        }
-        return Objects.equals(this.type, other.type);
+        return false;
     }
 
     @Override
     public Class<T> type() {
-        return type;
+        return orig.type();
     }
 
     @Override

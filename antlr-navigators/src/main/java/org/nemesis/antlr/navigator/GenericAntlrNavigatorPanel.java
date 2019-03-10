@@ -8,6 +8,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Supplier;
 import javax.swing.AbstractAction;
 import javax.swing.JEditorPane;
@@ -37,10 +38,12 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
     private SortTypes sort = SortTypes.NATURAL;
     private final String mimeType;
     private final NavigatorPanelConfig<K> config;
+    private final Appearance<? super NamedSemanticRegion<K>> appearance;
 
-    public GenericAntlrNavigatorPanel(String mimeType, NavigatorPanelConfig<K> config) {
+    GenericAntlrNavigatorPanel(String mimeType, NavigatorPanelConfig<K> config, Appearance<? super NamedSemanticRegion<K>> appearance) {
         this.mimeType = mimeType;
         this.config = config;
+        this.appearance = appearance;
     }
 
     @Override
@@ -78,8 +81,17 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
         withNewModel(oldModel.semantics, oldModel.cookie, oldModel.change);
     }
 
+    private Set<String> scopingDelimiters;
+
+    Set<String> getDelimiters() {
+        return scopingDelimiters;
+    }
+
     @Override
     protected void withNewModel(Extraction extraction, EditorCookie ck, int forChange) {
+        if (scopingDelimiters == null && !extraction.isPlaceholder()) {
+            scopingDelimiters = config.delimiters(extraction);
+        }
         NamedSemanticRegion<K> oldSelection = null;
         if (list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
             oldSelection = list.getSelectedValue();
@@ -156,7 +168,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
             }
         });
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
-        result.setCellRenderer(new Ren(config, this::getSort));
+        result.setCellRenderer(new Ren(appearance, this::getSort, this::getDelimiters));
         return result;
     }
 
@@ -164,12 +176,14 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
 
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         private final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
-        private final NavigatorPanelConfig<K> config;
+        private final Appearance<? super NamedSemanticRegion<K>> config;
         private final Supplier<SortTypes> sortSupplier;
+        private final Supplier<Set<String>> delimiterSupplier;
 
-        public Ren(NavigatorPanelConfig<K> config, Supplier<SortTypes> sortSupplier) {
+        public Ren(Appearance<? super NamedSemanticRegion<K>> config, Supplier<SortTypes> sortSupplier, Supplier<Set<String>> delimiterSupplier) {
             this.config = config;
             this.sortSupplier = sortSupplier;
+            this.delimiterSupplier = delimiterSupplier;
         }
 
         @Override
@@ -179,7 +193,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
             Component render = renderer.getListCellRendererComponent(list, txt, index, isSelected, cellHasFocus);
             renderer.setRenderStyle(HtmlRenderer.STYLE_CLIP);
             boolean active = list != null && list instanceof ActivatedTcPreCheckJList<?> && ((ActivatedTcPreCheckJList) list).isActive();
-            config.configureAppearance(renderer, value, active, sortSupplier.get());
+            config.configureAppearance(renderer, value, active, delimiterSupplier.get(), sortSupplier.get());
             return render;
         }
     }

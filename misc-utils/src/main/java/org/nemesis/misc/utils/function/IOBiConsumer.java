@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.nemesis.registration.utils.function;
+package org.nemesis.misc.utils.function;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;

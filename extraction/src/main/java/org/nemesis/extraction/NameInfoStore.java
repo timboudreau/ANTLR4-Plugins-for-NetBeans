@@ -7,6 +7,7 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.netbeans.api.annotations.common.NullAllowed;
 
 /**
  *
@@ -14,7 +15,7 @@ import org.nemesis.extraction.key.NamedRegionKey;
  */
 interface NameInfoStore {
 
-    <T extends Enum<T>> void addNamedRegions(NamedRegionKey<T> key, NamedSemanticRegions<T> regions);
+    <T extends Enum<T>> void addNamedRegions(@NullAllowed String scopingDelimiter, NamedRegionKey<T> key, NamedSemanticRegions<T> regions);
 
     <T extends Enum<T>> void addReferences(NameReferenceSetKey<T> key, NamedRegionReferenceSets<T> regions);
 

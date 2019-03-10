@@ -273,6 +273,10 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
             return contains(item.start(), item.end());
         }
 
+        default boolean offsetsEqual(IndexAddressableItem item) {
+            return item.start() == start() && item.end() == end();
+        }
+
         /**
          * Sorts items by their start and end position.
          *

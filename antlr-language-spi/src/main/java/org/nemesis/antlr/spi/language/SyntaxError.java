@@ -15,6 +15,7 @@ import javax.swing.text.Position;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.IntervalSet;
+import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.spi.editor.hints.ChangeInfo;
 import org.netbeans.spi.editor.hints.ErrorDescription;
@@ -54,7 +55,7 @@ public final class SyntaxError implements Comparable<SyntaxError> {
             }
         }
         LazyFixList fixes = originalException != null && originalException.getOffendingState() != -1
-                ? new Fixes(adapter, snapshot) : NO_FIXES;
+                ? new SyntaxFixes(adapter, snapshot) : Fixes.none();
 
         FileObject fo = snapshot == null ? null : snapshot.getSource().getFileObject();
         if (fo != null) {
@@ -91,14 +92,14 @@ public final class SyntaxError implements Comparable<SyntaxError> {
     private static final RequestProcessor FIX_COMPUTATION
             = new RequestProcessor("antlr-fix-computation", 2);
 
-    private class Fixes implements LazyFixList, Runnable {
+    private class SyntaxFixes implements LazyFixList, Runnable {
 
         private final PropertyChangeSupport supp = new PropertyChangeSupport(this);
         private final NbLexerAdapter<?, ?> adapter;
         private final Snapshot snapshot;
         private final AtomicBoolean submitted = new AtomicBoolean();
 
-        public Fixes(NbLexerAdapter<?, ?> adapter, Snapshot snapshot) {
+        public SyntaxFixes(NbLexerAdapter<?, ?> adapter, Snapshot snapshot) {
             this.adapter = adapter;
             this.snapshot = snapshot;
         }
@@ -249,41 +250,6 @@ public final class SyntaxError implements Comparable<SyntaxError> {
         }
     }
 
-    static final LazyFixList NO_FIXES = new NoFixes();
-
-    static final class NoFixes implements LazyFixList {
-
-        @Override
-        public void addPropertyChangeListener(PropertyChangeListener l) {
-            // do nothing
-        }
-
-        @Override
-        public void removePropertyChangeListener(PropertyChangeListener l) {
-            // do nothing
-        }
-
-        @Override
-        public boolean probablyContainsFixes() {
-            return false;
-        }
-
-        @Override
-        public List<Fix> getFixes() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public boolean isComputed() {
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "<no-fixes>";
-        }
-
-    }
 
     private static final class SimplePosition implements Position {
 

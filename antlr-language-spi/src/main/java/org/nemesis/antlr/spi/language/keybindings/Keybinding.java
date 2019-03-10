@@ -14,7 +14,5 @@ public @interface Keybinding {
 
     boolean appleSpecific() default false;
 
-    boolean lockDocument() default false;
-
     boolean asynchronous() default false;
 }

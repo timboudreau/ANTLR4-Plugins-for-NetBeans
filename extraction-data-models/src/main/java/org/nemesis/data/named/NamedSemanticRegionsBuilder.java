@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import org.nemesis.data.impl.ArrayUtil;
@@ -148,6 +149,49 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
             }
 
             @Override
+            public String toString() {
+                return "Dup@" + start + ":" + end + " " + kind + " o-"
+                        + ordering;
+            }
+
+            @Override
+            public int hashCode() {
+                int hash = 3;
+                hash = 17 * hash + this.start;
+                hash = 17 * hash + this.end;
+                hash = 17 * hash + Objects.hashCode(this.kind);
+                hash = 17 * hash + this.ordering;
+                return hash;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (this == obj) {
+                    return true;
+                }
+                if (obj == null) {
+                    return false;
+                }
+                if (getClass() != obj.getClass()) {
+                    return false;
+                }
+                final Dup other = (Dup) obj;
+                if (this.start != other.start) {
+                    return false;
+                }
+                if (this.end != other.end) {
+                    return false;
+                }
+                if (this.ordering != other.ordering) {
+                    return false;
+                }
+                if (!Objects.equals(this.kind, other.kind)) {
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
             public K kind() {
                 return kind;
             }
@@ -183,5 +227,4 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
             }
         }
     }
-
 }

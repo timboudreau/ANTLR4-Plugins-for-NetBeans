@@ -49,7 +49,7 @@ import org.openide.awt.HtmlRenderer;
  */
 public final class SemanticRegionPanelConfig<K> {
 
-    private final Appearance<SemanticRegion<K>> appearance;
+    private final Appearance<? super SemanticRegion<K>> appearance;
     private final ListModelPopulator<K> populator;
     private final Consumer<JPopupMenu> popupMenuPopulator;
     private final BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher;
@@ -61,7 +61,7 @@ public final class SemanticRegionPanelConfig<K> {
             ListModelPopulator<K> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher,
             String displayName, boolean sortable, String hint) {
-        this.appearance = appearance;
+        this.appearance = appearance == null ? new DefaultAppearance() : appearance;
         this.populator = populator;
         this.popupMenuPopulator = popupMenuPopulator;
         this.hint = hint;
@@ -168,7 +168,7 @@ public final class SemanticRegionPanelConfig<K> {
         }
 
         public Builder<K> setSingleIcon(String icon) {
-            return withAppearance(new IconAppearance<SemanticRegion<K>> (icon));
+            return withAppearance(new IconAppearance<SemanticRegion<K>>(icon));
         }
 
         /**
@@ -283,11 +283,7 @@ public final class SemanticRegionPanelConfig<K> {
     }
 
     void configureAppearance(HtmlRenderer.Renderer on, SemanticRegion<K> region, boolean componentActive, SortTypes sort) {
-        if (appearance != null) {
-            appearance.configureAppearance(on, region, componentActive, sort);
-        } else {
-            NoAppearance.defaultConfigure(on, region, componentActive);
-        }
+        appearance.configureAppearance(on, region, componentActive, null, sort);
     }
 
     void onPopulatePopupMenu(JPopupMenu menu) {
@@ -328,6 +324,6 @@ public final class SemanticRegionPanelConfig<K> {
     }
 
     public NavigatorPanel toNavigatorPanel(String mimeType) {
-        return new GenericSemanticRegionNavigatorPanel<>(mimeType, this);
+        return new GenericSemanticRegionNavigatorPanel<>(this, appearance);
     }
 }

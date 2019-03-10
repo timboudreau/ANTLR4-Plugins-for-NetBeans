@@ -158,7 +158,7 @@ public class StringUtils {
         for (Iterator<?> it = strings.iterator(); it.hasNext();) {
             sb.append(it.next());
             if (it.hasNext()) {
-                sb.append(',');
+                sb.append(delim);
             }
         }
         return sb.toString();

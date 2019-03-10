@@ -29,13 +29,18 @@ OF SUCH DAMAGE.
 package org.nemesis.antlr.navigator;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.swing.DefaultListModel;
 import javax.swing.JPopupMenu;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.netbeans.spi.navigator.NavigatorPanel;
@@ -50,26 +55,32 @@ import org.openide.awt.HtmlRenderer;
 public final class NavigatorPanelConfig<K extends Enum<K>> {
 
     private final NameReferenceSetKey<K> centralityKey;
-    private final Appearance<NamedSemanticRegion<K>> appearance;
+    private final Appearance<? super NamedSemanticRegion<K>> appearance;
     private final ListModelPopulator<K> populator;
     private final Consumer<JPopupMenu> popupMenuPopulator;
     private final BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher;
     private final boolean sortable;
     private final String displayName;
     private final String hint;
+    private final Function<Extraction, Set<String>> delimitersFinder;
 
     private NavigatorPanelConfig(NameReferenceSetKey<K> centralityKey, Appearance<NamedSemanticRegion<K>> appearance,
             ListModelPopulator<K> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher,
-            String displayName, boolean sortable, String hint) {
+            String displayName, boolean sortable, String hint, Function<Extraction, Set<String>> delimitersFinder) {
         this.centralityKey = centralityKey;
-        this.appearance = appearance;
+        this.appearance = appearance == null ? new DefaultAppearance() : appearance;
         this.populator = populator;
         this.popupMenuPopulator = popupMenuPopulator;
         this.hint = hint;
         this.displayName = displayName;
         this.sortable = sortable;
         this.elementFetcher = elementFetcher;
+        this.delimitersFinder = delimitersFinder;
+    }
+
+    Set<String> delimiters(Extraction ext) {
+        return delimitersFinder.apply(ext);
     }
 
     /**
@@ -91,6 +102,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         private String hint;
         private Appearance<NamedSemanticRegion<K>> appearance;
         private NameReferenceSetKey<K> centralityKey;
+        private final Set<ExtractionKey<K>> keys = new HashSet<>();
 
         private Builder() {
 
@@ -103,8 +115,25 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
             if (displayName == null) {
                 throw new IllegalStateException("Display name must be set");
             }
-            return new NavigatorPanelConfig<>(centralityKey, appearance, populator == null ? new DefaultPopulator<K>() : populator,
-                    popupMenuPopulator, elementFetcher, displayName, sortable, hint);
+            return new NavigatorPanelConfig<>(centralityKey, appearance, populator == null ? new DefaultPopulator<>() : populator,
+                    popupMenuPopulator, elementFetcher, displayName, sortable, hint,
+                    delimiters(keys));
+        }
+
+        static <K> Function<Extraction, Set<String>> delimiters(Set<ExtractionKey<K>> keys) {
+            return (ext -> {
+                Set<String> result = null;
+                for (ExtractionKey<K> k : keys) {
+                    String s = ext.getScopingDelimiter(k);
+                    if (s != null) {
+                        if (result == null) {
+                            result = new HashSet<>(3);
+                        }
+                        result.add(s);
+                    }
+                }
+                return result == null ? Collections.emptySet() : result;
+            });
         }
 
         static final class DefaultPopulator<K extends Enum<K>> implements ListModelPopulator<K> {
@@ -187,11 +216,12 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         }
 
         Builder<K> fetchingWith(NamedRegionKey<K> key) {
+            keys.add(key);
             return fetchingWith(new FetchByKey<>(key));
         }
 
         public Builder<K> setSingleIcon(String icon) {
-            return withAppearance(new IconAppearance<NamedSemanticRegion<K>> (icon));
+            return withAppearance(new IconAppearance<NamedSemanticRegion<K>>(icon));
         }
 
         /**
@@ -202,6 +232,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @return this
          */
         public Builder<K> alsoFetchingWith(NamedRegionKey<K> key) {
+            keys.add(key);
             return fetchingWith(new FetchByKey<>(key));
         }
 
@@ -305,12 +336,8 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         return new Builder<K>().fetchingWith(elementFetcher);
     }
 
-    void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<K> region, boolean componentActive, SortTypes sort) {
-        if (appearance != null) {
-            appearance.configureAppearance(on, region, componentActive, sort);
-        } else {
-            NoAppearance.defaultConfigure(on, region, componentActive);
-        }
+    void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<K> region, boolean componentActive, Set<String> delimiter, SortTypes sort) {
+        appearance.configureAppearance(on, region, componentActive, delimiter, sort);
     }
 
     void onPopulatePopupMenu(JPopupMenu menu) {
@@ -364,6 +391,6 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
     }
 
     public NavigatorPanel toNavigatorPanel(String mimeType) {
-        return new GenericAntlrNavigatorPanel<>(mimeType, this);
+        return new GenericAntlrNavigatorPanel<>(mimeType, this, appearance);
     }
 }

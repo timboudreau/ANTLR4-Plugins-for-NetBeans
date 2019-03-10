@@ -74,7 +74,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 .doesNotHaveModifier(PRIVATE).build().build();
     }
 
-    final class HighlightingInfo implements Iterable<HighlightingInfo.Entry> {
+    class HighlightingInfo implements Iterable<HighlightingInfo.Entry> {
 
         private final String mimeType;
         private final List<Entry> entries = new ArrayList<>(5);
@@ -82,6 +82,38 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
         public HighlightingInfo(String mimeType) {
             this.mimeType = mimeType;
+        }
+
+        private List<HighlightingInfo> splitByZOrder() {
+            Set<String> zorders = zordersPresent();
+            List<HighlightingInfo> result = new ArrayList<>();
+            for (String z : zorders) {
+                result.add(filter(z));
+            }
+            return result;
+        }
+
+        private HighlightingInfo filter(String zorder) {
+            HighlightingInfo result = new HighlightingInfo(mimeType) {
+                @Override
+                public String generatedClassName() {
+                    return super.generatedClassName() + "_" + zorder.toLowerCase();
+                }
+            };
+            for (Entry e : entries) {
+                if (zorder.equals(e.rawZOrder())) {
+                    result.entries.add(e);
+                }
+            }
+            return result;
+        }
+
+        private Set<String> zordersPresent() {
+            Set<String> result = new HashSet<>();
+            for (Entry e : entries) {
+                result.add(e.rawZOrder());
+            }
+            return result;
         }
 
         HighlightingInfo update(VariableElement var, AnnotationMirror mirror, ConversionKind kind, int index) {
@@ -132,7 +164,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 return "Highlighter_NoEntries";
             }
             Entry e = iterator().next();
-            return e.enclosingType.getSimpleName() + "_" 
+            return e.enclosingType.getSimpleName() + "_"
                     + "_HighlighterRegistrations";
         }
 
@@ -240,7 +272,11 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
             String zOrder() {
                 return "ZOrder."
-                        + utils().enumConstantValue(mirror, "zOrder", "SYNTAX_RACK");
+                        + rawZOrder();
+            }
+
+            String rawZOrder() {
+                return utils().enumConstantValue(mirror, "zOrder", "SYNTAX_RACK");
             }
 
             int positionInZOrder(int indexOfEntry) {
@@ -357,6 +393,109 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     private final Set<String> savedToLayer = new HashSet<>();
     private final Map<String, Integer> orderForFqn = new HashMap<>();
 
+    private int baseZOrder(String z) {
+        switch (z) {
+            case "BOTTOM_RACK":
+                return 0;
+            case "SYNTAX_RACK":
+                return 10;
+            case "CARET_RACK":
+                return 20;
+            case "DEFAULT_RACK":
+                return 30;
+            case "SHOW_OFF_RACK":
+                return 40;
+            case "TOP_RACK":
+                return 50;
+            default:
+                return 30;
+        }
+    }
+
+    private int inc = 0;
+
+    private boolean generateForMimeType(String mimeType, HighlightingInfo master, boolean saveLayer, boolean saveClass, int position) throws IOException {
+        // Highlights clobber each other if the same factory generates instances
+        // that belong at different z-orders
+        int ct = 0;
+        AnnotationUtils.forceLogging();
+        for (HighlightingInfo info : master.splitByZOrder()) {
+            String generatedClassName = info.generatedClassName();
+            String pkg = info.packageName();
+            String fqn = pkg + "." + generatedClassName;
+            log("Generate highlighting for {0} saveLayer {1}, saveClass {2} as {3} in {4}",
+                    mimeType, saveLayer, saveClass, generatedClassName, pkg);
+
+            String z = info.zordersPresent().iterator().next();
+            // Let the order be influenced by the z order
+            int basePosition = (baseZOrder(z) * 10) + inc++;
+
+            orderForFqn.put(fqn, basePosition);
+
+            if (saveClass) {
+                ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(generatedClassName)
+                        .staticImport(info.fieldFqns())
+                        .importing("javax.annotation.processing.Generated", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
+                                "org.netbeans.spi.editor.highlighting.HighlightsLayer", "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
+                                "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
+                                "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
+                        //                .annotatedWith("MimeRegistrations", mrOuter -> {
+                        //                    mrOuter.addAnnotationArgument("value", "MimeRegistration", mrInner -> {
+                        //                        mrInner.addStringArgument("mimeType", mimeType)
+                        //                                .addClassArgument("service", "HighlightsLayerFactory")
+                        //                                .addArgument("position", 1000)
+                        //                                .closeAnnotation();
+                        //                    }).closeAnnotation();
+                        //                })
+                        //                .annotatedWith("MimeRegistration", mrOuter -> {
+                        //                    mrOuter.addStringArgument("mimeType", mimeType)
+                        //                            .addClassArgument("service", "HighlightsLayerFactory")
+                        //                            .addArgument("position", 1000)
+                        //                            .closeAnnotation();
+                        //                })
+                        .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                        .withModifier(PUBLIC).withModifier(FINAL)
+                        .implementing("HighlightsLayerFactory")
+                        .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
+                cl.docComment(info.entries.toArray());
+                cl.constructor(cb -> {
+                    cb.addModifier(PUBLIC).body(bb -> {
+                        bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
+                        bb.declare("bldr").initializedByInvoking("builder")
+                                .on("AntlrHighlightingLayerFactory")
+                                .as("AntlrHighlightingLayerFactory.Builder");
+                        info.generateConstructorCode(cl, bb, "bldr");
+                        bb.statement("delegate = bldr.build()");
+                        bb.endBlock();
+                    }).endConstructor();
+                }).override("createLayers", mb -> {
+                    mb.returning("HighlightsLayer[]").addArgument("HighlightsLayerFactory.Context", "ctx")
+                            .body(bb -> {
+                                bb.debugLog("Create " + info);
+                                bb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));
+                                bb.statement("return delegate.createLayers(ctx)").endBlock();
+                            }).withModifier(PUBLIC).closeMethod();
+                });
+                writeOne(cl);
+            }
+
+            if (saveLayer && !savedToLayer.contains(fqn)) {
+                log("Saving layer for {0}", fqn);
+                savedToLayer.add(fqn);
+                String layerFileName = fqn.replace('.', '-');
+                String registrationFile = "Editors/" + info.mimeType + "/" + layerFileName + ".instance";
+                LayerBuilder layer = layer(info.allVars());
+                layer.file(registrationFile)
+                        .stringvalue("instanceClass", fqn)
+                        .stringvalue("instanceOf", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory")
+                        .intvalue("position", position + ct++)
+                        .write();
+            }
+        }
+        return false;
+    }
+
+    /*
     private boolean generateForMimeType(String mimeType, HighlightingInfo info, boolean saveLayer, boolean saveClass, int position) throws IOException {
         log("Generate highlighting for {0} saveLayer {1}, saveClass {2}", mimeType, saveLayer, saveClass);
         String generatedClassName = info.generatedClassName();
@@ -426,7 +565,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
         }
         return false;
     }
-
+     */
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
         System.out.println("ANNO TYPE '" + mirror.getAnnotationType() + "'");
