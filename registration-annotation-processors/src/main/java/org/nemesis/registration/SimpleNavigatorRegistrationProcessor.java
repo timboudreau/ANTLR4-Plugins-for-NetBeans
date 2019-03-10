@@ -164,7 +164,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                 )
                 .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
-                .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock().endConstructor()
+                .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock()
                 .method("create", mb -> {
                     mb.withModifier(PUBLIC).withModifier(STATIC)
                             .annotatedWith("AntlrNavigatorPanelRegistration")
@@ -192,7 +192,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                                 bb.invoke("setDisplayName").withArgument("displayName").on("result");
                                 bb.invoke("sortable").on("result");
                                 bb.returning("result.build()").endBlock();
-                            }).closeMethod();
+                            });
                 });
         if (bundleKey) {
             bldr.importing("org.openide.util.NbBundle");

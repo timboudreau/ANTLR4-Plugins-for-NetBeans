@@ -63,7 +63,7 @@ public class LinesBuilder {
         if (currLineLength() + pendingChars > maxLineLength && !isOnNewLine()) {
             sb.append(newlineIndentChars());
             int len = currLineLength();
-            for (int i=1; i < wrapDepth; i++) {
+            for (int i = 1; i < wrapDepth; i++) {
                 int nextLen = len + this.indentBy;
                 if (nextLen + pendingChars < maxLineLength) {
                     sb.append(this.indent());
@@ -289,6 +289,11 @@ public class LinesBuilder {
         return this;
     }
 
+    public LinesBuilder appendRaw(char what) {
+        sb.append(what);
+        return this;
+    }
+
     public LinesBuilder appendRaw(String what) {
         sb.append(what);
         return this;
@@ -323,7 +328,7 @@ public class LinesBuilder {
         return false;
     }
 
-    private boolean maybeNewline() {
+    public boolean maybeNewline() {
         if (!isOnNewLine()) {
             sb.append(newlineIndentChars());
             return true;
@@ -409,7 +414,13 @@ public class LinesBuilder {
         return this;
     }
 
+    int lengthAtWrappableEntry = -1;
     public LinesBuilder wrappable(Consumer<LinesBuilder> c) {
+        if (sb.length() == lengthAtWrappableEntry) {
+            c.accept(this);
+            return this;
+        }
+        lengthAtWrappableEntry = sb.length();
         int oldWrapDepth = wrapDepth;
         wrapDepth++;
         try {
@@ -417,6 +428,7 @@ public class LinesBuilder {
         } finally {
             wrapDepth = oldWrapDepth;
         }
+        lengthAtWrappableEntry = -1;
         return this;
     }
 

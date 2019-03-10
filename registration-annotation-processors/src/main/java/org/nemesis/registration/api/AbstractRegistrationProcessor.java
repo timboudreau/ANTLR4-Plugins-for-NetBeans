@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import org.nemesis.registration.utils.AnnotationUtils;
 import java.util.Set;
@@ -41,8 +42,14 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
 
     @Override
     public final Set<String> getSupportedAnnotationTypes() {
-        Set<String> result = new HashSet<>(super.getSupportedAnnotationTypes());
-        result.addAll(delegates.supportedAnnotationTypes());
+        // Take care to preserve delegates being run in the order
+        // they were added here:
+        Set<String> result = new LinkedHashSet<>(delegates.supportedAnnotationTypes());
+        for (String other : super.getSupportedAnnotationTypes()) {
+            if (!result.contains(other)) {
+                result.add(other);
+            }
+        }
         return result;
     }
 
@@ -110,7 +117,8 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
                 for (String annotationClass : getSupportedAnnotationTypes()) {
                     AnnotationMirror mirror = utils().findAnnotationMirror(el, annotationClass);
                     if (mirror == null) {
-                        utils.warn("Could not locate annotation mirror for " + annotationClass + " - not on classpath?"
+                        utils.warn("Could not locate annotation mirror for " + annotationClass
+                                + " - not on classpath?"
                                 + " Ignoring annotation on " + el, el);
                         continue;
                     }

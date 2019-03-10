@@ -2,13 +2,11 @@ package org.nemesis.registration.api;
 
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -43,7 +41,7 @@ public class Delegates {
     }
 
     public Set<String> supportedAnnotationTypes() {
-        return new TreeSet<>(delegates.keySet());
+        return new LinkedHashSet<>(delegates.keySet());
     }
 
     @Override
@@ -57,14 +55,6 @@ public class Delegates {
             sb.append("\n    ").append(e.getKey() + ": " + e.getValue());
         }
         return sb.append('}').toString();
-    }
-
-    private Set<DelegateEntry> allEntries() {
-        Set<DelegateEntry> entries = new HashSet<>();
-        for (Map.Entry<String, Set<DelegateEntry>> e : delegates.entrySet()) {
-            entries.addAll(e.getValue());
-        }
-        return entries;
     }
 
     private void addDelegate(String type, DelegateEntry en) {
@@ -86,7 +76,7 @@ public class Delegates {
     }
 
     Set<Delegate> allDelegates() {
-        Set<Delegate> result = new HashSet<>();
+        Set<Delegate> result = new LinkedHashSet<>();
         for (Map.Entry<String, Set<DelegateEntry>> e : delegates.entrySet()) {
             Set<DelegateEntry> entries = e.getValue();
             for (DelegateEntry d : entries) {

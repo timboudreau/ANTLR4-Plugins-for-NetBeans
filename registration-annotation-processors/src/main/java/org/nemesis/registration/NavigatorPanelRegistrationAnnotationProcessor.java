@@ -182,8 +182,7 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
                             .addArgument("position", order + "")
                             .closeAnnotation()
                             .body()
-                            .returning(pkg + "." + className + "." + method + "().toNavigatorPanel(" + LinesBuilder.stringLiteral(mimeType) + ")").endBlock()
-                            .closeMethod();
+                            .returning(pkg + "." + className + "." + method + "().toNavigatorPanel(" + LinesBuilder.stringLiteral(mimeType) + ")").endBlock();
 
                 });
         return cb.build();

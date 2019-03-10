@@ -63,7 +63,7 @@ import org.xml.sax.SAXParseException;
 @ServiceProvider(service = Processor.class)
 public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
-    static final String KEYBINDING_ANNO ="org.nemesis.antlr.spi.language.keybindings.Keybindings";
+    static final String KEYBINDING_ANNO = "org.nemesis.antlr.spi.language.keybindings.Keybindings";
 
     private Map<String, KeysFile> files = new HashMap<>();
     private final Map<KeysFile, String> profileForKeysFile = new HashMap<>();
@@ -154,11 +154,12 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             Arrays.asList(J_TEXT_COMPONENT_TYPE, DOCUMENT_TYPE, ACTION_EVENT_TYPE, EXTRACTION_TYPE));
 
     private static int actionPosition = 11;
+
     private void generateActionRegistrationForMethodReturningAction(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) {
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         String fqn = owningClass.getQualifiedName() + "." + method.getSimpleName();
 //        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
-        String fqnDashes = fqn.replace('.', '-') ;
+        String fqnDashes = fqn.replace('.', '-');
         String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
                 + fqnDashes + ".instance";
         LayerBuilder layer = layer(method);
@@ -243,7 +244,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                             bb.invoke("post").withLambdaArgument()
                                     .body(invokeTheMethod).on("EventQueue");
                             bb.lambda().body(invokeTheMethod);
-                        }).closeMethod();
+                        });
                     } else {
                         if (argumentTypes.contains(EXTRACTION_TYPE)) {
                             mb.body(bb -> {
@@ -257,21 +258,21 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                                         }).on(simpleName(ANTLR_UTILS_TYPE));
 
                                 bb.endBlock();
-                            }).closeMethod();
+                            });
                         } else {
-                            mb.body(invokeTheMethod).closeMethod();
+                            mb.body(invokeTheMethod);
                         }
                     }
                 });
         if (displayName != null) {
             clazz.importing(ACTION_TYPE);
-            clazz.constructor().addModifier(PUBLIC)
+            clazz.constructor().setModifier(PUBLIC)
                     .body(bb -> {
                         if (displayName.contains("#")) {
                             clazz.importing("org.openide.util.NbBundle");
                             int ix = displayName.indexOf('#');
-                            String bundleLookup = ix == 0 ? defaultBundle + displayName :
-                                    displayName.substring(ix + 1);
+                            String bundleLookup = ix == 0 ? defaultBundle + displayName
+                                    : displayName.substring(ix + 1);
                             bb.invoke("putValue").withArgument("Action.NAME").
                                     withArgumentFromInvoking("getMessage")
                                     .withArgument(generatedClassName + ".class")
@@ -282,8 +283,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                             bb.invoke("putValue").withArgument("Action.NAME")
                                     .withStringLiteral(displayName).inScope().endBlock();
                         }
-                    })
-                    .endConstructor();
+                    });
         }
         if (argumentTypes.contains(EXTRACTION_TYPE)) {
             clazz.importing("org.openide.util.Exceptions", ANTLR_UTILS_TYPE);
@@ -291,13 +291,13 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         if (async && BASE_ACTION_TYPE.equals(toSubclass)) {
             // yes, "asynchonous", not asynchronous
             clazz.override("asynchonous").returning("boolean").withModifier(PUBLIC)
-                    .body().returning("true").endBlock().closeMethod();
+                    .body().returning("true").endBlock();
         } else if (!BASE_ACTION_TYPE.equals(toSubclass) && async) {
             clazz.importing("java.awt.EventQueue");
         }
         writeOne(clazz);
         LayerBuilder layer = layer(method);
-        String fqnDashes = clazz.fqn().replace('.', '-') ;
+        String fqnDashes = clazz.fqn().replace('.', '-');
         String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
                 + fqnDashes + ".instance";
         LayerBuilder.File layerFile = layer
@@ -510,7 +510,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             @Override
             public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
                 if (PUBLIC_DTD_ID.equals(publicId)) {
-                return new InputSource(KeybindingsAnnotationProcessor.class.getResource(LOCAL_DTD_RESOURCE).toString());
+                    return new InputSource(KeybindingsAnnotationProcessor.class.getResource(LOCAL_DTD_RESOURCE).toString());
 //                    return new InputSource(new URL(NETWORK_DTD_URL).openStream());
                 } else {
                     return null;

@@ -193,7 +193,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                 .field("endPos").withModifier(PRIVATE, FINAL).ofType("int")
                 .field("doc").withModifier(PRIVATE, FINAL).ofType(simpleName(BASE_DOCUMENT_TYPE))
                 .constructor(con -> {
-                    con.addModifier(PUBLIC)
+                    con.setModifier(PUBLIC)
                             .addArgument("String", "varName")
                             .addArgument("int", "startPos")
                             .addArgument("int", "endPos")
@@ -206,7 +206,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                 bb.log(Level.FINEST).argument("varName").argument("startPos").argument("endPos").argument("doc")
                                         .logging("Create " + generatedClassName + " for {0} at {1}:{2} in {3}")
                                         .endBlock();
-                            }).endConstructor();
+                            });
                 })
                 .override("getDeclarationPosition", mb -> {
                     mb.withModifier(PUBLIC).returning("int")
@@ -260,14 +260,14 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                         .returning("result[0]")
                                         .endBlock();
 
-                            }).closeMethod();
+                            });
                 }).override("token", mb -> {
                     mb.withModifier(PUBLIC).returning("boolean")
                             .addArgument(simpleName(EDITOR_TOKEN_ID_TYPE), "tokenId")
                             .addArgument(simpleName(TOKEN_CONTEXT_PATH_TYPE), "path")
                             .addArgument("int", "tokenBufferOffset")
                             .addArgument("int", "tokenLength")
-                            .body().returning("true").endBlock().closeMethod();
+                            .body().returning("true").endBlock();
                             ;
 
                 }).override("nextBuffer", mb -> {
@@ -281,7 +281,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                             .emptyBody()
                             ;
                 }).override("eot").withModifier(PUBLIC)
-                .addArgument("int", "offset").returning("int").body().returning(0).endBlock().closeMethod();
+                .addArgument("int", "offset").returning("int").body().returning(0).endBlock();
         return cb;
     }
 
@@ -309,7 +309,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                 ab.closeArrayLiteral();
                             });
                 }).constructor(con -> {
-            con.addModifier(PUBLIC)
+            con.setModifier(PUBLIC)
                     .body(bb -> {
                         bb.log("Create a new " + gotoDeclarationActionClassName, Level.FINE);
                         bb.invoke("putValue")
@@ -330,7 +330,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                 .withArgument("BaseAction.POPUP_MENU_TEXT")
                                 .withArgument("trimmed").inScope();
                         bb.endBlock();
-                    }).endConstructor();
+                    });
 
         }).override("actionPerformed", mb -> {
             mb.withModifier(PUBLIC)
@@ -369,7 +369,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                             });
                                 })
                                 .on("NbAntlrUtils").endBlock();
-                    }).closeMethod();
+                    });
         }).method("navigateTo", navToBuilder -> {
             navToBuilder.addArgument("ActionEvent", "evt")
                     .addArgument("JTextComponent", "component")
@@ -403,7 +403,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                                 doNav.statement("return").endBlock();
                                             }).endIf().endBlock();
                                 }).endBlock();
-                    }).closeMethod();
+                    });
         }).method("navigateTo", nav -> {
             nav.addArgument("JTextComponent", "component")
                     .addArgument("int", "position")
@@ -419,7 +419,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                     then.invoke("resetCaretMagicPosition").withArgument("component").inScope();
                                     then.invoke("setDot").withArgument("position").on("caret").endBlock();
                                 }).endIf().endBlock();
-                    }).closeMethod();
+                    });
         });
 
         Element[] els = setsFor(value).toArray(new Element[0]);

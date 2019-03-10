@@ -279,7 +279,6 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                             .on(REGION_TO_FOLD_CONVERTER_SIMPLE);
                     bb.endBlock();
                 })
-                .closeMethod()
                 .method("createFoldRefreshTaskFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning("TaskFactory")
@@ -294,8 +293,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                             .withStringLiteral(mime)
                             .withArgument(fieldFqn)
                             .on("CONVERTER").endBlock();
-                })
-                .closeMethod();
+                });
 
         if (foldTypeName != null || spec != null) {
             cb.importing("org.netbeans.api.editor.fold.FoldType");
@@ -362,14 +360,12 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .field("ALL").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .initializedFromInvocationOf("singleton").withArgument(foldFieldName)
                 .on("Collections").ofType("Collection<FoldType>")
-                .override("getValues").withModifier(PUBLIC)
+                .overridePublic("getValues")
                 .annotatedWith("SuppressWarnings").addArrayArgument("value").stringLiteral("unchecked").stringLiteral("rawTypes").closeArray().closeAnnotation()
                 .addArgument("Class", "type")
                 .returning("Collection")
                 .body().returning("ALL").endBlock()
-                .closeMethod()
-                .override("inheritable").withModifier(PUBLIC).returning("boolean").bodyReturning("false")
-                .closeMethod();
+                .overridePublic("inheritable").returning("boolean").bodyReturning("false");
 
         writeOne(cb);
         return new FoldSpecInfo(regClassName, regClassFqn, foldFieldName, displayText != null);

@@ -51,10 +51,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
     ClassBuilder(Object pkg, Object name, Function<ClassBuilder<T>, T> converter) {
         this.pkg = pkg == null ? null : pkg.toString();
         this.name = name.toString();
-        checkTypeName(this.name);
+        checkIdentifier(this.name);
         if (this.pkg != null) {
             for (String component : this.pkg.split("\\.")) {
-                checkTypeName(component);
+                checkIdentifier(component);
             }
         }
         this.converter = converter;
@@ -62,6 +62,15 @@ public final class ClassBuilder<T> implements BodyBuilder {
             prev = CONTEXT.get();
             CONTEXT.set(this);
         }
+    }
+
+    public ClassBuilder<T> lineComment(String what) {
+        return lineComment(what, false);
+    }
+
+    public ClassBuilder<T> lineComment(String what, boolean trailing) {
+        members.add(new LineComment(what, trailing));
+        return this;
     }
 
     public ClassBuilder<T> logger() {
@@ -123,7 +132,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
     }
 
     private AnnotationBuilder<ClassBuilder<T>> annotatedWith(String anno, boolean[] built) {
-        checkTypeName(anno);
+        checkIdentifier(anno);
         return new AnnotationBuilder<>(ab -> {
             annotations.add(ab);
             built[0] = true;
@@ -222,8 +231,8 @@ public final class ClassBuilder<T> implements BodyBuilder {
      * @return
      */
     public ClassBuilder<T> utilityClassConstructor() {
-        return constructor().addModifier(PRIVATE).body()
-                .statement("throw new AssertionError()").endBlock().endConstructor();
+        return constructor().setModifier(PRIVATE).body()
+                .statement("throw new AssertionError()").endBlock();
     }
 
     public ClassBuilder<T> constructor(Consumer<ConstructorBuilder<?>> c) {
@@ -381,7 +390,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public T emptyBody() {
-            return body().lineComment("do nothing").endBlock().endConstructor();
+            return body().lineComment("do nothing").endBlock();
         }
 
         public ConstructorBuilder<T> throwing(String thrown) {
@@ -401,31 +410,31 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
-        public ConstructorBuilder<T> body(Consumer<BlockBuilder<?>> c) {
-            boolean[] built = new boolean[1];
-            BlockBuilder<ConstructorBuilder<T>> block = body(built);
+        public T body(Consumer<BlockBuilder<?>> c) {
+            Holder<T> hold = new Holder<>();
+            BlockBuilder<Void> block = new BlockBuilder<>(bb -> {
+                body = bb;
+                hold.set(converter.apply(this));
+                return null;
+            }, true);
             c.accept(block);
-            if (!built[0]) {
+            if (!hold.isSet()) {
                 throw new IllegalStateException("endBlock() was not called on "
                         + "constructor body - not added");
             }
-            return this;
+            return hold.get();
         }
 
-        public BlockBuilder<ConstructorBuilder<T>> body() {
+        public BlockBuilder<T> body() {
             return body(new boolean[1]);
         }
 
-        private BlockBuilder<ConstructorBuilder<T>> body(boolean[] built) {
+        private BlockBuilder<T> body(boolean[] built) {
             return new BlockBuilder<>(bb -> {
                 body = bb;
                 built[0] = true;
-                return ConstructorBuilder.this;
+                return converter.apply(this);
             }, true);
-        }
-
-        public T endConstructor() {
-            return converter.apply(this);
         }
 
         @Override
@@ -456,7 +465,26 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }
         }
 
-        public ConstructorBuilder<T> addModifier(Modifier mod) {
+        public ConstructorBuilder<T> setModifier(Modifier mod) {
+            _addModifier(mod);
+            return this;
+        }
+
+        private ConstructorBuilder<T> _addModifier(Modifier mod) {
+            switch (mod) {
+                case PUBLIC:
+                case PRIVATE:
+                case PROTECTED:
+                    if (!modifiers.isEmpty() && !modifiers.contains(mod)) {
+                        throw new IllegalArgumentException("Contradictory "
+                                + "modifier in constructor: "
+                                + modifiers.iterator().next() + " and " + mod);
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException("Inappropriate "
+                            + "modifier for constructor: " + mod);
+            }
             modifiers.add(mod);
             return this;
         }
@@ -496,10 +524,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return result;
     }
 
-    private void checkTypeName(String name) {
+    private void checkIdentifier(String name) {
         if (name.indexOf('.') > 0) {
             for (String nm : name.split("\\.")) {
-                checkTypeName(nm);
+                checkIdentifier(nm);
             }
             return;
         }
@@ -761,6 +789,32 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return this;
     }
 
+    public ClassBuilder<T> protectedMethod(String name, Consumer<MethodBuilder<?>> c) {
+        return method(name, mb -> {
+            c.accept(mb.withModifier(PROTECTED));
+        });
+    }
+
+    public ClassBuilder<T> publicMethod(String name, Consumer<MethodBuilder<?>> c) {
+        return method(name, mb -> {
+            c.accept(mb.withModifier(PUBLIC));
+        });
+    }
+
+    public ClassBuilder<T> privateMethod(String name, Consumer<MethodBuilder<?>> c) {
+        return method(name, mb -> {
+            c.accept(mb.withModifier(PRIVATE));
+        });
+    }
+
+    public MethodBuilder<ClassBuilder<T>> protectedMethod(String name) {
+        return method(name, new boolean[1]).withModifier(PROTECTED);
+    }
+
+    public MethodBuilder<ClassBuilder<T>> privateMethod(String name) {
+        return method(name, new boolean[1]).withModifier(PRIVATE);
+    }
+
     public MethodBuilder<ClassBuilder<T>> method(String name) {
         return method(name, new boolean[1]);
     }
@@ -783,10 +837,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
     private ClassBuilder<T> override(String name, Consumer<MethodBuilder<?>> c, Modifier[] modifiers) {
         boolean[] built = new boolean[1];
-        MethodBuilder<?> m = method(name, built).override();
-        for (Modifier mm : modifiers) {
-            m.withModifier(mm);
-        }
+        MethodBuilder<?> m = method(name, built, modifiers).override();
         c.accept(m);
         if (!built[0]) {
             throw new IllegalStateException("Method not closed");
@@ -807,11 +858,27 @@ public final class ClassBuilder<T> implements BodyBuilder {
     }
 
     private MethodBuilder<ClassBuilder<T>> method(String name, boolean[] built, Modifier... modifiers) {
-        return new MethodBuilder<>(mb -> {
+        Exception[] prev = new Exception[1];
+        MethodBuilder<ClassBuilder<T>> result = new MethodBuilder<>(mb -> {
+            if (prev[0] != null) {
+                throw new IllegalStateException("Method built twice", prev[0]);
+            }
+            prev[0] = new Exception("Build '" + name + "'");
             members.add(mb);
             built[0] = true;
             return ClassBuilder.this;
         }, name);
+        for (Modifier m : modifiers) {
+            result.withModifier(m);
+        }
+        return result;
+    }
+
+    public ClassBuilder<T> conditionally(boolean test, Consumer<ClassBuilder<?>> c) {
+        if (test) {
+            c.accept(this);
+        }
+        return this;
     }
 
     public static final class MethodBuilder<T> implements BodyBuilder {
@@ -830,6 +897,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
             for (Modifier m : modifiers) {
                 withModifier(m);
             }
+        }
+
+        public MethodBuilder<T> makeFinal() {
+            return withModifier(FINAL);
         }
 
         public MethodBuilder<T> throwing(String throwable) {
@@ -881,8 +952,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public T emptyBody() {
-            body().lineComment("do nothing").endBlock();
-            return closeMethod();
+            return body().lineComment("do nothing").endBlock();
         }
 
         public MethodBuilder<T> annotatedWith(String annotationType, Consumer<AnnotationBuilder<?>> c) {
@@ -911,33 +981,64 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return annotatedWith("Override").closeAnnotation();
         }
 
-        public MethodBuilder<T> body(Consumer<BlockBuilder<?>> c) {
-            boolean[] built = new boolean[1];
-            BlockBuilder<MethodBuilder<T>> block = body(built);
-            c.accept(block);
-            if (!built[0]) {
-                throw new IllegalStateException("endBlock() not called on builder by " + c);
+        public MethodBuilder<T> conditionally(boolean test, Consumer<MethodBuilder<?>> c) {
+            if (test) {
+                c.accept(this);
             }
             return this;
         }
 
-        public BlockBuilder<MethodBuilder<T>> body() {
+        public T body(Consumer<BlockBuilder<?>> c) {
+            Holder<T> hold = new Holder<>();
+            BlockBuilder<Void> bldr = new BlockBuilder<>(bb -> {
+                MethodBuilder.this.block = bb;
+                hold.set(converter.apply(this));
+                return null;
+            }, false);
+            c.accept(bldr);
+            if (!hold.isSet()) {
+                this.block = bldr;
+                hold.set(converter.apply(this));
+            }
+            return hold.get();
+        }
+
+        /**
+         * Use this <i>only</i> when you need to to pass the body builder around
+         * to foreign code to contribute to, and be sure to close it.
+         *
+         * @return A block builder
+         */
+        public BlockBuilder<MethodBuilder<T>> openBody() {
+            if (this.block != null) {
+                throw new IllegalStateException("Body already set to " + block);
+            }
+            return new BlockBuilder<>(bb -> {
+                this.block = bb;
+                return MethodBuilder.this;
+            }, false);
+        }
+
+        public BlockBuilder<T> body() {
             return body(new boolean[1]);
         }
 
-        public MethodBuilder<T> body(String body) {
+        public T body(String body) {
             return body(new boolean[1]).statement(body).endBlock();
         }
 
-        public MethodBuilder<T> bodyReturning(String body) {
+        public T bodyReturning(String body) {
             return body(new boolean[1]).returning(body).endBlock();
         }
 
-        private BlockBuilder<MethodBuilder<T>> body(boolean[] built) {
+        private BlockBuilder<T> body(boolean[] built) {
+            if (this.block != null) {
+                throw new IllegalStateException("Body already set to " + block);
+            }
             return new BlockBuilder<>(bb -> {
                 MethodBuilder.this.block = bb;
                 built[0] = true;
-                return MethodBuilder.this;
+                return converter.apply(this);
             }, false);
         }
 
@@ -1035,7 +1136,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         @Override
         public void buildInto(LinesBuilder lines) {
-            lines.statement(lb -> {
+            lines.wrappable(lb -> {
                 if (type != null && !(this.assignment instanceof ArrayLiteralBuilder)) {
                     lb.word(type);
                 }
@@ -1162,7 +1263,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
             ArrayValueBuilder<?> av = withNewArrayArgument(arrayType, built);
             c.accept(av);
             if (!built[0]) {
-                throw new IllegalStateException("Array builder not closed");
+                av.closeArray();
             }
             return this;
         }
@@ -1685,6 +1786,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }
         }
 
+        public BlockBuilder<T> conditionally(boolean test, Consumer<? super BlockBuilder<?>> cb) {
+            if (test) {
+                cb.accept(this);
+            }
+            return this;
+        }
+
         private static String stripPackage(StackTraceElement el) {
             // Avoids generating gargantuan comments
             String s = el.toString();
@@ -1987,9 +2095,11 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public BlockBuilder<T> lineComment(String cmt) {
-            for (String s : cmt.split("\n")) {
-                statements.add(new Composite(new Adhoc("// " + s.trim(), false), new ONL()));
-            }
+            return lineComment(cmt, false);
+        }
+
+        public BlockBuilder<T> lineComment(String cmt, boolean trailing) {
+            statements.add(new LineComment(cmt, trailing));
             return this;
         }
 
@@ -2025,7 +2135,8 @@ public final class ClassBuilder<T> implements BodyBuilder {
         }
 
         public BlockBuilder<T> returning(String s) {
-            statements.add(new OneStatement("return " + s));
+//            statements.add(new OneStatement("return " + s));
+            statements.add(new Composite(new Adhoc("return"), new OneStatement(s, false)));
             return this;
         }
 
@@ -2118,6 +2229,24 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }, on);
         }
 
+        public BlockBuilder<T> switchingOn(String on, Consumer<SwitchBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            SwitchBuilder<Void> sw = new SwitchBuilder<>(sb -> {
+                statements.add(sb);
+                built[0] = true;
+                return null;
+            }, on);
+            c.accept(sw);
+            if (!built[0]) {
+                if (!sw.isEmpty()) {
+                    statements.add(sw);
+                } else {
+                    throw new IllegalStateException("Switch builder never used");
+                }
+            }
+            return this;
+        }
+
         public T endBlock() {
             return converter.apply(this);
         }
@@ -2141,16 +2270,86 @@ public final class ClassBuilder<T> implements BodyBuilder {
         static class OneStatement implements BodyBuilder {
 
             private final String text;
+            private final boolean initialNewline;
 
             OneStatement(String text) {
+                this(text, true);
+            }
+
+            OneStatement(String text, boolean initialNewline) {
                 this.text = text;
+                this.initialNewline = initialNewline;
             }
 
             @Override
             public void buildInto(LinesBuilder lines) {
-                lines.statement(text);
+                if (text.indexOf('\n') > 0) {
+                    if (initialNewline) {
+                        lines.maybeNewline();
+                    }
+                    lines.wrappable(lb -> {
+                        String[] parts = text.split("\n");
+                        boolean first = true;
+                        for (int i = 0; i < parts.length; i++) {
+                            String part = parts[i];
+                            part = part.trim();
+                            if (part.isEmpty()) {
+                                lb.doubleNewline();
+                            } else {
+                                if (first) {
+                                    first = false;
+//                                    if (initialNewline) {
+//                                        lb.onNewLine();
+//                                    }
+                                }
+                                lb.word(part);
+                                if (i != parts.length - 1) {
+                                    lb.onNewLine();
+                                }
+                            }
+                        }
+                        if (!first) {
+                            lb.appendRaw(';');
+                        }
+                    });
+                } else {
+                    if (initialNewline) {
+                        lines.statement(text.trim());
+                    } else {
+                        lines.word(text.trim()).appendRaw(';').onNewLine();
+                    }
+                }
             }
         }
+    }
+
+    static final class LineComment implements BodyBuilder {
+
+        private final String line;
+        private final boolean trailing;
+
+        LineComment(String what, boolean trailing) {
+            this.line = what;
+            this.trailing = trailing;
+        }
+
+        public void buildInto(LinesBuilder lines) {
+            if (trailing) {
+                lines.backup().appendRaw(" ");
+            } else {
+                lines.onNewLine();
+            }
+            for (String part : line.split("\n")) {
+                part = part.trim();
+                if (part.isEmpty()) {
+                    lines.doubleNewline();
+                } else {
+                    lines.appendRaw("// " + part);
+                    lines.onNewLine();
+                }
+            }
+        }
+
     }
 
     public static final class DeclarationBuilder<T> implements BodyBuilder {
@@ -2740,27 +2939,84 @@ public final class ClassBuilder<T> implements BodyBuilder {
             this.what = on;
         }
 
-        public BlockBuilder<SwitchBuilder<T>> inStringCase(String what) {
-            return inCase(LinesBuilder.stringLiteral(what));
+        private boolean isEmpty() {
+            return cases.isEmpty();
+        }
+
+        public BlockBuilder<SwitchBuilder<T>> inStringLiteralCase(String what) {
+            return _case(LinesBuilder.stringLiteral(what));
         }
 
         public BlockBuilder<SwitchBuilder<T>> inDefaultCase() {
-            return inCase("*");
+            return _case("*");
         }
 
-        public BlockBuilder<SwitchBuilder<T>> inCharCase(char c) {
-            return inCase(LinesBuilder.escapeCharLiteral(c));
+        public BlockBuilder<SwitchBuilder<T>> inCase(char c) {
+            return _case(LinesBuilder.escapeCharLiteral(c));
         }
 
         public BlockBuilder<SwitchBuilder<T>> inCase(Number num) {
-            return inCase(num.toString());
+            return _case(num.toString());
         }
 
         public BlockBuilder<SwitchBuilder<T>> inCase(String what) {
+            return _case(what);
+        }
+
+        private BlockBuilder<SwitchBuilder<T>> _case(Object what) {
+            return _case(what, new boolean[1]);
+        }
+
+        private SwitchBuilder<T> _case(Object what, Consumer<BlockBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            BlockBuilder<Void> bldr = new BlockBuilder<>(bb -> {
+                addCase(bb, what);
+                built[0] = true;
+                return null;
+            }, false);
+            c.accept(bldr);
+            if (!built[0]) {
+                addCase(bldr, what);
+            }
+            return this;
+        }
+
+        private BlockBuilder<SwitchBuilder<T>> _case(Object what, boolean[] built) {
+            assert what != null : "Null argument";
             return new BlockBuilder<>(bb -> {
-                cases.put(what, bb);
+                addCase(bb, what);
+                built[0] = true;
                 return SwitchBuilder.this;
             }, false);
+        }
+
+        private void addCase(BlockBuilder<?> bldr, Object what) {
+            String value = what.toString();
+            if (cases.containsKey(value)) {
+                throw new IllegalStateException("Case for '" + value
+                        + "' already added");
+            }
+            cases.put(value, bldr);
+        }
+
+        public SwitchBuilder<T> inStringLiteralCase(String what, Consumer<BlockBuilder<?>> c) {
+            return _case(LinesBuilder.stringLiteral(what), c);
+        }
+
+        public SwitchBuilder<T> inDefaultCase(Consumer<BlockBuilder<?>> c) {
+            return _case("*", c);
+        }
+
+        public SwitchBuilder<T> inCase(char ch, Consumer<BlockBuilder<?>> c) {
+            return _case(LinesBuilder.escapeCharLiteral(ch), c);
+        }
+
+        public SwitchBuilder<T> inCase(Number num, Consumer<BlockBuilder<?>> c) {
+            return _case(num.toString(), c);
+        }
+
+        public SwitchBuilder<T> inCase(String what, Consumer<BlockBuilder<?>> c) {
+            return _case(what, c);
         }
 
         public T build() {
@@ -2776,11 +3032,12 @@ public final class ClassBuilder<T> implements BodyBuilder {
             lines.block(lb -> {
                 for (Map.Entry<String, BodyBuilder> e : cases.entrySet()) {
                     if ("*".equals(e.getKey())) {
-                        lb.onNewLine();
+                        lb.backup().onNewLine();
                         lb.switchCase(null, (lb1) -> {
                             e.getValue().buildInto(lb1);
                         });
                     } else {
+                        lb.backup().onNewLine();
                         lb.switchCase(e.getKey(), (lb1) -> {
                             e.getValue().buildInto(lb1);
                         });
@@ -3067,10 +3324,12 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 }
                 lb.word(name);
                 if (initializer != null) {
-                    if (!(initializer instanceof AssignmentBuilder<?>)) {
-                        lb.word("=");
-                    }
-                    initializer.buildInto(lb);
+                    lb.wrappable(lbb -> {
+                        if (!(initializer instanceof AssignmentBuilder<?>)) {
+                            lbb.word("=");
+                        }
+                        initializer.buildInto(lbb);
+                    });
                 }
             });
         }

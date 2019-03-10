@@ -459,7 +459,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                         .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
                 cl.docComment(info.entries.toArray());
                 cl.constructor(cb -> {
-                    cb.addModifier(PUBLIC).body(bb -> {
+                    cb.setModifier(PUBLIC).body(bb -> {
                         bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
                         bb.declare("bldr").initializedByInvoking("builder")
                                 .on("AntlrHighlightingLayerFactory")
@@ -467,14 +467,14 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                         info.generateConstructorCode(cl, bb, "bldr");
                         bb.statement("delegate = bldr.build()");
                         bb.endBlock();
-                    }).endConstructor();
-                }).override("createLayers", mb -> {
+                    });
+                }).overridePublic("createLayers", mb -> {
                     mb.returning("HighlightsLayer[]").addArgument("HighlightsLayerFactory.Context", "ctx")
                             .body(bb -> {
                                 bb.debugLog("Create " + info);
                                 bb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));
                                 bb.statement("return delegate.createLayers(ctx)").endBlock();
-                            }).withModifier(PUBLIC).closeMethod();
+                            });
                 });
                 writeOne(cl);
             }
@@ -531,7 +531,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                     .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
             cl.docComment(info.entries.toArray());
             cl.constructor(cb -> {
-                cb.addModifier(PUBLIC).body(bb -> {
+                cb.setModifier(PUBLIC).body(bb -> {
                     bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
                     bb.declare("bldr").initializedByInvoking("builder")
                             .on("AntlrHighlightingLayerFactory")

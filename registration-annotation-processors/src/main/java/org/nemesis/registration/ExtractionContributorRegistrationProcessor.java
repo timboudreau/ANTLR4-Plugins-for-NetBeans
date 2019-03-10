@@ -99,14 +99,13 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
                                 bb.invoke(method.getSimpleName().toString())
                                         .withArgument("builder")
                                         .on(ownerTypeSimple).endBlock();
-                            })
-                            .closeMethod();
+                            });
                 })
                 .method("type").override().withModifier(PUBLIC)
                 .returning("Class<" + entrySimple + ">").body().returning(entrySimple
-                + ".class").endBlock().closeMethod()
+                + ".class").endBlock()
                 .method("toString").override().withModifier(PUBLIC).returning("String").body()
-                .returningStringLiteral(generatedClassName + "<" + entrySimple + "> delegating to " + method.getSimpleName() + " on " + owner.getQualifiedName()).endBlock().closeMethod();
+                .returningStringLiteral(generatedClassName + "<" + entrySimple + "> delegating to " + method.getSimpleName() + " on " + owner.getQualifiedName()).endBlock();
         writeOne(cb);
         return true;
     }
