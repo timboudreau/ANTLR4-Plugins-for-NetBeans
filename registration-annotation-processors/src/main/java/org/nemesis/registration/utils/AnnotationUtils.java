@@ -1,5 +1,6 @@
 package org.nemesis.registration.utils;
 
+import org.nemesis.misc.utils.StringUtils;
 import org.nemesis.misc.utils.function.ThrowingRunnable;
 import org.nemesis.misc.utils.function.ThrowingBooleanSupplier;
 import java.lang.annotation.Annotation;
@@ -72,6 +73,10 @@ public final class AnnotationUtils {
             }
         }
         this.log = log;
+    }
+
+    public ProcessingEnvironment processingEnv() {
+        return processingEnv;
     }
 
     static boolean forcedLogging;

@@ -7,7 +7,6 @@ package org.nemesis.antlr.spi.language.fix;
 
 import java.awt.EventQueue;
 import java.util.Optional;
-import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
 import javax.swing.text.Document;
@@ -116,8 +115,9 @@ public abstract class DocumentEditBag {
      * @return this
      * @throws Exception If something goes wrong
      */
-    public final DocumentEditBag multiple(BaseDocument doc, Consumer<DocumentEditSet> c) throws Exception {
+    public final DocumentEditBag multiple(BaseDocument doc, ThrowingConsumer<DocumentEditSet> c) throws Exception {
         DocumentEditSet cons = new DocumentEditSet(doc, this);
+        c.accept(cons);
         runLocked(doc, cons.runner());
         return this;
     }
@@ -131,7 +131,7 @@ public abstract class DocumentEditBag {
      * @return this
      * @throws Exception If something goes wrong
      */
-    public final DocumentEditBag multiple(FileObject file, Consumer<DocumentEditSet> c) throws Exception {
+    public final DocumentEditBag multiple(FileObject file, ThrowingConsumer<DocumentEditSet> c) throws Exception {
         return documentForFile(file, doc -> {
             multiple(doc, c);
         });

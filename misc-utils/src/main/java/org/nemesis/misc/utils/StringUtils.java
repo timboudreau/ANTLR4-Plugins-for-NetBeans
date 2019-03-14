@@ -1,4 +1,4 @@
-package org.nemesis.registration.utils;
+package org.nemesis.misc.utils;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;

@@ -12,7 +12,6 @@ import static org.nemesis.antlrformatting.api.Criterion.anyOf;
 import static org.nemesis.antlrformatting.api.Criterion.matching;
 import static org.nemesis.antlrformatting.api.Criterion.noneOf;
 import static org.nemesis.antlrformatting.api.Criterion.notMatching;
-import static org.nemesis.antlrformatting.api.FormattingRule.mode;
 import static org.nemesis.antlrformatting.api.FormattingRule.notMode;
 import static org.nemesis.antlrformatting.api.util.Predicates.combine;
 
@@ -54,7 +53,147 @@ public final class FormattingRules {
     }
 
     void addRule(FormattingRule rule) {
+        if (ruleProcessor != null) {
+            ruleProcessor.accept(rule);
+        }
         rules.add(rule);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that the mode must be the passed
+     * mode value.
+     *
+     * @param mode A mode number
+     * @param rules A consumer which can add some rules
+     * @return this
+     */
+    public FormattingRules whenMode(int mode, Consumer<FormattingRules> rules) {
+        return applyRuleProcessor(rule -> {
+            rule.whereMode(mode);
+        }, rules);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that subsequent token type must
+     * be the one passed.
+     *
+     * @param type A token type
+     * @param rules A consumer which can add some rules
+     * @return this
+     */
+    public FormattingRules whenNextTokenType(int type, Consumer<FormattingRules> applier) {
+        return whenNextTokenType(Criterion.matching(vocabulary, type), applier);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that preceding token type must be
+     * the one passed.
+     *
+     * @param type A token type
+     * @param rules A consumer which can add some rules
+     * @return this
+     */
+    public FormattingRules whenPreviousTokenType(int type, Consumer<FormattingRules> applier) {
+        return whenPreviousTokenType(Criterion.matching(vocabulary, type), applier);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that subsequent token type must
+     * match the passed predicate.
+     *
+     * @param type A token type predicate
+     * @param rules A consumer which can add some rules
+     * @see Criterion
+     * @return this
+     */
+    public FormattingRules whenNextTokenType(IntPredicate pred, Consumer<FormattingRules> applier) {
+        return applyRuleProcessor(rule -> {
+            rule.whereNextTokenType(pred);
+        }, applier);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that preceding token type must
+     * match the passed predicate.
+     *
+     * @param type A token type predicate
+     * @param rules A consumer which can add some rules
+     * @see Criterion
+     * @return this
+     */
+    public FormattingRules whenPreviousTokenType(IntPredicate pred, Consumer<FormattingRules> applier) {
+        return applyRuleProcessor(rule -> {
+            rule.wherePreviousTokenType(pred);
+        }, applier);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that the lexing state must match
+     * one of those which the returned builder gets configured to match.
+     *
+     * @param T the enum type
+     * @param state The enum to use for state matching
+     * @param rules A consumer which can add some rules, all of which will get
+     * the lexing state criterion applied to them
+     * @see Criterion
+     * @return this
+     */
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<FormattingRules>> whenLexingStateOneOf(T state, Consumer<FormattingRules> c) {
+        LogicalLexingStateCriteriaBuilder<FormattingRules> res = new LogicalLexingStateCriteriaBuilder<>(llscb -> {
+            applyRuleProcessor(llscb.consumer(), c);
+            return this;
+        });
+        return res.start(state);
+    }
+
+    /**
+     * Apply a bunch of rules to this FormattingRules inside the passed Consumer
+     * and all of them will have the criterion that the lexing state must match
+     * one of those which the returned builder gets configured to match.
+     *
+     * @param T the enum type
+     * @param state The enum to use for state matching
+     * @param rules A consumer which can add some rules, all of which will get
+     * the lexing state criterion applied to them
+     * @see Criterion
+     * @return this
+     */
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, FormattingRules> whenLexingState(T state, Consumer<FormattingRules> c) {
+        return new LexingStateCriteriaBuilderImpl<>(state, (lscbi) -> {
+            applyRuleProcessor(lscbi, c);
+            return this;
+        });
+    }
+
+    FormattingRules applyRuleProcessor(Consumer<FormattingRule> ruleProc, Consumer<FormattingRules> applier) {
+        Consumer<FormattingRule> old = ruleProcessor;
+        setRuleProcessor(ruleProc);
+        try {
+            applier.accept(this);
+        } finally {
+            setRuleProcessor(old);
+        }
+        return this;
+    }
+
+    private Consumer<FormattingRule> ruleProcessor;
+
+    void setRuleProcessor(Consumer<FormattingRule> c) {
+        if (ruleProcessor != null) {
+            if (c == null) {
+                ruleProcessor = null;
+            } else {
+                ruleProcessor = ruleProcessor.andThen(c);
+            }
+        } else {
+            ruleProcessor = c;
+        }
     }
 
     private List<Replacer> replacers;
@@ -132,7 +271,7 @@ public final class FormattingRules {
      */
     public FormattingRule onTokenType(Criterion tokenTypeCriterion) {
         FormattingRule result = new FormattingRule(tokenTypeCriterion, this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -146,7 +285,7 @@ public final class FormattingRules {
      */
     public FormattingRule onTokenType(int type) {
         FormattingRule result = new FormattingRule(matching(vocabulary, type), this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -166,7 +305,7 @@ public final class FormattingRules {
         }
         FormattingRule result = new FormattingRule(anyOf(vocabulary,
                 combine(tokenType, moreTokenTypes)), this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -181,7 +320,7 @@ public final class FormattingRules {
      */
     public FormattingRule onTokenTypeNot(Criterion tokenTypeCriterion) {
         FormattingRule result = new FormattingRule(tokenTypeCriterion.negate(), this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -196,7 +335,7 @@ public final class FormattingRules {
      */
     public FormattingRule onTokenTypeNot(int type) {
         FormattingRule result = new FormattingRule(notMatching(vocabulary, type), this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -217,7 +356,7 @@ public final class FormattingRules {
         }
         FormattingRule result = new FormattingRule(noneOf(vocabulary,
                 combine(tokenType, moreTokenTypes)), this);
-        rules.add(result);
+        addRule(result);
         sorted = false;
         return result;
     }
@@ -255,9 +394,9 @@ public final class FormattingRules {
                         System.out.println("'" + token.getText() + "' " + vocabulary
                                 .getSymbolicName(token.getType()) + " matched by " + rule);
                     }
-                    if (ctx instanceof FormattingContextImpl) {
-                        ((FormattingContextImpl) ctx).setCurrentRule(rule);
-                    }
+//                    if (ctx instanceof FormattingContextImpl) {
+//                        ((FormattingContextImpl) ctx).setCurrentRule(rule);
+//                    }
                     rule.perform(token, ctx, state);
                 } else {
                     if (debug) {
@@ -270,8 +409,10 @@ public final class FormattingRules {
     }
 
     void finish(TokenStreamRewriter rew) {
-        for (Replacer r : replacers) {
-            r.finishPendingRewrites(rew);
+        if (replacers != null) {
+            for (Replacer r : replacers) {
+                r.finishPendingRewrites(rew);
+            }
         }
     }
 
@@ -316,10 +457,12 @@ public final class FormattingRules {
      * @param more Any more related modes
      * @return this
      */
-    public FormattingRules whenInMode(Consumer<ModalRulesBuilder> cons, String mode, String... more) {
+    public FormattingRules whenInMode(Consumer<FormattingRules> cons, String mode, String... more) {
         assert mode != null : "mode null";
         IntPredicate modePredicate = FormattingRule.mode(combine(mode, more));
-        cons.accept(new ModalRulesBuilderImpl(this, modePredicate));
+        applyRuleProcessor(rule -> {
+            rule.whereMode(modePredicate);
+        }, cons);
         return this;
     }
 
@@ -332,85 +475,12 @@ public final class FormattingRules {
      * @param more Any more related modes
      * @return this
      */
-    public FormattingRules whenNotInMode(Consumer<ModalRulesBuilder> cons, String mode, String... more) {
+    public FormattingRules whenNotInMode(Consumer<FormattingRules> cons, String mode, String... more) {
         assert mode != null : "mode null";
         IntPredicate modePredicate = notMode(combine(mode, more));
-        cons.accept(new ModalRulesBuilderImpl(this, modePredicate));
-        return this;
-    }
-
-    private static final class ModalRulesBuilderImpl extends ModalRulesBuilder {
-
-        private final FormattingRules rules;
-        private final IntPredicate modePredicate;
-
-        ModalRulesBuilderImpl(FormattingRules rules, IntPredicate modePredicate) {
-            this.rules = rules;
-            this.modePredicate = modePredicate;
-        }
-
-        public ModalRulesBuilder whenNotInMode(Consumer<ModalRulesBuilder> cons, String mode, String... more) {
-            IntPredicate pred = modePredicate.and(notMode(combine(mode, more)));
-            cons.accept(new ModalRulesBuilderImpl(rules, pred));
-            return this;
-        }
-
-        public ModalRulesBuilder whenInMode(Consumer<ModalRulesBuilder> cons, String mode, String... more) {
-            IntPredicate pred = modePredicate.or(mode(combine(mode, more)));
-            cons.accept(new ModalRulesBuilderImpl(rules, pred));
-            return this;
-        }
-
-        private FormattingRule apply(FormattingRule rule) {
+        applyRuleProcessor(rule -> {
             rule.whereMode(modePredicate);
-            return rule;
-        }
-
-        @Override
-        public FormattingRule onTokenType(int item, int... more) {
-            return apply(rules.onTokenType(item, more));
-        }
-
-        @Override
-        public FormattingRule onTokenType(int type) {
-            return apply(rules.onTokenType(type));
-        }
-
-        @Override
-        public FormattingRule onTokenType(Criterion criterion) {
-            return apply(rules.onTokenType(criterion));
-        }
-    }
-
-    /**
-     * Allows multiple rules to be added which all have the same mode
-     * constraint.
-     */
-    public static abstract class ModalRulesBuilder {
-
-        ModalRulesBuilder() {
-        }
-
-        /**
-         * Perform the returned rule on the passed token types, in the case the
-         * mode constraints this builder was created with are also matched.
-         *
-         * @param tokenType A token type
-         * @param moreTokenTypes More token types
-         * @return A rule
-         */
-        public abstract FormattingRule onTokenType(int tokenType, int... moreTokenTypes);
-
-        /**
-         * Perform the returned rule on the passed token type, in the case the
-         * mode constraints this builder was created with are also matched.
-         *
-         * @param type A token type
-         * @param more More token types
-         * @return A rule
-         */
-        public abstract FormattingRule onTokenType(int type);
-
-        public abstract FormattingRule onTokenType(Criterion tokenTypeCriterion);
+        }, cons);
+        return this;
     }
 }

@@ -201,9 +201,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                                 NamedSemanticRegion<T> containedBy = regions.index().regionAt(referenceOffsets.start);
                                 int referencedIndex = regions.indexOf(referenceOffsets.name);
                                 if (containedBy != null && referencedIndex != -1) {
-                                    //                                        System.out.println("REGION AT " + referenceOffsets.start + " IS " + containedBy.start() + ":" + containedBy.end() + " - " + containedBy.name());
                                     assert containedBy.containsPosition(referenceOffsets.start) : "Index returned bogus result for position " + referenceOffsets.start + ": " + containedBy + " from " + regions.index() + "; code:\n" + regions.toCode();
-                                    //                                        System.out.println("ENCOUNTERED " + referenceOffsets + " index " + referencedIndex + " inside " + containedBy.name() + " index " + containedBy.index() + " in " + regions);
                                     int referenceIndex = containedBy.index();
                                     references[i][referencedIndex].set(referenceIndex);
                                     reverseReferences[i][referenceIndex].set(referencedIndex);
@@ -292,7 +290,6 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                             foundNames[i] = nm[0];
                             if (scopingDelimiter != null) {
                                 nameStacks[i].push(nm[1]);
-                                System.out.println("PUSHED " + nm + " onto " + nameStacks[i]);
                                 anyFoundNames = true;
                             }
                         }
@@ -303,7 +300,6 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                     for (int i = 0; i < nameExtractors.length; i++) {
                         if (foundNames[i] != null) {
                             String popped = nameStacks[i].pop();
-                            System.out.println("POPPED " + popped + " for " + foundNames[i] + " from " + nameStacks[i]);
                         }
                     }
                 }

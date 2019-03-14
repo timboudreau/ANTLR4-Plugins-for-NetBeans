@@ -1,64 +1,113 @@
 package org.nemesis.antlrformatting.api;
 
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class LexingStateCriteriaBuilderImpl<T extends Enum<T>> extends LexingStateCriteriaBuilder<T, FormattingRule> {
+final class LexingStateCriteriaBuilderImpl<T extends Enum<T>, R> extends LexingStateCriteriaBuilder<T, R> implements Consumer<FormattingRule> {
 
     private final T key;
-    private final FormattingRule rule;
+    private Consumer<FormattingRule> consumer = null;
+    private final Function<LexingStateCriteriaBuilderImpl<T,R>, R> ret;
 
-    LexingStateCriteriaBuilderImpl(T key, FormattingRule rule) {
+    LexingStateCriteriaBuilderImpl(T key, Function<LexingStateCriteriaBuilderImpl<T,R>, R> ret) {
         this.key = key;
-        this.rule = rule;
+        this.ret = ret;
     }
 
-    public FormattingRule isGreaterThan(int value) {
-        rule.addStateCriterion(key, Criterion.greaterThan(value));
-        return rule;
+    void apply(FormattingRule rule) {
+        if (consumer != null) {
+            consumer.accept(rule);
+        }
     }
 
-    public FormattingRule isGreaterThanOrEqualTo(int value) {
-        rule.addStateCriterion(key, Criterion.greaterThan(value - 1));
-        return rule;
+    void addConsumer(Consumer<FormattingRule> c) {
+        if (consumer == null) {
+            consumer = c;
+        } else {
+            consumer = consumer.andThen(c);
+        }
     }
 
-    public FormattingRule isLessThan(int value) {
-        rule.addStateCriterion(key, Criterion.lessThan(value));
-        return rule;
+    @Override
+    public R isGreaterThan(int value) {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.greaterThan(value));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isLessThanOrEqualTo(int value) {
-        rule.addStateCriterion(key, Criterion.lessThan(value + 1));
-        return rule;
+    @Override
+    public R isGreaterThanOrEqualTo(int value) {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.greaterThan(value - 1));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isEqualTo(int value) {
-        rule.addStateCriterion(key, Criterion.equalTo(value));
-        return rule;
+    @Override
+    public R isLessThan(int value) {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.lessThan(value));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isUnset() {
-        rule.addStateCriterion(key, Criterion.equalTo(-1));
-        return rule;
+    @Override
+    public R isLessThanOrEqualTo(int value) {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.lessThan(value + 1));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isSet() {
-        rule.addStateCriterion(key, Criterion.equalTo(-1).negate());
-        return rule;
+    @Override
+    public R isEqualTo(int value) {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.equalTo(value));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isTrue() {
-        rule.addStateCriterion(new BooleanStateCriterion<T>(key, true));
-        return rule;
+    @Override
+    public R isUnset() {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.equalTo(-1));
+        });
+        return ret.apply(this);
     }
 
-    public FormattingRule isFalse() {
-        rule.addStateCriterion(new BooleanStateCriterion<T>(key, false));
-        return rule;
+    @Override
+    public R isSet() {
+        addConsumer(rule -> {
+            rule.addStateCriterion(key, Criterion.equalTo(-1).negate());
+        });
+        return ret.apply(this);
+    }
+
+    @Override
+    public R isTrue() {
+        addConsumer(rule -> {
+            rule.addStateCriterion(new BooleanStateCriterion<>(key, true));
+        });
+        return ret.apply(this);
+    }
+
+    @Override
+    public R isFalse() {
+        addConsumer(rule -> {
+            rule.addStateCriterion(new BooleanStateCriterion<>(key, false));
+        });
+        return ret.apply(this);
+    }
+
+    @Override
+    public void accept(FormattingRule t) {
+        apply(t);
     }
 
     private static final class BooleanStateCriterion<T extends Enum<T>> implements Predicate<LexingState> {

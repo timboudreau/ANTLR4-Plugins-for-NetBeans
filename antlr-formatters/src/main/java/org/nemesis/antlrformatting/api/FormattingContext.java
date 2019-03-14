@@ -62,6 +62,10 @@ public abstract class FormattingContext {
 
     public abstract void prependDoubleNewline();
 
+    public abstract void prependDoubleNewlineAndIndent();
+
+    public abstract void prependDoubleNewlineAndIndentBy(int amt);
+
     /**
      * Prepend a newline and indent by a specific number of characters.
      *
@@ -106,7 +110,12 @@ public abstract class FormattingContext {
     /**
      * Indent this token by the indent amount.
      */
-    public abstract void indentBy(int spaces);
+    public abstract void indentBy(int stops);
+
+    /**
+     * Indent this token by the indent amount.
+     */
+    public abstract void indentBySpaces(int spaces);
 
     /**
      * Replace the text of this token with some other text.

@@ -2,6 +2,8 @@ package org.nemesis.antlrformatting.api;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -10,59 +12,81 @@ import java.util.function.Predicate;
  *
  * @author Tim Boudreau
  */
-public final class LogicalLexingStateCriteriaBuilder {
+public final class LogicalLexingStateCriteriaBuilder<R> {
 
-    private final FormattingRule rule;
-    private List<LogicalBuilder<?>> builders = new ArrayList<>();
+    private final List<LogicalBuilder<?, R>> builders = new ArrayList<>();
+    private final Function<LogicalLexingStateCriteriaBuilder<R>, R> converter;
 
-    public LogicalLexingStateCriteriaBuilder(FormattingRule rule) {
-        this.rule = rule;
+    private Consumer<FormattingRule> consumer;
+
+    public LogicalLexingStateCriteriaBuilder(Function<LogicalLexingStateCriteriaBuilder<R>, R> converter) {
+        this.converter = converter;
     }
 
-    public FormattingRule then() {
+    private void addConsumer(Consumer<FormattingRule> c) {
+        if (consumer == null) {
+            consumer = c;
+        } else {
+            consumer = consumer.andThen(c);
+        }
+    }
+
+    Consumer<FormattingRule> consumer() {
+        if (consumer == null) {
+            return fr -> {
+                throw new IllegalStateException("Nothing built - " + fr);
+            };
+        }
+        return consumer;
+    }
+
+    public R then() {
         Predicate<LexingState> result = null;
         if (builders.isEmpty()) {
             throw new IllegalStateException("No conditions added");
         }
-        for (LogicalBuilder<?> b : builders) {
+        for (LogicalBuilder<?, R> b : builders) {
             result = b.build(result);
         }
-        rule.addStateCriterion(result);
-        return rule;
+        Predicate<LexingState> res = result;
+        addConsumer(rule -> {
+            rule.addStateCriterion(res);
+        });
+        return converter.apply(this);
     }
 
-    <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> start(T key) {
-        LogicalBuilder<T> result = new LogicalBuilder<T>(key, false, false, this);
+    <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> start(T key) {
+        LogicalBuilder<T, R> result = new LogicalBuilder<>(key, false, false, this);
         builders.add(result);
         return result;
     }
 
-    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> or(T key) {
-        LogicalBuilder<T> result = new LogicalBuilder<T>(key, false, false, this);
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> or(T key) {
+        LogicalBuilder<T, R> result = new LogicalBuilder<>(key, false, false, this);
         builders.add(result);
         return result;
     }
 
-    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> orNot(T key) {
-        LogicalBuilder<T> result = new LogicalBuilder<T>(key, false, true, this);
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> orNot(T key) {
+        LogicalBuilder<T, R> result = new LogicalBuilder<>(key, false, true, this);
         builders.add(result);
         return result;
     }
 
-    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> and(T key) {
-        LogicalBuilder<T> result = new LogicalBuilder<T>(key, true, false, this);
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> and(T key) {
+        LogicalBuilder<T, R> result = new LogicalBuilder<>(key, true, false, this);
         builders.add(result);
         return result;
     }
 
-    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> andNot(T key) {
-        LogicalBuilder<T> result = new LogicalBuilder<T>(key, true, true, this);
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> andNot(T key) {
+        LogicalBuilder<T, R> result = new LogicalBuilder<>(key, true, true, this);
         builders.add(result);
         return result;
     }
 
     private enum OP {
-        GREATER(">"), GREATER_OR_EQUAL(">="), LESS("<"), LESS_OR_EQUAL("<="), 
+        GREATER(">"), GREATER_OR_EQUAL(">="), LESS("<"), LESS_OR_EQUAL("<="),
         EQUAL("=="), UNSET("-unset"), TRUE("==true"), FALSE("==false"), NOT_EQUAL("!=");
         private final String stringValue;
 
@@ -86,23 +110,23 @@ public final class LogicalLexingStateCriteriaBuilder {
         }
     }
 
-    private static class LogicalBuilder<T extends Enum<T>> extends LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> {
+    private static class LogicalBuilder<T extends Enum<T>, R> extends LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> {
 
         private final T key;
         private final boolean isAnd;
         private final boolean isNegated;
-        private final LogicalLexingStateCriteriaBuilder parent;
+        private final LogicalLexingStateCriteriaBuilder<R> parent;
         private OP op;
         private int value = -1;
 
-        LogicalBuilder(T key, boolean isAnd, boolean isNegated, LogicalLexingStateCriteriaBuilder parent) {
+        LogicalBuilder(T key, boolean isAnd, boolean isNegated, LogicalLexingStateCriteriaBuilder<R> parent) {
             this.key = key;
             this.isAnd = isAnd;
             this.isNegated = isNegated;
             this.parent = parent;
         }
 
-        private Predicate<LexingState> build(Predicate<LexingState> prev) {
+        Predicate<LexingState> build(Predicate<LexingState> prev) {
             Predicate<LexingState> result = new LogicalComponentPredicate<T>(op, key, value);
             if (isNegated) {
                 result = result.negate();
@@ -178,6 +202,7 @@ public final class LogicalLexingStateCriteriaBuilder {
         }
 
         private static class LogicalConnector<T> implements Predicate<T> {
+
             // for logging purposes
             private final Predicate<T> a;
             private final Predicate<? super T> b;
@@ -249,7 +274,7 @@ public final class LogicalLexingStateCriteriaBuilder {
                         return !t.getBoolean(key);
                     case UNSET:
                         return t.get(key) == -1;
-                    case NOT_EQUAL :
+                    case NOT_EQUAL:
                         return t.get(key) != value;
                     default:
                         throw new AssertionError(op);

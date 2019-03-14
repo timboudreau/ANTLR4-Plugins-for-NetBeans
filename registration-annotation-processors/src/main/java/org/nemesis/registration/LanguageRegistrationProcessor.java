@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
@@ -56,7 +55,7 @@ import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.codegen.LinesBuilder;
 import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
-import org.nemesis.registration.utils.StringUtils;
+import org.nemesis.misc.utils.StringUtils;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
@@ -71,11 +70,13 @@ import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
  * @author Tim Boudreau
  */
 @ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes({REGISTRATION_ANNO, SEMANTIC_HIGHLIGHTING_ANNO, GROUP_SEMANTIC_HIGHLIGHTING_ANNO, GOTO_ANNOTATION})
+@SupportedAnnotationTypes({REGISTRATION_ANNO, SEMANTIC_HIGHLIGHTING_ANNO,
+    GROUP_SEMANTIC_HIGHLIGHTING_ANNO, GOTO_ANNOTATION})
 @SupportedOptions(AU_LOG)
 public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
-    public static final String REGISTRATION_ANNO = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";
+    public static final String REGISTRATION_ANNO
+            = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";
 
     public static final int DEFAULT_MODE = 0;
     public static final int MORE = -2;
@@ -166,7 +167,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         }
         preemptivelyCheckGotos(roundEnv);
         String prefix = utils().annotationValue(mirror, "name", String.class);
-        LexerProxy lexerProxy = createLexerProxy(mirror, type);
+        LexerProxy lexerProxy = LexerProxy.create(mirror, type, utils());
         if (lexerProxy == null) {
             return true;
         }
@@ -175,7 +176,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
         ParserProxy parser = null;
         if (parserHelper != null) {
-            parser = createParserProxy(parserHelper);
+            parser = createParserProxy(parserHelper, utils());
             if (parser == null) {
                 return true;
             }
@@ -201,286 +202,10 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         return false;
     }
 
-    private LexerProxy createLexerProxy(AnnotationMirror mirror, Element target) {
-        TypeMirror lexerClass = utils().typeForSingleClassAnnotationMember(mirror, "lexer");
-        if (mirror == null) {
-            utils().fail("Could not locate lexer class on classpath", target);
-            return null;
-        }
-        TypeElement lexerClassElement = processingEnv.getElementUtils().getTypeElement(lexerClass.toString());
-        if (lexerClassElement == null) {
-            utils().fail("Could not resolve a TypeElement for " + lexerClass, target);
-            return null;
-        }
-        Map<Integer, String> tokenNameForIndex = new HashMap<>();
-        Map<String, Integer> indexForTokenName = new HashMap<>();
-
-        int last = -2;
-        for (Element el : lexerClassElement.getEnclosedElements()) {
-            if (el instanceof VariableElement) {
-                VariableElement ve = (VariableElement) el;
-                String nm = ve.getSimpleName().toString();
-                if (nm == null || nm.startsWith("_") || !"int".equals(ve.asType().toString())) {
-                    continue;
-                }
-                if (ve.getConstantValue() != null) {
-                    Integer val = (Integer) ve.getConstantValue();
-                    if (val < last) {
-                        break;
-                    }
-                    tokenNameForIndex.put(val, nm);
-                    indexForTokenName.put(nm, val);
-                    last = val;
-                }
-            }
-        }
-        tokenNameForIndex.put(-1, "EOF");
-        tokenNameForIndex.put(last + 1, "$ERRONEOUS");
-        return new LexerProxy(lexerClass, lexerClassElement, tokenNameForIndex, indexForTokenName, last);
-    }
-
-    private static class LexerProxy {
-
-        private final TypeMirror lexerClass;
-        private final TypeElement lexerClassElement;
-        private final Map<Integer, String> tokenNameForIndex;
-        private final Map<String, Integer> indexForTokenName;
-        private final int last;
-
-        private LexerProxy(TypeMirror lexerClass, TypeElement lexerClassElement, Map<Integer, String> tokenNameForIndex, Map<String, Integer> indexForTokenName, int last) {
-            this.lexerClass = lexerClass;
-            this.lexerClassElement = lexerClassElement;
-            this.tokenNameForIndex = tokenNameForIndex;
-            this.indexForTokenName = indexForTokenName;
-            this.last = last;
-        }
-
-        public Set<String> tokenNames() {
-            return new TreeSet<>(indexForTokenName.keySet());
-        }
-
-        public Set<Integer> tokenTypes() {
-            return new TreeSet<>(tokenNameForIndex.keySet());
-        }
-
-        public String tokenName(int type) {
-            return tokenNameForIndex.get(type);
-        }
-
-        public Integer tokenIndex(String name) {
-            return indexForTokenName.get(name);
-        }
-
-        public String lexerClassFqn() {
-            return lexerClass.toString();
-        }
-
-        public int erroneousTokenId() {
-            return last + 1;
-        }
-
-        public int maxToken() {
-            return last;
-        }
-
-        String lcs;
-
-        public String lexerClassSimple() {
-            return lcs == null ? lcs = simpleName(lexerClassFqn()) : lcs;
-        }
-
-        public TypeMirror lexerType() {
-            return lexerClass;
-        }
-
-        public TypeElement lexerClass() {
-            return lexerClassElement;
-        }
-
-        public int lastDeclaredTokenType() {
-            return last;
-        }
-
-        public boolean isSynthetic(int tokenType) {
-            return tokenType < 0 || tokenType > last;
-        }
-
-        public String toFieldName(String tokenName) {
-            return "TOK_" + tokenName.toUpperCase();
-        }
-
-        public String toFieldName(int tokenId) {
-            String tokenName = tokenName(tokenId);
-            return tokenName == null ? null : toFieldName(tokenName);
-        }
-
-        public List<Integer> allTypesSorted() {
-            List<Integer> result = new ArrayList<>(tokenNameForIndex.keySet());
-            Collections.sort(result);
-            return result;
-        }
-
-        public List<Integer> allTypesSortedByName() {
-            List<Integer> result = new ArrayList<>(tokenNameForIndex.keySet());
-            Collections.sort(result, (a, b) -> {
-                String an = tokenName(a);
-                String bn = tokenName(b);
-                return an.compareToIgnoreCase(bn);
-            });
-            return result;
-        }
-
-        private boolean typeExists(Integer val) {
-            if (val == null) {
-                throw new IllegalArgumentException("Null value");
-            }
-            return tokenNameForIndex.containsKey(val);
-        }
-    }
-
-    private ParserProxy createParserProxy(AnnotationMirror parserHelper) {
-        Map<Integer, String> ruleIdForName = new HashMap<>();
-        Map<String, Integer> nameForRuleId = new HashMap<>();
-        ExecutableElement parserEntryPointMethod = null;
-
-        int entryPointRuleId = utils().annotationValue(parserHelper, "entryPointRule", Integer.class, Integer.MIN_VALUE);
-        TypeMirror parserClass = utils().typeForSingleClassAnnotationMember(parserHelper, "type");
-        TypeElement parserClassElement = parserClass == null ? null
-                : processingEnv.getElementUtils().getTypeElement(parserClass.toString());
-        Map<String, ExecutableElement> methodsForNames = new HashMap<>();
-        if (parserClassElement != null) {
-            String entryPointRule = null;
-            for (Element el : parserClassElement.getEnclosedElements()) {
-                if (el instanceof VariableElement) {
-                    VariableElement ve = (VariableElement) el;
-                    String nm = ve.getSimpleName().toString();
-                    if (nm == null || !nm.startsWith("RULE_") || !"int".equals(ve.asType().toString())) {
-                        continue;
-                    }
-                    String ruleName = nm.substring(5);
-                    if (!ruleName.isEmpty() && ve.getConstantValue() != null) {
-                        int val = (Integer) ve.getConstantValue();
-                        ruleIdForName.put(val, ruleName);
-                        if (val == entryPointRuleId) {
-                            entryPointRule = ruleName;
-                        }
-                    }
-                } else if (entryPointRule != null && el instanceof ExecutableElement) {
-                    Name name = el.getSimpleName();
-                    if (name != null && name.contentEquals(entryPointRule)) {
-                        parserEntryPointMethod = (ExecutableElement) el;
-                    }
-                    methodsForNames.put(name.toString(), (ExecutableElement) el);
-                } else if (el instanceof ExecutableElement) {
-                    Name name = el.getSimpleName();
-                    methodsForNames.put(name.toString(), (ExecutableElement) el);
-                }
-            }
-        }
-        if (parserEntryPointMethod == null) {
-            utils().fail("Could not find entry point method for rule id " + entryPointRuleId + " in " + parserClass);
-            return null;
-        }
-        return new ParserProxy(ruleIdForName, nameForRuleId, parserEntryPointMethod, parserClassElement, parserClass, methodsForNames, entryPointRuleId);
-    }
-
-    private static class ParserProxy {
-
-        private final Map<Integer, String> ruleIdForName;
-        private final Map<String, Integer> nameForRuleId;
-        private final ExecutableElement parserEntryPointMethod;
-        private final TypeElement parserClassElement;
-        private final TypeMirror parserClass;
-        private final Map<String, ExecutableElement> methodsForNames;
-        private final int entryPointRuleNumber;
-
-        static String typeName(TypeMirror mirror) {
-            String result = mirror.toString();
-            if (result.startsWith("()")) {
-                return result.substring(2);
-            }
-            return result;
-        }
-
-        public ExecutableElement parserEntryPoint() {
-            return parserEntryPointMethod;
-        }
-
-        public TypeMirror parserEntryPointReturnType() {
-            return parserEntryPointMethod.getReturnType();
-        }
-
-        public String parserEntryPointReturnTypeFqn() {
-            return typeName(parserEntryPointReturnType());
-        }
-
-        public String parserEntryPointReturnTypeSimple() {
-            return simpleName(parserEntryPointReturnType().toString());
-        }
-
-        public int entryPointRuleId() {
-            return entryPointRuleNumber;
-        }
-
-        public Integer ruleId(String name) {
-            return nameForRuleId.get(name);
-        }
-
-        public String nameForRule(int ruleId) {
-            return ruleIdForName.get(ruleId);
-        }
-
-        public TypeMirror parserClass() {
-            return parserClass;
-        }
-
-        public TypeElement parserType() {
-            return parserClassElement;
-        }
-
-        public String parserClassFqn() {
-            return typeName(parserClass());
-        }
-
-        public String parserClassSimple() {
-            return simpleName(parserClassFqn());
-        }
-
-        public ExecutableElement method(String name) {
-            return methodsForNames.get(name);
-        }
-
-        public ExecutableElement methodForId(int id) {
-            String name = ruleIdForName.get(id);
-            return name == null ? null : methodsForNames.get(name);
-        }
-
-        public TypeMirror ruleTypeForId(int ix) {
-            ExecutableElement el = methodForId(ix);
-            return el == null ? null : el.getReturnType();
-        }
-
-        public TypeMirror ruleTypeForRuleName(String ruleName) {
-            Integer i = ruleId(ruleName);
-            return i == null ? null : ruleTypeForId(i);
-        }
-
-        private ParserProxy(Map<Integer, String> ruleIdForName,
-                Map<String, Integer> nameForRuleId,
-                ExecutableElement parserEntryPointMethod,
-                TypeElement parserClassElement,
-                TypeMirror parserClass,
-                Map<String, ExecutableElement> methodsForNames,
-                int entryPointRuleNumber) {
-            this.ruleIdForName = ruleIdForName;
-            this.nameForRuleId = nameForRuleId;
-            this.parserEntryPointMethod = parserEntryPointMethod;
-            this.parserClassElement = parserClassElement;
-            this.parserClass = parserClass;
-            this.methodsForNames = methodsForNames;
-            this.entryPointRuleNumber = entryPointRuleNumber;
-        }
-
+    static ParserProxy createParserProxy(AnnotationMirror parserHelper, AnnotationUtils utils) {
+        int entryPointRuleId = utils.annotationValue(parserHelper, "entryPointRule", Integer.class, Integer.MIN_VALUE);
+        TypeMirror parserClass = utils.typeForSingleClassAnnotationMember(parserHelper, "type");
+        return ParserProxy.create(entryPointRuleId, parserClass, utils);
     }
 
     // DataObject generation
@@ -1031,7 +756,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                                         .endBlock().namingException("ex").endTryCatch().endBlock()
                                         .on(prefix + "Hierarchy");
                                 bb.ifCondition().variable("thrown[0]").notEquals().literal("null").endCondition()
-                                        .thenDo().statement("Exceptions.printStackTrace(thrown[0])").endBlock().endIf();
+                                        .statement("Exceptions.printStackTrace(thrown[0])").endBlock().endIf();
                                 bb.returning("result[0]");
                                 bb.endBlock();
                             });
@@ -1207,14 +932,14 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                     mb.withModifier(PUBLIC).returning("boolean").addArgument("Object", "o")
                             .body(bb -> {
                                 bb.ifCondition().variable("this").equals().literal("o").endCondition()
-                                        .thenDo().returning("true").endBlock()
+                                        .returning("true").endBlock()
                                         .elseIf().variable("o").equals().literal("null").endCondition()
                                         .returning("false").endBlock()
                                         .elseIf().variable("o").instanceOf().literal(generatedClassName).endCondition()
                                         .returningInvocationOf("equals")
                                         .withArgument("o.toString()")
                                         .on("category").endBlock()
-                                        .elseDo().returning("false").endBlock().endIf().endBlock();
+                                        .elseDo().returning("false").endBlock().endBlock();
                                 ;
                             });
                 })
@@ -1291,10 +1016,10 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // for looking them up by name, character, etc.
         ClassBuilder<String> toks = ClassBuilder.forPackage(pkg).named(tokensTypeName)
                 .makePublic().makeFinal()
-//                .docComment("Provides all tokens for the  ", prefix,
-//                        "Generated by ", getClass().getSimpleName(),
-//                        " from fields on ", proxy.lexerClassSimple(),
-//                        " from annotation on ", type.getSimpleName())
+                //                .docComment("Provides all tokens for the  ", prefix,
+                //                        "Generated by ", getClass().getSimpleName(),
+                //                        " from fields on ", proxy.lexerClassSimple(),
+                //                        " from annotation on ", type.getSimpleName())
                 .importing("java.util.Arrays", "java.util.HashMap", "java.util.Map", "java.util.Optional",
                         "java.util.List", "java.util.ArrayList", "java.util.Collections",
                         "org.nemesis.antlr.spi.language.highlighting.TokenCategorizer",
@@ -1319,12 +1044,12 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .declare("symName").initializedByInvoking("symbolicName").on("tok").as(STRING)
                 .declare("litName").initializedByInvoking("literalName").on("tok").as(STRING)
                 .declare("litStripped").initializedWith("stripQuotes(litName)").as(STRING)
-                .ifCondition().variable("symName").notEquals().literal("null").endCondition().thenDo()
+                .ifCondition().variable("symName").notEquals().literal("null").endCondition()
                 .invoke("put").withArgument("symName").withArgument("tok").on("bySymbolicName")
                 .endBlock().endIf()
-                .ifCondition().variable("litStripped").notEquals().literal("null").endCondition().thenDo()
+                .ifCondition().variable("litStripped").notEquals().literal("null").endCondition()
                 .invoke("put").withArgument("litStripped").withArgument("tok").on("byLiteralName")
-                .ifCondition().invoke("length").on("litStripped").equals().literal(1).endCondition().thenDo()
+                .ifCondition().invoke("length").on("litStripped").equals().literal(1).endCondition()
                 .invoke("put").withArgument("litStripped.charAt(0)").withArgument("tok").on("tokForCharMap")
                 .invoke("add").withArgument("litStripped.charAt(0)").on("charsList")
                 .endBlock().endIf()
@@ -1345,7 +1070,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .withModifier(STATIC).withModifier(PUBLIC).body()
                 .declare("ix").initializedWith("Arrays.binarySearch(chars, ch)").as("int")
                 .ifCondition().variable("ix").greaterThanOrEqualto().literal(0).endCondition()
-                .thenDo().returning("Optional.of(tokForChar[ix])").endBlock().endIf()
+                .returning("Optional.of(tokForChar[ix])").endBlock().endIf()
                 .returning("Optional.empty()").endBlock();
 
         // Lookup by symbolic name method
@@ -1361,7 +1086,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         toks.method("stripQuotes").addArgument("String", "name").returning("String")
                 .withModifier(STATIC)/*.withModifier(PRIVATE)*/.body().ifCondition().variable("name").notEquals().literal("null").and().invoke("isEmpty").on("name").equals().literal("false").and()
                 .invoke("charAt").withArgument("0").on("name").equals().literal('\'').and().invoke("charAt").withArgument("name.length()-1")
-                .on("name").equals().literal('\'').endCondition().thenDo().returning("name.substring(1, name.length()-1)").endBlock().endIf()
+                .on("name").equals().literal('\'').endCondition().returning("name.substring(1, name.length()-1)").endBlock().endIf()
                 .returning("name").endBlock();
 
         // Our implementation of the TokenId sub-interface defined as the first class above,
@@ -1372,8 +1097,8 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         + "wreaks havoc with NetBeans parsing, since it\ntries to access the nested"
                         + " class before javac has reached \nit - only the case with generated "
                         + "sources.\nSo we do it like this for now.")
-//        toks.innerClass(tokensImplName).withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
-//                .docComment("Implementation of " + tokenTypeName + " implementing NetBeans' TokenId class from the Lexer API.")
+                //        toks.innerClass(tokensImplName).withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
+                //                .docComment("Implementation of " + tokenTypeName + " implementing NetBeans' TokenId class from the Lexer API.")
                 .field("id").withModifier(PRIVATE).withModifier(FINAL).ofType("int")
                 .implementing(tokenTypeName).constructor().addArgument("int", "id").body()
                 .statement("this.id = id").endBlock()
@@ -1460,12 +1185,11 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             .statement("IDS = Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()));")
                             .simpleLoop(tokenTypeName, "tok").over("IDS")
                             .ifCondition().invoke("ordinal").on("tok").equals().literal(-1).endCondition()
-                            .thenDo()
                             .lineComment("Antlr has a token type -1 for EOF; editor's cache cannot handle negative ordinals")
                             .statement("continue").endBlock().endIf()
                             .declare("curr").initializedByInvoking("get").withArgument("tok.primaryCategory()").on("map").as("Collection<" + tokenTypeName + ">")
                             .ifCondition().variable("curr").equals().literal("null").endCondition()
-                            .thenDo().statement("curr = new ArrayList<>()")
+                            .statement("curr = new ArrayList<>()")
                             .invoke("put").withArgument("tok.primaryCategory()").withArgument("curr").on("map").endBlock()
                             .endIf()
                             .invoke("add").withArgument("tok").on("curr")
@@ -1509,7 +1233,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
                             .body(bb -> {
                                 bb.debugLog("new " + prefix + " parse result");
-                                bb.log("New {0} parse result: {1}", Level.WARNING, LinesBuilder.stringLiteral(prefix), "extraction");
+                                bb.log("New {0} parse result: {1}", Level.WARNING,
+                                        LinesBuilder.stringLiteral(prefix),
+                                        "extraction.logString()");
                                 bb.invoke("newParseResult")
                                         .withArgument("snapshot")
                                         .withArgument("extraction")
@@ -1657,7 +1383,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                                     .withArgument("literalName")
                                     .on("DEFAULT_CATEGORIZER");
                             bb.ifCondition().variable("result").notEquals().literal("null").endCondition()
-                                    .thenDo().returning("result").endBlock().endIf();
+                                    .returning("result").endBlock().endIf();
                         }).switchingOn("id", (SwitchBuilder<?> sw) -> {
                             for (AnnotationMirror cat : categories) {
                                 String name = utils().annotationValue(cat, "name", String.class);

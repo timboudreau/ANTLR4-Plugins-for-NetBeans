@@ -217,12 +217,12 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                             lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
                                                     .body(lbb -> {
                                                         lbb.ifCondition().variable("thrown").notEquals().literal("null")
-                                                                .endCondition().thenDo(cbb -> {
+                                                                .endCondition(cbb -> {
                                                                     cbb.log("Thrown in extracting", Level.FINER)
                                                                             .statement("Exceptions.printStackTrace(thrown)")
                                                                             .statement("return")
                                                                             .endBlock();
-                                                                }).endIf();
+                                                                });
                                                         lbb.simpleLoop(simpleName(REF_SET_KEY_TYPE), "key")
                                                                 .over("KEYS", loopBody -> {
 
@@ -241,8 +241,8 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                                                             .argument("set")
                                                                             .logging("Start {0} for {1} gets {2}");
 
-                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null").endCondition()
-                                                                            .thenDo(doNav -> {
+                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
+                                                                            .endCondition(doNav -> {
                                                                                 doNav.log(Level.FINER)
                                                                                         .argument("set")
                                                                                         .argument("set.referencing()")
@@ -250,8 +250,8 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                                                                         .logging("Found ref {0} navigating to {1} at {2}");
                                                                                 doNav.statement("result[0] = set.referencing().start()");
                                                                                 doNav.endBlock();
-                                                                            })
-                                                                            .endIf().endBlock();
+                                                                            });
+//                                                                    loopBody.endBlock();
                                                                 }).endBlock();
 
                                                     });
@@ -338,7 +338,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                     .body(bb -> {
                         bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
                         bb.ifCondition().variable("caret").equals().literal("null").endCondition()
-                                .thenDo().statement("return").endBlock().endIf();
+                                .statement("return").endBlock().endIf();
                         bb.declare("position").initializedByInvoking("getDot").on("caret").as("int");
                         bb.log(Level.FINER).argument("position").stringLiteral(gotoDeclarationActionClassName)
                                 .logging("Invoke {0} at {1}");
@@ -347,12 +347,12 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                     lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
                                             .body(lbb -> {
                                                 lbb.ifCondition().variable("thrown").notEquals().literal("null")
-                                                        .endCondition().thenDo(cbb -> {
+                                                        .endCondition(cbb -> {
                                                             cbb.log("Thrown in extracting", Level.FINER)
                                                                     .statement("Exceptions.printStackTrace(thrown)")
                                                                     .statement("return")
                                                                     .endBlock();
-                                                        }).endIf();
+                                                        });
                                                 lbb.invoke("invokeLater")
                                                         .withLambdaArgument(invokeLater -> {
                                                             invokeLater.body()
@@ -391,8 +391,8 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                             .withArgument("position")
                                             .on("regions").as("NamedSemanticRegionReference<?>");
 
-                                    loopBody.ifCondition().variable("set").notEquals().literal("null").endCondition()
-                                            .thenDo(doNav -> {
+                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
+                                            .endCondition(doNav -> {
                                                 doNav.log(Level.FINER)
                                                         .argument("set")
                                                         .argument("set.referencing()")
@@ -401,7 +401,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                                                 doNav.invoke("navigateTo").withArgument("component")
                                                         .withArgument("set.referencing().start()").inScope();
                                                 doNav.statement("return").endBlock();
-                                            }).endIf().endBlock();
+                                            });
                                 }).endBlock();
                     });
         }).method("navigateTo", nav -> {
@@ -410,15 +410,15 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                     .withModifier(PRIVATE)
                     .body(bb -> {
                         bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
-                        bb.ifCondition().variable("caret").notEquals().literal("null").endCondition()
-                                .thenDo(then -> {
+                        bb.ifCondition().variable("caret").notEquals().literal("null")
+                                .endCondition(then -> {
                                     then.log(Level.FINER)
                                             .argument("position")
                                             .argument("component")
                                             .logging("Setting caret to {0} in {1}");
                                     then.invoke("resetCaretMagicPosition").withArgument("component").inScope();
                                     then.invoke("setDot").withArgument("position").on("caret").endBlock();
-                                }).endIf().endBlock();
+                                });
                     });
         });
 

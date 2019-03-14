@@ -43,6 +43,7 @@ public final class DocumentEditSet {
         Position startPos = doc.createPosition(start);
         Position endPos = doc.createPosition(end);
         all.add(() -> {
+            System.out.println("REPLACE " + startPos.getOffset() + ":" + endPos.getOffset() + " with " + text);
             consumer.replace(doc, startPos.getOffset(), endPos.getOffset(), text);
         });
         return this;

@@ -36,7 +36,7 @@ public class ParseResultHook<T extends ParserRuleContext> {
 
     /**
      * Called when a file is reparsed (hint: to get the origin file, use, e.g.,
-     *  <code>extraction.source().lookup(FileObject.class)</code>.
+     * <code>extraction.source().lookup(FileObject.class)</code>.
      *
      * @param tree The parse tree - <i>do not hold a reference to it!!</i>
      * @param mimeType The mime type being parsed
@@ -62,13 +62,16 @@ public class ParseResultHook<T extends ParserRuleContext> {
     static <R extends ParserRuleContext> void runForMimeType(String mimeType, R ctx, Extraction extraction, ParseResultContents populate, Fixes fixes) {
         Collection<? extends ParseResultHook> all = MimeLookup.getLookup(mimeType).lookupAll(ParseResultHook.class);
         List<ParseResultHook<? super R>> found = new ArrayList<>(3);
+        System.out.println("RUN FOR MIME TYPE " + mimeType);
         for (ParseResultHook<?> p : all) {
             ParseResultHook<? super R> matched = p.castIfCompatible(ctx);
+            System.out.println("  FOUND " + p + " COMPATIBLE? " + (matched != null));
             if (matched != null) {
                 found.add(matched);
             }
         }
         for (ParseResultHook<? super R> p : found) {
+            System.out.println("    RUN " + p);
             p.reparsed(ctx, mimeType, extraction, populate, fixes);
         }
     }

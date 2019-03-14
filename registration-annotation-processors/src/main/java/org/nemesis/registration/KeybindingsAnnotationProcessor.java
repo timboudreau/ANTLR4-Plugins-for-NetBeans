@@ -253,8 +253,8 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                                             lb.withArgument(simpleName(EXTRACTION_TYPE), "extraction")
                                                     .withArgument("Exception", "thrown")
                                                     .body().ifCondition().variable("thrown").notEquals().literal("null")
-                                                    .endCondition().thenDo().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
-                                                    .endBlock().elseDo(invokeTheMethod).endIf().endBlock();
+                                                    .endCondition().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
+                                                    .endBlock().elseDo(invokeTheMethod).endBlock();
                                         }).on(simpleName(ANTLR_UTILS_TYPE));
 
                                 bb.endBlock();

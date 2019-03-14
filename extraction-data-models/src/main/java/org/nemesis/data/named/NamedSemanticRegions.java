@@ -197,6 +197,10 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return names;
     }
 
+    public List<String> allNames() {
+        return Arrays.asList(nameArray());
+    }
+
     public boolean equalTo(NamedSemanticRegions<?> other) {
         if (other != null && other.size == size && other.kinds.getClass().getComponentType() == kinds.getClass().getComponentType()) {
             return Arrays.equals(names, other.names)

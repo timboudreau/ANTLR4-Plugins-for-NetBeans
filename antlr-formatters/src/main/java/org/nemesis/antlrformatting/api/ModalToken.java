@@ -40,6 +40,10 @@ public final class ModalToken extends CommonToken {
         return super.toString() + ", mode=" + modeName() + "=" + mode;
     }
 
+    boolean isSane() {
+        return getStartIndex() <= getStopIndex();
+    }
+
     public boolean isProbablySame(ModalToken other, int fuzz) {
         if (other.equals(this)) {
             return true;

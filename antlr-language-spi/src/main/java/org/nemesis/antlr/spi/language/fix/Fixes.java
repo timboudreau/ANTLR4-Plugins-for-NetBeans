@@ -92,7 +92,7 @@ public final class Fixes {
     }
 
     /**
-     * Ad a hint with Severity.HINT and a callback which will be invoked to
+     * Add a hint with Severity.HINT and a callback which will be invoked to
      * collect possible fixes.
      *
      * @param item The item the fix relates to
@@ -107,6 +107,26 @@ public final class Fixes {
             throws
             BadLocationException {
         add(null, Severity.HINT, message, item.start(), item.end(), lazyFixes);
+        return this;
+    }
+    /**
+     * Add a hint with Severity.HINT and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param item The item the fix relates to
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addHint(int start, int end, String message, Consumer<FixConsumer> lazyFixes)
+            throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.HINT, message, start, end, lazyFixes);
         return this;
     }
 
@@ -129,6 +149,27 @@ public final class Fixes {
         add(errorId, Severity.HINT, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+    /**
+     * Add a hint with Severity.HINT and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param id The error id
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addHint(String errorId, int start, int end, String message,
+            Consumer<FixConsumer> lazyFixes) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(errorId, Severity.HINT, message, start, end, lazyFixes);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.HINT and an id.
@@ -144,6 +185,22 @@ public final class Fixes {
         add(errorId, Severity.HINT, message, item.start(), item.end(), null);
         return this;
     }
+    /**
+     * Add a hint with Severity.HINT and an id.
+     *
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addHint(String errorId, int start, int end, String message) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(errorId, Severity.HINT, message, start, end, null);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.HINT.
@@ -157,6 +214,22 @@ public final class Fixes {
     public Fixes addHint(IndexAddressable.IndexAddressableItem item, String message) throws
             BadLocationException {
         add(null, Severity.HINT, message, item.start(), item.end(), null);
+        return this;
+    }
+    /**
+     * Add a hint with Severity.HINT.
+     *
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addHint(int start, int end, String message) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.HINT, message, start, end, null);
         return this;
     }
 
@@ -176,6 +249,26 @@ public final class Fixes {
             throws
             BadLocationException {
         add(null, Severity.WARNING, message, item.start(), item.end(), lazyFixes);
+        return this;
+    }
+    /**
+     * Ad a hint with Severity.WARNING and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addWarning(int start, int end, String message, Consumer<FixConsumer> lazyFixes)
+            throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.WARNING, message, start, end, lazyFixes);
         return this;
     }
 
@@ -198,6 +291,27 @@ public final class Fixes {
         add(errorId, Severity.WARNING, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+    /**
+     * Add a hint with Severity.WARNING and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param id the error id
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addWarning(String errorId, int start, int end, String message,
+            Consumer<FixConsumer> lazyFixes) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(errorId, Severity.WARNING, message, start, end, lazyFixes);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.WARNING.
@@ -214,6 +328,23 @@ public final class Fixes {
         add(errorId, Severity.WARNING, message, item.start(), item.end(), null);
         return this;
     }
+    /**
+     * Add a hint with Severity.WARNING.
+     *
+     * @param id An error id
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addWarning(String errorId, int start, int end, String message) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(errorId, Severity.WARNING, message, start, end, null);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.WARNING.
@@ -226,6 +357,21 @@ public final class Fixes {
      */
     public Fixes addWarning(IndexAddressable.IndexAddressableItem item, String message) throws BadLocationException {
         add(null, Severity.WARNING, message, item.start(), item.end(), null);
+        return this;
+    }
+    /**
+     * Add a hint with Severity.WARNING.
+     *
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addWarning(int start, int end, String message) throws BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.WARNING, message, start, end, null);
         return this;
     }
 
@@ -244,6 +390,25 @@ public final class Fixes {
     public Fixes addError(IndexAddressable.IndexAddressableItem item, String message, Consumer<FixConsumer> lazyFixes)
             throws BadLocationException {
         add(null, Severity.ERROR, message, item.start(), item.end(), lazyFixes);
+        return this;
+    }
+    /**
+     * Add a hint with Severity.ERROR and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addError(int start, int end, String message, Consumer<FixConsumer> lazyFixes)
+            throws BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.ERROR, message, start, end, lazyFixes);
         return this;
     }
 
@@ -266,6 +431,27 @@ public final class Fixes {
         add(id, Severity.ERROR, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+    /**
+     * Add a hint with Severity.ERROR and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param id the error id
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     * alter the document in some way
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addError(String id, int start, int end, String message,
+            Consumer<FixConsumer> lazyFixes) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(id, Severity.ERROR, message, start, end, lazyFixes);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.ERROR.
@@ -282,6 +468,23 @@ public final class Fixes {
         add(errorId, Severity.ERROR, message, item.start(), item.end(), null);
         return this;
     }
+    /**
+     * Add a hint with Severity.ERROR.
+     *
+     * @param id the error id
+     * @param start The start offset in the document
+     * @param end The end offset in the document
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addError(String errorId, int start, int end, String message) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(errorId, Severity.ERROR, message, start, end, null);
+        return this;
+    }
 
     /**
      * Add a hint with Severity.ERROR
@@ -295,6 +498,22 @@ public final class Fixes {
     public Fixes addError(IndexAddressable.IndexAddressableItem item, String message) throws
             BadLocationException {
         add(null, Severity.ERROR, message, item.start(), item.end(), null);
+        return this;
+    }
+    /**
+     * Add a hint with Severity.ERROR
+     *
+     * @param start the start
+     * @param end the end
+     * @param message The message to display in the editor margin
+     * @return this
+     * @throws BadLocationException if the coordinates supplied are outside the
+     * document
+     */
+    public Fixes addError(int start, int end, String message) throws
+            BadLocationException {
+        assert start <= end : "start > end";
+        add(null, Severity.ERROR, message, start, end, null);
         return this;
     }
 

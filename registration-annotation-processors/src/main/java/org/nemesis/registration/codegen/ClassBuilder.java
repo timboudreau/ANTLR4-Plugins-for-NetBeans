@@ -1413,7 +1413,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }, true);
             cb.accept(bldr);
             if (!holder.isSet()) {
-                throw new IllegalStateException("endBlock() not called");
+                bldr.endBlock();
+                holder.set(converter.apply(this));
+//                throw new IllegalStateException("endBlock() not called");
             }
             return holder.get();
         }
@@ -2191,20 +2193,20 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }, what);
         }
 
-        public IfBuilder<BlockBuilder<T>> iff(String initialCondition) {
-            return new IfBuilder<>(ib -> {
+        public BlockBuilder<IfBuilder<BlockBuilder<T>>> iff(String initialCondition) {
+            return new IfBuilder<BlockBuilder<T>>(ib -> {
                 statements.add(ib);
                 return BlockBuilder.this;
-            }, initialCondition);
+            }, initialCondition).thenDo();
         }
 
-        public ConditionBuilder<IfBuilder<BlockBuilder<T>>> ifCondition() {
+        public ConditionBuilder<BlockBuilder<IfBuilder<BlockBuilder<T>>>> ifCondition() {
             return ifCondition(new boolean[1]);
         }
 
-        public BlockBuilder<T> ifCondition(Consumer<ConditionBuilder<IfBuilder<BlockBuilder<T>>>> c) {
+        public BlockBuilder<T> ifCondition(Consumer<ConditionBuilder<BlockBuilder<IfBuilder<BlockBuilder<T>>>>> c) {
             boolean[] built = new boolean[1];
-            ConditionBuilder<IfBuilder<BlockBuilder<T>>> bldr = ifCondition(built);
+            ConditionBuilder<BlockBuilder<IfBuilder<BlockBuilder<T>>>> bldr = ifCondition(built);
             c.accept(bldr);
             if (!built[0]) {
                 throw new IllegalStateException("IfBuilder not finished");
@@ -2212,13 +2214,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
-        private ConditionBuilder<IfBuilder<BlockBuilder<T>>> ifCondition(boolean[] built) {
-            return new ConditionBuilder<>(fcb -> {
-                return new IfBuilder<>(ib -> {
+        private ConditionBuilder<BlockBuilder<IfBuilder<BlockBuilder<T>>>> ifCondition(boolean[] built) {
+            return new ConditionBuilder<>(bb -> {
+                return new IfBuilder<BlockBuilder<T>>(ib -> {
                     statements.add(ib);
                     built[0] = true;
                     return BlockBuilder.this;
-                }, fcb);
+                }, bb).thenDo();
             });
         }
 
@@ -2489,7 +2491,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
             });
         }
 
-        public BlockBuilder<IfBuilder<T>> elseIf(BodyBuilder condition) {
+        private BlockBuilder<IfBuilder<T>> elseIf(BodyBuilder condition) {
             if (conditions.containsKey(condition)) {
                 boolean isClosingElse = condition instanceof Empty;
                 throw new IllegalStateException("An else clause " + (isClosingElse ? ""
@@ -2499,14 +2501,23 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return thenDo();
         }
 
-        public BlockBuilder<IfBuilder<T>> elseDo() {
-            return elseIf(new Empty());
+        public BlockBuilder<T> elseDo() {
+            currCondition = new Empty();
+            return new BlockBuilder<>(bb -> {
+                conditions.put(currCondition, bb);
+                return endIf();
+            }, true);
         }
 
-        public IfBuilder<T> elseDo(Consumer<BlockBuilder<?>> c) {
-            BlockBuilder<IfBuilder<T>> bldr = elseDo();
-            c.accept(bldr);
-            return this;
+        public T elseDo(Consumer<BlockBuilder<?>> c) {
+            currCondition = new Empty();
+            boolean[] built =new boolean[1];
+            BlockBuilder<IfBuilder<T>> e = thenDo(built);
+            c.accept(e);
+            if (!built[0]) {
+                e.endBlock();
+            }
+            return endIf();
         }
 
         @Override
@@ -2816,6 +2827,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public T endCondition() {
             return converter.apply(this);
+        }
+
+        public void endCondition(Consumer<T> c) {
+            c.accept(converter.apply(this));
         }
 
         @Override

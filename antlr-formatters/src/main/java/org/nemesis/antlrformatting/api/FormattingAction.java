@@ -5,7 +5,11 @@ import org.antlr.v4.runtime.Token;
 
 /**
  * A formatting action, which can manipulate the FormattingContext it is passed
- * to prepend or append whitespace.
+ * to prepend or append whitespace. Most common formatting actions are
+ * implemented on {@link SimpleFormattingAction} - only directly implement this
+ * interface if you are doing something unusual, such as rewriting text or
+ * needing to gather multiple pieces of information from the lexing state and
+ * context to decide what to do.
  * <p>
  * A note on coalescing: A FormattingAction can both <i>prepend</i> and
  * <i>append</i> whitespace, before and after a token. In practice, these are
@@ -15,28 +19,30 @@ import org.antlr.v4.runtime.Token;
  * (prepending two spaces is almost always undesired, and two rules may
  * legitimately request appending two newlines and appending one newline, but
  * the desired outcome is unlikely to be <i>three</i> newlines). The coalescing
- * algorithm as currently implemented (but subject to improvement) is as
- * follows:
+ * algorithm is as follows:
  * </p>
  * <ol>
- * <li>If two identical prepend strings, do not combine, just use the string
- * once
- * </li><li>If one prepend string is the empty string, and the other is not, use
- * the non empty one
- * </li><li>If one string contains a newline and one doesn't, then
+ * <li>If one set of prepend instructions is empty, take the other</li>
+ * <li>If two identical prepend instructions, do not combine, performa that set
+ * of instructions once</li>
+ * <li>In the case of contradictory instructions:
  * <ul>
- * <li>If the one then doesn't consists of a single space, throw that one away
- * and use the other</li>
- * <li>Otherwise concatenate them, prepending the one which does contain a
- * newline to the one that doesn't</li>
+ * <li>Take the combination of the greater number of newlines and the greater
+ * indent depth from each, and combine one newline instruction with one indent
+ * instruction, if both newline and indent instructions are present, using
+ * whichever from each results in the greater number of newlines or spaces, with
+ * the following caveat: When encountering both newlines and an instruction to
+ * indent <i>exactly one space</i>, and no longer indent instruction is present,
+ * ignore the space instruction (otherwise rules to prepend a space before a
+ * keyword would combine with rules to put a newline after a semicolon to
+ * constantly create one-space-indented lines, which is pretty much never what
+ * is wanted).
+ * </li>
  * </ul>
- * </li><li>If neither contains a newline, take the longer of the two
- * </li><li>Prefer the one which contains more newlines if both contain newlines
- * </li><li>Otherwise take the shorter of the two</li>
- * </li><li>If none of the other tests have been matched, use the newer one (the
- * prepend string from the current token as opposed to the append string from
- * the preceding one</li>
+ * </li>
  * </ol>
+ *
+ * org.nemesis.antlrformatting.api.SimpleFormattingAction
  *
  * @author Tim Boudreau
  */
@@ -47,10 +53,10 @@ public interface FormattingAction {
      * Manipulate the FormattingContext to prepend or append whitespace.
      *
      * @param token The token
-     * @param ctx The formatting context, whose methods allow you to prepend
-     * or append whitespace and newlines to this token
-     * @param state The lexing state, which can be queried for values it
-     * was configured to provide
+     * @param ctx The formatting context, whose methods allow you to prepend or
+     * append whitespace and newlines to this token
+     * @param state The lexing state, which can be queried for values it was
+     * configured to provide
      */
     void accept(Token token, FormattingContext ctx, LexingState state);
 
@@ -65,6 +71,26 @@ public interface FormattingAction {
             @Override
             public String toString() {
                 return FormattingAction.this + " then " + other;
+            }
+        };
+    }
+
+    default FormattingAction trimmingWhitespace() {
+        return new FormattingAction() {
+            @Override
+            @SuppressWarnings("StringEquality")
+            public void accept(Token token, FormattingContext ctx, LexingState state) {
+                FormattingAction.this.accept(token, ctx, state);
+                String txt = token.getText();
+                String trimmed = txt.trim();
+                if (txt != trimmed && !txt.equals(trimmed)) {
+                    ctx.replace(trimmed);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return FormattingAction.this + " then trim whitespace";
             }
         };
     }
@@ -140,6 +166,69 @@ public interface FormattingAction {
                 return FormattingAction.this.toString() + " & " + other;
             }
         };
+    }
+
+    static FormattingAction rewriteTokenText(TokenRewriter rewriter) {
+        return FormattingAction.EMPTY.rewritingTokenTextWith(rewriter);
+    }
+
+    default FormattingAction rewritingTokenTextWith(TokenRewriter rewriter) {
+        return new FormattingAction() {
+            @Override
+            @SuppressWarnings("StringEquality")
+            public void accept(Token token, FormattingContext ctx, LexingState state) {
+                String origText = token.getText();
+                String revisedText = rewriter.rewrite(ctx.indentSize(), origText, ctx.currentCharPositionInLine(), state);
+                if (revisedText != null && origText != revisedText && !origText.equals(revisedText)) {
+                    ctx.replace(revisedText);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "Rewrite{" + rewriter + "}";
+            }
+        };
+    }
+
+    /**
+     * Wrap lines, using the passed formatting action in place of this one if
+     * the resulting line would be longer than the limit.
+     *
+     * @param limit Maximum characters per line
+     * @param wrapAction An action to apply instead in that case
+     * @return A formatting action
+     */
+    default FormattingAction wrappingLines(int limit, FormattingAction wrapAction) {
+        return new FormattingAction() {
+            @Override
+            public void accept(Token token, FormattingContext ctx, LexingState state) {
+                if (ctx.currentCharPositionInLine() + token.getText().length() > limit) {
+                    wrapAction.accept(token, ctx, state);
+                } else {
+                    FormattingAction.this.accept(token, ctx, state);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return FormattingAction.this.toString() + "-wrap-at-" + limit
+                        + "-with-" + wrapAction;
+            }
+        };
+    }
+
+    /**
+     * Wrap lines, double-indenting those that would be longer than the limit if
+     * this action were applied. Equivalent of <code>wrappingLines(limit,
+     * SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT)</code>
+     *
+     * @param limit
+     * @return
+     */
+    default FormattingAction wrappingLines(int limit) {
+        return wrappingLines(limit,
+                SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT);
     }
 
     /**

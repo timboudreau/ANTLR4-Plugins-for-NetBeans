@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 
 /**
@@ -22,7 +23,7 @@ public interface Criterion extends IntPredicate {
     // toString(), as
     // FormattingRules$FormattingAction$$Lambda$1/1007603019@5383967b
     // doesn't say much
-    public static Criterion matching(Vocabulary vocab, int val) {
+    static Criterion matching(Vocabulary vocab, int val) {
         return new Criterion() {
             private boolean logged;
 
@@ -49,7 +50,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public static Criterion notMatching(Vocabulary vocab, int val) {
+    static Criterion notMatching(Vocabulary vocab, int val) {
         return new Criterion() {
             private boolean logged;
 
@@ -76,8 +77,23 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public static Criterion anyOf(Vocabulary vocab, int... ints) {
-        assert ints.length > 0 : "Empty array";
+    public static Criterion NEVER = new Criterion() {
+        @Override
+        public boolean test(int value) {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "never-match-anything";
+        }
+    };
+
+    static Criterion anyOf(Vocabulary vocab, int... ints) {
+        if (ints.length == 0) {
+            return NEVER;
+        }
+//        assert ints.length > 0 : "Empty array";
         Arrays.sort(ints);
         return new Criterion() {
             private boolean logged;
@@ -112,7 +128,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public default Criterion or(Criterion other) {
+    default Criterion or(Criterion other) {
         return new Criterion() {
             @Override
             public boolean test(int value) {
@@ -126,7 +142,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public default Criterion and(Criterion other) {
+    default Criterion and(Criterion other) {
         return new Criterion() {
             @Override
             public boolean test(int value) {
@@ -140,7 +156,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public default <R> Predicate<R> convertedBy(ToIntFunction<R> func) {
+    default <R> Predicate<R> convertedBy(ToIntFunction<R> func) {
         return new Predicate<R>() {
             public boolean test(R val) {
                 return Criterion.this.test(func.applyAsInt(val));
@@ -153,7 +169,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public default Criterion firstNmatches(int max) {
+    default Criterion firstNmatches(int max) {
         return new Criterion() {
             private int count;
 
@@ -209,7 +225,7 @@ public interface Criterion extends IntPredicate {
     }
 
     @Override
-    public default Criterion negate() {
+    default Criterion negate() {
         return new Criterion() {
             public boolean test(int val) {
                 return !Criterion.this.test(val);
@@ -261,7 +277,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    public static Criterion equalTo(int expected) {
+    static Criterion equalTo(int expected) {
         return new Criterion() {
             @Override
             public boolean test(int value) {
@@ -276,7 +292,7 @@ public interface Criterion extends IntPredicate {
     }
 
     @Override
-    public default Criterion or(IntPredicate other) {
+    default Criterion or(IntPredicate other) {
         return new Criterion() {
             @Override
             public boolean test(int value) {
@@ -291,7 +307,7 @@ public interface Criterion extends IntPredicate {
     }
 
     @Override
-    public default Criterion and(IntPredicate other) {
+    default Criterion and(IntPredicate other) {
         return new Criterion() {
             @Override
             public boolean test(int value) {
@@ -301,6 +317,105 @@ public interface Criterion extends IntPredicate {
             @Override
             public String toString() {
                 return Criterion.this.toString() + " & " + other.toString();
+            }
+        };
+    }
+
+    default Criterion firstNMatches(int n) {
+        return new Criterion() {
+            int counter = 0;
+
+            @Override
+            public boolean test(int value) {
+                return counter++ < n && Criterion.this.test(value);
+            }
+
+            @Override
+            public String toString() {
+                return Criterion.this.toString() + " (first " + n + " matches)";
+            }
+
+        };
+    }
+
+    default Criterion precededby(int n) {
+        return new Criterion() {
+            int prev = -1;
+
+            @Override
+            public boolean test(int value) {
+                boolean result = prev == n && Criterion.this.test(value);
+                prev = value;
+                return result;
+            }
+
+            @Override
+            public String toString() {
+                return Criterion.this.toString() + " (first " + n + " matches)";
+            }
+
+        };
+    }
+
+    default Criterion firstOfSequence() {
+        return new Criterion() {
+            int ct = -1;
+
+            @Override
+            public boolean test(int value) {
+                boolean result = Criterion.this.test(value);
+                if (result) {
+                    ct++;
+                } else {
+                    ct = -1;
+                }
+                return result && ct == 0;
+            }
+
+            @Override
+            public String toString() {
+                return Criterion.this.toString() + " (first-in-series)";
+            }
+        };
+    }
+
+    default Criterion andSubsequent(int n) {
+        return new Criterion() {
+            int ct = -1;
+
+            @Override
+            public boolean test(int value) {
+                if (ct > 0) {
+                    if (ct++ > n) {
+                        ct = -1;
+                        return false;
+                    }
+                    return true;
+                }
+                boolean result = Criterion.this.test(value);
+                if (result) {
+                    ct = 0;
+                }
+                return result;
+            }
+
+            @Override
+            public String toString() {
+                return Criterion.this.toString() + " (and subsequent" + n + " values of any type)";
+            }
+        };
+    }
+
+    default Predicate<Token> toTokenPredicate() {
+        return new Predicate<Token>() {
+            @Override
+            public boolean test(Token t) {
+                return Criterion.this.test(t.getType());
+            }
+
+            @Override
+            public String toString() {
+                return "Token<" + Criterion.this.toString() + ">";
             }
         };
     }

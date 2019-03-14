@@ -18,7 +18,7 @@ enum RegionExtractType implements Function<Object, int[]> {
     TOKEN, TERMINAL_NODE, INT_ARRAY, PARSER_RULE_CONTEXT, TERMINAL_NODE_LIST;
 
     private static final Logger LOG = Logger.getLogger(RegionExtractType.class.getName());
-    private static final Level PERVERSITIES_LOG_LEVEL = Level.WARNING;
+    private static final Level PERVERSITIES_LOG_LEVEL = Level.FINER;
 
     @SuppressWarnings("unchecked")
     public <K, TType> BiConsumer<K, TType> wrap(BiConsumer<K, int[]> c) {

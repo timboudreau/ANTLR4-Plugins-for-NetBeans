@@ -8,12 +8,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
+import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
+import org.openide.util.Exceptions;
 
 /**
  * The LexingState, during a parse, captures numbers and booleans about the
@@ -108,11 +111,12 @@ public final class LexingState {
 
     <T extends Enum<T>> String toString(Class<T> type) {
         StringBuilder sb = new StringBuilder("LexingState{");
+//        sb.append("kinds=").append(Arrays.toString(kinds));
         int initialLength = sb.length();
         for (T t : type.getEnumConstants()) {
-            if (!isSet(t)) {
-                continue;
-            }
+//            if (!isSet(t)) {
+//                continue;
+//            }
             if (kinds[t.ordinal()] != null) {
                 if (sb.length() != initialLength) {
                     sb.append(", ");
@@ -157,8 +161,8 @@ public final class LexingState {
     }
 
     /**
-     * Get the first value (for stack-oriented values) assigned to
-     * one of the passed keys.
+     * Get the first value (for stack-oriented values) assigned to one of the
+     * passed keys.
      *
      * @param <T> The key type
      * @param first The first key
@@ -182,10 +186,10 @@ public final class LexingState {
     }
 
     /**
-     * For stack-oriented enum keys, get the <i>size</i> of the stack -
-     * for example, if you are counting nested braces, this would give
-     * you the nesting depth, which might reflect how many stops of
-     * indentation to apply.
+     * For stack-oriented enum keys, get the <i>size</i> of the stack - for
+     * example, if you are counting nested braces, this would give you the
+     * nesting depth, which might reflect how many stops of indentation to
+     * apply.
      *
      * @param <T> The key type
      * @param item The key
@@ -202,8 +206,7 @@ public final class LexingState {
     }
 
     /**
-     * Get a list of all currently pushed values for a stack-oriented
-     * key.
+     * Get a list of all currently pushed values for a stack-oriented key.
      *
      * @param <T>
      * @param key
@@ -237,8 +240,8 @@ public final class LexingState {
     }
 
     /**
-     * Get the value for an item.  If the item was specified as a boolean,
-     * true = 1 and false = 0.
+     * Get the value for an item. If the item was specified as a boolean, true =
+     * 1 and false = 0.
      *
      * @param <T> The type
      * @param key The key
@@ -306,16 +309,25 @@ public final class LexingState {
         }
 
         @Override
-        public String reformat(int start, int end, int indentSize, FormattingRules rules, LexingState state, Criterion whitespace, Predicate<Token> debug, Lexer lexer, String[] modeNames) {
+        public FormattingResult reformat(int start, int end, int indentSize,
+                FormattingRules rules, LexingState state, Criterion whitespace,
+                Predicate<Token> debug, Lexer lexer, String[] modeNames,
+                int caretPos, IntConsumer updateWithCaretPosition) {
             EverythingTokenStream tokens = new EverythingTokenStream(lexer, modeNames);
             TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
             return new FormattingContextImpl(rew, start, end, indentSize,
                     rules, state, whitespace, debug)
-                    .go(lexer, tokens);
+                    .go(lexer, tokens, caretPos, updateWithCaretPosition);
         }
     }
 
     static {
         FormattingAccessor.DEFAULT = new FA();
+        try {
+            // Ensure it's initialized
+            Class.forName(AntlrFormatterProvider.class.getName(), true, LexingState.class.getClassLoader());
+        } catch (ClassNotFoundException ex) {
+            Exceptions.printStackTrace(ex);
+        }
     }
 }

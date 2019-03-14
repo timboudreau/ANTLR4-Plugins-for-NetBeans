@@ -18,7 +18,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
-import org.nemesis.registration.utils.StringUtils;
+import org.nemesis.misc.utils.StringUtils;
 import org.nemesis.misc.utils.function.IOBiConsumer;
 
 /**

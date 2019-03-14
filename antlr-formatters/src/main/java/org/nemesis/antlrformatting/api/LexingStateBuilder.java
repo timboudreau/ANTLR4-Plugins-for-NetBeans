@@ -84,7 +84,11 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         for (FinishableIncrementDecrementBuilder<T, R> b : builders) {
             assert kinds[b.item.ordinal()] == null;
             kinds[b.item.ordinal()] = Kind.COUNTER;
-            befores.add(buildOne(b, values));
+            if (b.before) {
+                afters.add(buildOne(b, values));
+            } else {
+                befores.add(buildOne(b, values));
+            }
         }
         for (FinishablePushPositionBuilder<T, R> pusher : pushers) {
             assert kinds[pusher.item.ordinal()] == null;
@@ -1103,6 +1107,7 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         private final T item;
         private final LexingStateBuilder<T, R> builder;
         private final IntPredicate tokenMatcher;
+        private boolean before;
 
         FinishableIncrementDecrementBuilder(LexingStateBuilder<T, R> builder, IntPredicate tokenMatcher, T item) {
             this.builder = builder;
@@ -1124,6 +1129,21 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
 
         public LexingStateBuilder<T, R> clearingWhenTokenEncountered(int token, int... more) {
             return clearingWhenTokenEncountered(matchingAny(token, more));
+        }
+
+        public LexingStateBuilder<T, R> decrementingBeforeProcessingTokenWhenTokenEncountered(int token) {
+            before = true;
+            return decrementingWhenTokenEncountered(token);
+        }
+
+        public LexingStateBuilder<T, R> decrementingBeforeProcessingTokenWhenTokenEncountered(IntPredicate token) {
+            before = true;
+            return decrementingWhenTokenEncountered(token);
+        }
+
+        public LexingStateBuilder<T, R> decrementingBeforeProcessingTokenWhenTokenEncountered(int token, int... more) {
+            before = true;
+            return decrementingWhenTokenEncountered(token, more);
         }
 
         public LexingStateBuilder<T, R> decrementingWhenTokenEncountered(int token) {

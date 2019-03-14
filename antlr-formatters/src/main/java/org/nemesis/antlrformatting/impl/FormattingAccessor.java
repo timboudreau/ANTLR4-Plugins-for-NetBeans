@@ -28,7 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlrformatting.impl;
 
-import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -36,10 +36,10 @@ import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.nemesis.antlrformatting.api.Criterion;
+import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingState;
 import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
-import org.netbeans.modules.csl.api.Formatter;
 
 /**
  *
@@ -48,7 +48,6 @@ import org.netbeans.modules.csl.api.Formatter;
 public abstract class FormattingAccessor {
 
     public static FormattingAccessor DEFAULT;
-    public static Function<AntlrFormatterProvider, Formatter> FMT_CONVERT;
 
     public static FormattingAccessor getDefault() {
         if (DEFAULT != null) {
@@ -69,7 +68,7 @@ public abstract class FormattingAccessor {
             Logger.getLogger(FormattingAccessor.class.getName()).log(Level.SEVERE,
                     null, ex);
         }
-        assert FMT_CONVERT != null : "The FMT_CONVERT field must be initialized";
+//        assert FMT_CONVERT != null : "The FMT_CONVERT field must be initialized";
 
         return DEFAULT;
     }
@@ -77,11 +76,7 @@ public abstract class FormattingAccessor {
     public abstract TokenStream createCompleteTokenStream(Lexer lexer, String[] modeNames);
 
 //    public abstract String reformat(AntlrFormatterProvider<?,?> provider, int start, int end, String text);
-    public abstract String reformat(int start, int end, int indentSize,
+    public abstract FormattingResult reformat(int start, int end, int indentSize,
             FormattingRules rules, LexingState state, Criterion whitespace,
-            Predicate<Token> debug, Lexer lexer, String[] modeNames);
-
-    public Formatter toFormatter(AntlrFormatterProvider prov) {
-        return FMT_CONVERT.apply(prov);
-    }
+            Predicate<Token> debug, Lexer lexer, String[] modeNames, int caretPos, IntConsumer updateWithCaretPosition);
 }

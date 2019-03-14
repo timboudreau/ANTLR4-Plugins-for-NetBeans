@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 /**
- * Utility methods cor constructing predicates which implement toString()
+ * Utility methods for constructing predicates which implement toString()
  * meaningfully for logging purposes.
  *
  * @author Tim Boudreau
@@ -33,6 +33,19 @@ public final class Predicates {
         return result;
     }
 
+    private static String stringify(int[] array) {
+        int[] copy = Arrays.copyOf(array, array.length);
+        Arrays.sort(copy);
+        StringBuilder sb = new StringBuilder();
+        for (int i=0; i < copy.length; i++) {
+            sb.append(copy[i]);
+            if (i != copy.length-1) {
+                sb.append(", ");
+            }
+        }
+        return sb.toString();
+    }
+
     /**
      * Combine a value and an array and assert that there are no duplicates.
      *
@@ -44,7 +57,7 @@ public final class Predicates {
         int[] vals = new int[more.length + 1];
         vals[0] = prepend;
         System.arraycopy(more, 0, vals, 1, more.length);
-        assert noDuplicates(vals) : "Duplicate values in " + Arrays.toString(vals);
+        assert noDuplicates(vals) : "Duplicate values in " + stringify(vals);
         return vals;
     }
 

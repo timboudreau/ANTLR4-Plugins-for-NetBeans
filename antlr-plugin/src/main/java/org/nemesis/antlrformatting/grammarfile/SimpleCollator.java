@@ -34,10 +34,6 @@ final class SimpleCollator implements Iterator<String>, Iterable<String> {
             return Character.isWhitespace(ch);
         };
     }
-
-    static SequenceIntPredicate defaultLineBreak() {
-        return SequenceIntPredicate.toMatchSequence('\n', '\n');
-    }
     private boolean needAdvance = true;
     private final StringBuilder scratch = new StringBuilder(32);
     private boolean hasEmittedCharacters;

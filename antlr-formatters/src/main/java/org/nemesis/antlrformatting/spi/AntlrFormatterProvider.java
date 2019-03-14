@@ -1,7 +1,7 @@
 /*
 BSD License
 
-Copyright (c) 2016-2018, Frédéric Yvon Vinet, Tim Boudreau
+Copyright (c) 2018-2019, Tim Boudreau
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -28,12 +28,9 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlrformatting.spi;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -46,41 +43,40 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.nemesis.antlrformatting.api.Criteria;
 import org.nemesis.antlrformatting.api.Criterion;
+import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingState;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
-import org.netbeans.editor.BaseDocument;
-import org.netbeans.modules.csl.api.Formatter;
-import org.netbeans.modules.csl.spi.ParserResult;
 import org.netbeans.modules.editor.indent.spi.Context;
-import org.netbeans.spi.lexer.MutableTextInput;
+import org.netbeans.modules.editor.indent.spi.ReformatTask;
 
 /**
  * Service Provider Interface for formatters which use this library to format
- * sources using Antlr lexers. The critial methods are populateLexingState() and
- * populateFormattingRules() - these allow you to configure the operation of
- * formatting.
+ * sources using Antlr lexers. The critial methods are configure() and
+ * whitespace() - these allow you to configure the operation of formatting.
+ * Implementations should be entirely stateless.
  *
  * @author Tim Boudreau
  */
 public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum>> {
 
     private final Class<StateEnum> enumType;
+    private Criterion whitespaceCriterion;
+
+    static final Logger LOGGER = Logger.getLogger(
+            AntlrFormatterProvider.class.getName());
 
     protected AntlrFormatterProvider(Class<StateEnum> enumType) {
         this.enumType = enumType;
     }
 
-    protected int indentSize() {
+    protected int indentSize(C config) {
         return 4;
     }
 
-    protected int hangingIndentSize() {
-        return indentSize() * 2;
-    }
-
     protected Lexer createLexer(Document document) throws BadLocationException {
+//        DocumentUtilities.getText(document);
         return createLexer(CharStreams.fromString(document.getText(0, document.getLength())));
     }
 
@@ -134,164 +130,87 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
      * you define as keys for fetching integers and booleans that can be used
      * directly by your formatting code, or to selectively enable formatting
      * rules only when the value associated with some key(s) is greater than,
-     * less than or equal to a value.
+     * less than or equal to a value. Then configure the set of formatting rules
+     * that will be applied to reformat the document.
      *
      * @param stateBuilder A lexingStateBuilder that you can configure
      * @param config The configuration object (user preferences, project
      * settings or similar) which may affect how you configure the passed
      * builder.
      */
-    protected abstract void populateLexingState(LexingStateBuilder<StateEnum, ?> stateBuilder, C config);
+    protected abstract void configure(LexingStateBuilder<StateEnum, ?> stateBuilder, FormattingRules rules, C config);
 
-    /**
-     * Configure the set of formatting rules that will be applied to reformat
-     * the document.
-     *
-     * @param rules The formatting rules, which can be added to - rules can be
-     * conditional on a wide variety of things.
-     * @param config The configuration object (user preferences, project
-     * settings or similar) which may affect how you configure the passed
-     * builder.
-     */
-    protected abstract void populateFormattingRules(FormattingRules rules, C config);
+    Criterion _whitespace() {
+        if (whitespaceCriterion != null) {
+            return whitespaceCriterion;
+        }
+        return whitespaceCriterion = whitespace();
+    }
 
     /**
      * Create a criterion which will match all tokens which should be considered
-     * to be whitespace.
+     * to be whitespace. By default this attempts heuristic name-matching and
+     * literal name content matching to figure out what is a whitespce token.
+     * This will most likely be wrong.
      *
      * @return A criterion
      */
-    protected abstract Criterion whitespace();
-
-    static final class ReflectiveFormatterProvider<L extends Lexer, C, StateEnum extends Enum<StateEnum>> extends AntlrFormatterProvider<C, StateEnum> {
-
-        private final Class<L> lexer;
-        private final Vocabulary vocabulary;
-        private final Criterion whitespace;
-        private final BiConsumer<LexingStateBuilder<StateEnum, ?>, C> statePopulator;
-        private final Function<Context, C> configFinder;
-        private final BiConsumer<FormattingRules, C> rulesPopulator;
-        private final String[] modeNames;
-
-        ReflectiveFormatterProvider(Class<L> lexer,
-                BiConsumer<LexingStateBuilder<StateEnum, ?>, C> statePopulator,
-                BiConsumer<FormattingRules, C> rulesPopulator,
-                Function<Context, C> configFinder,
-                int indentSize,
-                Predicate<Token> debug,
-                Class<StateEnum> stateType,
-                String... whitespaceRuleNames) throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
-            super(stateType);
-            this.lexer = lexer;
-            Field vocabField = lexer.getField("VOCABULARY");
-            vocabulary = (Vocabulary) vocabField.get(null);
-            int[] fieldIds = new int[whitespaceRuleNames.length];
-            for (int i = 0; i < whitespaceRuleNames.length; i++) {
-                try {
-                    Field rule = lexer.getField(whitespaceRuleNames[i]);
-                    assert rule.getType() == Integer.TYPE : "Field " + whitespaceRuleNames[i]
-                            + " on " + lexer + " is not of type int";
-                    int val = rule.getInt(null);
-                    fieldIds[i] = val;
-                } catch (NoSuchFieldException ex) {
-                    throw new IllegalStateException("No field " + whitespaceRuleNames[i] + " on " + lexer.getName());
+    protected Criterion whitespace() {
+        Vocabulary vocab = vocabulary();
+        List<Integer> all = new ArrayList<>();
+        // Do our best here, which is likely to be pretty limited
+        for (int i = 1; i <= vocab.getMaxTokenType(); i++) {
+            String litName = vocab.getLiteralName(i);
+            if (litName != null) {
+                if (litName.length() > 2 && litName.charAt(0) == '\'' && litName.charAt(litName.length() - 1) == '\'') {
+                    litName = litName.substring(1, litName.length() - 1);
                 }
             }
-            Field modeNamesField = lexer.getField("modeNames");
-            assert modeNamesField.getType() == String[].class : "mode names field is not a string on " + lexer;
-            modeNames = (String[]) modeNamesField.get(null);
-            whitespace = Criteria.forVocabulary(vocabulary).anyOf(fieldIds);
-            this.configFinder = configFinder;
-            this.statePopulator = statePopulator;
-            this.rulesPopulator = rulesPopulator;
-        }
-
-        @Override
-        protected C configuration(Context ctx) {
-            return configFinder.apply(ctx);
-        }
-
-        @Override
-        protected Lexer createLexer(CharStream stream) {
-            try {
-                Constructor<L> con = lexer.getConstructor(CharStream.class);
-                return con.newInstance(stream);
-            } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                throw new IllegalArgumentException("Could not invoke a"
-                        + " constructor that takes a single argument of "
-                        + CharStream.class.getName() + " on "
-                        + lexer.getName(), ex);
+            boolean allWhitespace = true;
+            for (int j = 0; j < litName.length(); j++) {
+                if (!Character.isWhitespace(litName.charAt(i))) {
+                    allWhitespace = false;
+                    break;
+                }
+            }
+            if (allWhitespace) {
+                all.add(i);
+            } else {
+                String progName = vocab.getSymbolicName(i);
+                if (progName != null) {
+                    if (progName.toLowerCase().contains("whitespace")) {
+                        all.add(i);
+                    }
+                }
             }
         }
-
-        @Override
-        protected Vocabulary vocabulary() {
-            return vocabulary;
+        int[] ints = new int[all.size()];
+        for (int i = 0; i < ints.length; i++) {
+            ints[i] = all.get(i);
         }
-
-        @Override
-        protected String[] modeNames() {
-            return modeNames;
-        }
-
-        @Override
-        protected void populateLexingState(LexingStateBuilder<StateEnum, ?> e, C config) {
-            statePopulator.accept(e, config);
-        }
-
-        @Override
-        protected void populateFormattingRules(FormattingRules rules, C config) {
-            rulesPopulator.accept(rules, config);
-        }
-
-        @Override
-        protected Criterion whitespace() {
-            return whitespace;
-        }
+        Arrays.sort(ints);
+//        int[] ints = (int[]) Utilities.toPrimitiveArray(all.toArray());
+        Criterion result = Criteria.forVocabulary(vocab).anyOf(ints);
+        LOGGER
+                .log(Level.WARNING, "whitespace() is not implemented in {0}. "
+                        + "Using heuristically determined whitespace tokens "
+                        + "(or perhaps none).  Override it or specify the "
+                        + "whitespace tokens on your registration annotation to "
+                        + "get a formatter that works correctly - this probably "
+                        + "will not: {1}", new Object[]{getClass().getName(),
+                    result});
+        return result;
     }
 
-    private static void withMutableTextInputDisabled(Document document, Runnable run) {
-        MutableTextInput<?> mti = (MutableTextInput<?>) document.getProperty(MutableTextInput.class);
-        if (mti != null) {
-            mti.tokenHierarchyControl().setActive(false);
-        }
-        try {
-            run.run();
-        } finally {
-            if (mti != null) {
-                mti.tokenHierarchyControl().setActive(true);
-            }
-        }
-    }
+    static class RulesAndState {
 
-    private static void withDocumentLock(Document doc, Runnable run) {
-        if (doc instanceof BaseDocument) {
-            ((BaseDocument) doc).runAtomic(run);
-        } else {
-            doc.render(run);
+        final FormattingRules rules;
+        final LexingState state;
+
+        public RulesAndState(FormattingRules rules, LexingState state) {
+            this.rules = rules;
+            this.state = state;
         }
-    }
-
-    private static void replaceInDocument(Document doc, int start, int end, String replacement) throws BadLocationException {
-        if (doc instanceof BaseDocument) {
-            BaseDocument document = (BaseDocument) doc;
-            document.replace(start, end, replacement, null);
-        } else {
-            doc.remove(start, end - start);
-            doc.insertString(start, replacement, null);
-        }
-    }
-
-    FormattingRules rules(C config) {
-        FormattingRules rules = new FormattingRules(vocabulary(), modeNames());
-        populateFormattingRules(rules, config);
-        return rules;
-    }
-
-    LexingState state(C config) {
-        LexingStateBuilder<StateEnum, LexingState> bldr = LexingState.builder(enumType);
-        populateLexingState(bldr, config);
-        return bldr.build();
     }
 
     /**
@@ -305,15 +224,34 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         return AlwaysFalse.INSTANCE;
     }
 
-    Formatter createFormatter() {
-        return new Fmt();
+    public final ReformatTask createFormatter(Context context) {
+        return new AntlrReformatTask(new DocumentReformatRunner<>(this), context);
     }
 
-    String arrToString(String[] arr) {
-        if (arr == null) {
-            return "null";
-        }
-        return Arrays.toString(arr);
+    RulesAndState populate(C config) {
+        FormattingRules rules = new FormattingRules(vocabulary(), modeNames());
+        LexingStateBuilder<StateEnum, LexingState> stateBuilder = LexingState.builder(enumType);
+        configure(stateBuilder, rules, config);
+        return new RulesAndState(rules, stateBuilder.build());
+    }
+
+    /**
+     * Reformat the passed string, returning only that portion which is
+     * reformatted.  Note that if a range of the text is requested to be
+     * reformatted, and the boundaries are in the middle of tokens, only those
+     * tokens that are completely within the bounds requested will be reformatted,
+     * and the returned FormattingResult will have the position of the actual
+     * start and end of what was reformatted.
+     *
+     * @param text Some text
+     * @param from The starting position (greater than equal to zero)
+     * @param to The ending position
+     * @param config The configuration object to use for configuring the
+     * formatter
+     * @return A formatting result
+     */
+    public FormattingResult reformat(String text, int from, int to, C config) {
+        return reformat(CharStreams.fromString(text), from, to, config);
     }
 
     /**
@@ -327,8 +265,8 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
      * formatter
      * @return A reformatted string
      */
-    public String reformat(String text, int from, int to, C config) {
-        return reformat(CharStreams.fromString(text), from, to, config);
+    public String reformattedString(String text, int from, int to, C config) {
+        return reformat(text, from, to, config).text();
     }
 
     /**
@@ -342,75 +280,19 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
      * formatter
      * @return A reformatted string
      */
-    public String reformat(CharStream text, int from, int to, C config) {
-        FormattingRules rules = rules(config);
-        LexingState state = state(config);
-        Criterion whitespace = whitespace();
+    public FormattingResult reformat(CharStream text, int from, int to, C config) {
+        RulesAndState rs = populate(config);
+        FormattingRules rules = rs.rules;
+        LexingState state = rs.state;
+        Criterion whitespace = _whitespace();
         Predicate<Token> debug = debugLogPredicate();
         Lexer lexer = createLexer(text);
         String[] modeNames = modeNames();
-        return FormattingAccessor.getDefault().reformat(from, to, indentSize(), rules,
-                state, whitespace, debug, lexer, modeNames);
+        return FormattingAccessor.getDefault().reformat(from, to, indentSize(config), rules,
+                state, whitespace, debug, lexer, modeNames, -1, null);
     }
 
-    class Fmt implements Formatter {
-
-        String reformat(Lexer lexer, int start, int end, C config) {
-            FormattingRules rules = rules(config);
-            LexingState state = state(config);
-            Criterion whitespace = whitespace();
-            Predicate<Token> debug = debugLogPredicate();
-            String[] modeNames = modeNames();
-            if (modeNames == null || modeNames.length == 0) {
-                throw new IllegalStateException(AntlrFormatterProvider.this
-                        + " does not correctly implement modeNames() - got " + arrToString(modeNames));
-            }
-            return FormattingAccessor.getDefault().reformat(start, end, indentSize(), rules,
-                    state, whitespace, debug, lexer, modeNames);
-        }
-
-        @Override
-        public void reformat(Context cntxt, ParserResult pr) {
-            C config = configuration(cntxt);
-            Document document = (Document) cntxt.document();
-            int start = cntxt.startOffset();
-            int end = cntxt.endOffset();
-            withDocumentLock(cntxt.document(), () -> {
-                withMutableTextInputDisabled(document, () -> {
-                    try {
-                        Lexer lexer = createLexer(document);
-                        lexer.removeErrorListeners();
-                        String reformatted = reformat(lexer, start, end, config);
-                        replaceInDocument(document, start, end, reformatted);
-                    } catch (BadLocationException ex) {
-                        Logger.getLogger(Fmt.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                });
-            });
-        }
-
-        @Override
-        public void reindent(Context context) {
-            // XXX implement with a lexing state enum constant
-        }
-
-        @Override
-        public boolean needsParserResult() {
-            return false;
-        }
-
-        @Override
-        public int indentSize() {
-            return AntlrFormatterProvider.this.indentSize();
-        }
-
-        @Override
-        public int hangingIndentSize() {
-            return AntlrFormatterProvider.this.hangingIndentSize();
-        }
-    }
-
-    static final class AlwaysFalse implements Predicate<Token> {
+    private static final class AlwaysFalse implements Predicate<Token> {
 
         private static final AlwaysFalse INSTANCE = new AlwaysFalse();
 
@@ -421,11 +303,9 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         public boolean test(Token t) {
             return false;
         }
-    }
 
-    static {
-        FormattingAccessor.FMT_CONVERT = afp -> {
-            return afp.createFormatter();
-        };
+        public String toString() {
+            return "false";
+        }
     }
 }

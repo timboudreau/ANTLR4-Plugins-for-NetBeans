@@ -39,7 +39,7 @@ import static org.nemesis.antlrformatting.api.util.Predicates.combine;
  * spaces, newlines, increase or decrease indent level, etc.)</li>
  * <li>Rules may be conditioned on a wide variety of things, such as lexer mode,
  * token type, and the contents of the LexingState configured when setting up
- * your formatter;  the LexingState contains metrics about other tokens in
+ * your formatter; the LexingState contains metrics about other tokens in
  * relation to the current one, as you have configured it.</li>
  * </ul>
  *
@@ -96,6 +96,10 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         stateCriteria.add(pred);
     }
 
+    public String name() {
+        return name == null ? toString() : name;
+    }
+
     /**
      * Condition the execution of this rule on a value in the lexing state
      * during parsing - this can be something like "when this is the last token
@@ -109,7 +113,10 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      */
     public <T extends Enum<T>> LexingStateCriteriaBuilder<T, FormattingRule> when(T key) {
         assert key != null : "key null";
-        return new LexingStateCriteriaBuilderImpl<>(key, this);
+        return new LexingStateCriteriaBuilderImpl<>(key, (lscbi) -> {
+            lscbi.apply(this);
+            return this;
+        });
     }
 
     /**
@@ -121,12 +128,14 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @param key The key
      * @return A builder that can condition execution on multiple lexing states
      */
-    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder> whenCombinationOf(T key) {
+    public <T extends Enum<T>> LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<FormattingRule>> whenCombinationOf(T key) {
         assert key != null : "key null";
-        return new LogicalLexingStateCriteriaBuilder(this).start(key);
+        return new LogicalLexingStateCriteriaBuilder<>((LogicalLexingStateCriteriaBuilder<FormattingRule> llscb) -> {
+            llscb.consumer().accept(FormattingRule.this);
+            return FormattingRule.this;
+        }).start(key);
     }
 
-//    public <T extends Enum<T>> FormattingContext when(T key)
     /**
      * Adds an optional name used for logging/debugging purposes.
      *
@@ -201,6 +210,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
 
     void deactivate() {
         temporarilyInactive = true;
+    }
+
+    /**
+     * Rewrite the text of a token.
+     *
+     * @param rewriter A token rewriter
+     * @return this
+     */
+    public FormattingRule rewritingTokenTextWith(TokenRewriter rewriter) {
+        return format(FormattingAction.rewriteTokenText(rewriter));
     }
 
     /**
@@ -385,6 +404,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      */
     public FormattingRule wherePreviousTokenTypeNot(int item) {
         return wherePreviousTokenType(Criterion.notMatching(rules.vocabulary(), item));
+    }
+
+    /**
+     * Skip this rule when processing the first token in a source file (to avoid
+     * inserting leading whitespace).
+     *
+     * @return this
+     */
+    public FormattingRule whereNotFirstTokenInSource() {
+        return wherePreviousTokenTypeNot(-1);
     }
 
     /**
@@ -727,6 +756,9 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             sb.append(' ');
         }
         sb.append("action ").append(action);
+        if (name != null) {
+            sb.append(":").append(name);
+        }
         return sb.append('}').toString();
     }
 
