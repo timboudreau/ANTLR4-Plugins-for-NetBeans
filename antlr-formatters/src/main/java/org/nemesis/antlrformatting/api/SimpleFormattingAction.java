@@ -3,6 +3,7 @@ package org.nemesis.antlrformatting.api;
 import java.util.EnumSet;
 import java.util.Set;
 import org.antlr.v4.runtime.Token;
+import org.nemesis.misc.utils.StringUtils;
 
 /**
  * Simple formatting action implementations, usable for most tasks.
@@ -23,14 +24,29 @@ public enum SimpleFormattingAction implements FormattingAction {
     APPEND_NEWLINE_AND_INDENT,
     APPEND_NEWLINE_AND_DOUBLE_INDENT;
 
+    /**
+     * If this enum constant specifies indenting, specify a specific number of
+     * tab stops to indent by.
+     *
+     * @param amount The number of tab stops
+     * @return a wrapper for this action
+     */
     public FormattingAction by(int amount) {
         return new IndentByAmount(this, amount, false);
     }
 
+    /**
+     * If this enum constant specifies indenting, specify a specific number of
+     * <i>spaces</i> to indent by.
+     *
+     * @param amount The number of spaces
+     * @return a wrapper for this action
+     */
     public FormattingAction bySpaces(int amount) {
         return new IndentByAmount(this, amount, true);
     }
 
+    @Override
     public String toString() {
         return name().toLowerCase();
     }
@@ -147,6 +163,18 @@ public enum SimpleFormattingAction implements FormattingAction {
         }
     }
 
+    /**
+     * For constants that support indenting, specify the number of tab stops to
+     * indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed.
+     *
+     * @param <T> The enum type
+     * @param amountKey The key to use to look up the number of tab stops to
+     * indent
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
     public <T extends Enum<T>> FormattingAction by(T amountKey) {
         if (!KeyAction.SUPPORTED.contains(this)) {
             throw new IllegalArgumentException("Not supported for keys: " + this);
@@ -154,6 +182,17 @@ public enum SimpleFormattingAction implements FormattingAction {
         return new KeyAction<>(amountKey, this);
     }
 
+    /**
+     * For constants that support indenting, specify the number of <i>spaces</i>
+     * to indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed.
+     *
+     * @param <T> The enum type
+     * @param amountKey The key to use to look up the number of spaces to indent
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
     public <T extends Enum<T>> FormattingAction bySpaces(T amountKey) {
         if (!KeyAction.SUPPORTED.contains(this)) {
             throw new IllegalArgumentException("Not supported for keys: " + this);
@@ -161,6 +200,20 @@ public enum SimpleFormattingAction implements FormattingAction {
         return new KeyAction<>(amountKey, this, true);
     }
 
+    /**
+     * For constants that support indenting, specify the number of tab stops to
+     * indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed. This method
+     * lets you check multiple keys, using the first one that's not unset.
+     *
+     * @param <T> The enum type
+     * @param amountKey The key to use to look up the number of tab stops to
+     * indent
+     * @param more Additional keys
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
     @SafeVarargs
     public final <T extends Enum<T>> FormattingAction by(T amountKey, T... more) {
         if (!KeyAction.SUPPORTED.contains(this)) {
@@ -169,6 +222,19 @@ public enum SimpleFormattingAction implements FormattingAction {
         return new KeyAction<>(amountKey, more, this);
     }
 
+    /**
+     * For constants that support indenting, specify the number of <i>spaces</i>
+     * to indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed. This method
+     * lets you check multiple keys, using the first one that's not unset.
+     *
+     * @param <T> The enum type
+     * @param amountKey The key to use to look up the number of spaces to indent
+     * @param more Additional keys
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
     @SafeVarargs
     public final <T extends Enum<T>> FormattingAction bySpaces(T amountKey, T... more) {
         if (!KeyAction.SUPPORTED.contains(this)) {
@@ -217,21 +283,13 @@ public enum SimpleFormattingAction implements FormattingAction {
 
         @Override
         public String toString() {
-            return action.name() + "(" + keysString()
-                    + (spacesNotStops ? "-spaces" : "-tab-stops")
-                    + ")";
-        }
-
-        private String keysString() {
-            if (more == null) {
-                return key.name();
-            } else {
-                StringBuilder sb = new StringBuilder(key.name());
-                for (T more1 : more) {
-                    sb.append('|').append(more1.name());
-                }
-                return sb.toString();
+            String result = action.toString() + "-by-"
+                    + key.toString();
+            if (more != null) {
+                result += "-" + StringUtils.join("-", (Object[]) more);
             }
+            result += spacesNotStops ? "-spaces" : "-tab-stops";
+            return result;
         }
 
         @Override
@@ -372,5 +430,4 @@ public enum SimpleFormattingAction implements FormattingAction {
                 throw new AssertionError();
         }
     }
-
 }

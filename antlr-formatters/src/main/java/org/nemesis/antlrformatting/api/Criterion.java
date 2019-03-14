@@ -357,7 +357,7 @@ public interface Criterion extends IntPredicate {
         };
     }
 
-    default Criterion firstOfSequence() {
+    default Criterion firstInSeries() {
         return new Criterion() {
             int ct = -1;
 
