@@ -8,5 +8,4 @@ package org.nemesis.data.graph;
 interface DoubleIntFunction {
 
     double apply(int i);
-
 }

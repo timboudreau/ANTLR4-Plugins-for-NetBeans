@@ -1,7 +1,6 @@
 package org.nemesis.antlrformatting.spi;
 
 import java.util.Arrays;
-import java.util.function.IntConsumer;
 import java.util.logging.Level;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -9,6 +8,7 @@ import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Lexer;
 import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.impl.CaretFixer;
+import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
 import org.nemesis.misc.utils.function.ThrowingRunnable;
 import org.netbeans.api.editor.EditorRegistry;
@@ -32,13 +32,16 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         this.prov = prov;
     }
 
-    private FormattingResult populateAndRunReformat(Lexer lexer, int start, int end, C config, int caret, IntConsumer newCaret) {
+    private FormattingResult populateAndRunReformat(Lexer lexer, int start, int end, C config, CaretInfo caret, CaretFixer newCaret) {
         AntlrFormatterProvider.RulesAndState rs = prov.populate(config);
         String[] modeNames = prov.modeNames();
         if (modeNames == null || modeNames.length == 0) {
             throw new IllegalStateException(prov + " does not correctly implement modeNames() - got " + arrToString(modeNames));
         }
-        return FormattingAccessor.getDefault().reformat(start, end, prov.indentSize(config), rs.rules, rs.state, prov._whitespace(), prov.debugLogPredicate(), lexer, modeNames, caret, newCaret);
+        return FormattingAccessor.getDefault().reformat(start, end,
+                prov.indentSize(config), rs.rules, rs.state,
+                prov._whitespace(), prov.debugLogPredicate(),
+                lexer, modeNames, caret, newCaret);
     }
 
     /**
@@ -59,7 +62,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         JTextComponent comp = EditorRegistry.findComponent(document);
         // An IntConsumer we can pass into FormattingContextImpl, which will set
         // the offset of the original caret position in the new document
-        CaretFixer caretFixer = new CaretFixer();
+        CaretFixer caretFixer = CaretFixer.forContext(cntxt);
         EditorScrollPositionManager scrollHandler = new EditorScrollPositionManager(comp, caretFixer);
         System.out.println("INITIAL INVOCATION ON " + Thread.currentThread());
         try {
@@ -212,7 +215,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         private final ThrowingRunnable run;
         private Throwable failure;
 
-        public FailableRunnable(ThrowingRunnable run) {
+        FailableRunnable(ThrowingRunnable run) {
             this.run = run;
         }
 

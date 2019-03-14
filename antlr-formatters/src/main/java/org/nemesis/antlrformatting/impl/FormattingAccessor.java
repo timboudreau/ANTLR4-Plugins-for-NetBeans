@@ -28,7 +28,6 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlrformatting.impl;
 
-import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -78,5 +77,6 @@ public abstract class FormattingAccessor {
 //    public abstract String reformat(AntlrFormatterProvider<?,?> provider, int start, int end, String text);
     public abstract FormattingResult reformat(int start, int end, int indentSize,
             FormattingRules rules, LexingState state, Criterion whitespace,
-            Predicate<Token> debug, Lexer lexer, String[] modeNames, int caretPos, IntConsumer updateWithCaretPosition);
+            Predicate<Token> debug, Lexer lexer, String[] modeNames,
+            CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength);
 }

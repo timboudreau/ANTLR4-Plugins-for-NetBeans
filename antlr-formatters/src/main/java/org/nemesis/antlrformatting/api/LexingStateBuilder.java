@@ -504,19 +504,56 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.builder = builder;
         }
 
+        /**
+         * Recompute the distance in tokens you want computed for you whenever
+         * entering a token whose type matches the passed predicate (hint, use
+         * Criteria and Criteria.matching) to get predicates that use token type
+         * names for human-readable logging).
+         *
+         * @param pred A predicate to match token types
+         * @return A builder that lets you specify the token you want to find
+         * the distance to is.
+         */
         public final TokenDistanceTargetBuilder<T, R> onEntering(IntPredicate pred) {
             return new TokenDistanceTargetBuilder<>(item, builder, pred);
         }
 
+        /**
+         * Recompute the distance in tokens you want computed for you whenever
+         * entering a token whose type is the passed type (hint, use Criteria
+         * and Criteria.matching) to get predicates that use token type names
+         * for human-readable logging).
+         *
+         * @param pred A predicate to match token types
+         * @return A builder that lets you specify the token you want to find
+         * the distance to is.
+         */
         public final TokenDistanceTargetBuilder<T, R> onEntering(int tokenType) {
             return onEntering(matching(tokenType));
         }
 
+        /**
+         * Recompute the distance in tokens you want computed for you whenever
+         * entering a token whose type is one of the passed types (hint, use
+         * Criteria and Criteria.matching) to get predicates that use token type
+         * names for human-readable logging).
+         *
+         * @param pred A predicate to match token types
+         * @return A builder that lets you specify the token you want to find
+         * the distance to is.
+         */
         public final TokenDistanceTargetBuilder<T, R> onEntering(int tokenType, int... more) {
             return onEntering(matchingAny(tokenType, more));
         }
     }
 
+    /**
+     * Lets you specify the direction and token type you are interested in
+     * computing the distance to.
+     *
+     * @param <T> The enum tupe
+     * @param <R> The return type
+     */
     public static final class TokenDistanceTargetBuilder<T extends Enum<T>, R> {
 
         private final LexingStateBuilder<T, R> builder;
@@ -529,31 +566,87 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.trigger = trigger;
         }
 
+        /**
+         * The statistic will be the distance to the next token of the passed
+         * type, recomputed whenever the lexer enters a token of the type
+         * specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toNext(int token) {
             return toNext(matching(token));
         }
 
+        /**
+         * The statistic will be the distance to the next token of the passed
+         * types, recomputed whenever the lexer enters a token of the type
+         * specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toNext(int token, int... more) {
             return toNext(matchingAny(token, more));
         }
 
+        /**
+         * The statistic will be the distance to the next whose type matches the
+         * passed predicate, recomputed whenever the lexer enters a token of the
+         * type specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toNext(IntPredicate token) {
             return new FinishableDistanceBuilder<>(item, token, builder, true, trigger);
         }
 
+        /**
+         * The statistic will be the distance to the previous whose type matches
+         * the passed predicate, recomputed whenever the lexer enters a token of
+         * the type specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toPreceding(int tokenType, int... more) {
             return toPreceding(matchingAny(tokenType, more));
         }
 
+        /**
+         * The statistic will be the distance to the previous token of the
+         * passed type, recomputed whenever the lexer enters a token of the type
+         * specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toPreceding(int tokenType) {
             return toPreceding(matching(tokenType));
         }
 
+        /**
+         * The statistic will be the distance to the previous token of the
+         * passed types, recomputed whenever the lexer enters a token of the
+         * type specified in the previous step.
+         *
+         * @param token The token type
+         * @return The final step of the builder
+         */
         public FinishableDistanceBuilder<T, R> toPreceding(IntPredicate token) {
             return new FinishableDistanceBuilder<>(item, token, builder, false, trigger);
         }
     }
 
+    /**
+     * Last step of the builder for computing token distances during the parse,
+     * which lets you specify whether or not the count should include whitespace
+     * tokens.
+     *
+     * @param <T> The enum type
+     * @param <R> The outer builder return type
+     */
     public static final class FinishableDistanceBuilder<T extends Enum<T>, R> {
 
         private final T item;
@@ -572,6 +665,12 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.trigger = trigger;
         }
 
+        /**
+         * If called, the resulting statistic will include whitespace tokens in
+         * its count.
+         *
+         * @return The outer builder
+         */
         public LexingStateBuilder<T, R> includingWhitespace() {
             if (built) {
                 throw new IllegalStateException("Already built.");
@@ -582,6 +681,12 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             return builder;
         }
 
+        /**
+         * If called, the resulting statistic will include NOT whitespace tokens
+         * in its count.
+         *
+         * @return The outer builder
+         */
         public LexingStateBuilder<T, R> ignoringWhitespace() {
             if (built) {
                 throw new IllegalStateException("Already built.");
@@ -593,6 +698,15 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         }
     }
 
+    /**
+     * Builder for counting the number of tokens of a type exist within some
+     * other set of tokens - useful for detecting, for example, multiple
+     * arguments versus a single argument between parentheses for different
+     * handling for each.
+     *
+     * @param <T> The enum type
+     * @param <R> The outer builder return type
+     */
     public static final class TokenCountBuilder<T extends Enum<T>, R> {
 
         private final T item;
@@ -603,19 +717,48 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.builder = builder;
         }
 
+        /**
+         * Recompute the count when entering a particular type of token matched
+         * by the passed predicate.
+         *
+         * @param pred A predicate
+         * @return The next step of the builder
+         */
         public final CountWhatBuilder<T, R> onEntering(IntPredicate pred) {
             return new CountWhatBuilder<>(item, builder, pred);
         }
 
+        /**
+         * Recompute the count when entering a particular type of token matched
+         * by the passed type.
+         *
+         * @param tokenType a token type
+         * @return The next step of the builder
+         */
         public final CountWhatBuilder<T, R> onEntering(int tokenType) {
             return onEntering(matching(tokenType));
         }
 
+        /**
+         * Recompute the count when entering a particular type of token matched
+         * by the passed types.
+         *
+         * @param tokenType a type
+         * @param more additional token types
+         * @return The next step of the builder
+         */
         public final CountWhatBuilder<T, R> onEntering(int tokenType, int... more) {
             return onEntering(matchingAny(tokenType, more));
         }
     }
 
+    /**
+     * Step of the count tokens builder that lets you specify what token types
+     * you want to count.
+     *
+     * @param <T> The enum type
+     * @param <R> The outer builder return type
+     */
     public static final class CountWhatBuilder<T extends Enum<T>, R> {
 
         private final T item;
@@ -628,19 +771,44 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.onEnter = onEnter;
         }
 
+        /**
+         * Specify the type of token to match.
+         *
+         * @param tokenToMatch A token type
+         * @return the last step of specifiying this count statistic
+         */
         public FinishableTokenCountBuilder<T, R> countTokensMatching(int tokenToMatch) {
             return countTokensMatching(matching(tokenToMatch));
         }
 
+        /**
+         * Specify the type of token to match.
+         *
+         * @param tokenToMatch A token type
+         * @param more additional types
+         * @return the last step of specifiying this count statistic
+         */
         public FinishableTokenCountBuilder<T, R> countTokensMatching(int tokenToMatch, int... more) {
             return countTokensMatching(matchingAny(tokenToMatch, more));
         }
 
+        /**
+         * Specify the type of token to match.
+         *
+         * @param pred A predicate
+         * @return the last step of specifiying this count statistic
+         */
         public FinishableTokenCountBuilder<T, R> countTokensMatching(IntPredicate match) {
             return new FinishableTokenCountBuilder<>(item, builder, onEnter, match);
         }
     }
 
+    /**
+     * Last step of count tokens builder.
+     *
+     * @param <T> The enum type
+     * @param <R> The outer builder return type
+     */
     public static final class FinishableTokenCountBuilder<T extends Enum<T>, R> {
 
         private final T item;
@@ -751,7 +919,7 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
 
         public LexingStateBuilder<T, R> clearingAfterTokenType(IntPredicate pred) {
             after = true;
-            return clearingAfterTokenType(pred);
+            return clearingOnTokenType(pred);
         }
 
         public LexingStateBuilder<T, R> clearingOnTokenType(IntPredicate pred) {

@@ -47,6 +47,7 @@ import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingState;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
+import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
 import org.netbeans.modules.editor.indent.spi.Context;
 import org.netbeans.modules.editor.indent.spi.ReformatTask;
@@ -67,14 +68,36 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
     static final Logger LOGGER = Logger.getLogger(
             AntlrFormatterProvider.class.getName());
 
+    /**
+     * Create a new formatter provider. The Enum class passed is what you
+     * use when configuring your LexingStateBuilder with instructions for
+     * statistics you want to collect and then look up when performing
+     * formatting.
+     *
+     * @param enumType An enum type
+     */
     protected AntlrFormatterProvider(Class<StateEnum> enumType) {
         this.enumType = enumType;
     }
 
+    /**
+     * Compute the indent size, potentially consulting the configuration
+     * object. The default implementation simply returns 4.
+     *
+     * @param config
+     * @return
+     */
     protected int indentSize(C config) {
         return 4;
     }
 
+    /**
+     * Create a lexer over the passed document.
+     *
+     * @param document A document
+     * @return A lexer
+     * @throws BadLocationException if something goes wrong
+     */
     protected Lexer createLexer(Document document) throws BadLocationException {
 //        DocumentUtilities.getText(document);
         return createLexer(CharStreams.fromString(document.getText(0, document.getLength())));
@@ -140,6 +163,11 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
      */
     protected abstract void configure(LexingStateBuilder<StateEnum, ?> stateBuilder, FormattingRules rules, C config);
 
+    /**
+     * Creates the criterion once and caches it.
+     *
+     * @return A criterion for matching whitespace
+     */
     Criterion _whitespace() {
         if (whitespaceCriterion != null) {
             return whitespaceCriterion;
@@ -202,17 +230,6 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         return result;
     }
 
-    static class RulesAndState {
-
-        final FormattingRules rules;
-        final LexingState state;
-
-        public RulesAndState(FormattingRules rules, LexingState state) {
-            this.rules = rules;
-            this.state = state;
-        }
-    }
-
     /**
      * For debugging purposes, override this method to return a predicate which
      * will match tokens where you would like the decision process of rule
@@ -224,24 +241,24 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         return AlwaysFalse.INSTANCE;
     }
 
+    /**
+     * Create a NetBeans ReformatTask for this Antlr formatter.
+     *
+     * @param context The reformatting context containing the document.
+     *
+     * @return A task
+     */
     public final ReformatTask createFormatter(Context context) {
         return new AntlrReformatTask(new DocumentReformatRunner<>(this), context);
     }
 
-    RulesAndState populate(C config) {
-        FormattingRules rules = new FormattingRules(vocabulary(), modeNames());
-        LexingStateBuilder<StateEnum, LexingState> stateBuilder = LexingState.builder(enumType);
-        configure(stateBuilder, rules, config);
-        return new RulesAndState(rules, stateBuilder.build());
-    }
-
     /**
      * Reformat the passed string, returning only that portion which is
-     * reformatted.  Note that if a range of the text is requested to be
+     * reformatted. Note that if a range of the text is requested to be
      * reformatted, and the boundaries are in the middle of tokens, only those
-     * tokens that are completely within the bounds requested will be reformatted,
-     * and the returned FormattingResult will have the position of the actual
-     * start and end of what was reformatted.
+     * tokens that are completely within the bounds requested will be
+     * reformatted, and the returned FormattingResult will have the position of
+     * the actual start and end of what was reformatted.
      *
      * @param text Some text
      * @param from The starting position (greater than equal to zero)
@@ -289,7 +306,29 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         Lexer lexer = createLexer(text);
         String[] modeNames = modeNames();
         return FormattingAccessor.getDefault().reformat(from, to, indentSize(config), rules,
-                state, whitespace, debug, lexer, modeNames, -1, null);
+                state, whitespace, debug, lexer, modeNames, CaretInfo.NONE, null);
+    }
+
+    RulesAndState populate(C config) {
+        FormattingRules rules = new FormattingRules(vocabulary(), modeNames());
+        LexingStateBuilder<StateEnum, LexingState> stateBuilder = LexingState.builder(enumType);
+        configure(stateBuilder, rules, config);
+        return new RulesAndState(rules, stateBuilder.build());
+    }
+
+    /**
+     * Just a holder class aggregating the rules and state configured by
+     * builders passed to configure().
+     */
+    static class RulesAndState {
+
+        final FormattingRules rules;
+        final LexingState state;
+
+        RulesAndState(FormattingRules rules, LexingState state) {
+            this.rules = rules;
+            this.state = state;
+        }
     }
 
     private static final class AlwaysFalse implements Predicate<Token> {

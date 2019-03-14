@@ -397,11 +397,11 @@ final class WhitespaceState {
         private final boolean isTabStops;
         private final WhitespaceStringCache cache;
 
-        public IndentBy(int depth, WhitespaceStringCache cache) {
+        IndentBy(int depth, WhitespaceStringCache cache) {
             this(depth, true, cache);
         }
 
-        public IndentBy(int depth, boolean tabStops, WhitespaceStringCache cache) {
+        IndentBy(int depth, boolean tabStops, WhitespaceStringCache cache) {
             this.depth = depth;
             this.isTabStops = tabStops;
             this.cache = cache;
@@ -479,7 +479,7 @@ final class WhitespaceState {
         private final int count;
         private final WhitespaceStringCache cache;
 
-        public Newlines(int count, WhitespaceStringCache cache) {
+        Newlines(int count, WhitespaceStringCache cache) {
             this.count = count;
             this.cache = cache;
         }

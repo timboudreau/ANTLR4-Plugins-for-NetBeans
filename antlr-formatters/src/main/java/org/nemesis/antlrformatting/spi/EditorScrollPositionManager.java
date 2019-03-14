@@ -6,7 +6,8 @@ import java.awt.Rectangle;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
-import java.util.function.IntSupplier;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import javax.swing.JComponent;
 import javax.swing.JScrollPane;
 import javax.swing.RepaintManager;
@@ -22,9 +23,11 @@ import javax.swing.text.Position;
 import javax.swing.undo.AbstractUndoableEdit;
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
+import org.nemesis.antlrformatting.impl.CaretInfo;
 import static org.nemesis.antlrformatting.spi.DocumentReformatRunner.tryCatch;
 import static org.nemesis.antlrformatting.spi.DocumentReformatRunner.tryCatchRun;
-import org.nemesis.misc.utils.function.ThrowingIntConsumer;
+import org.nemesis.misc.utils.function.ThrowingConsumer;
+import org.nemesis.misc.utils.function.ThrowingRunnable;
 import org.netbeans.api.editor.document.CustomUndoDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.openide.util.Exceptions;
@@ -56,15 +59,15 @@ final class EditorScrollPositionManager implements Runnable {
     private final JTextComponent comp;
     private final NavigationFilter origNavigationFilter;
     private int runCount;
-    private volatile int origCaretPos = -1;
-    private final IntSupplier newCaretPos;
-    private ThrowingIntConsumer cursorPosAcceptor;
+    private final AtomicReference<CaretInfo> origCaretPos = new AtomicReference<>(CaretInfo.NONE);
+    private final Supplier<CaretInfo> newCaretPos;
+    private ThrowingConsumer<CaretInfo> cursorPosAcceptor;
     private static final RequestProcessor FORMAT_PROC
             = new RequestProcessor("antlr-formatter", 1);
     private ScrollPositionComputer repositionCaret;
     private final CaretPosUndoableEdit edit = new CaretPosUndoableEdit();
 
-    EditorScrollPositionManager(JTextComponent comp, IntSupplier newCaretPos) {
+    EditorScrollPositionManager(JTextComponent comp, Supplier<CaretInfo> newCaretPos) {
         this.newCaretPos = newCaretPos;
         this.comp = comp;
         origNavigationFilter = comp == null ? null : comp.getNavigationFilter();
@@ -80,17 +83,15 @@ final class EditorScrollPositionManager implements Runnable {
      * @param cursorPosAcceptor
      * @throws Exception
      */
-    public Runnable invokeWithEditorDisabled(ThrowingIntConsumer cursorPosAcceptor) throws Exception {
+    public Runnable invokeWithEditorDisabled(ThrowingConsumer<CaretInfo> cursorPosAcceptor) throws Exception {
         // Store the consumer to be invoked on the background thread with the
         // caret position retrievd on the even thread
-        setReplaceTextRunner(cursorPosAcceptor);
+        synchronized (this) {
+            this.cursorPosAcceptor = cursorPosAcceptor;
+        }
         // Go get the caret position and disable the things we need to disable
         EventQueue.invokeLater(this);
         return this::addCaretPositionUndoableEdit;
-    }
-
-    private synchronized void setReplaceTextRunner(ThrowingIntConsumer cursorPosAcceptor) {
-        this.cursorPosAcceptor = cursorPosAcceptor;
     }
 
     private Optional<JScrollPane> scrollPane() {
@@ -120,14 +121,14 @@ final class EditorScrollPositionManager implements Runnable {
                     // Okay, time to do the work
                     FORMAT_PROC.submit(tryCatch(() -> {
                         try {
-                            ThrowingIntConsumer cons;
+                            ThrowingConsumer<CaretInfo> cons;
                             synchronized (this) {
                                 cons = cursorPosAcceptor;
                             }
                             // Here is where we trigger the real work,
                             // which is a lambda passed in from
                             // DocumentReformatRunner
-                            cons.consume(origCaretPos);
+                            cons.accept(origCaretPos.get());
                         } finally {
                             EventQueue.invokeLater(this);
                         }
@@ -193,13 +194,14 @@ final class EditorScrollPositionManager implements Runnable {
             caret.setVisible(false);
         }
         // Okay, get the caret position
-        origCaretPos = comp.getCaretPosition();
+        CaretInfo cp = CaretInfo.create(comp);
+        origCaretPos.set(cp);
         // Get an object we can call that will do the initial half of our
         // scroll repositioning computation, and provide a runnable to do
         // the actual reposition once called with the new caret position.
         // We do not need to synchronize on repositionCaret because it is
         // only accessed from the EDT
-        repositionCaret = computeScrollTo(origCaretPos);
+        repositionCaret = computeScrollTo(cp);
         // Disable any sort of automatic scrolling, and turn off repainting on
         // this, it's parent viewport and scroll pane
         comp.setIgnoreRepaint(true);
@@ -257,16 +259,13 @@ final class EditorScrollPositionManager implements Runnable {
     private ScrollAdjuster updateCaret() throws Exception {
         assert comp != null;
         assert EventQueue.isDispatchThread();
-        if (newCaretPos != null && origCaretPos != -1) {
-            int newPos = newCaretPos.getAsInt();
-            if (newPos >= 0) {
-                // Make sure we can't possibly be off the end of the
-                // document
-                int len = comp.getDocument().getLength();
-                // Get the new caret position
-                newPos = Math.min(newPos, len - 1);
+        CaretInfo orig = origCaretPos.get();
+        if (newCaretPos != null && orig.isViable()) {
+            CaretInfo newPos = newCaretPos.get();
+            if (newPos.isViable()) {
                 // Actually set the caret position
-                comp.setCaretPosition(newPos);
+//                comp.setCaretPosition(newPos);
+                newPos.apply(comp);
                 if (repositionCaret != null) {
                     // Let the caret repositioner figure out how to do a
                     // precise adjustment of the viewports view location
@@ -275,7 +274,8 @@ final class EditorScrollPositionManager implements Runnable {
                     // Something was missing, and we have a component, but
                     // could not find a scroll pane - just try to work with
                     // the new caret position and make sure it's not off-screen
-                    return new SimpleScrollAdjuster(comp, newPos, origCaretPos)
+                    return new SimpleScrollAdjuster(comp, newPos.start(),
+                            origCaretPos.get())
                             .doAdjust(comp);
                 }
             }
@@ -284,20 +284,17 @@ final class EditorScrollPositionManager implements Runnable {
         return null;
     }
 
-    private ScrollPositionComputer computeScrollTo(int caretPos) throws BadLocationException {
+    private ScrollPositionComputer computeScrollTo(CaretInfo caretPos) throws BadLocationException {
         Optional<JScrollPane> pane = scrollPane();
         if (pane.isPresent()) {
             // Compare the old and new caret rectangles, and shift the viewport
             // by the difference - this should result in the caret remaining in
             // EXACTLY the same spot on screen, except if that would mean
             // scrolling past the edge of a document
-            Rectangle oldCaretBounds = comp.modelToView2D(caretPos)
-                    .getBounds();
-            // Return the thing that really does the work
+            Rectangle oldCaretBounds = caretPos.bounds(comp);
             return newCaretPos -> {
-                if (newCaretPos >= 0) {
-                    Rectangle newCaretBounds = comp
-                            .modelToView2D(newCaretPos).getBounds();
+                if (newCaretPos.isViable()) {
+                    Rectangle newCaretBounds = newCaretPos.bounds(comp);
 
                     int xOff = newCaretBounds.x - oldCaretBounds.x;
                     int yOff = newCaretBounds.y - oldCaretBounds.y;
@@ -307,7 +304,7 @@ final class EditorScrollPositionManager implements Runnable {
                             pane.get(), caretPos, newCaretPos, comp)
                             .doAdjust(pane.get());
                 }
-                return new SimpleScrollAdjuster(comp, 0, origCaretPos);
+                return new SimpleScrollAdjuster(comp, 0, caretPos);
             };
         }
         return null;
@@ -345,7 +342,7 @@ final class EditorScrollPositionManager implements Runnable {
          * will undo that.
          * @throws Exception If something goes wrong
          */
-        public ScrollAdjuster receiveNewCaretPosition(int cursorPos) throws Exception;
+        public ScrollAdjuster receiveNewCaretPosition(CaretInfo cursorPos) throws Exception;
     }
 
     interface ScrollAdjuster<T extends JComponent> {
@@ -356,9 +353,9 @@ final class EditorScrollPositionManager implements Runnable {
 
         boolean isAlive();
 
-        ScrollAdjuster doAdjust(T scroll);
+        ScrollAdjuster doAdjust(T scroll) throws BadLocationException;
 
-        public void undoAdjust(T scroll);
+        public void undoAdjust(T scroll) throws BadLocationException;
     }
 
     /**
@@ -366,15 +363,16 @@ final class EditorScrollPositionManager implements Runnable {
      * careful not to hold a reference to the entire reformat job, since it can
      * be on the undo stack for a long time.
      */
-    static final class ScrollAdjusterImpl implements ScrollAdjuster<JScrollPane>, Runnable {
+    static final class ScrollAdjusterImpl implements ScrollAdjuster<JScrollPane>, ThrowingRunnable {
 
         private final int xOff, yOff;
         private final Reference<JScrollPane> pane;
         private final Reference<JTextComponent> comp;
-        private final int oldPosition;
-        private final int newPosition;
+        private final CaretInfo oldPosition;
+        private final CaretInfo newPosition;
 
-        public ScrollAdjusterImpl(int x, int y, JScrollPane pane, int oldPosition, int newPosition, JTextComponent comp) {
+        ScrollAdjusterImpl(int x, int y, JScrollPane pane, CaretInfo oldPosition,
+                CaretInfo newPosition, JTextComponent comp) {
             this.xOff = x;
             this.yOff = y;
             this.pane = new WeakReference<>(pane);
@@ -397,51 +395,7 @@ final class EditorScrollPositionManager implements Runnable {
                     && comp != null && comp.isDisplayable();
         }
 
-        /**
-         * The most effective way to ensure the caret adjustment happens
-         * *after* the document has been updated is to listen for changes
-         * on it, then push the caret adjustment out on the EDT once an
-         * insert and a remove have happened.
-         */
-        static final class TriggerDocumentListener implements DocumentListener {
-
-            private int changeCount;
-            private final Runnable run;
-            private final Document doc;
-
-            public TriggerDocumentListener(Runnable run, Document doc) {
-                this.run = run;
-                this.doc = doc;
-            }
-
-            void start() {
-                doc.addDocumentListener(this);
-            }
-
-            private void changed() {
-                if (++changeCount == 2) {
-                    doc.removeDocumentListener(this);
-                    EventQueue.invokeLater(run);
-                }
-            }
-
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                changed();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                changed();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                changed();
-            }
-        }
-
-        public void run() {
+        public void run() throws BadLocationException {
             // Undo implementation here
             JTextComponent comp = this.comp.get();
             JScrollPane pane = this.pane.get();
@@ -464,22 +418,22 @@ final class EditorScrollPositionManager implements Runnable {
         @Override
         public void redo() {
             System.out.println("REDO OFF EDT");
-            EventQueue.invokeLater(() -> {
+            EventQueue.invokeLater(tryCatch(() -> {
                 System.out.println("REDO ON EDT");
                 JScrollPane pane = this.pane.get();
                 if (valid(pane, comp.get())) {
                     System.out.println("  HAVE VALID PANE");
                     doAdjust(pane);
                 }
-            });
+            }));
         }
 
         @Override
-        public ScrollAdjusterImpl doAdjust(JScrollPane scroll) {
+        public ScrollAdjusterImpl doAdjust(JScrollPane scroll) throws BadLocationException {
             System.out.println("DO ADJUST " + xOff + "," + yOff);
             JTextComponent comp = this.comp.get();
             if (valid(scroll, comp)) {
-                comp.setCaretPosition(newPosition);
+                newPosition.apply(comp);
                 Point p = scroll.getViewport().getViewPosition();
                 Rectangle r = scroll.getViewport().getView().getBounds();
                 // Ensure we can't scroll beyond the bounds of the
@@ -495,11 +449,11 @@ final class EditorScrollPositionManager implements Runnable {
         }
 
         @Override
-        public void undoAdjust(JScrollPane scroll) {
+        public void undoAdjust(JScrollPane scroll) throws BadLocationException {
             System.out.println("UNDO ADJUST " + xOff + "," + yOff);
             JTextComponent comp = this.comp.get();
             if (valid(scroll, comp)) {
-                comp.setCaretPosition(oldPosition);
+                oldPosition.apply(comp);
                 Point p = pane.get().getViewport().getViewPosition();
                 Rectangle r = scroll.getViewport().getView().getBounds();
                 p.x = Math.min(r.width - (p.x - xOff), Math.max(0, p.x - xOff));
@@ -519,9 +473,9 @@ final class EditorScrollPositionManager implements Runnable {
 
         private final Reference<JTextComponent> comp;
         private final int newCaretPosition;
-        private final int oldCaretPosition;
+        private final CaretInfo oldCaretPosition;
 
-        SimpleScrollAdjuster(JTextComponent comp, int newCaretPosition, int oldCaretPosition) {
+        SimpleScrollAdjuster(JTextComponent comp, int newCaretPosition, CaretInfo oldCaretPosition) {
             this.comp = new WeakReference<>(comp);
             this.newCaretPosition = newCaretPosition;
             this.oldCaretPosition = oldCaretPosition;
@@ -533,16 +487,22 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public void undo() {
-            EventQueue.invokeLater(() -> {
-                undoAdjust(comp.get());
-            });
+            JTextComponent comp = this.comp.get();
+            if (comp != null) {
+                new TriggerDocumentListener(() -> {
+                    undoAdjust(comp);
+                }, comp.getDocument()).start();
+            }
         }
 
         @Override
         public void redo() {
-            EventQueue.invokeLater(() -> {
-                doAdjust(comp.get());
-            });
+            JTextComponent comp = this.comp.get();
+            if (comp != null) {
+                new TriggerDocumentListener(() -> {
+                    doAdjust(comp);
+                }, comp.getDocument()).start();
+            }
         }
 
         @Override
@@ -571,14 +531,57 @@ final class EditorScrollPositionManager implements Runnable {
             System.out.println("SIMPLE SCROLL DO UNADJUST");
             if (valid(scroll)) {
                 try {
-                    int pos = oldCaretPosition < 0 ? 0 : oldCaretPosition;
-                    scroll.setCaretPosition(pos);
-                    Rectangle rect = scroll.modelToView2D(pos).getBounds();
+                    oldCaretPosition.apply(scroll);
+                    Rectangle rect = oldCaretPosition.bounds(scroll);
                     scroll.scrollRectToVisible(rect);
                 } catch (BadLocationException ex) {
                     Exceptions.printStackTrace(ex);
                 }
             }
+        }
+    }
+
+    /**
+     * The most effective way to ensure the caret adjustment happens *after* the
+     * document has been updated is to listen for changes on it, then push the
+     * caret adjustment out on the EDT once an insert and a remove have
+     * happened.
+     */
+    static final class TriggerDocumentListener implements DocumentListener {
+
+        private int changeCount;
+        private final ThrowingRunnable run;
+        private final Document doc;
+
+        TriggerDocumentListener(ThrowingRunnable run, Document doc) {
+            this.run = run;
+            this.doc = doc;
+        }
+
+        void start() {
+            doc.addDocumentListener(this);
+        }
+
+        private void changed() {
+            if (++changeCount == 2) {
+                doc.removeDocumentListener(this);
+                EventQueue.invokeLater(tryCatch(run));
+            }
+        }
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            changed();
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            changed();
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            changed();
         }
     }
 

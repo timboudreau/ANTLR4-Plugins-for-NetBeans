@@ -19,11 +19,11 @@ final class SimpleCollator implements Iterator<String>, Iterable<String> {
     private int cursor = 0;
     private final IntPredicate whitespace;
 
-    public SimpleCollator(String text) {
+    SimpleCollator(String text) {
         this(text, defaultWordBreak());
     }
 
-    public SimpleCollator(String text, IntPredicate whitespace) {
+    SimpleCollator(String text, IntPredicate whitespace) {
         this.text = text;
         this.whitespace = whitespace;
         cursor = 0;

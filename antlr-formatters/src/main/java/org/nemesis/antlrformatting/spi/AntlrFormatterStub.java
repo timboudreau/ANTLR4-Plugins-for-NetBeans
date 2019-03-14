@@ -3,10 +3,10 @@ package org.nemesis.antlrformatting.spi;
 import java.util.function.Function;
 import java.util.prefs.Preferences;
 import org.antlr.v4.runtime.CharStream;
-import org.nemesis.antlrformatting.api.FormattingRules;
-import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Vocabulary;
+import org.nemesis.antlrformatting.api.FormattingRules;
+import org.nemesis.antlrformatting.api.LexingStateBuilder;
 
 /**
  * Interface for use with an annotation processor which can generate the rest of

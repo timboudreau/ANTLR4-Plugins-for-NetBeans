@@ -1,12 +1,13 @@
 package org.nemesis.antlrformatting.api;
 
-import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.Interval;
+import org.nemesis.antlrformatting.impl.CaretFixer;
+import org.nemesis.antlrformatting.impl.CaretInfo;
 
 /**
  * Implements the state and context of a formatting operation.
@@ -16,8 +17,8 @@ import org.antlr.v4.runtime.misc.Interval;
 class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
     private final TokenStreamRewriter rew;
-    private final int startToken;
-    private final int endToken;
+    private final int startPosition;
+    private final int endPosition;
     private final int indentSize;
     private final FormattingRules rules;
     private boolean lastContainedNewline;
@@ -43,8 +44,8 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             int indentSize, FormattingRules rules, LexingState state,
             Criterion whitespace, Predicate<Token> debugLogging) {
         this.rew = rew;
-        this.startToken = start;
-        this.endToken = end;
+        this.startPosition = start;
+        this.endPosition = end;
         this.rules = rules;
         this.indentSize = indentSize;
         this.state = state;
@@ -54,7 +55,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         lineState = new LineState(indentSize);
     }
 
-    FormattingResult go(Lexer lexer, EverythingTokenStream tokens, int caretPos, IntConsumer updateWithCaretPosition) {
+    FormattingResult go(Lexer lexer, EverythingTokenStream tokens, CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength) {
         // Starting a new file, wipe the state clean
         state.clear();
         stream = tokens;
@@ -73,15 +74,12 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             // If we have passed the index of the last token we want to
             // reformat, stop looping over tokens
             int positionBeforeProcessingToken = currentCharPositionInLine();
-            if (tok.getStartIndex() > endToken) {
+            if (tok.getStartIndex() > endPosition) {
                 lineState.finish();
-
-                if (tok.getStartIndex() <= caretPos && updateWithCaretPosition != null) {
+                if (tok.getStartIndex() <= caretPos.start() && updateWithCaretPositionAndLength != null) {
                     int diff = positionBeforeProcessingToken - origCharPositionInLine();
-                    System.out.println("CURSOR MOVED BY " + diff + " TO " + (caretPos + diff));
-                    updateWithCaretPosition.accept(caretPos + diff);
+                    updateWithCaretPositionAndLength.updateStart(caretPos.start() + diff);
                 }
-
                 // We have formatted all we were asked to; get out
                 break;
             }
@@ -121,15 +119,16 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 // we just processed, so callees will see that position
                 lineState.withPreviousPosition(() -> {
                     state.onAfterProcessToken(tok, this);
-                    if (caretPos >= 0 && caretToken == -1 && updateWithCaretPosition != null && tok.getType() != -1) {
-                        if (tok.isSane() && tok.getStopIndex() >= caretPos && tok.getStartIndex() <= caretPos) {
-                            int offset = caretPos - tok.getStartIndex();
+                    if (caretPos.isViable() && caretToken == -1 && updateWithCaretPositionAndLength != null && tok.getType() != -1) {
+                        if (tok.isSane() && tok.getStopIndex() >= caretPos.start() && tok.getStartIndex() <= caretPos.start()) {
+                            if (!whitespace.test(tok.getType())) {
+                                int offset = caretPos.start() - tok.getStartIndex();
 
-                            String rewrittenThusFar = rew.getText(new Interval(0, tok.getTokenIndex()));
-                            int docPosition = (rewrittenThusFar.length()
-                                    - tok.getText().length());
-
-                            updateWithCaretPosition.accept(docPosition + offset);
+                                String rewrittenThusFar = rew.getText(new Interval(0, tok.getTokenIndex()));
+                                int docPosition = (rewrittenThusFar.length()
+                                        - tok.getText().length());
+                                updateWithCaretPositionAndLength.updateStart(docPosition + offset);
+                            }
                         }
                     }
                 });
@@ -137,6 +136,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                     // Consume the token, moving to the next
                     tokens.consume();
                 } catch (IllegalStateException ex) {
+                    // ok, consumed eof
                     break;
                 }
             }
@@ -144,6 +144,13 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         // If any token group rewriters were still chewing when we finished
         // parsing, allow them to clean up and do their replacing
         rules.finish(rew);
+        FormattingResult res = getFormattingResult();
+        if (updateWithCaretPositionAndLength != null && firstTokenInRange != 0) {
+            updateWithCaretPositionAndLength.updateStart(startPosition);
+        }
+        if (updateWithCaretPositionAndLength != null) {
+            updateWithCaretPositionAndLength.updateLength(res.text().length());
+        }
         return getFormattingResult();
     }
 
@@ -251,7 +258,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             return false;
         }
         // Check that we're within the bounds of the text we should reformat
-        if (tok.getStartIndex() >= startToken && tok.getStopIndex() <= endToken) {
+        if (tok.getStartIndex() >= startPosition && tok.getStopIndex() <= endPosition) {
             // Set the first token if unset
             if (firstTokenInRange == -1) {
                 // Prepended whitespace in the formatting result is a bad
@@ -510,7 +517,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 // If we're formatting the middle of a document, don't prepend
                 // spaces - it can move tokens away from each other in strange
                 // ways.
-                boolean skipPrepend = token.getTokenIndex() == firstTokenInRange && startToken > 0;
+                boolean skipPrepend = token.getTokenIndex() == firstTokenInRange && startPosition > 0;
                 if (!skipPrepend) {
                     rew.insertBefore(token, toInsert);
                     documentPosition += toInsert.length();

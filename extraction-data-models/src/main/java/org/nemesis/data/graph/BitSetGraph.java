@@ -1,5 +1,6 @@
 package org.nemesis.data.graph;
 
+import org.nemesis.misc.utils.function.IntBiConsumer;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -320,12 +321,6 @@ public final class BitSetGraph {
         PairSet set = new PairSet(size());
         edges(set::add);
         return set;
-    }
-
-    @FunctionalInterface
-    public interface IntBiConsumer {
-
-        void accept(int a, int b);
     }
 
     public int size() {

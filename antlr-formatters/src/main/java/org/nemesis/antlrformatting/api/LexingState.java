@@ -8,12 +8,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
+import org.nemesis.antlrformatting.impl.CaretFixer;
+import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
 import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
 import org.openide.util.Exceptions;
@@ -312,7 +313,7 @@ public final class LexingState {
         public FormattingResult reformat(int start, int end, int indentSize,
                 FormattingRules rules, LexingState state, Criterion whitespace,
                 Predicate<Token> debug, Lexer lexer, String[] modeNames,
-                int caretPos, IntConsumer updateWithCaretPosition) {
+                CaretInfo caretPos, CaretFixer updateWithCaretPosition) {
             EverythingTokenStream tokens = new EverythingTokenStream(lexer, modeNames);
             TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
             return new FormattingContextImpl(rew, start, end, indentSize,

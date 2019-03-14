@@ -227,8 +227,8 @@ public enum SimpleFormattingAction implements FormattingAction {
                 return key.name();
             } else {
                 StringBuilder sb = new StringBuilder(key.name());
-                for (int i = 0; i < more.length; i++) {
-                    sb.append('|').append(more[i].name());
+                for (T more1 : more) {
+                    sb.append('|').append(more1.name());
                 }
                 return sb.toString();
             }
