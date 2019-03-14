@@ -6,22 +6,67 @@ import org.antlr.v4.runtime.Token;
 import org.nemesis.misc.utils.StringUtils;
 
 /**
- * Simple formatting action implementations, usable for most tasks.
+ * Simple formatting action implementations, usable for most tasks; in
+ * particular, the <code>by()</code> methods allow you to specify a statistic
+ * you've chosen to gather in your LexingStateBuilder to automatically pick up
+ * the number of spaces or tab stops to indent.
  *
  * @author Tim Boudreau
  */
 public enum SimpleFormattingAction implements FormattingAction {
+    /**
+     * Indent the current token by the default number of tab stops the formatter
+     * was configured with.
+     */
     INDENT,
+    /**
+     * Prepend one space to the current token (note that in the case the
+     * preceding token specified to append <i>newlines</i>, this will be ignored
+     * so as not to generate one-space-indented lines.
+     */
     PREPEND_SPACE,
+    /**
+     * Prepend a double newline to the current token.
+     */
     PREPEND_DOUBLE_NEWLINE,
+    /**
+     * Prepend a double newline to the current token and indent by the one tab
+     * stop (as configured).
+     */
     PREPEND_DOUBLE_NEWLINE_AND_INDENT,
+    /**
+     * Prepend a newline to the current token.
+     */
     PREPEND_NEWLINE,
+    /**
+     * Prepend a newline and indent one tab stop to the current token.
+     */
     PREPEND_NEWLINE_AND_INDENT,
+    /**
+     * Prepend a newline and two tab stops to the current token.
+     */
     PREPEND_NEWLINE_AND_DOUBLE_INDENT,
+    /**
+     * Append a space after the current token (unless the subsequent token
+     * prepends newlines or a greater number of spaces).
+     */
     APPEND_SPACE,
+    /**
+     * Append a newline after the current token.
+     */
     APPEND_NEWLINE,
+    /**
+     * Append two newlines after the current token.
+     */
     APPEND_DOUBLE_NEWLINE,
+    /**
+     * Append a newline to the current token and indent the subsequent token by
+     * one tab stop.
+     */
     APPEND_NEWLINE_AND_INDENT,
+    /**
+     * Append a newline and two tab stop indents after the current token.
+     */
     APPEND_NEWLINE_AND_DOUBLE_INDENT;
 
     /**
