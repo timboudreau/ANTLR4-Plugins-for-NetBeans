@@ -3,6 +3,7 @@ package org.nemesis.data;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -335,7 +336,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return result;
     }
 
-    public void keysAtPoint(int pos, List<? super T> into) {
+    public void keysAtPoint(int pos, Collection<? super T> into) {
         SemanticRegion<T> reg = at(pos);
         if (reg != null) {
             SemanticRegion<T> outer = reg.outermost();

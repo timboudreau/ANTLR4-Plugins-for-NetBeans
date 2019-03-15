@@ -41,6 +41,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.api.Criteria;
 import org.nemesis.antlrformatting.api.Criterion;
 import org.nemesis.antlrformatting.api.FormattingResult;
@@ -69,10 +70,9 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
             AntlrFormatterProvider.class.getName());
 
     /**
-     * Create a new formatter provider. The Enum class passed is what you
-     * use when configuring your LexingStateBuilder with instructions for
-     * statistics you want to collect and then look up when performing
-     * formatting.
+     * Create a new formatter provider. The Enum class passed is what you use
+     * when configuring your LexingStateBuilder with instructions for statistics
+     * you want to collect and then look up when performing formatting.
      *
      * @param enumType An enum type
      */
@@ -81,8 +81,8 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
     }
 
     /**
-     * Compute the indent size, potentially consulting the configuration
-     * object. The default implementation simply returns 4.
+     * Compute the indent size, potentially consulting the configuration object.
+     * The default implementation simply returns 4.
      *
      * @param config
      * @return
@@ -287,6 +287,30 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
     }
 
     /**
+     * Optionally, allow for formatting where rules activate when in a
+     * particular parser rule, override this to create a parser, parse and
+     * return whatever rule node is the entry point to your file type - the rule
+     * which represents an entire source file.
+     *
+     * @param lexer A lexer
+     * @return A rule node, or null
+     */
+    protected RuleNode parseAndExtractRootRuleNode(Lexer lexer) {
+        return null;
+    }
+
+    /**
+     * If you use parser by overrideing parseAndExtractRootRuleNode, override
+     * this to provide the parser rule names for logging purposes.
+     *
+     * @return An array of parser rule names, findable as a static field on your
+     * generated Antlr parser.
+     */
+    protected String[] parserRuleNames() {
+        return null;
+    }
+
+    /**
      * Reformat the passed string, returning only that portion which is
      * reformatted.
      *
@@ -304,13 +328,19 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         Criterion whitespace = _whitespace();
         Predicate<Token> debug = debugLogPredicate();
         Lexer lexer = createLexer(text);
-        String[] modeNames = modeNames();
+
+        RuleNode node = parseAndExtractRootRuleNode(lexer);
+        if (node != null) {
+            lexer = createLexer(text);
+        }
+
         return FormattingAccessor.getDefault().reformat(from, to, indentSize(config), rules,
-                state, whitespace, debug, lexer, modeNames, CaretInfo.NONE, null);
+                state, whitespace, debug, lexer, modeNames(), CaretInfo.NONE, null, node);
     }
 
     RulesAndState populate(C config) {
-        FormattingRules rules = new FormattingRules(vocabulary(), modeNames());
+        FormattingRules rules = FormattingAccessor.getDefault().createFormattingRules(vocabulary(),
+                modeNames(), parserRuleNames());
         LexingStateBuilder<StateEnum, LexingState> stateBuilder = LexingState.builder(enumType);
         configure(stateBuilder, rules, config);
         return new RulesAndState(rules, stateBuilder.build());

@@ -6,6 +6,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
@@ -32,7 +33,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         this.prov = prov;
     }
 
-    private FormattingResult populateAndRunReformat(Lexer lexer, int start, int end, C config, CaretInfo caret, CaretFixer newCaret) {
+    private FormattingResult populateAndRunReformat(Lexer lexer, int start, int end, C config, CaretInfo caret, CaretFixer newCaret, RuleNode ruleNode) {
         AntlrFormatterProvider.RulesAndState rs = prov.populate(config);
         String[] modeNames = prov.modeNames();
         if (modeNames == null || modeNames.length == 0) {
@@ -41,7 +42,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         return FormattingAccessor.getDefault().reformat(start, end,
                 prov.indentSize(config), rs.rules, rs.state,
                 prov._whitespace(), prov.debugLogPredicate(),
-                lexer, modeNames, caret, newCaret);
+                lexer, modeNames, caret, newCaret, ruleNode);
     }
 
     /**
@@ -69,8 +70,12 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
             scrollHandler.invokeWithEditorDisabled((currentCursorPos) -> {
                 withDocumentLockedandInputDisabledAndReformatLock(document, () -> {
                     Lexer lexer = prov.createLexer(document);
+                    RuleNode ruleNode = prov.parseAndExtractRootRuleNode(lexer);
+                    if (ruleNode != null) {
+                        lexer = prov.createLexer(document);
+                    }
                     lexer.removeErrorListeners();
-                    FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer);
+                    FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer, ruleNode);
                     System.out.println("GOT RESULT " + reformatted);
                     boolean updated = replaceTextInDocument(document, reformatted);
                     if (updated) {

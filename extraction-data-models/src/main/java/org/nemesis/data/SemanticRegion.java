@@ -28,6 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.data;
 
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -132,7 +133,7 @@ public interface SemanticRegion<T> extends IndexAddressable.IndexAddressableItem
      * @param pos The position
      * @param keys A list of keys
      */
-    default void keysAtPoint(int pos, List<? super T> keys) {
+    default void keysAtPoint(int pos, Collection<? super T> keys) {
         if (contains(pos)) {
             keys.add(key());
             for (SemanticRegion<T> child : this) {

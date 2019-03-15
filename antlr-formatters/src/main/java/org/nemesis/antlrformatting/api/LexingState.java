@@ -8,11 +8,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
@@ -305,20 +307,29 @@ public final class LexingState {
     static final class FA extends FormattingAccessor {
 
         @Override
-        public TokenStream createCompleteTokenStream(Lexer lexer, String[] modeNames) {
-            return new EverythingTokenStream(lexer, modeNames);
-        }
-
-        @Override
         public FormattingResult reformat(int start, int end, int indentSize,
                 FormattingRules rules, LexingState state, Criterion whitespace,
                 Predicate<Token> debug, Lexer lexer, String[] modeNames,
-                CaretInfo caretPos, CaretFixer updateWithCaretPosition) {
+                CaretInfo caretPos, CaretFixer updateWithCaretPosition,
+                RuleNode parseTreeRoot) {
+            lexer.reset();
             EverythingTokenStream tokens = new EverythingTokenStream(lexer, modeNames);
+            IntFunction<Set<Integer>> ruleFetcher = null;
+            if (parseTreeRoot != null) {
+                ParserRuleCollector collector = new ParserRuleCollector(tokens);
+                ruleFetcher = collector.visit(parseTreeRoot);
+                lexer.reset();
+            }
+
             TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
             return new FormattingContextImpl(rew, start, end, indentSize,
-                    rules, state, whitespace, debug)
-                    .go(lexer, tokens, caretPos, updateWithCaretPosition);
+                    rules, state, whitespace, debug, ruleFetcher)
+                    .go(tokens, caretPos, updateWithCaretPosition);
+        }
+
+        @Override
+        public FormattingRules createFormattingRules(Vocabulary vocabulary, String[] modeNames, String[] parserRuleNames) {
+            return new FormattingRules(vocabulary, modeNames, parserRuleNames);
         }
     }
 

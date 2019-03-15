@@ -33,7 +33,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.api.Criterion;
 import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.api.FormattingRules;
@@ -72,11 +73,11 @@ public abstract class FormattingAccessor {
         return DEFAULT;
     }
 
-    public abstract TokenStream createCompleteTokenStream(Lexer lexer, String[] modeNames);
+    public abstract FormattingRules createFormattingRules(Vocabulary vocabulary, String[] modeNames, String[] parserRuleNames);
 
-//    public abstract String reformat(AntlrFormatterProvider<?,?> provider, int start, int end, String text);
     public abstract FormattingResult reformat(int start, int end, int indentSize,
             FormattingRules rules, LexingState state, Criterion whitespace,
             Predicate<Token> debug, Lexer lexer, String[] modeNames,
-            CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength);
+            CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength,
+            RuleNode rootRuleNode);
 }

@@ -1,8 +1,9 @@
 package org.nemesis.antlrformatting.api;
 
+import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.Interval;
@@ -32,17 +33,11 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     private final Predicate<Token> debugLogging;
     private int firstTokenInRange = -1;
     private int lastTokenInRange = -1;
-
-    FormattingContextImpl(TokenStreamRewriter rew, int start, int end, int indentSize,
-            FormattingRules rules, LexingState state, Criterion whitespace) {
-        this(rew, start, end, indentSize, rules, state, whitespace, t -> {
-            return false;
-        });
-    }
+    private final IntFunction<Set<Integer>> ruleFinder;
 
     FormattingContextImpl(TokenStreamRewriter rew, int start, int end,
             int indentSize, FormattingRules rules, LexingState state,
-            Criterion whitespace, Predicate<Token> debugLogging) {
+            Criterion whitespace, Predicate<Token> debugLogging, IntFunction<Set<Integer>> ruleFinder) {
         this.rew = rew;
         this.startPosition = start;
         this.endPosition = end;
@@ -53,9 +48,22 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         this.whitespace = whitespace;
         this.debugLogging = debugLogging;
         lineState = new LineState(indentSize);
+        this.ruleFinder = ensureRuleFinder(ruleFinder);
     }
 
-    FormattingResult go(Lexer lexer, EverythingTokenStream tokens, CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength) {
+    static IntFunction<Set<Integer>> ensureRuleFinder(IntFunction<Set<Integer>> finder) {
+        if (finder == null) {
+            return ignored -> {
+                throw new IllegalStateException("Cannot use parser rule "
+                        + "constraints - no "
+                        + "parser or rule node was provided when "
+                        + "constructing this formatting context");
+            };
+        }
+        return finder;
+    }
+
+    FormattingResult go(EverythingTokenStream tokens, CaretInfo caretPos, CaretFixer updateWithCaretPositionAndLength) {
         // Starting a new file, wipe the state clean
         state.clear();
         stream = tokens;
@@ -432,7 +440,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                     + " state " + state
             );
         }
-        rules.apply(token, prevType, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew);
+        rules.apply(token, prevType, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder);
     }
 
     /**

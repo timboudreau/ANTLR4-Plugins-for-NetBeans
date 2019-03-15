@@ -15,7 +15,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.NavigationFilter;
@@ -189,10 +188,6 @@ final class EditorScrollPositionManager implements Runnable {
         // repainting and winding up mis-positioned (the caret should stay
         // in the same pixel location on screen whenever possible)
         assert comp != null;
-        Caret caret = comp.getCaret();
-        if (caret != null) { // Believe it or not, during removal, it can be null
-            caret.setVisible(false);
-        }
         // Okay, get the caret position
         CaretInfo cp = CaretInfo.create(comp);
         origCaretPos.set(cp);
@@ -241,10 +236,6 @@ final class EditorScrollPositionManager implements Runnable {
                 js.setIgnoreRepaint(false);
                 js.getViewport().setIgnoreRepaint(false);
             });
-            Caret caret = comp.getCaret();
-            if (caret != null) { // really can be null
-                caret.setVisible(true);
-            }
         }
         // Now the repainting is turned back on, repaint EVERYTHING
         RepaintManager.currentManager(comp).markCompletelyDirty(comp);

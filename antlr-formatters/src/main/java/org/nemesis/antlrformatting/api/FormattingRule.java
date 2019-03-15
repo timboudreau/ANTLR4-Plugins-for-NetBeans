@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import static org.nemesis.antlrformatting.api.util.Predicates.combine;
@@ -69,10 +70,28 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     private int priority;
     private String name; // for debugging
     private List<Predicate<LexingState>> stateCriteria;
+    private Predicate<Set<Integer>> parserRuleMatch;
 
     FormattingRule(IntPredicate tokenType, FormattingRules rules) {
         this.tokenType = tokenType;
         this.rules = rules;
+    }
+
+    public FormattingRule whenParserRule(Predicate<Set<Integer>> predicate) {
+        if (parserRuleMatch == null) {
+            parserRuleMatch = predicate;
+        } else {
+            parserRuleMatch = parserRuleMatch.and(predicate);
+        }
+        return this;
+    }
+
+    public FormattingRule whenInParserRule(int first, int... more) {
+        return whenParserRule(rules.parserRulePredicates().inAnyOf(first, more));
+    }
+
+    public FormattingRule whenNotInParserRule(int first, int... more) {
+        return whenParserRule(rules.parserRulePredicates().notInAnyOf(first, more));
     }
 
     boolean hasAction() {
@@ -605,7 +624,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
-    boolean matches(int tokenType, int prevTokenType, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline) {
+    boolean matches(int tokenType, int prevTokenType, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline, int start, int stop, IntFunction<Set<Integer>> parserRuleFinder) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
             System.out.println("MATCH " + this);
@@ -671,11 +690,27 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 System.out.println("  FOLLOWING NEWLINE NON-MATCH" + this.requiresPrecedingNewline);
             }
         }
+        if (result && parserRuleMatch != null) {
+            Set<Integer> rulesAtPoint = parserRuleFinder.apply(start);
+            if (rulesAtPoint == null) {
+                rulesAtPoint = Collections.emptySet();
+            }
+            if (!rulesAtPoint.isEmpty()) {
+                System.out.println("RULES AT " + start + ": " + ruleNames(rulesAtPoint) + ": " + rulesAtPoint);
+            } else {
+                System.out.println("NO RULES AT " + start);
+            }
+            result = this.parserRuleMatch.test(rulesAtPoint);
+        }
         if (temporarilyActive) {
             temporarilyActive = false;
             active = false;
         }
         return result;
+    }
+
+    private String ruleNames(Set<Integer> ints) {
+        return rules.parserRulePredicates().names(ints);
     }
 
     private int sortPriority() {
@@ -694,6 +729,9 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         result += priority;
         if (stateCriteria != null) {
             result += stateCriteria.size();
+        }
+        if (this.parserRuleMatch != null) {
+            result++;
         }
         return result;
     }

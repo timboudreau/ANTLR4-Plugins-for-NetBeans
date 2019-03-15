@@ -3,8 +3,10 @@ package org.nemesis.antlrformatting.api;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.Vocabulary;
@@ -28,6 +30,7 @@ public final class FormattingRules {
     private volatile boolean sorted;
     private final Vocabulary vocabulary;
     private final String[] modeNames;
+    private final ParserRulePredicates rulePredicates;
 
     /**
      * Create a new formatting rule set.
@@ -37,11 +40,16 @@ public final class FormattingRules {
      * @param modeNames Mode names - used to look up mode numbers for
      * constraining rules based on mode.
      */
-    public FormattingRules(Vocabulary vocabulary, String[] modeNames) {
+    FormattingRules(Vocabulary vocabulary, String[] modeNames, String[] parserRuleNames) {
         assert vocabulary != null : "vocabulary null";
         assert modeNames != null : "mode names null";
         this.vocabulary = vocabulary;
         this.modeNames = modeNames;
+        this.rulePredicates = new ParserRulePredicates(parserRuleNames);
+    }
+
+    ParserRulePredicates parserRulePredicates() {
+        return rulePredicates;
     }
 
     Vocabulary vocabulary() {
@@ -57,6 +65,30 @@ public final class FormattingRules {
             ruleProcessor.accept(rule);
         }
         rules.add(rule);
+    }
+
+    public FormattingRules whenInParserRule(int rule, Consumer<FormattingRules> c) {
+        return applyRuleProcessor(r -> {
+            r.whenInParserRule(rule);
+        }, c);
+    }
+
+    public FormattingRules whenInParserRules(Consumer<FormattingRules> c, int rule, int... moreRules) {
+        return applyRuleProcessor(r -> {
+            r.whenInParserRule(rule, moreRules);
+        }, c);
+    }
+
+    public FormattingRules whenNotInParserRule(int rule, Consumer<FormattingRules> c) {
+        return applyRuleProcessor(r -> {
+            r.whenNotInParserRule(rule);
+        }, c);
+    }
+
+    public FormattingRules whenNotInParserRules(Consumer<FormattingRules> c, int rule, int... moreRules) {
+        return applyRuleProcessor(r -> {
+            r.whenNotInParserRule(rule, moreRules);
+        }, c);
     }
 
     /**
@@ -375,7 +407,8 @@ public final class FormattingRules {
      */
     void apply(ModalToken token, int prevToken, int nextToken,
             boolean precededByNewline, FormattingContext ctx, boolean debug,
-            LexingState state, boolean followedByNewline, TokenStreamRewriter rewriter) {
+            LexingState state, boolean followedByNewline, TokenStreamRewriter rewriter,
+            IntFunction<Set<Integer>> parserRuleFinder) {
         if (!sorted) {
             Collections.sort(rules);
             sorted = true;
@@ -388,7 +421,7 @@ public final class FormattingRules {
             }
         }
         for (FormattingRule rule : rules) {
-            if (rule.matches(token.getType(), prevToken, nextToken, precededByNewline, token.mode(), debug, state, followedByNewline)) {
+            if (rule.matches(token.getType(), prevToken, nextToken, precededByNewline, token.mode(), debug, state, followedByNewline, token.getStartIndex(), token.getStopIndex(), parserRuleFinder)) {
                 if (rule.hasAction()) {
                     if (debug) {
                         System.out.println("'" + token.getText() + "' " + vocabulary
