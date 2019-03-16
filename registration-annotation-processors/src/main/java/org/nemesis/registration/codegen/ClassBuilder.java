@@ -380,7 +380,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         private final Function<ConstructorBuilder<T>, T> converter;
         private BlockBuilder<?> body;
-        private final List<AnnotationBuilder<?>> annotations = new LinkedList<>();
+        private final Set<AnnotationBuilder<?>> annotations = new LinkedHashSet<>();
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private final Set<Modifier> modifiers = EnumSet.noneOf(Modifier.class);
         private final Set<String> throwing = new TreeSet<>();
@@ -403,6 +403,20 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 annotations.add(ab);
                 return this;
             }, what);
+        }
+
+        public ConstructorBuilder<T> annotatedWith(String what, Consumer<AnnotationBuilder<?>> c) {
+            boolean[] built = new boolean[1];
+            AnnotationBuilder<Void> bldr = new AnnotationBuilder<Void>(ab -> {
+                annotations.add(ab);
+                built[0] = true;
+                return null;
+            }, what);
+            c.accept(bldr);
+            if (!built[0]) {
+                bldr.closeAnnotation();
+            }
+            return this;
         }
 
         public ConstructorBuilder<T> addArgument(String type, String name) {
@@ -837,10 +851,11 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
     private ClassBuilder<T> override(String name, Consumer<MethodBuilder<?>> c, Modifier[] modifiers) {
         boolean[] built = new boolean[1];
-        MethodBuilder<?> m = method(name, built, modifiers).override();
+        MethodBuilder<?> m = method(name, built, modifiers);
         c.accept(m);
+        m.override();
         if (!built[0]) {
-            throw new IllegalStateException("Method not closed");
+            m.closeMethod();
         }
         return this;
     }
@@ -885,7 +900,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         private final Function<MethodBuilder<T>, T> converter;
         private final Set<Modifier> modifiers = new TreeSet<>();
-        private final List<BodyBuilder> annotations = new LinkedList<>();
+        private final Set<BodyBuilder> annotations = new LinkedHashSet<>();
         private final Set<BodyBuilder> throwing = new LinkedHashSet<>();
         private BodyBuilder block;
         private String type = "void";
@@ -1702,7 +1717,8 @@ public final class ClassBuilder<T> implements BodyBuilder {
             BlockBuilder<T> block = block(built);
             c.accept(block);
             if (!built[0]) {
-                throw new IllegalStateException("Body not closed - call endBlock()");
+//                throw new IllegalStateException("Body not closed - call endBlock()");
+                block.endBlock();
             }
             body = block;
             return converter.apply(this);
@@ -2017,7 +2033,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
             BlockBuilder<BlockBuilder<T>> bldr = synchronizeOn(what, built);
             c.accept(bldr);
             if (!built[0]) {
-                throw new IllegalStateException("endBlock() not called on synchronized block builder - will not be added");
+                bldr.endBlock();
             }
             return this;
         }
@@ -2511,7 +2527,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public T elseDo(Consumer<BlockBuilder<?>> c) {
             currCondition = new Empty();
-            boolean[] built =new boolean[1];
+            boolean[] built = new boolean[1];
             BlockBuilder<IfBuilder<T>> e = thenDo(built);
             c.accept(e);
             if (!built[0]) {
@@ -2669,10 +2685,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 return false;
             }
             final Adhoc other = (Adhoc) obj;
-            if (!Objects.equals(this.what, other.what)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.what, other.what);
         }
     }
 
@@ -3137,6 +3150,45 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 }
             });
         }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 67 * hash + this.end;
+            hash = 67 * hash + Objects.hashCode(this.converter);
+            hash = 67 * hash + Objects.hashCode(this.values);
+            hash = 67 * hash + this.start;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ArrayValueBuilder<?> other = (ArrayValueBuilder<?>) obj;
+            if (this.end != other.end) {
+                return false;
+            }
+            if (this.start != other.start) {
+                return false;
+            }
+            if (!Objects.equals(this.converter, other.converter)) {
+                return false;
+            }
+            if (!Objects.equals(this.values, other.values)) {
+                return false;
+            }
+            return true;
+        }
+
+
     }
 
     public static final class AnnotationBuilder<T> implements BodyBuilder {
@@ -3225,9 +3277,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 if (!arguments.isEmpty()) {
                     lines.parens(lb -> {
                         if (arguments.size() == 1 && arguments.containsKey("value")) {
-                            arguments.get("value").buildInto(lines);
+                            arguments.get("value").buildInto(lb);
                         } else {
-                            lines.wrappable(wb -> {
+                            lb.wrappable(wb -> {
                                 for (Iterator<Map.Entry<String, BodyBuilder>> it = arguments.entrySet().iterator(); it.hasNext();) {
                                     Map.Entry<String, BodyBuilder> e = it.next();
                                     wb.word(e.getKey()).word("=");
@@ -3243,6 +3295,41 @@ public final class ClassBuilder<T> implements BodyBuilder {
             });
             lines.onNewLine();
         }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 59 * hash + Objects.hashCode(this.converter);
+            hash = 59 * hash + Objects.hashCode(this.annotationType);
+            hash = 59 * hash + Objects.hashCode(this.arguments);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final AnnotationBuilder<?> other = (AnnotationBuilder<?>) obj;
+            if (!Objects.equals(this.annotationType, other.annotationType)) {
+                return false;
+            }
+            if (!Objects.equals(this.converter, other.converter)) {
+                return false;
+            }
+            if (!Objects.equals(this.arguments, other.arguments)) {
+                return false;
+            }
+            return true;
+        }
+
+
     }
 
     public static final class FieldBuilder<T> implements BodyBuilder {
@@ -3252,7 +3339,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         private BodyBuilder initializer;
         private final Set<Modifier> modifiers = new TreeSet<>();
         private final String name;
-        private LinkedHashSet<AnnotationBuilder> annotations = new LinkedHashSet<>();
+        private Set<AnnotationBuilder> annotations = new LinkedHashSet<>();
 
         FieldBuilder(Function<FieldBuilder<T>, T> converter, String name) {
             this.converter = converter;

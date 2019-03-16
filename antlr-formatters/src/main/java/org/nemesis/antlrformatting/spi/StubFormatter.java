@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.api.Criterion;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
@@ -28,9 +29,12 @@ final class StubFormatter<T extends Enum<T>, L extends Lexer> extends AntlrForma
     private final String mimeType;
     private final int[] whitespaceTokens;
     private final int[] debugTokens;
+    private final String[] parserRuleNames;
+    private final Function<Lexer,RuleNode> rootRuleFinder;
 
     StubFormatter(String mimeType, AntlrFormatterStub<T, L> stub, Class<T> enumType, Vocabulary vocab, String[] modeNames,
-            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, int[] debugTokens) {
+            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, int[] debugTokens,
+            String[] parserRuleNames, Function<Lexer,RuleNode> rootRuleFinder) {
         super(enumType);
         this.vocabulary = vocab;
         this.modeNames = modeNames;
@@ -39,6 +43,19 @@ final class StubFormatter<T extends Enum<T>, L extends Lexer> extends AntlrForma
         this.mimeType = mimeType;
         this.whitespaceTokens = whitespaceTokens;
         this.debugTokens = debugTokens;
+        this.parserRuleNames = parserRuleNames;
+        this.rootRuleFinder = rootRuleFinder;
+    }
+
+    @Override
+    protected String[] parserRuleNames() {
+        return parserRuleNames != null && parserRuleNames.length == 0 ? null
+                : parserRuleNames;
+    }
+
+    @Override
+    protected RuleNode parseAndExtractRootRuleNode(Lexer lexer) {
+        return rootRuleFinder.apply(lexer);
     }
 
     @Override
@@ -65,6 +82,9 @@ final class StubFormatter<T extends Enum<T>, L extends Lexer> extends AntlrForma
 
     @Override
     protected int indentSize(Preferences config) {
+        if (config == null) {
+            return super.indentSize(config);
+        }
         return config.getInt(AntlrFormatterStub.PREFS_KEY_INDENT_BY, super.indentSize(config));
     }
 

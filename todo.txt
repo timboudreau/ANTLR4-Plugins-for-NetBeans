@@ -17,26 +17,14 @@ Get the antlr module working
 
 Hooks for dataobject methods, needed for antlr module's grammar file delete handling
 
+
 FORMATTING:
-
-Add a BitSet to ?
-
- - FormattingRules.whenInParserRule() + way to get parser from AntlrFormatterProvider
 
  - Rename AntlrFormatterProvider to AntlrFormatter and update in the annotation processor
 
  - REINDENT SUPPORT
 
- - Use SemanticRegions<Integer> to detect rule presence?
-
-
- - Applying the selection should *center* the new selection rectangle over the original one, not just shift it
-
-
- - Selection problems:
-   - Caret position start is getting set on the first matching *whitespace* token, 
-     rather than the first token we really used.  Move that code out of the token reading loop,
-     and use the final computation of last matching token (which may be the EOF token - 1)
+ - Update the annotation processor to support parser detection and generate additional methods
 
 
 

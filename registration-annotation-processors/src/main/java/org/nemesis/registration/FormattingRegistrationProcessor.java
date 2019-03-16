@@ -2,7 +2,10 @@ package org.nemesis.registration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
@@ -74,6 +77,72 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
         return true;
     }
 
+    private AnnotationMirror preemptivelyFindLanguageRegistration(RoundEnvironment env, String mimeType) {
+        Set<Element> elements = utils().findAnnotatedElements(env, REGISTRATION_ANNO);
+        for (Element e : elements) {
+            AnnotationMirror mir = utils().findAnnotationMirror(e, REGISTRATION_ANNO);
+            if (mir != null) {
+                String mime = utils().annotationValue(mir, "mimeType", String.class);
+                if (mimeType.equals(mime)) {
+                    return mir;
+                }
+            }
+        }
+        return null;
+    }
+
+    private TypeElement findParserClass(TypeMirror lexerClass) {
+        String name = lexerClass.toString();
+        if (!name.endsWith("Lexer")) {
+            return null;
+        }
+        name = name.substring(0, name.length() - 5) + "Parser";
+        return processingEnv.getElementUtils().getTypeElement(name);
+    }
+
+    private List<Integer> findWhitespaceTokens(RoundEnvironment env, String mimeType) {
+        AnnotationMirror mir = preemptivelyFindLanguageRegistration(env, mimeType);
+        if (mir != null) {
+            AnnotationMirror syntaxAnno = utils().annotationValue(mir, "syntax", AnnotationMirror.class);
+            if (syntaxAnno != null) {
+                List<Integer> whitespaceTokens = utils().annotationValues(syntaxAnno, "whitespaceTokens", Integer.class);
+                if (!whitespaceTokens.isEmpty()) {
+                    return whitespaceTokens;
+                }
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    private final Map<String, Integer> streamChannelForMimeType = new HashMap<>();
+
+    private Integer streamChannelForMimeType(String mimeType) {
+        return streamChannelForMimeType.getOrDefault(mimeType, 0);
+    }
+
+    private ParserProxy findParserInfo(RoundEnvironment env, String mimeType, TypeMirror lexerClass) {
+        AnnotationMirror mir = preemptivelyFindLanguageRegistration(env, mimeType);
+        if (mir == null && lexerClass != null) {
+            TypeElement parserClass = findParserClass(lexerClass);
+            if (parserClass != null) {
+                return ParserProxy.create(0, parserClass.asType(), utils());
+            }
+            return null;
+        }
+        AnnotationMirror parserInfo = utils().annotationValue(mir, "parser", AnnotationMirror.class);
+        if (parserInfo != null) {
+            List<String> parserType = utils().typeList(parserInfo, "type");
+            if (!parserType.isEmpty()) {
+                Integer streamChannel = utils().annotationValue(parserInfo, "parserStreamChannel", Integer.class, 0);
+                streamChannelForMimeType.put(mimeType, streamChannel);
+                TypeElement parserClass = processingEnv.getElementUtils().getTypeElement(parserType.get(0));
+                int rootRule = utils().annotationValue(parserInfo, "entryPointRule", Integer.class, 0);
+                return ParserProxy.create(rootRule, parserClass.asType(), utils());
+            }
+        }
+        return null;
+    }
+
     @Override
     protected boolean processTypeAnnotation(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (FORMATTER_REGISTRATION_ANNO_TYPE.equals(mirror.getAnnotationType().toString())) {
@@ -84,7 +153,7 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
         return false;
     }
 
-    private String findLexerClass(TypeElement el, AnnotationMirror anno, String subtypeOf) {
+    private TypeMirror findLexerClass(TypeElement el, AnnotationMirror anno, String subtypeOf) {
         if ("java.lang.Object".equals(el.getQualifiedName().toString())) {
             return null;
         }
@@ -97,7 +166,7 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
                 System.out.println(" TEST " + arg);
                 if (utils().isSubtypeOf(arg, subtypeOf).isSubtype()) {
                     System.out.println("GOT IT: " + arg);
-                    return arg.toString();
+                    return arg;
                 }
             }
         }
@@ -114,10 +183,11 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
 
     private static final String REFORMAT_TASK_TYPE = "org.netbeans.modules.editor.indent.spi.ReformatTask";
     private static final String MIME_REG_TYPE = "org.netbeans.api.editor.mimelookup.MimeRegistration";
+
     private void processFormatterRegistration(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        String lexerClass = findLexerClass(type, mirror, ANTLR_LEXER_TYPE);
-        String enumClass = findLexerClass(type, mirror, java.lang.Enum.class.getName());
+        TypeMirror lexerClass = findLexerClass(type, mirror, ANTLR_LEXER_TYPE);
+        TypeMirror enumClass = findLexerClass(type, mirror, java.lang.Enum.class.getName());
         System.out.println("LEXER CLASS " + lexerClass);
         System.out.println("ENUM CLASS " + enumClass);
         if (lexerClass == null) {
@@ -138,11 +208,19 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
 String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames,
             Function<CharStream, L> lexerFactory, int... whitespaceTokens
          */
+        ParserProxy parser = findParserInfo(roundEnv, mimeType, lexerClass);
+
+        String formatterSignature = simpleName(FORMATTER_TYPE) + "<"
+                + simpleName(lexerClass.toString()) 
+                + ","
+                + simpleName(enumClass.toString())
+                + ">";
+
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                .importing(FORMATTER_TYPE, lexerClass, enumClass, "org.antlr.v4.runtime.CharStream",
+                .importing(FORMATTER_TYPE, lexerClass.toString(), enumClass.toString(), "org.antlr.v4.runtime.CharStream",
                         REFORMAT_TASK_TYPE, "org.netbeans.modules.editor.indent.spi.Context",
                         MIME_REG_TYPE
-                        )
+                )
                 .withModifier(PUBLIC, FINAL)
                 .implementing(simpleName(REFORMAT_TASK_TYPE) + ".Factory")
                 .annotatedWith(simpleName(MIME_REG_TYPE))
@@ -157,8 +235,8 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                         .withArgument("ctx").onInvocationOf("get").inScope();
                             });
                 })
-                .privateMethod("get", mb -> {
-                    mb.returning(simpleName(FORMATTER_TYPE))
+                .method("get", mb -> {
+                    mb.returning(formatterSignature)
                             .body(bb -> {
                                 bb.returningInvocationOf("toFormatterProvider")
                                         .withStringLiteral(mimeType)
@@ -192,9 +270,41 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                             });
                                             ints.closeArray();
                                         })
+                                        .withArgument(parser == null ? "null" : parser.parserClassSimple() + ".ruleNames" )
+                                        // String[] parserRuleNames, Function<Lexer,RuleNode> rootRuleFinder
+                                        /*
+                                        .withNewArrayArgument("String", rns -> {
+                                            if (parser != null) {
+                                                parser.ruleNamesSortedById().forEach((rule) -> {
+                                                    rns.stringLiteral(rule);
+                                                });
+                                            }
+                                        })
+                                        */
+                                        .withLambdaArgument(lam -> {
+                                            lam.withArgument("Lexer", "lexer").body(lamb -> {
+                                                if (parser != null) {
+                                                    int streamChannel = streamChannelForMimeType(mimeType);
+                                                    lamb.declare("stream")
+                                                            .initializedWith("new CommonTokenStream(lexer, " + streamChannel + ")")
+                                                            .as("CommonTokenStream");
+
+                                                    lamb.returningInvocationOf(parser.parserEntryPoint().getSimpleName().toString())
+                                                            .onInvocationOf("new " + parser.parserClassSimple())
+                                                            .withArgument("stream").inScope();
+                                                } else {
+                                                    lamb.returning("null");
+                                                }
+                                            });
+                                        })
                                         .on("new " + type.getSimpleName().toString() + "()");
                             });
                 });
+        if (parser != null) {
+            cb.importing("org.antlr.v4.runtime.CommonTokenStream");
+            cb.importing(parser.parserClassFqn());
+            cb.importing("org.antlr.v4.runtime.Lexer");
+        }
         writeOne(cb);
     }
 

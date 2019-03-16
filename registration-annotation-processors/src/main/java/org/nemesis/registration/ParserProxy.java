@@ -1,6 +1,9 @@
 package org.nemesis.registration;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -24,11 +27,21 @@ class ParserProxy {
     private final Map<String, ExecutableElement> methodsForNames;
     private final int entryPointRuleNumber;
 
+    public List<String> ruleNamesSortedById() {
+        List<String> result = new ArrayList<>();
+        List<Integer> keys = new ArrayList<>(ruleIdForName.keySet());
+        Collections.sort(keys);
+        for (Integer key : keys) {
+            result.add(ruleIdForName.get(key));
+        }
+        return result;
+    }
+
     static ParserProxy create(int entryPointRuleId, TypeMirror parserClass, AnnotationUtils utils) {
-        Map<Integer, String> ruleIdForName = new HashMap<>();
-        Map<String, Integer> nameForRuleId = new HashMap<>();
         ExecutableElement parserEntryPointMethod = null;
         TypeElement parserClassElement = parserClass == null ? null : utils.processingEnv().getElementUtils().getTypeElement(parserClass.toString());
+        Map<Integer, String> ruleIdForName = new HashMap<>();
+        Map<String, Integer> nameForRuleId = new HashMap<>();
         Map<String, ExecutableElement> methodsForNames = new HashMap<>();
         if (parserClassElement != null) {
             String entryPointRule = null;

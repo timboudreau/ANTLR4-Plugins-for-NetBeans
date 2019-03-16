@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
+import org.nemesis.misc.utils.StringUtils;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.GotoDeclarationProcessor.DECLARATION_TOKEN_PROCESSOR_TYPE;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
@@ -55,15 +57,14 @@ import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.codegen.LinesBuilder;
 import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
-import org.nemesis.misc.utils.StringUtils;
-import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
-import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 import org.nemesis.registration.codegen.ClassBuilder.SwitchBuilder;
 import static org.nemesis.registration.utils.AnnotationUtils.capitalize;
 import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
+import org.openide.filesystems.FileUtil;
+import org.openide.filesystems.annotations.LayerGenerationException;
 
 /**
  *
@@ -208,8 +209,11 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         return ParserProxy.create(entryPointRuleId, parserClass, utils);
     }
 
+    private static int dataObjectClassCount = 0;
+
     // DataObject generation
     private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, ParserProxy parser, LexerProxy lexer) throws Exception {
+        dataObjectClassCount++;
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if ("<error>".equals(mimeType)) {
             utils().fail("Could not get mime type", type);
@@ -241,6 +245,12 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
                 .withModifier(FINAL).withInitializer(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
 
+        List<String> hooksClass = utils().typeList(fileInfo, "hooks", "org.nemesis.antlr.spi.language.DataObjectHooks");
+        Set<String> hooksMethods
+                = hooksClass.isEmpty()
+                ? Collections.emptySet()
+                : generateHookMethods(fileInfo, type, hooksClass.get(0), cl);
+
         if (multiview) {
             cl.importing("org.netbeans.core.spi.multiview.MultiViewElement",
                     "org.netbeans.core.spi.multiview.text.MultiViewEditorElement",
@@ -254,28 +264,38 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
             annoBuilder.addStringArgument("mimeType", mimeType)
                     .addStringArgument("iconBase", iconBase)
                     .addStringArgument("displayName", "#" + msgName) // xxx localize
-                    .addArgument("position", 1536)
+                    .addArgument("position", 1536 + dataObjectClassCount)
                     .closeAnnotation();
         });
         cl.annotatedWith("MIMEResolver.ExtensionRegistration", ab -> {
             ab.addStringArgument("displayName", "#" + msgName)
                     .addStringArgument("mimeType", mimeType)
-                    .addStringArgument("extension", extension).closeAnnotation();
+                    .addStringArgument("extension", extension)
+                    .addArgument("position", 1536 + dataObjectClassCount)
+                    .closeAnnotation();
         });
-        cl.constructor().setModifier(PUBLIC)
-                .addArgument("FileObject", "pf")
-                .addArgument("MultiFileLoader", "loader")
-                .throwing("DataObjectExistsException")
-                .body(bb -> {
-                    bb.invoke("super").withArgument("pf").withArgument("loader").inScope();
-                    bb.log(Level.FINE).stringLiteral(dataObjectClassName)
-                            .argument("pf.getPath()")
-                            .logging("Create a new {0} for {1}");
+        cl.constructor(cb -> {
+            cb.setModifier(PUBLIC)
+                    .addArgument("FileObject", "pf")
+                    .addArgument("MultiFileLoader", "loader")
+                    .throwing("DataObjectExistsException")
+                    .body(bb -> {
+                        bb.invoke("super").withArgument("pf").withArgument("loader").inScope();
+                        bb.log(Level.FINE).stringLiteral(dataObjectClassName)
+                                .argument("pf.getPath()")
+                                .logging("Create a new {0} for {1}");
 //                    bb.statement("if (pf.getPath().startsWith(\"Editors\")) new Exception(pf.getPath()).printStackTrace(System.out)");
-                    bb.invoke("registerEditor").withArgument(LinesBuilder.stringLiteral(mimeType))
-                            .withArgument(multiview)
-                            .inScope().endBlock();
-                });
+                        bb.invoke("registerEditor").withArgument(LinesBuilder.stringLiteral(mimeType))
+                                .withArgument(multiview)
+                                .inScope().endBlock();
+                        if (hooksMethods.contains("notifyCreated")) {
+                            cb.annotatedWith("SuppressWarnings")
+                                    .addStringArgument("value", "LeakingThisInConstructor")
+                                    .closeAnnotation();
+                            bb.invoke("notifyCreated").withArgument("this").on("HOOKS");
+                        }
+                    });
+        });
         cl.override("associateLookup").returning("int").withModifier(PROTECTED).body().returning("1").endBlock();
 
         if (multiview) {
@@ -326,6 +346,273 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegist
         layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
                 .stringvalue("displayName", prefix).write();
         writeOne(cl);
+    }
+
+    static final Set<String> EXPECTED_HOOK_METHODS = new HashSet<>(Arrays.asList(
+            "notifyCreated",
+            "decorateLookup",
+            "createNodeDelegate",
+            "handleDelete",
+            "handleRename",
+            "handleCopy",
+            "handleMove",
+            "handleCreateFromTemplate",
+            "handleCopyRename"));
+
+    static final Consumer<ClassBuilder<?>> hookMethodGenerator(String hookMethod) {
+        switch (hookMethod) {
+            case "notifyCreated":
+                return cb -> {
+                };
+            case "decorateLookup":
+                return decorateLookupInvoker;
+            case "createNodeDelegate":
+                return createNodeDelegateInvoker;
+            case "handleDelete":
+                return handleDeleteInvoker;
+            case "handleRename":
+                return handleRenameInvoker;
+            case "handleCopy":
+                return handleCopyInvoker;
+            case "handleMove":
+                return handleMoveInvoker;
+            case "handleCreateFromTemplate":
+                return handleCreateFromTemplateInvoker;
+            case "handleCopyRename":
+                return handleCopyRenameInvoker;
+            default:
+                throw new AssertionError("Not a hook method: " + hookMethod);
+        }
+    }
+
+    private static final Consumer<ClassBuilder<?>> decorateLookupInvoker = (cb) -> {
+        cb.importing("org.openide.util.Lookup", "org.openide.loaders.DataObject",
+                "java.util.function.Supplier", "org.openide.util.lookup.InstanceContent",
+                "org.openide.util.lookup.AbstractLookup", "org.openide.util.lookup.ProxyLookup")
+                .field("lookupContent").withModifier(PRIVATE, FINAL).withInitializer("new InstanceContent()").ofType("InstanceContent")
+                .field("contributedLookup").withModifier(PRIVATE, FINAL).withInitializer("new AbstractLookup(lookupContent)").ofType("Lookup")
+                .field("lkp").withModifier(PRIVATE).ofType("Lookup")
+                .overridePublic("getLookup").returning("Lookup")
+                .body(bb -> {
+                    bb.synchronizeOn("lookupContent", sbb -> {
+                        sbb.ifCondition().variable("lkp").notEquals().literal("null")
+                                .endCondition().returning("lkp").endBlock().endIf();
+                        sbb.declare("superLookup").initializedByInvoking("getLookup")
+                                .onInvocationOf("getCookieSet").inScope().as("Lookup");
+                        sbb.invoke("decorateLookup")
+                                .withArgument("this")
+                                .withArgument("lookupContent")
+                                .withArgument("() -> superLookup")
+                                .on("HOOKS");
+                        sbb.returning("lkp = new ProxyLookup(contributedLookup, superLookup)");
+                    });
+                });
+    };
+
+    private static final Consumer<ClassBuilder<?>> createNodeDelegateInvoker = cb -> {
+        cb.importing("org.openide.nodes.Node")
+                .overrideProtected("createNodeDelegate", mb -> {
+                    mb.returning("Node")
+                            .body(bb -> {
+                                bb.returningInvocationOf("createNodeDelegate")
+                                        .withArgument("this")
+                                        .withLambdaArgument().body()
+                                        .returningInvocationOf("createNodeDelegate").on("super").endBlock()
+                                        .on("HOOKS");
+                            });
+                });
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleDeleteInvoker = cb -> {
+        cb.overrideProtected("handleDelete", mb -> {
+
+            mb.throwing("IOException").body(bb -> {
+                bb.invoke("handleDelete")
+                        .withArgument("this")
+                        .withLambdaArgument().body()
+                        .invoke("handleDelete").on("super").endBlock()
+                        .on("HOOKS");
+            });
+        });
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleRenameInvoker = cb -> {
+        cb.overrideProtected("handleRename")
+                .addArgument("String", "name")
+                .returning("FileObject")
+                .throwing("IOException")
+                .body(bb -> {
+                    bb.returningInvocationOf("handleRename")
+                            .withArgument("this")
+                            .withArgument("name")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("String", "newName")
+                                        .body(lbb -> {
+                                            lbb.returningInvocationOf("handleRename")
+                                                    .withArgument("newName")
+                                                    .on("super");
+                                        });
+                            })
+                            .on("HOOKS");
+                });
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleCopyInvoker = cb -> {
+        cb.importing("org.openide.loaders.DataFolder", "org.openide.filesystems.FileObject",
+                "org.openide.loaders.DataObject")
+                .overrideProtected("handleCopy")
+                .throwing("IOException")
+                .addArgument("DataFolder", "fld")
+                .returning("DataObject")
+                .throwing("IOException")
+                .body(bb -> {
+                    bb.returningInvocationOf("handleCopy")
+                            .withArgument("this")
+                            .withArgument("fld")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("DataFolder", "newFld")
+                                        .body(lbb -> {
+                                            lbb.returningInvocationOf("handleCopy")
+                                                    .withArgument("newFld")
+                                                    .on("super");
+                                        });
+                            })
+                            .on("HOOKS");
+                });
+        ;
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleMoveInvoker = cb -> {
+        cb.importing("org.openide.loaders.DataFolder",
+                "org.openide.loaders.DataObject",
+                "org.openide.filesystems.FileObject")
+                .overrideProtected("handleMove")
+                .returning("FileObject")
+                .addArgument("DataFolder", "target")
+                .throwing("IOException")
+                .body(bb -> {
+                    bb.returningInvocationOf("handleMove")
+                            .withArgument("this")
+                            .withArgument("target")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("DataFolder", "newTarget")
+                                        .body(lbb -> {
+                                            lbb.returningInvocationOf("handleMove")
+                                                    .withArgument("newTarget")
+                                                    .on("super");
+                                        });
+
+                            })
+                            .on("HOOKS");
+                });
+        ;
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleCreateFromTemplateInvoker = cb -> {
+        cb.importing("org.openide.loaders.DataFolder", "org.openide.loaders.DataObject")
+                .overrideProtected("handleCreateFromTemplate")
+                .addArgument("DataFolder", "in")
+                .addArgument("String", "name")
+                .returning("DataObject")
+                .throwing("IOException")
+                .body(bb -> {
+                    bb.returningInvocationOf("handleCreateFromTemplate")
+                            .withArgument("this")
+                            .withArgument("in")
+                            .withArgument("name")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("DataFolder", "newIn")
+                                        .withArgument("String", "newName")
+                                        .body(lbb -> {
+                                            lbb.returningInvocationOf("handleCreateFromTemplate")
+                                                    .withArgument("newIn")
+                                                    .withArgument("newName")
+                                                    .on("super");
+                                        });
+                            })
+                            .on("HOOKS");
+                });
+        ;
+    };
+
+    private static final Consumer<ClassBuilder<?>> handleCopyRenameInvoker = cb -> {
+        cb.importing("org.openide.loaders.DataFolder", "org.openide.loaders.DataObject")
+                .overrideProtected("handleCopyRename")
+                .addArgument("DataFolder", "in")
+                .addArgument("String", "name")
+                .addArgument("String", "ext")
+                .returning("DataObject")
+                .throwing("IOException")
+                .body(bb -> {
+                    bb.returningInvocationOf("handleCopyRename")
+                            .withArgument("this")
+                            .withArgument("in")
+                            .withArgument("name")
+                            .withArgument("ext")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("DataFolder", "newIn")
+                                        .withArgument("String", "newName")
+                                        .withArgument("String", "newExt")
+                                        .body(lbb -> {
+                                            lbb.returningInvocationOf("handleCopyRename")
+                                                    .withArgument("newIn")
+                                                    .withArgument("newName")
+                                                    .withArgument("newExt")
+                                                    .on("super");
+                                        });
+                                ;
+                            })
+                            .on("HOOKS");
+                });
+    };
+
+    private Set<String> findMethods(TypeElement type, AnnotationMirror fileInfo, String hooksClassFqn) {
+        TypeElement te = processingEnv.getElementUtils().getTypeElement(hooksClassFqn);
+        if (te == null) {
+            utils().fail("Could not find " + hooksClassFqn + " on classpath", type, fileInfo);
+        }
+        List<ExecutableElement> methods = new ArrayList<>();
+        Set<String> names = new HashSet<>();
+        boolean foundReachableConstructor = false;
+        for (Element e : te.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD) {
+                ExecutableElement ee = (ExecutableElement) e;
+                if (EXPECTED_HOOK_METHODS.contains(ee.getSimpleName().toString())) {
+                    names.add(ee.getSimpleName().toString());
+                    methods.add(ee);
+                }
+            } else if (e.getKind() == ElementKind.CONSTRUCTOR) {
+                ExecutableElement con = (ExecutableElement) e;
+                if (con.getModifiers().contains(PUBLIC) && con.getParameters().isEmpty()) {
+                    foundReachableConstructor = true;
+                }
+            }
+        }
+        if (!foundReachableConstructor) {
+            utils().fail("Could not find a public no-argument constructor on '" + hooksClassFqn
+                    + " to generate hook methods", te);
+        }
+//        List<String> methods = new ArrayList<>();
+        return names;
+    }
+
+    private Set<String> generateHookMethods(AnnotationMirror fileInfo, TypeElement type, String hooksClassFqn, ClassBuilder<?> cl) {
+        Set<String> overridden = findMethods(type, fileInfo, hooksClassFqn);
+        if (overridden.isEmpty()) {
+            System.out.println("NO HOOK METHODS TO CALL on " + hooksClassFqn);
+            return overridden;
+        }
+        cl.importing(hooksClassFqn);
+        cl.importing("java.io.IOException", "org.openide.loaders.DataObject");
+        cl.field("HOOKS")
+                .withModifier(PRIVATE, STATIC, FINAL)
+                .withInitializer("new " + simpleName(hooksClassFqn) + "()")
+                .ofType(simpleName(hooksClassFqn));
+
+        for (String mth : overridden) {
+            hookMethodGenerator(mth).accept(cl);
+        }
+        return overridden;
     }
 
     private static final String EDITOR_KIT_TYPE = "javax.swing.text.EditorKit";

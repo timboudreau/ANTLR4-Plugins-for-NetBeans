@@ -29,19 +29,30 @@ import static org.nemesis.antlrformatting.api.util.Predicates.combine;
  * <ul>
  * <li>Each rule has a set of <i>conditions</i> to make it active, and a
  * {@link FormattingAction} to apply if the conditions hold</li>
+ * <li>Each rule as a "score" based on the number of constraints that need to be
+ * true for that rule to be appled</li>
  * <li>Rules with more conditions applied to them (each call to a method such as
- * <code>whereModeNot("foo")</code> adds a condition to the rule, and causes it
- * to be tried earlier)</li>
- * <li>In a set of rules, only <i>the first (highest number of conditions) one
- * that matches a token will be applied</i> (you can goose the priority with the
- * <code>priority()</code> method if absolutely necessary)</li>
+ * <code>whereModeNot("foo")</code> adds a condition to the rule, increase the
+ * rule's specificity score and causes it to be tried earlier)</li>
+ * <li>There is one exception to "each condition adds one to the score" - rules
+ * which specify a <i>parser rule</i> get 1000 added to their score - i.e.
+ * parser-rule specific rules get tried before anything else and will always
+ * override more general rules that might also match the same token.
+ * </li>
+ * <li>In a set of rules, only <b>ONE</b> rule will be applied
+ * <i>the first (highest score) one that matches a token will be applied</i>
+ * (you can goose the priority with the <code>priority()</code> method if
+ * absolutely necessary)</li>
  * <li>If a rule matches, its {@link FormattingAction} is called, and that can
  * specify what to do with whitespace around this token (prepend or append
- * spaces, newlines, increase or decrease indent level, etc.)</li>
+ * spaces, newlines, increase or decrease indent level, rewrite the token,
+ * whatever you want etc.)</li>
  * <li>Rules may be conditioned on a wide variety of things, such as lexer mode,
  * token type, and the contents of the LexingState configured when setting up
- * your formatter; the LexingState contains metrics about other tokens in
- * relation to the current one, as you have configured it.</li>
+ * your formatter (the LexingState contains metrics about other tokens in
+ * relation to the current one, and you program it with what to collect by
+ * populating the LexingStateBuilder passed to you when you set up your
+ * formatter).</li>
  * </ul>
  *
  * <p>
@@ -713,7 +724,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return rules.parserRulePredicates().names(ints);
     }
 
-    private int sortPriority() {
+    private int specificityScore() {
         int result = 0;
         for (IntPredicate val : new IntPredicate[]{tokenType, prevTokenType, nextTokenType, mode}) {
             if (val != null) {
@@ -726,20 +737,21 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (requiresFollowingNewline != null) {
             result++;
         }
-        result += priority;
         if (stateCriteria != null) {
             result += stateCriteria.size();
         }
+        result *= 10;
+        result += priority;
         if (this.parserRuleMatch != null) {
-            result++;
+            result += 1000;
         }
         return result;
     }
 
     @Override
     public int compareTo(FormattingRule o) {
-        int mc = sortPriority();
-        int omc = o.sortPriority();
+        int mc = specificityScore();
+        int omc = o.specificityScore();
         int result = mc > omc ? -1 : mc == omc ? 0 : 1;
         return result;
     }

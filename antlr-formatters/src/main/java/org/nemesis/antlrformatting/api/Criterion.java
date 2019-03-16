@@ -338,6 +338,13 @@ public interface Criterion extends IntPredicate {
         };
     }
 
+    /**
+     * Return a wrapper for this criterion which will only return true when the
+     * immediately preceding call was with the value <code>n</code>.
+     *
+     * @param n Another value
+     * @return
+     */
     default Criterion precededby(int n) {
         return new Criterion() {
             int prev = -1;
@@ -351,12 +358,18 @@ public interface Criterion extends IntPredicate {
 
             @Override
             public String toString() {
-                return Criterion.this.toString() + " (first " + n + " matches)";
+                return Criterion.this.toString() + " (preceded by " + n + ")";
             }
-
         };
     }
 
+    /**
+     * Creates a wrapper for this criterion which will match on the token type,
+     * but will ignore subsequent matches until it has been called with some
+     * other value.
+     *
+     * @return A criterion
+     */
     default Criterion firstInSeries() {
         return new Criterion() {
             int ct = -1;

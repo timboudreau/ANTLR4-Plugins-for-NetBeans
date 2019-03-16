@@ -264,5 +264,14 @@ public @interface AntlrLanguageRegistration {
          * your file type.
          */
         boolean renameAllowed() default true;
+
+        /**
+         * If you want to hook into lifecycle methods of DataObjects
+         * for your file type, implement this interface and specify
+         * it here.
+         *
+         * @return A class which implements DataObjectHooks
+         */
+        Class<? extends DataObjectHooks> hooks() default NoHooks.class;
     }
 }

@@ -30,6 +30,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.util.Set;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
 import org.nemesis.antlr.common.extractiontypes.FoldableRegion;
 import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
@@ -40,6 +41,7 @@ import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
+import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
 import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
@@ -57,7 +59,12 @@ import org.nemesis.extraction.key.SingletonKey;
  */
 @AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
         parser = @ParserControl(type = ANTLRv4Parser.class, entryPointRule = ANTLRv4Parser.RULE_grammarFile),
-        file = @FileType(extension = "g4", multiview = true, deleteAllowed = false, renameAllowed = true),
+        file = @FileType(extension = "g4", multiview = true, iconBase=ICON_PATH , hooks = AntlrDataObjectHooks.class),
+        syntax = @SyntaxInfo(
+                whitespaceTokens = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
+                    HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
+                    OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS}
+        ),
         categories = {
             @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR}, colors = @Coloration(fg = {255, 255, 0, 255})),
             @TokenCategory(name = "symbol", tokenIds = {

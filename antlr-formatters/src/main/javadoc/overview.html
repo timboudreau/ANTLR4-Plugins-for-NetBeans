@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Antlr Formatters API</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <h1>Antlr Formatters API</h1>
+        <p>
+            This package contains an API for describing how to modify the tokens
+            in a source file parsed by Antlr in order to reformat that source
+            file.  You create a set of
+            <code><a href="FormattingRule.html">FormattingRule</a></code>s
+            &mdash; your code is passed an empty
+            <code><a href="FormattingRules.html">FormattingRules</a></code>
+            instance to populate before formatting runs, and you can populate
+            it with whatever rules you want to apply.  Each
+            <code>FormattingRule</code> has a
+            <code><a href="FormattingAction.html">FormattingAction</a></code>
+            &mdash; the thing to do to the token being processed.  Simply adding a rule
+            and a simple, built-in formatting action looks like this:
+        </p>
+
+        <pre>
+rules.onTokenType( S_CLOSE_BRACE )
+    .whereNextTokenTypeNot( S_SEMICOLON )
+    .format( SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT.by( BRACE_DEPTH ));
+        </pre>
+        <p>
+            Formatters generally manipulate the amounts of whitespace between
+            textual tokens in a language, and that is what this library is
+            focused on.  But they may also rewrite tokens or reflow text, so
+            token rewriting is supported too.
+        </p>
+        <p>
+            Each <code>FormattingRule</code> has a set of <i>constraints</i>
+            that determine whether it matches the current token.  <i><b>Exactly one</b>
+                <code>FormattingRule</code> and <code>FormattingAction</code>
+                will process any token</i>.  Constraints can be based on:
+        </p>
+        <ul>
+            <li>The type of the current token</li>
+            <li>The type of the preceding token</li>
+            <li>The type of the susequent token</li>
+            <li>The lexer mode (as defined in your Antlr grammar)</li>
+            <li>Whether, in the input text, it was preceded or followed
+                by a whitespace token containing a newline</li>
+            <li>Much more complex constraints based on the
+                <code><a href="LexingState.html">LexingState</a></code>,
+                (see below), such as "only when in a group of braces
+                with a nesting depth of 1", or "only when the distance
+                to the next closing parenthesis is > 1" &mdash; since you
+                program your LexingState to collect whatever you want,
+                the sky is the limit with these.
+            </li>
+        </ul>
+        <p>
+            The IDs you use to identify token types and modes are all generated
+            as static integer constants on your Antlr-based Lexer and Parser
+            classes.
+        </p>
+
+        <h2>How to Approach Writing Formatters</h2>
+        <p>
+            As a general approach to writing formatters, start with the most
+            general rules that will work almost everywhere - for example, things
+            like "keywords always get a space before them and after them".  Try it (write a
+            unit test that will print out text).  See where the rule is <i>too</i>
+            general - for example, in Java, the rule just described would sometimes
+            put a space before an end-of-line semicolon.  Then write more
+            specific rules predicated on the preceding or next token type
+            to fix those cases - since that rule will be more specific, it
+            will win when competing against the more general one.
+        </p>
+        <p>
+            Keep getting more specific until you hit a point where what you need
+            cannot be solved with just knowing the preceding or next token - for
+            example, indenting content within nested braces.  If, as in Java,
+            there is a statement terminator character - '<code>;</code>', you
+            can just set up your lexing state to increment the brace count on
+            entering a <code>{</code> and decrement it on a <code>}</code>
+            and use that.
+        </p>
+        <p>
+            For cases that still isn't enough, you can either specify to run
+            within a particular parser rule, or tell your
+            <code><a href="LexingStateBuilder.html">LexingStateBuilder</a></code>
+            to count the distance to the nearest instance of some other token
+            type that only occurs at a specific distance in the case you want
+            to handle, and condition your rule on that.
+        </p>
+        <p>
+            Resist the temptation to start with those "ooh, I know I can do this
+            cool thing" rules that are very specific, or it is easy to wind
+            up with a very large formatting rule set most of which do more or
+            less the same thing.  Start by looking for the most general cases
+            that will handle the most tokens correctly, and then narrow down
+            the corner cases - usually you will find generalities that aren't
+            obvious until you're in the thick of it that work for a lot of cases.
+        </p>
+
+        <h3>How Tokens are Matched by Formatting Rules</h3>
+        <p>
+            Each <code>FormattingRule</code> gets a <b>specificity score</b> that
+            determines the order it is tested against the current token, based on
+            the number of constraints it contains.  Formatting rules attempt to
+            match a token in order of specificity score, from highest to lowest.
+            So a rule that matches a token type, and specifies that the next
+            token must be another token type will win if it competes with a rule
+            which is just matching any token of that type.
+        </p>
+        <p>
+            There is one caveat to that:
+            <i>specifying that a rule is specific to a particular
+                parser rule id adds 1000 to its score</i>, since it is most common
+            to write rules that run only when a particular parser rule is active,
+            and to want these to take precedence. So parser rule specific
+            formatting rules compete with each other at a different level than
+            general rules - this is almost always what's desired.
+        </p>
+        <p>
+            The specificity score is the number of kinds of constraints
+            multiplied by 10, plus 1000 in the case of parser-rule-specific
+            formatting rules.  In the case that there are two competing rules,
+            and there is no way to make one more specific, you can call
+            <code>priority(int)</code> on the rule you want to run first
+            to increse (or decrease) its score by the amount passed, to
+            guarantee which one will be tested first.
+        </p>
+
+        <h2>Formatting Actions</h2>
+        <p>
+            <code><a href="FormattingAction.html">FormattingAction</a></code>s
+            perform modifications to the token being processed, which can consist
+            of instructions to
+        </p>
+        <ul>
+            <li>Prepend newlines and or whitespace</li>
+            <li>Append newlines and or whitespace</li>
+            <li>Rewrite the token text</li>
+        </ul>
+        <p>
+            <code>FormattingAction</code>s can be combined.
+            The enum
+            <code><a href="SimpleFormattingAction.html">SimpleFormattingAction</a></code>
+            predefines constants for common operations prepending or appending to
+            the current token indenting or newlines.  The <code>FormattingAction</code>
+            interface has default methods for combining instances with common
+            operations such as trimming whitespace, reflowing text.
+        </p>
+
+        <h2>LexingState &mdash; Automatically Indenting To The Right Depth and More</h2>
+        <p>
+            You would still have to do a lot of tedious work to handle different indent
+            levels to format languages with nested sets of braces such as Java, were
+            it not for the
+            <code><a href="LexingState.html">LexingState</a></code>
+            <code>LexingState</code>.  The other piece of initializing
+            a formatter is programming its <code>LexingState</code> to collect the
+            information you need, to automate decisions about how to indent.
+            The <code>LexingState</code> is updated on every token before
+            <code>FormattingRules</code> are applied.
+            You create an <code>Enum</code> with constants named for what
+            you want to collect, and describe the conditions to update them.
+            It can be queried for integers and booleans at runtime, and actions
+            and rules can be predicated on the value (or lack thereof).
+            It can:
+        </p>
+        <ul>
+            <li>Increment a counter whether one token type is encountered, and
+                decrement it when a different token type is encountered, enabling
+                you to do things like the example above's
+                <code>format( SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT.by(
+                    BRACE_DEPTH) )</code>.  In that code <code>BRACE_DEPTH</code>
+                is an enum constant <i>you define</i> &mdash; you then tell the
+                <code>LexingStateBuilder</code> to update on <code>{</code>
+                and <code>}</code> tokens like this:
+                <pre>
+stateBuilder.increment( BRACE_DEPTH ).onTokenType( S_OPEN_BRACE, S_OPEN_HINTS, S_OPEN_BRACKET )
+        .decrementingWhenTokenEncountered( S_CLOSE_BRACE, S_CLOSE_HINTS, S_CLOSE_BRACKET );
+                </pre>
+            </li>
+            <li>
+                Record the position (in characters, in the modified source)
+                from the beginning of the line of a particular token.  This lets
+                you, for example, indent everything to the same position as
+                a particular token in a preceding line (as Antlr grammars frequently
+                do with the <code>:</code> character), optionally resetting
+                when another kind of token is encountered.
+            </li>
+            <li>
+                <i>Push</i> the position (in characters, in the modified source)
+                from the beginning of the line of a particular token, popping
+                on another token.
+            </li>
+            <li>Set a boolean under certain conditions and unset it on others</li>
+            <li>
+                Compute the distance to the nearest preceding or subsequent token
+                of a particular type &mdash; frequently used to, for example, handle delimited
+                lists of tokens such as a Java array &mdash; <code>{1, 2, 3, 4}</code> &mdash;
+                differently for tokens in the middle of the array (for example,
+                to allow line wrapping on those, but keep the <code>{1</code>
+                and the <code>4}</code>together.
+            </li>
+        </ul>
+
+        <h2>Example</h2>
+        <p>
+            Here is some example code from the unit tests for this project, to get a
+            sense of what it looks like:
+        </p>
+        <pre>
+private static final String MAX_LINE_LENGTH = "maxLineLength";
+
+&#064;Override
+protected void configure(LexingStateBuilder&lt;SLState, ?&gt; stateBuilder,
+        FormattingRules rules, Preferences config) {
+
+    stateBuilder.increment(BRACE_DEPTH)
+            .onTokenType(S_OPEN_BRACE)
+            .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
+
+    int maxLineLength = config.getInt(MAX_LINE_LENGTH, 80);
+
+    FormattingAction doubleIndentForWrappedLines = APPEND_NEWLINE_AND_DOUBLE_INDENT
+            .by(BRACE_DEPTH);
+
+    FormattingAction indentCurrent = PREPEND_NEWLINE_AND_INDENT
+            .by(BRACE_DEPTH)
+            .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+
+    FormattingAction indentSubseqeuent = APPEND_NEWLINE_AND_INDENT
+            .by(BRACE_DEPTH)
+            .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+
+    FormattingAction doubleNewlineAndIndentIt
+            = PREPEND_DOUBLE_NEWLINE_AND_INDENT.by(BRACE_DEPTH)
+            .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+
+    rules.onTokenType(K_TYPE)
+            .whereNotFirstTokenInSource()
+            .format(PREPEND_DOUBLE_NEWLINE);
+
+    rules.onTokenType(LINE_COMMENT)
+            .format(indentCurrent.and(indentSubseqeuent).trimmingWhitespace());
+
+    rules.onTokenType(ID, QUALIFIED_ID)
+            .wherePrevTokenType(K_IMPORT, K_NAMESPACE, K_TYPE)
+            .format(PREPEND_SPACE);
+
+    rules.onTokenType(ID)
+            .whereNextTokenType(S_COLON)
+            .format(indentCurrent);
+
+    rules.onTokenType(ID, QUALIFIED_ID)
+            .whereNextTokenTypeNot(S_SEMICOLON, S_COLON)
+            .format(PREPEND_SPACE.and(APPEND_SPACE));
+
+        </pre>
+
+        <h2>Conditioning on Parser Rules</h2>
+        <p>
+            You can also write formatting rules which only operate when the
+            token occurs inside of a particular parser rule, so as to have
+            completely different formatting rules for one parser rule than
+            another.  As mentioned, predicating a formatting rule on a parser
+            will cause it to be tested before rules that do not specify
+            a parser rule.
+        </p>
+        <p>
+            Formatters which return null for the root <code>RuleNode</code>
+            &mdash; i.e. they do not provide a parser &mdash; may not use such
+            rules, and an exception will be thrown during formatting if they
+            try.
+        </p>
+        <p>
+            While conditioning on parser rules is powerful, don't make it your
+            first choice.  You have the same information the parser does with
+            the token stream you are processing, and frequently what's actually
+            needed is far simpler than what the parser needs to do.  For example,
+            say you wanted to ensure a space after the word "package" in a Java
+            source.  You could just as easily specify that an identifier preceded
+            by the token "package" always gets a space prepended.  Frequently
+            there will be a number of similar circumstances (for example, the
+            Java token "import" would want the same handling), and your
+            formatting code will be simpler if you don't handle these on
+            a parser-rule-by-parser-rule basis.  Also, for use in an IDE, the
+            <i>the normal state of sources in an editor is <b>broken</b></i> - 
+            meaning if an <code>ErrorNode</code> is where the rule you
+            expected is, whatever more general rules you have will be applied
+            instead, which will probably do the wrong thing or introduce line
+            changes a subsequent format with the source in a good state won't
+            undo.  Writing against lexer rules only guarantees you don't write
+            a formatter that can only properly format valid sources and
+            wreaks havoc on invalid ones.
+        </p>
+        <h2>Coalescing of Prepend and Append</h2>
+        <p>
+            Formatting rules can prepend whitespace, or append whitespace,
+            including adding newlines.  In practice, other than the last token
+            in a document, all whitespace modifications are processed as
+            prepend operations.  So it is possible for a rule for one token
+            to specify to append something before the next token, and that
+            next token might specify something contradictory.  For example,
+            the preceding token might specify to append a newline, and the
+            next to prepend a space.  The algorithm by which these are
+            coalesced is as follows:
+        </p>
+        <ul>
+            <li>Whitespace and newlines are coalesced separately &mdash; if one
+                appends a newline, and the other indents, you get the
+                newline and the indentation</li>
+            <li>Single spaces get special handling &mdash; if one appends a newline
+                and the other prepends a <i>single</i> space, the space is
+                ignored</li>
+            <li>If both append contradictory numbers of spaces or newlines
+                or both, you get the larger number of newlines and larger number
+                of spaces from each</li>
+            <li>Formatting rules can prepend or append spaces or tab-stops &mdash;
+                these are compared on the basis of the number of spaces to decide
+                which wins</li>
+            <li>If both append the same number of spaces or newlines, you get
+                that number of spaces or newlines &mdash; coalescing will never be
+                additive for the same character</li>
+        </ul>
+
+        <h2>Debugging &amp; Logging</h2>
+        <p>
+            Your formatter can provide a <code>Predicate&lt;Token&gt;</code> to
+            enable logging for a particular token type, and an ordered list
+            of all of the rules applied to tokens of that time, if they don't
+            match, the constraint that caused them not to match.
+        </p>
+        <p>
+            The most common reason for formatting problems is having a rule
+            with a higher priority and more general constraint (particular ones
+            which operate on any token which is <i>not</i> some type).  The
+            logging described above will tell you exactly which rules were
+            tested and which one matched.
+        </p>
+
+        <h3>Loggability and Predicates</h3>
+        <p>
+            Logging only works for things that have a human-readable result
+            from <code>toString()</code>.  Lambdas, though convenient, do not.
+            The <code>Predicates</code> subtypes in this library all <i>do</i>
+            implement <code>toString()</code> readably, and if you are debugging,
+            you will want yours to as well.  Note the
+            <code><a href="Criteria.html">Criteria</a></code>
+            and
+            <code><a href="Criterion.html">Criterion</a></code> classes,
+            which will construct predicates given the array of token names
+            from the generated Antlr lexer, and log the names of what's being
+            looked for &mdash; it is far more useful than figuring out what it means
+            when the token type is not <code>53</code>.
+        </p>
+        <h2>Implementing Formatting Actions</h2>
+        <p>
+            While the built in actions handle most needs, implementing the
+            <code>FormattingAction</code> interface gives you full access
+            to the lexing state, the token and its text, and the formatting
+            context (which you call to prepend / append and query for the
+            current position in the original and modified sources).  For
+            example, here is how the simple line wrapping supported by
+            <code>FormattingAction</code> is implemented:
+        </p>
+        <pre>
+default FormattingAction wrappingLines(int limit, FormattingAction wrapAction) {
+    return new FormattingAction() {
+        &#064;Override
+        public void accept(Token token, FormattingContext ctx, LexingState state) {
+            if (ctx.currentCharPositionInLine() + token.getText().length() > limit) {
+                wrapAction.accept(token, ctx, state);
+            } else {
+                FormattingAction.this.accept(token, ctx, state);
+            }
+        }
+
+        &#064;Override
+        public String toString() {
+            return FormattingAction.this.toString() + "-wrap-at-" + limit
+                    + "-with-" + wrapAction;
+        }
+    };
+  }
+        </pre>
+
+        <h2>Advanced Predicates</h2>
+        <p>
+            Almost everything in processing tokens for formatting is
+            based on the JDK's <code>IntPredicate</code>, which simply
+            takes an <code>int</code> and returns a <code>boolean</code>.
+            But don't let that simplicity fool you &mdash; it is possible to
+            write predicates which maintain some state, and, say, respond
+            with <code>true</code> only if the preceding tokens were a
+            particular ordered sequence of values.  Just remember to recreate
+            such predicates on every re-format so they don't retain state
+            from a previous run.
+        </p>
+    </body>
+</html>
