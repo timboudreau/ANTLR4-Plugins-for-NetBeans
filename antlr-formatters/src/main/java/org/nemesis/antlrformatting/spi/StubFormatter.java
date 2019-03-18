@@ -28,12 +28,12 @@ final class StubFormatter<T extends Enum<T>, L extends Lexer> extends AntlrForma
     private final Function<CharStream, L> lexerFactory;
     private final String mimeType;
     private final int[] whitespaceTokens;
-    private final int[] debugTokens;
+    private final Predicate<Token> debugTokens;
     private final String[] parserRuleNames;
     private final Function<Lexer,RuleNode> rootRuleFinder;
 
     StubFormatter(String mimeType, AntlrFormatterStub<T, L> stub, Class<T> enumType, Vocabulary vocab, String[] modeNames,
-            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, int[] debugTokens,
+            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, Predicate<Token> debugTokens,
             String[] parserRuleNames, Function<Lexer,RuleNode> rootRuleFinder) {
         super(enumType);
         this.vocabulary = vocab;
@@ -60,11 +60,7 @@ final class StubFormatter<T extends Enum<T>, L extends Lexer> extends AntlrForma
 
     @Override
     protected Predicate<Token> debugLogPredicate() {
-        if (debugTokens.length > 0) {
-            return Criterion.anyOf(vocabulary, debugTokens).toTokenPredicate();
-        } else {
-            return super.debugLogPredicate();
-        }
+        return debugTokens;
     }
 
     @Override

@@ -18,6 +18,33 @@ public final class Predicates {
         throw new AssertionError();
     }
 
+    public static final class Fixed<T> implements Predicate<T> {
+
+        private final boolean val;
+
+        public Fixed(boolean val) {
+            this.val = val;
+        }
+
+        @Override
+        public boolean test(T t) {
+            return val;
+        }
+
+        @Override
+        public String toString() {
+            return val ? "everything" : "nothing";
+        }
+    }
+
+    public static <T> Predicate<T> nothing() {
+        return new Fixed(false);
+    }
+
+    public static <T> Predicate<T> everything() {
+        return new Fixed(true);
+    }
+
     /**
      * Combine a value and an array and assert that there are no duplicates.
      *

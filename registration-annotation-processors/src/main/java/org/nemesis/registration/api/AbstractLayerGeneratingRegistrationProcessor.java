@@ -5,9 +5,11 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.nemesis.registration.utils.AnnotationUtils;
@@ -27,6 +29,8 @@ import org.nemesis.registration.codegen.ClassBuilder;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGeneratingProcessor;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION;
+import org.nemesis.registration.utils.AbstractPredicateBuilder;
+import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
  *
@@ -43,14 +47,20 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
 
     @Override
     public final Set<String> getSupportedAnnotationTypes() {
-        Set<String> result = new HashSet<>(super.getSupportedAnnotationTypes());
-        result.addAll(delegates.supportedAnnotationTypes());
+        // Take care to preserve delegates being run in the order
+        // they were added here:
+        Set<String> result = new LinkedHashSet<>(delegates.supportedAnnotationTypes());
+        for (String other : super.getSupportedAnnotationTypes()) {
+            if (!result.contains(other)) {
+                result.add(other);
+            }
+        }
         return result;
     }
 
     @Override
     public final Set<String> getSupportedOptions() {
-        Set<String> result = new HashSet<>(super.getSupportedOptions());
+        Set<String> result = new LinkedHashSet<>(super.getSupportedOptions());
         result.add(AnnotationUtils.AU_LOG);
         return result;
     }
@@ -101,8 +111,10 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
 
     }
 
-    private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+    private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
+        return AbstractPredicateBuilder.enter(element, mirror, () -> {
+            return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+        });
     }
     Set<Delegate> used = new HashSet<>();
 
@@ -112,17 +124,25 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
         try {
             boolean done = true;
             Map<AnnotationMirror, Element> elementForAnnotation = new HashMap<>();
-            for (Element el : utils().findAnnotatedElements(roundEnv, getSupportedAnnotationTypes())) {
-                for (String annotationClass : getSupportedAnnotationTypes()) {
+            System.out.println(getClass().getSimpleName() + " ANNOTATIONS ORDER: ");
+            for (String anno : getSupportedAnnotationTypes()) {
+                System.out.println("    " + simpleName(anno));
+            }
+            for (String annotationClass : getSupportedAnnotationTypes()) {
+                Set<Element> annotated = utils().findAnnotatedElements(roundEnv, Collections.singleton(annotationClass));
+                if (!annotated.isEmpty()) {
+                    System.out.println("  ELEMENTS ORDER FOR " + simpleName(annotationClass) + ": ");
+                    for (Element e : annotated) {
+                        System.out.println("    " + e);
+                    }
+                }
+                for (Element el : annotated) {
                     AnnotationMirror mirror = utils().findAnnotationMirror(el, annotationClass);
                     if (mirror == null) {
-                        utils.warn("Could not locate annotation mirror for " + annotationClass + " - not on classpath?"
-                                + " Ignoring annotation on " + el, el);
                         continue;
                     }
                     utils().log("Mirror {0} on kind {1} by {2} with {3}", mirror, el.getKind(), getClass().getSimpleName(), delegates);
-
-                    if (!_validateAnnotationMirror(mirror, el.getKind())) {
+                    if (!_validateAnnotationMirror(mirror, el.getKind(), el)) {
                         continue;
                     }
                     boolean ok = false;
@@ -130,8 +150,8 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
                         case CONSTRUCTOR:
                             try {
                                 ExecutableElement constructor = (ExecutableElement) el;
-                                done &= processConstructorAnnotation(constructor, mirror, roundEnv);
                                 done &= delegates.processConstructorAnnotation(constructor, mirror, roundEnv, used);
+                                done &= processConstructorAnnotation(constructor, mirror, roundEnv);
                                 ok = true;
                             } catch (Exception ex) {
                                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "IOException processing annotation " + annotationClass, el);
@@ -141,8 +161,8 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
                         case METHOD:
                             try {
                                 ExecutableElement method = (ExecutableElement) el;
-                                done &= processMethodAnnotation(method, mirror, roundEnv);
                                 done &= delegates.processMethodAnnotation(method, mirror, roundEnv, used);
+                                done &= processMethodAnnotation(method, mirror, roundEnv);
                                 ok = true;
                             } catch (Exception ex) {
                                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "IOException processing annotation " + annotationClass, el);
@@ -152,8 +172,8 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
                         case FIELD:
                             try {
                                 VariableElement var = (VariableElement) el;
-                                done &= processFieldAnnotation(var, mirror, roundEnv);
                                 done &= delegates.processFieldAnnotation(var, mirror, roundEnv, used);
+                                done &= processFieldAnnotation(var, mirror, roundEnv);
                                 ok = true;
                             } catch (Exception ex) {
                                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "IOException processing annotation " + annotationClass, el);
@@ -164,8 +184,8 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
                         case CLASS:
                             try {
                                 TypeElement type = (TypeElement) el;
-                                done &= processTypeAnnotation(type, mirror, roundEnv);
                                 done &= delegates.processTypeAnnotation(type, mirror, roundEnv, used);
+                                done &= processTypeAnnotation(type, mirror, roundEnv);
                                 ok = true;
                             } catch (Exception ex) {
                                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "IOException processing annotation " + annotationClass, el);

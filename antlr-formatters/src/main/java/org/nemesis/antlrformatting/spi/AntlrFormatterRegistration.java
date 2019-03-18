@@ -41,15 +41,4 @@ public @interface AntlrFormatterRegistration {
      * @return An array of token ids.
      */
     int[] whitespaceTokens() default {};
-
-    /**
-     * For debugging your formatting rules, it can be useful to log detailed
-     * information about what rules are processing what tokens. Return an array
-     * of tokens here to specify which tokens you are interested in seeing
-     * rule-application logging for.
-     *
-     * @return An array of token types (static int fields on your generated
-     * Antlr <code>Lexer</code> subclass)
-     */
-    int[] debugLoggingOnTokens() default {};
 }

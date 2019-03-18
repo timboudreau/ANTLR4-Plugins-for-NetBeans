@@ -1,11 +1,14 @@
 package org.nemesis.registration.api;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -36,8 +39,29 @@ public class Delegates {
     private final boolean layerGenerating;
     private final Map<String, Set<DelegateEntry>> delegates = new LinkedHashMap<>();
 
+    private final Map<Key<?>, Set<?>> sharedData = new HashMap<>();
+
     Delegates(boolean layerGenerating) {
         this.layerGenerating = layerGenerating;
+    }
+
+    <T> void putSharedData(Key<T> key, T data) {
+        assert data != null;
+        Set<T> s = (Set<T>) sharedData.get(key);
+        if (s == null) {
+            s = new LinkedHashSet<>();
+            sharedData.put(key, s);
+        }
+        s.add(key.type().cast(data));
+    }
+
+    <T> Set<T> getSharedData(Key<T> key) {
+        return (Set<T>) sharedData.getOrDefault(key, Collections.emptySet());
+    }
+
+    <T> Optional<T> getOneShared(Key<T> key) {
+        Set<T> shared = getSharedData(key);
+        return shared.isEmpty() ? Optional.empty() : Optional.of(shared.iterator().next());
     }
 
     public Set<String> supportedAnnotationTypes() {
@@ -94,9 +118,9 @@ public class Delegates {
         Set<Delegate> all = allDelegates();
         for (Delegate d : all) {
             if (d instanceof LayerGeneratingDelegate) {
-                ((LayerGeneratingDelegate) d).init(env, utils, classWriter, layerBuilderFetcher, layerTaskAdder);
+                ((LayerGeneratingDelegate) d).init(env, utils, classWriter, layerBuilderFetcher, layerTaskAdder, this);
             } else {
-                d.init(env, utils, classWriter);
+                d.init(env, utils, classWriter, this);
             }
         }
     }
@@ -297,7 +321,5 @@ public class Delegates {
             return true;
         }
     }
-
-
 
 }

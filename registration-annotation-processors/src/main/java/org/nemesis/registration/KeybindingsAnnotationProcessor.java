@@ -18,24 +18,26 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.annotation.processing.Filer;
-import javax.annotation.processing.Processor;
+import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
+import static javax.lang.model.element.Modifier.STATIC;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
-import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
-import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
+import org.nemesis.registration.api.Key;
+import org.nemesis.registration.api.LayerGeneratingDelegate;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
@@ -43,7 +45,6 @@ import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
-import org.openide.util.lookup.ServiceProvider;
 import org.openide.xml.XMLUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -58,21 +59,73 @@ import org.xml.sax.SAXParseException;
  *
  * @author Tim Boudreau
  */
-@SupportedAnnotationTypes({KEYBINDING_ANNO, GOTO_ANNOTATION})
-@SupportedOptions(AnnotationUtils.AU_LOG)
-@ServiceProvider(service = Processor.class)
-public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
+//@SupportedAnnotationTypes({KEYBINDING_ANNO, GOTO_ANNOTATION})
+//@SupportedOptions(AnnotationUtils.AU_LOG)
+//@ServiceProvider(service = Processor.class)
+public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     static final String KEYBINDING_ANNO = "org.nemesis.antlr.spi.language.keybindings.Keybindings";
 
-    private Map<String, KeysFile> files = new HashMap<>();
+    private static final String ABSTRACT_ACTION_TYPE = "javax.swing.AbstractAction";
+    private static final String ACTION_TYPE = "javax.swing.Action";
+    private static final String ACTION_EVENT_TYPE = "java.awt.event.ActionEvent";
+    private static final String J_TEXT_COMPONENT_TYPE = "javax.swing.text.JTextComponent";
+    private static final String DOCUMENT_TYPE = "javax.swing.text.Document";
+    private static final String BASE_ACTION_TYPE = "org.netbeans.editor.BaseAction";
+    private static final String ANTLR_UTILS_TYPE = "org.nemesis.antlr.spi.language.NbAntlrUtils";
+    private static final String EXTRACTION_TYPE = "org.nemesis.extraction.Extraction";
+    public static final String ANTLR_ACTION_ANNO_TYPE = "org.nemesis.antlr.spi.language.AntlrAction";
+    private static final Set<String> legalMethodArguments = new HashSet<>(
+            Arrays.asList(J_TEXT_COMPONENT_TYPE, DOCUMENT_TYPE, ACTION_EVENT_TYPE, EXTRACTION_TYPE));
+    private final Map<String, KeysFile> files = new HashMap<>();
     private final Map<KeysFile, String> profileForKeysFile = new HashMap<>();
     private final Map<String, Element> targetElementForMimeType = new HashMap<>();
+    private final Map<KeysFile, Element> elementForFile = new HashMap<>();
+    private static int actionPosition = 11;
+
+    private Predicate<? super AnnotationMirror> validator;
+    private Predicate<? super Element> fieldValidator;
+    private Predicate<? super ExecutableElement> methodValidator;
 
     void updateTargetElement(String mimeType, Element targetElement) {
         if (!targetElementForMimeType.containsKey(mimeType)) {
             targetElementForMimeType.put(mimeType, targetElement);
         }
+    }
+
+    static Key<String> actionsKey(String mimeType) {
+        return key(String.class, "actionTargets-" + mimeType);
+    }
+
+    @Override
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+        return validator.test(mirror);
+    }
+
+    @Override
+    protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
+
+        validator = utils.multiAnnotations().whereAnnotationType(KEYBINDING_ANNO, bldr -> {
+            bldr.testMember("mimeType").validateStringValueAsMimeType()
+                    .build()
+                    .testMember("name")
+                    .stringValueMustNotContainWhitespace()
+                    .stringValueMustNotContain('/', '\\', '"', '.')
+                    .build();
+            bldr.testMemberAsAnnotation("keybindings")
+                    .testMember("modifiers", amtb -> {
+                        amtb.enumValuesMayNotCombine("CTRL_OR_COMMAND", "EXPLICIT_CTRL")
+                                .enumValuesMayNotCombine("ALT_OR_OPTION", "EXPLICIT_ALT");
+                    })
+                    .build();
+        }).whereAnnotationType(GOTO_ANNOTATION, bldr -> {
+            bldr.testMember("mimeType").validateStringValueAsMimeType().build();
+        }).build();
+
+        methodValidator = utils.methodTestBuilder()
+                .doesNotHaveModifier(PRIVATE)
+                .hasModifier(STATIC)
+                .build();
     }
 
     Element targetElement(String mimeType) {
@@ -128,10 +181,8 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             }
         }
         generateActionImplementation(actionName, method, mimeType, mirror);
-        return true;
+        return false;
     }
-
-    private Map<KeysFile, Element> elementForFile = new HashMap<>();
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws IOException {
@@ -139,23 +190,10 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             writeOneKeysFileAndActions(file, elementForFile.get(file));
         }
         files.clear();
-        return true;
+        return false;
     }
 
-    private static final String ABSTRACT_ACTION_TYPE = "javax.swing.AbstractAction";
-    private static final String ACTION_TYPE = "javax.swing.Action";
-    private static final String ACTION_EVENT_TYPE = "java.awt.event.ActionEvent";
-    private static final String J_TEXT_COMPONENT_TYPE = "javax.swing.text.JTextComponent";
-    private static final String DOCUMENT_TYPE = "javax.swing.text.Document";
-    private static final String BASE_ACTION_TYPE = "org.netbeans.editor.BaseAction";
-    private static final String ANTLR_UTILS_TYPE = "org.nemesis.antlr.spi.language.NbAntlrUtils";
-    private static final String EXTRACTION_TYPE = "org.nemesis.extraction.Extraction";
-    private static final Set<String> legalMethodArguments = new HashSet<>(
-            Arrays.asList(J_TEXT_COMPONENT_TYPE, DOCUMENT_TYPE, ACTION_EVENT_TYPE, EXTRACTION_TYPE));
-
-    private static int actionPosition = 11;
-
-    private void generateActionRegistrationForMethodReturningAction(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) {
+    private void generateActionRegistrationForMethodReturningAction(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException {
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         String fqn = owningClass.getQualifiedName() + "." + method.getSimpleName();
 //        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
@@ -170,6 +208,26 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         layer.shadowFile(actionRegistration, "Editors/" + mimeType + "/Actions", fqnDashes)
                 .intvalue("position", actionPosition)
                 .write();
+//        String stubClassName = AnnotationUtils.topLevelType(method).getSimpleName() + "_"
+//                + method.getSimpleName() + "Stub";
+//        ClassBuilder<String> cl = ClassBuilder.forPackage(utils().packageName(method))
+//                .named(stubClassName)
+//                .importing(ANTLR_ACTION_ANNO_TYPE, ACTION_TYPE)
+//                .withModifier(PUBLIC, FINAL)
+//                .publicMethod("actionStub", mb -> {
+//                    mb.withModifier(STATIC)
+//                            .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
+//                            .addStringArgument("mimeType", mimeType)
+//                            .addArgument("order", actionPosition)
+//                            .closeAnnotation()
+//                            .returning("Action")
+//                            .body()
+//                            .returningInvocationOf(method.getSimpleName().toString())
+//                            .on(AnnotationUtils.enclosingType(method).getSimpleName().toString())
+//                            .endBlock();
+//                });
+//        writeOne(cl);
+        super.share(actionsKey(mimeType), owningClass.getQualifiedName() + "." + method.getSimpleName() + "()");
         actionPosition++;
     }
 
@@ -184,6 +242,12 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             return;
         }
         String displayName = utils().annotationValue(mirror, "displayName", String.class);
+        String programmaticName = utils().annotationValue(mirror, "name", String.class);
+        if (programmaticName != null) {
+            if (programmaticName.indexOf(' ') >= 0 || programmaticName.indexOf('\n') >= 0) {
+                utils().fail("Value of name() may not contain whitespace, but found '" + programmaticName + "'");
+            }
+        }
 
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(method);
@@ -199,7 +263,6 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             }
             argumentTypes.add(arg);
         }
-        System.out.println("ARGUMENT TYPES: " + argumentTypes);
         String toSubclass;
         if (argumentTypes.isEmpty() || (argumentTypes.size() == 1 && argumentTypes.contains(ACTION_EVENT_TYPE))) {
             toSubclass = ABSTRACT_ACTION_TYPE;
@@ -210,8 +273,12 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         boolean async = argumentTypes.contains(EXTRACTION_TYPE) || utils().annotationValue(mirror, "asynchronous", Boolean.class, false);
         ClassBuilder<String> clazz = ClassBuilder.forPackage(pkg.getQualifiedName()).named(generatedClassName)
                 .withModifier(PUBLIC, FINAL)
-                .importing(toSubclass, ACTION_EVENT_TYPE, J_TEXT_COMPONENT_TYPE)
+                .importing(toSubclass, ACTION_EVENT_TYPE, J_TEXT_COMPONENT_TYPE, ANTLR_ACTION_ANNO_TYPE)
                 .importing(argumentTypes)
+                .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
+                .addStringArgument("mimeType", mimeType)
+                .addArgument("order", actionPosition)
+                .closeAnnotation()
                 .extending(simpleName(toSubclass))
                 // ActionEvent evt, JTextComponent target
                 .override("actionPerformed", mb -> {
@@ -226,7 +293,6 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                     typeToVar.put(EXTRACTION_TYPE, "extraction");
                     Consumer<BlockBuilder<?>> invokeTheMethod = bb -> {
                         if (argumentTypes.contains(DOCUMENT_TYPE)) {
-                            System.out.println(" contains doc - init var");
                             bb.declare("doc").initializedByInvoking("getDocument").on("target").as(simpleName(DOCUMENT_TYPE));
                             typeToVar.put(DOCUMENT_TYPE, "doc");
                         }
@@ -273,15 +339,27 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                             int ix = displayName.indexOf('#');
                             String bundleLookup = ix == 0 ? defaultBundle + displayName
                                     : displayName.substring(ix + 1);
-                            bb.invoke("putValue").withArgument("Action.NAME").
-                                    withArgumentFromInvoking("getMessage")
+
+                            bb.declare("description").initializedByInvoking("getMessage")
                                     .withArgument(generatedClassName + ".class")
                                     .withStringLiteral(bundleLookup)
-                                    .on("NbBundle")
-                                    .inScope().endBlock();
+                                    .on("NbBundle");
+
+                            if (programmaticName != null) {
+                                bb.invoke("putValue").withArgument("Action.NAME")
+                                        .withStringLiteral(programmaticName).inScope();
+                            } else {
+                                bb.invoke("putValue").withArgument("Action.NAME")
+                                        .withArgument("description").inScope();
+                            }
+                            bb.invoke("putValue").withArgument("Action.SHORT_DESCRIPTION").
+                                    withArgument("description").inScope();
                         } else {
                             bb.invoke("putValue").withArgument("Action.NAME")
-                                    .withStringLiteral(displayName).inScope().endBlock();
+                                    .withStringLiteral(programmaticName == null
+                                            ? displayName : programmaticName);
+                            bb.invoke("putValue").withArgument("Action.SHORT_DESCRIPTION")
+                                    .withStringLiteral(displayName).inScope();
                         }
                     });
         }
@@ -295,9 +373,10 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
         } else if (!BASE_ACTION_TYPE.equals(toSubclass) && async) {
             clazz.importing("java.awt.EventQueue");
         }
+        super.share(actionsKey(mimeType), "new " + clazz.fqn() + "()");
         writeOne(clazz);
         LayerBuilder layer = layer(method);
-        String fqnDashes = clazz.fqn().replace('.', '-');
+        String fqnDashes = programmaticName == null ? clazz.fqn().replace('.', '-') : programmaticName;
         String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
                 + fqnDashes + ".instance";
         LayerBuilder.File layerFile = layer
@@ -377,7 +456,6 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
                 try (InputStream in = existing.openInputStream()) {
                     file.loadExisting(in);
                 }
-                System.out.println("Loaded existing: " + path + ":\n" + file);
             } catch (FileNotFoundException | NoSuchFileException e) {
                 // ok
             }
@@ -443,6 +521,7 @@ public class KeybindingsAnnotationProcessor extends AbstractLayerGeneratingRegis
             return "    <!-- " + type.getQualifiedName() + "." + el + " -->\n";
         }
 
+        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("<!DOCTYPE bindings PUBLIC \"-//NetBeans//DTD Editor KeyBindings settings 1.1//EN\" \"http://www.netbeans.org/dtds/EditorKeyBindings-1_1.dtd\">\n\n");

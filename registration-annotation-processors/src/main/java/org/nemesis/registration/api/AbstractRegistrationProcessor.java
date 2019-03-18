@@ -23,8 +23,16 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import org.nemesis.registration.codegen.ClassBuilder;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION;
+import org.nemesis.registration.utils.AbstractPredicateBuilder;
 
 /**
+ * Base class for annotation processors with a few twists: You can install a set
+ * of <code><a href="Delegate.html">Delegate</a></code> instances which handle
+ * different annotations - and in particular, run in a specific, deterministic
+ * order in which they are added. A communication mechanism is provided through
+ * <code><a href="Key.html">Key</a></code>s which can be set and retrieved. This
+ * makes it possible to develop processors that handle large amounts of
+ * interdependent code, without a resulting mass of spaghetti-code.
  *
  * @author Tim Boudreau
  */
@@ -36,6 +44,11 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
     protected AbstractRegistrationProcessor() {
     }
 
+    /**
+     * Implement this method to set up your delegates.
+     *
+     * @param delegates
+     */
     protected void installDelegates(Delegates delegates) {
 
     }
@@ -94,8 +107,10 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
         return utils;
     }
 
-    private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+    private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
+        return AbstractPredicateBuilder.enter(element, mirror, () -> {
+            return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+        });
     }
     Set<Delegate> used = new HashSet<>();
 
@@ -123,7 +138,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
                         continue;
                     }
                     utils().log("Mirror {0} on kind {1} by {2} with {3}", mirror, el.getKind(), getClass().getSimpleName(), delegates);
-                    if (!_validateAnnotationMirror(mirror, el.getKind())) {
+                    if (!_validateAnnotationMirror(mirror, el.getKind(), el)) {
                         continue;
                     }
                     boolean ok = false;

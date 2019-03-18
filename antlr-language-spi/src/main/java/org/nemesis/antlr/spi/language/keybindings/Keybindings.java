@@ -19,6 +19,8 @@ public @interface Keybindings {
 
     String description() default "";
 
+    String name() default "";
+
     String menuPath() default "";
 
     boolean popup() default false;

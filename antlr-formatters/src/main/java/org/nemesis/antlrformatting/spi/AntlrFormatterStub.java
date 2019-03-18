@@ -1,13 +1,16 @@
 package org.nemesis.antlrformatting.spi;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.prefs.Preferences;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
+import org.nemesis.antlrformatting.api.util.Predicates;
 
 /**
  * Interface for use with an annotation processor which can generate the rest of
@@ -44,9 +47,13 @@ public interface AntlrFormatterStub<StateEnum extends Enum<StateEnum>, L extends
      */
     default AntlrFormatterProvider toFormatterProvider(
             String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames,
-            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, int[] debugTokens,
+            Function<CharStream, L> lexerFactory, int[] whitespaceTokens, 
             String[] parserRuleNames, Function<Lexer, RuleNode> ruleNodeProvider) {
         return new StubFormatter<>(mimeType, this, enumType, vocab, modeNames,
-                lexerFactory, whitespaceTokens, debugTokens, parserRuleNames, ruleNodeProvider);
+                lexerFactory, whitespaceTokens, debugTokens(), parserRuleNames, ruleNodeProvider);
+    }
+
+    default Predicate<Token> debugTokens() {
+        return Predicates.nothing();
     }
 }

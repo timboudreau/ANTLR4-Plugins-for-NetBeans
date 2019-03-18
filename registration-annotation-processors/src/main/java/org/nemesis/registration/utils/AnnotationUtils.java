@@ -15,8 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
@@ -25,7 +24,6 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
@@ -124,8 +122,12 @@ public final class AnnotationUtils {
     }
 
     public TypeMirror getTypeParameter(int index, Element var) {
+        return getTypeParameter(index, var, this::fail);
+    }
+
+    public TypeMirror getTypeParameter(int index, Element var, Consumer<String> errMsgs) {
         if (var == null) {
-            fail("Null element");
+            errMsgs.accept("Null element");
             return null;
         }
         if (index < 0) {
@@ -133,14 +135,14 @@ public final class AnnotationUtils {
         }
         TypeMirror mir = var.asType();
         if (mir.getKind() != TypeKind.DECLARED) {
-            fail("Field must have a fully reified type, but found " + mir, var);
+            errMsgs.accept("Field must have a fully reified type, but found " + mir);
             return null;
         }
         DeclaredType dt = (DeclaredType) mir;
         List<? extends TypeMirror> args = dt.getTypeArguments();
 
         if (index >= args.size()) {
-            fail("No type parameters - cannot generate code", var);
+            errMsgs.accept("No type parameters - cannot generate code");
             return null;
         }
         return args.get(index);
@@ -411,6 +413,10 @@ public final class AnnotationUtils {
      * @return A list of stringified, canonicalized type names
      */
     public List<String> typeList(AnnotationMirror mirror, String param, String... failIfNotSubclassesOf) {
+        return typeList(mirror, param, this::fail, failIfNotSubclassesOf);
+    }
+
+    public List<String> typeList(AnnotationMirror mirror, String param, Consumer<String> errMessages, String... failIfNotSubclassesOf) {
         List<String> result = new ArrayList<>();
         if (mirror != null) {
             for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> x : mirror.getElementValues()
@@ -433,7 +439,7 @@ public final class AnnotationUtils {
                                             }
                                         }
                                         if (!found) {
-                                            fail("Not a " + join('/', failIfNotSubclassesOf) + " subtype: "
+                                            errMessages.accept("Not a " + join('/', failIfNotSubclassesOf) + " subtype: "
                                                     + av);
                                             continue;
                                         }
@@ -442,7 +448,7 @@ public final class AnnotationUtils {
                                     String canonical = canonicalize(dt.asElement().asType());
                                     if (canonical == null) {
                                         // Unresolvable generic or broken source
-                                        fail("Could not canonicalize " + dt.asElement(), x.getKey());
+                                        errMessages.accept("Could not canonicalize " + dt.asElement());
                                     } else {
                                         result.add(canonical);
                                     }
@@ -478,6 +484,70 @@ public final class AnnotationUtils {
                         } else {
                             result.add(canonical);
                         }
+                    } else {
+                        warn("Annotation value for is not a List of types or a DeclaredType on " + mirror + " - "
+                                + types(x.getValue().getValue()) + " - invalid source?");
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    public List<TypeMirror> typeValues(AnnotationMirror mirror, String param, Consumer<String> errMessages, String... failIfNotSubclassesOf) {
+        List<TypeMirror> result = new ArrayList<>();
+        if (mirror != null) {
+            for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> x : mirror.getElementValues()
+                    .entrySet()) {
+                String annoParam = x.getKey().getSimpleName().toString();
+                if (param.equals(annoParam)) {
+                    if (x.getValue().getValue() instanceof List<?>) {
+                        List<?> list = (List<?>) x.getValue().getValue();
+                        for (Object o : list) {
+                            if (o instanceof AnnotationValue) {
+                                AnnotationValue av = (AnnotationValue) o;
+                                if (av.getValue() instanceof DeclaredType) {
+                                    DeclaredType dt = (DeclaredType) av.getValue();
+                                    if (failIfNotSubclassesOf.length > 0) {
+                                        boolean found = false;
+                                        for (String f : failIfNotSubclassesOf) {
+                                            if (!isSubtypeOf(dt.asElement(), f).isSubtype()) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                        if (!found) {
+                                            errMessages.accept("Not a " + join('/', failIfNotSubclassesOf) + " subtype: "
+                                                    + av);
+                                            continue;
+                                        }
+                                    }
+                                    result.add(dt);
+                                } else {
+                                    // Unresolvable type?
+                                    warn("Not a declared type: " + av);
+                                }
+                            } else {
+                                // Probable invalid source
+                                warn("Annotation value for value() is not an AnnotationValue " + types(o));
+                            }
+                        }
+                    } else if (x.getValue().getValue() instanceof DeclaredType) {
+                        DeclaredType dt = (DeclaredType) x.getValue().getValue();
+                        if (failIfNotSubclassesOf.length > 0) {
+                            boolean found = false;
+                            for (String f : failIfNotSubclassesOf) {
+                                if (isSubtypeOf(dt.asElement(), f).isSubtype()) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                fail("Not a " + join('/', failIfNotSubclassesOf) + " subtype: " + dt);
+                                continue;
+                            }
+                        }
+                        result.add(dt);
                     } else {
                         warn("Annotation value for is not a List of types or a DeclaredType on " + mirror + " - "
                                 + types(x.getValue().getValue()) + " - invalid source?");
@@ -818,6 +888,12 @@ public final class AnnotationUtils {
                 if (nm.equals(cn) || (cn != null && (cn.startsWith(nm) || cn.startsWith("java.")))) {
                     continue;
                 }
+                if (cn.contains("AbstractPredicateBuilder")) {
+                    continue;
+                }
+//                for (int j = i; j < Math.min(els.length, i+10); j++) {
+//                    System.err.println(els[j]);
+//                }
                 return els[i] + ": " + msg;
             }
         }
@@ -834,6 +910,66 @@ public final class AnnotationUtils {
             return dotted.substring(ix + 1);
         }
         return dotted;
+    }
+
+    public TypeMirror findTypeArgumentOnInterfacesImplementedBy(TypeElement el, String subtypeOf, int typeArgument) {
+        if ("java.lang.Object".equals(el.getQualifiedName().toString())) {
+            return null;
+        }
+        for (TypeMirror m : el.getInterfaces()) {
+            DeclaredType dt = (DeclaredType) m;
+            if (typeArgument == -1) {
+                for (TypeMirror arg : dt.getTypeArguments()) {
+                    if (isSubtypeOf(arg, subtypeOf).isSubtype()) {
+                        return arg;
+                    }
+                }
+            } else if (dt.getTypeArguments().size() > typeArgument) {
+                TypeMirror arg = dt.getTypeArguments().get(typeArgument);
+                if (isSubtypeOf(arg, subtypeOf).isSubtype()) {
+                    return arg;
+                }
+            }
+        }
+        TypeMirror sup = el.getSuperclass();
+        TypeElement el1 = processingEnv.getElementUtils().getTypeElement(sup.toString());
+        if (el1 == null) {
+            fail("Could not load type " + sup + " to look type "
+                    + "parameter subtype of " + subtypeOf);
+            return null;
+        }
+        return findTypeArgumentOnInterfacesImplementedBy(el1, subtypeOf, typeArgument);
+    }
+
+    public TypeMirror findTypeArgumentOnInterfacesImplementedBy(TypeElement el, String interfaceType, String subtypeOf, int typeArgument) {
+        if ("java.lang.Object".equals(el.getQualifiedName().toString())) {
+            return null;
+        }
+        for (TypeMirror m : el.getInterfaces()) {
+            DeclaredType dt = (DeclaredType) m;
+            if (dt.toString().equals(interfaceType) || erasureOf(dt).toString().equals(interfaceType)) {
+                if (typeArgument == -1) {
+                    for (TypeMirror arg : dt.getTypeArguments()) {
+                        if (isSubtypeOf(arg, subtypeOf).isSubtype()) {
+                            return arg;
+                        }
+                    }
+                } else if (dt.getTypeArguments().size() > typeArgument) {
+                    TypeMirror arg = dt.getTypeArguments().get(typeArgument);
+                    if (isSubtypeOf(arg, subtypeOf).isSubtype()) {
+                        return arg;
+                    }
+                }
+            }
+        }
+        TypeMirror sup = el.getSuperclass();
+        TypeElement el1 = processingEnv.getElementUtils().getTypeElement(sup.toString());
+        if (el1 == null) {
+            fail("Could not load type " + sup + " to look type "
+                    + "parameter subtype of " + subtypeOf);
+            return null;
+        }
+        return findTypeArgumentOnInterfacesImplementedBy(el1, subtypeOf, typeArgument);
     }
 
     /**
@@ -968,6 +1104,14 @@ public final class AnnotationUtils {
         }
     }
 
+    public static TypeMirror enclosingTypeAsTypeMirror(Element el) {
+        TypeElement enc = enclosingType(el);
+        if (enc != null) {
+            return enc.asType();
+        }
+        return null;
+    }
+
     public static TypeElement enclosingType(Element el) {
         if (el == null) {
             return null;
@@ -978,6 +1122,14 @@ public final class AnnotationUtils {
         return el.getKind() == ElementKind.CLASS ? (TypeElement) el : null;
     }
 
+    public static TypeMirror topLevelTypeAsTypeMirror(Element el) {
+        TypeElement type = topLevelType(el);
+        if (type != null) {
+            return type.asType();
+        }
+        return null;
+    }
+
     public static TypeElement topLevelType(Element el) {
         TypeElement type = enclosingType(el);
         while (type.getEnclosingElement() instanceof TypeElement) {
@@ -986,16 +1138,26 @@ public final class AnnotationUtils {
         return type;
     }
 
-    public <E extends Element, B extends TestBuilder<E, Predicate<E>, B>> TestBuilder<E, Predicate<E>, B> testsBuilder() {
-        return TestBuilder.<E, B>create(this);
+    public <E extends Element, B extends ElementTestBuilder<E, Predicate<? super E>, B>> ElementTestBuilder<E, Predicate<? super E>, B> testsBuilder() {
+        return ElementTestBuilder.<E, B>create(this);
     }
 
-    public <E extends ExecutableElement, B extends MethodTestBuilder<E, Predicate<E>, B>> TestBuilder<E, Predicate<E>, B> methodTestBuilder() {
-        return MethodTestBuilder.<E, B>createMethod(this);
+    public <B extends MethodTestBuilder<Predicate<? super ExecutableElement>, B>> B methodTestBuilder() {
+        return (B) MethodTestBuilder.<B>createMethod(this);
     }
 
-    public AnnotationMirrorTestBuilder<Predicate<AnnotationMirror>> testMirror() {
+    public AnnotationMirrorTestBuilder<Predicate<? super AnnotationMirror>> testMirror() {
         return new AnnotationMirrorTestBuilder<>(this, amtb -> amtb.predicate());
+    }
+
+    public MultiAnnotationTestBuilder<Predicate<? super AnnotationMirror>> multiAnnotations() {
+        return MultiAnnotationTestBuilder.createDefault(this);
+    }
+
+    public TypeMirrorTestBuilder<Predicate<? super TypeMirror>> testTypeMirror() {
+        return new TypeMirrorTestBuilder<>(this, tmtb -> {
+            return tmtb.predicate();
+        });
     }
 
     private String logContext;
@@ -1018,583 +1180,4 @@ public final class AnnotationUtils {
         }
     }
 
-    private static boolean validateMimeType(String value, AnnotationUtils utils) {
-        if (value == null || value.length() < 3) {
-            utils.fail("Mime type unset or too short to be one");
-            return false;
-        }
-        if (value.length() > 80) {
-            utils.fail("Mime type too long: " + value.length() + " (" + value + ")");
-            return false;
-        }
-        int ix = value.indexOf('/');
-        int lix = value.lastIndexOf('/');
-        if (ix < 0) {
-            utils.fail("No / character in mime type");
-            return false;
-        }
-        if (lix != ix) {
-            utils.fail("More than one / character in mime type");
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isWhitespace(value.charAt(i))) {
-                utils.fail("Whitespace at " + i + " in mime type '" + value + "'");
-                return false;
-            }
-            if (Character.isUpperCase(value.charAt(i))) {
-                utils.fail("Mime type should not contain upper case letters");
-            }
-            if (';' == value.charAt(i)) {
-                utils.fail("Complex mime types unsupported");
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public static class AnnotationMirrorTestBuilder<T> {
-
-        private final AnnotationUtils utils;
-        private Predicate<AnnotationMirror> predicate;
-        private final Function<AnnotationMirrorTestBuilder<T>, T> converter;
-
-        AnnotationMirrorTestBuilder(AnnotationUtils utils, Function<AnnotationMirrorTestBuilder<T>, T> converter) {
-            this.utils = utils;
-            this.converter = converter;
-        }
-
-        Predicate<AnnotationMirror> predicate() {
-            return predicate == null ? ignored -> true : predicate;
-        }
-
-        public T build() {
-            return converter.apply(this);
-        }
-
-        public AnnotationMirrorTestBuilder<T> atLeastOneMemberMayBeSet(String... memberNames) {
-            return addPredicate(am -> {
-                List<Object> all = new ArrayList<>();
-                Set<String> names = new HashSet<>();
-                for (String name : memberNames) {
-                    Object o = utils.annotationValue(am, name, Object.class);
-                    if (o != null) {
-                        names.add(name);
-                        all.add(o);
-                    }
-                }
-                boolean result = !all.isEmpty();
-                if (!result) {
-                    utils.fail("At least one of " + join(',', memberNames) + " MUST be used", null, am);
-                }
-                return result;
-            });
-        }
-
-        public AnnotationMirrorTestBuilder<T> onlyOneMemberMayBeSet(String... memberNames) {
-            return addPredicate(am -> {
-                List<Object> all = new ArrayList<>();
-                Set<String> names = new HashSet<>();
-                for (String name : memberNames) {
-                    Object o = utils.annotationValue(am, name, Object.class);
-                    if (o != null) {
-                        names.add(name);
-                        all.add(o);
-                    }
-                }
-                boolean result = all.size() <= 1;
-                if (!result) {
-                    utils.fail("Only one of " + join(',', memberNames) + " may be used, but found "
-                            + join(',', names.toArray(new String[names.size()])), null, am);
-                }
-
-                return result;
-            });
-        }
-
-        public AnnotationMirrorTestBuilder<T> addPredicate(Predicate<AnnotationMirror> pred) {
-            if (this.predicate == null) {
-                this.predicate = pred;
-            } else {
-                this.predicate = this.predicate.and(pred);
-            }
-            return this;
-        }
-
-        public AnnotationMirrorMemberTestBuilder<AnnotationMirrorTestBuilder<T>> testMember(String memberName) {
-            return new AnnotationMirrorMemberTestBuilder<>(ammtb -> {
-                if (ammtb.predicate != null) {
-                    addPredicate(ammtb.predicate);
-                }
-                return this;
-            }, memberName, utils);
-        }
-
-        public AnnotationMirrorMemberTestBuilder<AnnotationMirrorTestBuilder<T>> testMemberIfPresent(String memberName) {
-            return new AnnotationMirrorMemberTestBuilder<>(ammtb -> {
-                if (ammtb.predicate != null) {
-                    addPredicate(outer -> {
-                        List<AnnotationMirror> values = utils.annotationValues(outer, memberName, AnnotationMirror.class);
-                        if (values.isEmpty()) {
-                            return true;
-                        }
-                        return ammtb.predicate.test(outer);
-                    });
-                }
-                return this;
-            }, memberName, utils);
-        }
-
-        public AnnotationMirrorTestBuilder<AnnotationMirrorTestBuilder<T>> testMemberAsAnnotation(String memberName) {
-            return new AnnotationMirrorTestBuilder<>(utils, amtb -> {
-                addPredicate((AnnotationMirror a) -> {
-                    List<AnnotationMirror> mir = utils.annotationValues(a, memberName, AnnotationMirror.class);
-                    Predicate<AnnotationMirror> p = amtb.predicate;
-                    boolean result = true;
-                    if (p != null) {
-                        for (AnnotationMirror am : mir) {
-                            result &= p.test(am);
-                        }
-                    }
-                    return result;
-                });
-                return this;
-            });
-        }
-
-        public static final class AnnotationMirrorMemberTestBuilder<T> {
-
-            private final Function<AnnotationMirrorMemberTestBuilder<T>, T> converter;
-            private final String memberName;
-            private Predicate<AnnotationMirror> predicate;
-            private final AnnotationUtils utils;
-
-            AnnotationMirrorMemberTestBuilder(Function<AnnotationMirrorMemberTestBuilder<T>, T> converter, String memberName, AnnotationUtils utils) {
-                this.converter = converter;
-                this.memberName = memberName;
-                this.utils = utils;
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> addPredicate(Predicate<AnnotationMirror> pred) {
-                if (this.predicate == null) {
-                    this.predicate = pred;
-                } else {
-                    this.predicate = this.predicate.and(pred);
-                }
-                return this;
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> validateStringValueAsMimeType() {
-                return stringValueMustMatch(AnnotationUtils::validateMimeType);
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotContainWhitespace() {
-                return addPredicate(am -> {
-                    List<String> vals = utils.annotationValues(am, memberName, String.class);
-                    boolean result = true;
-                    for (String val : vals) {
-                        for (int i = 0; i < val.length(); i++) {
-                            if (Character.isWhitespace(val.charAt(i))) {
-                                utils.fail("Value of " + memberName + " may not contain whitespace", null, am);
-                                result = false;
-                            }
-                        }
-                    }
-                    return result;
-                });
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotBeEmpty() {
-                return stringValueMustMatch((val, ut) -> {
-                    boolean result = val != null && !val.isEmpty();
-                    if (!result) {
-                        ut.fail("Value must not be empty");
-                    }
-                    return result;
-                });
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> stringValueMustBeValidJavaIdentifier() {
-                return stringValueMustMatch((val, ut) -> {
-                    if (val == null || val.isEmpty()) {
-                        return true;
-                    }
-                    int max = val.length();
-                    for (int i = 0; i < max; i++) {
-                        char c = val.charAt(i);
-                        boolean result;
-                        if (i == 0) {
-                            result = Character.isJavaIdentifierStart(c);
-                        } else {
-                            result = Character.isJavaIdentifierPart(c);
-                        }
-                        if (!result) {
-                            ut.fail("Invalid identifier '" + val + "' may not contain: " + c);
-                            return result;
-                        }
-                    }
-                    return true;
-                });
-            }
-
-            public AnnotationMemberAsTypeTestBuilder<TypeElement, AnnotationMirrorMemberTestBuilder<T>> asTypeSpecifier() {
-                return new AnnotationMemberAsTypeTestBuilder<>(utils, b -> {
-                    Predicate<TypeElement> teTest = b.getPredicate();
-                    addPredicate(am -> {
-                        List<String> types = utils.typeList(am, memberName);
-                        boolean result = true;
-                        for (String type : types) {
-                            TypeElement te = utils.processingEnv.getElementUtils().getTypeElement(type);
-                            result &= teTest.test(te);
-                        }
-                        return result;
-                    });
-                    return this;
-                });
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> stringValueMustMatch(BiPredicate<String, AnnotationUtils> bp) {
-                return addPredicate(mirror -> {
-                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e : mirror.getElementValues().entrySet()) {
-
-                        if (memberName.equals(e.getKey().getSimpleName().toString())) {
-                            AnnotationValue v = e.getValue();
-                            if (!(v.getValue() instanceof String)) {
-                                utils.fail("Not a string: " + v, e.getKey(), mirror);
-                                return false;
-                            } else {
-                                boolean result = bp.test((String) v.getValue(), utils);
-                                if (!result) {
-                                    utils.fail("Invalid string value", e.getKey(), mirror);
-                                }
-                                return result;
-                            }
-//                            break;
-                        }
-                    }
-//                    String val = bldr.utils.annotationValue(mirror, memberName, String.class);
-//                    boolean result = bp.test(val, bldr.utils);
-//                    System.out.println("TEST STRING VALUE " + val + " with " + bp + " res " + result);
-//                    return result;
-                    return true;
-                });
-            }
-
-            public AnnotationMirrorMemberTestBuilder<T> mustBeSubtypeOf(String... names) {
-                return addPredicate(mir -> {
-                    List<String> l = utils.typeList(mir, memberName, names);
-                    System.out.println("GOT TYPES " + l + " looking for " + Arrays.toString(names) + " for " + memberName);
-                    return !l.isEmpty();
-                });
-            }
-
-            public T build() {
-                return converter.apply(this);
-            }
-
-            public <R> AnnotationMirrorMemberTestBuilder<T> valueMustBeOfSimpleType(Class<R> type) {
-                return addPredicate(mir -> {
-                    return utils.annotationValue(mir, memberName, type) != null;
-                });
-            }
-        }
-    }
-
-    public static class MethodTestBuilder<E extends ExecutableElement, R, B extends MethodTestBuilder<E, R, B>> extends TestBuilder<E, R, B> {
-
-        public MethodTestBuilder(AnnotationUtils utils, Function<B, R> builder) {
-            super(utils, builder);
-        }
-
-        public B returns(String type, String... moreTypes) {
-            Set<String> all = new HashSet<>(Arrays.asList(moreTypes));
-            all.add(type);
-            System.out.println("check return type " + all);
-            Predicate<E> pred = el -> {
-                for (String oneType : all) {
-                    TypeComparisonResult res = utils.isSubtypeOf(el, oneType);
-                    if (res.isSubtype()) {
-                        return true;
-                    }
-                }
-                utils.fail("Return type is not one of " + join(',', all), el);
-                return false;
-            };
-            return addPredicate(pred);
-        }
-
-        public B mustNotTakeArguments() {
-            return addPredicate(e -> {
-                boolean result = e.getParameters().isEmpty();
-                if (!result) {
-                    utils.fail("Method must not take any arguments", e);
-                }
-                return result;
-            });
-        }
-
-        private static <E1 extends ExecutableElement, B1 extends MethodTestBuilder<E1, Predicate<E1>, B1>> MethodTestBuilder<E1, Predicate<E1>, B1> createMethod(AnnotationUtils utils) {
-            return new MethodTestBuilder<E1, Predicate<E1>, B1>(utils, defaultMethodBuilder());
-        }
-
-        private static <E1 extends ExecutableElement, B extends MethodTestBuilder<E1, Predicate<E1>, B>> Function<B, Predicate<E1>> defaultMethodBuilder() {
-            return tb -> {
-                return tb.getPredicate();
-            };
-        }
-
-        public B argumentTypesMustBe(String... types) {
-            addPredicate(e -> {
-                int count = e.getParameters().size();
-                if (count != types.length) {
-                    utils.fail("Wrong number of arguments - " + count + " - expecting " + types.length
-                            + " of types " + Arrays.toString(types), e);
-                    return false;
-                }
-                return true;
-            });
-            for (int i = 0; i < types.length; i++) {
-                final int index = i;
-                addPredicate(e -> {
-                    List<? extends VariableElement> params = e.getParameters();
-                    VariableElement toTest = params.get(index);
-                    TypeComparisonResult isSubtype = utils.isSubtypeOf(toTest, types[index]);
-                    boolean result = isSubtype.isSubtype();
-                    if (!result) {
-                        switch (isSubtype) {
-                            case FALSE:
-                                utils.fail("Type of argument " + index
-                                        + " should be " + types[index]
-                                        + " not " + toTest.asType());
-                                break;
-                            case TYPE_NAME_NOT_RESOLVABLE:
-                                utils.fail("Type of argument " + index
-                                        + " should be " + types[index]
-                                        + " but that type is not resolvable on "
-                                        + "the compilation class path.");
-                        }
-                    }
-                    return result;
-                });
-            }
-            return (B) this;
-        }
-    }
-
-    public static class AnnotationMemberAsTypeTestBuilder<E extends Element, R> extends TestBuilder<E, R, AnnotationMemberAsTypeTestBuilder<E, R>> {
-
-        public AnnotationMemberAsTypeTestBuilder(AnnotationUtils utils, Function<AnnotationMemberAsTypeTestBuilder<E, R>, R> builder) {
-            super(utils, builder);
-        }
-    }
-
-    public static class TestBuilder<E extends Element, R, B extends TestBuilder<E, R, B>> {
-
-        protected final AnnotationUtils utils;
-        private final Function<B, R> builder;
-        private Predicate<E> predicate;
-
-        TestBuilder(AnnotationUtils utils, Function<B, R> builder) {
-            this.utils = utils;
-            this.builder = builder;
-        }
-
-        private static <E extends Element, B extends TestBuilder<E, Predicate<E>, B>> TestBuilder<E, Predicate<E>, B> create(AnnotationUtils utils) {
-            return new TestBuilder<E, Predicate<E>, B>(utils, defaultBuilder());
-        }
-
-        private static <E extends Element, B extends TestBuilder<E, Predicate<E>, B>> Function<B, Predicate<E>> defaultBuilder() {
-            return tb -> {
-                return tb.getPredicate();
-            };
-        }
-
-        public <B1 extends TestBuilder<TypeElement, B, B1>> B1 testContainingClass() {
-            Function<B1, B> func = tb -> {
-                addPredicate(el -> {
-                    TypeElement enclosing = AnnotationUtils.enclosingType(el);
-                    if (enclosing == null) {
-                        utils.fail("Could not find enclosing type of " + el.asType(), el);
-                        return false;
-                    }
-                    return true;
-                });
-                addPredicate(AnnotationUtils::enclosingType, tb.getPredicate());
-                return (B) TestBuilder.this;
-            };
-            B1 result = (B1) new TestBuilder<>(utils, func);
-            return result;
-        }
-
-        public R build() {
-            return builder.apply((B) this);
-        }
-
-        Predicate<E> getPredicate() {
-            if (this.predicate == null) {
-                return e -> {
-                    return true;
-                };
-            }
-            return predicate;
-        }
-
-        public B addPredicate(Predicate<E> test) {
-            if (this.predicate == null) {
-                this.predicate = test;
-            } else {
-                this.predicate = this.predicate.and(test);
-            }
-            return (B) this;
-        }
-
-        public <V> B addPredicate(Function<E, V> converter, Predicate<V> predicate) {
-            return addPredicate(e -> {
-                V v = converter.apply(e);
-                return predicate.test(v);
-            });
-        }
-
-        public B mustBeFullyReifiedType() {
-            return addPredicate((E e) -> {
-                if (e.asType().getKind() != TypeKind.DECLARED) {
-                    utils.fail("Not a fully reified type: " + e.asType(), e);
-                }
-                return true;
-            });
-        }
-
-        public B typeParameterExtends(int ix, String name) {
-            return addPredicate(e -> {
-                TypeMirror expected = utils.getTypeParameter(ix, e);
-                TypeElement el = utils.processingEnv.getElementUtils().getTypeElement(name);
-                if (el == null) {
-                    utils.fail("Could not load " + name + " from the classpath", e);
-                    return false;
-                }
-                TypeMirror real = e.asType();
-                boolean result = utils.processingEnv.getTypeUtils().isSameType(real, expected)
-                        || utils.processingEnv.getTypeUtils().isAssignable(expected, real);
-                if (!result) {
-                    utils.fail(real + " is not assignable as " + expected);
-                }
-                return result;
-            });
-        }
-
-        public B typeParameterExtendsOneOf(int ix, String name, String... more) {
-            return addPredicate(e -> {
-                TypeMirror expected = utils.getTypeParameter(ix, e);
-                List<String> all = new ArrayList<>();
-                all.add(name);
-                all.addAll(Arrays.asList(more));
-                TypeMirror real = e.asType();
-                boolean result = false;
-                for (String a : all) {
-                    TypeElement el = utils.processingEnv.getElementUtils().getTypeElement(name);
-                    if (el == null) {
-                        utils.fail("Could not load " + name + " from the classpath", e);
-                        return false;
-                    }
-                    result |= utils.processingEnv.getTypeUtils().isSameType(real, expected)
-                            || utils.processingEnv.getTypeUtils().isAssignable(expected, real);
-                    if (result) {
-                        break;
-                    }
-                }
-                if (!result) {
-                    utils.fail(real + " is not assignable as " + expected);
-                }
-                return result;
-            });
-        }
-
-        public B typeParameterMatches(int ix, BiPredicate<TypeMirror, AnnotationUtils> tester) {
-            return addPredicate(e -> {
-                TypeMirror tm = utils.getTypeParameter(ix, e);
-                return tester.test(tm, utils);
-            });
-        }
-
-        public B isKind(ElementKind kind) {
-            return addPredicate(e -> {
-                if (kind != e.getKind()) {
-                    utils.fail("Element type must be " + kind + " but is " + e.getKind(), e);
-                    return false;
-                }
-                return true;
-            });
-        }
-
-        public B hasModifier(Modifier m) {
-            return addPredicate(e -> {
-                boolean result = e.getModifiers() != null
-                        && e.getModifiers().contains(m);
-                if (!result) {
-                    utils.fail("Must be " + m, e);
-                }
-                return result;
-            });
-        }
-
-        public B hasModifiers(Modifier a, Modifier... more) {
-            hasModifier(a);
-            for (Modifier m : more) {
-                hasModifier(m);
-            }
-            return (B) this;
-        }
-
-        public B doesNotHaveModifier(Modifier m) {
-            return addPredicate(e -> {
-                boolean result = e.getModifiers() == null
-                        || !e.getModifiers().contains(m);
-                if (!result) {
-                    utils.fail("Modifier " + m + " must not be used here", e);
-                }
-                return result;
-            });
-        }
-
-        public B doesNotHaveModifiers(Modifier a, Modifier... more) {
-            doesNotHaveModifier(a);
-            for (Modifier m : more) {
-                doesNotHaveModifier(m);
-            }
-            return (B) this;
-        }
-
-        public B isSubTypeOf(String typeName, String... moreTypeNames) {
-            return addPredicate(e -> {
-                if (e == null) {
-                    return true;
-                }
-                if (moreTypeNames.length == 0) {
-                    TypeComparisonResult res = utils.isSubtypeOf(e, typeName);
-                    if (!res.isSubtype()) {
-                        switch (res) {
-                            case FALSE:
-                                utils.fail("Not a subtype of " + typeName + ": " + e.asType(), e);
-                                break;
-                            case TYPE_NAME_NOT_RESOLVABLE:
-                                utils.fail("Could not resolve on classpath: " + typeName, e);
-                                break;
-                        }
-                    }
-                    return res.isSubtype();
-                } else {
-                    List<String> all = new ArrayList<>(Arrays.asList(typeName));
-                    all.addAll(Arrays.asList(moreTypeNames));
-                    for (String test : all) {
-                        TypeComparisonResult res = utils.isSubtypeOf(e, test);
-                        if (res.isSubtype()) {
-                            return true;
-                        }
-                    }
-                    utils.fail("Not a subtype of any of " + join(',', all.toArray(new String[0])) + ": " + e.asType(), e);
-                    return false;
-                }
-            });
-        }
-    }
 }

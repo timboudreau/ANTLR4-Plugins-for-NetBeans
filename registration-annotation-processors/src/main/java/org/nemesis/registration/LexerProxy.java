@@ -40,11 +40,19 @@ class LexerProxy {
             utils.fail("Could not locate lexer class on classpath", target);
             return null;
         }
+        return create(lexerClass, target, utils);
+    }
+
+    static LexerProxy create(TypeMirror lexerClass, Element target, AnnotationUtils utils) {
         TypeElement lexerClassElement = utils.processingEnv().getElementUtils().getTypeElement(lexerClass.toString());
         if (lexerClassElement == null) {
             utils.fail("Could not resolve a TypeElement for " + lexerClass, target);
             return null;
         }
+        return create(lexerClassElement, target, utils);
+    }
+
+    static LexerProxy create(TypeElement lexerClassElement, Element target, AnnotationUtils utils) {
         Map<Integer, String> tokenNameForIndex = new HashMap<>();
         Map<String, Integer> indexForTokenName = new HashMap<>();
         int last = -2;
@@ -68,7 +76,8 @@ class LexerProxy {
         }
         tokenNameForIndex.put(-1, "EOF");
         tokenNameForIndex.put(last + 1, "$ERRONEOUS");
-        return new LexerProxy(lexerClass, lexerClassElement, tokenNameForIndex, indexForTokenName, last);
+        return new LexerProxy(lexerClassElement.asType(),
+                lexerClassElement, tokenNameForIndex, indexForTokenName, last);
     }
 
     public Set<String> tokenNames() {

@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -251,6 +250,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
     private ConstructorBuilder<ClassBuilder<T>> constructor(boolean[] built) {
         return new ConstructorBuilder<>(cb -> {
+            if (contains(cb)) {
+                throw new IllegalStateException("Already have a constructor with arguments (" + cb.sig() + ")");
+            }
             constructors.add(cb);
             built[0] = true;
             return ClassBuilder.this;
@@ -407,7 +409,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public ConstructorBuilder<T> annotatedWith(String what, Consumer<AnnotationBuilder<?>> c) {
             boolean[] built = new boolean[1];
-            AnnotationBuilder<Void> bldr = new AnnotationBuilder<Void>(ab -> {
+            AnnotationBuilder<Void> bldr = new AnnotationBuilder<>(ab -> {
                 annotations.add(ab);
                 built[0] = true;
                 return null;
@@ -428,13 +430,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
             Holder<T> hold = new Holder<>();
             BlockBuilder<Void> block = new BlockBuilder<>(bb -> {
                 body = bb;
-                hold.set(converter.apply(this));
+                hold.set(build());
                 return null;
             }, true);
             c.accept(block);
             if (!hold.isSet()) {
-                throw new IllegalStateException("endBlock() was not called on "
-                        + "constructor body - not added");
+                body = block;
+                hold.set(build());
             }
             return hold.get();
         }
@@ -443,11 +445,21 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return body(new boolean[1]);
         }
 
+        private T build() {
+            if (this.built != null) {
+                throw new IllegalStateException("Adding constructor twice", this.built);
+            }
+            this.built = new Exception("end body block");
+            return converter.apply(this);
+        }
+
+        private Exception built;
+
         private BlockBuilder<T> body(boolean[] built) {
             return new BlockBuilder<>(bb -> {
                 body = bb;
                 built[0] = true;
-                return converter.apply(this);
+                return build();
             }, true);
         }
 
@@ -514,6 +526,44 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }
             lb.word(name);
             buildInto(lb);
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 37 * hash + Objects.hashCode(this.arguments);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ConstructorBuilder<?> other = (ConstructorBuilder<?>) obj;
+            if (!Objects.equals(this.arguments, other.arguments)) {
+                return false;
+            }
+            return true;
+        }
+
+        private String sig() {
+            LinesBuilder lb = new LinesBuilder();
+            for (Iterator<Map.Entry<String, String>> it = arguments.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<String, String> e = it.next();
+                lb.word(e.getValue()).word(e.getKey());
+                if (it.hasNext()) {
+                    lb.appendRaw(",");
+                }
+            }
+            return lb.toString();
+
         }
     }
 
@@ -787,6 +837,9 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
     private FieldBuilder<ClassBuilder<T>> field(String name, boolean[] built) {
         return new FieldBuilder<>(fb -> {
+            if (contains(fb)) {
+                throw new IllegalStateException("Already have a field " + fb.name + " in " + name);
+            }
             members.add(fb);
             built[0] = true;
             return ClassBuilder.this;
@@ -872,6 +925,19 @@ public final class ClassBuilder<T> implements BodyBuilder {
         return method(name).withModifier(PROTECTED);
     }
 
+    private boolean contains(BodyBuilder bb) {
+        // Usualy, repeated add bugs will be on the most recent element
+        // so faster to start from the last
+        int max = members.size();
+        for (int i = max - 1; i >= 0; i--) {
+            BodyBuilder b = members.get(i);
+            if (b == bb || b.equals(bb)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private MethodBuilder<ClassBuilder<T>> method(String name, boolean[] built, Modifier... modifiers) {
         Exception[] prev = new Exception[1];
         MethodBuilder<ClassBuilder<T>> result = new MethodBuilder<>(mb -> {
@@ -879,6 +945,10 @@ public final class ClassBuilder<T> implements BodyBuilder {
                 throw new IllegalStateException("Method built twice", prev[0]);
             }
             prev[0] = new Exception("Build '" + name + "'");
+
+            if (contains(mb)) {
+                throw new IllegalStateException("A method named " + mb.name + "(" + mb.sig() + ") already added to " + name);
+            }
             members.add(mb);
             built[0] = true;
             return ClassBuilder.this;
@@ -1100,6 +1170,54 @@ public final class ClassBuilder<T> implements BodyBuilder {
             }
             lines.doubleNewline();
         }
+
+        public String sig() {
+            LinesBuilder lb = new LinesBuilder();
+            for (Iterator<String[]> it = args.iterator(); it.hasNext();) {
+                String[] curr = it.next();
+                lb.word(curr[0]);
+                if (it.hasNext()) {
+                    lb.word(curr[1] + ",");
+                } else {
+                    lb.word(curr[1]);
+                }
+            }
+            return lb.toString();
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 67 * hash + Objects.hashCode(this.type);
+            hash = 67 * hash + Objects.hashCode(this.name);
+            hash = 67 * hash + Objects.hashCode(this.args);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final MethodBuilder<?> other = (MethodBuilder<?>) obj;
+            if (!Objects.equals(this.type, other.type)) {
+                return false;
+            }
+            if (!Objects.equals(this.name, other.name)) {
+                return false;
+            }
+            if (!Objects.equals(this.args, other.args)) {
+                return false;
+            }
+            return true;
+        }
+
     }
 
     public static final class AssignmentBuilder<T> implements BodyBuilder {
@@ -2265,7 +2383,13 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return this;
         }
 
+        Exception built;
+
         public T endBlock() {
+            if (built != null) {
+                throw new IllegalStateException("Block built twice", built);
+            }
+            built = new Exception("endBlock");
             return converter.apply(this);
         }
 
@@ -3188,7 +3312,6 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return true;
         }
 
-
     }
 
     public static final class AnnotationBuilder<T> implements BodyBuilder {
@@ -3329,7 +3452,6 @@ public final class ClassBuilder<T> implements BodyBuilder {
             return true;
         }
 
-
     }
 
     public static final class FieldBuilder<T> implements BodyBuilder {
@@ -3344,6 +3466,31 @@ public final class ClassBuilder<T> implements BodyBuilder {
         FieldBuilder(Function<FieldBuilder<T>, T> converter, String name) {
             this.converter = converter;
             this.name = name;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 17 * hash + Objects.hashCode(this.name);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final FieldBuilder<?> other = (FieldBuilder<?>) obj;
+            if (!Objects.equals(this.name, other.name)) {
+                return false;
+            }
+            return true;
         }
 
         boolean isStatic() {
@@ -3369,7 +3516,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
 
         public T initializedAsArrayLiteral(String type, Consumer<ArrayLiteralBuilder<?>> c) {
             boolean[] built = new boolean[1];
-            AtomicReference<T> t = new AtomicReference<>();
+            Holder<T> t = new Holder<>();
             ArrayLiteralBuilder<Void> bldr = new ArrayLiteralBuilder<>(alb -> {
                 this.type = type + "[]";
                 this.initializer = alb;

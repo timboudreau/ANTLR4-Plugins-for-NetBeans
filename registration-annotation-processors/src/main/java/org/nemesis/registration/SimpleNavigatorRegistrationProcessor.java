@@ -39,12 +39,8 @@ import org.openide.util.lookup.ServiceProvider;
 public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationProcessor {
 
     public static final String SIMPLE_ANNOTATION_CLASS = ANTLR_NAVIGATOR_PACKAGE + ".SimpleNavigatorRegistration";
-    private Predicate<AnnotationMirror> annoTest;
-    private Predicate<Element> typeTest;
-
-    static {
-        AnnotationUtils.forceLogging();
-    }
+    private Predicate<? super AnnotationMirror> annoTest;
+    private Predicate<? super Element> typeTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -57,7 +53,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                             || val.endsWith(".gif")
                             || val.endsWith(".png");
                     if (!result) {
-                        ut.fail("Icon base must end with .gif, .jpg or .png");
+                        ut.accept("Icon base must end with .gif, .jpg or .png");
                     }
                     return result;
                 })

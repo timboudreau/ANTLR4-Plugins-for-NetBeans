@@ -1163,6 +1163,16 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         public LexingStateBuilder<T, R> clearingOnTokenType(int type) {
             return clearingOnTokenType(matching(type));
         }
+        /**
+         * Don't ever clear the value, but update it when a new matching
+         * token is found.
+         *
+         * @param type A token type
+         * @return The parent builder
+         */
+        public LexingStateBuilder<T, R> notClearing() {
+            return clearingOnTokenType(matching(-1));
+        }
 
         /**
          * Clear the value for this key when a token matches any of the passed

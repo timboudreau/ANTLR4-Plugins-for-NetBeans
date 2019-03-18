@@ -18,7 +18,6 @@ final class ParserRuleCollector {
 
     ParserRuleCollector(EverythingTokenStream stream) {
         this.stream = stream;
-        System.out.println("STREAM HAS " + stream.size());
     }
 
     IntFunction<Set<Integer>> visit(RuleNode node) {
@@ -52,17 +51,10 @@ final class ParserRuleCollector {
             int ruleIndex = node.getRuleContext().getRuleIndex();
             Interval startAndEndTokens = node.getSourceInterval();
 
-            System.out.println("SOURCE INTERVAL " + startAndEndTokens.a + ":" + startAndEndTokens.b + " for " + node.getText() + " for rule " + node.getClass().getName()
-                + " in stream of " + stream.size());
-
-
             ModalToken start = stream.get(startAndEndTokens.a);
             ModalToken end = stream.get(startAndEndTokens.b);
             int startOffset = start.getStartIndex();
             int endOffset = end.getStopIndex() + 1;
-
-//            int startOffset = startAndEndTokens.a;
-//            int endOffset = startAndEndTokens.b + 1;
             if (startOffset < endOffset) {
                 bldr.add(ruleIndex, startOffset, endOffset);
             }

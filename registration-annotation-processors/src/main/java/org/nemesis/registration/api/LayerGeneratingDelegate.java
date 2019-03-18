@@ -21,10 +21,10 @@ public abstract class LayerGeneratingDelegate extends Delegate {
     protected LayerGeneratingDelegate() {
     }
 
-    protected final void init(ProcessingEnvironment env, AnnotationUtils utils, IOBiConsumer<ClassBuilder<String>, Element[]> classWriter, Function<Element[], LayerBuilder> layerBuilderFetcher, BiConsumer<LayerTask, Element[]> layerTaskAdder) {
+    protected final void init(ProcessingEnvironment env, AnnotationUtils utils, IOBiConsumer<ClassBuilder<String>, Element[]> classWriter, Function<Element[], LayerBuilder> layerBuilderFetcher, BiConsumer<LayerTask, Element[]> layerTaskAdder, Delegates del) {
         this.layerBuilderFetcher = layerBuilderFetcher;
         this.layerTaskAdder = layerTaskAdder;
-        super.init(env, utils, classWriter);
+        super.init(env, utils, classWriter, del);
     }
 
     protected final LayerBuilder layer(Element... elements) {

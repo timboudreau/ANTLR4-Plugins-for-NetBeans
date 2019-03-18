@@ -1,8 +1,10 @@
 package org.nemesis.registration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,8 +54,8 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
             + "." + "AntlrFormatterProvider";
     public static final String ANTLR_LEXER_TYPE = "org.antlr.v4.runtime.Lexer";
 
-    private Predicate<AnnotationMirror> annoCheck;
-    private Predicate<Element> typeCheck;
+    private Predicate<? super AnnotationMirror> annoCheck;
+    private Predicate<? super Element> typeCheck;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -120,6 +122,17 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
         return streamChannelForMimeType.getOrDefault(mimeType, 0);
     }
 
+    private List<Integer> whitespaceTokenListFromSyntaxInfoForMimeType(RoundEnvironment env, String mimeType) {
+        AnnotationMirror mir = preemptivelyFindLanguageRegistration(env, mimeType);
+        if (mir != null) {
+            AnnotationMirror syntaxInfo = utils().annotationValue(mir, "syntax", AnnotationMirror.class);
+            if (syntaxInfo != null) {
+                return utils().annotationValues(syntaxInfo, "whitespaceTokens", Integer.class);
+            }
+        }
+        return Collections.emptyList();
+    }
+
     private ParserProxy findParserInfo(RoundEnvironment env, String mimeType, TypeMirror lexerClass) {
         AnnotationMirror mir = preemptivelyFindLanguageRegistration(env, mimeType);
         if (mir == null && lexerClass != null) {
@@ -153,32 +166,26 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
         return false;
     }
 
-    private TypeMirror findLexerClass(TypeElement el, AnnotationMirror anno, String subtypeOf) {
+    private TypeMirror findTypeArgumentOnInterfacesImplementedBy(TypeElement el, AnnotationMirror anno, String subtypeOf) {
         if ("java.lang.Object".equals(el.getQualifiedName().toString())) {
             return null;
         }
-        System.out.println("TYPE " + el.asType());
         for (TypeMirror m : el.getInterfaces()) {
-            System.out.println("IFACE " + m + " kind " + m.getKind());
             DeclaredType dt = (DeclaredType) m;
-            System.out.println("TYPE ARGS " + dt.getTypeArguments());
             for (TypeMirror arg : dt.getTypeArguments()) {
-                System.out.println(" TEST " + arg);
                 if (utils().isSubtypeOf(arg, subtypeOf).isSubtype()) {
-                    System.out.println("GOT IT: " + arg);
                     return arg;
                 }
             }
         }
         TypeMirror sup = el.getSuperclass();
         TypeElement el1 = processingEnv.getElementUtils().getTypeElement(sup.toString());
-        System.out.println("TRY SUPERTYPE " + el1);
         if (el1 == null) {
             utils().fail("Could not load type " + sup + " to look type "
                     + "parameter subtype of " + subtypeOf);
             return null;
         }
-        return findLexerClass(el1, anno, subtypeOf);
+        return findTypeArgumentOnInterfacesImplementedBy(el1, anno, subtypeOf);
     }
 
     private static final String REFORMAT_TASK_TYPE = "org.netbeans.modules.editor.indent.spi.ReformatTask";
@@ -186,10 +193,8 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
 
     private void processFormatterRegistration(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        TypeMirror lexerClass = findLexerClass(type, mirror, ANTLR_LEXER_TYPE);
-        TypeMirror enumClass = findLexerClass(type, mirror, java.lang.Enum.class.getName());
-        System.out.println("LEXER CLASS " + lexerClass);
-        System.out.println("ENUM CLASS " + enumClass);
+        TypeMirror lexerClass = findTypeArgumentOnInterfacesImplementedBy(type, mirror, ANTLR_LEXER_TYPE);
+        TypeMirror enumClass = findTypeArgumentOnInterfacesImplementedBy(type, mirror, java.lang.Enum.class.getName());
         if (lexerClass == null) {
             utils().fail("Could not find lexer class on " + type
                     + " for " + mimeType);
@@ -201,7 +206,7 @@ public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegi
             return;
         }
         String pkg = utils().packageName(type);
-        String generatedClassName = type.getSimpleName() + "_" + "Formatter";
+        String generatedClassName = type.getSimpleName() + "_" + "ReformatTaskFactory";
 
         // AntlrFormatterProvider
         /*
@@ -211,17 +216,18 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
         ParserProxy parser = findParserInfo(roundEnv, mimeType, lexerClass);
 
         String formatterSignature = simpleName(FORMATTER_TYPE) + "<"
-                + simpleName(lexerClass.toString()) 
+                + simpleName(lexerClass.toString())
                 + ","
                 + simpleName(enumClass.toString())
                 + ">";
 
+        LexerProxy lexer = LexerProxy.create(lexerClass, type, utils());
+
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                .importing(FORMATTER_TYPE, lexerClass.toString(), enumClass.toString(), "org.antlr.v4.runtime.CharStream",
+                .importing(FORMATTER_TYPE, lexer.lexerClassFqn(), enumClass.toString(), "org.antlr.v4.runtime.CharStream",
                         REFORMAT_TASK_TYPE, "org.netbeans.modules.editor.indent.spi.Context",
                         MIME_REG_TYPE
-                )
-                .withModifier(PUBLIC, FINAL)
+                ).withModifier(PUBLIC, FINAL)
                 .implementing(simpleName(REFORMAT_TASK_TYPE) + ".Factory")
                 .annotatedWith(simpleName(MIME_REG_TYPE))
                 .addStringArgument("mimeType", mimeType)
@@ -254,23 +260,35 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
 
                                             List<Integer> white = utils().annotationValues(mirror,
                                                     "whitespaceTokens", Integer.class);
+                                            if (white.isEmpty()) {
+                                                white = whitespaceTokenListFromSyntaxInfoForMimeType(
+                                                        roundEnv, mimeType);
+                                            }
                                             Collections.sort(white);
+
+                                            List<String> names = new ArrayList<>();
                                             white.forEach((w) -> {
-                                                ints.number(w);
+                                                String constantName = lexer.tokenName(w);
+                                                names.add(constantName);
+                                                ints.value(lexer.lexerClassSimple() + "." + constantName);
                                             });
+                                            if (new HashSet<>(names).size() != names.size()) {
+                                                utils().fail("Whitespace token list contains duplicates for either "
+                                                        + "language registration or formatter registration: "
+                                                        + names, type);
+                                            }
+                                        })
+//                                        .withNewArrayArgument("int", ints -> {
+//                                            List<Integer> debug = utils()
+//                                                    .annotationValues(mirror,
+//                                                            "debugTokens", Integer.class);
+//                                            Collections.sort(debug);
+//                                            debug.forEach((w) -> {
+//                                                ints.number(w);
+//                                            });
 //                                            ints.closeArray();
-                                        })
-                                        .withNewArrayArgument("int", ints -> {
-                                            List<Integer> debug = utils()
-                                                    .annotationValues(mirror,
-                                                            "debugTokens", Integer.class);
-                                            Collections.sort(debug);
-                                            debug.forEach((w) -> {
-                                                ints.number(w);
-                                            });
-                                            ints.closeArray();
-                                        })
-                                        .withArgument(parser == null ? "null" : parser.parserClassSimple() + ".ruleNames" )
+//                                        })
+                                        .withArgument(parser == null ? "null" : parser.parserClassSimple() + ".ruleNames")
                                         // String[] parserRuleNames, Function<Lexer,RuleNode> rootRuleFinder
                                         /*
                                         .withNewArrayArgument("String", rns -> {
@@ -280,7 +298,7 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                                 });
                                             }
                                         })
-                                        */
+                                         */
                                         .withLambdaArgument(lam -> {
                                             lam.withArgument("Lexer", "lexer").body(lamb -> {
                                                 if (parser != null) {

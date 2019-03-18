@@ -79,8 +79,8 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegis
     public static final String NAMED_REGION_KEY_TYPE = "org.nemesis.extraction.key.NamedRegionKey";
     public static final String SEMANTIC_REGION_KEY_TYPE = "org.nemesis.extraction.key.RegionsKey";
     private final Set<String> handled = new HashSet<>();
-    private Predicate<ExecutableElement> factoryMethodChecks;
-    private Predicate<AnnotationMirror> annotationChecks;
+    private Predicate<? super ExecutableElement> factoryMethodChecks;
+    private Predicate<? super AnnotationMirror> annotationChecks;
 
     @Override
     protected boolean processMethodAnnotation(ExecutableElement method, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {

@@ -40,7 +40,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
 
     private static final String PKG = "org.nemesis.extraction.";
     static final String ANNO = PKG + "ExtractionRegistration";
-    private Predicate<AnnotationMirror> mirrorCheck;
+    private Predicate<? super AnnotationMirror> mirrorCheck;
     private static final String EC_NAME = "ExtractionContributor";
     private static final String EC_TYPE = PKG + EC_NAME;
 

@@ -13,10 +13,8 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
-import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.*;
-import org.nemesis.antlrformatting.api.AntlrFormatters;
 import org.nemesis.antlrformatting.api.Criteria;
 import org.nemesis.antlrformatting.api.Criterion;
 import static org.nemesis.antlrformatting.api.Criterion.anyOf;
@@ -32,13 +30,12 @@ import static org.nemesis.antlrformatting.api.SimpleFormattingAction.*;
 import org.nemesis.antlrformatting.grammarfile.AntlrFormatterSettings.NewlineStyle;
 import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
 import org.netbeans.modules.editor.indent.spi.Context;
-import org.openide.util.lookup.ServiceProvider;
 
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = AntlrFormatterProvider.class, path = AntlrFormatters.BASE + ANTLR_MIME_TYPE)
+//@ServiceProvider(service = AntlrFormatterProvider.class, path = AntlrFormatters.BASE + ANTLR_MIME_TYPE)
 public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrFormatterSettings, AntlrCounters> {
 
     private static final String MODE_DEFAULT = "DEFAULT_MODE";
@@ -112,6 +109,13 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         return true;
     };
 
+    @Override
+    protected void configure(LexingStateBuilder<AntlrCounters, ?> stateBuilder, FormattingRules rules, AntlrFormatterSettings config) {
+        state(stateBuilder, config);
+        rules(rules, config);
+    }
+
+
     private static final Predicate<Token> DEBUG
             //            = Criterion.<Token>anyOf(VOCABULARY, AT, RBRACE, END_ACTION, SEMI)
             //                    .firstNmatches(5)
@@ -140,13 +144,8 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
     }
 
     @Override
-    public int indentSize() {
+    public int indentSize(AntlrFormatterSettings s) {
         return settings.getIndentSize();
-    }
-
-    @Override
-    public int hangingIndentSize() {
-        return settings.getIndentSize() * 2;
     }
 
     @Override
@@ -167,16 +166,6 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
     @Override
     protected String[] modeNames() {
         return ANTLRv4Lexer.modeNames;
-    }
-
-    @Override
-    protected void populateLexingState(LexingStateBuilder<AntlrCounters, ?> e, AntlrFormatterSettings config) {
-        state(e, config);
-    }
-
-    @Override
-    protected void populateFormattingRules(FormattingRules rules, AntlrFormatterSettings config) {
-        rules(rules, config);
     }
 
     @Override
@@ -520,6 +509,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         return new FormattingAction() {
             @Override
             public void accept(Token token, FormattingContext ctx, LexingState state) {
+
                 if (ctx.currentCharPositionInLine() + token.getText().length() + 1 > c.getWrapPoint()) {
                     if (wrapAt != null) {
                         int amt = state.get(wrapAt);

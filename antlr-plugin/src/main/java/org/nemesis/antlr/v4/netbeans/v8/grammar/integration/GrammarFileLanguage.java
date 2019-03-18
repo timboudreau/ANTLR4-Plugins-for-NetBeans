@@ -57,7 +57,6 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.source.api.GrammarSource;
-import org.nemesis.antlrformatting.api.AntlrFormatters;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
@@ -69,7 +68,6 @@ import org.netbeans.modules.csl.api.ColoringAttributes;
 import org.netbeans.modules.csl.api.DeclarationFinder;
 import org.netbeans.modules.csl.api.ElementHandle;
 import org.netbeans.modules.csl.api.ElementKind;
-import org.netbeans.modules.csl.api.Formatter;
 import org.netbeans.modules.csl.api.InstantRenamer;
 import org.netbeans.modules.csl.api.Modifier;
 import org.netbeans.modules.csl.api.OccurrencesFinder;
@@ -219,15 +217,15 @@ public class GrammarFileLanguage extends DefaultLanguageConfig {
         return true;
     }
 
-    @Override
-    public Formatter getFormatter() {
-        return AntlrFormatters.forMimeType(ANTLR_MIME_TYPE);
-    }
-
-    @Override
-    public boolean hasFormatter() {
-        return AntlrFormatters.hasFormatter(ANTLR_MIME_TYPE);
-    }
+//    @Override
+//    public Formatter getFormatter() {
+//        return AntlrFormatters.forMimeType(ANTLR_MIME_TYPE);
+//    }
+//
+//    @Override
+//    public boolean hasFormatter() {
+//        return AntlrFormatters.hasFormatter(ANTLR_MIME_TYPE);
+//    }
 
     @Override
     public DeclarationFinder getDeclarationFinder() {

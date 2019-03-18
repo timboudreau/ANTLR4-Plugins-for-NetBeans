@@ -4,12 +4,7 @@ Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
 
-Actions should be added in editor kit createActions, since they don't seem to be
-done automatically from 
-
 Supply an alternate reference key for region names, not just have types
-
-Add imports to yasl to test resolution
 
 Add arbitrary scoping using other elements.
 
@@ -17,14 +12,18 @@ Get the antlr module working
 
 Hooks for dataobject methods, needed for antlr module's grammar file delete handling
 
-
 FORMATTING:
 
  - Rename AntlrFormatterProvider to AntlrFormatter and update in the annotation processor
 
  - REINDENT SUPPORT
 
- - Update the annotation processor to support parser detection and generate additional methods
+ - Wrapping lines action is not getting the correct line position and going insane
 
+ - Should preserve whitespace if no action taken
+
+ACTIONS:
+
+ - Most likely just need to use shared action names now that they're in the editor kit
 
 

@@ -97,7 +97,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         TypeMirror tokenCategorizerClass = utils().typeForSingleClassAnnotationMember(mirror, "tokenCategorizer");
         String prefix = utils().annotationValue(mirror, "name", String.class);
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        String tokenClassName = LanguageRegistrationProcessor.willHandleCategories(tokenCategories, tokenCategorizerClass, prefix, utils());
+        String tokenClassName = LanguageRegistrationDelegate.willHandleCategories(tokenCategories, tokenCategorizerClass, prefix, utils());
         if (tokenClassName == null) {
             // Nothing specified - will use the heuristic categorizer - nothing to do
             return true;

@@ -48,9 +48,9 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     static final String ANNO = PKG_NAME + "." + ANNO_NAME;
     static final String GROUP_ANNO = PKG_NAME + "." + GROUP_ANNO_NAME;
     static final String[] COLORING_ATTR_NAMES = new String[]{"coloringName", "colorFinder", "attributeSetFinder", "colors"};
-    private Predicate<AnnotationMirror> mirrorTest;
-    private Predicate<AnnotationMirror> groupMirrorTest;
-    private Predicate<Element> typeTest;
+    private Predicate<? super AnnotationMirror> mirrorTest;
+    private Predicate<? super AnnotationMirror> groupMirrorTest;
+    private Predicate<? super Element> typeTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -418,7 +418,6 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
         // Highlights clobber each other if the same factory generates instances
         // that belong at different z-orders
         int ct = 0;
-        AnnotationUtils.forceLogging();
         for (HighlightingInfo info : master.splitByZOrder()) {
             String generatedClassName = info.generatedClassName();
             String pkg = info.packageName();
@@ -568,8 +567,6 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
      */
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        System.out.println("ANNO TYPE '" + mirror.getAnnotationType() + "'");
-        System.out.println("GROP TYPE '" + GROUP_SEMANTIC_HIGHLIGHTING_ANNO + "'");
         if (!GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
             return mirrorTest.test(mirror);
         }

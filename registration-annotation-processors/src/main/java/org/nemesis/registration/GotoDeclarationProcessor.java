@@ -40,8 +40,8 @@ import org.openide.util.lookup.ServiceProvider;
 public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
 
     static final String GOTO_ANNOTATION = "org.nemesis.antlr.spi.language.Goto";
-    private Predicate<Element> fieldTest;
-    private Predicate<AnnotationMirror> annoTest;
+    private Predicate<? super Element> fieldTest;
+    private Predicate<? super AnnotationMirror> annoTest;
     static final String NAMED_REFERENCE_SEMANTIC_REGION_REFERENCE_TYPE = "org.nemesis.data.named.NamedSemanticRegionReference";
     static final String NAME_REFERENCE_SET_KEY_TYPE = "org.nemesis.extraction.key.NameReferenceSetKey";
     static final String REF_SET_KEY_TYPE = NAME_REFERENCE_SET_KEY_TYPE;
@@ -92,7 +92,6 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                 AnnotationMirror file = utils().annotationValue(mirror, "file", AnnotationMirror.class);
                 if (file != null) {
                     String pkg = utils().packageName(type);
-                    System.out.println("Update target for " + mimeType + " to " + pkg);
                     targetPackageForMimeType.put(mimeType, pkg);
                 }
             }

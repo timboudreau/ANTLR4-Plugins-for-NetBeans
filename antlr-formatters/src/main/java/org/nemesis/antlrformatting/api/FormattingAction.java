@@ -218,6 +218,11 @@ public interface FormattingAction {
         };
     }
 
+    default <T extends Enum<T>> FormattingAction wrappingLines(T wrapPointKey, int limit) {
+        return wrappingLines(limit, SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT
+                .bySpaces(wrapPointKey));
+    }
+
     /**
      * Wrap lines, double-indenting those that would be longer than the limit if
      * this action were applied. Equivalent of <code>wrappingLines(limit,
@@ -228,7 +233,7 @@ public interface FormattingAction {
      */
     default FormattingAction wrappingLines(int limit) {
         return wrappingLines(limit,
-                SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT);
+                (FormattingAction) SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT);
     }
 
     /**

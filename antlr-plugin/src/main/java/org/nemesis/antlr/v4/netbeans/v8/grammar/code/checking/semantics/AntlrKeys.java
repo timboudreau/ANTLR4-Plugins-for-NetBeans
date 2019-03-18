@@ -47,6 +47,7 @@ import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.*;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
+import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys.ANTLR_SAMPLE;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
@@ -59,12 +60,14 @@ import org.nemesis.extraction.key.SingletonKey;
  */
 @AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
         parser = @ParserControl(type = ANTLRv4Parser.class, entryPointRule = ANTLRv4Parser.RULE_grammarFile),
-        file = @FileType(extension = "g4", multiview = true, iconBase=ICON_PATH , hooks = AntlrDataObjectHooks.class),
+        file = @FileType(extension = "g4", multiview = true, iconBase = ICON_PATH, hooks = AntlrDataObjectHooks.class),
         syntax = @SyntaxInfo(
                 whitespaceTokens = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
                     HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
                     OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS}
         ),
+        sample=ANTLR_SAMPLE,
+        lineCommentPrefix = "//",
         categories = {
             @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR}, colors = @Coloration(fg = {255, 255, 0, 255})),
             @TokenCategory(name = "symbol", tokenIds = {
@@ -120,4 +123,35 @@ public class AntlrKeys {
     @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldType = FoldTypeName.MEMBER)
     public static final RegionsKey<FoldableRegion> FOLDABLES = RegionsKey.create(FoldableRegion.class, "folds");
 
+    static final String ANTLR_SAMPLE = "grammar Timestamps;\n"
+            + "\n"
+            + "timestampDecl : \n"
+            + "    ( def? ':' ts=Timestamp constraints) #IsoTimestamp\n"
+            + "    |(def? ':' amt=digits) #IntTimestamp \n"
+            + "    |(def? ':' digits) #FooTimestamp;\n"
+            + "\n"
+            + "constraints: (min=min | max=max | req=req)*;\n"
+            + "\n"
+            + "max : 'max' value=timestampLiteral;\n"
+            + "min : Min value=timestampLiteral;\n"
+            + "req : 'required';\n"
+            + "def  : 'default'? '=' def=timestampLiteral;\n"
+            + "timestampLiteral : Timestamp;\n"
+            + "\n"
+            + "digits: DIGIT (DIGIT | '_')*;\n"
+            + "\n"
+            + "Timestamp : Datestamp 'T' Time;\n"
+            + "Datestamp : FOUR_DIGITS '-' TWO_DIGITS '-' TWO_DIGITS ;\n"
+            + "Time : TWO_DIGITS ':' TWO_DIGITS ':' TWO_DIGITS TS_FRACTION? TS_OFFSET;\n"
+            + "\n"
+            + "Min : 'min';\n"
+            + "\n"
+            + "fragment FOUR_DIGITS : DIGIT DIGIT DIGIT DIGIT;\n"
+            + "fragment TWO_DIGITS : DIGIT DIGIT;\n"
+            + "fragment TS_FRACTION : '.' DIGIT+;\n"
+            + "fragment TS_OFFSET\n"
+            + "    : 'Z' | TS_NUM_OFFSET;\n"
+            + "fragment TS_NUM_OFFSET\n"
+            + "    : ( '+' | '-' ) DIGIT DIGIT ':' DIGIT DIGIT;\n"
+            + "fragment DIGIT: [0-9];\n";
 }

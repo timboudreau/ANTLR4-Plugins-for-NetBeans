@@ -7,6 +7,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.prefs.Preferences;
 import javax.swing.ComboBoxModel;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.event.ChangeListener;
@@ -66,6 +67,15 @@ public class AntlrFormatterSettings {
         this.newlineStyle = NewlineStyle.valueOf(props.getProperty("newlineStyle", NewlineStyle.ALWAYS.name()));
         this.spacesInsideParentheses = Boolean.parseBoolean(props.getProperty("spacesInsideParentheses", "true"));
         this.reflowBlockComments = Boolean.parseBoolean(props.getProperty("reflowBlockComments", "false"));
+    }
+
+    AntlrFormatterSettings(Preferences props) {
+        indentSize = props.getInt("indentSize", 4);
+        this.wrapPoint = props.getInt("wrapPoint", 80);
+        this.newlineAfterColon = props.getBoolean("newlineAfterColon", true);
+        this.newlineStyle = NewlineStyle.valueOf(props.get("newlineStyle", NewlineStyle.ALWAYS.name()));
+        this.spacesInsideParentheses = props.getBoolean("spacesInsideParentheses", true);
+        this.reflowBlockComments = props.getBoolean("reflowBlockComments", false);
     }
 
     public AntlrFormatterSettings copy() {

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
@@ -33,6 +34,7 @@ public abstract class Delegate {
     private final boolean deferClassBuilders;
     private final Map<String, ClassBuilder<String>> classBuilders = new HashMap<>();
     private Set<ClassBuilderEntry> deferredClassBuilders;
+    private Delegates delegates;
 
     protected Delegate() {
         this(false);
@@ -81,11 +83,30 @@ public abstract class Delegate {
         utils().logException(thrown, fail);
     }
 
-    final void init(ProcessingEnvironment env, AnnotationUtils utils, IOBiConsumer<ClassBuilder<String>, Element[]> classWriter) {
+    protected static <T> Key<T> key(Class<T> type, String name) {
+        return new Key<>(type, name);
+    }
+
+    final void init(ProcessingEnvironment env, AnnotationUtils utils,
+            IOBiConsumer<ClassBuilder<String>, Element[]> classWriter, Delegates delegates) {
         this.processingEnv = env;
+        this.delegates = delegates;
         this.utils = utils;
         this.classWriter = classWriter;
         onInit(env, utils);
+    }
+
+    protected <T> T share(Key<T> key, T data) {
+        delegates.putSharedData(key, data);
+        return data;
+    }
+
+    protected <T> Set<? extends T> getAll(Key<T> key) {
+        return delegates.getSharedData(key);
+    }
+
+    protected <T> Optional<T> get(Key<T> key) {
+        return delegates.getOneShared(key);
     }
 
     protected final void writeOne(ClassBuilder<String> bldr, Element... elements) throws IOException {

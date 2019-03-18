@@ -1,7 +1,6 @@
 package org.nemesis.antlrformatting.api;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -17,7 +16,6 @@ class ParserRulePredicates {
 
     public ParserRulePredicates(String[] ruleNames) {
         this.ruleNames = ruleNames;
-        System.out.println("ALL RULE NAMES: " + Arrays.toString(ruleNames));
     }
 
     Predicate<Set<Integer>> inRule(int rule) {

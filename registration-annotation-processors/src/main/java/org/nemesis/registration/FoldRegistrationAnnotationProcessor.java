@@ -55,8 +55,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
     private static final String REGION_TO_FOLD_CONVERTER_SIMPLE = "KeyToFoldConverter";
     private static final String REGION_TO_FOLD_CONVERTER_TYPE = PKG + "." + REGION_TO_FOLD_CONVERTER_SIMPLE;
 
-    private Predicate<Element> variableElementTest;
-    private Predicate<AnnotationMirror> annotationMirrorTest;
+    private Predicate<? super Element> variableElementTest;
+    private Predicate<? super AnnotationMirror> annotationMirrorTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -64,7 +64,9 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .isSubTypeOf(REGIONS_KEY_TYPE, NAMED_REGION_KEY_TYPE)
                 .doesNotHaveModifier(Modifier.PRIVATE)
                 .hasModifier(Modifier.STATIC)
-                .addPredicate(this::typeHasTypeParameter)
+                .testElementAsType().typeKindMustBe(DECLARED)
+                .build()
+//                .addPredicate(this::typeHasTypeParameter)
                 .testContainingClass().doesNotHaveModifier(Modifier.PRIVATE)
                 .build()
                 .build();
@@ -80,7 +82,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
         return result;
     }
 
-    boolean typeHasTypeParameter(Element el) {
+    boolean typeHasTypeParameter(VariableElement el) {
         TypeMirror type = el.asType();
         if (type.getKind() != TypeKind.DECLARED) {
             utils().fail("Must be a decleared type", el);

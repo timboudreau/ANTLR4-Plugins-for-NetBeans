@@ -75,7 +75,7 @@ public class LexingStateTest {
                     .onTokenType(S_OPEN_BRACE)
                     .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
 
-            int maxLineLength = config.getInt(MAX_LINE_LENGTH, 80);
+            int maxLineLength = config == null ? 80 :  config.getInt(MAX_LINE_LENGTH, 80);
 
             FormattingAction doubleIndentForWrappedLines = APPEND_NEWLINE_AND_DOUBLE_INDENT
                     .by(BRACE_DEPTH);

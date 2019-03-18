@@ -27,7 +27,6 @@ final class EverythingTokenStream implements TokenStream {
         Token tok;
         for (int i = 0;; i++) {
             tok = lexer.nextToken();
-            System.out.println("TOK '" + tok.getText() + " at " + i);
             String modeName = modeNames[lexer._mode];
             ModalToken ct = new ModalToken(tok, lexer._mode, modeName);
             ct.setChannel(0);
