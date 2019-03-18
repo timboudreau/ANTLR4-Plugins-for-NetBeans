@@ -21,11 +21,11 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
         super(utils, builder);
     }
 
-    static <R, B extends MethodTestBuilder<R, B>> MethodTestBuilder<R,B> newBuilder(AnnotationUtils utils, Function<B,R> builder) {
+    static <R, B extends MethodTestBuilder<R, B>> MethodTestBuilder<R, B> newBuilder(AnnotationUtils utils, Function<B, R> builder) {
         return new MethodTestBuilder<>(utils, builder);
     }
 
-    public TypeMirrorTestBuilder<MethodTestBuilder<R,B>> testThrownTypes() {
+    public TypeMirrorTestBuilder<MethodTestBuilder<R, B>> testThrownTypes() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
             return addPredicate(m -> {
                 boolean result = true;
@@ -146,5 +146,56 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
         }
         return (B) this;
     }
+
+    private static <R, M2 extends MethodTestBuilder<R,M2>> M2  createNew(AnnotationUtils utils, Function<M2,R> func) {
+        return (M2) new MethodTestBuilder<>(utils, func);
+    }
+
+//    private <M1 extends MethodTestBuilder<AbstractConcludingBranchBuilder<ExecutableElement, B, R, ExecutableElement, M2>, M2>, M2 extends MethodTestBuilder<B, M2>> void foo() {
+//
+//    }
+
+    /*
+    private <R, M2 extends MethodTestBuilder<R, M2>> void foo() {
+
+    }
+
+    protected <B1 extends AbstractPredicateBuilder<ExecutableElement, B1, AbstractConcludingBranchBuilder<ExecutableElement, B, R, ExecutableElement, B2>>, B2 extends AbstractPredicateBuilder<ExecutableElement, B2, B>>
+                    AbstractBranchBuilder<ExecutableElement, B, R, ExecutableElement, B1, B2>
+            doBranch(Predicate<? super ExecutableElement> test,
+                    Function<Function<? super B1, AbstractConcludingBranchBuilder<ExecutableElement, B, R, ExecutableElement, B2>>, ? super B1> createFirst,
+                    Function<Function<? super B2, ? extends B>, ? extends B2> createSecond,
+                    Function<Predicate<? super ExecutableElement>, ? extends B> onDone) {
+        return branch(test, createFirst, t -> t, createSecond, onDone);
+    }
+
+
+    public <M2 extends MethodTestBuilder<B, M2>, M1 extends AbstractPredicateBuilder<ExecutableElement, M1, AbstractConcludingBranchBuilder<ExecutableElement, B, R, ExecutableElement, M2>>> AbstractBranchBuilder<ExecutableElement, B,R, ExecutableElement, ?,?> ifReturnType(String type) {
+        Predicate<ExecutableElement> test = m -> {
+            return TypeMirrorComparison.SAME_TYPE.predicate(type, utils, this::maybeFail).test(m.getReturnType());
+        };
+        Function<Function<M2, B>, M2> createSecond = new Function<Function<M2, B>, M2>() {
+            @Override
+            public M2 apply(Function<M2, B> func) {
+                return (M2) new MethodTestBuilder<>(utils, func);
+            }
+        };
+        Function<Predicate<ExecutableElement>, B> onDone = this::addPredicate;
+        
+        return doBranch(test, 
+                (Function<? super M1, AbstractConcludingBranchBuilder<ExecutableElement, B, R, ExecutableElement, M2>> ab) -> {
+            return createNew(utils, m2 -> {
+                return null;
+            });
+        }, createSecond, onDone);
+
+//        Function createFirst = (Function<Function<B1, AbstractConcludingBranchBuilder<T, B, R, T, B2>>, B1> func) -> {
+//            return createNew(utils, func);
+//        };
+
+        
+
+    }
+*/
 
 }

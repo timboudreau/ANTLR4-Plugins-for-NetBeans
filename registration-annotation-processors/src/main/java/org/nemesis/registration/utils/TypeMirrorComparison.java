@@ -40,6 +40,12 @@ enum TypeMirrorComparison {
         return comparer(utils, b).toPredicate(lazy);
     }
 
+    Predicate<TypeMirror> predicate(String name, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
+        return comparer(utils, b).toPredicate(() -> {
+            return utils.type(name);
+        });
+    }
+
     Predicate<TypeMirror> predicate(TypeMirror tm, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
         return comparer(utils, b).toPredicate(tm);
     }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -14,15 +15,16 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 
 /**
- * Base class for builders which test annotation members or types.  Consists
- * of constructing a single Predicate which runs all the tests created in builders
- * and added.  Such predicates are expected to add failure messages for javac
- * to output, and there is special handling for tracking the element or annotation
- * mirror being operated on through that.  If calling such a predicate manually,
+ * Base class for builders which test annotation members or types. Consists of
+ * constructing a single Predicate which runs all the tests created in builders
+ * and added. Such predicates are expected to add failure messages for javac to
+ * output, and there is special handling for tracking the element or annotation
+ * mirror being operated on through that. If calling such a predicate manually,
  * call the static method <code>enter</code> on this class to set up the initial
- * context.  Each predicate added will update the type or annotation mirror it
- * is processing if needed (to handle annotation members which are other annotations
- * and ensure error messages get attached to the right place in the sources).
+ * context. Each predicate added will update the type or annotation mirror it is
+ * processing if needed (to handle annotation members which are other
+ * annotations and ensure error messages get attached to the right place in the
+ * sources).
  *
  * @author Tim Boudreau
  */
@@ -117,14 +119,24 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         return addPredicate(new OrPredicate(a, b));
     }
 
-    protected <N, B1 extends AbstractPredicateBuilder<N, B1, B>> BranchBuilder<N, B1>
-            branch(Predicate<? super T> test, Supplier<B1> supp, Function<T, N> convert) {
-        return new BranchBuilder(supp, test, convert);
+    protected <N, B1 extends AbstractPredicateBuilder<N, B1, AbstractConcludingBranchBuilder<T, B, R, N, B2>>, B2 extends AbstractPredicateBuilder<N, B2, B>> AbstractBranchBuilder<T, B, R, N, B1, B2>
+            branch(Predicate<? super T> test,
+                    Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst,
+                    Function<? super T, ? extends N> convert,
+                    Function<Function<? super B2, ? extends B>, ? extends B2> createSecond,
+                    Function<Predicate<? super T>, ? extends B> onDone) {
+
+        return new AbstractBranchBuilder<>(test, createFirst, convert, createSecond, onDone);
     }
 
-    protected <B1 extends AbstractPredicateBuilder<T, B1, B>> BranchBuilder<T, B1>
-            branch(Predicate<? super T> test, Supplier<B1> supp) {
-        return new BranchBuilder(supp, test, t -> t);
+    protected <B1 extends AbstractPredicateBuilder<T, B1, AbstractConcludingBranchBuilder<T, B, R, T, B2>>, B2 extends AbstractPredicateBuilder<T, B2, B>>
+                    AbstractBranchBuilder<T, B, R, T, B1, B2>
+            branch(Predicate<? super T> test,
+                    Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, T, B2>>, ? extends B1> createFirst,
+                    Function<Function<? super B2, ? extends B>, ? extends B2> createSecond,
+                    Function<Predicate<? super T>, ? extends B> onDone) {
+
+        return new AbstractBranchBuilder<>(test, createFirst, t -> t, createSecond, onDone);
     }
 
     protected <N, B1 extends AbstractPredicateBuilder<N, B1, B>, O, B2 extends AbstractPredicateBuilder<O, B2, B>> HeteroBranchBuilder<N, B1, O, B2>
@@ -132,21 +144,122 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         return new HeteroBranchBuilder(supp, test, supp2, convert, convert2);
     }
 
-    public class BranchBuilder<N, B1 extends AbstractPredicateBuilder<N, B1, B>> {
+    public static class AbstractBranchBuilder<T,
+            B extends AbstractPredicateBuilder<T, B, R>, R, N,
+            B1 extends AbstractPredicateBuilder<N, B1, AbstractConcludingBranchBuilder<T, B, R, N, B2>>,
+            B2 extends AbstractPredicateBuilder<N, B2, B>> {
 
-        private final Supplier<B1> builderSupplier;
+        private final Predicate<? super T> test;
+
+        private final Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst;
+        private final Function<? super T, ? extends N> convert;
+        private final Function<Function<? super B2, ? extends B>, ? extends B2> createSecond;
+        private final Function<Predicate<? super T>, ? extends B> onDone;
+
+        AbstractBranchBuilder(Predicate<? super T> test,
+                Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst,
+                Function<? super T, ? extends N> convert,
+                Function<Function<? super B2, ? extends B>, ? extends B2> createSecond, Function<Predicate<? super T>, ? extends B> onDone) {
+            this.test = test;
+            this.createFirst = createFirst;
+            this.convert = convert;
+            this.createSecond = createSecond;
+            this.onDone = onDone;
+        }
+
+        public B1 ifTrue() {
+            return createFirst.apply((B1 b1a) -> {
+                return new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a.predicate(), convert, onDone, test, createSecond);
+            });
+        }
+
+        public AbstractConcludingBranchBuilder<T, B, R, N, B2> ifTrue(Consumer<B1> c) {
+            AtomicReference<AbstractConcludingBranchBuilder<T, B, R, N, B2>> ref = new AtomicReference<>();
+            B1 b1 = createFirst.apply((B1 b1a) -> {
+                AbstractConcludingBranchBuilder<T, B, R, N, B2> result
+                        = new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a.predicate(), convert, onDone, test, createSecond);
+                ref.set(result);
+                return result;
+            });
+            c.accept(b1);
+            return ref.get();
+        }
+
+    }
+
+    public static class AbstractConcludingBranchBuilder<T, B extends AbstractPredicateBuilder<T, B, R>, R, N, B2 extends AbstractPredicateBuilder<N, B2, B>> {
+
+        private final Predicate<? super N> first;
+        private final Function<? super T, ? extends N> convert;
+        private final Function<Predicate<? super T>, ? extends B> onDone;
+        private final Predicate<? super T> test;
+        private final Function<Function<? super B2, ? extends B>, ? extends B2> factory;
+
+        AbstractConcludingBranchBuilder(Predicate<? super N> first, Function<? super T, ? extends N> convert,
+                Function<Predicate<? super T>, ? extends B> onDone, Predicate<? super T> test,
+                Function<Function<? super B2, ? extends B>, ? extends B2> factory) {
+            this.first = first;
+            this.convert = convert;
+            this.onDone = onDone;
+            this.test = test;
+            this.factory = factory;
+
+        }
+
+        public B2 ifFalse() {
+            return factory.apply(b2a -> {
+                return onDone.apply(done(b2a));
+            });
+        }
+
+        public B ifFalse(Consumer<? super B2> c) {
+            AtomicReference<B> res = new AtomicReference<>();
+            B2 b2 = factory.apply(b2a -> {
+                B result = onDone.apply(done(b2a));
+                res.set(result);
+                return result;
+            });
+            c.accept(b2);
+            return res.get();
+        }
+
+        private Predicate<T> done(B2 b1) {
+            Predicate<? super N> second = b1.predicate();
+            Predicate<T> firstConverted = t -> {
+                return first.test(convert.apply(t));
+            };
+            Predicate<T> secondConverted = t -> {
+                return second.test(convert.apply(t));
+            };
+            return (t) -> {
+                if (test.test(t)) {
+                    return firstConverted.test(t);
+                } else {
+                    return secondConverted.test(t);
+                }
+            };
+        }
+    }
+
+    /*
+    class BranchBuilder<N, B1 extends AbstractPredicateBuilder<N, B1, BranchBuilder<N, B1, B2>>,
+            B2 extends AbstractPredicateBuilder<N, B2, B>>
+            extends AbstractBranchBuilder<T, B, R, N, B1, B2, ConcludingBranchBuilder> {
+
+        private  Function<AbstractConcludingBranchBuilder<T, B, R, N, B2, ?>, B1> builderSupplier;
         private final Predicate<? super T> test;
         private Predicate<? super T> ifTruePredicate;
         private final Function<T, N> convert;
 
         BranchBuilder(Supplier<B1> builderSupplier, Predicate<? super T> test, Function<T, N> convert) {
-            this.builderSupplier = builderSupplier;
+//            this.builderSupplier = builderSupplier;
             this.test = test;
             this.convert = convert;
         }
 
-        public ConcludingBranchBuilder ifTrue(Consumer<B1> c) {
-            B1 builder = builderSupplier.get();
+        @Override
+        public AbstractConcludingBranchBuilder<T, B, R, N, B2, ?> ifTrue(Consumer<B1> c) {
+            B1 builder = null;
             c.accept(builder);
             Predicate<? super N> pred = builder.predicate();
             ifTruePredicate = (T t) -> {
@@ -156,9 +269,9 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
             return new ConcludingBranchBuilder();
         }
 
-        public class ConcludingBranchBuilder {
+        class ConcludingBranchBuilder extends AbstractConcludingBranchBuilder<T, B, R, N, B2, ConcludingBranchBuilder> {
 
-            public B ifFalse(Consumer<B1> c) {
+            public B ifFalse(Consumer<B2> c) {
                 B1 builder = builderSupplier.get();
                 c.accept(builder);
                 Predicate<? super N> pred = builder.predicate();
@@ -166,12 +279,12 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
                     N n = convert.apply(t);
                     return pred.test(n);
                 };
-                return addPredicate(
+                return AbstractPredicateBuilder.this.addPredicate(
                         new OneOfPredicate(test, ifTruePredicate, ifFalsePredicate));
             }
         }
     }
-
+     */
     public class HeteroBranchBuilder<N, B1 extends AbstractPredicateBuilder<N, B1, B>, O, B2 extends AbstractPredicateBuilder<O, B2, B>> {
 
         private final Supplier<B1> builderSupplier;
@@ -278,6 +391,7 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
     }
 
     static Set<Object> collectedFailures = new HashSet<>();
+
     protected final boolean fail(String msg) {
         Element el = elementContext.get();
         AnnotationMirror mir = annotationContext.get();

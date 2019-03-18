@@ -254,6 +254,14 @@ public final class AnnotationUtils {
         return TypeComparisonResult.forBoolean(res);
     }
 
+    public TypeMirror type(String what) {
+        TypeElement te = processingEnv.getElementUtils().getTypeElement(what);
+        if (te == null) {
+            return null;
+        }
+        return te.asType();
+    }
+
     /**
      * Find the AnnotationMirror for a specific annotation type.
      *
