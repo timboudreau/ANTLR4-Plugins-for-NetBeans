@@ -43,6 +43,7 @@ import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
+import org.nemesis.registration.utils.MethodTestBuilder;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.xml.XMLUtil;
@@ -125,6 +126,19 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         methodValidator = utils.methodTestBuilder()
                 .doesNotHaveModifier(PRIVATE)
                 .hasModifier(STATIC)
+                .ifReturnTypeAssignableAs(ACTION_TYPE)
+                .ifTrue((MethodTestBuilder.MTB rt) -> {
+                    System.out.println("IF TRUE RUN");
+                    assert rt != null : "rt null a";
+                    rt.mustNotTakeArguments().build();
+                }).ifFalse((MethodTestBuilder.STB rt) -> {
+                    System.out.println("IF FALSE RUN");
+                    assert rt != null : "rt null b";
+                    rt.returnType().isType("void").build();
+                })
+                .ifReturnTypeAssignableAs(ACTION_TYPE)
+                .ifTrue().mustNotTakeArguments().build()
+                .ifFalse().returnType().isType("void").build().build()
                 .build();
     }
 

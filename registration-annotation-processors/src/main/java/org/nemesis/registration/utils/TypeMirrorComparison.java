@@ -61,22 +61,29 @@ enum TypeMirrorComparison {
                     return b.apply(false, "No second type provided with " + t);
                 }
                 Types types = utils.processingEnv().getTypeUtils();
+                boolean result;
+                System.out.println("COMPARE TYPES " + t + " and " + u);
                 switch (TypeMirrorComparison.this) {
                     case EXACT_MATCH:
-                        return b.apply(t.toString().equals(u.toString()),
+                        result = b.apply(t.toString().equals(u.toString()),
                                 t + " is does not match " + u);
+                        break;
                     case SAME_TYPE:
-                        return b.apply(types.isSameType(t, u), t
+                        result =  b.apply(types.isSameType(t, u), t
                                 + " is not the same type as " + u);
+                        break;
                     case IS_ASSIGNABLE:
-                        return b.apply(types.isAssignable(t, u), t
+                        result =  b.apply(types.isAssignable(t, u), t
                                 + " is not assignable as " + u);
+                        break;
                     case IS_SUBTYPE:
-                        return b.apply(types.isSubtype(t, u), t
+                        result =  b.apply(types.isSubtype(t, u), t
                                 + " is not a subtype of " + u);
+                        break;
                     case IS_SUPERTYPE:
-                        return b.apply(types.isSubtype(u, t), t
+                        result =  b.apply(types.isSubtype(u, t), t
                                 + " is not a supertype of " + u);
+                        break;
                     case IS_SUBSIGNATURE:
                         if (!(u instanceof ExecutableType)) {
                             return b.apply(false, u
@@ -88,8 +95,9 @@ enum TypeMirrorComparison {
                         }
                         ExecutableType ea = (ExecutableType) t;
                         ExecutableType eb = (ExecutableType) u;
-                        return b.apply(types.isSubsignature(ea, eb), eb
+                        result =  b.apply(types.isSubsignature(ea, eb), eb
                                 + " is not a subsignature of " + ea);
+                        break;
                     case IS_SUPERSIGNATURE:
                         if (!(u instanceof ExecutableType)) {
                             return b.apply(false, u
@@ -101,10 +109,14 @@ enum TypeMirrorComparison {
                         }
                         ExecutableType ea1 = (ExecutableType) t;
                         ExecutableType eb1 = (ExecutableType) u;
-                        return b.apply(types.isSubsignature(eb1, ea1), eb1
+                        result =  b.apply(types.isSubsignature(eb1, ea1), eb1
                                 + " is not a supersignature of " + ea1);
+                        break;
+                    default:
+                        throw new AssertionError(TypeMirrorComparison.this);
                 }
-                throw new AssertionError(TypeMirrorComparison.this);
+                System.out.println("COMPARE TYPES " + name() + " " + t + " and " + u + " = " + result);
+                return result;
             }
 
             @Override

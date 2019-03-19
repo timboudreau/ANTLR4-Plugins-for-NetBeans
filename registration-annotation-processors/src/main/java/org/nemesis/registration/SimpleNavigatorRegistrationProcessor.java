@@ -62,7 +62,8 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
                 .build();
         typeTest = utils.testsBuilder().hasModifier(STATIC).doesNotHaveModifier(PRIVATE)
                 .isSubTypeOf(NAMED_REGION_KEY_TYPE, SEMANTIC_REGION_KEY_TYPE)
-                .testContainingClass().doesNotHaveModifier(PRIVATE).build().build();
+                .testContainingClass().doesNotHaveModifier(PRIVATE)
+                .build().build();
     }
 
     @Override

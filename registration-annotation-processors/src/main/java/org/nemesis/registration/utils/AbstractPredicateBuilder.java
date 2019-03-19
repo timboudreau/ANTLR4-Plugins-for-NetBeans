@@ -43,6 +43,50 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         return converter.apply((B) this);
     }
 
+    <B1 extends AbstractPredicateBuilder<T, B1, B>> B1 add(Function<Function<B1, B>, B1> f) {
+        return f.apply(b1 -> {
+            return addPredicate(t -> {
+                return b1.predicate().test(t);
+            });
+        });
+    }
+
+    <T1, B1 extends AbstractPredicateBuilder<T1, B1, B>> B1 add(Function<Function<B1, B>, B1> f, Function<T, T1> convert) {
+        return f.apply(b1 -> {
+            return addPredicate(t -> {
+                return b1.predicate().test(convert.apply(t));
+            });
+        });
+    }
+
+    <B1 extends AbstractPredicateBuilder<T, B1, B>> B add(Function<Function<B1, B>, B1> f, boolean throwOnNotClosed, Consumer<B1> c) {
+        return add(f, t -> t, throwOnNotClosed, true, c);
+    }
+
+    <T1, B1 extends AbstractPredicateBuilder<T1, B1, B>> B add(Function<Function<B1, B>, B1> f, Function<T, T1> convert, boolean throwOnNotClosed, boolean conversionFailureOk, Consumer<B1> c) {
+        boolean[] built = new boolean[0];
+        B1 result = f.apply(b1 -> {
+            return addPredicate(t -> {
+                T1 t1 = convert.apply(t);
+                if (conversionFailureOk) {
+                    return true;
+                } else {
+                    fail("Could not convert " + t + " with " + convert);
+                }
+                return b1.predicate().test(t1);
+            });
+        });
+        c.accept(result);
+        if (!built[0]) {
+            if (throwOnNotClosed) {
+                throw new IllegalStateException(result + " was not closed / built");
+            } else {
+                result.build();
+            }
+        }
+        return (B) this;
+    }
+
     final Predicate<? super T> predicate() {
         if (predicate == null) {
             return ignored -> true;
@@ -119,47 +163,65 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         return addPredicate(new OrPredicate(a, b));
     }
 
-    protected <N, B1 extends AbstractPredicateBuilder<N, B1, AbstractConcludingBranchBuilder<T, B, R, N, B2>>, B2 extends AbstractPredicateBuilder<N, B2, B>> AbstractBranchBuilder<T, B, R, N, B1, B2>
+    interface Brancher<OrigArgType, OriginBuilderType extends AbstractPredicateBuilder<OrigArgType, OriginBuilderType, OrigResultType>, OrigResultType, NewArgType, FirstBuilderType extends AbstractPredicateBuilder<NewArgType, FirstBuilderType, AbstractConcludingBranchBuilder<OrigArgType, OriginBuilderType, OrigResultType, NewArgType, SecondBuilderType>>, SecondBuilderType extends AbstractPredicateBuilder<NewArgType, SecondBuilderType, OriginBuilderType>> {
+
+        Predicate<? super OrigArgType> test();
+
+        Function<Function<Predicate<? super NewArgType>, AbstractConcludingBranchBuilder<OrigArgType, OriginBuilderType, OrigResultType, NewArgType, SecondBuilderType>>, FirstBuilderType>
+                createFirst();
+
+        Function<? super OrigArgType, ? extends NewArgType> convert();
+
+        Function<Function<Predicate<? super NewArgType>, OriginBuilderType>, SecondBuilderType> createSecond();
+
+        Function<Predicate<? super OrigArgType>, OriginBuilderType> onDone();
+
+        default AbstractBranchBuilder<OrigArgType, OriginBuilderType, OrigResultType, NewArgType, FirstBuilderType, SecondBuilderType> create() {
+            return new AbstractBranchBuilder<>(test(), createFirst(), convert(), createSecond(), onDone());
+        }
+    }
+
+    /*
+    protected <N, B1 extends AbstractPredicateBuilder<N, ?, AbstractConcludingBranchBuilder<T, B, R, N, B2>>,
+                    B2 extends AbstractPredicateBuilder<N, ?, B>> AbstractBranchBuilder<T, B, R, N, B1, B2>
             branch(Predicate<? super T> test,
-                    Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst,
+                    Function<Function<Predicate<? super N>, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst,
                     Function<? super T, ? extends N> convert,
-                    Function<Function<? super B2, ? extends B>, ? extends B2> createSecond,
+                    Function<Function<Predicate<? super N>, ? extends B>, ? extends B2> createSecond,
                     Function<Predicate<? super T>, ? extends B> onDone) {
 
         return new AbstractBranchBuilder<>(test, createFirst, convert, createSecond, onDone);
     }
 
-    protected <B1 extends AbstractPredicateBuilder<T, B1, AbstractConcludingBranchBuilder<T, B, R, T, B2>>, B2 extends AbstractPredicateBuilder<T, B2, B>>
-                    AbstractBranchBuilder<T, B, R, T, B1, B2>
+    protected <B1 extends AbstractPredicateBuilder<T, B1, AbstractConcludingBranchBuilder<T, B, R, T, B2>>,
+                    B2 extends AbstractPredicateBuilder<T, B2, B>>
+            AbstractBranchBuilder<T, B, R, T, B1, B2>
             branch(Predicate<? super T> test,
-                    Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, T, B2>>, ? extends B1> createFirst,
-                    Function<Function<? super B2, ? extends B>, ? extends B2> createSecond,
+                    Function<Function<Predicate<? super T>, ? extends AbstractConcludingBranchBuilder<T, B, R, T, B2>>, ? extends B1> createFirst,
+                    Function<Function<Predicate<? super T>, ? extends B>, ? extends B2> createSecond,
                     Function<Predicate<? super T>, ? extends B> onDone) {
 
         return new AbstractBranchBuilder<>(test, createFirst, t -> t, createSecond, onDone);
     }
-
+     */
     protected <N, B1 extends AbstractPredicateBuilder<N, B1, B>, O, B2 extends AbstractPredicateBuilder<O, B2, B>> HeteroBranchBuilder<N, B1, O, B2>
             branch(Predicate<? super T> test, Supplier<B1> supp, Supplier<B2> supp2, Function<T, N> convert, Function<T, O> convert2) {
         return new HeteroBranchBuilder(supp, test, supp2, convert, convert2);
     }
 
-    public static class AbstractBranchBuilder<T,
-            B extends AbstractPredicateBuilder<T, B, R>, R, N,
-            B1 extends AbstractPredicateBuilder<N, B1, AbstractConcludingBranchBuilder<T, B, R, N, B2>>,
-            B2 extends AbstractPredicateBuilder<N, B2, B>> {
+    public static class AbstractBranchBuilder<T, B extends AbstractPredicateBuilder<T, B, R>, R, N, B1 extends AbstractPredicateBuilder<N, B1, AbstractConcludingBranchBuilder<T, B, R, N, B2>>, B2 extends AbstractPredicateBuilder<N, B2, B>> {
 
         private final Predicate<? super T> test;
 
-        private final Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst;
+        private final Function<Function<Predicate<? super N>, AbstractConcludingBranchBuilder<T, B, R, N, B2>>, B1> createFirst;
         private final Function<? super T, ? extends N> convert;
-        private final Function<Function<? super B2, ? extends B>, ? extends B2> createSecond;
-        private final Function<Predicate<? super T>, ? extends B> onDone;
+        private final Function<Function<Predicate<? super N>, B>, B2> createSecond;
+        private final Function<Predicate<? super T>, B> onDone;
 
         AbstractBranchBuilder(Predicate<? super T> test,
-                Function<Function<? super B1, ? extends AbstractConcludingBranchBuilder<T, B, R, N, B2>>, ? extends B1> createFirst,
+                Function<Function<Predicate<? super N>, AbstractConcludingBranchBuilder<T, B, R, N, B2>>, B1> createFirst,
                 Function<? super T, ? extends N> convert,
-                Function<Function<? super B2, ? extends B>, ? extends B2> createSecond, Function<Predicate<? super T>, ? extends B> onDone) {
+                Function<Function<Predicate<? super N>, B>, B2> createSecond, Function<Predicate<? super T>, B> onDone) {
             this.test = test;
             this.createFirst = createFirst;
             this.convert = convert;
@@ -168,63 +230,69 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         }
 
         public B1 ifTrue() {
-            return createFirst.apply((B1 b1a) -> {
-                return new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a.predicate(), convert, onDone, test, createSecond);
+            return createFirst.apply((Predicate<? super N> b1a) -> {
+                return new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a, convert, onDone, test, createSecond);
             });
         }
 
-        public AbstractConcludingBranchBuilder<T, B, R, N, B2> ifTrue(Consumer<B1> c) {
+        public AbstractConcludingBranchBuilder<T, B, R, N, B2> ifTrue(Consumer<? super B1> c) {
             AtomicReference<AbstractConcludingBranchBuilder<T, B, R, N, B2>> ref = new AtomicReference<>();
-            B1 b1 = createFirst.apply((B1 b1a) -> {
+            B1 b1 = createFirst.apply((Predicate<? super N> b1a) -> {
                 AbstractConcludingBranchBuilder<T, B, R, N, B2> result
-                        = new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a.predicate(), convert, onDone, test, createSecond);
+                        = new AbstractConcludingBranchBuilder<T, B, R, N, B2>(b1a, convert, onDone, test, createSecond);
                 ref.set(result);
                 return result;
             });
+            if (b1 == null) {
+                throw new IllegalStateException(createFirst + " did not create anything");
+            }
             c.accept(b1);
+            if (ref.get() == null) {
+                ref.set(b1.build());
+            }
             return ref.get();
         }
-
     }
 
     public static class AbstractConcludingBranchBuilder<T, B extends AbstractPredicateBuilder<T, B, R>, R, N, B2 extends AbstractPredicateBuilder<N, B2, B>> {
 
         private final Predicate<? super N> first;
         private final Function<? super T, ? extends N> convert;
-        private final Function<Predicate<? super T>, ? extends B> onDone;
+        private final Function<Predicate<? super T>, B> onDone;
         private final Predicate<? super T> test;
-        private final Function<Function<? super B2, ? extends B>, ? extends B2> factory;
+        private final Function<Function<Predicate<? super N>, B>, B2> factory;
 
         AbstractConcludingBranchBuilder(Predicate<? super N> first, Function<? super T, ? extends N> convert,
-                Function<Predicate<? super T>, ? extends B> onDone, Predicate<? super T> test,
-                Function<Function<? super B2, ? extends B>, ? extends B2> factory) {
+                Function<Predicate<? super T>, B> onDone, Predicate<? super T> test,
+                Function<Function<Predicate<? super N>, B>, B2> factory) {
             this.first = first;
             this.convert = convert;
             this.onDone = onDone;
             this.test = test;
             this.factory = factory;
-
         }
 
         public B2 ifFalse() {
-            return factory.apply(b2a -> {
+            return factory.apply((Predicate<? super N> b2a) -> {
                 return onDone.apply(done(b2a));
             });
         }
 
         public B ifFalse(Consumer<? super B2> c) {
             AtomicReference<B> res = new AtomicReference<>();
-            B2 b2 = factory.apply(b2a -> {
+            B2 b2 = factory.apply((Predicate<? super N> b2a) -> {
                 B result = onDone.apply(done(b2a));
                 res.set(result);
                 return result;
             });
             c.accept(b2);
+            if (res.get() == null) {
+                res.set(b2.build());
+            }
             return res.get();
         }
 
-        private Predicate<T> done(B2 b1) {
-            Predicate<? super N> second = b1.predicate();
+        private Predicate<T> done(Predicate<? super N> second) {
             Predicate<T> firstConverted = t -> {
                 return first.test(convert.apply(t));
             };
@@ -233,8 +301,10 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
             };
             return (t) -> {
                 if (test.test(t)) {
+                    System.out.println("  RUN TRUE SIDE WITH " + first);
                     return firstConverted.test(t);
                 } else {
+                    System.out.println("  RUN FALSE SIDE WITH " + second);
                     return secondConverted.test(t);
                 }
             };
