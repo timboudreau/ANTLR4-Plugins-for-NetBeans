@@ -30,7 +30,6 @@ import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGeneratingProcessor;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION;
 import org.nemesis.registration.utils.AbstractPredicateBuilder;
-import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
  *
@@ -89,7 +88,7 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
         delegates.init(processingEnv, utils, this::writeOne, this::layer, this::addLayerTask);
         onInit(processingEnv, utils);
         used.clear();
-        System.out.println(getClass().getSimpleName() + " DELEGATES: \n" + delegates);
+//        System.out.println(getClass().getSimpleName() + " DELEGATES: \n" + delegates);
     }
 
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -113,7 +112,7 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
 
     private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         return AbstractPredicateBuilder.enter(element, mirror, () -> {
-            return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+            return validateAnnotationMirror(mirror, kind, element) && delegates.validateAnnotationMirror(mirror, kind, element);
         });
     }
     Set<Delegate> used = new HashSet<>();
@@ -124,18 +123,18 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
         try {
             boolean done = true;
             Map<AnnotationMirror, Element> elementForAnnotation = new HashMap<>();
-            System.out.println(getClass().getSimpleName() + " ANNOTATIONS ORDER: ");
-            for (String anno : getSupportedAnnotationTypes()) {
-                System.out.println("    " + simpleName(anno));
-            }
+//            System.out.println(getClass().getSimpleName() + " ANNOTATIONS ORDER: ");
+//            for (String anno : getSupportedAnnotationTypes()) {
+//                System.out.println("    " + simpleName(anno));
+//            }
             for (String annotationClass : getSupportedAnnotationTypes()) {
                 Set<Element> annotated = utils().findAnnotatedElements(roundEnv, Collections.singleton(annotationClass));
-                if (!annotated.isEmpty()) {
-                    System.out.println("  ELEMENTS ORDER FOR " + simpleName(annotationClass) + ": ");
-                    for (Element e : annotated) {
-                        System.out.println("    " + e);
-                    }
-                }
+//                if (!annotated.isEmpty()) {
+//                    System.out.println("  ELEMENTS ORDER FOR " + simpleName(annotationClass) + ": ");
+//                    for (Element e : annotated) {
+//                        System.out.println("    " + e);
+//                    }
+//                }
                 for (Element el : annotated) {
                     AnnotationMirror mirror = utils().findAnnotationMirror(el, annotationClass);
                     if (mirror == null) {
@@ -290,7 +289,7 @@ public abstract class AbstractLayerGeneratingRegistrationProcessor extends Layer
         return true;
     }
 
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element el) {
         return true;
     }
 

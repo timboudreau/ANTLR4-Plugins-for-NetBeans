@@ -93,7 +93,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
         delegates.init(processingEnv, utils, this::writeOne);
         onInit(processingEnv, utils);
         used.clear();
-        System.out.println(getClass().getSimpleName() + " DELEGATES: \n" + delegates);
+//        System.out.println(getClass().getSimpleName() + " DELEGATES: \n" + delegates);
     }
 
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
@@ -109,7 +109,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
 
     private boolean _validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         return AbstractPredicateBuilder.enter(element, mirror, () -> {
-            return validateAnnotationMirror(mirror, kind) && delegates.validateAnnotationMirror(mirror, kind);
+            return validateAnnotationMirror(mirror, kind, element) && delegates.validateAnnotationMirror(mirror, kind, element);
         });
     }
     Set<Delegate> used = new HashSet<>();
@@ -216,11 +216,7 @@ public abstract class AbstractRegistrationProcessor extends AbstractProcessor {
         return true;
     }
 
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        return validateAnnotationMirror(mirror);
-    }
-
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         return true;
     }
 

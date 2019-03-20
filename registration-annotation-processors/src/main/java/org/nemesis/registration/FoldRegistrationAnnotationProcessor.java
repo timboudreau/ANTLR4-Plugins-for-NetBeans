@@ -76,7 +76,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind el) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element el) {
         assert annotationMirrorTest != null;
         boolean result = annotationMirrorTest.test(mirror);
         return result;

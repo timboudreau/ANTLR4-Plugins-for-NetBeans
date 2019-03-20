@@ -3,6 +3,7 @@ package org.nemesis.registration.utils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -11,6 +12,7 @@ import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
+import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
  *
@@ -23,7 +25,7 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
     }
 
     public TypeElementTestBuilder<R, B> mustHavePublicNoArgConstructor() {
-        return addPredicate(te -> {
+        return addPredicate("must-have-public-no-arg-constrictor", te -> {
             boolean found = false;
             for (Element el : te.getEnclosedElements()) {
                 if (el.getKind() == ElementKind.CONSTRUCTOR) {
@@ -41,14 +43,22 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
 
     public MethodTestBuilder<TypeElementTestBuilder<R, B>, ?> testMethod(String name, String... argTypes) {
         return new MethodTestBuilder<>(utils, mtb -> {
-            return addPredicate(te -> {
+            StringBuilder sb = new StringBuilder("test-for-method-" + name).append('(');
+            for (int i = 0; i < argTypes.length; i++) {
+                String a = simpleName(argTypes[i]);
+                sb.append(a);
+                if (i != argTypes.length - 1) {
+                    sb.append(',');
+                }
+            }
+            sb.append(')');
+            return addPredicate(sb.toString(), te -> {
                 ExecutableElement toTest = null;
                 outer:
                 for (Element el : te.getEnclosedElements()) {
                     if (el.getKind() == ElementKind.METHOD && el instanceof ExecutableElement) {
                         if (name.equals(el.getSimpleName().toString())) {
                             ExecutableElement ex = (ExecutableElement) el;
-                            List<String> realArgTypes = new ArrayList<>();
                             List<? extends VariableElement> params = ex.getParameters();
                             if (params.size() == argTypes.length) {
                                 if (argTypes.length == 0) {
@@ -80,7 +90,7 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
 
     public MethodTestBuilder<TypeElementTestBuilder<R, B>, ?> testMethod(String name, List<? extends TypeMirror> argTypes) {
         return new MethodTestBuilder<>(utils, mtb -> {
-            return addPredicate(te -> {
+            return addPredicate("test-method-" + name + "(" + argTypes + ")", te -> {
                 ExecutableElement toTest = null;
                 outer:
                 for (Element el : te.getEnclosedElements()) {
@@ -118,7 +128,7 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
     }
 
     public B implementsInterface(String iface) {
-        return addPredicate(e -> {
+        return addPredicate("implements-interface-" + simpleName(iface),e -> {
             boolean result = _implementsInterface(iface, e);
             if (!result) {
                 fail("Type does not implement " + iface + ": " + e.getQualifiedName());
@@ -128,7 +138,7 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
     }
 
     public B nestingKindMustBe(NestingKind kind) {
-        return addPredicate(e -> {
+        return addPredicate("must-be-nesting-kind-" + kind,e -> {
             boolean result = e.getNestingKind() == kind;
             if (!result) {
                 fail("Nesting kind for type must be " + kind);
@@ -138,7 +148,7 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
     }
 
     public B nestingKindMayNotBe(NestingKind kind) {
-        return addPredicate(e -> {
+        return addPredicate("may-not-be-nesting-kind-" + kind,e -> {
             boolean result = e.getNestingKind() != kind;
             if (!result) {
                 fail("Nesting kind for type may not be " + kind);
@@ -147,11 +157,24 @@ public class TypeElementTestBuilder<R, B extends TypeElementTestBuilder<R, B>> e
         });
     }
 
-    public B testImplementedInterface() {
-        return addPredicate(e -> {
-            e.getInterfaces();
-            return false;
+    public TypeMirrorTestBuilder<B> testImplementedInterface(String iface) {
+        return new TypeMirrorTestBuilder<>(utils, tmtb -> {
+            return addPredicate(() -> "test-implemented:" + simpleName(iface) + "(" + tmtb._predicate().name() + ")", (TypeElement te) -> {
+                List<? extends TypeMirror> ifaces = te.getInterfaces();
+                Predicate<TypeMirror> matcher = TypeMirrorComparison.SAME_TYPE.comparer(utils, (b, ignored) -> b, AbsenceAction.FALSE).erasure().toPredicate(iface);
+                boolean result = true;
+                for (TypeMirror tm : ifaces) {
+                    if (matcher.test(tm)) {
+                        result &= tmtb.predicate().test(tm);
+                    }
+                }
+                return result;
+            });
         });
+//        return addPredicate("", e -> {
+//            e.getInterfaces();
+//            return false;
+//        });
     }
 
 //    public B implementsInterfaceWithTypeParameterOfType(String iface, TypeMirror paramType, int paramIndex) {

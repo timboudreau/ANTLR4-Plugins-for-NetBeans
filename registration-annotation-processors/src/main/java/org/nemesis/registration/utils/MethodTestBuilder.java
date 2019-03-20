@@ -27,7 +27,7 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
 
     public TypeMirrorTestBuilder<MethodTestBuilder<R, B>> testThrownTypes() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(m -> {
+            return addPredicate(() -> "thrown-types" + tmtb._predicate().name(), m -> {
                 boolean result = true;
                 for (TypeMirror thrown : m.getThrownTypes()) {
                     result &= tmtb.predicate().test(thrown);
@@ -39,7 +39,7 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
 
     public TypeMirrorTestBuilder<B> testTypeParameter(int param) {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(m -> {
+            return addPredicate(() -> "type-parameter-" + param + ":" + tmtb._predicate().name(), m -> {
                 List<? extends TypeParameterElement> params = m.getTypeParameters();
                 if (params == null || params.isEmpty()) {
                     fail("No type parameters on " + m + " but wanted to test parameter " + param);
@@ -53,15 +53,19 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
 
     public TypeMirrorTestBuilder<B> returnType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(m -> {
-                return tmtb.predicate().test(m.getReturnType());
+            NamedPredicate<TypeMirror> p = tmtb._predicate();
+            if (p == null) {
+                throw new IllegalStateException(tmtb + " returned null for its predicate");
+            }
+            return addPredicate(() -> "return-type:" + p.name(), m -> {
+                return p.test(m.getReturnType());
             });
         });
     }
 
     public TypeMirrorTestBuilder<B> testArgumentType(int argument) {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(m -> {
+            return addPredicate(() -> "arg-type-for-" + argument + ":" + tmtb._predicate().name(), m -> {
                 if (m.getParameters().size() < argument) {
                     fail("Method " + m + " does not have an argument at position " + argument);
                     return false;
@@ -73,7 +77,7 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
 
     public TypeMirrorTestBuilder<B> receiverType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(m -> {
+            return addPredicate(() -> "receiver-type-" + tmtb._predicate().name(), m -> {
                 return tmtb.predicate().test(m.getReceiverType());
             });
         });
@@ -82,7 +86,6 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
     public B returns(String type, String... moreTypes) {
         Set<String> all = new HashSet<>(Arrays.asList(moreTypes));
         all.add(type);
-        System.out.println("check return type " + all);
         Predicate<ExecutableElement> pred = (el) -> {
             for (String oneType : all) {
                 AnnotationUtils.TypeComparisonResult res = utils.isSubtypeOf(el, oneType);
@@ -93,17 +96,25 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
             fail("Return type is not one of " + AnnotationUtils.join(',', all));
             return false;
         };
-        return addPredicate(pred);
+        String msg = "return-type-match-" + type;
+        if (moreTypes.length > 0) {
+            msg += "," + AnnotationUtils.join(',', moreTypes);
+        }
+        return addPredicate(msg, pred);
     }
 
     public B mustNotTakeArguments() {
-        return addPredicate((e) -> {
+        return addPredicate("zero-arguments", (e) -> {
             boolean result = e.getParameters().isEmpty();
             if (!result) {
                 fail("Method must not take any arguments");
             }
             return result;
         });
+    }
+
+    public String toString() {
+        return "MethodTestBuilder{" + predicate() + "}";
     }
 
     static <B1 extends MethodTestBuilder<Predicate<? super ExecutableElement>, B1>> MethodTestBuilder<Predicate<? super ExecutableElement>, B1> createMethod(AnnotationUtils utils) {
@@ -117,7 +128,7 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
     }
 
     public B argumentTypesMustBe(String... types) {
-        addPredicate((e) -> {
+        addPredicate("has-at-least-" + types.length + "-args", (e) -> {
             int count = e.getParameters().size();
             if (count != types.length) {
                 fail("Wrong number of arguments - " + count + " - expecting " + types.length + " of types " + Arrays.toString(types));
@@ -125,9 +136,10 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
             }
             return true;
         });
+        String msg = "-one-of-" + AnnotationUtils.join(',', types);
         for (int i = 0; i < types.length; i++) {
             final int index = i;
-            addPredicate((e) -> {
+            addPredicate("arg-" + i + "-is" + msg, (e) -> {
                 List<? extends VariableElement> params = e.getParameters();
                 VariableElement toTest = params.get(index);
                 AnnotationUtils.TypeComparisonResult isSubtype = utils.isSubtypeOf(toTest, types[index]);
@@ -213,9 +225,7 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
 
         @Override
         public Function<Predicate<? super ExecutableElement>, B> onDone() {
-            System.out.println("FETCH ON DONE FUNCTION");
             return (p -> {
-                System.out.println("ADD PREDICATE TO BUILDER " + p);
                 return MethodTestBuilder.this.addPredicate(p);
             });
         }
@@ -227,16 +237,16 @@ public class MethodTestBuilder<R, B extends MethodTestBuilder<R, B>> extends Ele
     }
 
     public AbstractBranchBuilder<ExecutableElement, B, R, ExecutableElement, MethodTestBuilder<R, B>.MTB, MethodTestBuilder<R, B>.STB> ifReturnType(String type) {
-        Predicate<ExecutableElement> test = m -> {
+        Predicate<ExecutableElement> test = namedPredicate("test-return-type-equals=" + type, m -> {
             return TypeMirrorComparison.SAME_TYPE.predicate(type, utils, this::maybeFail).test(m.getReturnType());
-        };
+        });
         return new MethodTestBuilder<R, B>.RetTypeBrancher(test).create();
     }
 
     public AbstractBranchBuilder<ExecutableElement, B, R, ExecutableElement, MethodTestBuilder<R, B>.MTB, MethodTestBuilder<R, B>.STB> ifReturnTypeAssignableAs(String type) {
-        Predicate<ExecutableElement> test = m -> {
-            return TypeMirrorComparison.IS_ASSIGNABLE.predicate(type, utils, this::maybeFail).test(m.getReturnType());
-        };
+        Predicate<ExecutableElement> test = namedPredicate("test-return-type-assignable-to=" + type, m -> {
+            return TypeMirrorComparison.IS_ASSIGNABLE.predicate(type, utils, (b, s) -> b).test(m.getReturnType());
+        });
         return new MethodTestBuilder<R, B>.RetTypeBrancher(test).create();
     }
 

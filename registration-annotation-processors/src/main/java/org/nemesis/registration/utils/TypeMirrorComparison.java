@@ -28,7 +28,7 @@ enum TypeMirrorComparison {
         };
     }
 
-    <V> Predicate<TypeMirror> predicate(V v, Function<V, TypeMirror> convert, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
+    <V> Predicate<TypeMirror> predicate(V v, Function<V, TypeMirror> convert, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b, AbsenceAction onNotFound) {
         // Do NOT convert ahead of time, or we can fail compilation on
         // creating a type test if we are simply on the classpath
         // of a project that does not have the type we're resolving
@@ -37,51 +37,54 @@ enum TypeMirrorComparison {
     }
 
     Predicate<TypeMirror> predicate(Supplier<TypeMirror> lazy, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
-        return comparer(utils, b).toPredicate(lazy);
+        return comparer(utils, b, AbsenceAction.PASS_THROUGH).toPredicate(lazy);
     }
 
     Predicate<TypeMirror> predicate(String name, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
-        return comparer(utils, b).toPredicate(() -> {
-            return utils.type(name);
-        });
-    }
-
-    Predicate<TypeMirror> predicate(TypeMirror tm, AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
-        return comparer(utils, b).toPredicate(tm);
+        return comparer(utils, b, AbsenceAction.PASS_THROUGH).toPredicate(() -> utils.type(name));
     }
 
     TypeMirrorComparer comparer(AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b) {
+        return comparer(utils, b, AbsenceAction.PASS_THROUGH);
+    }
+
+    TypeMirrorComparer comparer(AnnotationUtils utils, BiFunction<Boolean, String, Boolean> b, AbsenceAction action) {
         return new TypeMirrorComparer(utils) {
             @Override
             public boolean test(TypeMirror t, TypeMirror u) {
                 if (u == null) {
+                    if (action != null && action != AbsenceAction.PASS_THROUGH) {
+                        return action.getAsBoolean();
+                    }
                     return b.apply(false, "No first type provided with " + u);
                 }
                 if (t == null) {
+                    if (action != null && action != AbsenceAction.PASS_THROUGH) {
+                        return action.getAsBoolean();
+                    }
                     return b.apply(false, "No second type provided with " + t);
                 }
                 Types types = utils.processingEnv().getTypeUtils();
                 boolean result;
-                System.out.println("COMPARE TYPES " + t + " and " + u);
                 switch (TypeMirrorComparison.this) {
                     case EXACT_MATCH:
                         result = b.apply(t.toString().equals(u.toString()),
                                 t + " is does not match " + u);
                         break;
                     case SAME_TYPE:
-                        result =  b.apply(types.isSameType(t, u), t
+                        result = b.apply(types.isSameType(t, u), t
                                 + " is not the same type as " + u);
                         break;
                     case IS_ASSIGNABLE:
-                        result =  b.apply(types.isAssignable(t, u), t
+                        result = b.apply(types.isAssignable(t, u), t
                                 + " is not assignable as " + u);
                         break;
                     case IS_SUBTYPE:
-                        result =  b.apply(types.isSubtype(t, u), t
+                        result = b.apply(types.isSubtype(t, u), t
                                 + " is not a subtype of " + u);
                         break;
                     case IS_SUPERTYPE:
-                        result =  b.apply(types.isSubtype(u, t), t
+                        result = b.apply(types.isSubtype(u, t), t
                                 + " is not a supertype of " + u);
                         break;
                     case IS_SUBSIGNATURE:
@@ -95,7 +98,7 @@ enum TypeMirrorComparison {
                         }
                         ExecutableType ea = (ExecutableType) t;
                         ExecutableType eb = (ExecutableType) u;
-                        result =  b.apply(types.isSubsignature(ea, eb), eb
+                        result = b.apply(types.isSubsignature(ea, eb), eb
                                 + " is not a subsignature of " + ea);
                         break;
                     case IS_SUPERSIGNATURE:
@@ -109,13 +112,12 @@ enum TypeMirrorComparison {
                         }
                         ExecutableType ea1 = (ExecutableType) t;
                         ExecutableType eb1 = (ExecutableType) u;
-                        result =  b.apply(types.isSubsignature(eb1, ea1), eb1
+                        result = b.apply(types.isSubsignature(eb1, ea1), eb1
                                 + " is not a supersignature of " + ea1);
                         break;
                     default:
                         throw new AssertionError(TypeMirrorComparison.this);
                 }
-                System.out.println("COMPARE TYPES " + name() + " " + t + " and " + u + " = " + result);
                 return result;
             }
 
@@ -125,5 +127,4 @@ enum TypeMirrorComparison {
             }
         };
     }
-
 }

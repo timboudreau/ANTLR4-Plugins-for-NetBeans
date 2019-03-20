@@ -566,7 +566,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     }
      */
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         if (!GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {
             return mirrorTest.test(mirror);
         }

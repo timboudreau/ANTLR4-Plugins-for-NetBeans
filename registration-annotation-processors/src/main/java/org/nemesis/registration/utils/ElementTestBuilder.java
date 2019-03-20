@@ -12,6 +12,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
  *
@@ -26,7 +27,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
 
     public TypeMirrorTestBuilder<B> testElementAsType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(e -> {
+            return addPredicate("as-type-mirror:" + tmtb._predicate().name(), e -> {
                 return tmtb.predicate().test(e.asType());
             });
         });
@@ -46,7 +47,8 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
 
     public TypeElementTestBuilder<B, ?> testContainingClass() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
-            return addPredicate(AnnotationUtils::enclosingType, (et, tp) -> {
+            return addPredicate(() -> "containing-class(" + tetb._predicate().name() + ")",
+                    AnnotationUtils::enclosingType, (et, tp) -> {
                 return tetb.predicate().test(tp);
             });
         });
@@ -54,7 +56,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
 
     public TypeMirrorTestBuilder<B> testContainingType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(AnnotationUtils::enclosingTypeAsTypeMirror, (et, tp) -> {
+            return addPredicate(() -> "containing-type(" + tmtb._predicate().name() + ")", AnnotationUtils::enclosingTypeAsTypeMirror, (et, tp) -> {
                 if (tp == null) {
                     return true;
                 }
@@ -65,7 +67,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
 
     public TypeElementTestBuilder<B, ?> testOutermostClass() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
-            return addPredicate(AnnotationUtils::topLevelType, (et, tp) -> {
+            return addPredicate(() -> "outer-compilation-unit-class(" + tetb._predicate().name() + ")", AnnotationUtils::topLevelType, (et, tp) -> {
                 return tetb.predicate().test(tp);
             });
         });
@@ -73,7 +75,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
 
     public TypeMirrorTestBuilder<B> testOutermostType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(AnnotationUtils::topLevelTypeAsTypeMirror, (et, tp) -> {
+            return addPredicate(() -> "outer-compilation-unit-type(" + tmtb._predicate().name() + ")", AnnotationUtils::topLevelTypeAsTypeMirror, (et, tp) -> {
                 if (tp == null) {
                     return true;
                 }
@@ -87,14 +89,14 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B mustBeFullyReifiedType() {
-        return addPredicate((E e) -> {
+        return addPredicate("must-be-fully-reified", (E e) -> {
             return maybeFail(e.asType().getKind() == TypeKind.DECLARED,
                     "Not a fully reified type: " + e.asType());
         });
     }
 
     public B typeParameterExtends(int ix, String name) {
-        return addPredicate((e) -> {
+        return addPredicate("type-param-" + ix + "-must-extends-" + simpleName(name), (e) -> {
             TypeMirror expected = utils.getTypeParameter(ix, e, this::fail);
             TypeElement el = utils.processingEnv().getElementUtils().getTypeElement(name);
             if (el == null) {
@@ -108,7 +110,10 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B typeParameterExtendsOneOf(int ix, String name, String... more) {
-        return addPredicate((e) -> {
+        if (more.length == 0) {
+            return typeParameterExtendsOneOf(ix, name);
+        }
+        return addPredicate("type-parameter-" + ix + "-extends-one-of-" + name + "," + AnnotationUtils.join(',', more),(e) -> {
             TypeMirror expected = utils.getTypeParameter(ix, e);
             List<String> all = new ArrayList<>();
             all.add(name);
@@ -131,7 +136,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B typeParameterMatches(int ix, BiPredicate<TypeMirror, AnnotationUtils> tester) {
-        return addPredicate((e) -> {
+        return addPredicate("type-parameter-" + ix + "-matches-" + tester, (e) -> {
             TypeMirror tm = utils.getTypeParameter(ix, e);
             if (tm == null) {
                 fail("No type parameter " + ix);
@@ -142,7 +147,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B isKind(ElementKind kind) {
-        return addPredicate((e) -> {
+        return addPredicate("is-element-kind-" + kind, (e) -> {
             if (kind != e.getKind()) {
                 fail("Element type must be " + kind + " but is " + e.getKind());
                 return false;
@@ -152,7 +157,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B hasModifier(Modifier m) {
-        return addPredicate((e) -> {
+        return addPredicate("must-have-modifier-" + m,(e) -> {
             return maybeFail(e.getModifiers() != null && e.getModifiers().contains(m),
                     "Must be " + m);
         });
@@ -167,7 +172,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B doesNotHaveModifier(Modifier m) {
-        return addPredicate((e) -> {
+        return addPredicate("must-not-have-modifier-" + m, (e) -> {
             return maybeFail(e.getModifiers() == null || !e.getModifiers().contains(m),
                     "Modifier " + m + " must not be used here");
         });
@@ -182,7 +187,13 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B isSubTypeOf(String typeName, String... moreTypeNames) {
-        return addPredicate((e) -> {
+        String msg;
+        if (moreTypeNames.length == 0) {
+            msg = "is-subtype-of-" + typeName;
+        } else {
+            msg = "is-subtype-of-" + typeName + "," + AnnotationUtils.join(',', moreTypeNames);
+        }
+        return addPredicate(msg, (e) -> {
             if (e == null) {
                 return true;
             }

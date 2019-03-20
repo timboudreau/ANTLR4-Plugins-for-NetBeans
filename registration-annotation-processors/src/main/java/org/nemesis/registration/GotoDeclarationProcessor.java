@@ -65,11 +65,12 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistratio
                 .testContainingClass().doesNotHaveModifier(PRIVATE)
                 .build().build();
         ;
-        annoTest = utils().testMirror().testMember("mimeType").validateStringValueAsMimeType().build().build();
+        annoTest = utils().testMirror()
+                .testMember("mimeType").validateStringValueAsMimeType().build().build();
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element el) {
         return annoTest.test(mirror);
     }
 

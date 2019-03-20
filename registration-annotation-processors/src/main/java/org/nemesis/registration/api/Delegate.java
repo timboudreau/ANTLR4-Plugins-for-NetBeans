@@ -143,7 +143,7 @@ public abstract class Delegate {
         return true;
     }
 
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         return true;
     }
 

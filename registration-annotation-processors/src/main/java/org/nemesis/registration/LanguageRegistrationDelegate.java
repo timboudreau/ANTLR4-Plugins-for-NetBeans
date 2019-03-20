@@ -86,7 +86,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         return mirrorTest.test(mirror);
     }
 
@@ -100,7 +100,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     .validateStringValueAsMimeType().build()
                     .testMemberAsAnnotation("synatx", stb -> {
                         stb.testMember("hooks")
-                                .valueAsType(hooksTypes -> {
+                                .asType(hooksTypes -> {
                                     hooksTypes.isAssignable("org.nemesis.antlr.spi.language.DataObjectHooks")
                                             .nestingKindMustNotBe(NestingKind.LOCAL)
                                             .build();
@@ -148,12 +148,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     private List<Element> findAntlrActionElements(RoundEnvironment env, String mimeType) {
         Set<Element> all = utils().findAnnotatedElements(env, ANTLR_ACTION_ANNO_TYPE);
-        System.out.println("AntlrActions " + all.size() + " for " + env + " - " + all);
         Map<AnnotationMirror, Element> result = new HashMap<>();
         for (Element el : all) {
             AnnotationMirror mir = utils().findAnnotationMirror(el, ANTLR_ACTION_ANNO_TYPE);
             String mime = utils().annotationValue(mir, "mimeType", String.class);
-            System.out.println("FOUND ANTLR ANNO " + mime + ": " + mir + " on " + el.getSimpleName());
             if (mimeType.equals(mime)) {
                 result.put(mir, el);
             }

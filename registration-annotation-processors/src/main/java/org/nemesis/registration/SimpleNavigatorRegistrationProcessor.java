@@ -16,6 +16,7 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -38,28 +39,26 @@ import org.openide.util.lookup.ServiceProvider;
 @SupportedOptions(AU_LOG)
 public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationProcessor {
 
+    private static final String APPEARANCE_TYPE = "org.nemesis.antlr.navigator.Appearance";
     public static final String SIMPLE_ANNOTATION_CLASS = ANTLR_NAVIGATOR_PACKAGE + ".SimpleNavigatorRegistration";
     private Predicate<? super AnnotationMirror> annoTest;
     private Predicate<? super Element> typeTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-        annoTest = utils.testMirror().testMember("icon")
-                .stringValueMustMatch((val, ut) -> {
-                    if (val == null || val.isEmpty()) {
-                        return true;
-                    }
-                    boolean result = val.endsWith(".jpg")
-                            || val.endsWith(".gif")
-                            || val.endsWith(".png");
-                    if (!result) {
-                        ut.accept("Icon base must end with .gif, .jpg or .png");
-                    }
-                    return result;
-                })
+        annoTest = utils.multiAnnotations().whereAnnotationType(SIMPLE_ANNOTATION_CLASS, amtb -> {
+            amtb.testMember("icon")
+                .stringValueMustEndWith(".jpg", ".gif", ".png")
                 .build()
                 .testMember("mimeType").validateStringValueAsMimeType().build()
+                // Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
+                .testMember("appearance").asType(tmtb -> {
+                    tmtb.isSubtype(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
+                    tmtb.asElement().doesNotHaveModifier(PRIVATE);
+                }).build()
                 .build();
+        }).build();
+
         typeTest = utils.testsBuilder().hasModifier(STATIC).doesNotHaveModifier(PRIVATE)
                 .isSubTypeOf(NAMED_REGION_KEY_TYPE, SEMANTIC_REGION_KEY_TYPE)
                 .testContainingClass().doesNotHaveModifier(PRIVATE)
@@ -67,7 +66,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         boolean result = annoTest.test(mirror);
         return result;
     }

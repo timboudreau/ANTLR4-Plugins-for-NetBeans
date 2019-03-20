@@ -30,7 +30,7 @@ import javax.lang.model.element.Element;
  */
 public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B, R>, R> {
 
-    private Predicate<T> predicate;
+    private ListPredicate<T> predicate;
     protected final AnnotationUtils utils;
     private final Function<B, R> converter;
 
@@ -42,34 +42,30 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
     public final R build() {
         return converter.apply((B) this);
     }
-
+/*
     <B1 extends AbstractPredicateBuilder<T, B1, B>> B1 add(Function<Function<B1, B>, B1> f) {
         return f.apply(b1 -> {
-            return addPredicate(t -> {
-                return b1.predicate().test(t);
-            });
+            return addPredicate(b1._predicate());
         });
     }
 
     <T1, B1 extends AbstractPredicateBuilder<T1, B1, B>> B1 add(Function<Function<B1, B>, B1> f, Function<T, T1> convert) {
         return f.apply(b1 -> {
-            return addPredicate(t -> {
-                return b1.predicate().test(convert.apply(t));
-            });
+            return addPredicate(convert, b1._predicate());
         });
     }
 
     <B1 extends AbstractPredicateBuilder<T, B1, B>> B add(Function<Function<B1, B>, B1> f, boolean throwOnNotClosed, Consumer<B1> c) {
-        return add(f, t -> t, throwOnNotClosed, true, c);
+        return add(f, t -> t, throwOnNotClosed, AbsenceAction.TRUE, c);
     }
 
-    <T1, B1 extends AbstractPredicateBuilder<T1, B1, B>> B add(Function<Function<B1, B>, B1> f, Function<T, T1> convert, boolean throwOnNotClosed, boolean conversionFailureOk, Consumer<B1> c) {
+    <T1, B1 extends AbstractPredicateBuilder<T1, B1, B>> B add(Function<Function<B1, B>, B1> f, Function<T, T1> convert, boolean throwOnNotClosed, AbsenceAction act, Consumer<B1> c) {
         boolean[] built = new boolean[0];
         B1 result = f.apply(b1 -> {
-            return addPredicate(t -> {
+            return addPredicate(() -> b1._predicate().name(), t -> {
                 T1 t1 = convert.apply(t);
-                if (conversionFailureOk) {
-                    return true;
+                if (act != null) {
+                    return act.getAsBoolean();
                 } else {
                     fail("Could not convert " + t + " with " + convert);
                 }
@@ -86,57 +82,118 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         }
         return (B) this;
     }
+    */
 
     final Predicate<? super T> predicate() {
+        return _predicate();
+    }
+
+    NamedPredicate<T> _predicate() {
         if (predicate == null) {
-            return ignored -> true;
+            return PredicateUtils.alwaysTrue();
         }
         return predicate;
     }
 
-    public final B addPredicate(BiPredicate<? super T, Consumer<? super String>> predWithErrorMessageDest) {
-        return addPredicate(t -> {
+    public final B addPredicate(String name, BiPredicate<? super T, Consumer<? super String>> predWithErrorMessageDest) {
+        return addPredicate(name, t -> {
             return predWithErrorMessageDest.test(t, this::fail);
         });
     }
 
+    public final B addPredicate(Supplier<String> name, BiPredicate<? super T, Consumer<? super String>> predWithErrorMessageDest) {
+        return addPredicate(name, t -> {
+            return predWithErrorMessageDest.test(t, this::fail);
+        });
+    }
+
+    public final B addPredicate(Supplier<String> name, Predicate<? super T> pred) {
+        if (pred == null) {
+            throw new IllegalStateException("Null predicate for " + name.get());
+        }
+        return addPredicate(PredicateUtils.namedPredicate(name, pred));
+    }
+
+    public final B addPredicate(String name, Predicate<? super T> pred) {
+        if (pred == null) {
+            throw new IllegalStateException("Null predicate for " + name);
+        }
+        return addPredicate(PredicateUtils.namedPredicate(name, pred));
+    }
+
+    @SuppressWarnings("unchecked")
     public final B addPredicate(Predicate<? super T> pred) {
+        if (!(pred instanceof NamedPredicate<?>)) {
+            pred = PredicateUtils.namedPredicate(pred);
+        }
         if (predicate == null) {
-            predicate = wrapPredicate(pred);
+            predicate = PredicateUtils.andPredicate();
+            predicate.accept(wrapPredicate(pred));
         } else {
-            predicate = predicate.and(wrapPredicate(pred));
+            predicate.accept(wrapPredicate(pred));
         }
         return (B) this;
     }
 
-    public final <V> B addPredicate(Function<T, V> converter, Predicate<V> predicate) {
-        return addPredicate((e) -> {
+    public final <V> B addPredicate(Function<T, V> converter, NamedPredicate<V> predicate) {
+        return addPredicate(PredicateUtils.converted(predicate, converter));
+    }
+
+    public final <V> B addPredicate(String name, Function<T, V> converter, BiPredicate<T, V> predicate) {
+        return addPredicate(name, (e) -> {
             V v = converter.apply(e);
-            return predicate.test(v);
+            return predicate.test(e, v);
         });
     }
 
-    public final <V> B addPredicate(Function<T, V> converter, BiPredicate<T, V> predicate) {
-        return addPredicate((e) -> {
+    public final <V> B addPredicate(Supplier<String> name, Function<T, V> converter, BiPredicate<T, V> predicate) {
+        return addPredicate(name, (e) -> {
             V v = converter.apply(e);
             return predicate.test(e, v);
         });
     }
 
     private Predicate<T> wrapPredicate(Predicate<? super T> orig) {
-        return t -> {
+        return new WrappedPredicate<>(orig);
+    }
+
+    private static final class WrappedPredicate<T> implements Predicate<T>, Wrapper<Predicate<? super T>> {
+
+        private final Predicate<? super T> orig;
+
+        public WrappedPredicate(Predicate<? super T> orig) {
+            this.orig = orig;
+        }
+
+        @Override
+        public String toString() {
+            Named named = Wrapper.find(orig, Named.class);
+            return named != null ? named.name() : orig.toString();
+        }
+
+        @Override
+        public boolean test(T t) {
             if (t instanceof Element) {
-                enter((Element) t, () -> {
+                return enter((Element) t, () -> {
                     return orig.test(t);
                 });
             } else if (t instanceof AnnotationMirror) {
-                enter((AnnotationMirror) t, () -> {
+                return enter((AnnotationMirror) t, () -> {
                     return orig.test(t);
                 });
             }
             boolean result = orig.test(t);
             return result;
-        };
+        }
+
+        @Override
+        public Predicate<? super T> wrapped() {
+            return orig;
+        }
+    }
+
+    public String toString() {
+        return getClass().getSimpleName() + "{" + predicate + "}";
     }
 
     protected final boolean maybeFail(boolean val, String msg) {
@@ -155,11 +212,11 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
 
     private final ThreadLocal<DeferredFailures> deferredFailures = new ThreadLocal<>();
 
-    public B branch(Predicate<? super T> test, Predicate<? super T> ifTrue, Predicate<? super T> ifFalse) {
+    B branch(NamedPredicate<? super T> test, NamedPredicate<? super T> ifTrue, NamedPredicate<? super T> ifFalse) {
         return addPredicate(new OneOfPredicate(test, ifTrue, ifFalse));
     }
 
-    public B or(Predicate<? super T> a, Predicate<? super T> b) {
+    B or(NamedPredicate<? super T> a, NamedPredicate<? super T> b) {
         return addPredicate(new OrPredicate(a, b));
     }
 
@@ -293,21 +350,48 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         }
 
         private Predicate<T> done(Predicate<? super N> second) {
-            Predicate<T> firstConverted = t -> {
-                return first.test(convert.apply(t));
-            };
-            Predicate<T> secondConverted = t -> {
-                return second.test(convert.apply(t));
-            };
-            return (t) -> {
-                if (test.test(t)) {
-                    System.out.println("  RUN TRUE SIDE WITH " + first);
-                    return firstConverted.test(t);
-                } else {
-                    System.out.println("  RUN FALSE SIDE WITH " + second);
-                    return secondConverted.test(t);
-                }
-            };
+            return new ConvertedPredicate<T, N>(test, first, second, convert);
+        }
+    }
+
+    private static final class ConvertedPredicate<T, N> implements NamedPredicate<T> {
+
+        private final Predicate<? super T> test;
+        private final Predicate<? super N> ifTrueBranch;
+        private final Predicate<? super N> ifFalseBranch;
+        private final Function<? super T, ? extends N> convert;
+
+        public ConvertedPredicate(Predicate<? super T> test, Predicate<? super N> ifTrueBranch, Predicate<? super N> ifFalseBranch, Function<? super T, ? extends N> convert) {
+            this.test = test;
+            this.ifTrueBranch = ifTrueBranch;
+            this.ifFalseBranch = ifFalseBranch;
+            this.convert = convert;
+        }
+
+        @Override
+        public String name() {
+            String nameTest = Named.findName(test);
+            String nameIfTrue = Named.findName(ifTrueBranch);
+            String nameIfFalse = Named.findName(ifFalseBranch);
+            return "ConvertedPredicate{test=" + nameTest + ", true=" + nameIfTrue + ", false=" + nameIfFalse;
+        }
+
+        @Override
+        public boolean test(T t) {
+            N obj = convert.apply(t);
+            boolean testResult = test.test(t);
+            boolean result;
+            if (testResult) {
+                result = ifTrueBranch.test(obj);
+            } else {
+                result = ifFalseBranch.test(obj);
+            }
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "ConvertedPredicate{test=" + test + ", true=" + ifTrueBranch + ", false=" + ifFalseBranch;
         }
     }
 
@@ -399,7 +483,7 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         }
     }
 
-    class OneOfPredicate implements Predicate<T> {
+    class OneOfPredicate extends AbstractNamed implements NamedPredicate<T> {
 
         private final Predicate<? super T> test;
         private final Predicate<? super T> ifTrue;
@@ -419,9 +503,14 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
                 return ifFalse.test(val);
             }
         }
+
+        @Override
+        public String name() {
+            return "if(" + test + "){" + ifTrue + "}else{" + ifFalse + "}";
+        }
     }
 
-    class OrPredicate implements Predicate<T> {
+    class OrPredicate extends AbstractNamed implements NamedPredicate<T> {
 
         private final Predicate<? super T> a;
         private final Predicate<? super T> b;
@@ -446,6 +535,13 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
                 return true;
             }
         }
+
+        @Override
+        public String name() {
+            String aName = Named.findName(a);
+            String bName = Named.findName(b);
+            return aName + " || " + bName;
+        }
     }
 
     private <T> DeferredFailures runWithDeferredFailures(T val, Predicate<? super T> pred) {
@@ -463,8 +559,8 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
     static Set<Object> collectedFailures = new HashSet<>();
 
     protected final boolean fail(String msg) {
-        Element el = elementContext.get();
-        AnnotationMirror mir = annotationContext.get();
+        Element el = CURR_ELEMENT_CONTEXT.get();
+        AnnotationMirror mir = CURR_ANNOTATION_CONTEXT.get();
         DeferredFailures failures = deferredFailures.get();
         if (failures != null) {
             failures.add(msg, el, mir);
@@ -488,8 +584,8 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
     }
 
     protected final boolean warn(String msg) {
-        Element el = elementContext.get();
-        AnnotationMirror mir = annotationContext.get();
+        Element el = CURR_ELEMENT_CONTEXT.get();
+        AnnotationMirror mir = CURR_ANNOTATION_CONTEXT.get();
         if (el != null && mir != null) {
             utils.warn(msg, el, mir);
         } else if (el != null) {
@@ -556,8 +652,8 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
         }
     }
 
-    private static final ThreadLocal<Element> elementContext = new ThreadLocal<>();
-    private static final ThreadLocal<AnnotationMirror> annotationContext = new ThreadLocal<>();
+    private static final ThreadLocal<Element> CURR_ELEMENT_CONTEXT = new ThreadLocal<>();
+    private static final ThreadLocal<AnnotationMirror> CURR_ANNOTATION_CONTEXT = new ThreadLocal<>();
 
     public static <X> X enter(Element el, Supplier<X> r) {
         return enter(el, null, r);
@@ -568,23 +664,27 @@ public class AbstractPredicateBuilder<T, B extends AbstractPredicateBuilder<T, B
     }
 
     public static <X> X enter(Element el, AnnotationMirror anno, Supplier<X> supp) {
-        Element oldElement = elementContext.get();
-        AnnotationMirror oldAnno = annotationContext.get();
+        Element oldElement = CURR_ELEMENT_CONTEXT.get();
+        AnnotationMirror oldAnno = CURR_ANNOTATION_CONTEXT.get();
         try {
             if (el != null) {
-                elementContext.set(el);
+                CURR_ELEMENT_CONTEXT.set(el);
             }
             if (anno != null) {
-                annotationContext.set(anno);
+                CURR_ANNOTATION_CONTEXT.set(anno);
             }
             return supp.get();
         } finally {
             if (anno != null) {
-                annotationContext.set(oldAnno);
+                CURR_ANNOTATION_CONTEXT.set(oldAnno);
             }
             if (el != null) {
-                elementContext.set(oldElement);
+                CURR_ELEMENT_CONTEXT.set(oldElement);
             }
         }
+    }
+
+    protected static <T> NamedPredicate<T> namedPredicate(String name, Predicate<T> orig) {
+        return PredicateUtils.namedPredicate(name, orig);
     }
 }

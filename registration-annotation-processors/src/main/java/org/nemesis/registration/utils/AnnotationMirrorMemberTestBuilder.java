@@ -1,5 +1,6 @@
 package org.nemesis.registration.utils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -71,7 +72,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotContainWhitespace() {
-        return addPredicate((am) -> {
+        return addPredicate("no-whitespace-in-" + memberName, (am) -> {
             List<String> vals = utils.annotationValues(am, memberName, String.class);
             boolean result = true;
             for (String val : vals) {
@@ -89,7 +90,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotContain(char... chars) {
         char[] nue = Arrays.copyOf(chars, chars.length);
         Arrays.sort(nue);
-        return addPredicate((am) -> {
+        return addPredicate("no-chars-" + new String(chars) + "-in-string-value-of-" + memberName, (am) -> {
             List<String> vals = utils.annotationValues(am, memberName, String.class);
             boolean result = true;
             for (String val : vals) {
@@ -106,14 +107,14 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> arrayValueMayNotBeEmpty() {
-        return addPredicate(am -> {
+        return addPredicate("array-value-must-have-contents-in-" + memberName, am -> {
             List<?> objs = utils.annotationValues(am, memberName, Object.class);
             return maybeFail(!objs.isEmpty(), "Value of '" + memberName + "' may not be empty");
         });
     }
 
     public AnnotationMirrorMemberTestBuilder<T> enumValuesMayNotCombine(String a, String b) {
-        return addPredicate(am -> {
+        return addPredicate("enum-values-may-not-combine-" + a + "-" + b + "-in-" + memberName, am -> {
             Set<String> all = utils.enumConstantValues(am, memberName);
             if (all.contains(a) && all.contains(b)) {
                 fail(memberName + " may not combine '" + a + "' and '" + b + "'");
@@ -124,13 +125,13 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotBeEmpty() {
-        return stringValueMustMatch((val) -> {
+        return stringValueMustMatch(namedPredicate("string-value-not-empty-in-" + memberName, (val) -> {
             boolean result = val != null && !val.isEmpty();
             if (!result) {
                 fail("Value must not be empty");
             }
             return result;
-        });
+        }));
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustBeValidJavaIdentifier() {
@@ -147,27 +148,40 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
                 } else {
                     result = Character.isJavaIdentifierPart(c);
                 }
-                return maybeFail(result, "Invalid identifier '" + val + "' may not contain: "
+                return maybeFail(result, "Invalid identifier '" + val
+                        + "' may not contain: "
                         + c + " - not a valid Java identifier.");
             }
             return true;
         });
     }
 
-    public AnnotationMemberAsTypeTestBuilder<TypeElement, AnnotationMirrorMemberTestBuilder<T>> asTypeSpecifier() {
-        return new AnnotationMemberAsTypeTestBuilder<>(utils, (b) -> {
-            Predicate<? super TypeElement> teTest = b.getPredicate();
-            addPredicate((am) -> {
-                List<String> types = utils.typeList(am, memberName);
-                boolean result = true;
-                for (String type : types) {
-                    TypeElement te = utils.processingEnv().getElementUtils().getTypeElement(type);
-                    result &= teTest.test(te);
-                }
-                return result;
+    public TypeElementTestBuilder<AnnotationMirrorMemberTestBuilder<T>, ?> asTypeSpecifier() {
+        return new TypeElementTestBuilder<>(utils, tetb -> {
+            NamedPredicate<TypeElement> p = tetb._predicate();
+            return addPredicate("member-" + memberName + "-as-type-" + p.name(), mir -> {
+                List<TypeElement> l = utils.typeElements(mir, memberName, this::fail);
+                return p.toListPredicate(true).test(l);
             });
-            return this;
         });
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> asTypeSpecifier(Consumer<TypeElementTestBuilder<?, ?>> c) {
+        boolean[] built = new boolean[1];
+        TypeElementTestBuilder<Void, ?> t = new TypeElementTestBuilder<>(utils, tetb -> {
+            NamedPredicate<TypeElement> p = tetb._predicate();
+            addPredicate("member-" + memberName + "-as-type-" + p.name(), mir -> {
+                List<TypeElement> l = utils.typeElements(mir, memberName, this::fail);
+                return p.toListPredicate(true).test(l);
+            });
+            built[0] = true;
+            return null;
+        });
+        c.accept(t);
+        if (!built[0]) {
+            t.build();
+        }
+        return this;
     }
 
     private <X> boolean testAnnotationValueOrValues(AnnotationValue v, Class<X> type, Predicate<? super X> pred) {
@@ -199,7 +213,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         return stringValueMustMatch(new RegexPredicate(pattern));
     }
 
-    static final class RegexPredicate implements Predicate<String> {
+    static final class RegexPredicate implements NamedPredicate<String> {
 
         private final Pattern pattern;
 
@@ -212,6 +226,25 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
             return pattern.matcher(t).matches();
         }
 
+        @Override
+        public String name() {
+            return pattern.pattern();
+        }
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> stringValueMustEndWith(String... postfixes) {
+        return stringValueMustMatch(namedPredicate("one-of-suffixes" + AnnotationUtils.join(',', postfixes), sv -> {
+            if (sv == null) {
+                return true;
+            }
+            for (String postfix : postfixes) {
+                if (sv.endsWith(postfix)) {
+                    return true;
+                }
+            }
+            fail(memberName + " must end with one of " + AnnotationUtils.join(',', postfixes));
+            return false;
+        }));
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustMatch(BiPredicate<String, Consumer<String>> bp) {
@@ -219,8 +252,9 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
             return bp.test(s, this::fail);
         });
     }
+
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustMatch(Predicate<String> bp) {
-        return addPredicate((mirror) -> {
+        return addPredicate("string-value-of-" + memberName + "-must-match-" + bp, (mirror) -> {
             for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e : mirror.getElementValues().entrySet()) {
                 if (memberName.equals(e.getKey().getSimpleName().toString())) {
                     testAnnotationValueOrValues(e.getValue(), String.class, bp);
@@ -231,14 +265,14 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> mustBeSubtypeOf(String... names) {
-        return addPredicate((mir) -> {
+        return addPredicate("must-be-subtypes-of-" + Arrays.toString(names) + "-in-" + memberName, (mir) -> {
             List<TypeMirror> l = utils.typeValues(mir, memberName, this::fail, names);
             return maybeFail(!l.isEmpty(), memberName + " must be a subtype of " + AnnotationUtils.join(',', names));
         });
     }
 
     public AnnotationMirrorMemberTestBuilder<T> mustBeSubtypeOfIfPresent(String... names) {
-        return addPredicate((mir) -> {
+        return addPredicate("if-present-must-be-subtype-of-" + AnnotationUtils.join(',', names) + "-in-" + memberName, (mir) -> {
             List<TypeMirror> l = utils.typeValues(mir, memberName, this::fail, names);
             if (l.isEmpty()) {
                 return true;
@@ -278,7 +312,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public <R> AnnotationMirrorMemberTestBuilder<T> valueMustBeOfSimpleType(Class<R> type) {
-        return addPredicate((mir) -> {
+        return addPredicate("value-must-be-" + type.getSimpleName() + "-in-" + memberName, (mir) -> {
             Object o = utils.annotationValue(mir, memberName, Object.class);
             if (o != null && !type.isInstance(o)) {
                 fail("Expected instance of " + type.getSimpleName() + " but found " + o + " (" + o.getClass().getName() + ") for " + memberName);
@@ -288,42 +322,31 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         });
     }
 
+    private List<TypeMirror> typeMirrorsForMember(AnnotationMirror mir) {
+        List<String> types = utils.typeList(mir, memberName);
+        List<TypeMirror> els = new ArrayList<>(types.size());
+        types.forEach((type) -> {
+            TypeElement te = utils.processingEnv().getElementUtils().getTypeElement(type);
+            if (te != null) {
+                els.add(te.asType());
+            } else {
+                fail("Could not resolve " + type);
+            }
+        });
+        return els;
+    }
+
     public TypeMirrorTestBuilder<AnnotationMirrorMemberTestBuilder<T>> asType() {
         return new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            return addPredicate(mir -> {
-                List<String> l = utils.typeList(mir, memberName);
-                boolean result = true;
-                for (String type : l) {
-                    TypeElement te = utils.processingEnv().getElementUtils().getTypeElement(type);
-                    if (te == null) {
-                        fail("Could not resolve " + type);
-                        return false;
-                    }
-                    TypeMirror tm = te.asType();
-                    result &= tmtb.predicate().test(tm);
-                }
-                return result;
-            });
+            NamedPredicate<Iterable<TypeMirror>> pred = tmtb._predicate().toListPredicate(true);
+            return addPredicate(this::typeMirrorsForMember, pred);
         });
     }
 
-    public AnnotationMirrorMemberTestBuilder<T> valueAsType(Consumer<TypeMirrorTestBuilder<?>> c) {
+    public AnnotationMirrorMemberTestBuilder<T> asType(Consumer<TypeMirrorTestBuilder<?>> c) {
         boolean[] built = new boolean[1];
         TypeMirrorTestBuilder<Void> b = new TypeMirrorTestBuilder<>(utils, tmtb -> {
-            addPredicate(mir -> {
-                List<String> l = utils.typeList(mir, memberName);
-                boolean result = true;
-                for (String type : l) {
-                    TypeElement te = utils.processingEnv().getElementUtils().getTypeElement(type);
-                    if (te == null) {
-                        fail("Could not resolve " + type);
-                        return false;
-                    }
-                    TypeMirror tm = te.asType();
-                    result &= tmtb.predicate().test(tm);
-                }
-                return result;
-            });
+            addPredicate(this::typeMirrorsForMember, tmtb._predicate().toListPredicate(true));
             built[0] = true;
             return null;
         });
@@ -344,7 +367,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
 
     public TypeElementTestBuilder<AnnotationMirrorMemberTestBuilder<T>, ?> valueAsTypeElement() {
         return new TypeElementTestBuilder<>(utils, tmtb -> {
-            return addPredicate(mir -> {
+            return addPredicate(tmtb._predicate().name(), mir -> {
                 boolean result = true;
                 List<TypeMirror> l = utils.typeValues(mir, memberName, this::fail);
                 for (TypeMirror t : l) {
@@ -358,7 +381,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     public AnnotationMirrorMemberTestBuilder<T> valueAsTypeElement(Consumer<TypeElementTestBuilder<?, ?>> c) {
         boolean[] built = new boolean[1];
         TypeElementTestBuilder<Void, ?> b = new TypeElementTestBuilder<>(utils, tmtb -> {
-            addPredicate((AnnotationMirror mir) -> {
+            addPredicate(tmtb._predicate().name(), (AnnotationMirror mir) -> {
                 List<TypeMirror> l = utils.typeValues(mir, memberName, this::fail);
                 boolean result = true;
                 for (TypeMirror tm : l) {

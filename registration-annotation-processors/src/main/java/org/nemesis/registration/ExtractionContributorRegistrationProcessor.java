@@ -9,6 +9,8 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
@@ -46,7 +48,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror) {
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         boolean result = mirrorCheck.test(mirror);
         return result;
     }

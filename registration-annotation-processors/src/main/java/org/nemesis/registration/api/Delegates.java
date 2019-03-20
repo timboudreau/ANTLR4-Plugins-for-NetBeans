@@ -125,13 +125,13 @@ public class Delegates {
         }
     }
 
-    boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
+    boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         String type = mirror.getAnnotationType().toString();
         Set<DelegateEntry> entries = this.delegates.get(type);
         boolean result = true;
         if (entries != null) {
             for (DelegateEntry e : entries) {
-                result &= e.delegate.validateAnnotationMirror(mirror, kind);
+                result &= e.delegate.validateAnnotationMirror(mirror, kind, element);
             }
         }
         return result;

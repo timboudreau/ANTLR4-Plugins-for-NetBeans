@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
@@ -84,9 +84,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     private final Map<KeysFile, Element> elementForFile = new HashMap<>();
     private static int actionPosition = 11;
 
-    private Predicate<? super AnnotationMirror> validator;
-    private Predicate<? super Element> fieldValidator;
-    private Predicate<? super ExecutableElement> methodValidator;
+    private BiPredicate<? super AnnotationMirror, ? super Element> validator;
 
     void updateTargetElement(String mimeType, Element targetElement) {
         if (!targetElementForMimeType.containsKey(mimeType)) {
@@ -99,13 +97,12 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     }
 
     @Override
-    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind) {
-        return validator.test(mirror);
+    protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
+        return validator.test(mirror, element);
     }
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-
         validator = utils.multiAnnotations().whereAnnotationType(KEYBINDING_ANNO, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType()
                     .build()
@@ -114,32 +111,26 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                     .stringValueMustNotContain('/', '\\', '"', '.')
                     .build();
             bldr.testMemberAsAnnotation("keybindings")
-                    .testMember("modifiers", amtb -> {
-                        amtb.enumValuesMayNotCombine("CTRL_OR_COMMAND", "EXPLICIT_CTRL")
+                    .testMember("modifiers", modifiersTest -> {
+                        modifiersTest.enumValuesMayNotCombine("CTRL_OR_COMMAND", "EXPLICIT_CTRL")
                                 .enumValuesMayNotCombine("ALT_OR_OPTION", "EXPLICIT_ALT");
                     })
                     .build();
+            bldr.whereMethodIsAnnotated(methodVal -> {
+                methodVal.doesNotHaveModifier(PRIVATE)
+                        .hasModifier(STATIC)
+                        .ifReturnTypeAssignableAs(ACTION_TYPE)
+                        .ifTrue((MethodTestBuilder.MTB rt) -> {
+                            rt.mustNotTakeArguments().build();
+                        }).ifFalse((MethodTestBuilder.STB rt) -> {
+                    rt.returnType().isType("void").build();
+                });
+            });
         }).whereAnnotationType(GOTO_ANNOTATION, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType().build();
-        }).build();
+        }).biPredicate();
 
-        methodValidator = utils.methodTestBuilder()
-                .doesNotHaveModifier(PRIVATE)
-                .hasModifier(STATIC)
-                .ifReturnTypeAssignableAs(ACTION_TYPE)
-                .ifTrue((MethodTestBuilder.MTB rt) -> {
-                    System.out.println("IF TRUE RUN");
-                    assert rt != null : "rt null a";
-                    rt.mustNotTakeArguments().build();
-                }).ifFalse((MethodTestBuilder.STB rt) -> {
-                    System.out.println("IF FALSE RUN");
-                    assert rt != null : "rt null b";
-                    rt.returnType().isType("void").build();
-                })
-                .ifReturnTypeAssignableAs(ACTION_TYPE)
-                .ifTrue().mustNotTakeArguments().build()
-                .ifFalse().returnType().isType("void").build().build()
-                .build();
+        System.out.println("KEYBINDINGS VAL " + validator);
     }
 
     Element targetElement(String mimeType) {

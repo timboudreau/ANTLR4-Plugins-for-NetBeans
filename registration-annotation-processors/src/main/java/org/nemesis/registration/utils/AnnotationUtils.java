@@ -502,6 +502,20 @@ public final class AnnotationUtils {
         return result;
     }
 
+    public List<TypeElement> typeElements(AnnotationMirror mirror, String param, Consumer<String> errMessages, String... failIfNotSubclassesOf) {
+        List<TypeMirror> mirs = typeValues(mirror, param, errMessages, failIfNotSubclassesOf);
+        List<TypeElement> result = new ArrayList<>(mirs.size());
+        for (TypeMirror tm : mirs) {
+            TypeElement el = processingEnv.getElementUtils().getTypeElement(tm.toString());
+            if (el == null) {
+                errMessages.accept("Could not convert " + tm + " to a type element");
+                continue;
+            }
+            result.add(el);
+        }
+        return result;
+    }
+
     public List<TypeMirror> typeValues(AnnotationMirror mirror, String param, Consumer<String> errMessages, String... failIfNotSubclassesOf) {
         List<TypeMirror> result = new ArrayList<>();
         if (mirror != null) {
@@ -830,8 +844,6 @@ public final class AnnotationUtils {
                 Object v = e.getValue().getValue();
                 if (v instanceof TypeMirror) {
                     return (TypeMirror) v;
-                } else {
-                    System.out.println("GOT A " + v.getClass().getName());
                 }
             }
         }
