@@ -189,16 +189,16 @@ public abstract class AntlrFormatterProvider<C, StateEnum extends Enum<StateEnum
         // Do our best here, which is likely to be pretty limited
         for (int i = 1; i <= vocab.getMaxTokenType(); i++) {
             String litName = vocab.getLiteralName(i);
-            if (litName != null) {
+            boolean allWhitespace = litName != null;
+            if (allWhitespace) {
                 if (litName.length() > 2 && litName.charAt(0) == '\'' && litName.charAt(litName.length() - 1) == '\'') {
                     litName = litName.substring(1, litName.length() - 1);
                 }
-            }
-            boolean allWhitespace = true;
-            for (int j = 0; j < litName.length(); j++) {
-                if (!Character.isWhitespace(litName.charAt(i))) {
-                    allWhitespace = false;
-                    break;
+                for (int j = 0; j < litName.length(); j++) {
+                    if (!Character.isWhitespace(litName.charAt(j))) {
+                        allWhitespace = false;
+                        break;
+                    }
                 }
             }
             if (allWhitespace) {

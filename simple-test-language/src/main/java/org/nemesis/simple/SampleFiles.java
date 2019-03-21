@@ -18,7 +18,11 @@ import org.nemesis.simple.language.SimpleLanguageParser;
 public enum SampleFiles {
 
     BASIC("basic.sim"),
-    MINIMAL("minimal.sim");
+    MINIMAL("minimal.sim"),
+    ABSURDLY_MINIMAL("absurdly-minimal.sim"),
+    MUCH_NESTING("much-nesting.sim"),
+    MINIMAL_MULTILINE("minimal-with-multiline-comments.sim")
+    ;
 
     private final String name;
 
@@ -43,7 +47,7 @@ public enum SampleFiles {
         }
         CharStream cs = charStream();
         StringBuilder sb = new StringBuilder(512);
-        for (int pos = 1;; pos++) {
+        for (;;) {
             int val = cs.LA(1);
             if (val == -1) {
                 break;
@@ -56,11 +60,14 @@ public enum SampleFiles {
     }
 
     public InputStream inputStream() {
-        return SampleFiles.class.getResourceAsStream(name);
+        InputStream result = SampleFiles.class.getResourceAsStream(name);
+        assert result != null : name + " not found in " + SampleFiles.class.getPackageName().replace('.', '/');
+        return result;
     }
 
     public CharStream charStream() throws IOException {
-        return CharStreams.fromReader(new InputStreamReader(inputStream(),
+        InputStream in = inputStream();
+        return CharStreams.fromReader(new InputStreamReader(in,
                 UTF_8), name);
     }
 

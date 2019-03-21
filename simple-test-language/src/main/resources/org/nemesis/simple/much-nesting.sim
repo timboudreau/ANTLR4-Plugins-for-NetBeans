@@ -1,0 +1,11 @@
+types Stuff;
+
+person : object {
+    place : object {
+        thing : object {
+            otherThing : object {
+                ratio : float default 23.42;
+            }
+        }
+    }
+}

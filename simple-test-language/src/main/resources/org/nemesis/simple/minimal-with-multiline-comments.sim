@@ -1,0 +1,9 @@
+types Hoo;
+
+/* This is a 
+multiline comment */
+
+// And here is a line comment, whose trailing '\n' should not reset the line position if a trimmed replacement is used
+
+** This is one thing
+oneThing : string default "one thing";

@@ -143,6 +143,15 @@ final class WhitespaceState {
         toApply.apply(sb, indentDepth, lineOffsetDest);
     }
 
+    public String preview() {
+        if (isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        a.copy().coalesce(b.copy(), indentDepth).apply(sb, indentDepth, new int[1]);
+        return sb.toString();
+    }
+
     public String getString() {
         StringBuilder sb = new StringBuilder();
         apply(sb, new int[0]);

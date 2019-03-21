@@ -262,7 +262,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             } else {
                 posInOriginalLine = tok.getText().length() - newlinePosition;
             }
-            lineState.onUnprocessedToken(tok);
+            lineState.onUnprocessedToken(tok, false);
             return false;
         }
         // Check that we're within the bounds of the text we should reformat
@@ -471,17 +471,22 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             return whitespace.append();
         }
 
-        boolean onUnprocessedToken(Token token) {
+        boolean onUnprocessedToken(Token token, boolean postProcess) {
             // Look at tokens before we hit the region we care about, to
             // keep our line position up to date
             int tokenTextLength = 0;
             String tokenText = token.getText();
+//            System.out.println((postProcess ? "POST-" : "PRE-")
+//                    + "UNPROCESSED: '" + tokenText.replace("\n", "\\n") + "' "
+//                    + " replacement? " + replacement + " PREPEND " + lineState.whitespace.prepend()
+//                    + " APPEND " + lineState.whitespace.append());
             // Find any newlines and update the line position if needed
             if (tokenText != null && tokenText.length() > 0) {
                 documentPosition += tokenText.length();
                 tokenTextLength = tokenText.length();
                 int newlineIndex = tokenText.lastIndexOf('\n');
                 if (newlineIndex > 0) {
+//                    System.out.println("  RESET LINE POSITION FOR NEWLINE IN UNPROC - PREPEND? " + lineState.whitespace.prepend() + " replacement? '" + replacement + "'");
                     tokenTextLength -= newlineIndex;
                     lastPosition = linePosition;
                     linePosition = tokenTextLength;
@@ -537,7 +542,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 whitespace.flip();
             }
             // Huh?
-            if (!onUnprocessedToken(token)) {
+            if (!onUnprocessedToken(token, true)) {
                 documentPosition += token.getText().length();
                 linePosition += token.getText().length();
             }
@@ -554,11 +559,32 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         }
 
         public int currentTokenPosition() {
+            if (true) {
+                if (lastToken == null) {
+                    return 0;
+                }
+
+                // This is a horrible way to do this
+                String text = rew.getText(new Interval(0, lastToken.getTokenIndex()))
+                        + whitespace.prepend().preview();
+
+                // XXX could start by checking back two tokens, and work
+                // backwards - even less efficient in the pathological case,
+                // but could work it
+                for (int i = text.length() - 1; i >= 0; i--) {
+                    if (text.charAt(i) == '\n') {
+                        return (text.length() - 1) - i;
+                    }
+                }
+                return text.length();
+            }
             // Get the current token position, taking into account any prepend
             // instructions that are pending
             int result = linePosition;
             if (!whitespace.isPrependEmpty()) {
                 result = whitespace.linePositionWithPrepend(result);
+//                System.out.println("ORIG-LP " + linePosition + " PREPENDING " + whitespace.prepend() + " " + result
+//                        + " last token " + (lastToken == null ? "null" : "'" + lastToken.getText() + "'"));
             }
             return result;
         }

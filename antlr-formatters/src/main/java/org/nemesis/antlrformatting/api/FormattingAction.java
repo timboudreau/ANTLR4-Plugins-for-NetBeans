@@ -207,6 +207,7 @@ public interface FormattingAction {
                     System.out.println("WRAP '" + token.getText() + "' for line pos "
                         + ctx.currentCharPositionInLine() + " with " + wrapAction);
                     wrapAction.accept(token, ctx, state);
+                    System.out.println("after wrap, line position is " + ctx.currentCharPositionInLine());
                 } else {
                     FormattingAction.this.accept(token, ctx, state);
                 }
