@@ -3,6 +3,7 @@ package org.nemesis.extraction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.Token;
@@ -19,16 +20,18 @@ final class TokenRegionExtractionStrategy<R> implements Hashable {
     private final IntPredicate tokenTypes;
     private final Function<Token, R> typeForToken;
     private static final Logger LOG = Logger.getLogger(TokenRegionExtractionStrategy.class.getName());
+    private final Predicate<? super Token> filter;
 
-    TokenRegionExtractionStrategy(Class<R> type, IntPredicate tokenTypes, Function<Token, R> typeForToken) {
+    TokenRegionExtractionStrategy(Class<R> type, IntPredicate tokenTypes, Function<Token, R> typeForToken, Predicate<? super Token> filter) {
         this.type = type;
         this.tokenTypes = tokenTypes;
         this.typeForToken = typeForToken;
+        this.filter = filter;
     }
 
     @Override
     public String toString() {
-        return super.toString() + "{type=" + type + ", matching: " + tokenTypes + "}";
+        return super.toString() + "{type=" + type + ", matching: " + tokenTypes + ", filter=" + filter + "}";
     }
 
     SemanticRegions<R> scan(Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
@@ -42,6 +45,9 @@ final class TokenRegionExtractionStrategy<R> implements Hashable {
                 return null;
             }
             boolean matched = tokenTypes.test(type);
+            if (filter != null) {
+                matched &= filter.test(tok);
+            }
             if (log) {
                 LOG.log(Level.FINEST, "Tok {0} at {1} matched {2}", new Object[] {type, tok.getTokenIndex(), matched});
             }

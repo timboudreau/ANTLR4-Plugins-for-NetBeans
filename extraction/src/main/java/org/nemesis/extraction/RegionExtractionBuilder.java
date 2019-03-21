@@ -49,6 +49,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         private final IntPredicate tokenTypeMatcher;
         private final Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors = new HashSet<>();
         private final Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors = new HashSet<>();
+        private Predicate<? super Token> filter;
 
         TokenRegionExtractorBuilder(ExtractorBuilder<EntryPointType> bldr, RegionsKey<RegionKeyType> key, IntPredicate tokenTypeMatcher, Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors) {
             this(bldr, key, tokenTypeMatcher);
@@ -62,16 +63,22 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             this.tokenTypeMatcher = tokenTypeMatcher;
         }
 
+        public TokenRegionExtractorBuilder filteringTokensWith(Predicate<? super Token> filter) {
+            this.filter = filter;
+            return this;
+        }
+
         public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> derivingKeyWith(Function<Token, RegionKeyType> func) {
-            tokenExtractors.add(new TokenRegionExtractionStrategy<>(key.type(), tokenTypeMatcher, func));
+            tokenExtractors.add(new TokenRegionExtractionStrategy<>(key.type(), tokenTypeMatcher, func, filter));
             return new FinishableRegionExtractorBuilder<>(bldr, key, extractors, tokenExtractors);
         }
-        
+
         public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> usingKey(RegionKeyType fixedKey) {
             return derivingKeyWith(new FixedKey<>(fixedKey));
         }
-        
+
         static final class FixedKey<T> implements Function<Token, T>, Hashable {
+
             private final T key;
 
             public FixedKey(T key) {
@@ -82,7 +89,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             public T apply(Token t) {
                 return key;
             }
-            
+
             @Override
             public String toString() {
                 return Objects.toString(key);

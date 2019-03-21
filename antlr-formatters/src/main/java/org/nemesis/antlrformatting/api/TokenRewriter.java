@@ -65,6 +65,9 @@ public interface TokenRewriter {
             int pos = currLinePosition;
             for (Iterator<String> it = TokenRewriter.collate(text).iterator(); it.hasNext();) {
                 String word = it.next();
+                if (word == null) {
+                    continue; // XXX ???
+                }
                 int projectedPosition = pos == currLinePosition ? pos + word.length()
                         : (pos - 1) + word.length();
                 if (projectedPosition > lineLimit) {

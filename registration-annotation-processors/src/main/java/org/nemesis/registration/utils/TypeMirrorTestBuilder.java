@@ -66,6 +66,7 @@ public class TypeMirrorTestBuilder<T> extends AbstractPredicateBuilder<TypeMirro
     }
 
     private NamedPredicate<TypeMirror> primitiveTypeTest(String name) {
+        // XXX handle array types
         TypeKind kind;
         switch (name) {
             case "byte":

@@ -1166,11 +1166,11 @@ public final class AnnotationUtils {
         return (B) MethodTestBuilder.<B>createMethod(this);
     }
 
-    public AnnotationMirrorTestBuilder<Predicate<? super AnnotationMirror>> testMirror() {
+    public AnnotationMirrorTestBuilder<Predicate<? super AnnotationMirror>, ? extends AnnotationMirrorTestBuilder<?,?>> testMirror() {
         return new AnnotationMirrorTestBuilder<>(this, amtb -> amtb.predicate());
     }
 
-    public MultiAnnotationTestBuilder<Predicate<? super AnnotationMirror>> multiAnnotations() {
+    public MultiAnnotationTestBuilder multiAnnotations() {
         return MultiAnnotationTestBuilder.createDefault(this);
     }
 

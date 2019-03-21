@@ -13,14 +13,14 @@ import javax.lang.model.element.AnnotationMirror;
  *
  * @author Tim Boudreau
  */
-public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<AnnotationMirror, AnnotationMirrorTestBuilder<T>, T> {
+public class AnnotationMirrorTestBuilder<T, B extends AnnotationMirrorTestBuilder<T, B>> extends AbstractPredicateBuilder<AnnotationMirror, B, T> {
 
-    AnnotationMirrorTestBuilder(AnnotationUtils utils, Function<AnnotationMirrorTestBuilder<T>, T> converter) {
+    AnnotationMirrorTestBuilder(AnnotationUtils utils, Function<B, T> converter) {
         super(utils, converter);
     }
 
-    public AnnotationMirrorTestBuilder<T> atLeastOneMemberMayBeSet(String... memberNames) {
-        return addPredicate("at-least-one-of-" + AnnotationUtils.join(',', memberNames) + "-must-be-set",(am) -> {
+    public B atLeastOneMemberMayBeSet(String... memberNames) {
+        return addPredicate("at-least-one-of-" + AnnotationUtils.join(',', memberNames) + "-must-be-set", (am) -> {
             List<Object> all = new ArrayList<>();
             Set<String> names = new HashSet<>();
             for (String name : memberNames) {
@@ -36,8 +36,8 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
         });
     }
 
-    public AnnotationMirrorTestBuilder<T> onlyOneMemberMayBeSet(String... memberNames) {
-        return addPredicate("no-more-than-one-of-" + AnnotationUtils.join(',', memberNames) + "-may-be-set",(am) -> {
+    public B onlyOneMemberMayBeSet(String... memberNames) {
+        return addPredicate("no-more-than-one-of-" + AnnotationUtils.join(',', memberNames) + "-may-be-set", (am) -> {
             List<Object> all = new ArrayList<>();
             Set<String> names = new HashSet<>();
             for (String name : memberNames) {
@@ -55,16 +55,14 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
         });
     }
 
-    public AnnotationMirrorMemberTestBuilder<AnnotationMirrorTestBuilder<T>>
+    public AnnotationMirrorMemberTestBuilder<B>
             testMember(String memberName) {
         return new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
-            addPredicate(ammtb._predicate());
-            return this;
+            return addPredicate(ammtb._predicate());
         }, memberName, utils);
     }
 
-    public AnnotationMirrorTestBuilder<T>
-            testMember(String memberName, Consumer<AnnotationMirrorMemberTestBuilder<?>> c) {
+    public B testMember(String memberName, Consumer<AnnotationMirrorMemberTestBuilder<?>> c) {
         boolean[] built = new boolean[1];
         AnnotationMirrorMemberTestBuilder<Void> m = new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
             addPredicate(ammtb._predicate());
@@ -75,13 +73,13 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
         if (!built[0]) {
             m.build();
         }
-        return this;
+        return (B) this;
     }
 
-    public AnnotationMirrorMemberTestBuilder<AnnotationMirrorTestBuilder<T>>
+    public AnnotationMirrorMemberTestBuilder<B>
             testMemberIfPresent(String memberName) {
-        return new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
-            addPredicate(ammtb._predicate().name(), (outer) -> {
+        return new AnnotationMirrorMemberTestBuilder<B>((ammtb) -> {
+            return addPredicate(ammtb._predicate().name(), (outer) -> {
                 List<AnnotationMirror> values = utils.annotationValues(outer,
                         memberName, AnnotationMirror.class);
                 if (values.isEmpty()) {
@@ -89,11 +87,10 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
                 }
                 return ammtb.predicate().test(outer);
             });
-            return this;
         }, memberName, utils);
     }
 
-    public AnnotationMirrorTestBuilder<T>
+    public B
             testMemberIfPresent(String memberName, Consumer<AnnotationMirrorMemberTestBuilder<?>> c) {
         boolean[] built = new boolean[1];
         AnnotationMirrorMemberTestBuilder<Void> m = new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
@@ -112,12 +109,12 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
         if (!built[0]) {
             m.build();
         }
-        return this;
+        return (B) this;
     }
 
-    public AnnotationMirrorTestBuilder<AnnotationMirrorTestBuilder<T>> testMemberAsAnnotation(String memberName) {
+    public AnnotationMirrorTestBuilder<B, ? extends AnnotationMirrorTestBuilder<B, ?>> testMemberAsAnnotation(String memberName) {
         return new AnnotationMirrorTestBuilder<>(utils, (amtb) -> {
-            addPredicate("member-as-anno-" + memberName + ":" + amtb._predicate().name(), (AnnotationMirror a) -> {
+            return addPredicate("member-as-anno-" + memberName + "\n" + amtb._predicate().name(), (AnnotationMirror a) -> {
                 List<AnnotationMirror> mir = utils.annotationValues(a, memberName, AnnotationMirror.class);
                 Predicate<? super AnnotationMirror> p = amtb.predicate();
                 boolean result = true;
@@ -128,14 +125,13 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
                 }
                 return result;
             });
-            return this;
         });
     }
 
-    public AnnotationMirrorTestBuilder<T> testMemberAsAnnotation(String memberName, Consumer<AnnotationMirrorTestBuilder<?>> c) {
+    public B testMemberAsAnnotation(String memberName, Consumer<AnnotationMirrorTestBuilder<?, ? extends AnnotationMirrorTestBuilder<?, ?>>> c) {
         boolean[] built = new boolean[1];
-        AnnotationMirrorTestBuilder<Void> res = new AnnotationMirrorTestBuilder<>(utils, (amtb) -> {
-            addPredicate("member-as-anno-" + memberName + ":" + amtb._predicate().name(), (AnnotationMirror a) -> {
+        AnnotationMirrorTestBuilder<Void, ?> res = new AnnotationMirrorTestBuilder<>(utils, (amtb) -> {
+            addPredicate("member-as-anno-" + memberName + "\n" + amtb._predicate().name(), (AnnotationMirror a) -> {
                 List<AnnotationMirror> mir = utils.annotationValues(a, memberName, AnnotationMirror.class);
                 Predicate<? super AnnotationMirror> p = amtb.predicate();
                 boolean result = true;
@@ -153,6 +149,6 @@ public class AnnotationMirrorTestBuilder<T> extends AbstractPredicateBuilder<Ann
         if (!built[0]) {
             res.build();
         }
-        return this;
+        return (B) this;
     }
 }

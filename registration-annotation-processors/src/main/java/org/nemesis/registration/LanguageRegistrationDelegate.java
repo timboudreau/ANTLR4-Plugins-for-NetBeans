@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.logging.Level;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -50,6 +50,7 @@ import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATIO
 import org.nemesis.registration.api.LayerGeneratingDelegate;
 import org.nemesis.registration.codegen.ClassBuilder;
 import org.nemesis.registration.codegen.LinesBuilder;
+import org.nemesis.registration.utils.AnnotationMirrorMemberTestBuilder;
 import org.nemesis.registration.utils.AnnotationUtils;
 import static org.nemesis.registration.utils.AnnotationUtils.capitalize;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
@@ -71,7 +72,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     public static final int HIDDEN = 1;
     public static final int MIN_CHAR_VALUE = 0;
     public static final int MAX_CHAR_VALUE = 1114111;
-    private Predicate<? super AnnotationMirror> mirrorTest;
+    private BiPredicate<? super AnnotationMirror, ? super Element> mirrorTest;
 
     private static Map<String, Integer> lexerClassConstants() {
         Map<String, Integer> result = new HashMap<>();
@@ -87,7 +88,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
-        return mirrorTest.test(mirror);
+        return mirrorTest.test(mirror, element);
     }
 
     @Override
@@ -98,18 +99,69 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     .build()
                     .testMember("mimeType")
                     .validateStringValueAsMimeType().build()
-                    .testMemberAsAnnotation("synatx", stb -> {
+                    .testMember("lexer", lexer -> {
+                        lexer.asTypeSpecifier()
+                                .hasModifier(PUBLIC)
+                                .isSubTypeOf("org.antlr.v4.runtime.Lexer")
+                                .build();
+                    })
+                    .testMemberAsAnnotation("parser", parserMember -> {
+                        parserMember.testMember("type").asTypeSpecifier(pType -> {
+                            pType.isSubTypeOf("org.antlr.v4.runtime.Parser")
+                                    .hasModifier(PUBLIC);
+                        }).build()
+                                .testMember("entryPointRule")
+                                .intValueMustBeGreaterThanOrEqualTo(0)
+                                .build()
+                                .testMember("parserStreamChannel")
+                                .intValueMustBeGreaterThanOrEqualTo(0)
+                                .build()
+                                .testMember("helper").asTypeSpecifier(helperType -> {
+                                    helperType.isSubTypeOf("org.nemesis.antlr.spi.language.NbParserHelper")
+                                            .doesNotHaveModifier(PRIVATE)
+                                            .mustHavePublicNoArgConstructor()
+
+                                            ;
+                                }).build();
+                    })
+                    .testMemberAsAnnotation("categories", cb -> {
+                        cb.testMember("tokenIds")
+                                .intValueMustBeGreaterThan(0).build();
+                        cb.testMemberAsAnnotation("colors", colors -> {
+                            Consumer<AnnotationMirrorMemberTestBuilder<?>> c = ammtb -> {
+                                ammtb.arrayValueSizeMustEqualOneOf(
+                                        "Color arrays must be empty, or be RGB "
+                                        + "or RGBA values from 0-255", 0, 3, 4)
+                                        .intValueMustBeLessThanOrEqualTo(255)
+                                        .intValueMustBeGreaterThanOrEqualTo(0);
+                            };
+                            for (String s : new String[]{"fg", "bg", "underline", "waveUnderline"}) {
+                                colors.testMember(s, c);
+                            }
+                            colors.testMember("themes")
+                                    .stringValueMustNotContain('/').build();
+                        });
+                    })
+                    .testMemberAsAnnotation("syntax", stb -> {
                         stb.testMember("hooks")
                                 .asType(hooksTypes -> {
-                                    hooksTypes.isAssignable("org.nemesis.antlr.spi.language.DataObjectHooks")
+                                    hooksTypes.isAssignable(
+                                            "org.nemesis.antlr.spi.language.DataObjectHooks")
                                             .nestingKindMustNotBe(NestingKind.LOCAL)
                                             .build();
                                 })
-                                .valueAsTypeElement().mustHavePublicNoArgConstructor().build()
+                                .valueAsTypeElement()
+                                .mustHavePublicNoArgConstructor()
+                                .testContainingClasses(cc -> {
+                                    cc.nestingKindMayNotBe(NestingKind.LOCAL)
+                                            .doesNotHaveModifier(PRIVATE);
+                                })
+                                .build()
                                 .build();
                     });
             ;
         }).build();
+        System.out.println("MIRROR TEST: \n" + mirrorTest);
     }
 
     private final Map<String, Set<VariableElement>> gotos = new HashMap<>();

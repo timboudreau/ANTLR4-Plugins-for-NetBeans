@@ -5,6 +5,8 @@
  */
 package org.nemesis.registration.utils;
 
+import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -15,6 +17,14 @@ interface NamedPredicate<T> extends Named, Predicate<T> {
 
     public default NamedPredicate<Iterable<T>> toListPredicate(boolean and) {
         return PredicateUtils.listPredicate(and, this);
+    }
+
+    default <R> NamedPredicate<R> listTransform(Function<R, List<? extends T>> func) {
+        return new ListTransformPredicate<>(this, func);
+    }
+
+    default <R> NamedPredicate<R> convert(Function<R, T> converter, AbsenceAction onNullConversion) {
+        return PredicateUtils.converted(this, converter, onNullConversion);
     }
 
     @Override

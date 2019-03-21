@@ -16,10 +16,6 @@ enum TypeMirrorComparison {
     EXACT_MATCH, SAME_TYPE, IS_SUBTYPE, IS_SUPERTYPE, IS_ASSIGNABLE,
     IS_SUBSIGNATURE, IS_SUPERSIGNATURE;
 
-    static {
-        AnnotationUtils.forceLogging();
-    }
-
     private <V> Supplier<TypeMirror> lazyTypeMirrorSupplier(V v, Function<V, TypeMirror> convert, BiFunction<Boolean, String, Boolean> b) {
         return () -> {
             TypeMirror result = convert.apply(v);

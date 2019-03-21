@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.lang.model.element.Element;
@@ -33,6 +34,22 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
         });
     }
 
+    public B testElementAsType(Consumer<TypeMirrorTestBuilder<?>> c) {
+        boolean[] built = new boolean[1];
+        TypeMirrorTestBuilder<Void> b = new TypeMirrorTestBuilder<>(utils, tmtb -> {
+            addPredicate("as-type-mirror:" + tmtb._predicate().name(), e -> {
+                return tmtb.predicate().test(e.asType());
+            });
+            built[0] = true;
+            return null;
+        });
+        c.accept(b);
+        if (!built[0]) {
+            b.build();
+        }
+        return (B) this;
+    }
+
     static <E extends Element, B extends ElementTestBuilder<E, Predicate<? super E>, B>> ElementTestBuilder<E, Predicate<? super E>, B> create(AnnotationUtils utils) {
         return new ElementTestBuilder<>(utils, etb -> {
             return etb.predicate();
@@ -45,13 +62,91 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
         };
     }
 
-    public TypeElementTestBuilder<B, ?> testContainingClass() {
+    public TypeElementTestBuilder<B, ? extends TypeElementTestBuilder<B, ?>> testContainingClass() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
-            return addPredicate(() -> "containing-class(" + tetb._predicate().name() + ")",
+            return addPredicate(() -> "containing-class\n" + tetb._predicate().name(),
                     AnnotationUtils::enclosingType, (et, tp) -> {
-                return tetb.predicate().test(tp);
-            });
+                        return tetb.predicate().test(tp);
+                    });
         });
+    }
+
+    public B testContainingClass(Consumer<TypeElementTestBuilder<B, ? extends TypeElementTestBuilder<B, ?>>> c) {
+        boolean[] built = new boolean[1];
+        TypeElementTestBuilder<B, ? extends TypeElementTestBuilder<B, ?>> b = new TypeElementTestBuilder<>(utils, tetb -> {
+            addPredicate(() -> "containing-class(" + tetb._predicate().name() + ")",
+                    AnnotationUtils::enclosingType, (et, tp) -> {
+                        return tetb.predicate().test(tp);
+                    });
+            built[0] = true;
+            return null;
+        });
+        c.accept(b);
+        return (B) this;
+    }
+
+    private static List<TypeElement> allEnclosingTypes(Element el) {
+        List<TypeElement> result = new ArrayList<>(4);
+        Element e = el;
+        while (e != null) {
+            TypeElement type = AnnotationUtils.enclosingType(e);
+            e = type;
+            if (type != null) {
+                result.add(type);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Apply the tests in the returned builder to all containing classes of the
+     * one in question.
+     *
+     * @return A builder
+     */
+    public TypeElementTestBuilder<B, ? extends TypeElementTestBuilder<B, ?>> testContainingClasses() {
+        return new TypeElementTestBuilder<>(utils, tetb -> {
+            return addPredicate(() -> "containing-classes\n" + tetb._predicate().name(),
+                    el -> {
+                        Element e = el;
+                        NamedPredicate<TypeElement> pred = tetb._predicate();
+                        boolean result = true;
+                        while (e != null) {
+                            TypeElement type = AnnotationUtils.enclosingType(e);
+                            e = type;
+                            if (type != null) {
+                                result &= pred.test(type);
+                            }
+                        }
+                        return result;
+                    });
+        });
+    }
+
+    public B testContainingClasses(Consumer<TypeElementTestBuilder<?, ?>> c) {
+        boolean[] built = new boolean[1];
+        TypeElementTestBuilder<?, ? extends TypeElementTestBuilder<?, ?>> b = new TypeElementTestBuilder<>(utils, tetb -> {
+            built[0] = true;
+            return addPredicate(() -> "containing-classes\n" + tetb._predicate().name(),
+                    el -> {
+                        Element e = el;
+                        NamedPredicate<TypeElement> pred = tetb._predicate();
+                        boolean result = true;
+                        while (e != null) {
+                            TypeElement type = AnnotationUtils.enclosingType(e);
+                            e = type;
+                            if (type != null) {
+                                result &= pred.test(type);
+                            }
+                        }
+                        return result;
+                    });
+        });
+        c.accept(b);
+        if (!built[0]) {
+            b.build();
+        }
+        return (B) this;
     }
 
     public TypeMirrorTestBuilder<B> testContainingType() {
@@ -65,12 +160,45 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
         });
     }
 
-    public TypeElementTestBuilder<B, ?> testOutermostClass() {
+    public B testContainingType(Consumer<TypeMirrorTestBuilder<?>> c) {
+        boolean[] built = new boolean[1];
+        TypeMirrorTestBuilder<?> b = new TypeMirrorTestBuilder<>(utils, tmtb -> {
+            built[0] = true;
+            return addPredicate(() -> "containing-type(" + tmtb._predicate().name() + ")", AnnotationUtils::enclosingTypeAsTypeMirror, (et, tp) -> {
+                if (tp == null) {
+                    return true;
+                }
+                return tmtb.predicate().test(tp);
+            });
+        });
+        c.accept(b);
+        if (!built[0]) {
+            b.build();
+        }
+        return (B) this;
+    }
+
+    public TypeElementTestBuilder<B, ? extends TypeElementTestBuilder<B, ?>> testOutermostClass() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
             return addPredicate(() -> "outer-compilation-unit-class(" + tetb._predicate().name() + ")", AnnotationUtils::topLevelType, (et, tp) -> {
                 return tetb.predicate().test(tp);
             });
         });
+    }
+
+    public B testOutermostClass(Consumer<TypeElementTestBuilder<?, ? extends TypeElementTestBuilder<?, ?>>> c) {
+        boolean[] built = new boolean[0];
+        TypeElementTestBuilder<?, ? extends TypeElementTestBuilder<?, ?>> b = new TypeElementTestBuilder<>(utils, tetb -> {
+            addPredicate(() -> "outer-compilation-unit-class(" + tetb._predicate().name() + ")", AnnotationUtils::topLevelType, (et, tp) -> {
+                return tetb.predicate().test(tp);
+            });
+            return null;
+        });
+        c.accept(b);
+        if (!built[0]) {
+            b.build();
+        }
+        return (B) this;
     }
 
     public TypeMirrorTestBuilder<B> testOutermostType() {
@@ -82,6 +210,25 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
                 return tmtb.predicate().test(tp);
             });
         });
+    }
+
+    public B testOutermostType(Consumer<TypeMirrorTestBuilder<?>> c) {
+        boolean[] built = new boolean[1];
+        TypeMirrorTestBuilder<Void> b = new TypeMirrorTestBuilder<>(utils, tmtb -> {
+            addPredicate(() -> "outer-compilation-unit-type(" + tmtb._predicate().name() + ")", AnnotationUtils::topLevelTypeAsTypeMirror, (et, tp) -> {
+                if (tp == null) {
+                    return true;
+                }
+                return tmtb.predicate().test(tp);
+            });
+            built[0] = true;
+            return null;
+        });
+        c.accept(b);
+        if (!built[0]) {
+            b.build();
+        }
+        return (B) this;
     }
 
     Predicate<? super E> getPredicate() {
@@ -113,7 +260,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
         if (more.length == 0) {
             return typeParameterExtendsOneOf(ix, name);
         }
-        return addPredicate("type-parameter-" + ix + "-extends-one-of-" + name + "," + AnnotationUtils.join(',', more),(e) -> {
+        return addPredicate("type-parameter-" + ix + "-extends-one-of-" + name + "," + AnnotationUtils.join(',', more), (e) -> {
             TypeMirror expected = utils.getTypeParameter(ix, e);
             List<String> all = new ArrayList<>();
             all.add(name);
@@ -157,7 +304,7 @@ public class ElementTestBuilder<E extends Element, R, B extends ElementTestBuild
     }
 
     public B hasModifier(Modifier m) {
-        return addPredicate("must-have-modifier-" + m,(e) -> {
+        return addPredicate("must-have-modifier-" + m, (e) -> {
             return maybeFail(e.getModifiers() != null && e.getModifiers().contains(m),
                     "Must be " + m);
         });

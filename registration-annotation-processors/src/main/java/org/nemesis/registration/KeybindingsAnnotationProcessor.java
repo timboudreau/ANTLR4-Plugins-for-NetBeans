@@ -128,9 +128,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
             });
         }).whereAnnotationType(GOTO_ANNOTATION, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType().build();
-        }).biPredicate();
-
-        System.out.println("KEYBINDINGS VAL " + validator);
+        }).build();
     }
 
     Element targetElement(String mimeType) {

@@ -1,44 +1,170 @@
 package org.nemesis.registration.utils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.Supplier;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.VariableElement;
+import org.nemesis.misc.utils.Iterables;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class MultiAnnotationTestBuilder<R> extends AbstractPredicateBuilder<AnnotationMirror, MultiAnnotationTestBuilder<R>, R> {
+public class MultiAnnotationTestBuilder {
 
-    private final Map<String, Map<ElementKind, Predicate<Element>>> predicateForKindForAnnotationType = new HashMap<>();
+    private final AnnotationUtils utils;
+    private final Map<String, AnnotationPredicateSet> byAnnotation = Iterables.supplierMap(AnnotationPredicateSet::new);
 
-    MultiAnnotationTestBuilder(AnnotationUtils utils, Function<MultiAnnotationTestBuilder<R>, R> converter) {
-        super(utils, converter);
+    MultiAnnotationTestBuilder(AnnotationUtils utils) {
+        this.utils = utils;
     }
 
-    static MultiAnnotationTestBuilder<Predicate<? super AnnotationMirror>> createDefault(AnnotationUtils utils) {
-        return new MultiAnnotationTestBuilder<>(utils, matb -> {
-            return matb.predicate();
-        });
+    static MultiAnnotationTestBuilder createDefault(AnnotationUtils utils) {
+        return new MultiAnnotationTestBuilder(utils);
     }
 
-    public MultiAnnotationTestBuilder<R> whereAnnotationType(String annoType, Consumer<AnnotationMirrorTestBuilderWithAssociatedElementTests<?>> c) {
-        // Use lazy predicate to avoid doing much simply because an annotation processor
-        // was instantiated - it might never be used
-        addPredicate("if-annotation-type:" + simpleName(annoType), PredicateUtils.lazyPredicate(() -> {
+    public BiPredicate<? super AnnotationMirror, ? super Element> build() {
+        return new Bip(byAnnotation);
+    }
+
+    static final class Bip implements BiPredicate<AnnotationMirror, Element> {
+
+        private final Map<String, AnnotationPredicateSet> byAnnotation = new HashMap<>();
+
+        Bip(Map<? extends String, ? extends AnnotationPredicateSet> m) {
+            byAnnotation.putAll(m);
+        }
+
+        @Override
+        public boolean test(AnnotationMirror t, Element u) {
+            AnnotationPredicateSet set = byAnnotation.get(t.getAnnotationType().toString());
+            if (set == null) {
+                return true;
+            }
+            return set.test(t, u);
+        }
+
+        public String toString() {
+            List<String> keys = new ArrayList<>(byAnnotation.keySet());
+            Collections.sort(keys, (a, b) -> {
+                String a1 = simpleName(a);
+                String b1 = simpleName(b);
+                return a1.compareTo(b1);
+            });
+            StringBuilder sb = new StringBuilder();
+            for (String key : keys) {
+                sb.append(simpleName(key)).append('\n');
+                AnnotationPredicateSet set = byAnnotation.get(key);
+                set.toString(sb);
+            }
+            return sb.toString();
+        }
+    }
+
+    private static class AnnotationPredicateSet implements BiPredicate<AnnotationMirror, Element> {
+
+        private final Map<ElementKind, List<NamedPredicate<Element>>> predicateForElementKind = Iterables.supplierMap(LinkedList::new);
+        private final List<NamedPredicate<AnnotationMirror>> annoPredicates = new ArrayList<>(4);
+        private final List<Supplier<AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ?>>> suppliers = new ArrayList<>(2);
+        private boolean initialized = false;
+
+        void add(Supplier<AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ?>> supp) {
+            suppliers.add(supp);
+        }
+
+        @Override
+        public String toString() {
+            return toString(new StringBuilder()).toString();
+        }
+
+        private boolean isEmpty() {
+            boolean result = annoPredicates.isEmpty();
+            if (result) {
+                if (!predicateForElementKind.isEmpty()) {
+                    for (Map.Entry<ElementKind, List<NamedPredicate<Element>>> e : predicateForElementKind.entrySet()) {
+                        result &= e.getValue().isEmpty();
+                        if (!result) {
+                            break;
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        StringBuilder toString(StringBuilder sb) {
+            maybeInit();
+            if (isEmpty()) {
+                return sb.append("<empty>");
+            }
+            for (Iterator<NamedPredicate<AnnotationMirror>> it = annoPredicates.iterator(); it.hasNext();) {
+                NamedPredicate<AnnotationMirror> pred = it.next();
+                sb.append("  ").append(pred.name()).append('\n');
+            }
+            for (Iterator<Map.Entry<ElementKind, List<NamedPredicate<Element>>>> it = predicateForElementKind.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<ElementKind, List<NamedPredicate<Element>>> e = it.next();
+                if (!e.getValue().isEmpty()) {
+                    sb.append("  ").append(e.getKey()).append('\n');
+                    for (NamedPredicate<Element> n : e.getValue()) {
+                        sb.append("    ").append(n.name()).append('\n');
+                    }
+                }
+            }
+            return sb;
+        }
+
+        private void maybeInit() {
+            if (!initialized) {
+                initialized = true;
+                for (Supplier<AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ?>> s : suppliers) {
+                    AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ?> b = s.get();
+                    annoPredicates.add(b._predicate());
+                    b.visitElementPredicates((ElementKind t, List<NamedPredicate<Element>> u) -> {
+                        predicateForElementKind.get(t).addAll(u);
+                    });
+                }
+            }
+        }
+
+        @Override
+        public boolean test(AnnotationMirror am, Element el) {
+            maybeInit();
+            boolean result = true;
+            for (NamedPredicate<AnnotationMirror> pred : annoPredicates) {
+                result &= pred.test(am);
+                if (!result) {
+                    break;
+                }
+            }
+            List<NamedPredicate<Element>> forKind = predicateForElementKind.get(el.getKind());
+            for (NamedPredicate<Element> p : forKind) {
+                result &= p.test(el);
+                if (!result) {
+                    break;
+                }
+            }
+            return result;
+        }
+    }
+
+    public MultiAnnotationTestBuilder whereAnnotationType(String annoType, Consumer<AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ? extends AnnotationMirrorTestBuilderWithAssociatedElementTests>> c) {
+        AnnotationPredicateSet set = byAnnotation.get(annoType);
+        set.add(() -> {
             boolean[] built = new boolean[1];
             AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl amtb = new AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl(annoType, utils, b -> {
-                addPredicate("if-annotation-type: " + annoType, new TypeTestPredicate(annoType, b.predicate()));
                 built[0] = true;
                 return null;
             });
@@ -46,77 +172,30 @@ public class MultiAnnotationTestBuilder<R> extends AbstractPredicateBuilder<Anno
             if (!built[0]) {
                 amtb.build();
             }
-            return amtb.predicate();
-        }));
+            return amtb;
+        });
         return this;
     }
 
-    public AnnotationMirrorTestBuilder<MultiAnnotationTestBuilder<R>> whereAnnotationType(String annoType) {
-        return new AnnotationMirrorTestBuilder<>(utils, amtb -> {
-            addPredicate("if-annotation-type: " + annoType, new TypeTestPredicate(annoType, amtb.predicate()));
-            return this;
-        });
-    }
-
-    static final class TypeTestPredicate extends AbstractNamed implements NamedPredicate<AnnotationMirror> {
-
-        private final String type;
-        private final Predicate<? super AnnotationMirror> other;
-
-        public TypeTestPredicate(String type, Predicate<? super AnnotationMirror> other) {
-            this.type = type;
-            this.other = other;
-        }
-
-        @Override
-        public boolean test(AnnotationMirror t) {
-            if (type.equals(t.getAnnotationType().toString())) {
-                return other.test(t);
-            }
-            return true;
-        }
-
-        @Override
-        public String name() {
-            return simpleName(type);
-        }
-    }
-
-    public static abstract class AnnotationMirrorTestBuilderWithAssociatedElementTests<T> extends AnnotationMirrorTestBuilder<T> {
-
-        AnnotationMirrorTestBuilderWithAssociatedElementTests(AnnotationUtils utils, Function<AnnotationMirrorTestBuilder<T>, T> converter) {
-            super(utils, converter);
-        }
-
-        public abstract AnnotationMirrorTestBuilderWithAssociatedElementTests<T> whereMethodIsAnnotated(Consumer<MethodTestBuilder<?, ? extends MethodTestBuilder<?, ?>>> c);
-
-        public abstract AnnotationMirrorTestBuilderWithAssociatedElementTests<T> whereFieldIsAnnotated(Consumer<ElementTestBuilder<VariableElement, ?, ? extends ElementTestBuilder<VariableElement, ?, ?>>> c);
-
-        public abstract AnnotationMirrorTestBuilderWithAssociatedElementTests<T> whereClassIsAnnotated(Consumer<TypeElementTestBuilder<?, ? extends TypeElementTestBuilder<?, ?>>> c);
-    }
-
-    private class AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl extends AnnotationMirrorTestBuilderWithAssociatedElementTests<MultiAnnotationTestBuilder> {
+    private class AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl extends AnnotationMirrorTestBuilderWithAssociatedElementTests<MultiAnnotationTestBuilder, AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl> {
 
         private final String annoType;
+        private final Map<ElementKind, List<NamedPredicate<Element>>> elementTests = Iterables.supplierMap(ArrayList::new);
 
-        AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl(String annoType, AnnotationUtils utils, Function<AnnotationMirrorTestBuilder<MultiAnnotationTestBuilder>, MultiAnnotationTestBuilder> converter) {
+        AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl(String annoType, AnnotationUtils utils, Function<AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl, MultiAnnotationTestBuilder> converter) {
             super(utils, converter);
             this.annoType = annoType;
         }
 
+        @Override
+        void visitElementPredicates(BiConsumer<ElementKind, List<NamedPredicate<Element>>> bi) {
+            elementTests.forEach(bi);
+        }
+
         @SuppressWarnings("unchecked")
-        public AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl add(Predicate<? extends Element> p, ElementKind... k) {
+        public AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl add(NamedPredicate<? extends Element> p, ElementKind... k) {
             for (ElementKind kind : k) {
-                Map<ElementKind, Predicate<Element>> predicateForKind = predicateForKindForAnnotationType.get(annoType);
-                if (predicateForKind == null) {
-                    predicateForKind = new HashMap<>();
-                    predicateForKindForAnnotationType.put(annoType, predicateForKind);
-                }
-                Predicate<Element> pred = predicateForKind.get(kind);
-                if (pred != null) {
-                    pred = pred.and((Predicate<Element>) p);
-                }
-                predicateForKind.put(kind, pred);
+                elementTests.get(kind).add((NamedPredicate<Element>) p);
             }
             return this;
         }
@@ -139,14 +218,14 @@ public class MultiAnnotationTestBuilder<R> extends AbstractPredicateBuilder<Anno
         public AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl whereFieldIsAnnotated(Consumer<ElementTestBuilder<VariableElement, ?, ? extends ElementTestBuilder<VariableElement, ?, ?>>> c) {
             boolean[] built = new boolean[1];
             assert annoType != null;
-            ElementTestBuilder<VariableElement, Void, ?> mtb = new ElementTestBuilder<>(utils, b -> {
+            ElementTestBuilder<VariableElement, Void, ?> etb = new ElementTestBuilder<>(utils, b -> {
                 add(b._predicate(), ElementKind.FIELD);
                 built[0] = true;
                 return null;
             });
-            c.accept(mtb);
+            c.accept(etb);
             if (!built[0]) {
-                mtb.build();
+                etb.build();
             }
             return this;
         }
@@ -154,92 +233,17 @@ public class MultiAnnotationTestBuilder<R> extends AbstractPredicateBuilder<Anno
         public AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl whereClassIsAnnotated(Consumer<TypeElementTestBuilder<?, ? extends TypeElementTestBuilder<?, ?>>> c) {
             boolean[] built = new boolean[1];
             assert annoType != null;
-            TypeElementTestBuilder<Void, ?> mtb = new TypeElementTestBuilder<>(utils, b -> {
+            TypeElementTestBuilder<Void, ?> tetb = new TypeElementTestBuilder<>(utils, b -> {
                 add(b._predicate(), ElementKind.CLASS);
                 add(b._predicate(), ElementKind.INTERFACE);
                 built[0] = true;
                 return null;
             });
-            c.accept(mtb);
+            c.accept(tetb);
             if (!built[0]) {
-                mtb.build();
+                tetb.build();
             }
             return this;
-        }
-    }
-
-    public BiPredicate<? super AnnotationMirror, ? super Element> biPredicate() {
-        return new Bi(this, predicateForKindForAnnotationType);
-    }
-
-    private static class Bi extends AbstractNamed implements BiPredicate<AnnotationMirror, Element>, Named {
-
-        NamedPredicate<AnnotationMirror> pred;
-        private final Map<String, Map<ElementKind, Predicate<Element>>> predicateForKindForAnnotationType;
-
-        Bi(MultiAnnotationTestBuilder mtb, Map<String, Map<ElementKind, Predicate<Element>>> predicateForKindForAnnotationType) {
-            this.predicateForKindForAnnotationType = Collections.unmodifiableMap(new HashMap<>(predicateForKindForAnnotationType));
-            this.pred = mtb._predicate();
-        }
-
-        public boolean test(AnnotationMirror mirror, Element on) {
-            boolean result = mainPred().test(mirror);
-            String typeName = mirror.getAnnotationType().toString();
-            Predicate<Element> pred = predicateForAnnotationType(typeName);
-            return pred.test(on) && result;
-        }
-
-        private Predicate<AnnotationMirror> mainPred() {
-            return pred;
-        }
-
-        @Override
-        public String name() {
-            StringBuilder sb = new StringBuilder(pred.toString());
-            return sb.append(predicateForKindForAnnotationType).toString();
-        }
-
-        private Predicate<Element> predicateForAnnotationType(String type) {
-            return new SwitchingPredicate(type);
-        }
-
-        class SwitchingPredicate implements NamedPredicate<Element> {
-
-            private final String annotationType;
-
-            public SwitchingPredicate(String annotationType) {
-                this.annotationType = annotationType;
-            }
-
-            @Override
-            public String name() {
-                Map<ElementKind, Predicate<Element>> m = predicateForKindForAnnotationType.get(annotationType);
-                if (m == null) {
-                    return "{}";
-                }
-                StringBuilder sb = new StringBuilder().append('{');
-                for (Iterator<Map.Entry<ElementKind, Predicate<Element>>> it = m.entrySet().iterator(); it.hasNext();) {
-                    Map.Entry<ElementKind, Predicate<Element>> e = it.next();
-                    sb.append(e.getKey()).append(": ").append(e.getValue());
-                    if (it.hasNext()) {
-                        sb.append(",");
-                    }
-                }
-                return sb.append('}').toString();
-            }
-
-            @Override
-            public boolean test(Element t) {
-                Map<ElementKind, Predicate<Element>> m = predicateForKindForAnnotationType.get(annotationType);
-                if (m == null) {
-                    return true;
-                }
-                Predicate<Element> elPred = m.get(t.getKind());
-                if (elPred == null) {
-                    return true;
-                }
-                return elPred.test(t);
-            }
         }
     }
 }

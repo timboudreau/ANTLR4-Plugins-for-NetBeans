@@ -3,7 +3,7 @@ package org.nemesis.registration;
 import org.nemesis.registration.api.AbstractRegistrationProcessor;
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -41,44 +41,37 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationPr
 
     private static final String APPEARANCE_TYPE = "org.nemesis.antlr.navigator.Appearance";
     public static final String SIMPLE_ANNOTATION_CLASS = ANTLR_NAVIGATOR_PACKAGE + ".SimpleNavigatorRegistration";
-    private Predicate<? super AnnotationMirror> annoTest;
-    private Predicate<? super Element> typeTest;
+    private BiPredicate<? super AnnotationMirror, ? super Element> annoTest;
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         annoTest = utils.multiAnnotations().whereAnnotationType(SIMPLE_ANNOTATION_CLASS, amtb -> {
             amtb.testMember("icon")
-                .stringValueMustEndWith(".jpg", ".gif", ".png")
-                .build()
-                .testMember("mimeType").validateStringValueAsMimeType().build()
-                // Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
-                .testMember("appearance").asType(tmtb -> {
-                    tmtb.isSubtype(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
-                    tmtb.asElement().doesNotHaveModifier(PRIVATE);
-                }).build()
-                .build();
+                    .stringValueMustEndWith(".jpg", ".gif", ".png")
+                    .build()
+                    .testMember("mimeType").validateStringValueAsMimeType().build()
+                    // Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
+                    .testMember("appearance").asType(tmtb -> {
+                tmtb.isSubtype(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
+                tmtb.asElement().doesNotHaveModifier(PRIVATE).mustHavePublicNoArgConstructor().build();
+            }).build()
+                    .whereFieldIsAnnotated(fieldTestBuilder -> {
+                        fieldTestBuilder.hasModifier(STATIC).doesNotHaveModifier(PRIVATE)
+                                .isSubTypeOf(NAMED_REGION_KEY_TYPE, SEMANTIC_REGION_KEY_TYPE)
+                                .testContainingClass().doesNotHaveModifier(PRIVATE)
+                                .nestingKindMayNotBe(NestingKind.LOCAL)
+                                .build().build();
+                    });
         }).build();
-
-        typeTest = utils.testsBuilder().hasModifier(STATIC).doesNotHaveModifier(PRIVATE)
-                .isSubTypeOf(NAMED_REGION_KEY_TYPE, SEMANTIC_REGION_KEY_TYPE)
-                .testContainingClass().doesNotHaveModifier(PRIVATE)
-                .build().build();
     }
 
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
-        boolean result = annoTest.test(mirror);
-        return result;
+        return annoTest.test(mirror, element);
     }
 
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        if (!annoTest.test(mirror)) {
-            return true;
-        }
-        if (!typeTest.test(var)) {
-            return true;
-        }
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(var);
         if (pkg == null || pkg.getQualifiedName().toString().isEmpty()) {
             utils().fail("Class annotated with " + SIMPLE_ANNOTATION_CLASS

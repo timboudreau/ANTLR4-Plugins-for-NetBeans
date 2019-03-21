@@ -111,7 +111,10 @@ final class SimpleCollator implements Iterator<String>, Iterable<String> {
         boolean oldHasEmitted = hasEmittedCharacters;
         cursor = 0;
         while (hasNext()) {
-            result.add(next());
+            String next = next();
+            if (next != null) {
+                result.add(next);
+            }
         }
         cursor = old;
         next = oldNext;

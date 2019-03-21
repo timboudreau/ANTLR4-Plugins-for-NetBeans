@@ -15,15 +15,24 @@ Hooks for dataobject methods, needed for antlr module's grammar file delete hand
 FORMATTING:
 
  - Rename AntlrFormatterProvider to AntlrFormatter and update in the annotation processor
-
  - REINDENT SUPPORT
-
  - Wrapping lines action is not getting the correct line position and going insane
-
  - Should preserve whitespace if no action taken
+
+ANNOTATION PROCESSORS:
+
+ - Split AnnotationUtils and validators into separate project
+ - Split java code generation into separate project
+ - Split annotation processing into phases, so ALL validation for a processor runs before ANY code is generated
+ - ClassBuilder and friends need an easy and intuitive way to do "new" rather than bundling it into the type name
+
 
 ACTIONS:
 
  - Most likely just need to use shared action names now that they're in the editor kit
+   - Well, that's a big fat NOPE.
+
+
+
 
 

@@ -32,8 +32,12 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         this.memberName = memberName;
     }
 
+    public String memberName() {
+        return memberName;
+    }
+
     public AnnotationMirrorMemberTestBuilder<T> validateStringValueAsMimeType() {
-        return stringValueMustMatch(this::validateMimeType);
+        return stringValueMustMatch(namedPredicate("valid-mime-type", this::validateMimeType));
     }
 
     boolean validateMimeType(String value) {
@@ -106,15 +110,54 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         });
     }
 
+    public AnnotationMirrorMemberTestBuilder<T> arrayValueSizeMustEqualOneOf(int... sizes) {
+        return arrayValueSizeMustEqualOneOf("Array size for " + memberName + " must be "
+                + "one of these sizes: " + Arrays.toString(sizes), sizes);
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> arrayValueSizeMustEqualOneOf(String msg, int... sizes) {
+        return addPredicate(memberName + "-array-value-size-must-be-one-of-{" + Arrays.toString(sizes) + "}",
+                (p) -> {
+                    List<Object> l = utils.annotationValues(p, memberName, Object.class);
+                    boolean found = false;
+                    for (int i = 0; i < sizes.length; i++) {
+                        int size = sizes[i];
+                        if (l.size() == size) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    return maybeFail(found, msg);
+                });
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> arrayValueSizeMustBeGreaterThan(int size) {
+        return addPredicate(memberName + "-array-value-size-must-be->" + size,
+                (p) -> {
+                    List<Object> l = utils.annotationValues(p, memberName, Object.class);
+                    return maybeFail(l.size() <= size, memberName + " must have an array "
+                            + "size greater than " + size);
+                });
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> arrayValueSizeMustBeLessThan(int size) {
+        return addPredicate(memberName + "-array-value-size-must-be->" + size,
+                (p) -> {
+                    List<Object> l = utils.annotationValues(p, memberName, Object.class);
+                    return maybeFail(l.size() >= size, memberName + " must have an array "
+                            + "size greater than " + size);
+                });
+    }
+
     public AnnotationMirrorMemberTestBuilder<T> arrayValueMayNotBeEmpty() {
-        return addPredicate("array-value-must-have-contents-in-" + memberName, am -> {
+        return addPredicate(memberName + "-array-value-must-have-contents", am -> {
             List<?> objs = utils.annotationValues(am, memberName, Object.class);
             return maybeFail(!objs.isEmpty(), "Value of '" + memberName + "' may not be empty");
         });
     }
 
     public AnnotationMirrorMemberTestBuilder<T> enumValuesMayNotCombine(String a, String b) {
-        return addPredicate("enum-values-may-not-combine-" + a + "-" + b + "-in-" + memberName, am -> {
+        return addPredicate(memberName + "-enum-values-may-not-combine-" + a + "-" + b, am -> {
             Set<String> all = utils.enumConstantValues(am, memberName);
             if (all.contains(a) && all.contains(b)) {
                 fail(memberName + " may not combine '" + a + "' and '" + b + "'");
@@ -125,7 +168,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustNotBeEmpty() {
-        return stringValueMustMatch(namedPredicate("string-value-not-empty-in-" + memberName, (val) -> {
+        return stringValueMustMatch(namedPredicate(memberName + "-string-value-not-empty-in", (val) -> {
             boolean result = val != null && !val.isEmpty();
             if (!result) {
                 fail("Value must not be empty");
@@ -134,8 +177,58 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         }));
     }
 
+    public AnnotationMirrorMemberTestBuilder<T> intValueMustBeGreaterThanOrEqualTo(int val) {
+        return intValueMustBeGreaterThan(val - 1, true);
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> intValueMustBeGreaterThan(int val) {
+        return intValueMustBeGreaterThan(val, false);
+    }
+
+    private AnnotationMirrorMemberTestBuilder<T> intValueMustBeGreaterThan(int val, boolean e) {
+        return addPredicate(memberName + "-int-value>" + (e ? "=" : "") + (e ? val+1 : val), mir -> {
+            boolean result = true;
+            String msg = !e ? "Value of " + memberName + " must be > " + val
+                    : "Value of " + memberName + " must be >= " + (val + 1);
+            List<Integer> l = utils.annotationValues(mir, memberName, Integer.class);
+            for (int i = 0; i < l.size(); i++) {
+                Integer v = l.get(i);
+                if (v <= val) {
+                    fail(msg + " but found " + v + " at index " + i);
+                    result = false;
+                }
+            }
+            return result;
+        });
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> intValueMustBeLessThanOrEqualTo(int val) {
+        return intValueMustBeLessThan(val + 1, true);
+    }
+
+    public AnnotationMirrorMemberTestBuilder<T> intValueMustBeLessThan(int val) {
+        return intValueMustBeLessThan(val, false);
+    }
+
+    private AnnotationMirrorMemberTestBuilder<T> intValueMustBeLessThan(int val, boolean e) {
+        return addPredicate(memberName + "-int-value<" + (e ? "=" : "") + (e ? val-1 : val), mir -> {
+            boolean result = true;
+            List<Integer> l = utils.annotationValues(mir, memberName, Integer.class);
+            String msg = e ? "Value of " + memberName + " must be <= " + (val - 1)
+                    : "Value of " + memberName + " must be < " + val;
+            for (int i = 0; i < l.size(); i++) {
+                Integer v = l.get(i);
+                if (v >= val) {
+                    fail(msg + " but found " + v + " at index " + i);
+                    result = false;
+                }
+            }
+            return result;
+        });
+    }
+
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustBeValidJavaIdentifier() {
-        return stringValueMustMatch((val) -> {
+        return stringValueMustMatch(namedPredicate(memberName + "-must-be-valid-java-identifier", (val) -> {
             if (val == null || val.isEmpty()) {
                 return true;
             }
@@ -153,13 +246,13 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
                         + c + " - not a valid Java identifier.");
             }
             return true;
-        });
+        }));
     }
 
     public TypeElementTestBuilder<AnnotationMirrorMemberTestBuilder<T>, ?> asTypeSpecifier() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
             NamedPredicate<TypeElement> p = tetb._predicate();
-            return addPredicate("member-" + memberName + "-as-type-" + p.name(), mir -> {
+            return addPredicate(memberName + "-as-type-element:" + p.name(), mir -> {
                 List<TypeElement> l = utils.typeElements(mir, memberName, this::fail);
                 return p.toListPredicate(true).test(l);
             });
@@ -169,11 +262,8 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     public AnnotationMirrorMemberTestBuilder<T> asTypeSpecifier(Consumer<TypeElementTestBuilder<?, ?>> c) {
         boolean[] built = new boolean[1];
         TypeElementTestBuilder<Void, ?> t = new TypeElementTestBuilder<>(utils, tetb -> {
-            NamedPredicate<TypeElement> p = tetb._predicate();
-            addPredicate("member-" + memberName + "-as-type-" + p.name(), mir -> {
-                List<TypeElement> l = utils.typeElements(mir, memberName, this::fail);
-                return p.toListPredicate(true).test(l);
-            });
+            addPredicate(tetb._predicate().listTransform(
+                    am -> utils.typeElements(am, memberName, this::fail)));
             built[0] = true;
             return null;
         });
@@ -233,7 +323,7 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
     }
 
     public AnnotationMirrorMemberTestBuilder<T> stringValueMustEndWith(String... postfixes) {
-        return stringValueMustMatch(namedPredicate("one-of-suffixes" + AnnotationUtils.join(',', postfixes), sv -> {
+        return stringValueMustMatch(namedPredicate("one-of-suffixes{" + AnnotationUtils.join(',', postfixes) + "}", sv -> {
             if (sv == null) {
                 return true;
             }
