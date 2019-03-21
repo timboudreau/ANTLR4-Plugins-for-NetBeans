@@ -159,7 +159,6 @@ final class EditorScrollPositionManager implements Runnable {
      * @param caretPos
      */
     void addCaretPositionUndoableEdit() {
-        System.out.println("ADDING CUSTOM EDIT");
         CustomUndoDocument customUndoDocument
                 = LineDocumentUtils.as(comp.getDocument(),
                         CustomUndoDocument.class);
@@ -178,7 +177,6 @@ final class EditorScrollPositionManager implements Runnable {
      * @param undoCaretPositionChange
      */
     private void setEditImplementation(ScrollAdjuster undoCaretPositionChange) {
-        System.out.println("SET EDIT IMPL " + undoCaretPositionChange);
         edit.setUndoRunner(undoCaretPositionChange);
     }
 
@@ -271,7 +269,6 @@ final class EditorScrollPositionManager implements Runnable {
                 }
             }
         }
-        System.out.println("NO SCROLL ADJUSTER FOR " + newCaretPos + " and " + origCaretPos);
         return null;
     }
 
@@ -391,7 +388,6 @@ final class EditorScrollPositionManager implements Runnable {
             JTextComponent comp = this.comp.get();
             JScrollPane pane = this.pane.get();
             if (valid(pane, comp)) {
-                System.out.println("  HAVE VALID PANE");
                 undoAdjust(pane);
             }
 
@@ -408,12 +404,9 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public void redo() {
-            System.out.println("REDO OFF EDT");
             EventQueue.invokeLater(tryCatch(() -> {
-                System.out.println("REDO ON EDT");
                 JScrollPane pane = this.pane.get();
                 if (valid(pane, comp.get())) {
-                    System.out.println("  HAVE VALID PANE");
                     doAdjust(pane);
                 }
             }));
@@ -421,7 +414,6 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public ScrollAdjusterImpl doAdjust(JScrollPane scroll) throws BadLocationException {
-            System.out.println("DO ADJUST " + xOff + "," + yOff);
             JTextComponent comp = this.comp.get();
             if (valid(scroll, comp)) {
                 newPosition.apply(comp);
@@ -434,14 +426,12 @@ final class EditorScrollPositionManager implements Runnable {
                 p.x = Math.min(r.width - (p.x + xOff), Math.max(0, p.x + xOff));
                 p.y = Math.min(r.height - (p.y + yOff), Math.max(0, p.y + yOff));
                 pane.get().getViewport().setViewPosition(p);
-                System.out.println("DO ADJUST TO " + p);
             }
             return this;
         }
 
         @Override
         public void undoAdjust(JScrollPane scroll) throws BadLocationException {
-            System.out.println("UNDO ADJUST " + xOff + "," + yOff);
             JTextComponent comp = this.comp.get();
             if (valid(scroll, comp)) {
                 oldPosition.apply(comp);
@@ -450,9 +440,6 @@ final class EditorScrollPositionManager implements Runnable {
                 p.x = Math.min(r.width - (p.x - xOff), Math.max(0, p.x - xOff));
                 p.y = Math.min(r.height - (p.y - yOff), Math.max(0, p.y - yOff));
                 pane.get().getViewport().setViewPosition(p);
-                System.out.println("UNDO ADJUST TO " + p);
-            } else {
-                System.out.println("NOT VALID");
             }
         }
     }
@@ -503,7 +490,6 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public ScrollAdjuster doAdjust(JTextComponent scroll) {
-            System.out.println("SIMPLE SCROLL DO ADJUST");
             if (valid(scroll)) {
                 try {
                     int pos = newCaretPosition < 0 ? 0 : newCaretPosition;
@@ -519,7 +505,6 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public void undoAdjust(JTextComponent scroll) {
-            System.out.println("SIMPLE SCROLL DO UNADJUST");
             if (valid(scroll)) {
                 try {
                     oldCaretPosition.apply(scroll);
@@ -602,9 +587,15 @@ final class EditorScrollPositionManager implements Runnable {
         private ScrollAdjuster caretUndoer;
 
         @Override
+        public String toString() {
+            return getClass().getSimpleName() + " with " + caretUndoer
+                    + " alive? " + (caretUndoer != null && caretUndoer.isAlive());
+        }
+
+        @Override
         public void die() {
-            System.out.println("DIE!");
-            caretUndoer = null;
+//            System.out.println("DIE!");
+//            caretUndoer = null;
             super.die();
         }
 
@@ -615,7 +606,10 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public boolean canRedo() {
-            return caretUndoer != null && caretUndoer.isAlive();
+            boolean result = caretUndoer != null && caretUndoer.isAlive();
+//            System.out.println("  UNDO / REDO Returning " + result + " for canRedo() / canUndo() "
+//                    + "for " + this);
+            return result;
         }
 
         @Override
@@ -625,20 +619,20 @@ final class EditorScrollPositionManager implements Runnable {
 
         @Override
         public void undo() throws CannotUndoException {
-            System.out.println("UNDO!");
             if (caretUndoer == null) {
-                throw new CannotUndoException();
+//                throw new CannotUndoException();
+            } else {
+                caretUndoer.undo();
             }
-            caretUndoer.undo();
         }
 
         @Override
         public void redo() throws CannotRedoException {
-            System.out.println("REDO!");
             if (caretUndoer == null) {
-                throw new CannotRedoException();
+//                throw new CannotRedoException();
+            } else {
+                caretUndoer.redo();
             }
-            caretUndoer.redo();
         }
 
         private void setUndoRunner(ScrollAdjuster undoCaretPositionChange) {

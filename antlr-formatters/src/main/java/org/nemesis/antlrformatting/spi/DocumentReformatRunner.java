@@ -69,21 +69,25 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         try {
             scrollHandler.invokeWithEditorDisabled((currentCursorPos) -> {
                 withDocumentLockedandInputDisabledAndReformatLock(document, () -> {
-                    Lexer lexer = prov.createLexer(document);
-                    RuleNode ruleNode = prov.parseAndExtractRootRuleNode(lexer);
-                    if (ruleNode != null) {
-                        lexer = prov.createLexer(document);
-                    }
-                    lexer.removeErrorListeners();
-                    FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer, ruleNode);
-                    System.out.println("GOT RESULT " + reformatted);
-                    boolean updated = replaceTextInDocument(document, reformatted);
-                    if (updated) {
-                        scrollHandler.addCaretPositionUndoableEdit();
+                    try {
+                        Lexer lexer = prov.createLexer(document);
+                        RuleNode ruleNode = prov.parseAndExtractRootRuleNode(lexer);
+                        if (ruleNode != null) {
+                            lexer = prov.createLexer(document);
+                        }
+                        lexer.removeErrorListeners();
+                        FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer, ruleNode);
+                        System.out.println("GOT RESULT " + reformatted);
+                        boolean updated = replaceTextInDocument(document, reformatted);
+                        if (updated) {
+                            scrollHandler.addCaretPositionUndoableEdit();
+                        }
+                    } catch (Throwable t) {
+                        t.printStackTrace(System.out);
                     }
                 });
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AntlrFormatterProvider.LOGGER.log(Level.SEVERE, "Exception replacing text", e);
         }
     }

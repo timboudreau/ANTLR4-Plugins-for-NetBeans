@@ -48,8 +48,19 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
         }
 
         public synchronized void updateStart(int start) {
+            int old = caret == null ? -1 : caret.start();
             caret = new CaretInfo(start);
-            System.out.println("WholeDocumentCaretFixer updateStart " + start + " info now " + caret);
+            System.out.println("\n\n*********\nWholeDocumentCaretFixer updateStart " + start + " info now " + caret + "\n");
+            if (start == 0 && old > start) {
+                new Exception("Probably incorrect caret detection " + old + " -> " + start)
+                        .printStackTrace(System.out);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + " with " + caret + " viable ? "
+                    + (caret != null ? caret.isViable() : "n/a");
         }
     }
 
@@ -78,6 +89,12 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
                 throw new IllegalStateException("updateLength() "
                         + "called but updateStart has not been");
             }
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + " with " + caret + " viable ? "
+                    + (caret != null ? caret.isViable() : "n/a");
         }
     }
 }

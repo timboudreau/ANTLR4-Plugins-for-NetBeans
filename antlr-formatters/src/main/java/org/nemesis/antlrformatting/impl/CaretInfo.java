@@ -42,7 +42,7 @@ public final class CaretInfo {
     }
 
     public boolean isViable() {
-        return start > 0 && end > 0;
+        return start >= 0 && end >= 0;
     }
 
     public void ifViable(ThrowingConsumer<CaretInfo> c) throws Exception {

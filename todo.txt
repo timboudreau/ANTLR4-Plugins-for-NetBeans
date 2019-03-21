@@ -18,6 +18,8 @@ FORMATTING:
  - REINDENT SUPPORT
  - Wrapping lines action is not getting the correct line position and going insane
  - Should preserve whitespace if no action taken
+ - UI support and choosable formatting actions
+
 
 ANNOTATION PROCESSORS:
 
@@ -33,6 +35,8 @@ ACTIONS:
    - Well, that's a big fat NOPE.
 
 
-
+CODE COMPLETION:
+ - Use https://raw.githubusercontent.com/mike-lischke/antlr4-c3/master/ports/java/src/main/java/com/vmware/antlr4c3/CodeCompletionCore.java
+ - 
 
 

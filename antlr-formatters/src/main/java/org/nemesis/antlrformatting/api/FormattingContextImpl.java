@@ -76,6 +76,8 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
         int caretToken = -1;
 
+        boolean[] caretUpdated = new boolean[1];
+
         for (int i = 0; i < size; i++) {
             ModalToken tok = tokens.get(i);
             // If we have passed the index of the last token we want to
@@ -135,6 +137,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                                 int docPosition = (rewrittenThusFar.length()
                                         - tok.getText().length());
                                 updateWithCaretPositionAndLength.updateStart(docPosition + offset);
+                                caretUpdated[0] = true;
                             }
                         }
                     }
@@ -152,11 +155,13 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         // parsing, allow them to clean up and do their replacing
         rules.finish(rew);
         FormattingResult res = getFormattingResult();
-        if (updateWithCaretPositionAndLength != null && firstTokenInRange != 0) {
-            updateWithCaretPositionAndLength.updateStart(startPosition);
-        }
-        if (updateWithCaretPositionAndLength != null) {
-            updateWithCaretPositionAndLength.updateLength(res.text().length());
+        if (!caretUpdated[0]) {
+            if (updateWithCaretPositionAndLength != null && firstTokenInRange != 0) {
+                updateWithCaretPositionAndLength.updateStart(startPosition);
+            }
+            if (updateWithCaretPositionAndLength != null) {
+                updateWithCaretPositionAndLength.updateLength(res.text().length());
+            }
         }
         return getFormattingResult();
     }
