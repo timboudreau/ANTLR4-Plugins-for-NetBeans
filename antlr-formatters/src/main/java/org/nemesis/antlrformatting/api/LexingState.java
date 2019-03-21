@@ -12,7 +12,6 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlrformatting.impl.CaretFixer;
@@ -321,7 +320,8 @@ public final class LexingState {
                 lexer.reset();
             }
 
-            TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
+//            TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
+            LinePositionComputingRewriter rew = new LinePositionComputingRewriter(tokens);
             return new FormattingContextImpl(rew, start, end, indentSize,
                     rules, state, whitespace, debug, ruleFetcher)
                     .go(tokens, caretPos, updateWithCaretPosition);

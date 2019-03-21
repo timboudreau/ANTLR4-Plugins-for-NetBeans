@@ -69,6 +69,10 @@ final class WhitespaceLineState {
         return prepend.getLineOffset(origLinePosition);
     }
 
+    public int linePositionWithAppend(int origLinePosition) {
+        return append.getLineOffset(origLinePosition);
+    }
+
     public void flip() {
         WhitespaceState curr = prepend;
         prepend = append.flip();

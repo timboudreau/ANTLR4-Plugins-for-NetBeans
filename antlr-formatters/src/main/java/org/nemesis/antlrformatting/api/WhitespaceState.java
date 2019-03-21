@@ -351,7 +351,9 @@ final class WhitespaceState {
         @Override
         public void apply(StringBuilder sb, int indentChars, int[] lineOffsetDest) {
             modifications.forEach((mod) -> {
+//                int old = lineOffsetDest[0];
                 mod.apply(sb, indentChars, lineOffsetDest);
+//                System.out.println("APPLY " + mod + " oldDest " + old + " newDest " + lineOffsetDest[0]);
             });
         }
 
@@ -438,6 +440,7 @@ final class WhitespaceState {
             return "indent-" + depth;
         }
 
+        @Override
         public int charCount(int indentChars) {
             return depth * (isTabStops ? indentChars : 1);
         }
@@ -505,6 +508,7 @@ final class WhitespaceState {
         @Override
         public void apply(StringBuilder sb, int indentChars, int[] lineOffsetDest) {
             sb.append(cache.newlines(count));
+            updateLineOffset(lineOffsetDest, indentChars);
         }
 
         @Override

@@ -30,10 +30,12 @@ public class LexingStateTest {
         String formatted = new SimpleTF().reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
     }
+    
+    static final Criteria criteria = Criteria.forVocabulary(SimpleLanguageLexer.VOCABULARY);
+    static final Criterion keywords = criteria.anyOf(K_BOOLEAN, K_DEFAULT, L_BOOLEAN, K_OBJECT, K_STRING, K_FLOAT,
+            K_REFERENCE, L_STRING);
 
     static final class SimpleTF extends AntlrFormatterProvider<Preferences, SLState> {
-
-        private final Criteria criteria = Criteria.forVocabulary(SimpleLanguageLexer.VOCABULARY);
 
         SimpleTF() {
             super(SLState.class);
@@ -64,9 +66,6 @@ public class LexingStateTest {
             return criteria.matching(COMMENT).toTokenPredicate();
         }
 
-        Criterion keywords = criteria.anyOf(K_BOOLEAN, K_DEFAULT, L_BOOLEAN, K_OBJECT, K_STRING, K_FLOAT,
-                K_REFERENCE, L_STRING);
-
         private static final String MAX_LINE_LENGTH = "maxLineLength";
 
         @Override
@@ -75,7 +74,7 @@ public class LexingStateTest {
                     .onTokenType(S_OPEN_BRACE)
                     .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
 
-            int maxLineLength = config == null ? 80 :  config.getInt(MAX_LINE_LENGTH, 80);
+            int maxLineLength = config == null ? 80 : config.getInt(MAX_LINE_LENGTH, 80);
 
             FormattingAction doubleIndentForWrappedLines = APPEND_NEWLINE_AND_DOUBLE_INDENT
                     .by(BRACE_DEPTH);
@@ -90,7 +89,7 @@ public class LexingStateTest {
 
             FormattingAction doubleNewlineAndIndentIt
                     = PREPEND_DOUBLE_NEWLINE_AND_INDENT.by(BRACE_DEPTH)
-                    .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+                            .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
 
             rules.onTokenType(K_TYPE)
                     .whereNotFirstTokenInSource()

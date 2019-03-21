@@ -5,7 +5,6 @@ import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.Interval;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
@@ -17,7 +16,7 @@ import org.nemesis.antlrformatting.impl.CaretInfo;
  */
 class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
-    private final TokenStreamRewriter rew;
+    private final LinePositionComputingRewriter rew;
     private final int startPosition;
     private final int endPosition;
     private final int indentSize;
@@ -35,7 +34,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     private int lastTokenInRange = -1;
     private final IntFunction<Set<Integer>> ruleFinder;
 
-    FormattingContextImpl(TokenStreamRewriter rew, int start, int end,
+    FormattingContextImpl(LinePositionComputingRewriter rew, int start, int end,
             int indentSize, FormattingRules rules, LexingState state,
             Criterion whitespace, Predicate<Token> debugLogging, IntFunction<Set<Integer>> ruleFinder) {
         this.rew = rew;
@@ -443,6 +442,15 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         rules.apply(token, prevType, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder);
     }
 
+    public int computedTokenPosition() {
+        return lineState.computedTokenPosition();
+    }
+
+    int bruteForceComputedTokenPosition() {
+        // for tests - this is always accurate
+        return lineState.bruteForceTokenPosition();
+    }
+
     /**
      * Manages and applies appended and prepended whitespace.
      */
@@ -458,6 +466,10 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
         LineState(int indentDepth) {
             whitespace = new WhitespaceLineState(indentDepth);
+        }
+
+        int lastTokenIndex() {
+            return lastToken == null ? 0 : lastToken.getTokenIndex();
         }
 
         WhitespaceState prepend() {
@@ -486,14 +498,29 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 tokenTextLength = tokenText.length();
                 int newlineIndex = tokenText.lastIndexOf('\n');
                 if (newlineIndex > 0) {
-//                    System.out.println("  RESET LINE POSITION FOR NEWLINE IN UNPROC - PREPEND? " + lineState.whitespace.prepend() + " replacement? '" + replacement + "'");
+//                    if (!postProcess && FormattingContextImpl.this.whitespace.test(token.getType())) {
+//                        if (!whitespace.isPrependEmpty()) {
+//                            linePosition = whitespace.linePositionWithPrepend(linePosition);
+//                            System.out.println("USE WHITESPACE INSTEAD LP NOW " + linePosition);
+//                            return true;
+//                        }
+//                    }
+
+//                    System.out.println((postProcess ? "POST-" : "PRE-") + "  RESET LINE POSITION FOR NEWLINE IN UNPROC - PREPEND? " + lineState.whitespace.prepend() + " replacement? '" + replacement + "'");
                     tokenTextLength -= newlineIndex;
                     lastPosition = linePosition;
                     linePosition = tokenTextLength;
+//                    System.out.println("  SET LINE POS TO TOKEN LENGTH " + linePosition + " from " + lastPosition
+//                            + " for " + tokenLogString(token));
                     return true;
                 }
             }
             return false;
+        }
+
+        private String tokenLogString(Token tok) {
+            return tok.getTokenIndex() + " ws? " + FormattingContextImpl.this.whitespace.test(tok.getType())
+                    + " '" + tok.getText().replace("\n", "\\n") + "'";
         }
 
         int positionInRewrittenDocument() {
@@ -519,6 +546,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         void onToken(Token token) {
             // Get the current position and record the last token for
             // logging purposes
+            int lp = linePosition;
             lastPosition = currentTokenPosition();
             lastDocumentPosition = documentPosition;
             lastToken = token;
@@ -535,6 +563,9 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                     rew.insertBefore(token, toInsert);
                     documentPosition += toInsert.length();
                     linePosition = lineOffsetScratch[0];
+//                    System.out.println("INSERTED PREPEND '" + toInsert.replace("\n", "\\n") + "' for "
+//                            + tokenLogString(token) + " pos was " + lp + " now " + linePosition
+//                            + " brute force last pos " + lastPosition);
                 }
             } else {
                 // Any append instructions for this token get flipped to
@@ -545,6 +576,13 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             if (!onUnprocessedToken(token, true)) {
                 documentPosition += token.getText().length();
                 linePosition += token.getText().length();
+//                System.out.println(" UP LINE POSITION TO " + linePosition + " for tok length "
+//                    + token.getText().length() + " " + tokenLogString(token)
+//                        + " with append would be " + whitespace.linePositionWithAppend(linePosition)
+//                 );
+                linePosition = whitespace.linePositionWithAppend(linePosition);
+//            } else {
+//                System.out.println("NO UP LINE POSTITION FOR " + tokenLogString(token) + " line pos " + linePosition);
             }
         }
 
@@ -558,26 +596,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             }
         }
 
-        public int currentTokenPosition() {
-            if (true) {
-                if (lastToken == null) {
-                    return 0;
-                }
-
-                // This is a horrible way to do this
-                String text = rew.getText(new Interval(0, lastToken.getTokenIndex()))
-                        + whitespace.prepend().preview();
-
-                // XXX could start by checking back two tokens, and work
-                // backwards - even less efficient in the pathological case,
-                // but could work it
-                for (int i = text.length() - 1; i >= 0; i--) {
-                    if (text.charAt(i) == '\n') {
-                        return (text.length() - 1) - i;
-                    }
-                }
-                return text.length();
-            }
+        int computedTokenPosition() {
             // Get the current token position, taking into account any prepend
             // instructions that are pending
             int result = linePosition;
@@ -586,6 +605,35 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
 //                System.out.println("ORIG-LP " + linePosition + " PREPENDING " + whitespace.prepend() + " " + result
 //                        + " last token " + (lastToken == null ? "null" : "'" + lastToken.getText() + "'"));
             }
+            return result;
+        }
+
+        int bruteForceTokenPosition() {
+            if (lastToken == null) {
+                return 0;
+            }
+
+            // This is a horrible way to do this
+            String text = rew.getText(new Interval(0, lastToken.getTokenIndex()))
+                    + whitespace.prepend().preview();
+
+            // XXX could start by checking back two tokens, and work
+            // backwards - even less efficient in the pathological case,
+            // but could work it
+            for (int i = text.length() - 1; i >= 0; i--) {
+                if (text.charAt(i) == '\n') {
+                    return (text.length() - 1) - i;
+                }
+            }
+            return text.length();
+        }
+
+        public int currentTokenPosition() {
+            if (lastToken == null) {
+                return 0;
+            }
+            int result = rew.lastNewlineDistance(lineState.lastTokenIndex());
+            result = lineState.whitespace.linePositionWithPrepend(result);
             return result;
         }
     }
