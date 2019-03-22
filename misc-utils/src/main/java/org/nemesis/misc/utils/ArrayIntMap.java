@@ -375,10 +375,12 @@ final class ArrayIntMap<T> implements IntMap<T> {
         return result;
     }
 
+    @Override
     public boolean isEmpty() {
         return last == -1;
     }
 
+    @Override
     public int size() {
         return last + 1;
     }
@@ -386,7 +388,7 @@ final class ArrayIntMap<T> implements IntMap<T> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("IntMap@") //NOI18N
-                .append(System.identityHashCode(this));
+                .append(System.identityHashCode(this)).append('{');
 
         for (int i = 0; i < size(); i++) {
             sb.append("["); //NOI18N
@@ -398,7 +400,7 @@ final class ArrayIntMap<T> implements IntMap<T> {
         if (size() == 0) {
             sb.append("empty"); //NOI18N
         }
-        return sb.toString();
+        return sb.append('}').toString();
     }
 
     /**

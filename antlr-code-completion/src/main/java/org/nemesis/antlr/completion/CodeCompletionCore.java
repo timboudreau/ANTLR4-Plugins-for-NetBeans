@@ -7,9 +7,6 @@
  */
 package org.nemesis.antlr.completion;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -71,7 +68,7 @@ public class CodeCompletionCore {
          * Collection of matched Preferred Rules each with their start and end
          * offsets
          */
-        public Map<Integer, List<Integer>> rulePositions = new HashMap<>();
+        public IntArrayMapping rulePositions = new IntArrayMapping();
 
         @Override
         public String toString() {
@@ -165,13 +162,13 @@ public class CodeCompletionCore {
         Integer tokenIndex;
     }
 
-    private boolean showResult = true;
-    private boolean showDebugOutput = true;
-    private boolean debugOutputWithTransitions = true;
-    private boolean showRuleStack = true;
+    private boolean showResult = false;
+    private boolean showDebugOutput = false;
+    private boolean debugOutputWithTransitions = false;
+    private boolean showRuleStack = false;
 
-    private IntPredicate ignoredTokens;
-    private IntPredicate preferredRules;
+    private final IntPredicate ignoredTokens;
+    private final IntPredicate preferredRules;
 
     private final Parser parser;
     private final ATN atn;
@@ -184,18 +181,19 @@ public class CodeCompletionCore {
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
-    private final Map<Integer, Map<Integer, Set<Integer>>> shortcutMap = new HashMap<>();
 
-//    private final IntMap<IntMap<IntSet>> shortcuts = IntMap.create(() -> {
-//        return IntMap.create(IntSet::create);
-//    });
+    private final IntMap<IntMap<IntSet>> shortcutMap = IntMap.create(() -> {
+        return IntMap.create(IntSet::create);
+    });
 
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
 
-    private final static Map<String, Map<Integer, FollowSetsHolder>> followSetsByATN = new HashMap<>();
+    // XXX this should be held by the completion provider
+    private final Map<String, IntMap<FollowSetsHolder>> cache;
 
-    public CodeCompletionCore(Parser parser, IntPredicate preferredRules, IntPredicate ignoredTokens) {
+    public CodeCompletionCore(Parser parser, IntPredicate preferredRules, IntPredicate ignoredTokens, Map<String, IntMap<FollowSetsHolder>> followSetsByATN) {
         this.parser = parser;
+        this.cache = followSetsByATN;
         this.atn = parser.getATN();
         this.vocabulary = parser.getVocabulary();
         this.ruleNames = parser.getRuleNames();
@@ -254,20 +252,18 @@ public class CodeCompletionCore {
             if (!preferredRules.test(ruleId)) {
                 continue;
             }
-//        for (int ruleId : preferredRules) {
-            final Map<Integer, Set<Integer>> shortcut = shortcutMap.get(ruleId);
-            if (shortcut == null || shortcut.isEmpty()) {
-                continue;
-            }
+            final IntMap<IntSet> shortcut = shortcutMap.get(ruleId);
+
             // select the right-most occurrence
-            final int startToken = Collections.max(shortcut.keySet());
-            final Set<Integer> endSet = shortcut.get(startToken);
+            final int startToken = shortcut.highestKey();
+            final IntSet endSet = shortcut.get(startToken);
             final int endToken;
             if (endSet.isEmpty()) {
                 endToken = tokens.size() - 1;
             } else {
-                endToken = Collections.max(shortcut.get(startToken));
+                endToken = shortcut.get(startToken).last();
             }
+
             final int startOffset = tokens.get(startToken).getStartIndex();
             final int endOffset;
             if (tokens.get(endToken).getType() == Token.EOF) {
@@ -278,8 +274,7 @@ public class CodeCompletionCore {
                 endOffset = tokens.get(endToken - 1).getStopIndex() + 1;
             }
 
-            final List<Integer> ruleStartStop = Arrays.asList(startOffset, endOffset);
-            candidates.rulePositions.put(ruleId, ruleStartStop);
+            candidates.rulePositions.put(ruleId, startOffset, endOffset);
         }
 
         if (this.showResult && logger.isLoggable(Level.FINE)) {
@@ -333,7 +328,7 @@ public class CodeCompletionCore {
                 // Add the rule to our candidates list along with the current rule path,
                 // but only if there isn't already an entry like that.
                 IntList path = ruleStack.subList(0, i);
-                boolean[] addNew = new boolean[] { true };
+                boolean[] addNew = new boolean[]{true};
 
                 final int ix = i;
                 this.candidates.rules.forSome((key, list) -> {
@@ -473,21 +468,17 @@ public class CodeCompletionCore {
      * be empty in case we hit only non-epsilon transitions that didn't match
      * the current input or if we hit the caret position.
      */
-    private Set<Integer> processRule(ATNState startState, int tokenIndex, IntList callStack, String indentation) {
-
+    private IntSet processRule(ATNState startState, int tokenIndex, IntList callStack, String indentation) {
         // Start with rule specific handling before going into the ATN walk.
         // Check first if we've taken this path with the same input before.
-        Map<Integer, Set<Integer>> positionMap = this.shortcutMap.get(startState.ruleIndex);
-        if (positionMap == null) {
-            positionMap = new HashMap<>();
-            this.shortcutMap.put(startState.ruleIndex, positionMap);
-        } else {
-            if (positionMap.containsKey(tokenIndex)) {
-                if (showDebugOutput) {
-                    logger.fine("=====> shortcut");
-                }
-                return positionMap.get(tokenIndex);
+        IntMap<IntSet> positionMap = this.shortcutMap.get(startState.ruleIndex);
+
+        IntSet test = positionMap.get(tokenIndex);
+        if (!test.isEmpty()) {
+            if (showDebugOutput) {
+                logger.fine("=====> shortcut");
             }
+            return test;
         }
 
         IntSet result = IntSet.create(5);
@@ -499,10 +490,10 @@ public class CodeCompletionCore {
         // 3) We get this lookup for free with any 2nd or further visit of the same rule, which often happens
         //    in non trivial grammars, especially with (recursive) expressions and of course when invoking code completion
         //    multiple times.
-        Map<Integer, FollowSetsHolder> setsPerState = followSetsByATN.get(this.parser.getClass().getName());
+        IntMap<FollowSetsHolder> setsPerState = cache.get(this.parser.getClass().getName());
         if (setsPerState == null) {
-            setsPerState = new HashMap<>();
-            followSetsByATN.put(this.parser.getClass().getName(), setsPerState);
+            setsPerState = IntMap.create(16);
+            cache.put(this.parser.getClass().getName(), setsPerState);
         }
 
         FollowSetsHolder followSets = setsPerState.get(startState.stateNumber);
@@ -558,12 +549,11 @@ public class CodeCompletionCore {
 
             callStack.removeLast();
             return result;
-
         } else {
             // Process the rule if we either could pass it without consuming anything (epsilon transition)
             // or if the current input symbol will be matched somewhere after this entry point.
             // Otherwise stop here.
-            if (followSets != null && followSets.combined != null) {
+            if (followSets.combined != null) {
                 if (!followSets.combined.contains(Token.EPSILON) && !followSets.combined.contains(currentSymbol)) {
                     callStack.removeLast();
                     return result;
@@ -693,7 +683,6 @@ public class CodeCompletionCore {
 
         // Cache the result, for later lookup to avoid duplicate walks.
         positionMap.put(tokenIndex, result);
-
         return result;
     }
 

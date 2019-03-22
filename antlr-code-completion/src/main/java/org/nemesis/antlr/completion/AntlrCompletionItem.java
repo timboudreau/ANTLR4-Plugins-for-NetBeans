@@ -27,11 +27,9 @@ class AntlrCompletionItem implements CompletionItem {
     private final String text;
     private final String prefix;
     private final int frequencyInDocument;
-    private final Font font;
 
-    AntlrCompletionItem(String text, Token caretToken, int frequencyInDocument, Font font) {
+    AntlrCompletionItem(String text, Token caretToken, int frequencyInDocument) {
         this.frequencyInDocument = frequencyInDocument;
-        this.font = font;
         this.text = text;
         String caretText = caretToken.getText();
         if (text.startsWith(caretText)) {
@@ -41,8 +39,8 @@ class AntlrCompletionItem implements CompletionItem {
         }
     }
 
-    AntlrCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument, Font font) {
-        this(insertToken.getText(), caretToken, frequencyInDocument, font);
+    AntlrCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument) {
+        this(insertToken.getText(), caretToken, frequencyInDocument);
     }
 
     String insertionText() {

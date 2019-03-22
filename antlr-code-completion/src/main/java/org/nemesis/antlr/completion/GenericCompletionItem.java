@@ -101,8 +101,7 @@ class GenericCompletionItem implements CompletionItem {
     public void render(Graphics g, Font defaultFont, Color defaultColor, Color backgroundColor, int width, int height, boolean selected) {
         Color color = g.getColor();
         int baseline = g.getFontMetrics(defaultFont).getMaxAscent();
-        String html = "<font name=\"" + defaultFont.getFamily() + "\">";
-        HtmlRenderer.renderHTML(html + text, g, 5, baseline, width, height, defaultFont, color,
+        HtmlRenderer.renderHTML(text, g, 5, baseline, width, height, defaultFont, color,
                 HtmlRenderer.STYLE_TRUNCATE, true);
     }
 

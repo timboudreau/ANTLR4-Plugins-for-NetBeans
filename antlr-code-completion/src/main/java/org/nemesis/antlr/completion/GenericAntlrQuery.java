@@ -1,9 +1,9 @@
 package org.nemesis.antlr.completion;
 
-import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.logging.Level;
@@ -14,6 +14,7 @@ import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.Token;
+import org.nemesis.misc.utils.IntMap;
 import org.nemesis.misc.utils.function.IOFunction;
 import org.netbeans.spi.editor.completion.CompletionResultSet;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionQuery;
@@ -28,13 +29,13 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
     private final IntPredicate preferredRules;
     private final IntPredicate ignoredRules;
     private static final Logger LOG = Logger.getLogger(GenericAntlrQuery.class.getName());
-    private final Font font;
+    private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache;
 
-    GenericAntlrQuery(IOFunction<Document, Parser> parserForDoc, IntPredicate preferredRules, IntPredicate ignoredRules, Font font) {
+    GenericAntlrQuery(IOFunction<Document, Parser> parserForDoc, IntPredicate preferredRules, IntPredicate ignoredRules, Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache) {
         this.parserForDoc = parserForDoc;
         this.preferredRules = preferredRules;
         this.ignoredRules = ignoredRules;
-        this.font = font;
+        this.cache = cache;
     }
 
     @Override
@@ -73,7 +74,7 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
                 return;
             }
 
-            CodeCompletionCore core = new CodeCompletionCore(parserForDoc.apply(doc), null, null);
+            CodeCompletionCore core = new CodeCompletionCore(parserForDoc.apply(doc), null, null, cache);
 
             CodeCompletionCore.CandidatesCollection result = core.collectCandidates(caretToken, null);
 
@@ -84,13 +85,13 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
                     String symName = p.getVocabulary().getLiteralName(tokenId);
                     if (symName != null) {
                         resultSet.addItem(new AntlrCompletionItem(
-                                strip(symName), caretTok, frequencies[tokenId], font));
+                                strip(symName), caretTok, frequencies[tokenId]));
                     }
 
                     list.forEach((IntConsumer) i -> {
                         Token tok = stream.get(i);
                         resultSet.addItem(new AntlrCompletionItem(
-                                tok, caretTok, frequencies[tokenId], font));
+                                tok, caretTok, frequencies[tokenId]));
                     });
                 }
             });
