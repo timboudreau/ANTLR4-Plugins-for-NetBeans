@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.completion;
 
 import java.awt.Color;
@@ -22,16 +17,14 @@ import org.openide.util.Exceptions;
  *
  * @author Tim Boudreau
  */
-class AntlrCompletionItem implements CompletionItem {
+class GenericCompletionItem implements CompletionItem {
 
     private final String text;
     private final String prefix;
     private final int frequencyInDocument;
-    private final Font font;
 
-    AntlrCompletionItem(String text, Token caretToken, int frequencyInDocument, Font font) {
+    GenericCompletionItem(String text, Token caretToken, int frequencyInDocument) {
         this.frequencyInDocument = frequencyInDocument;
-        this.font = font;
         this.text = text;
         String caretText = caretToken.getText();
         if (text.startsWith(caretText)) {
@@ -41,8 +34,8 @@ class AntlrCompletionItem implements CompletionItem {
         }
     }
 
-    AntlrCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument, Font font) {
-        this(insertToken.getText(), caretToken, frequencyInDocument, font);
+    GenericCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument) {
+        this(insertToken.getText(), caretToken, frequencyInDocument);
     }
 
     String insertionText() {
@@ -132,7 +125,7 @@ class AntlrCompletionItem implements CompletionItem {
     public int getSortPriority() {
         int result = -frequencyInDocument;
         if (isPunctuation()) {
-            result *= -10000;
+            result *= -1;
         }
         return result;
     }

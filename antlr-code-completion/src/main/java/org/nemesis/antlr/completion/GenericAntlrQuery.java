@@ -59,7 +59,7 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
             // Prioritize token suggestions based on their frequency in the
             // document (the items will then de-prioritize those that are
             // punctuation by multiplying this number)
-            int[] frequencies = new int[p.getVocabulary().getMaxTokenType()+1];
+            int[] frequencies = new int[p.getVocabulary().getMaxTokenType() + 1];
             int ix = 0;
             for (Token t = lexer.nextToken(); t.getType() != -1; t = lexer.nextToken()) {
                 CommonToken ct = new CommonToken(t);
@@ -68,26 +68,17 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
                 frequencies[t.getType()]++;
             }
 
-            System.out.println("STREAM SIZE " + stream.size());
-
             int caretToken = findCaretToken(caret, stream, 0, stream.size() - 1);
             if (caretToken == -1) {
-                System.out.println("DID NOT FIND TOKEN");
                 return;
             }
-
-//            CodeCompletionCore core = new CodeCompletionCore(parserForDoc.apply(doc),
-//                    preferredRules, ignoredRules);
 
             CodeCompletionCore core = new CodeCompletionCore(parserForDoc.apply(doc), null, null);
 
             CodeCompletionCore.CandidatesCollection result = core.collectCandidates(caretToken, null);
 
-            System.out.println("GOT RESULT " + result);
-
             Token caretTok = stream.get(caretToken);
 
-            System.out.println("TOKENS: " + result.tokens);
             for (Map.Entry<Integer, List<Integer>> e : result.tokens.entrySet()) {
                 if (e.getValue() == null) {
                     continue;
@@ -108,8 +99,8 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
     }
 
     private static String strip(String s) {
-        if (s.length() > 1 && s.charAt(0) == '\'' && s.charAt(s.length()-1) == '\'') {
-            s = s.substring(1, s.length()-1);
+        if (s.length() > 1 && s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\'') {
+            s = s.substring(1, s.length() - 1);
         }
         return s;
     }
@@ -120,55 +111,37 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
     }
 
     private int findCaretToken(int caret, List<Token> stream, int start, int stop) {
-        System.out.println("Find caret " + caret + " from tokens " + start + " to " + stop);
-        if (true) {
-            for (int i = start; i <= stop; i++) {
-                Token t = stream.get(i);
-                if (contains(t, caret)) {
-                    return t.getTokenIndex();
-                }
-            }
-            return -1;
-        }
-
         // binary search
         Token first = stream.get(start);
         if (contains(first, caret)) {
-            System.out.println("matched first " + start);
             return first.getTokenIndex();
         }
         if (start >= stop) {
-            System.out.println("bail 1");
             return -1;
         }
         Token last = stream.get(stop);
         if (contains(last, caret)) {
-            System.out.println("matched last " + stop);
             return last.getTokenIndex();
         }
         int middle = start + ((stop - start) / 2);
         Token mid = stream.get(middle);
         if (contains(mid, caret)) {
-            System.out.println("matched first " + middle);
             return mid.getTokenIndex();
         }
         start++;
         stop--;
         if (stop < start || start < 0) {
-            System.out.println("bail 2");
             return -1;
         }
         if (caret < mid.getStartIndex()) {
             middle--;
             if (middle < 0) {
-                System.out.println("bail 3");
                 return -1;
             }
             return findCaretToken(caret, stream, start, middle);
         } else {
             middle++;
             if (middle > stream.size()) {
-                System.out.println("bail 4");
                 return -1;
             }
             return findCaretToken(caret, stream, middle, stop);
