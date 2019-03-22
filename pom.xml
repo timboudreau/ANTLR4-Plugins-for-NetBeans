@@ -163,6 +163,7 @@
         <module>antlr-code-folding</module>
         <module>antlr-language-spi</module>
         <module>antlr-highlighting</module>
+        <module>antlr-code-completion</module>
     </modules>
     <repositories>
         <repository>

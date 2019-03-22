@@ -1,5 +1,4 @@
 
-
 Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
@@ -10,7 +9,16 @@ Add arbitrary scoping using other elements.
 
 Get the antlr module working
 
-Hooks for dataobject methods, needed for antlr module's grammar file delete handling
+Maybe generic scoping - parser rule based what can reference what?
+
+
+CODE COMPLETION:
+ - Annotation + processor for registering it - OR ADD TO AntlrLanguageRegistration so it can access parser / lexer
+    - Filter tokens optionally
+    - Insertion policy (prepend/append space under what conditions)
+ - Ability to flag a named region extraction key as providing completions after a list of tokens
+    - Ability to intercept and filter based on scope
+ - Generic extraction-based completion contributor
 
 FORMATTING:
 
