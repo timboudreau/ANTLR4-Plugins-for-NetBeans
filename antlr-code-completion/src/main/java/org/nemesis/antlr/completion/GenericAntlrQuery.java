@@ -4,7 +4,7 @@ import java.awt.Font;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -79,20 +79,36 @@ public class GenericAntlrQuery extends AsyncCompletionQuery {
 
             Token caretTok = stream.get(caretToken);
 
-            for (Map.Entry<Integer, List<Integer>> e : result.tokens.entrySet()) {
-                if (e.getValue() == null) {
-                    continue;
-                }
-                String symName = p.getVocabulary().getLiteralName(e.getKey());
-                if (symName != null) {
-                    resultSet.addItem(new AntlrCompletionItem(strip(symName), caretTok, frequencies[e.getKey()], font));
-                }
+            result.tokens.forEach((tokenId, list) -> {
+                if (list != null) {
+                    String symName = p.getVocabulary().getLiteralName(tokenId);
+                    if (symName != null) {
+                        resultSet.addItem(new AntlrCompletionItem(
+                                strip(symName), caretTok, frequencies[tokenId], font));
+                    }
 
-                for (Integer i : e.getValue()) {
-                    Token tok = stream.get(i);
-                    resultSet.addItem(new AntlrCompletionItem(tok, caretTok, frequencies[e.getKey()], font));
+                    list.forEach((IntConsumer) i -> {
+                        Token tok = stream.get(i);
+                        resultSet.addItem(new AntlrCompletionItem(
+                                tok, caretTok, frequencies[tokenId], font));
+                    });
                 }
-            }
+            });
+
+//            for (Map.Entry<Integer, IntSet> e : result.tokens.entrySet()) {
+//                if (e.getValue() == null) {
+//                    continue;
+//                }
+//                String symName = p.getVocabulary().getLiteralName(e.getKey());
+//                if (symName != null) {
+//                    resultSet.addItem(new AntlrCompletionItem(strip(symName), caretTok, frequencies[e.getKey()], font));
+//                }
+//
+//                for (Integer i : e.getValue()) {
+//                    Token tok = stream.get(i);
+//                    resultSet.addItem(new AntlrCompletionItem(tok, caretTok, frequencies[e.getKey()], font));
+//                }
+//            }
         } finally {
             resultSet.finish();
         }

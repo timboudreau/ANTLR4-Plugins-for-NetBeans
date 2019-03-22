@@ -31,6 +31,11 @@ import org.antlr.v4.runtime.atn.RuleStopState;
 import org.antlr.v4.runtime.atn.RuleTransition;
 import org.antlr.v4.runtime.atn.Transition;
 import org.antlr.v4.runtime.misc.IntervalSet;
+import org.nemesis.misc.utils.IntList;
+import org.nemesis.misc.utils.IntMap;
+import org.nemesis.misc.utils.IntMap.IntMapAbortableConsumer;
+import org.nemesis.misc.utils.IntMap.IntMapConsumer;
+import org.nemesis.misc.utils.IntSet;
 
 /**
  * Borrowed from
@@ -50,16 +55,18 @@ public class CodeCompletionCore {
      * JDO returning information about matching tokens and rules
      */
     public static class CandidatesCollection {
+
         /**
          * Collection of Token ID candidates, each with a follow-on List of
          * subsequent tokens
          */
-        public Map<Integer, List<Integer>> tokens = new HashMap<>();
+        public IntSetMapping tokens = new IntSetMapping();
+
         /**
          * Collection of Rule candidates, each with the callstack of rules to
          * reach the candidate
          */
-        public Map<Integer, List<Integer>> rules = new HashMap<>();
+        public IntArrayMapping rules = new IntArrayMapping();
         /**
          * Collection of matched Preferred Rules each with their start and end
          * offsets
@@ -72,13 +79,77 @@ public class CodeCompletionCore {
         }
     }
 
+    static class IntArrayMapping {
+
+        private final IntMap<IntList> values = IntMap.create(() -> IntList.create(16));
+
+        Iterable<Map.Entry<Integer, IntList>> entrySet() {
+            return values.entries();
+        }
+
+        void put(int key, List<Integer> vals) {
+            values.get(key).addAll(vals);
+        }
+
+        void put(int key, int... vals) {
+            values.get(key).addArray(vals);
+        }
+
+        void clear() {
+            values.clear();
+        }
+
+        void forEach(IntMapConsumer<? super IntList> c) {
+            values.forEach(c);
+        }
+
+        boolean forSome(IntMapAbortableConsumer<? super IntList> c) {
+            return values.forSomeKeys(c);
+        }
+    }
+
+    static class IntSetMapping {
+
+        private final IntMap<IntSet> values = IntMap.create(() -> IntSet.create(5));
+
+        Iterable<Map.Entry<Integer, IntSet>> entrySet() {
+            return values.entries();
+        }
+
+        boolean containsKey(int key) {
+            return values.containsKey(key);
+        }
+
+        void forEach(IntMapConsumer<? super IntSet> cons) {
+            values.forEach(cons);
+        }
+
+        void clear() {
+            values.clear();
+        }
+
+        void put(int key, IntSet all) {
+            values.get(key).addAll(all);
+        }
+
+        void put(int key, int... vals) {
+            values.get(key).addAll(vals);
+        }
+
+        public IntSet get(int key) {
+            return values.get(key);
+        }
+    }
+
     public static class FollowSetWithPath {
+
         public IntervalSet intervals;
-        public List<Integer> path;
-        public List<Integer> following;
+        public IntList path;
+        public IntSet following;
     }
 
     public static class FollowSetsHolder {
+
         public List<FollowSetWithPath> sets;
         public IntervalSet combined;
     }
@@ -114,6 +185,11 @@ public class CodeCompletionCore {
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
     private final Map<Integer, Map<Integer, Set<Integer>>> shortcutMap = new HashMap<>();
+
+//    private final IntMap<IntMap<IntSet>> shortcuts = IntMap.create(() -> {
+//        return IntMap.create(IntSet::create);
+//    });
+
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
 
     private final static Map<String, Map<Integer, FollowSetsHolder>> followSetsByATN = new HashMap<>();
@@ -136,10 +212,13 @@ public class CodeCompletionCore {
     }
 
     /**
-     * This is the main entry point. The caret token index specifies the token stream index for the token which currently
-     * covers the caret (or any other position you want to get code completion candidates for).
-     * Optionally you can pass in a parser rule context which limits the ATN walk to only that or called rules. This can significantly
-     * speed up the retrieval process but might miss some candidates (if they are outside of the given context).
+     * This is the main entry point. The caret token index specifies the token
+     * stream index for the token which currently covers the caret (or any other
+     * position you want to get code completion candidates for). Optionally you
+     * can pass in a parser rule context which limits the ATN walk to only that
+     * or called rules. This can significantly speed up the retrieval process
+     * but might miss some candidates (if they are outside of the given
+     * context).
      */
     public CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context) {
         this.shortcutMap.clear();
@@ -148,7 +227,7 @@ public class CodeCompletionCore {
         this.statesProcessed = 0;
 
         this.tokenStartIndex = context != null && context.start != null ? context.start.getTokenIndex() : 0;
-        TokenStream tokenStream  = this.parser.getInputStream();
+        TokenStream tokenStream = this.parser.getInputStream();
 
         int currentIndex = tokenStream.index();
         tokenStream.seek(Math.max(0, this.tokenStartIndex));
@@ -163,7 +242,7 @@ public class CodeCompletionCore {
         }
         tokenStream.seek(Math.max(0, currentIndex));
 
-        LinkedList<Integer> callStack = new LinkedList<>();
+        IntList callStack = IntList.create(24);
         int startRule = context != null ? context.getRuleIndex() : 0;
         this.processRule(this.atn.ruleToStartState[startRule], 0, callStack, "\n");
 
@@ -171,11 +250,10 @@ public class CodeCompletionCore {
 
         // now post-process the rule candidates and find the last occurrences
         // of each preferred rule and extract its start and end in the input stream
-
         for (int ruleId = 0; ruleId < parser.getRuleNames().length; ruleId++) {
-           if (!preferredRules.test(ruleId)) {
-               continue;
-           }
+            if (!preferredRules.test(ruleId)) {
+                continue;
+            }
 //        for (int ruleId : preferredRules) {
             final Map<Integer, Set<Integer>> shortcut = shortcutMap.get(ruleId);
             if (shortcut == null || shortcut.isEmpty()) {
@@ -211,7 +289,7 @@ public class CodeCompletionCore {
 
             logMessage.append("Collected rules:\n");
 
-            for (Map.Entry<Integer, List<Integer>> entry : this.candidates.rules.entrySet()) {
+            for (Map.Entry<Integer, IntList> entry : this.candidates.rules.entrySet()) {
 
                 logMessage.append("  ").append(entry.getKey()).append(", path: ");
                 for (Integer token : entry.getValue()) {
@@ -221,7 +299,7 @@ public class CodeCompletionCore {
             }
 
             logMessage.append("Collected Tokens:\n");
-            for (Map.Entry<Integer, List<Integer>> entry : this.candidates.tokens.entrySet()) {
+            for (Map.Entry<Integer, IntSet> entry : this.candidates.tokens.entrySet()) {
                 logMessage.append("  ").append(this.vocabulary.getDisplayName(entry.getKey()));
                 for (Integer following : entry.getValue()) {
                     logMessage.append(" ").append(this.vocabulary.getDisplayName(following));
@@ -234,39 +312,43 @@ public class CodeCompletionCore {
         return this.candidates;
     }
 
-
     /**
-     * Check if the predicate associated with the given transition evaluates to true.
+     * Check if the predicate associated with the given transition evaluates to
+     * true.
      */
     private boolean checkPredicate(PredicateTransition transition) {
         return transition.getPredicate().eval(this.parser, ParserRuleContext.EMPTY);
     }
 
     /**
-     * Walks the rule chain upwards to see if that matches any of the preferred rules.
-     * If found, that rule is added to the collection candidates and true is returned.
+     * Walks the rule chain upwards to see if that matches any of the preferred
+     * rules. If found, that rule is added to the collection candidates and true
+     * is returned.
      */
-    private boolean translateToRuleIndex(List<Integer> ruleStack) {
+    private boolean translateToRuleIndex(IntList ruleStack) {
         // Loop over the rule stack from highest to lowest rule level. This way we properly handle the higher rule
         // if it contains a lower one that is also a preferred rule.
         for (int i = 0; i < ruleStack.size(); ++i) {
             if (this.preferredRules.test(ruleStack.get(i))) {
                 // Add the rule to our candidates list along with the current rule path,
                 // but only if there isn't already an entry like that.
-                List<Integer> path = new LinkedList<>(ruleStack.subList(0, i));
-                boolean addNew = true;
-                for (Map.Entry<Integer, List<Integer>> entry : this.candidates.rules.entrySet()) {
-                    if (!entry.getKey().equals(ruleStack.get(i)) || entry.getValue().size() != path.size()) {
-                        continue;
-                    }
-                    // Found an entry for this rule. Same path? If so don't add a new (duplicate) entry.
-                    if (path.equals(entry.getValue())) {
-                        addNew = false;
-                        break;
-                    }
-                }
+                IntList path = ruleStack.subList(0, i);
+                boolean[] addNew = new boolean[] { true };
 
-                if (addNew) {
+                final int ix = i;
+                this.candidates.rules.forSome((key, list) -> {
+                    boolean result = true;
+                    if (key != ruleStack.get(ix) || list.size() != path.size()) {
+                        return true;
+                    }
+                    if (path.equals(list)) {
+                        addNew[0] = false;
+                        return false;
+                    }
+                    return result;
+                });
+
+                if (addNew[0]) {
                     this.candidates.rules.put(ruleStack.get(i), path);
                     if (showDebugOutput && logger.isLoggable(Level.FINE)) {
                         logger.fine("=====> collected: " + this.ruleNames[i]);
@@ -279,13 +361,13 @@ public class CodeCompletionCore {
         return false;
     }
 
-
     /**
-     * This method follows the given transition and collects all symbols within the same rule that directly follow it
-     * without intermediate transitions to other rules and only if there is a single symbol for a transition.
+     * This method follows the given transition and collects all symbols within
+     * the same rule that directly follow it without intermediate transitions to
+     * other rules and only if there is a single symbol for a transition.
      */
-    private List<Integer> getFollowingTokens(Transition initialTransition) {
-        LinkedList<Integer> result = new LinkedList<>();
+    private IntSet getFollowingTokens(Transition initialTransition) {
+        IntSet result = IntSet.create(5);
         LinkedList<ATNState> seen = new LinkedList<>(); // unused but in orig
         LinkedList<ATNState> pipeline = new LinkedList<>();
         pipeline.add(initialTransition.target);
@@ -293,12 +375,12 @@ public class CodeCompletionCore {
         while (!pipeline.isEmpty()) {
             ATNState state = pipeline.removeLast();
 
-            for (Transition transition: state.getTransitions()) {
+            for (Transition transition : state.getTransitions()) {
                 if (transition.getSerializationType() == Transition.ATOM) {
                     if (!transition.isEpsilon()) {
                         List<Integer> list = transition.label().toList();
                         if (list != null && list.size() == 1 && !this.ignoredTokens.test(list.get(0))) {
-                            result.addLast(list.get(0));
+                            result.add(list.get(0));
                             pipeline.addLast(transition.target);
                         }
                     } else {
@@ -314,10 +396,10 @@ public class CodeCompletionCore {
     /**
      * Entry point for the recursive follow set collection function.
      */
-    private LinkedList<FollowSetWithPath> determineFollowSets(ATNState start, ATNState stop){
+    private LinkedList<FollowSetWithPath> determineFollowSets(ATNState start, ATNState stop) {
         LinkedList<FollowSetWithPath> result = new LinkedList<>();
         Set<ATNState> seen = new HashSet<>();
-        LinkedList<Integer> ruleStack = new LinkedList<>();
+        IntList ruleStack = IntList.create(5);
 
         this.collectFollowSets(start, stop, result, seen, ruleStack);
 
@@ -325,21 +407,25 @@ public class CodeCompletionCore {
     }
 
     /**
-     * Collects possible tokens which could be matched following the given ATN state. This is essentially the same
-     * algorithm as used in the LL1Analyzer class, but here we consider predicates also and use no parser rule context.
+     * Collects possible tokens which could be matched following the given ATN
+     * state. This is essentially the same algorithm as used in the LL1Analyzer
+     * class, but here we consider predicates also and use no parser rule
+     * context.
      */
     private void collectFollowSets(ATNState s, ATNState stopState, LinkedList<FollowSetWithPath> followSets,
-            Set<ATNState> seen, LinkedList<Integer> ruleStack) {
+            Set<ATNState> seen, IntList ruleStack) {
 
-        if (seen.contains(s))
+        if (seen.contains(s)) {
             return;
+        }
 
         seen.add(s);
 
         if (s.equals(stopState) || s.getStateType() == ATNState.RULE_STOP) {
             FollowSetWithPath set = new FollowSetWithPath();
             set.intervals = IntervalSet.of(Token.EPSILON);
-            set.path = new LinkedList<Integer>(ruleStack);
+//            set.path = new LinkedList<Integer>(ruleStack);
+            set.path = IntList.create(ruleStack);
             followSets.addLast(set);
             return;
         }
@@ -350,7 +436,7 @@ public class CodeCompletionCore {
                 if (ruleStack.indexOf(ruleTransition.target.ruleIndex) != -1) {
                     continue;
                 }
-                ruleStack.addLast(ruleTransition.target.ruleIndex);
+                ruleStack.add(ruleTransition.target.ruleIndex);
                 this.collectFollowSets(transition.target, stopState, followSets, seen, ruleStack);
                 ruleStack.removeLast();
 
@@ -363,7 +449,7 @@ public class CodeCompletionCore {
             } else if (transition.getSerializationType() == Transition.WILDCARD) {
                 FollowSetWithPath set = new FollowSetWithPath();
                 set.intervals = IntervalSet.of(Token.MIN_USER_TOKEN_TYPE, this.atn.maxTokenType);
-                set.path = new LinkedList<Integer>(ruleStack);
+                set.path = IntList.create(ruleStack);
                 followSets.addLast(set);
             } else {
                 IntervalSet label = transition.label();
@@ -373,8 +459,8 @@ public class CodeCompletionCore {
                     }
                     FollowSetWithPath set = new FollowSetWithPath();
                     set.intervals = label;
-                    set.path = new LinkedList<Integer>(ruleStack);
-                    set.following = this.getFollowingTokens(transition);
+                    set.path = IntList.create(ruleStack);
+                    set.following = IntSet.create(this.getFollowingTokens(transition));
                     followSets.addLast(set);
                 }
             }
@@ -382,16 +468,16 @@ public class CodeCompletionCore {
     }
 
     /**
-     * Walks the ATN for a single rule only. It returns the token stream position for each path that could be matched in this rule.
-     * The result can be empty in case we hit only non-epsilon transitions that didn't match the current input or if we
-     * hit the caret position.
+     * Walks the ATN for a single rule only. It returns the token stream
+     * position for each path that could be matched in this rule. The result can
+     * be empty in case we hit only non-epsilon transitions that didn't match
+     * the current input or if we hit the caret position.
      */
-    private Set<Integer> processRule(ATNState startState, int tokenIndex, LinkedList<Integer> callStack, String indentation) {
+    private Set<Integer> processRule(ATNState startState, int tokenIndex, IntList callStack, String indentation) {
 
         // Start with rule specific handling before going into the ATN walk.
-
         // Check first if we've taken this path with the same input before.
-        Map<Integer,Set<Integer>> positionMap = this.shortcutMap.get(startState.ruleIndex);
+        Map<Integer, Set<Integer>> positionMap = this.shortcutMap.get(startState.ruleIndex);
         if (positionMap == null) {
             positionMap = new HashMap<>();
             this.shortcutMap.put(startState.ruleIndex, positionMap);
@@ -404,7 +490,7 @@ public class CodeCompletionCore {
             }
         }
 
-        Set<Integer> result = new HashSet<>();
+        IntSet result = IntSet.create(5);
 
         // For rule start states we determine and cache the follow set, which gives us 3 advantages:
         // 1) We can quickly check if a symbol would be matched when we follow that rule. We can so check in advance
@@ -429,13 +515,13 @@ public class CodeCompletionCore {
             // Sets are split by path to allow translating them to preferred rules. But for quick hit tests
             // it is also useful to have a set with all symbols combined.
             IntervalSet combined = new IntervalSet();
-            for (FollowSetWithPath set: followSets.sets) {
+            for (FollowSetWithPath set : followSets.sets) {
                 combined.addAll(set.intervals);
             }
             followSets.combined = combined;
         }
 
-        callStack.addLast(startState.ruleIndex);
+        callStack.add(startState.ruleIndex);
         int currentSymbol = this.tokens.get(tokenIndex).getType();
 
         if (tokenIndex >= this.tokens.size() - 1) { // At caret?
@@ -445,25 +531,25 @@ public class CodeCompletionCore {
             } else {
                 // Convert all follow sets to either single symbols or their associated preferred rule and add
                 // the result to our candidates list.
-                for (FollowSetWithPath set: followSets.sets) {
-                    LinkedList<Integer> fullPath = new LinkedList<>(callStack);
+                for (FollowSetWithPath set : followSets.sets) {
+                    IntList fullPath = IntList.create(callStack);
                     fullPath.addAll(set.path);
                     if (!this.translateToRuleIndex(fullPath)) {
                         for (int symbol : set.intervals.toList()) {
                             if (!this.ignoredTokens.test(symbol)) {
                                 if (showDebugOutput && logger.isLoggable(Level.FINE)) {
-                                    logger.fine("=====> collected: " + this.vocabulary.getDisplayName(symbol));
+                                    logger.log(Level.FINE, "=====> collected: {0}", this.vocabulary.getDisplayName(symbol));
                                 }
-                                if (!this.candidates.tokens.containsKey(symbol))
+                                if (!this.candidates.tokens.containsKey(symbol) && set.following != null) {
                                     this.candidates.tokens.put(symbol, set.following); // Following is empty if there is more than one entry in the set.
-                                else {
+                                } else {
                                     // More than one following list for the same symbol.
                                     if (!this.candidates.tokens.get(symbol).equals(set.following)) { // XXX js uses !=
-                                        this.candidates.tokens.put(symbol, new LinkedList<Integer>());
+                                        this.candidates.tokens.put(symbol, IntSet.create(5));
                                     }
                                 }
                             } else {
-                                logger.fine("====> collection: Ignoring token: " + symbol);
+                                logger.log(Level.FINE, "====> collection: Ignoring token: {0}", symbol);
                             }
                         }
                     }
@@ -534,7 +620,7 @@ public class CodeCompletionCore {
                     }
 
                     case Transition.PREDICATE: {
-                        if (this.checkPredicate((PredicateTransition)transition)) {
+                        if (this.checkPredicate((PredicateTransition) transition)) {
                             statePipeline.addLast(new PipelineEntry(transition.target, currentEntry.tokenIndex));
                         }
                         break;
@@ -545,7 +631,7 @@ public class CodeCompletionCore {
                             if (!this.translateToRuleIndex(callStack)) {
                                 for (Integer token : IntervalSet.of(Token.MIN_USER_TOKEN_TYPE, this.atn.maxTokenType).toList()) {
                                     if (!this.ignoredTokens.test(token)) {
-                                        this.candidates.tokens.put(token, new LinkedList<Integer>());
+                                        this.candidates.tokens.put(token, IntSet.create(5));
                                     }
                                 }
                             }
@@ -574,7 +660,7 @@ public class CodeCompletionCore {
                                 if (!this.translateToRuleIndex(callStack)) {
                                     List<Integer> list = set.toList();
                                     boolean addFollowing = list.size() == 1;
-                                    for (Integer symbol: list) {
+                                    for (Integer symbol : list) {
                                         if (!this.ignoredTokens.test(symbol)) {
                                             if (showDebugOutput && logger.isLoggable(Level.FINE)) {
                                                 logger.fine("=====> collected: " + this.vocabulary.getDisplayName(symbol));
@@ -582,7 +668,7 @@ public class CodeCompletionCore {
                                             if (addFollowing) {
                                                 this.candidates.tokens.put(symbol, this.getFollowingTokens(transition));
                                             } else {
-                                                this.candidates.tokens.put(symbol, new LinkedList<>());
+                                                this.candidates.tokens.put(symbol, IntSet.create(5));
                                             }
                                         } else {
                                             logger.fine("====> collected: Ignoring token: " + symbol);
@@ -611,7 +697,7 @@ public class CodeCompletionCore {
         return result;
     }
 
-    private String[] atnStateTypeMap = new String[] {
+    private String[] atnStateTypeMap = new String[]{
         "invalid",
         "basic",
         "rule start",
@@ -638,14 +724,14 @@ public class CodeCompletionCore {
 
         StringBuilder transitionDescription = new StringBuilder();
         if (this.debugOutputWithTransitions && logger.isLoggable(Level.FINER)) {
-            for (Transition transition: state.getTransitions()) {
+            for (Transition transition : state.getTransitions()) {
                 StringBuilder labels = new StringBuilder();
                 List<Integer> symbols = (transition.label() != null) ? transition.label().toList() : new LinkedList<>();
                 if (symbols.size() > 2) {
                     // Only print start and end symbols to avoid large lists in debug output.
                     labels.append(this.vocabulary.getDisplayName(symbols.get(0)) + " .. " + this.vocabulary.getDisplayName(symbols.get(symbols.size() - 1)));
                 } else {
-                    for (Integer symbol: symbols) {
+                    for (Integer symbol : symbols) {
                         if (labels.length() > 0) {
                             labels.append(", ");
                         }
@@ -677,7 +763,7 @@ public class CodeCompletionCore {
         }
     }
 
-    private void printRuleState(LinkedList<Integer> stack) {
+    private void printRuleState(List<Integer> stack) {
         if (stack.isEmpty()) {
             logger.fine("<empty stack>");
             return;

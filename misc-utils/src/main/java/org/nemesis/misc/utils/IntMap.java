@@ -27,6 +27,7 @@ import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 /**
  * Primitive int to object map.
@@ -39,6 +40,14 @@ import java.util.function.IntConsumer;
  * @author Tim Boudreau
  */
 public interface IntMap<T> extends Iterable<Map.Entry<Integer, T>>, Map<Integer, T>, Serializable {
+
+    public static <T> IntMap<T> create(int initialCapacity, Supplier<T> emptyValueSupplier) {
+        return new ArrayIntMap<>(initialCapacity, emptyValueSupplier);
+    }
+
+    public static <T> IntMap<T> create(Supplier<T> emptyValueSupplier) {
+        return new ArrayIntMap<>(96, emptyValueSupplier);
+    }
 
     public static <T> IntMap<T> create(int initialCapacity) {
         return new ArrayIntMap<>(initialCapacity);
@@ -92,6 +101,13 @@ public interface IntMap<T> extends Iterable<Map.Entry<Integer, T>>, Map<Integer,
         void accept(int key, T value);
     }
 
+    @FunctionalInterface
+    public interface IntMapAbortableConsumer<T> {
+
+        boolean accept(int key, T value);
+    }
+
+
     default void forEachKey(IntConsumer cons) {
         int[] k = getKeys();
         for (int i = 0; i < k.length; i++) {
@@ -106,4 +122,17 @@ public interface IntMap<T> extends Iterable<Map.Entry<Integer, T>>, Map<Integer,
             cons.accept(k[i], t);
         }
     }
+
+    default boolean forSomeKeys(IntMapAbortableConsumer<? super T> cons) {
+        int[] k = getKeys();
+        for (int i = 0; i < k.length; i++) {
+            T t = get(k[i]);
+            boolean result = cons.accept(k[i], t);
+            if (!result) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

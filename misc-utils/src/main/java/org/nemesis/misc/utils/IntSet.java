@@ -35,7 +35,7 @@ public abstract class IntSet implements Set<Integer>, Cloneable {
         return create(96);
     }
 
-    public static IntSet fromArray(int[] arr) {
+    public static IntSet create(int[] arr) {
         BitSet set = new BitSet(arr.length);
         for (int i = 0; i < arr.length; i++) {
             set.set(arr[i]);
@@ -43,11 +43,11 @@ public abstract class IntSet implements Set<Integer>, Cloneable {
         return new IntSetImpl(set);
     }
 
-    public static IntSet fromBitSet(BitSet bits) {
+    public static IntSet create(BitSet bits) {
         return new IntSetImpl((BitSet) bits.clone());
     }
 
-    public static IntSet toIntSet(Set<Integer> set) {
+    public static IntSet create(Collection<? extends Integer> set) {
         if (set instanceof IntSet) {
             return (IntSet) set;
         } else {
@@ -85,7 +85,7 @@ public abstract class IntSet implements Set<Integer>, Cloneable {
     }
 
     public IntSet copy() {
-        return fromBitSet((BitSet) toBits());
+        return create(_unsafeBits());
     }
 
     BitSet _unsafeBits() {

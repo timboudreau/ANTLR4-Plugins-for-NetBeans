@@ -54,7 +54,7 @@ final class IntSetImpl extends IntSet {
         bits = new BitSet(capacity);
     }
 
-    IntSetImpl(Set<Integer> other) {
+    IntSetImpl(Collection<? extends Integer> other) {
         this(other.size());
         addAll(other);
     }
@@ -341,9 +341,9 @@ final class IntSetImpl extends IntSet {
     public boolean addAll(
             Collection<? extends Integer> c) {
         boolean result;
-        if (c instanceof IntSetImpl) {
+        if (c instanceof IntSet) {
             int old = size();
-            bits.or(((IntSetImpl) c).bits);
+            bits.or(((IntSet) c)._unsafeBits());
             result = size() != old;
         } else {
             BitSet bs = new BitSet();

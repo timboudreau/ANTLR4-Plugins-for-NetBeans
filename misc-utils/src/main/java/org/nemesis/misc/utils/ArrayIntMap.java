@@ -60,6 +60,8 @@ final class ArrayIntMap<T> implements IntMap<T> {
         vals = Arrays.copyOf(other.vals, other.vals.length);
         last = other.last;
         emptyValue = other.emptyValue;
+        resort = other.resort;
+        nextKey = other.nextKey;
     }
 
     /**
@@ -110,6 +112,25 @@ final class ArrayIntMap<T> implements IntMap<T> {
 
     public ArrayIntMap<T> copy() {
         return new ArrayIntMap<>(this);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public boolean forSomeKeys(IntMapAbortableConsumer<? super T> cons) {
+        for (int i = 0; i < size(); i++) {
+            boolean result = cons.accept(keys[i], (T) this.vals[i]);
+            if (!result) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void forEach(IntMapConsumer<? super T> cons) {
+        for (int i = 0; i < size(); i++) {
+            cons.accept(keys[i], (T) this.vals[i]);
+        }
     }
 
     public int[] keys() {
@@ -239,8 +260,11 @@ final class ArrayIntMap<T> implements IntMap<T> {
         if (idx > -1 && idx <= last) {
             result = (T) vals[idx];
         }
-        return result == null ? emptyValue == null
-                ? null : emptyValue.get() : result;
+        if (result == null && emptyValue != null) {
+            result = emptyValue.get();
+            put(key, result);
+        }
+        return result;
     }
 
     int nextKey = 0;
