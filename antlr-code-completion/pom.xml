@@ -8,6 +8,9 @@
     </parent>
     <artifactId>antlr-code-completion</artifactId>
     <packaging>nbm</packaging>
+    <properties>
+        <maven.test.skip>false</maven.test.skip>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -27,11 +30,33 @@
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-lib</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.3.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>5.3.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>5.3.1</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>
@@ -46,6 +71,7 @@
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.completion</publicPackage>
+                        <publicPackage>org.nemesis.antlr.completion.grammar</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

@@ -1,4 +1,4 @@
-package org.nemesis.antlr.completion;
+package org.nemesis.antlr.completion.grammar;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,18 +16,17 @@ import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
  *
  * @author Tim Boudreau
  */
-public class GenericAntlrCompletionProvider implements CompletionProvider {
+public class GrammarCompletionProvider implements CompletionProvider {
 
     private final IOFunction<Document, Parser> parserForDoc;
     private final IntPredicate preferredRules;
     private final IntPredicate ignoredRules;
     private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache = new HashMap<>(3);
 
-    protected GenericAntlrCompletionProvider(IOFunction<Document,Parser> parserForDoc, IntPredicate preferredRules, IntPredicate ignoredRules) {
+    protected GrammarCompletionProvider(IOFunction<Document,Parser> parserForDoc, IntPredicate preferredRules, IntPredicate ignoredRules) {
         this.parserForDoc = parserForDoc;
         this.preferredRules = preferredRules;
         this.ignoredRules = ignoredRules;
-        new Exception("Create a new completion provider").printStackTrace(System.out);
     }
 
     @Override
@@ -35,7 +34,7 @@ public class GenericAntlrCompletionProvider implements CompletionProvider {
         if (queryType != COMPLETION_QUERY_TYPE) {
             return null;
         }
-        return new AsyncCompletionTask(new GenericAntlrQuery(parserForDoc, preferredRules,
+        return new AsyncCompletionTask(new GrammarCompletionQuery(parserForDoc, preferredRules,
                 ignoredRules, cache), component);
     }
 

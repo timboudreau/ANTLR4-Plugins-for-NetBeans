@@ -46,6 +46,32 @@ public final class NbAntlrUtils {
         parseImmediately(Source.create(file), consumer);
     }
 
+    public static Extraction parseImmediately(Document doc) throws Exception {
+        Extraction[] ext = new Extraction[1];
+        Exception[] ex = new Exception[1];
+        parseImmediately(doc, (res, thrown) -> {
+            ex[0] = thrown;
+            ext[0] = res;
+        });
+        if (ex[0] != null) {
+            throw ex[0];
+        }
+        return ext[0];
+    }
+
+    public static Extraction parseImmediately(FileObject file) throws Exception {
+        Extraction[] ext = new Extraction[1];
+        Exception[] ex = new Exception[1];
+        parseImmediately(file, (res, thrown) -> {
+            ex[0] = thrown;
+            ext[0] = res;
+        });
+        if (ex[0] != null) {
+            throw ex[0];
+        }
+        return ext[0];
+    }
+
     private static void parseImmediately(Source src, BiConsumer<Extraction, Exception> consumer) {
         String mime = src.getMimeType();
         if (mime == null || ParserManager.canBeParsed(mime)) {

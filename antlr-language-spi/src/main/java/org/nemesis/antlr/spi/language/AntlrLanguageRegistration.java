@@ -88,6 +88,12 @@ public @interface AntlrLanguageRegistration {
     SyntaxInfo syntax() default @SyntaxInfo;
 
     String lineCommentPrefix() default "";
+    
+    CodeCompletion genericCodeCompletion() default @CodeCompletion;
+
+    public @interface CodeCompletion {
+        int[] ignoreTokens() default {};
+    }
 
     public @interface SyntaxInfo {
 

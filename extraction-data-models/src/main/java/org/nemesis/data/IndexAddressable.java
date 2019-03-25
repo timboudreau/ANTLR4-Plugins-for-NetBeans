@@ -1,5 +1,6 @@
 package org.nemesis.data;
 
+import org.nemesis.misc.utils.function.IntIntFunction;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;

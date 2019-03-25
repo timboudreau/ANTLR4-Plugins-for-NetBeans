@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -99,6 +100,12 @@ public final class Iterables {
         for (Map.Entry<T, R> e : map.entrySet()) {
             ibc.accept(pos++, e.getKey(), e.getValue(), max);
         }
+    }
+
+    public static <T> List<T> filter(List<? extends T> list, Predicate<? super T> filter) {
+        List<T> result = new ArrayList<>(list.size());
+        list.stream().filter((obj) -> (filter.test(obj))).forEachOrdered(result::add);
+        return result;
     }
 
     public interface IterationConsumer<T> {

@@ -92,7 +92,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractRegistra
                 .method("accept", mb -> {
                     mb.override().withModifier(PUBLIC).addArgument("ExtractorBuilder<? super " + entrySimple + ">", "builder")
                             .body(bb -> {
-                                bb.log(generatedClassName + " populate ExtractionBuilder", Level.SEVERE);
+                                bb.log(generatedClassName + " populate ExtractionBuilder", Level.FINER);
                                 bb.invoke(method.getSimpleName().toString())
                                         .withArgument("builder")
                                         .on(ownerTypeSimple).endBlock();

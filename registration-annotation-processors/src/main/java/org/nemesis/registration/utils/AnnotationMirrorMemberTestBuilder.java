@@ -249,6 +249,21 @@ public final class AnnotationMirrorMemberTestBuilder<T> extends AbstractPredicat
         }));
     }
 
+    public AnnotationMirrorMemberTestBuilder<T> stringValueMustBeValidRegularExpression() {
+        return stringValueMustMatch(namedPredicate(memberName + "-must-be-valid-reged", (val) -> {
+            if (val == null || val.isEmpty()) {
+                return true;
+            }
+            try {
+                Pattern.compile(val);
+            } catch (Exception e) {
+                fail("Invalid regular expression for " + memberName + ": " + e.getMessage());
+            }
+            return true;
+        }));
+    }
+
+
     public TypeElementTestBuilder<AnnotationMirrorMemberTestBuilder<T>, ?> asTypeSpecifier() {
         return new TypeElementTestBuilder<>(utils, tetb -> {
             NamedPredicate<TypeElement> p = tetb._predicate();

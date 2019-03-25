@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -117,12 +118,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .intValueMustBeGreaterThanOrEqualTo(0)
                                 .build()
                                 .testMember("helper").asTypeSpecifier(helperType -> {
-                                    helperType.isSubTypeOf("org.nemesis.antlr.spi.language.NbParserHelper")
-                                            .doesNotHaveModifier(PRIVATE)
-                                            .mustHavePublicNoArgConstructor()
-
-                                            ;
-                                }).build();
+                            helperType.isSubTypeOf("org.nemesis.antlr.spi.language.NbParserHelper")
+                                    .doesNotHaveModifier(PRIVATE)
+                                    .mustHavePublicNoArgConstructor();
+                        }).build();
                     })
                     .testMemberAsAnnotation("categories", cb -> {
                         cb.testMember("tokenIds")
@@ -158,6 +157,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 })
                                 .build()
                                 .build();
+                    }).testMemberAsAnnotation("genericCodeCompletion", gcc -> {
+                        gcc.testMember("ignoreTokens")
+                                .intValueMustBeGreaterThan(0).build();
                     });
             ;
         }).build();
@@ -227,6 +229,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (ANTLR_ACTION_ANNO_TYPE.equals(mirror.getAnnotationType().toString())) {
             return false;
         }
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         preemptivelyCheckGotos(roundEnv);
         String prefix = utils().annotationValue(mirror, "name", String.class);
         LexerProxy lexerProxy = LexerProxy.create(mirror, type, utils());
@@ -260,8 +263,84 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type, parser, lexerProxy, roundEnv);
             }
         }
+        AnnotationMirror codeCompletion = utils().annotationValue(mirror, "genericCodeCompletion", AnnotationMirror.class);
+        if (codeCompletion != null) {
+            generateCodeCompletion(prefix, mirror, codeCompletion, type, mimeType, lexerProxy, parser);
+        }
         // Returning true could stop LanguageFontsColorsProcessor from being run
         return false;
+    }
+
+    private void generateCodeCompletion(String prefix, AnnotationMirror mirror, AnnotationMirror codeCompletion, TypeElement on, String mimeType, LexerProxy lexer, ParserProxy parser) throws IOException {
+        String generatedClassName = prefix + "GenericCodeCompletion";
+        ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
+                .importing(lexer.lexerClassFqn(), parser.parserClassFqn(),
+                        "java.io.IOException", "javax.swing.text.Document",
+                        "org.antlr.v4.runtime.CommonTokenStream",
+                        "org.antlr.v4.runtime.Parser",
+                        "org.nemesis.antlr.completion.grammar.GrammarCompletionProvider",
+                        "org.nemesis.source.api.GrammarSource",
+                        "org.netbeans.api.editor.mimelookup.MimeRegistration",
+                        "org.netbeans.spi.editor.completion.CompletionProvider",
+                        "org.nemesis.antlrformatting.api.Criteria"
+                ).extending("GrammarCompletionProvider")
+                .annotatedWith("MimeRegistration", ab -> {
+                    ab.addStringArgument("mimeType", mimeType)
+                            .addClassArgument("service", "CompletionProvider");
+                })
+                .withModifier(PUBLIC, FINAL)
+                .staticImport(lexer.lexerClassFqn() + ".*")
+                .privateMethod("createParser", mb -> {
+                    mb.withModifier(STATIC)
+                            .addArgument("Document", "doc")
+                            .returning("Parser")
+                            .throwing("IOException")
+                            .body(bb -> {
+                                int streamChannel = 0;
+                                AnnotationMirror parserInfo = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
+                                if (parserInfo != null) {
+                                    streamChannel = utils().annotationValue(parserInfo, "parserStreamChannel", Integer.class, 0);
+                                }
+                                bb.declare("lexer")
+                                        .initializedByInvoking("createAntlrLexer")
+                                        .withArgumentFromInvoking("stream")
+                                        .onInvocationOf("find")
+                                        .withArgument("doc")
+                                        .withStringLiteral(mimeType)
+                                        .on("GrammarSource")
+                                        .on(prefix + "Hierarchy").as(lexer.lexerClassSimple());
+                                bb.declare("stream").initializedByInvoking("new CommonTokenStream")
+                                        .withArgument("lexer").withArgument(streamChannel)
+                                        .inScope().as("CommonTokenStream");
+
+                                bb.returningInvocationOf("new TypesParser").withArgument("stream").inScope();
+
+                            });
+                })
+                .field("CRITERIA", fb -> {
+                    fb.withModifier(PRIVATE, STATIC, FINAL)
+                            .initializedFromInvocationOf("forVocabulary")
+                            .withArgument("VOCABULARY")
+                            .on("Criteria").ofType("Criteria");
+                })
+                .constructor(con -> {
+                    con.setModifier(PUBLIC).body(bb -> {
+                        bb.invoke("super")
+                                .withArgument(generatedClassName + "::createParser")
+                                .withArgument(("ignored -> false"))
+                                .withArgumentFromInvoking("anyOf", ib -> {
+                                    Set<Integer> ignore = new TreeSet<>(utils().annotationValues(codeCompletion, "ignoreTokens", Integer.class));
+                                    for (Integer i : ignore) {
+                                        ib.withArgument(lexer.lexerClassSimple() + "." + lexer.tokenName(i));
+                                    }
+                                    ib.on("CRITERIA");
+                                })
+                                .inScope();
+                    });
+                });
+
+        writeOne(cb);
+
     }
 
     static ParserProxy createParserProxy(AnnotationMirror parserHelper, AnnotationUtils utils) {

@@ -6,7 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.function.IntConsumer;
-import jdk.internal.HotSpotIntrinsicCandidate;
+//import jdk.internal.HotSpotIntrinsicCandidate;
 
 /**
  * A set of primitive integers based on a BitSet, which implements
@@ -23,7 +23,7 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  */
 public abstract class IntSet implements Set<Integer>, Cloneable {
 
-    @HotSpotIntrinsicCandidate
+//    @HotSpotIntrinsicCandidate
     IntSet() {
     }
 

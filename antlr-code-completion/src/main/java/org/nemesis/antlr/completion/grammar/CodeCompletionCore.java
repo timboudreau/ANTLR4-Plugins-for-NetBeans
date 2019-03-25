@@ -5,7 +5,7 @@
  *
  * See LICENSE file for more info.
  */
-package org.nemesis.antlr.completion;
+package org.nemesis.antlr.completion.grammar;
 
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -80,10 +80,6 @@ public class CodeCompletionCore {
 
         private final IntMap<IntList> values = IntMap.create(() -> IntList.create(16));
 
-        Iterable<Map.Entry<Integer, IntList>> entrySet() {
-            return values.entries();
-        }
-
         void put(int key, List<Integer> vals) {
             values.get(key).addAll(vals);
         }
@@ -103,15 +99,15 @@ public class CodeCompletionCore {
         boolean forSome(IntMapAbortableConsumer<? super IntList> c) {
             return values.forSomeKeys(c);
         }
+
+        public String toString() {
+            return values.toString();
+        }
     }
 
     static class IntSetMapping {
 
         private final IntMap<IntSet> values = IntMap.create(() -> IntSet.create(5));
-
-        Iterable<Map.Entry<Integer, IntSet>> entrySet() {
-            return values.entries();
-        }
 
         boolean containsKey(int key) {
             return values.containsKey(key);
@@ -135,6 +131,10 @@ public class CodeCompletionCore {
 
         public IntSet get(int key) {
             return values.get(key);
+        }
+
+        public String toString() {
+            return values.toString();
         }
     }
 
@@ -181,7 +181,6 @@ public class CodeCompletionCore {
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
-
     private final IntMap<IntMap<IntSet>> shortcutMap = IntMap.create(() -> {
         return IntMap.create(IntSet::create);
     });
@@ -284,23 +283,30 @@ public class CodeCompletionCore {
 
             logMessage.append("Collected rules:\n");
 
-            for (Map.Entry<Integer, IntList> entry : this.candidates.rules.entrySet()) {
-
-                logMessage.append("  ").append(entry.getKey()).append(", path: ");
-                for (Integer token : entry.getValue()) {
+            candidates.rules.forEach((key, list) -> {
+                logMessage.append("  ").append(key).append(", path: ");
+                list.forEach((int token) -> {
                     logMessage.append(this.ruleNames[token]).append(" ");
-                }
+                });
                 logMessage.append("\n");
-            }
+            });
 
-            logMessage.append("Collected Tokens:\n");
-            for (Map.Entry<Integer, IntSet> entry : this.candidates.tokens.entrySet()) {
-                logMessage.append("  ").append(this.vocabulary.getDisplayName(entry.getKey()));
-                for (Integer following : entry.getValue()) {
-                    logMessage.append(" ").append(this.vocabulary.getDisplayName(following));
-                }
+            candidates.rules.forEach((key, list) -> {
+                logMessage.append("  ").append(key).append(", path: ");
+                list.forEach((int token) -> {
+                    logMessage.append(this.ruleNames[token]).append(" ");
+                });
                 logMessage.append("\n");
-            }
+            });
+            logMessage.append("Collected Tokens:\n");
+
+            candidates.tokens.forEach((key, set) -> {
+                logMessage.append("  ").append(this.vocabulary.getDisplayName(key));
+                set.forEach((int following) -> {
+                    logMessage.append(" ").append(this.vocabulary.getDisplayName(following));
+                });
+                logMessage.append("\n");
+            });
             logger.log(Level.FINE, logMessage.toString());
         }
 
@@ -363,7 +369,6 @@ public class CodeCompletionCore {
      */
     private IntSet getFollowingTokens(Transition initialTransition) {
         IntSet result = IntSet.create(5);
-        LinkedList<ATNState> seen = new LinkedList<>(); // unused but in orig
         LinkedList<ATNState> pipeline = new LinkedList<>();
         pipeline.add(initialTransition.target);
 
@@ -602,10 +607,10 @@ public class CodeCompletionCore {
             for (Transition transition : transitions) {
                 switch (transition.getSerializationType()) {
                     case Transition.RULE: {
-                        Set<Integer> endStatus = this.processRule(transition.target, currentEntry.tokenIndex, callStack, indentation);
-                        for (Integer position : endStatus) {
+                        IntSet endStatus = this.processRule(transition.target, currentEntry.tokenIndex, callStack, indentation);
+                        endStatus.forEach((int position) -> {
                             statePipeline.addLast(new PipelineEntry(((RuleTransition) transition).followState, position));
-                        }
+                        });
                         break;
                     }
 
@@ -653,7 +658,7 @@ public class CodeCompletionCore {
                                     for (Integer symbol : list) {
                                         if (!this.ignoredTokens.test(symbol)) {
                                             if (showDebugOutput && logger.isLoggable(Level.FINE)) {
-                                                logger.fine("=====> collected: " + this.vocabulary.getDisplayName(symbol));
+                                                logger.log(Level.FINE, "=====> collected: {0}", this.vocabulary.getDisplayName(symbol));
                                             }
                                             if (addFollowing) {
                                                 this.candidates.tokens.put(symbol, this.getFollowingTokens(transition));
@@ -661,14 +666,14 @@ public class CodeCompletionCore {
                                                 this.candidates.tokens.put(symbol, IntSet.create(5));
                                             }
                                         } else {
-                                            logger.fine("====> collected: Ignoring token: " + symbol);
+                                            logger.log(Level.FINE, "====> collected: Ignoring token: {0}", symbol);
                                         }
                                     }
                                 }
                             } else {
                                 if (set.contains(currentSymbol)) {
                                     if (showDebugOutput && logger.isLoggable(Level.FINE)) {
-                                        logger.fine("=====> consumed: " + this.vocabulary.getDisplayName(currentSymbol));
+                                        logger.log(Level.FINE, "=====> consumed: {0}", this.vocabulary.getDisplayName(currentSymbol));
                                     }
                                     statePipeline.addLast(new PipelineEntry(transition.target, currentEntry.tokenIndex + 1));
                                 }

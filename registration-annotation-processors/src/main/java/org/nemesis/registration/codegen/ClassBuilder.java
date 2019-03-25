@@ -121,7 +121,7 @@ public final class ClassBuilder<T> implements BodyBuilder {
         AnnotationBuilder<?> bldr = annotatedWith(anno, built);
         c.accept(bldr);
         if (!built[0]) {
-            throw new IllegalStateException("closeAnnotation() not called");
+            bldr.closeAnnotation();
         }
         return this;
     }
@@ -157,6 +157,20 @@ public final class ClassBuilder<T> implements BodyBuilder {
             members.add(cb);
             return ClassBuilder.this;
         });
+    }
+
+    public ClassBuilder<T> innerClass(String name, Consumer<ClassBuilder<?>> c) {
+        boolean[] built = new boolean[1];
+        ClassBuilder<Void> bldr = new ClassBuilder<>(null, name, cb -> {
+            members.add(cb);
+            built[0] = true;
+            return null;
+        });
+        c.accept(bldr);
+        if (!built[0]) {
+            bldr.build();
+        }
+        return this;
     }
 
     public boolean isInterface() {

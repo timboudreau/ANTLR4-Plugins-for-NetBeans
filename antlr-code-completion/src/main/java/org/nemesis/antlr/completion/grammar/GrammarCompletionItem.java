@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.nemesis.antlr.completion;
+package org.nemesis.antlr.completion.grammar;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -22,13 +22,13 @@ import org.openide.util.Exceptions;
  *
  * @author Tim Boudreau
  */
-class AntlrCompletionItem implements CompletionItem {
+class GrammarCompletionItem implements CompletionItem {
 
     private final String text;
     private final String prefix;
     private final int frequencyInDocument;
 
-    AntlrCompletionItem(String text, Token caretToken, int frequencyInDocument) {
+    GrammarCompletionItem(String text, Token caretToken, int frequencyInDocument) {
         this.frequencyInDocument = frequencyInDocument;
         this.text = text;
         String caretText = caretToken.getText();
@@ -39,7 +39,7 @@ class AntlrCompletionItem implements CompletionItem {
         }
     }
 
-    AntlrCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument) {
+    GrammarCompletionItem(Token insertToken, Token caretToken, int frequencyInDocument) {
         this(insertToken.getText(), caretToken, frequencyInDocument);
     }
 
@@ -106,8 +106,7 @@ class AntlrCompletionItem implements CompletionItem {
     public void render(Graphics g, Font defaultFont, Color defaultColor, Color backgroundColor, int width, int height, boolean selected) {
         Color color = g.getColor();
         int baseline = g.getFontMetrics(defaultFont).getMaxAscent();
-        String html = "<font name=\"" + defaultFont.getFamily() + "\">";
-        HtmlRenderer.renderHTML(html + text, g, 5, baseline, width, height, defaultFont, color,
+        HtmlRenderer.renderHTML(text, g, 5, baseline, width, height, defaultFont, color,
                 HtmlRenderer.STYLE_TRUNCATE, true);
     }
 
