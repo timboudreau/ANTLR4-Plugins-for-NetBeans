@@ -13,7 +13,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.BitSetGraph;
+import org.nemesis.data.graph.IntGraph;
 import org.nemesis.data.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -164,7 +164,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             for (int i = 0; i < referenceExtractors.length; i++) {
                 ReferenceExtractorPair r = referenceExtractors[i];
                 store.addReferences(r.refSetKey, refs[i].build());
-                BitSetGraph graph = new BitSetGraph(reverseReferences[i], references[i]);
+                IntGraph graph = IntGraph.create(reverseReferences[i], references[i]);
                 StringGraph stringGraph = StringGraph.create(graph, regions.nameArray());
                 store.addReferenceGraph(r.refSetKey, stringGraph);
                 store.addUnknownReferences(r.refSetKey, unknown.build());

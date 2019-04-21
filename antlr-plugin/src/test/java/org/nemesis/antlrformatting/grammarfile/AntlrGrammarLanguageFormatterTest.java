@@ -211,7 +211,7 @@ public class AntlrGrammarLanguageFormatterTest {
         lexer.removeErrorListeners();
 
         AntlrGrammarLanguageFormatter prov = new AntlrGrammarLanguageFormatter(settings);
-        String formatted = prov.reformat(text, 0, text.length(), settings);
+        String formatted = prov.reformat(text, 0, text.length(), settings).text();
         return formatted;
     }
 

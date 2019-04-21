@@ -1,7 +1,6 @@
 package org.nemesis.antlr.completion;
 
 import java.util.function.BiFunction;
-import org.nemesis.antlr.completion.StringKind;
 
 /**
  *
@@ -9,6 +8,7 @@ import org.nemesis.antlr.completion.StringKind;
  */
 public interface Stringifier<I> extends BiFunction<StringKind, I, String> {
 
+    @Override
     String apply(StringKind kind, I item);
 
 }

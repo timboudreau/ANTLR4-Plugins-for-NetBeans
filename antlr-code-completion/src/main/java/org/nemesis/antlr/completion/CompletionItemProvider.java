@@ -33,7 +33,7 @@ public interface CompletionItemProvider<I> {
      * @throws Exception if something goes wrong
      */
     Collection<I> fetch(Document document, int caretPosition,
-            List<Token> tokens, int[] tokenFrequencies, Token caretToken, String tokenPatternMatchName)
+            List<Token> tokens, int[] tokenFrequencies, Token caretToken, TokenMatch tokenPatternMatchName)
             throws Exception;
 
     static String wordAtCaretPosition(Document doc, int caretPosition) throws BadLocationException {

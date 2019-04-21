@@ -10,12 +10,14 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.function.ToIntFunction;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Token;
-import org.nemesis.misc.utils.function.IntIntFunction;
+import static org.nemesis.antlr.completion.TokenMatch.DEFAULT_TOKEN_MATCH;
 import org.nemesis.misc.utils.function.ThrowingBiConsumer;
 import org.nemesis.misc.utils.function.ThrowingFunction;
+import org.nemesis.misc.utils.function.ThrowingTriConsumer;
 import org.netbeans.spi.editor.completion.CompletionItem;
 import org.netbeans.spi.editor.completion.CompletionTask;
 import org.openide.util.Exceptions;
@@ -26,29 +28,29 @@ import org.openide.util.Exceptions;
  */
 final class CompletionStub<I> {
 
-    private final IntIntFunction sortPriority;
+    private final IntUnaryOperator sortPriority;
     private final ItemRenderer<? super I> renderer;
     private final Function<? super I, ? extends CompletionTask> docTaskFactory;
     private final Function<? super I, ? extends CompletionTask> tooltipTask;
-    private final ThrowingBiConsumer<? super I, ? super JTextComponent> performer;
+    private final ThrowingTriConsumer<? super I, ? super JTextComponent, ? super TokenMatch> performer;
     private final BiPredicate<? super I, ? super JTextComponent> instantSubstitution;
     private final ThrowingBiConsumer<? super I, ? super KeyEvent> keyEventHandler;
     private final ToIntFunction<? super I> sorter;
     private final BiFunction<? super StringKind, ? super I, ? extends String> stringifier;
-    private final BiFunction<? super List<Token>, ? super Token, ? extends String> tokenPatternMatcher;
+    private final BiFunction<? super List<Token>, ? super Token, ? extends TokenMatch> tokenPatternMatcher;
     private final CompletionItemProvider<? extends I> itemsProvider;
 
     public CompletionStub(
-            IntIntFunction sortPriority,
+            IntUnaryOperator sortPriority,
             ItemRenderer<? super I> renderer,
             Function<? super I, ? extends CompletionTask> docTaskFactory,
             Function<? super I, ? extends CompletionTask> tooltipTask,
-            ThrowingBiConsumer<? super I, ? super JTextComponent> performer,
+            ThrowingTriConsumer<? super I, ? super JTextComponent, ? super TokenMatch> performer,
             BiPredicate<? super I, ? super JTextComponent> instantSubstitution,
             ThrowingBiConsumer<? super I, ? super KeyEvent> keyEventHandler,
             ToIntFunction<? super I> sorter,
             BiFunction<? super StringKind, ? super I, ? extends String> stringifier,
-            BiFunction<? super List<Token>, ? super Token, ? extends String> tokenPatternMatcher,
+            BiFunction<? super List<Token>, ? super Token, ? extends TokenMatch> tokenPatternMatcher,
             CompletionItemProvider<? extends I> itemsProvider) {
         this.sortPriority = sortPriority;
         this.renderer = renderer;
@@ -63,18 +65,18 @@ final class CompletionStub<I> {
         this.itemsProvider = itemsProvider;
     }
 
-    String matches(List<Token> tokens, Token caretToken) {
+    TokenMatch matches(List<Token> tokens, Token caretToken) {
         if (tokenPatternMatcher != null) {
             return tokenPatternMatcher.apply(tokens, caretToken);
         }
-        return "true";
+        return DEFAULT_TOKEN_MATCH;
     }
 
-    List<CompletionItem> run(String matchName, ThrowingFunction<CompletionItemProvider<? extends I>, Collection<? extends I>> cachedFetcher) throws Exception {
+    List<CompletionItem> run(TokenMatch match, ThrowingFunction<CompletionItemProvider<? extends I>, Collection<? extends I>> cachedFetcher) throws Exception {
         List<CompletionItem> result = new ArrayList<>();
         Collection<? extends I> all = cachedFetcher.apply(itemsProvider);
         all.forEach((item) -> {
-            result.add(new Item(item, matchName));
+            result.add(new Item(item, match));
         });
         return result;
     }
@@ -82,9 +84,11 @@ final class CompletionStub<I> {
     class Item implements CompletionItem {
 
         private final I item;
+        private final TokenMatch match;
 
-        public Item(I item, String matchName) {
+        public Item(I item, TokenMatch match) {
             this.item = item;
+            this.match = match;
         }
 
         @Override
@@ -110,7 +114,7 @@ final class CompletionStub<I> {
         @Override
         public void defaultAction(JTextComponent component) {
             try {
-                performer.accept(item, component);
+                performer.accept(item, component, match);
             } catch (Exception ex) {
                 Exceptions.printStackTrace(ex);
             }
@@ -138,11 +142,11 @@ final class CompletionStub<I> {
             if (sortPriority == null && sorter == null) {
                 return 1;
             } else if (sortPriority != null && sorter == null) {
-                return sortPriority.apply(1);
+                return sortPriority.applyAsInt(1);
             } else if (sorter != null && sortPriority == null) {
                 return sorter.applyAsInt(item);
             }
-            return sortPriority.apply(sorter.applyAsInt(item));
+            return sortPriority.applyAsInt(sorter.applyAsInt(item));
         }
 
         @Override
@@ -164,8 +168,9 @@ final class CompletionStub<I> {
 
         @Override
         public String toString() {
-            return CompletionStub.this.getClass().getSimpleName() +
-                    "." + getClass().getSimpleName() + "{" + item + "}";
+            return CompletionStub.this.getClass().getSimpleName()
+                    + "." + getClass().getSimpleName() + "{" + item
+                    + " for " + match + "}";
         }
     }
 }

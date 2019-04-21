@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+import static org.nemesis.antlr.completion.TokenMatch.DEFAULT_TOKEN_MATCH;
 import org.netbeans.editor.BaseDocument;
 
 /**
@@ -36,28 +37,28 @@ public class DefaultDocumentUpdaterTest {
     public void testDocuments() throws Exception{
         int[] cp = {0};
         BaseDocument doc = doc("(woogle     ");
-        updater.doUpdate("woogle.Poozle", doc, 7, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 7, 0, 0, cp, DEFAULT_TOKEN_MATCH);
 //        System.out.println("DOC NOW: " + doc.getText(0, doc.getLength()));
         assertDocument("(woogle.Poozle)     ", doc);
         doc = doc("(woogle");
-        updater.doUpdate("woogle.Poozle", doc, 7, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 7, 0, 0, cp, DEFAULT_TOKEN_MATCH);
 //        System.out.println("DOC NOW: " + doc.getText(0, doc.getLength()));
         assertDocument("(woogle.Poozle) ", doc);
 
         doc = doc("glork");
-        updater.doUpdate("woogle.Poozle", doc, 1, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 1, 0, 0, cp, DEFAULT_TOKEN_MATCH);
         assertDocument("g (woogle.Poozle) lork", doc);
 
         doc = doc("");
-        updater.doUpdate("woogle.Poozle", doc, 0, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 0, 0, 0, cp, DEFAULT_TOKEN_MATCH);
         assertDocument("(woogle.Poozle) ", doc);
 
         doc = doc("(woogle.Poo");
-        updater.doUpdate("woogle.Poozle", doc, 3, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 3, 0, 0, cp, DEFAULT_TOKEN_MATCH);
         assertDocument("(woogle.Poozle) ", doc);
         
         doc = doc("(woogle.Poozle) ");
-        updater.doUpdate("woogle.Poozle", doc, 3, 0, 0, cp);
+        updater.doUpdate("woogle.Poozle", doc, 3, 0, 0, cp, DEFAULT_TOKEN_MATCH);
         assertDocument("(woogle.Poozle) ", doc);
         assertEquals(doc.getLength(), cp[0]);
     }

@@ -3,7 +3,9 @@ package org.nemesis.antlr.completion;
 import java.util.function.BiFunction;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
-import org.nemesis.misc.utils.function.ThrowingBiConsumer;
+import org.nemesis.antlr.completion.annos.InsertAction;
+import org.nemesis.antlr.completion.annos.InsertPolicy;
+import org.nemesis.misc.utils.function.ThrowingTriConsumer;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 
@@ -11,7 +13,7 @@ import org.netbeans.lib.editor.util.swing.DocumentUtilities;
  *
  * @author Tim Boudreau
  */
-final class DefaultDocumentUpdater<I> implements ThrowingBiConsumer<I, JTextComponent>, Stringifier<I> {
+final class DefaultDocumentUpdater<I> implements ThrowingTriConsumer<I, JTextComponent, TokenMatch>, Stringifier<I> {
 
     static final DefaultDocumentUpdater<Object> INSTANCE = new DefaultDocumentUpdater<>();
 
@@ -25,13 +27,9 @@ final class DefaultDocumentUpdater<I> implements ThrowingBiConsumer<I, JTextComp
         this.stringifier = stringifier == null ? this : stringifier;
     }
 
-    String insertionText(String text) {
-        return isPunctuation(text) ? text : text + " ";
-    }
-
-    public enum TrailingTextPolicy {
-        COALESCE,
-        LEAVE
+    String insertionText(String text, TokenMatch match) {
+        return isPunctuation(text) ? text : match.hasPolicy(InsertPolicy.INSERT_SPACE_AFTER)
+                ? text + " " : text;
     }
 
     private boolean isPunctuation(String text) {
@@ -125,42 +123,52 @@ final class DefaultDocumentUpdater<I> implements ThrowingBiConsumer<I, JTextComp
     }
 
     @Override
-    public void accept(I a, JTextComponent component) throws Exception {
+    public void accept(I a, JTextComponent component, TokenMatch match) throws Exception {
         // XXX should be getting the caret position from the action
         BaseDocument doc = (BaseDocument) component.getDocument();
         int pos = component.getCaretPosition();
         int selStart = component.getSelectionStart();
         int selEnd = component.getSelectionEnd();
         int[] newCaretPosition = new int[]{pos};
-        doUpdate(a, doc, pos, selStart, selEnd, newCaretPosition);
+        doUpdate(a, doc, pos, selStart, selEnd, newCaretPosition, match);
         if (newCaretPosition[0] != pos) {
             component.setCaretPosition(newCaretPosition[0]);
         }
     }
 
-    void doUpdate(I a, BaseDocument doc, int pos, int selStart, int selEnd, int[] newCaretPosition) throws Exception {
-
+    void doUpdate(I a, BaseDocument doc, int pos, int selStart, int selEnd,
+            int[] newCaretPosition, TokenMatch match) throws Exception {
         BadLocationException[] ex = new BadLocationException[1];
         doc.runAtomicAsUser(() -> {
             try {
-                int realPos = pos;
                 String text = stringifier.apply(StringKind.TEXT_TO_INSERT, a);
+                System.out.println("MATCH " + match + " for '" + text + "'");
+                if (match.isRange()) {
+                    doc.replace(match.start(), match.length(), text, null);
+                    newCaretPosition[0] = match.start() + text.length();
+                    return;
+                }
+                int realPos = match.action() == InsertAction.INSERT_AFTER_CURRENT_TOKEN ?
+                        match.start() : pos;
                 if (text == null) {
                     text = a.toString();
                 }
                 boolean[] found = new boolean[1];
-                String toInsert = insertionText(text);
+                String toInsert = insertionText(text, match);
                 if (selStart == selEnd) {
-                    toInsert = findRemainingSubsequence(toInsert, doc, realPos, found);
-                    int[] p = {realPos};
-                    toInsert = findTrailingSubsequence(toInsert, doc, p);
-                    if (p[0] != realPos) {
-                        newCaretPosition[0] += p[0] - realPos;
+                    if (match.hasPolicy(InsertPolicy.COALESCE_PRECEDING_MATCHING_TEXT)) {
+                        toInsert = findRemainingSubsequence(toInsert, doc, realPos, found);
                     }
-                    realPos = p[0];
-                    toInsert = findPresentTrailingSubsequence(toInsert, doc, realPos);
+                    if (match.hasPolicy(InsertPolicy.COALESCE_FOLLOWING_MATCHING_TEXT)) {
+                        int[] p = {realPos};
+                        toInsert = findTrailingSubsequence(toInsert, doc, p);
+                        if (p[0] != realPos) {
+                            newCaretPosition[0] += p[0] - realPos;
+                        }
+                        realPos = p[0];
+                        toInsert = findPresentTrailingSubsequence(toInsert, doc, realPos);
+                    }
                 }
-
                 if (realPos < doc.getLength() - 1) {
                     String s = doc.getText(realPos, 1);
                     char c = s.charAt(0);
@@ -168,15 +176,18 @@ final class DefaultDocumentUpdater<I> implements ThrowingBiConsumer<I, JTextComp
                         toInsert = toInsert.trim();
                     }
                 }
-                if (realPos > 0 && !found[0]) {
-                    String s = doc.getText(realPos - 1, 1);
-                    char c = s.charAt(0);
-                    if (!Character.isWhitespace(c)) {
-                        toInsert = " " + toInsert;
+                if (match.hasPolicy(InsertPolicy.INSERT_SPACE_BEFORE)) {
+                    if (realPos > 0 && !found[0]) {
+                        String s = doc.getText(realPos - 1, 1);
+                        char c = s.charAt(0);
+                        if (!Character.isWhitespace(c)) {
+                            toInsert = " " + toInsert;
+                        }
                     }
                 }
                 if (toInsert.isEmpty() && selStart == selEnd) {
                     newCaretPosition[0] = realPos + toInsert.length();
+                    return;
                 }
                 if (selStart != selEnd) {
                     doc.replace(selStart, selEnd - selStart, toInsert, null);

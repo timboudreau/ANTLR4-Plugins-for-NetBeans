@@ -1,6 +1,6 @@
 package org.nemesis.data;
 
-import org.nemesis.data.graph.BitSetHeteroObjectGraph;
+import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.NamedSemanticRegions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -55,7 +55,7 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.source.impl.GSAccessor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.data.graph.BitSetGraph;
+import org.nemesis.data.graph.IntGraph;
 import org.nemesis.data.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.source.api.GrammarSource;
@@ -249,7 +249,7 @@ public class SemanticParserTest {
     static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("namedAlternatives", RuleTypes.class);
     static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
     static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
-    static final NameReferenceSetKey<RuleTypes> REFS = NameReferenceSetKey.create("ruleRefs", RuleTypes.class);
+    static final NameReferenceSetKey<RuleTypes> REFS = RULE_NAMES.createReferenceKey("ruleRefs");
     static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
     static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
     static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
@@ -524,7 +524,7 @@ public class SemanticParserTest {
                     bsa[i].set(2);
             }
         }
-        BitSetGraph bst = new BitSetGraph(bsa);
+        IntGraph bst = IntGraph.create(bsa);
         StringGraph g = StringGraph.create(bst, new String[]{"A", "B", "C"});
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ObjectOutputStream oout = new ObjectOutputStream(out)) {
@@ -533,7 +533,7 @@ public class SemanticParserTest {
         out.close();
         byte[] b = out.toByteArray();
         System.out.println("BST SERIALIZED TO " + b.length + " BYTES");
-        BitSetGraph bst2 = BitSetGraph.load(new ObjectInputStream(new ByteArrayInputStream(b)));
+        IntGraph bst2 = IntGraph.load(new ObjectInputStream(new ByteArrayInputStream(b)));
         assertEquals(bst, bst2);
 
         out = new ByteArrayOutputStream();

@@ -2,10 +2,14 @@ package org.nemesis.antlr.completion;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.function.BiFunction;
+import java.util.Set;
 import java.util.function.IntPredicate;
-import org.antlr.v4.runtime.Token;
+import org.nemesis.antlr.completion.annos.DeletionPolicy;
+import org.nemesis.antlr.completion.annos.InsertAction;
+import org.nemesis.antlr.completion.annos.InsertPolicy;
 import org.openide.util.Parameters;
 
 /**
@@ -141,10 +145,14 @@ public class TokenTriggersBuilder<I> {
          */
         public CompletionBuilder<I> build() {
             int count = patterns.size();
+            Collections.sort(patterns);
             int[][] befores = new int[count][];
             int[][] afters = new int[count][];
             IntPredicate[] tokenMatches = new IntPredicate[count];
             String[] names = new String[count];
+            List<Set<InsertPolicy>> insertPolicies = new ArrayList<>(count);
+            List<Set<DeletionPolicy>> deletionPolicies = new ArrayList<>(count);
+            InsertAction[] actions = new InsertAction[count];
             for (int i = 0; i < count; i++) {
                 TokenTriggerPatternBuilder<I> p = patterns.get(i);
                 befores[i] = p.preceding;
@@ -154,6 +162,9 @@ public class TokenTriggersBuilder<I> {
                 names[i] = p.name;
                 assert names[i] != null;
                 tokenMatches[i] = p.caretTokenMatch;
+                insertPolicies.add(p.insertPolicies);
+                deletionPolicies.add(p.deletionPolicies);
+                actions[i] = p.action;
             }
             if (ignoring != Any.NONE) {
                 for (int i = 0; i < names.length; i++) {
@@ -179,7 +190,7 @@ public class TokenTriggersBuilder<I> {
                     }
                 }
             }
-            TokenPatternMatcher matcher = new TokenPatternMatcher(ignoring, befores, afters, names, tokenMatches);
+            TokenPatternMatcher matcher = new TokenPatternMatcher(ignoring, befores, afters, names, tokenMatches, actions, insertPolicies, deletionPolicies);
             return bldr.setTokenPatternMatcher(matcher);
         }
     }
@@ -195,59 +206,8 @@ public class TokenTriggersBuilder<I> {
         }
     }
 
-    private static class TokenPatternMatcher implements BiFunction<List<Token>, Token, String> {
 
-        private final IntPredicate ignoring;
-        private final int[][] befores;
-        private final int[][] afters;
-        private final String[] names;
-        private final IntPredicate[] tokenMatches;
-
-        public TokenPatternMatcher(IntPredicate ignoring, int[][] befores, int[][] afters, String[] names, IntPredicate[] tokenMatches) {
-            this.ignoring = ignoring;
-            this.befores = befores;
-            this.afters = afters;
-            this.names = names;
-            this.tokenMatches = tokenMatches;
-        }
-
-        @Override
-        public String apply(List<Token> t, Token u) {
-            return TokenUtils.isTokenPatternMatched(names, befores, afters, ignoring, tokenMatches, t, u);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder(getClass().getSimpleName() + "{\n");
-            for (int i = 0; i < names.length; i++) {
-                sb.append("  ");
-                sb.append(names[i]).append(": ");
-                if (befores[i].length > 0) {
-                    for (int j = 0; j < befores[i].length; j++) {
-                        sb.append(befores[i][j]);
-                        if (j != befores[i].length) {
-                            sb.append(',');
-                        }
-                    }
-                    sb.append("-->");
-                }
-                sb.append(tokenMatches[i]);
-                if (afters[i].length > 0) {
-                    sb.append("<--");
-                    for (int j = 0; j < afters[i].length; j++) {
-                        sb.append(afters[i][j]);
-                        if (j != afters[i].length) {
-                            sb.append(',');
-                        }
-                    }
-                }
-                sb.append('\n');
-            }
-            return sb.append('}').toString();
-        }
-    }
-
-    private static final class Any implements IntPredicate {
+    static final class Any implements IntPredicate {
 
         static final Any ANY = new Any(true);
         static final Any NONE = new Any(false);
@@ -276,12 +236,15 @@ public class TokenTriggersBuilder<I> {
      *
      * @param <I> The item type
      */
-    public static final class TokenTriggerPatternBuilder<I> {
+    public static final class TokenTriggerPatternBuilder<I> implements Comparable<TokenTriggerPatternBuilder<?>> {
 
         private int[] preceding = EMPTY;
         private int[] subsequent = EMPTY;
         private final String name;
         private IntPredicate caretTokenMatch = Any.ANY;
+        private InsertAction action = InsertAction.INSERT_BEFORE_CURRENT_TOKEN;
+        private Set<InsertPolicy> insertPolicies = EnumSet.noneOf(InsertPolicy.class);
+        private Set<DeletionPolicy> deletionPolicies = EnumSet.noneOf(DeletionPolicy.class);
 
         private final TokenTriggersBuilder<I> bldr;
 
@@ -290,6 +253,29 @@ public class TokenTriggersBuilder<I> {
             checkTokenIds(preceding, true);
             this.name = name;
             this.bldr = bldr;
+        }
+
+        public int specificityScore() {
+            int result = preceding.length + subsequent.length;
+            if (caretTokenMatch != Any.ANY) {
+                result++;
+            }
+            return result;
+        }
+
+        public TokenTriggerPatternBuilder<I> withInsertAction(InsertAction a) {
+            this.action = a;
+            return this;
+        }
+
+        public TokenTriggerPatternBuilder<I> withInsertPolicy(InsertPolicy... policies) {
+            insertPolicies.addAll(Arrays.asList(policies));
+            return this;
+        }
+
+        public TokenTriggerPatternBuilder<I> withDeletionPolicy(DeletionPolicy... policies) {
+            deletionPolicies.addAll(Arrays.asList(policies));
+            return this;
         }
 
         public TokenTriggerPatternBuilder<I> whereCaretTokenMatches(int... items) {
@@ -306,7 +292,7 @@ public class TokenTriggersBuilder<I> {
         }
 
         boolean isEmpty() {
-            return preceding.length == 0 && subsequent.length == 0;
+            return preceding.length == 0 && subsequent.length == 0 && caretTokenMatch == Any.ANY;
         }
 
         void checkTokenIds(int[] ids, boolean befores) {
@@ -391,6 +377,13 @@ public class TokenTriggersBuilder<I> {
         public CompletionBuilder<I> ignoring(IntPredicate ignore) {
             Parameters.notNull("ignore", ignore);
             return bldr.add(this).ignoring(ignore);
+        }
+
+        @Override
+        public int compareTo(TokenTriggerPatternBuilder<?> o) {
+            int a = specificityScore();
+            int b = o.specificityScore();
+            return a > b ? -1 : a == b ? 0 : 1;
         }
     }
 }

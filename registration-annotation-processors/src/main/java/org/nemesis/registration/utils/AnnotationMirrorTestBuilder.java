@@ -55,6 +55,31 @@ public class AnnotationMirrorTestBuilder<T, B extends AnnotationMirrorTestBuilde
         });
     }
 
+    public B mustBeUnsetIfMemberIsSet(String ifSet, String... mustBeUnset) {
+        return addPredicate("if-" + ifSet + "-is-set-"
+                + AnnotationUtils.join(',', mustBeUnset) + "-must-not-be-set", (am) -> {
+            Object o = utils.annotationValue(am, ifSet, Object.class);
+            if (o != null) {
+
+                List<Object> all = new ArrayList<>();
+                Set<String> names = new HashSet<>();
+                for (String name : mustBeUnset) {
+                    Object o1 = utils.annotationValue(am, name, Object.class);
+                    if (o1 != null) {
+                        names.add(name);
+                        all.add(o1);
+                    }
+                }
+                return maybeFail(all.size() <= 1, "If " + ifSet + " is set, "
+                        + AnnotationUtils.join(',', mustBeUnset)
+                        + " may not be used, "
+                        + AnnotationUtils.join(',',
+                                names.toArray(new String[names.size()])));
+            }
+            return true;
+        });
+    }
+
     public AnnotationMirrorMemberTestBuilder<B>
             testMember(String memberName) {
         return new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
@@ -76,9 +101,8 @@ public class AnnotationMirrorTestBuilder<T, B extends AnnotationMirrorTestBuilde
         return (B) this;
     }
 
-    public AnnotationMirrorMemberTestBuilder<B>
-            testMemberIfPresent(String memberName) {
-        return new AnnotationMirrorMemberTestBuilder<B>((ammtb) -> {
+    public AnnotationMirrorMemberTestBuilder<B> testMemberIfPresent(String memberName) {
+        return new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
             return addPredicate(ammtb._predicate().name(), (outer) -> {
                 List<AnnotationMirror> values = utils.annotationValues(outer,
                         memberName, AnnotationMirror.class);
@@ -90,8 +114,7 @@ public class AnnotationMirrorTestBuilder<T, B extends AnnotationMirrorTestBuilde
         }, memberName, utils);
     }
 
-    public B
-            testMemberIfPresent(String memberName, Consumer<AnnotationMirrorMemberTestBuilder<?>> c) {
+    public B testMemberIfPresent(String memberName, Consumer<AnnotationMirrorMemberTestBuilder<?>> c) {
         boolean[] built = new boolean[1];
         AnnotationMirrorMemberTestBuilder<Void> m = new AnnotationMirrorMemberTestBuilder<>((ammtb) -> {
             addPredicate(ammtb._predicate().name(), (outer) -> {

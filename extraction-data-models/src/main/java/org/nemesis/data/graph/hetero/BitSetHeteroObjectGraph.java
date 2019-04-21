@@ -1,10 +1,13 @@
-package org.nemesis.data.graph;
+package org.nemesis.data.graph.hetero;
 
-import java.util.BitSet;
 import java.util.Set;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.Indexed;
+import org.nemesis.data.graph.BitSetSet;
+import org.nemesis.data.graph.IntGraph;
+import org.nemesis.data.graph.IntGraphVisitor;
+import org.nemesis.data.graph.bits.Bits;
 
 /**
  * A graph of container and containee, where the types of the two are
@@ -21,18 +24,18 @@ import org.nemesis.data.Indexed;
  */
 public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddressableItem, RI extends IndexAddressable.IndexAddressableItem, T extends IndexAddressable<TI>, R extends IndexAddressable<RI>> {
 
-    private final BitSetGraph tree;
+    private final IntGraph tree;
     private final T first;
     private final R second;
 
-    BitSetHeteroObjectGraph(BitSetGraph tree, T first, R second) {
+    BitSetHeteroObjectGraph(IntGraph tree, T first, R second) {
         this.tree = tree;
         this.first = first;
         this.second = second;
     }
 
     public static <TI extends IndexAddressable.IndexAddressableItem, RI extends IndexAddressable.IndexAddressableItem, T extends IndexAddressable<TI>, R extends IndexAddressable<RI>>
-            BitSetHeteroObjectGraph<TI, RI, T, R> create(BitSetGraph tree, T first, R second) {
+            BitSetHeteroObjectGraph<TI, RI, T, R> create(IntGraph tree, T first, R second) {
         return new BitSetHeteroObjectGraph<>(tree, first, second);
     }
 
@@ -54,15 +57,15 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return second;
     }
 
-    private Set<TI> toSetFirst(BitSet set) {
+    private Set<TI> toSetFirst(Bits set) {
         return new BitSetSliceSet<>(first, set, 0);
     }
 
-    private Set<RI> toSetSecond(BitSet set) {
+    private Set<RI> toSetSecond(Bits set) {
         return new BitSetSliceSet<>(second, set, first.size());
     }
 
-    private Set<IndexAddressableItem> toSetAll(BitSet set) {
+    private Set<IndexAddressableItem> toSetAll(Bits set) {
         return new BitSetSet<>(new AllIndexed(), set);
     }
 
@@ -76,7 +79,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
      * @return Items from either side which have no antecedents
      */
     public Set<IndexAddressableItem> topLevelOrOrphanItems() {
-        return toSetAll(tree.topLevelOrOrphanRules());
+        return toSetAll(tree.topLevelOrOrphanNodes());
     }
 
     /**
@@ -85,7 +88,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
      * @return The set of items with no children
      */
     public Set<IndexAddressableItem> bottomLevelItems() {
-        return toSetAll(tree.bottomLevelRules());
+        return toSetAll(tree.bottomLevelNodes());
     }
 
     /**
@@ -120,44 +123,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         return new SecondSliceImpl();
     }
 
-    /**
-     * A slice of the graph which can return typed information about
-     * elements from one side of the graph.
-     *
-     * @param <T>
-     * @param <R>
-     */
-    public interface Slice<T, R> {
-
-        Set<IndexAddressableItem> closureOf(T obj);
-
-        Set<IndexAddressableItem> reverseClosureOf(T obj);
-
-        Set<R> parents(T obj);
-
-        Set<R> children(T obj);
-
-        int childCount(T obj);
-
-        boolean hasOutboundEdge(T obj, R k);
-
-        boolean hasInboundEdge(T obj, R k);
-
-        int distance(T obj, R k);
-
-        int inboundReferenceCount(T obj);
-
-        int outboundReferenceCount(T obj);
-
-        int closureSize(T obj);
-
-        int reverseClosureSize(T obj);
-    }
 
     public void walk(HeteroGraphVisitor<TI, RI> v) {
-        tree.walk(new BitSetGraphVisitor() {
+        tree.walk(new IntGraphVisitor() {
             @Override
-            public void enterRule(int ruleId, int depth) {
+            public void enterNode(int ruleId, int depth) {
                 if (ruleId < first.size()) {
                     v.enterFirst(first.forIndex(ruleId), depth);
                 } else {
@@ -166,7 +136,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
             }
 
             @Override
-            public void exitRule(int ruleId, int depth) {
+            public void exitNode(int ruleId, int depth) {
                 if (ruleId < first.size()) {
                     v.exitFirst(first.forIndex(ruleId), depth);
                 } else {
@@ -177,20 +147,6 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
     }
 
-    public interface HeteroGraphVisitor<T, R> {
-
-        void enterFirst(T ruleId, int depth);
-
-        void enterSecond(R ruleId, int depth);
-
-        default void exitFirst(T ruleId, int depth) {
-
-        }
-
-        default void exitSecond(R ruleId, int depth) {
-
-        }
-    }
 
     class SecondSliceImpl implements Slice<RI, TI> {
 

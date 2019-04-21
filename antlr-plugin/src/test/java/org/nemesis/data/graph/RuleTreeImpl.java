@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.nemesis.data.graph.StringGraph;
+import org.nemesis.data.graph.algorithm.RankingAlgorithm;
+import org.nemesis.data.graph.algorithm.Score;
 
 /**
  * The original, correct but far less efficient implementation of StringGraph,
- retained to verify the behavior of the bitset based one.
+ * retained to verify the behavior of the bitset based one.
  *
  * @author Tim Boudreau
  */
@@ -115,7 +117,7 @@ final class RuleTreeImpl implements StringGraph {
      * @return
      */
     @Override
-    public Set<String> topLevelOrOrphanRules() {
+    public Set<String> topLevelOrOrphanNodes() {
         return topLevel;
     }
 
@@ -125,7 +127,7 @@ final class RuleTreeImpl implements StringGraph {
      * @return
      */
     @Override
-    public Set<String> bottomLevelRules() {
+    public Set<String> bottomLevelNodes() {
         return bottomLevel;
     }
 
@@ -180,5 +182,20 @@ final class RuleTreeImpl implements StringGraph {
                 }
             }
         }
+    }
+
+    @Override
+    public int toNodeId(String name) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public String toNode(int index) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public List<Score<String>> apply(RankingAlgorithm alg) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

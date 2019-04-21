@@ -1,12 +1,13 @@
-package org.nemesis.data.graph;
+package org.nemesis.data.graph.hetero;
 
 import java.util.AbstractSet;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import org.nemesis.data.Indexed;
+import org.nemesis.data.graph.bits.Bits;
+import org.nemesis.data.graph.bits.MutableBits;
 
 /**
  * A set implementation which takes a larger bitset and a
@@ -19,14 +20,21 @@ import org.nemesis.data.Indexed;
  */
 final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
 
-    private final BitSet set;
+    private final Bits set;
     private final Indexed<T> data;
     private final int start;
 
-    BitSetSliceSet(Indexed<T> data, BitSet set, int start) {
+    BitSetSliceSet(Indexed<T> data, Bits set, int start) {
         this.data = data;
         this.set = set;
         this.start = start;
+    }
+
+    private MutableBits mutableBits() {
+        if (!(set instanceof MutableBits)) {
+            throw new UnsupportedOperationException("Immutable");
+        }
+        return (MutableBits) set;
     }
 
     @Override
@@ -84,7 +92,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
             throw new IllegalArgumentException("Not in set: " + e);
         }
         boolean wasSet = set.get(ix);
-        set.set(ix);
+        mutableBits().set(ix);
         return !wasSet;
     }
 
@@ -95,7 +103,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
             return false;
         }
         boolean wasSet = set.get(ix);
-        set.clear(ix);
+        mutableBits().clear(ix);
         return wasSet;
     }
 
@@ -111,7 +119,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
 
     @Override
     public boolean addAll(Collection<? extends T> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.length());
         for (T obj : c) {
             int ix = indexOf(obj);
             if (ix < 0) {
@@ -120,13 +128,13 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
             nue.set(ix);
         }
         int oldCardinality = set.cardinality();
-        set.or(nue);
+        mutableBits().or(nue);
         return set.cardinality() != oldCardinality;
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.length());
         if (start > 0) {
             nue.set(0, start - 1);
         }
@@ -137,7 +145,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
             }
         }
         int oldCardinality = set.cardinality();
-        set.and(nue);
+        mutableBits().and(nue);
         return oldCardinality != set.cardinality();
     }
 
@@ -167,7 +175,7 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.length());
         for (Object o : c) {
             int ix = indexOf(o);
             if (ix >= 0) {
@@ -175,12 +183,12 @@ final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
             }
         }
         int oldCardinality = set.cardinality();
-        set.andNot(nue);
+        mutableBits().andNot(nue);
         return oldCardinality != set.cardinality();
     }
 
     @Override
     public void clear() {
-        set.clear();
+        mutableBits().clear();
     }
 }

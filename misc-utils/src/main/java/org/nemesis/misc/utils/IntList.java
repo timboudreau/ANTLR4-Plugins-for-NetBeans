@@ -38,6 +38,11 @@ public final class IntList extends AbstractList<Integer> {
         initialCapacity = Math.max(16, size);
     }
 
+    public IntList copy() {
+        int[] newValues = Arrays.copyOf(values, size);
+        return new IntList(newValues, true);
+    }
+
     public static IntList create() {
         return new IntList();
     }

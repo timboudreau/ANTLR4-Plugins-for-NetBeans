@@ -108,7 +108,7 @@ public final class AntlrCompletionProvider implements CompletionProvider {
                     // of data, so don't recompute it every time
                     Map<CompletionItemProvider<?>, Collection<?>> cache = new HashMap<>();
                     for (CompletionStub<?> stub : stubs) {
-                        String matchName = stub.matches(tokens, caretToken);
+                        TokenMatch matchName = stub.matches(tokens, caretToken);
                         if (matchName == null) {
                             continue;
                         }
@@ -129,9 +129,7 @@ public final class AntlrCompletionProvider implements CompletionProvider {
 
         // XXX need caret offset - and shared way to find the caret token
         // and maybe pass in a list of tokens
-        private <I> void runOne(String matchName, CompletionResultSet resultSet, CompletionStub<I> stub, Document doc, int caretOffset, List<Token> tokens, int[] frequencies, Token caretToken, Map<CompletionItemProvider<?>, Collection<?>> cache) throws Exception {
-            CompletionContext ctx = new CompletionContext(tokens, caretOffset, caretToken, matchName);
-            
+        private <I> void runOne(TokenMatch matchName, CompletionResultSet resultSet, CompletionStub<I> stub, Document doc, int caretOffset, List<Token> tokens, int[] frequencies, Token caretToken, Map<CompletionItemProvider<?>, Collection<?>> cache) throws Exception {
             ThrowingFunction<CompletionItemProvider<? extends I>, Collection<? extends I>> cachedFetcher
                     = (CompletionItemProvider<? extends I> io) -> {
                         Collection<?> c = cache.get(io);

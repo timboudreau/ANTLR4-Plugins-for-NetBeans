@@ -28,7 +28,9 @@ public enum StringKind {
     INSERT_PREFIX,
     /**
      * Get the actual text that should be inserted in the document. This must
-     * not return null.
+     * not return null, and should always return the <i>correct</i> text to
+     * insert - if you need to delete tokens around the caret position,
+     * use DeletionPolicy for that.
      */
     TEXT_TO_INSERT
 }

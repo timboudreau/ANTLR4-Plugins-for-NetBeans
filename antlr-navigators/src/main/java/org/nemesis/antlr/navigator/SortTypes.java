@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.navigator;
 
 import java.awt.event.ActionEvent;
@@ -23,7 +18,7 @@ import org.nemesis.data.graph.StringGraph;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.graph.StringGraph.Score;
+import org.nemesis.data.graph.algorithm.Score;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle;
 
@@ -108,9 +103,9 @@ public enum SortTypes implements Comparator<NamedSemanticRegion<?>> {
         return result;
     }
 
-    private <T extends Enum<T>> void sortBy(List<NamedSemanticRegion<T>> rules, List<Score> scores) {
+    private <T extends Enum<T>> void sortBy(List<NamedSemanticRegion<T>> rules, List<Score<String>> scores) {
         Map<String, Double> scoreMap = new HashMap<>();
-        for (Score s : scores) {
+        for (Score<String> s : scores) {
             scoreMap.put(s.node(), s.score());
         }
         Collections.sort(rules, (a, b) -> {

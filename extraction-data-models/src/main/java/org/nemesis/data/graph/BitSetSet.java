@@ -8,25 +8,31 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.nemesis.data.Indexed;
+import org.nemesis.data.graph.bits.Bits;
+import org.nemesis.data.graph.bits.MutableBits;
 
 /**
- * A Set implementation which can contain values which are one of a fixed
- * set of possible values.  An exception is thrown if a value which is not
- * one of those is added.  Backed typically by a BitSet and a sorted array
- * of strings, which may be shared with other objects.
+ * A Set implementation which can contain values which are one of a fixed set of
+ * possible values. An exception is thrown if a value which is not one of those
+ * is added. Backed typically by a BitSet and a sorted array of strings, which
+ * may be shared with other objects.
  *
  * @author Tim Boudreau
  */
 public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
-    private final BitSet set;
-    private final Indexed<T> data;
+    private final Bits set;
+    private final Indexed<? extends T> data;
 
-    public BitSetSet(Indexed<T> data) {
-        this(data, new BitSet(data.size()));
+    public BitSetSet(Indexed<? extends T> data) {
+        this(data, MutableBits.create(data.size()));
     }
 
-    public BitSetSet(Indexed<T> data, BitSet set) {
+    public BitSetSet(Indexed<? extends T> data, BitSet set) {
+        this(data, Bits.fromBitSet(set));
+    }
+
+    public BitSetSet(Indexed<? extends T> data, Bits set) {
         this.data = data;
         this.set = set;
     }
@@ -41,6 +47,14 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
     public static BitSetSet forSortedStringArray(String[] data) {
         return new BitSetSet<>(Indexed.forSortedStringArray(data));
+    }
+
+    private MutableBits mutableBits() {
+        if (!(set instanceof MutableBits)) {
+            throw new UnsupportedOperationException("Read-only bits "
+                    + "implementation.");
+        }
+        return (MutableBits) set;
     }
 
     @Override
@@ -94,7 +108,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
             throw new IllegalArgumentException("Not in set: " + e);
         }
         boolean wasSet = set.get(ix);
-        set.set(ix);
+        mutableBits().set(ix);
         return !wasSet;
     }
 
@@ -105,7 +119,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
             return false;
         }
         boolean wasSet = set.get(ix);
-        set.clear(ix);
+        mutableBits().clear(ix);
         return wasSet;
     }
 
@@ -121,7 +135,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
     @Override
     public boolean addAll(Collection<? extends T> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.cardinality());
         for (T obj : c) {
             int ix = indexOf(obj);
             if (ix < 0) {
@@ -130,13 +144,13 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
             nue.set(ix);
         }
         int oldCardinality = set.cardinality();
-        set.or(nue);
+        mutableBits().or(nue);
         return set.cardinality() != oldCardinality;
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.cardinality());
         for (Object o : c) {
             int ix = indexOf(o);
             if (ix >= 0) {
@@ -144,7 +158,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
             }
         }
         int oldCardinality = set.cardinality();
-        set.and(nue);
+        mutableBits().and(nue);
         return oldCardinality != set.cardinality();
     }
 
@@ -174,7 +188,7 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        BitSet nue = new BitSet(set.size());
+        MutableBits nue = MutableBits.create(set.cardinality());
         for (Object o : c) {
             int ix = indexOf(o);
             if (ix >= 0) {
@@ -182,12 +196,12 @@ public final class BitSetSet<T> extends AbstractSet<T> implements Set<T> {
             }
         }
         int oldCardinality = set.cardinality();
-        set.andNot(nue);
+        mutableBits().andNot(nue);
         return oldCardinality != set.cardinality();
     }
 
     @Override
     public void clear() {
-        set.clear();
+        mutableBits().clear();
     }
 }

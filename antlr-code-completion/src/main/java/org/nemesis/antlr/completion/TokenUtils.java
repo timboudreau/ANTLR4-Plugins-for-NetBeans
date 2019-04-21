@@ -65,7 +65,7 @@ public final class TokenUtils {
                 continue;
             }
             int expect = before[j];
-            if (type != expect) {
+            if (type != expect && expect != 0) {
                 return false;
             }
             j--;
@@ -80,7 +80,7 @@ public final class TokenUtils {
                 continue;
             }
             int expect = after[j];
-            if (type != expect) {
+            if (type != expect && expect != 0) {
                 return false;
             }
             j++;
@@ -113,16 +113,26 @@ public final class TokenUtils {
             IntPredicate[] tokenMatches,
             List<Token> in,
             Token target) {
+
+        int result = findTokenPatternMatch(befores, afters, ignore, tokenMatches, in, target);
+        return result < 0 ? null : names[result];
+    }
+
+    public static int findTokenPatternMatch(int[][] befores, int[][] afters, IntPredicate ignore,
+            IntPredicate[] tokenMatches,
+            List<Token> in,
+            Token target) {
         assert befores.length == afters.length;
         int ix = target.getTokenIndex();
         int type = target.getType();
         for (int i = 0; i < befores.length; i++) {
             if (tokenMatches[i] == null || tokenMatches[i].test(type)) {
                 if (checkBefore(befores[i], in, ix, ignore) && checkAfter(afters[i], in, ix, ignore)) {
-                    return names[i];
+                    return i;
                 }
             }
         }
-        return null;
+        return -1;
     }
+
 }

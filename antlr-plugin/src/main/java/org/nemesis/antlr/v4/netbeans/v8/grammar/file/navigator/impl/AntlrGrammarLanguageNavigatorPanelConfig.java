@@ -33,6 +33,7 @@ import java.awt.event.ItemListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.swing.DefaultListModel;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -45,7 +46,7 @@ import org.nemesis.antlr.navigator.AntlrNavigatorPanelRegistration;
 import org.nemesis.antlr.navigator.NavigatorPanelConfig;
 import org.nemesis.antlr.navigator.SortTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys;
-import org.nemesis.data.graph.BitSetHeteroObjectGraph;
+import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
@@ -148,7 +149,7 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
         return newSelectedIndex;
     }
 
-    static void configureAppearance(HtmlRenderer.Renderer renderer, NamedSemanticRegion<RuleTypes> value, boolean active, SortTypes sort) {
+    static void configureAppearance(HtmlRenderer.Renderer renderer, NamedSemanticRegion<RuleTypes> value, boolean active, Set<String> scopingDelimiters, SortTypes sort) {
         String txt = value.name();
         RuleTypes tgt = value.kind();
         switch (tgt) {

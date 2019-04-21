@@ -14,7 +14,6 @@ import javax.swing.JToolBar;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
-import org.nemesis.data.graph.StringGraphVisitor;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.BaseDocument;
@@ -24,6 +23,7 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
+import org.nemesis.data.graph.ObjectGraphVisitor;
 
 /**
  *
@@ -208,7 +208,7 @@ public class AdhocEditorKit extends ExtKit {
             rv.restoreSelection();
         }
 
-        class RV implements StringGraphVisitor {
+        class RV implements ObjectGraphVisitor<String> {
 
             String oldSelection;
             boolean oldSelectionFound;
@@ -219,7 +219,7 @@ public class AdhocEditorKit extends ExtKit {
             }
 
             @Override
-            public void enterRule(String rule, int depth) {
+            public void enterNode(String rule, int depth) {
                 if (rule.equals(oldSelection)) {
                     oldSelectionFound = true;
                 }
@@ -227,7 +227,7 @@ public class AdhocEditorKit extends ExtKit {
             }
 
             @Override
-            public void exitRule(String rule, int depth) {
+            public void exitNode(String rule, int depth) {
             }
 
             void restoreSelection() {

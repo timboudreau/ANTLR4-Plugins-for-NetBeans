@@ -72,6 +72,7 @@
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.completion</publicPackage>
                         <publicPackage>org.nemesis.antlr.completion.grammar</publicPackage>
+                        <publicPackage>org.nemesis.antlr.completion.annos</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

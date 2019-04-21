@@ -221,7 +221,7 @@ public class AntlrExtractorTest {
         assertTrue(g.closureOf("map").contains("String"));
         assertTrue(g.reverseClosureOf("String").contains("map"));
 
-        assertEquals(setOf("Whitespace", "items"), g.topLevelOrOrphanRules());
+        assertEquals(setOf("Whitespace", "items"), g.topLevelOrOrphanNodes());
 
         for (NamedSemanticRegion<RuleTypes> o : ri.namedRegions(AntlrKeys.RULE_NAMES)) {
             IndexAddressable.IndexAddressableItem ruleBounds = ri.namedRegions(AntlrKeys.RULE_BOUNDS).regionFor(o.name());

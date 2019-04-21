@@ -4,7 +4,6 @@ import org.nemesis.misc.utils.function.IntBiConsumer;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import static java.lang.Math.sqrt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -13,138 +12,100 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.IntConsumer;
-import static org.nemesis.data.graph.BitSetUtils.copyOf;
-import static org.nemesis.data.graph.BitSetUtils.forEach;
+import java.util.function.IntPredicate;
+import java.util.function.IntToDoubleFunction;
+import org.nemesis.data.graph.algorithm.Algorithm;
+import org.nemesis.data.graph.algorithm.EigenvectorCentrality;
+import org.nemesis.data.graph.algorithm.PageRank;
+import org.nemesis.data.graph.bits.Bits;
+import org.nemesis.data.graph.bits.MutableBits;
 
 /**
- * A highly compact representation of a tree of rules referencing other rules as
- * an array of BitSets, one per rule.
+ * A highly compact graph based on bit sets.
  *
  * @author Tim Boudreau
  */
-public final class BitSetGraph {
+final class BitSetGraph implements IntGraph {
 
-    private final BitSet[] ruleReferences;
-    private final BitSet[] referencedBy;
-    private final BitSet topLevel;
-    private final BitSet bottomLevel;
+    private final Bits[] outboundEdges;
+    private final Bits[] inboundEdges;
+    private final Bits topLevel;
+    private final Bits bottomLevel;
 
-    public BitSetGraph(BitSet[] ruleReferences, BitSet[] referencedBy) {
-        assert sanityCheck(ruleReferences, referencedBy);
-        this.ruleReferences = ruleReferences;
-        this.referencedBy = referencedBy;
-        BitSet ruleReferencesKeys = keySet(ruleReferences);
-        BitSet referencedByKeys = keySet(referencedBy);
-        topLevel = new BitSet(ruleReferences.length);
-        bottomLevel = new BitSet(referencedBy.length);
-        topLevel.or(ruleReferencesKeys);
-        bottomLevel.or(referencedByKeys);
-        topLevel.andNot(referencedByKeys);
-        bottomLevel.andNot(ruleReferencesKeys);
+    public BitSetGraph(BitSet[] outboundEdges, BitSet[] inboundEdges) {
+        this(toBits(outboundEdges), toBits(inboundEdges));
+    }
+
+    public BitSetGraph(BitSet[] edges) {
+        this(toBits(edges));
+    }
+
+    public BitSetGraph(Bits[] outboundEdges, Bits[] inboundEdges) {
+        assert sanityCheck(outboundEdges, inboundEdges);
+        this.outboundEdges = outboundEdges;
+        this.inboundEdges = inboundEdges;
+        Bits outboundKeys = keySet(outboundEdges);
+        Bits inboundKeys = keySet(inboundEdges);
+        MutableBits top = MutableBits.create(outboundEdges.length);
+        MutableBits bottom = MutableBits.create(inboundEdges.length);
+        top.or(outboundKeys);
+        bottom.or(inboundKeys);
+        top.andNot(inboundKeys);
+        bottom.andNot(outboundKeys);
+        topLevel = top.readOnlyView();
+        bottomLevel = bottom.readOnlyView();
         checkConsistency();
     }
 
-    public BitSetGraph(BitSet[] references) {
+    private static Bits[] toBits(BitSet[] sets) {
+        Bits[] bits = new Bits[sets.length];
+        for (int i = 0; i < sets.length; i++) {
+            bits[i] = Bits.fromBitSet(sets[i]);
+        }
+        return bits;
+    }
+
+    public BitSetGraph(Bits[] references) {
         this(references, inverseOf(references));
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static Builder builder(int expectedSize) {
-        return new Builder(expectedSize);
-    }
-
-    public static final class Builder {
-
-        private BitSet[] outboundEdges;
-        private BitSet[] inboundEdges;
-        private static final int INITIAL_SIZE = 32;
-        private int greatestUsed = 0;
-
-        Builder() {
-            this(INITIAL_SIZE);
-        }
-
-        Builder(int initialSize) {
-            outboundEdges = new BitSet[initialSize];
-            inboundEdges = new BitSet[initialSize];
-            for (int i = 0; i < initialSize; i++) {
-                outboundEdges[i] = new BitSet(initialSize);
-                inboundEdges[i] = new BitSet(initialSize);
-            }
-        }
-
-        private void ensureSize(int newIndex) {
-            if (newIndex > outboundEdges.length) {
-                int newSize = (((newIndex / INITIAL_SIZE) + 1) * INITIAL_SIZE) + ((newIndex % INITIAL_SIZE) + 1) + INITIAL_SIZE;
-                BitSet[] newOut = Arrays.copyOf(outboundEdges, newSize);
-                BitSet[] newIn = Arrays.copyOf(inboundEdges, newSize);
-                for (int i = greatestUsed; i < newSize; i++) {
-                    assert newIn[i] == null : "Clobbering in " + i;
-                    assert newOut[i] == null : "Clobbering out " + i;
-                    newIn[i] = new BitSet(newSize);
-                    newOut[i] = new BitSet(newSize);
-                }
-                outboundEdges = newOut;
-                inboundEdges = newIn;
-            }
-            greatestUsed = Math.max(greatestUsed, newIndex);
-        }
-
-        public Builder addEdges(int[][] items) {
-            for (int[] edge : items) {
-                assert edge.length == 2 : "sub-array size must be 2 not " + edge.length;
-                addEdge(edge[0], edge[1]);
-            }
-            return this;
-        }
-
-        public Builder addEdge(int a, int b) {
-            ensureSize(Math.max(a, b) + 1);
-            outboundEdges[a].set(b);
-            inboundEdges[b].set(a);
-            return this;
-        }
-
-        public BitSetGraph build() {
-            BitSet[] outs = Arrays.copyOf(outboundEdges, greatestUsed);
-            BitSet[] ins = Arrays.copyOf(inboundEdges, greatestUsed);
-            return new BitSetGraph(outs, ins);
-        }
-    }
-
+    @Override
     public boolean containsEdge(int a, int b) {
-        if (a > ruleReferences.length || b > ruleReferences.length || a < 0 || b < 0) {
+        if (a > outboundEdges.length || b > outboundEdges.length || a < 0 || b < 0) {
             return false;
         }
-        boolean result = ruleReferences[a].get(b);
-        assert !result || referencedBy[b].get(a) : "State inconsistent for " + a + "," + b;
+        boolean result = outboundEdges[a].get(b);
+        assert !result || inboundEdges[b].get(a) : "State inconsistent for " + a + "," + b;
         return result;
     }
 
     void checkConsistency() {
         boolean asserts = false;
         assert asserts = true;
-        assert ruleReferences.length == referencedBy.length : "Array sizes differ";
+        assert outboundEdges.length == inboundEdges.length : "Array sizes differ";
         if (asserts) {
-            for (int i = 0; i < ruleReferences.length; i++) {
-                BitSet set = ruleReferences[i];
+            for (int i = 0; i < outboundEdges.length; i++) {
+                Bits set = outboundEdges[i];
                 for (int bit = set.nextSetBit(0); bit >= 0; bit = set.nextSetBit(bit + 1)) {
-                    BitSet opposite = referencedBy[bit];
+                    Bits opposite = inboundEdges[bit];
                     assert opposite.get(i);
                 }
             }
         }
     }
 
+    /**
+     * Save a serialized graph.
+     *
+     * @param out The output
+     * @throws IOException If something goes wrong
+     */
     public void save(ObjectOutput out) throws IOException {
         out.writeInt(1); // version
-        out.writeInt(ruleReferences.length);
-        for (int i = 0; i < ruleReferences.length; i++) {
-            if (ruleReferences[i].cardinality() > 0) {
-                out.writeObject(ruleReferences[i].toByteArray());
+        out.writeInt(outboundEdges.length);
+        for (int i = 0; i < outboundEdges.length; i++) {
+            if (outboundEdges[i].cardinality() > 0) {
+                out.writeObject(outboundEdges[i].toByteArray());
             } else {
                 out.writeObject(null);
             }
@@ -152,81 +113,93 @@ public final class BitSetGraph {
         out.flush();
     }
 
+    /**
+     * Load a serialized graph.
+     *
+     * @param in The input
+     * @return A graph
+     * @throws IOException If something goes wrong
+     * @throws ClassNotFoundException Should not happen
+     */
     public static BitSetGraph load(ObjectInput in) throws IOException, ClassNotFoundException {
         int ver = in.readInt();
         if (ver != 1) {
             throw new IOException("Unsupoorted version " + ver);
         }
         int count = in.readInt();
-        BitSet[] sets = new BitSet[count];
+        Bits[] sets = new MutableBits[count];
         for (int i = 0; i < sets.length; i++) {
             byte[] vals = (byte[]) in.readObject();
             if (vals == null) {
-                sets[i] = new BitSet(0);
+                sets[i] = Bits.INSTANCE;
             } else {
-                sets[i] = BitSet.valueOf(vals);
+                sets[i] = MutableBits.valueOf(vals);
             }
         }
         return new BitSetGraph(sets);
     }
 
-    private static BitSet[] inverseOf(BitSet[] ruleReferences) {
-        int size = ruleReferences.length;
-        BitSet empty = null;
-        BitSet[] reverseUsages = new BitSet[size];
+    private static MutableBits[] inverseOf(Bits[] outbound) {
+        // Given a single set of inbound bits, create the inverse
+        // set
+        int size = outbound.length;
+        MutableBits empty = null;
+        MutableBits[] inbound = new MutableBits[size];
         for (int i = 0; i < size; i++) {
-            if (ruleReferences[i] == null) {
+            if (outbound[i] == null) {
                 if (empty == null) {
-                    empty = new BitSet(0);
+                    empty = MutableBits.create(0);
                 }
-                ruleReferences[i] = empty;
+                outbound[i] = empty;
             }
             for (int j = 0; j < size; j++) {
-                BitSet b = ruleReferences[j];
+                Bits b = outbound[j];
                 if (b != null) {
                     if (b.get(i)) {
-                        if (reverseUsages[i] == null) {
-                            reverseUsages[i] = new BitSet(size);
+                        if (inbound[i] == null) {
+                            inbound[i] = MutableBits.create(size);
                         }
-                        reverseUsages[i].set(j);
+                        inbound[i].set(j);
                     }
                 }
             }
-            if (reverseUsages[i] == null) {
+            if (inbound[i] == null) {
                 if (empty == null) {
-                    empty = new BitSet(0);
+                    empty = MutableBits.create(0);
                 }
-                reverseUsages[i] = empty;
+                inbound[i] = empty;
             }
         }
-        return reverseUsages;
+        return inbound;
     }
 
-    private boolean sanityCheck(BitSet[] ruleReferences, BitSet[] referencedBy) {
+    private boolean sanityCheck(Bits[] outbound, Bits[] inbound) {
+        // Ensure that the outbound and inbound edge sets are
+        // mirror images of each other
         boolean asserts = false;
         assert asserts = true;
         if (!asserts) {
             return true;
         }
-        assert ruleReferences.length == referencedBy.length : "BitSet array lengths do not match: "
-                + ruleReferences.length + " and " + referencedBy.length;
-        for (int i = 0; i < ruleReferences.length; i++) {
+        assert outbound.length == inbound.length : "MutableBits array lengths do not match: "
+                + outbound.length + " and " + inbound.length;
+        for (int i = 0; i < outbound.length; i++) {
             int ix = i;
-            forEach(ruleReferences[i], bit -> {
-                BitSet reverse = referencedBy[bit];
+            outbound[i].forEachSetBitAscending(bit -> {
+                Bits reverse = inbound[bit];
                 assert reverse.get(ix) : "ruleReferences[" + ix + "] says it "
                         + "references " + bit + " but referencedBy[" + bit + "]"
-                        + " does not have " + ix + " set - ruleReferences: " + bitSetArrayToString(ruleReferences)
-                        + " referencedBy: " + bitSetArrayToString(referencedBy);
+                        + " does not have " + ix + " set - ruleReferences: " + bitSetArrayToString(outbound)
+                        + " referencedBy: " + bitSetArrayToString(inbound);
             });
         }
         return true;
     }
 
-    private String bitSetArrayToString(BitSet[] arr) {
+    private String bitSetArrayToString(Bits[] arr) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < arr.length; i++) {
-            BitSet b = arr[i];
+            Bits b = arr[i];
             if (b.isEmpty()) {
                 sb.append(i).append(": empty\n");
             } else {
@@ -239,7 +212,7 @@ public final class BitSetGraph {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder().append("BitSetTree{size=")
-                .append(ruleReferences.length)
+                .append(outboundEdges.length)
                 .append(", totalCardinality=").append(totalCardinality())
                 .append("}\n");
 
@@ -251,98 +224,157 @@ public final class BitSetGraph {
         return sb.toString();
     }
 
-    public void walk(BitSetGraphVisitor v) {
-        BitSet traversed = new BitSet();
+    /**
+     * Walk the closure of the graph from top level nodes.
+     *
+     * @param v A visitor
+     */
+    @Override
+    public void walk(IntGraphVisitor v) {
+        BitSet traversed = new BitSet(size());
         walk(v, topLevel, traversed, 0);
         // The top level nodes computation will miss isolated paths with
         // cycles, so ensure we've covered everything
         for (int bit = traversed.nextClearBit(0); bit >= 0 && bit < size(); bit = traversed.nextClearBit(bit + 1)) {
-            walk(v, ruleReferences[bit], traversed, 0);
+            walk(v, outboundEdges[bit], traversed, 0);
         }
     }
 
-    public void walk(int startingWith, BitSetGraphVisitor v) {
-        BitSet set = new BitSet();
+    /**
+     * Walk the closure of a node.
+     *
+     * @param startingWith The starting node
+     * @param v A visitor
+     */
+    @Override
+    public void walk(int startingWith, IntGraphVisitor v) {
+        MutableBits set = MutableBits.create(size());
         set.set(startingWith);
-        walk(v, set, new BitSet(), 0);
+        walk(v, set, new BitSet(size()), 0);
     }
 
-    private void walk(BitSetGraphVisitor v, BitSet traverse, BitSet seen, int depth) {
-        BitSet refs = traverse;
-        for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
+    private void walk(IntGraphVisitor v, Bits traverse, BitSet seen, int depth) {
+        traverse.forEachSetBitAscending(bit -> {
             if (!seen.get(bit)) {
                 seen.set(bit);
-                v.enterRule(bit, depth);
-                walk(v, ruleReferences[bit], seen, depth + 1);
-                v.exitRule(bit, depth);
+                v.enterNode(bit, depth);
+                walk(v, outboundEdges[bit], seen, depth + 1);
+                v.exitNode(bit, depth);
             }
-        }
+        });
     }
 
-    public void walkUpwards(BitSetGraphVisitor v) {
-        BitSet traversed = new BitSet();
-        walkUpwards(v, topLevel, traversed, 0);
-        for (int bit = traversed.previousClearBit(size() - 1); bit >= 0 && bit < size(); bit = traversed.previousClearBit(bit - 1)) {
-            if (bit >= size()) {
+    /**
+     * Walk the inverse closure of the bottom-most nodes in the graph. Note that
+     * this will not traverse subgraphs which are entirely cyclical.
+     *
+     * @param v A visitor
+     */
+    @Override
+    public void walkUpwards(IntGraphVisitor v) {
+        int size = size();
+        BitSet traversed = new BitSet(size);
+        walkUpwards(v, bottomLevel, traversed, 0);
+        for (int bit = traversed.previousClearBit(size - 1); bit >= 0 && bit < size; bit = traversed.previousClearBit(bit - 1)) {
+            if (bit >= size) {
                 break;
             }
-            walk(v, referencedBy[bit], traversed, 0);
+            walk(v, inboundEdges[bit], traversed, 0);
         }
     }
 
-    public void walkUpwards(int startingWith, BitSetGraphVisitor v) {
-        BitSet set = new BitSet();
+    /**
+     * Walk the inverse closure of one node, visiting each ancestor exactly
+     * once.
+     *
+     * @param startingWith The starting node
+     * @param v A visitor
+     */
+    @Override
+    public void walkUpwards(int startingWith, IntGraphVisitor v) {
+        MutableBits set = MutableBits.create(size());
         set.set(startingWith);
-        walkUpwards(v, set, new BitSet(), 0);
+        walkUpwards(v, set, new BitSet(size()), 0);
     }
 
-    private void walkUpwards(BitSetGraphVisitor v, BitSet traverse, BitSet seen, int depth) {
-        BitSet refs = traverse;
-        for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
+    private void walkUpwards(IntGraphVisitor v, Bits traverse, BitSet seen, int depth) {
+        traverse.forEachSetBitAscending(bit -> {
             if (!seen.get(bit)) {
                 seen.set(bit);
-                v.enterRule(bit, depth);
-                walk(v, referencedBy[bit], seen, depth + 1);
-                v.exitRule(bit, depth);
+                v.enterNode(bit, depth);
+                walkUpwards(v, inboundEdges[bit], seen, depth + 1);
             }
-        }
+        });
     }
 
+    /**
+     * Visit all edges in the graph.
+     *
+     * @param bi A consumer
+     */
+    @Override
     public void edges(IntBiConsumer bi) {
         for (int i = 0; i < size(); i++) {
-            BitSet refs = this.ruleReferences[i];
-            for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
-                bi.accept(i, bit);
-            }
+            int index = i;
+            outboundEdges[i].forEachSetBitAscending(bit -> {
+                bi.accept(index, bit);
+            });
         }
     }
 
+    /**
+     * Get all edges in the graph.
+     *
+     * @return A set of pairs of edges
+     */
+    @Override
     public PairSet allEdges() {
         PairSet set = new PairSet(size());
         edges(set::add);
         return set;
     }
 
+    /**
+     * Get the number of nodes in the graph.
+     *
+     * @return A node count
+     */
     public int size() {
-        return ruleReferences.length;
+        return outboundEdges.length;
     }
 
-    public BitSet closureDisjunction(int a, int b) {
+    /**
+     * Get the disjunction of the closure of two nodes.
+     *
+     * @param a The first node
+     * @param b The second node
+     * @return A set of nodes
+     */
+    @Override
+    public Bits closureDisjunction(int a, int b) {
         if (a == b) {
-            return new BitSet();
+            return MutableBits.create(0);
         }
-        BitSet ca = closureOf(a);
-        BitSet cb = closureOf(b);
+        MutableBits ca = _closureOf(a);
+        MutableBits cb = _closureOf(b);
         ca.xor(cb);
         return ca;
     }
 
-    public BitSet closureUnion(int a, int b) {
+    /**
+     * Get the union of the closure of two nodes.
+     *
+     * @param a The first node
+     * @param b The second node
+     * @return A set of nodes
+     */
+    @Override
+    public Bits closureUnion(int a, int b) {
         if (a == b) {
-            return new BitSet();
+            return MutableBits.create(0);
         }
-        BitSet ca = closureOf(a);
-        BitSet cb = closureOf(b);
+        MutableBits ca = _closureOf(a);
+        MutableBits cb = _closureOf(b);
         ca.or(cb);
         return ca;
     }
@@ -354,6 +386,7 @@ public final class BitSetGraph {
      * @param b Another node
      * @return A distance
      */
+    @Override
     public int distance(int a, int b) {
         Optional<IntPath> path = shortestPathBetween(a, b);
         if (path.isPresent()) {
@@ -374,10 +407,11 @@ public final class BitSetGraph {
      * @param nodes An array of nodes
      * @return A set
      */
-    public BitSet closureDisjunction(int... nodes) {
-        BitSet result = new BitSet(size());
+    @Override
+    public Bits closureDisjunction(int... nodes) {
+        MutableBits result = MutableBits.create(size());
         for (int i = 0; i < nodes.length; i++) {
-            BitSet clos = closureOf(nodes[i]);
+            MutableBits clos = _closureOf(nodes[i]);
             if (i == 0) {
                 result.or(clos);
             } else {
@@ -394,13 +428,14 @@ public final class BitSetGraph {
      * @param nodes A set of nodes
      * @return A set
      */
-    public BitSet closureDisjunction(BitSet nodes) {
-        BitSet result = new BitSet(size());
+    @Override
+    public Bits closureDisjunction(Bits nodes) {
+        MutableBits result = MutableBits.create(size());
         for (int bit = nodes.nextSetBit(0), count = 0; bit >= 0; bit = nodes.nextSetBit(bit + 1), count++) {
             if (bit >= size()) {
                 break;
             }
-            BitSet clos = closureOf(bit);
+            MutableBits clos = _closureOf(bit);
             if (count == 0) {
                 result.or(clos);
             } else {
@@ -432,8 +467,16 @@ public final class BitSetGraph {
      * @return An array of doubles the same size as the number of nodes in the
      * graph, where the value for each node (the array index) is the score
      */
+    @Override
     public double[] eigenvectorCentrality(int maxIterations, double minDiff,
             boolean inEdges, boolean ignoreSelfEdges, boolean l2norm) {
+        return Algorithm.eigenvectorCentrality().setParameter(EigenvectorCentrality.MAXIMUM_ITERATIONS,
+                maxIterations).setParameter(EigenvectorCentrality.MINIMUM_DIFFERENCE, minDiff)
+                .setParameter(EigenvectorCentrality.USE_IN_EDGES, inEdges)
+                .setParameter(EigenvectorCentrality.IGNORE_SELF_EDGES, ignoreSelfEdges)
+                .setParameter(EigenvectorCentrality.NORMALIZE, l2norm).apply(this);
+
+        /*
         int sz = size();
         double[] unnormalized = new double[sz];
         double[] centrality = new double[sz];
@@ -442,8 +485,8 @@ public final class BitSetGraph {
         int iter = 0;
         do {
             for (int i = 0; i < sz; i++) {
-                BitSet dests = inEdges ? referencedBy[i] : neighbors(i);
-                double sum = BitSetUtils.sum(dests, centrality, ignoreSelfEdges ? i : Integer.MIN_VALUE);
+                Bits dests = inEdges ? inboundEdges[i] : neighbors(i);
+                double sum = dests.sum(centrality, ignoreSelfEdges ? i : Integer.MIN_VALUE);
                 unnormalized[i] = sum;
                 double s;
                 if (l2norm) {
@@ -468,12 +511,13 @@ public final class BitSetGraph {
             }
         } while (iter++ < maxIterations && diff > minDiff);
         return centrality;
+        */
     }
 
-    private double sum(DoubleIntFunction func) {
+    public double sum(IntToDoubleFunction func) {
         double result = 0.0;
         for (int i = 0; i < size(); i++) {
-            result += func.apply(i);
+            result += func.applyAsDouble(i);
         }
         return result;
     }
@@ -492,8 +536,14 @@ public final class BitSetGraph {
      * @return An array of doubles, where the index is the node id and the value
      * is the score
      */
+    @Override
     public double[] pageRank(double minDifference, double dampingFactor,
             int maximumIterations, boolean normalize) {
+        return Algorithm.pageRank().setParameter(PageRank.MINIMUM_DIFFERENCE, minDifference)
+                .setParameter(PageRank.DAMPING_FACTOR, dampingFactor)
+                .setParameter(PageRank.MAXIMUM_ITERATIONS, maximumIterations)
+                .setParameter(PageRank.NORMALIZE, normalize).apply(this);
+        /*
         double difference;
         int cnt = 0;
         double n = size();
@@ -506,19 +556,19 @@ public final class BitSetGraph {
             double danglingFactor = 0;
             if (normalize) {
                 danglingFactor = dampingFactor / n * sum(i -> {
-                    if (children(i).cardinality() == 0) {
+                    if (children(i).isEmpty()) {
                         return result[i];
                     }
-                    return 0.0;
+                    return 0D;
                 });
             }
             for (int i = 0; i < size(); i++) {
-                double inputSum = BitSetUtils.sum(referencedBy[i], j -> {
+                double inputSum = inboundEdges[i].sum((int j) -> {
                     double outDegree = children(j).cardinality();
                     if (outDegree != 0) {
                         return result[j] / outDegree;
                     }
-                    return 0.0;
+                    return 0D;
                 });
                 double val = (1.0 - dampingFactor) / n
                         + dampingFactor * inputSum + danglingFactor;
@@ -530,8 +580,10 @@ public final class BitSetGraph {
             cnt++;
         } while ((difference > minDifference) && cnt < maximumIterations);
         return result;
+        */
     }
 
+    @Override
     public boolean isReachableFrom(int a, int b) {
         return closureOf(a).get(b);
     }
@@ -543,6 +595,7 @@ public final class BitSetGraph {
      * @param b Another node
      * @return If b is a descendant of a
      */
+    @Override
     public boolean isReverseReachableFrom(int a, int b) {
         return closureOf(b).get(a);
     }
@@ -553,22 +606,25 @@ public final class BitSetGraph {
      * @param startingNode A node
      * @return A set of nodes
      */
-    public BitSet neighbors(int startingNode) {
-        BitSet result = copyOf(referencedBy[startingNode]);
-        result.or(ruleReferences[startingNode]);
+    @Override
+    public Bits neighbors(int startingNode) {
+        MutableBits result = inboundEdges[startingNode].mutableCopy();
+        result.or(outboundEdges[startingNode]);
         return result;
     }
 
+    @Override
     public void depthFirstSearch(int startingNode, boolean up, IntConsumer cons) {
-        depthFirstSearch(startingNode, up, cons, new BitSet());
+        depthFirstSearch(startingNode, up, cons, MutableBits.create(size()));
     }
 
+    @Override
     public void breadthFirstSearch(int startingNode, boolean up, IntConsumer cons) {
-        breadthFirstSearch(startingNode, up, cons, new BitSet());
+        breadthFirstSearch(startingNode, up, cons, MutableBits.create(size()));
     }
 
-    private void breadthFirstSearch(int startingNode, boolean up, IntConsumer cons, BitSet traversed) {
-        BitSet dests = up ? referencedBy[startingNode] : ruleReferences[startingNode];
+    private void breadthFirstSearch(int startingNode, boolean up, IntConsumer cons, MutableBits traversed) {
+        Bits dests = up ? inboundEdges[startingNode] : outboundEdges[startingNode];
         boolean any = false;
         for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
             if (!traversed.get(bit)) {
@@ -587,8 +643,8 @@ public final class BitSetGraph {
         }
     }
 
-    private void depthFirstSearch(int startingNode, boolean up, IntConsumer cons, BitSet traversed) {
-        BitSet dests = up ? referencedBy[startingNode] : ruleReferences[startingNode];
+    private void depthFirstSearch(int startingNode, boolean up, IntConsumer cons, MutableBits traversed) {
+        Bits dests = up ? inboundEdges[startingNode] : outboundEdges[startingNode];
         boolean any = false;
         for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
             if (!traversed.get(bit)) {
@@ -608,20 +664,129 @@ public final class BitSetGraph {
     }
 
     /**
-     * Get the set of nodes in the graph whose closure is not
-     * shared by any other nodes.
+     * Do a depth-first search which takes a predicate that will abort the
+     * search the first time the predicate returns false.
+     *
+     * @param startingNode The starting node
+     * @param up Wheather to search antecedent nodes or successor nodes
+     * @param cons A predicate
+     * @return True if the predicate returned false at some point (i.e. the
+     * thing looked for was found in the graph and no further searching was
+     * needed, such as reachability tests).
+     */
+    @Override
+    public boolean abortableDepthFirstSearch(int startingNode, boolean up, IntPredicate cons) {
+        return abortableDepthFirstSearch(startingNode, up, cons, MutableBits.create(size()));
+    }
+
+    /**
+     * Do a breadth-first search which takes a predicate that will abort the
+     * search the first time the predicate returns false.
+     *
+     * @param startingNode The starting node
+     * @param up Wheather to search antecedent nodes or successor nodes
+     * @param cons A predicate
+     * @return True if the predicate returned false at some point (i.e. the
+     * thing looked for was found in the graph and no further searching was
+     * needed, such as reachability tests).
+     */
+    @Override
+    public boolean abortableBreadthFirstSearch(int startingNode, boolean up, IntPredicate cons) {
+        return abortableBreadthFirstSearch(startingNode, up, cons, MutableBits.create(size()));
+    }
+
+    private boolean abortableBreadthFirstSearch(int startingNode, boolean up, IntPredicate cons, MutableBits traversed) {
+        Bits dests = up ? inboundEdges[startingNode] : outboundEdges[startingNode];
+        boolean any = false;
+        for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
+            if (!traversed.get(bit)) {
+                if (!cons.test(bit)) {
+                    return true;
+                }
+                any = true;
+            }
+        }
+        if (!any) {
+            return false;
+        }
+        for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
+            if (!traversed.get(bit)) {
+                boolean res = abortableBreadthFirstSearch(bit, up, cons, traversed);
+                if (res) {
+                    return true;
+                }
+                traversed.set(bit);
+            }
+        }
+        return false;
+    }
+
+    private boolean abortableDepthFirstSearch(int startingNode, boolean up, IntPredicate cons, MutableBits traversed) {
+        Bits dests = up ? inboundEdges[startingNode] : outboundEdges[startingNode];
+        boolean any = false;
+        for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
+            if (!traversed.get(bit)) {
+                boolean res = abortableDepthFirstSearch(bit, up, cons, traversed);
+                if (res) {
+                    return true;
+                }
+                any = true;
+            }
+        }
+        if (!any) {
+            return false;
+        }
+        for (int bit = dests.nextSetBit(0); bit >= 0; bit = dests.nextSetBit(bit + 1)) {
+            if (!traversed.get(bit)) {
+                traversed.set(bit);
+                boolean res = cons.test(bit);
+                if (res) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Bits connectors() {
+        int sz = size();
+        MutableBits result = MutableBits.create(sz);
+        for (int i = 0; i < sz; i++) {
+            if (!inboundEdges[i].isEmpty() && !outboundEdges[i].isEmpty()) {
+                result.set(i);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public Bits orphans() {
+        int sz = size();
+        MutableBits result = MutableBits.create(sz);
+        for (int i = 0; i < sz; i++) {
+            if (inboundEdges[i].isEmpty() && outboundEdges[i].isEmpty()) {
+                result.set(i);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the set of nodes in the graph whose closure is not shared by any
+     * other nodes.
      *
      * @return A set of nodes
      */
-    public BitSet disjointItems() {
-        BitSet[] unions = new BitSet[size()];
+    @Override
+    public Bits disjointNodes() {
+        MutableBits[] unions = new MutableBits[size()];
         for (int i = 0; i < unions.length; i++) {
-            unions[i] = new BitSet(unions.length);
+            unions[i] = MutableBits.create(unions.length);
         }
-        BitSet result = new BitSet(size());
-        outer:
+        MutableBits result = MutableBits.create(size());
         for (int i = 0; i < unions.length; i++) {
-            unions[i] = closureOf(i);
+            unions[i] = _closureOf(i);
             unions[i].clear(i);
             for (int j = 0; j < unions.length; j++) {
                 if (i != j) {
@@ -641,27 +806,29 @@ public final class BitSetGraph {
      * Determine if the passed node or a descendant of it has a cycle back to
      * itself.
      *
-     * @param rule A node
+     * @param node A node
      * @return True if any outbound path from this node directly or indirectly
      * recurses back to it
      */
-    public boolean isRecursive(int rule) {
-        return closureOf(rule).get(rule);
+    @Override
+    public boolean isRecursive(int node) {
+        return closureOf(node).get(node);
     }
 
     /**
      * Determine if a node is <i>indirectly recursive</i> - if the closure of it
      * contains a cycle back to it, not counting cycles to itself.
      *
-     * @param rule A node
+     * @param node A node
      * @return Whether or not it is indirectly recursive
      */
-    public boolean isIndirectlyRecursive(int rule) {
-        BitSet test = new BitSet(size());
-        test.or(ruleReferences[rule]);
-        test.clear(rule);
-        closureOf(rule, test, 0);
-        return test.get(rule);
+    @Override
+    public boolean isIndirectlyRecursive(int node) {
+        MutableBits test = MutableBits.create(size());
+        test.or(outboundEdges[node]);
+        test.clear(node);
+        closureOf(node, test, 0);
+        return test.get(node);
     }
 
     /**
@@ -670,12 +837,14 @@ public final class BitSetGraph {
      *
      * @return A count of nodes
      */
+    @Override
     public int[] byClosureSize() {
-        Integer[] result = new Integer[ruleReferences.length];
+        Integer[] result = new Integer[outboundEdges.length];
         for (int i = 0; i < result.length; i++) {
             result[i] = i;
         }
         int[] cache = new int[result.length];
+        Arrays.fill(cache, -1);
         Arrays.sort(result, (a, b) -> {
             int sizeA = cache[a] == -1 ? cache[a] = closureSize(a) : cache[a];
             int sizeB = cache[b] == -1 ? cache[b] = closureSize(b) : cache[b];
@@ -694,12 +863,13 @@ public final class BitSetGraph {
      *
      * @return A count of nodes
      */
+    @Override
     public int[] byReverseClosureSize() {
-        Integer[] result = new Integer[ruleReferences.length];
+        Integer[] result = new Integer[outboundEdges.length];
         for (int i = 0; i < result.length; i++) {
             result[i] = i;
         }
-        int[] cache = new int[ruleReferences.length];
+        int[] cache = new int[outboundEdges.length];
         Arrays.fill(cache, -1);
         Arrays.sort(result, (a, b) -> {
             int sizeA = cache[a] == -1 ? cache[a] = reverseClosureSize(a) : cache[a];
@@ -715,8 +885,8 @@ public final class BitSetGraph {
 
     public List<int[]> edges() {
         List<int[]> result = new ArrayList<>();
-        for (int i = 0; i < ruleReferences.length; i++) {
-            BitSet refs = ruleReferences[i];
+        for (int i = 0; i < outboundEdges.length; i++) {
+            Bits refs = outboundEdges[i];
             for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
                 result.add(new int[]{i, bit});
             }
@@ -731,8 +901,9 @@ public final class BitSetGraph {
      * @param to The destination node
      * @return True if the edge exists
      */
+    @Override
     public boolean hasOutboundEdge(int from, int to) {
-        return ruleReferences[from].get(to);
+        return outboundEdges[from].get(to);
     }
 
     /**
@@ -742,58 +913,63 @@ public final class BitSetGraph {
      * @param to The destination node
      * @return True if the edge exists
      */
+    @Override
     public boolean hasInboundEdge(int from, int to) {
-        return referencedBy[from].get(to);
+        return inboundEdges[from].get(to);
     }
 
     /**
      * Returns the number of inbound edges a node has.
      *
-     * @param rule A node
+     * @param node A node
      * @return The edge count
      */
-    public int inboundReferenceCount(int rule) {
-        return referencedBy[rule].cardinality();
+    @Override
+    public int inboundReferenceCount(int node) {
+        return inboundEdges[node].cardinality();
     }
 
     /**
      * Returns the number of outbound edges a node has.
      *
-     * @param rule A node
+     * @param node A node
      * @return The edge count
      */
-    public int outboundReferenceCount(int rule) {
-        return ruleReferences[rule].cardinality();
+    @Override
+    public int outboundReferenceCount(int node) {
+        return outboundEdges[node].cardinality();
     }
 
     /**
      * Get the set of nodes which have inbound edges from the passed node.
      *
-     * @param rule A node
+     * @param node A node
      * @return A set
      */
-    public BitSet children(int rule) {
-        return ruleReferences[rule];
+    @Override
+    public Bits children(int node) {
+        return outboundEdges[node];
     }
 
     /**
      * Get the set of nodes which reference the passed node.
      *
-     * @param rule A node
+     * @param node A node
      * @return Nodes which have an outbound edge to the passed one
      */
-    public BitSet parents(int rule) {
-        return referencedBy[rule];
+    @Override
+    public Bits parents(int node) {
+        return inboundEdges[node];
     }
 
-    private static BitSet keySet(BitSet[] bits) {
+    private static Bits keySet(Bits[] bits) {
         BitSet nue = new BitSet(bits.length);
         for (int i = 0; i < bits.length; i++) {
             if (bits[i].cardinality() > 0) {
                 nue.set(i);
             }
         }
-        return nue;
+        return Bits.fromBitSet(nue);
     }
 
     /**
@@ -801,7 +977,8 @@ public final class BitSetGraph {
      *
      * @return A set
      */
-    public BitSet topLevelOrOrphanRules() {
+    @Override
+    public Bits topLevelOrOrphanNodes() {
         return topLevel;
     }
 
@@ -810,51 +987,60 @@ public final class BitSetGraph {
      *
      * @return The set of nodes which have no outbound edges
      */
-    public BitSet bottomLevelRules() {
+    @Override
+    public Bits bottomLevelNodes() {
         return bottomLevel;
     }
 
     /**
      * Determine if a node has no inbound edges - no ancestors.
      *
-     * @param rule The node
+     * @param node The node
      * @return true if the passed node is not referenced by any other nodes in
      * this graph
      */
-    public boolean isUnreferenced(int rule) {
-        return referencedBy[rule].isEmpty();
+    @Override
+    public boolean isUnreferenced(int node) {
+        return inboundEdges[node].isEmpty();
     }
 
     /**
      * Get the count of nodes which have the passed node as an ancestor.
      *
-     * @param rule A node
+     * @param node A node
      * @return The number of nodes which have the passed node as an ancestor
      */
-    public int closureSize(int rule) {
-        return closureOf(rule).cardinality();
+    @Override
+    public int closureSize(int node) {
+        return closureOf(node).cardinality();
     }
 
     /**
      * Get the count of nodes which have the passed node as a descendant.
      *
-     * @param rule A node
+     * @param node A node
      * @return The number of nodes which have the passed node as a descendant
      */
-    public int reverseClosureSize(int rule) {
-        return reverseClosureOf(rule).cardinality();
+    @Override
+    public int reverseClosureSize(int node) {
+        return reverseClosureOf(node).cardinality();
     }
 
     /**
      * Get the closure of this node - the set of all nodes which have this node
      * as an ancestor.
      *
-     * @param rule A node
+     * @param node A node
      * @return A set
      */
-    public BitSet closureOf(int rule) {
-        BitSet result = new BitSet();
-        closureOf(rule, result, 0);
+    @Override
+    public Bits closureOf(int node) {
+        return _closureOf(node);
+    }
+
+    private MutableBits _closureOf(int node) {
+        MutableBits result = MutableBits.create(size());
+        closureOf(node, result, 0);
         return result;
     }
 
@@ -868,6 +1054,7 @@ public final class BitSetGraph {
      * @return An optional which, if non-empty, contains a path for which no
      * shorter path between the same two nodes exists
      */
+    @Override
     public Optional<IntPath> shortestPathBetween(int src, int target) {
         Iterator<IntPath> iter = pathsBetween(src, target).iterator();
         return iter.hasNext() ? Optional.of(iter.next()) : Optional.empty();
@@ -881,6 +1068,7 @@ public final class BitSetGraph {
      * @param target The target node
      * @return A list of paths
      */
+    @Override
     public List<IntPath> pathsBetween(int src, int target) {
         List<IntPath> paths = new ArrayList<>();
         IntPath base = new IntPath().add(src);
@@ -895,10 +1083,9 @@ public final class BitSetGraph {
             paths.add(base.copy().add(target));
             return;
         }
-        BitSet refs = this.ruleReferences[src];
-        for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
+        outboundEdges[src].forEachSetBitAscending(bit -> {
             if (seenPairs.contains(src, bit)) {
-                continue;
+                return;
             }
             if (bit == target) {
                 IntPath found = base.copy().add(target);
@@ -906,92 +1093,94 @@ public final class BitSetGraph {
             } else {
                 pathsTo(bit, target, base.copy().add(bit), paths, seenPairs);
             }
-        }
+        });
     }
 
-    private void closureOf(int rule, BitSet into, int depth) {
-        if (into.get(rule)) {
+    private void closureOf(int node, MutableBits into, int depth) {
+        if (into.get(node)) {
             return;
         }
         if (depth > 0) {
-            into.set(rule);
+            into.set(node);
         }
-        BitSet refs = ruleReferences[rule];
-        for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
-            if (bit != rule /* && !into.get(bit) */) {
+        outboundEdges[node].forEachSetBitAscending(bit -> {
+            if (bit != node) {
                 closureOf(bit, into, depth + 1);
             }
             into.set(bit);
-        }
+        });
     }
 
     /**
-     * Collect the reverse closure of a rule - the set of all nodes which have
+     * Collect the reverse closure of a node - the set of all nodes which have
      * an outbound edge to this one or an ancestor of those nodes.
      *
-     * @param rule An element in the graph
+     * @param node An element in the graph
      * @return A bit set
      */
-    public BitSet reverseClosureOf(int rule) {
-        BitSet result = new BitSet();
-        reverseClosureOf(rule, result, 0);
+    @Override
+    public Bits reverseClosureOf(int node) {
+        MutableBits result = MutableBits.create(size());
+        reverseClosureOf(node, result, 0);
         return result;
     }
 
     /**
-     * Convert this graph to a PairSet, which internally uses a single BitSet of
-     * size * size bits to represent the matrix of all edges. For sparse graphs,
-     * this may be a larger data structure than the original graph.
+     * Convert this graph to a PairSet, which internally uses a single
+     * MutableBits of size * size bits to represent the matrix of all edges. For
+     * sparse graphs, this may be a larger data structure than the original
+     * graph.
      *
      * @return A PairSet
      */
+    @Override
     public PairSet toPairSet() {
         PairSet result = new PairSet(size());
         for (int i = 0; i < size(); i++) {
-            BitSet refs = referencedBy[i];
-            for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
-                result.add(bit, i);
-            }
+            int index = i;
+            inboundEdges[i].forEachSetBitAscending(bit -> {
+                result.add(bit, index);
+            });
         }
         return result;
     }
 
-    private void reverseClosureOf(int rule, BitSet into, int depth) {
-        if (into.get(rule)) {
+    private void reverseClosureOf(int node, MutableBits into, int depth) {
+        if (into.get(node)) {
             return;
         }
         if (depth > 0) {
-            into.set(rule);
+            into.set(node);
         }
-        BitSet refs = referencedBy[rule];
-        for (int bit = refs.nextSetBit(0); bit >= 0; bit = refs.nextSetBit(bit + 1)) {
-            if (bit != rule /* && !into.get(bit) */) {
+        inboundEdges[node].forEachSetBitAscending(bit -> {
+            if (bit != node /* && !into.get(bit) */) {
                 reverseClosureOf(bit, into, depth + 1);
             }
             into.set(bit);
-        }
+        });
     }
 
-    public StringGraph toStringGraph(String[] ruleNames) {
-        return new BitSetStringGraph(this, ruleNames);
+    public StringGraph toStringGraph(String[] names) {
+        return new BitSetStringGraph(this, names);
     }
 
     @Override
     public int hashCode() {
         int hash = 3;
-        hash = 97 * hash + Arrays.deepHashCode(this.ruleReferences);
+        hash = 97 * hash + Arrays.deepHashCode(this.outboundEdges);
         return hash;
     }
 
     /**
-     * Get the combined cardinality of all nodes in this graph - the
-     * total number of edges.
+     * Get the combined cardinality of all nodes in this graph - the total
+     * number of edges.
      *
      * @return The edge count
      */
+    @Override
     public int totalCardinality() {
         int result = 0;
-        for (BitSet bs : this.referencedBy) {
+        for (Bits bs : this.inboundEdges) {
             result += bs.cardinality();
         }
         return result;
@@ -1009,6 +1198,6 @@ public final class BitSetGraph {
             return false;
         }
         final BitSetGraph other = (BitSetGraph) obj;
-        return Arrays.deepEquals(this.ruleReferences, other.ruleReferences);
+        return Arrays.deepEquals(this.outboundEdges, other.outboundEdges);
     }
 }

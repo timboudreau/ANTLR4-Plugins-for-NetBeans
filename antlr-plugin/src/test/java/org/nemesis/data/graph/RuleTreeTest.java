@@ -7,7 +7,7 @@ import java.util.Iterator;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.data.graph.StringGraph.Score;
+import org.nemesis.data.graph.algorithm.Score;
 
 /**
  *
@@ -65,11 +65,11 @@ public class RuleTreeTest {
     public void testCentrality() {
         BitSetStringGraph irt = (BitSetStringGraph) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().toStringGraph(names2);
         System.out.println("\n************* EIGENVECTOR ************");
-        for (Score score : irt.eigenvectorCentrality()) {
+        for (Score<String> score : irt.eigenvectorCentrality()) {
             System.out.println("  " + score + " closureSize " + irt.closureSize(score.node()));
         }
         System.out.println("\n************* PAGERANK ************");
-        for (Score score : irt.pageRank()) {
+        for (Score<String> score : irt.pageRank()) {
             System.out.println("  " + score);
         }
         System.out.println("disjoint: " + irt.disjointItems());
@@ -95,16 +95,16 @@ public class RuleTreeTest {
         }
 
 //        assertEquals(new HashSet<>(srt.edgeStrings()), new HashSet<>(irt.edgeStrings()));
-        assertEquals(srt.topLevelOrOrphanRules(), irt.topLevelOrOrphanRules());
-        assertEquals(srt.bottomLevelRules(), irt.bottomLevelRules());
+        assertEquals(srt.topLevelOrOrphanNodes(), irt.topLevelOrOrphanNodes());
+        assertEquals(srt.bottomLevelNodes(), irt.bottomLevelNodes());
 
         System.out.println("ST edge-strings size: " + srt.edgeStrings().size());
         System.out.println("IN edge-strings size: " + irt.edgeStrings().size());
 
-        System.out.println("ST top: " + srt.topLevelOrOrphanRules());
-        System.out.println("IN top: " + irt.topLevelOrOrphanRules());
-        System.out.println("ST bottom: " + srt.bottomLevelRules());
-        System.out.println("IN bottom: " + irt.bottomLevelRules());
+        System.out.println("ST top: " + srt.topLevelOrOrphanNodes());
+        System.out.println("IN top: " + irt.topLevelOrOrphanNodes());
+        System.out.println("ST bottom: " + srt.bottomLevelNodes());
+        System.out.println("IN bottom: " + irt.bottomLevelNodes());
         for (String r : names) {
 
             assertEquals(r, srt.parents(r), irt.parents(r));

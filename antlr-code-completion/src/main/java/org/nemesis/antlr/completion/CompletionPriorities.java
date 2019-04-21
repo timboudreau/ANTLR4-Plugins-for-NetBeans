@@ -1,12 +1,12 @@
 package org.nemesis.antlr.completion;
 
-import org.nemesis.misc.utils.function.IntIntFunction;
+import java.util.function.IntUnaryOperator;
 
 /**
  *
  * @author Tim Boudreau
  */
-public enum CompletionPriorities implements IntIntFunction {
+public enum CompletionPriorities implements IntUnaryOperator {
 
     HIGH(100000),
     DEFAULT(20000),
@@ -19,7 +19,7 @@ public enum CompletionPriorities implements IntIntFunction {
     }
 
     @Override
-    public int apply(int v) {
+    public int applyAsInt(int v) {
         return v + add;
     }
 }

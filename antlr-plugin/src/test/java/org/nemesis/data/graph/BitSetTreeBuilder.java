@@ -9,7 +9,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
-import org.nemesis.data.graph.BitSetGraph;
 
 /**
  * Wraps an instance of BitSetGraph and converts its BitSets to
@@ -93,8 +92,8 @@ class BitSetTreeBuilder extends ANTLRv4BaseVisitor<Void> {
         return null;
     }
 
-    public BitSetGraph toRuleTree() {
-        return new BitSetGraph(ruleReferences, referencedBy);
+    public IntGraph toRuleTree() {
+        return IntGraph.create(ruleReferences, referencedBy);
     }
     static final IdFinder idFinder = new IdFinder();
 

@@ -1,23 +1,23 @@
-package org.nemesis.data.graph;
+package org.nemesis.data.graph.algorithm;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class ScoreImpl implements StringGraph.Score {
+final class ScoreImpl<T> implements Score<T> {
 
     private final double score;
-    private final int ruleIndex;
-    private final String node;
+    private final int nodeId;
+    private final T node;
 
-    ScoreImpl(double score, int ruleIndex, String node) {
+    ScoreImpl(double score, int ruleIndex, T node) {
         this.score = score;
-        this.ruleIndex = ruleIndex;
+        this.nodeId = ruleIndex;
         this.node = node;
     }
 
     @Override
-    public String node() {
+    public T node() {
         return node;
     }
 
@@ -27,23 +27,22 @@ final class ScoreImpl implements StringGraph.Score {
     }
 
     @Override
-    public int ruleIndex() {
-        return ruleIndex;
+    public int nodeId() {
+        return nodeId;
     }
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof StringGraph.Score && ((StringGraph.Score) o).ruleIndex() == ruleIndex();
+        return o instanceof Score<?> && ((Score<?>) o).nodeId() == nodeId();
     }
 
     @Override
     public int hashCode() {
-        return 7 * ruleIndex;
+        return 7 * nodeId;
     }
 
     @Override
     public String toString() {
         return node + ":" + score;
     }
-
 }

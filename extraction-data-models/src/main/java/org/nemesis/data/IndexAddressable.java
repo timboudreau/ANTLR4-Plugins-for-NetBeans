@@ -1,13 +1,14 @@
 package org.nemesis.data;
 
-import org.nemesis.misc.utils.function.IntIntFunction;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import org.nemesis.data.graph.BitSetGraph;
-import org.nemesis.data.graph.BitSetHeteroObjectGraph;
+import java.util.function.IntUnaryOperator;
+import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
+import org.nemesis.data.graph.IntGraph;
+import org.nemesis.data.graph.bits.MutableBits;
+import org.nemesis.misc.utils.function.IntBiConsumer;
 
 /**
  * Base interface for collections of that can be indexed and represent a range
@@ -83,22 +84,22 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
         int bSize = b.size();
         int treeSize = aSize + bSize;
         // A factory to ensure we always compute offsets with the same logic
-        IntIntFunction foreignItemOffset = o -> {
+        IntUnaryOperator foreignItemOffset = o -> {
             return aSize + o;
         };
         // outbound edge sets
-        BitSet[] sets = new BitSet[treeSize];
+        MutableBits[] sets = new MutableBits[treeSize];
         // inbound edge sets
-        BitSet[] reverseSets = new BitSet[treeSize];
+        MutableBits[] reverseSets = new MutableBits[treeSize];
         for (int i = 0; i < treeSize; i++) {
-            sets[i] = new BitSet(treeSize);
-            reverseSets[i] = new BitSet(treeSize);
+            sets[i] = MutableBits.create(treeSize);
+            reverseSets[i] = MutableBits.create(treeSize);
         }
         // Takes care of setting the relationship in both BitSet arrays
-        BiIntConsumer setOne = (contained, container) -> {
-            BitSet outbound = sets[contained];
+        IntBiConsumer setOne = (contained, container) -> {
+            MutableBits outbound = sets[contained];
             outbound.set(container);
-            BitSet inbound = reverseSets[container];
+            MutableBits inbound = reverseSets[container];
             inbound.set(contained);
         };
         // Iterate the first collection's items
@@ -108,11 +109,11 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
             // Check for either containing the other
             if (foreignItem != null && item.contains(foreignItem)) {
 //                System.out.println("cross ref " + item + " -> " + foreignItem);
-                int foreignOffset = foreignItemOffset.apply(foreignItem.index());
-                setOne.set(foreignItem.index(), foreignOffset);
+                int foreignOffset = foreignItemOffset.applyAsInt(foreignItem.index());
+                setOne.accept(foreignItem.index(), foreignOffset);
             } else if (foreignItem != null && foreignItem.contains(item)) {
-                int foreignOffset = foreignItemOffset.apply(foreignItem.index());
-                setOne.set(foreignOffset, foreignItem.index());
+                int foreignOffset = foreignItemOffset.applyAsInt(foreignItem.index());
+                setOne.accept(foreignOffset, foreignItem.index());
             }
         }
         // Iterate the second collection's items
@@ -123,14 +124,14 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
             RI foreignItem = b.forIndex(localOffset);
             TI item = a.at(foreignItem.start());
             if (item != null && foreignItem.contains(item)) {
-                int foreignOffset = foreignItemOffset.apply(foreignItem.index());
-                setOne.set(foreignOffset, item.index());
+                int foreignOffset = foreignItemOffset.applyAsInt(foreignItem.index());
+                setOne.accept(foreignOffset, item.index());
             } else if (item != null && item.contains(foreignItem)) {
-                int foreignOffset = foreignItemOffset.apply(foreignItem.index());
-                setOne.set(item.index(), foreignOffset);
+                int foreignOffset = foreignItemOffset.applyAsInt(foreignItem.index());
+                setOne.accept(item.index(), foreignOffset);
             }
         }
-        BitSetGraph tree = new BitSetGraph(sets, reverseSets);
+        IntGraph tree = IntGraph.create(sets, reverseSets);
         BitSetHeteroObjectGraph<TI, RI, T, R> result = BitSetHeteroObjectGraph.create(tree, a, b);
         return result;
     }

@@ -3,15 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
+package org.nemesis.misc.utils.reflection;
 
 import org.nemesis.misc.utils.reflection.ReflectionPath;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionResultType;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ReflectiveValueTest.ErrB.ERRB_B;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.ReflectiveValueTest.ErrB.ERRB_C;
+import static org.nemesis.misc.utils.reflection.ReflectiveValueTest.ErrB.ERRB_B;
+import static org.nemesis.misc.utils.reflection.ReflectiveValueTest.ErrB.ERRB_C;
 
 /**
  *

@@ -24,8 +24,8 @@ import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.openide.filesystems.FileUtil;
-import org.nemesis.data.graph.StringGraphVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
+import org.nemesis.data.graph.ObjectGraphVisitor;
 
 /**
  *
@@ -83,11 +83,11 @@ public class ParsingWithoutFilesTest {
         assertNotNull(result);
         ANTLRv4SemanticParser sem = result.semanticParser();
         
-        System.out.println("TOP RULES: " + sem.ruleTree().topLevelOrOrphanRules());
-        System.out.println("BOTTOM RULES: " + sem.ruleTree().bottomLevelRules());
+        System.out.println("TOP RULES: " + sem.ruleTree().topLevelOrOrphanNodes());
+        System.out.println("BOTTOM RULES: " + sem.ruleTree().bottomLevelNodes());
 
         System.out.println("\n TREE");
-        sem.ruleTree().walk(new StringGraphVisitor(){
+        sem.ruleTree().walk(new ObjectGraphVisitor<String>(){
             String indent = "";
 
             private void indent(int val) {
@@ -97,13 +97,13 @@ public class ParsingWithoutFilesTest {
             }
 
             @Override
-            public void enterRule(String rule, int depth) {
+            public void enterNode(String rule, int depth) {
                 System.out.println(indent + " - " + rule);
                 indent(depth);
             }
 
             @Override
-            public void exitRule(String rule, int depth) {
+            public void exitNode(String rule, int depth) {
                 indent(depth);
             }
         });

@@ -1,11 +1,12 @@
 package org.nemesis.data.graph;
 
+import org.nemesis.data.graph.algorithm.RankingAlgorithm;
+import org.nemesis.data.graph.algorithm.Score;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -13,19 +14,21 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import org.nemesis.data.Indexed;
-import static org.nemesis.data.graph.BitSetUtils.forEach;
-import org.nemesis.data.graph.StringGraph.Score;
+import org.nemesis.data.graph.algorithm.Algorithm;
+import org.nemesis.data.graph.bits.Bits;
+import org.nemesis.data.graph.bits.MutableBits;
 
 /**
  *
  * @author Tim Boudreau
  */
-class BitSetStringGraph implements StringGraph {
+final class BitSetStringGraph implements StringGraph {
 
-    private final BitSetGraph tree;
+    private final IntGraph tree;
     private final String[] items;
+    private transient IndexedImpl indexedImpl;
 
-    BitSetStringGraph(BitSetGraph tree, String[] sortedArray) {
+    BitSetStringGraph(IntGraph tree, String[] sortedArray) {
         this.tree = tree;
         this.items = sortedArray;
     }
@@ -40,7 +43,7 @@ class BitSetStringGraph implements StringGraph {
         return true;
     }
 
-    Set<String> toSet(BitSet bits) {
+    Set<String> toSet(Bits bits) {
         if (indexedImpl == null) {
             indexedImpl = new IndexedImpl();
         }
@@ -48,10 +51,8 @@ class BitSetStringGraph implements StringGraph {
     }
 
     Set<String> newSet() {
-        return toSet(new BitSet(items.length));
+        return toSet(MutableBits.create(items.length));
     }
-
-    private transient IndexedImpl indexedImpl;
 
     public void save(ObjectOutput out) throws IOException {
         out.writeInt(1);
@@ -80,7 +81,7 @@ class BitSetStringGraph implements StringGraph {
 
         @Override
         public String forIndex(int index) {
-            return nameOf(index);
+            return toNode(index);
         }
 
         @Override
@@ -89,59 +90,60 @@ class BitSetStringGraph implements StringGraph {
         }
     }
 
-    public void walk(StringGraphVisitor v) {
-        tree.walk(new BitSetGraphVisitor() {
+    @Override
+    public void walk(ObjectGraphVisitor<? super String> v) {
+        tree.walk(new IntGraphVisitor() {
             @Override
-            public void enterRule(int ruleId, int depth) {
-                v.enterRule(nameOf(ruleId), depth);
+            public void enterNode(int node, int depth) {
+                v.enterNode(toNode(node), depth);
             }
 
             @Override
-            public void exitRule(int ruleId, int depth) {
-                v.exitRule(nameOf(ruleId), depth);
-            }
-        });
-    }
-
-    public void walk(String start, StringGraphVisitor v) {
-        int ix = indexOf(start);
-        if (ix < 0) {
-            return;
-        }
-        tree.walk(ix, new BitSetGraphVisitor() {
-            @Override
-            public void enterRule(int ruleId, int depth) {
-                v.enterRule(nameOf(ruleId), depth);
-            }
-
-            @Override
-            public void exitRule(int ruleId, int depth) {
-                v.exitRule(nameOf(ruleId), depth);
+            public void exitNode(int node, int depth) {
+                v.exitNode(toNode(node), depth);
             }
         });
     }
 
-    public void walkUpwards(String start, StringGraphVisitor v) {
-        int ix = indexOf(start);
+    public void walk(String start, ObjectGraphVisitor<? super String> v) {
+        int ix = toNodeId(start);
         if (ix < 0) {
             return;
         }
-        tree.walkUpwards(ix, new BitSetGraphVisitor() {
+        tree.walk(ix, new IntGraphVisitor() {
             @Override
-            public void enterRule(int ruleId, int depth) {
-                v.enterRule(nameOf(ruleId), depth);
+            public void enterNode(int node, int depth) {
+                v.enterNode(toNode(node), depth);
             }
 
             @Override
-            public void exitRule(int ruleId, int depth) {
-                v.exitRule(nameOf(ruleId), depth);
+            public void exitNode(int node, int depth) {
+                v.exitNode(toNode(node), depth);
+            }
+        });
+    }
+
+    public void walkUpwards(String start, ObjectGraphVisitor<? super String> v) {
+        int ix = toNodeId(start);
+        if (ix < 0) {
+            return;
+        }
+        tree.walkUpwards(ix, new IntGraphVisitor() {
+            @Override
+            public void enterNode(int node, int depth) {
+                v.enterNode(toNode(node), depth);
+            }
+
+            @Override
+            public void exitNode(int node, int depth) {
+                v.exitNode(toNode(node), depth);
             }
         });
     }
 
     public int distance(String a, String b) {
-        int ixA = indexOf(a);
-        int ixB = indexOf(b);
+        int ixA = toNodeId(a);
+        int ixB = toNodeId(b);
         if (ixA < 0 || ixB < 0) {
             return Integer.MAX_VALUE;
         }
@@ -149,16 +151,16 @@ class BitSetStringGraph implements StringGraph {
     }
 
     public Set<String> disjointItems() {
-        BitSet all = tree.disjointItems();
+        Bits all = tree.disjointNodes();
         Set<String> result = new HashSet<>();
-        forEach(all, i -> {
-            result.add(nameOf(i));
+        all.forEachSetBitAscending((int i) -> {
+            result.add(toNode(i));
         });
         return result;
     }
 
     public Set<String> disjunctionOfClosureOfMostCentralNodes() {
-        List<Score> centrality = eigenvectorCentrality();
+        List<Score<String>> centrality = eigenvectorCentrality();
         double sum = 0.0;
         for (int i = 0; i < centrality.size() / 2; i++) {
             sum += centrality.get(i).score();
@@ -173,8 +175,9 @@ class BitSetStringGraph implements StringGraph {
         return result;
     }
 
+    @Override
     public Set<String> disjunctionOfClosureOfHighestRankedNodes() {
-        List<Score> centrality = pageRank();
+        List<Score<String>> centrality = pageRank();
         double sum = 0.0;
         for (int i = 0; i < centrality.size() / 2; i++) {
             sum += centrality.get(i).score();
@@ -189,31 +192,21 @@ class BitSetStringGraph implements StringGraph {
         return result;
     }
 
-    public List<Score> eigenvectorCentrality() {
-        double[] centrality = tree.eigenvectorCentrality(400, 0.000001, false, true, true);
-        List<Score> result = new ArrayList<>(centrality.length);
-        for (int i = 0; i < centrality.length; i++) {
-            result.add(new ScoreImpl(centrality[i], i, nameOf(i)));
-        }
-        Collections.sort(result);
-        return result;
+    @Override
+    public List<Score<String>> eigenvectorCentrality() {
+        return apply(Algorithm.eigenvectorCentrality());
     }
 
-    public List<Score> pageRank() {
-        double[] centrality = tree.pageRank(0.0000000000000004, 0.00000000001, 1000, true);
-        List<Score> result = new ArrayList<>(centrality.length);
-        for (int i = 0; i < centrality.length; i++) {
-            result.add(new ScoreImpl(centrality[i], i, nameOf(i)));
-        }
-        Collections.sort(result);
-        return result;
+    @Override
+    public List<Score<String>> pageRank() {
+        return apply(Algorithm.pageRank());
     }
 
     public List<String> byClosureSize() {
         int[] cs = tree.byClosureSize();
         List<String> result = new ArrayList<>(cs.length);
         for (int i = 0; i < cs.length; i++) {
-            result.add(nameOf(cs[i]));
+            result.add(toNode(cs[i]));
         }
         return result;
     }
@@ -222,13 +215,13 @@ class BitSetStringGraph implements StringGraph {
         int[] cs = tree.byReverseClosureSize();
         List<String> result = new ArrayList<>(cs.length);
         for (int i = 0; i < cs.length; i++) {
-            result.add(nameOf(cs[i]));
+            result.add(toNode(cs[i]));
         }
         return result;
     }
 
     public Set<String> parents(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         if (ix == -1) {
             return Collections.emptySet();
         }
@@ -236,7 +229,7 @@ class BitSetStringGraph implements StringGraph {
     }
 
     public Set<String> children(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         if (ix == -1) {
             return Collections.emptySet();
         }
@@ -245,23 +238,13 @@ class BitSetStringGraph implements StringGraph {
 
     public Set<String> edgeStrings() {
         Set<String> result = new TreeSet<>();
-        for (int[] pair : tree.edges()) {
-            result.add(nameOf(pair[0]) + ":" + nameOf(pair[1]));
-        }
+        tree.edges((a, b) -> {
+            result.add(toNode(a) + ":" + toNode(b));
+        });
         return result;
     }
 
-    @Override
-    public Set<String> topLevelOrOrphanRules() {
-        return setOf(tree.topLevelOrOrphanRules());
-    }
-
-    @Override
-    public Set<String> bottomLevelRules() {
-        return setOf(tree.bottomLevelRules());
-    }
-
-    private int indexOf(String name) {
+    public int toNodeId(String name) {
         int ix = Arrays.binarySearch(items, name);
         if (ix < 0) {
             return -1;
@@ -269,81 +252,78 @@ class BitSetStringGraph implements StringGraph {
         return ix;
     }
 
-    private String nameOf(int index) {
+    public String toNode(int index) {
         return items[index];
     }
 
-    private Set<String> setOf(BitSet set) {
-        int count = set.cardinality();
-        if (count == 0) {
-            return Collections.emptySet();
-        }
-        return toSet(set);
+    private Set<String> setOf(Bits set) {
+        return set.isEmpty() ? Collections.emptySet() : toSet(set);
     }
 
     public int inboundReferenceCount(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? 0 : tree.inboundReferenceCount(ix);
     }
 
     public int outboundReferenceCount(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? 0 : tree.outboundReferenceCount(ix);
     }
 
     public Set<String> topLevelOrOrphanNodes() {
-        return setOf(tree.topLevelOrOrphanRules());
+        return setOf(tree.topLevelOrOrphanNodes());
     }
 
     public Set<String> bottomLevelNodes() {
-        return setOf(tree.bottomLevelRules());
+        return setOf(tree.bottomLevelNodes());
     }
 
     public boolean isUnreferenced(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? true : tree.isUnreferenced(ix);
     }
 
     public int closureSize(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? 0 : tree.closureSize(ix);
     }
 
     public int reverseClosureSize(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? 0 : tree.reverseClosureSize(ix);
     }
 
     public Set<String> reverseClosureOf(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? Collections.emptySet()
                 : setOf(tree.reverseClosureOf(ix));
     }
 
     public Set<String> closureOf(String node) {
-        int ix = indexOf(node);
+        int ix = toNodeId(node);
         return ix < 0 ? Collections.emptySet()
                 : setOf(tree.closureOf(ix));
     }
 
     public boolean hasInboundEdge(String from, String to) {
-        int f = indexOf(from);
-        int t = indexOf(to);
+        int f = toNodeId(from);
+        int t = toNodeId(to);
         return f < 0 || t < 0 ? false : tree.hasInboundEdge(f, t);
     }
 
     public boolean hasOutboundEdge(String from, String to) {
-        int f = indexOf(from);
-        int t = indexOf(to);
+        int f = toNodeId(from);
+        int t = toNodeId(to);
         return f < 0 || t < 0 ? false : tree.hasOutboundEdge(f, t);
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(512);
-        walk((String rule, int depth) -> {
+        walk((String node, int depth) -> {
             char[] c = new char[depth * 2];
             Arrays.fill(c, ' ');
-            sb.append(c).append(rule).append('\n');
+            sb.append(c).append(node).append('\n');
         });
         sb.append("Tops:");
         topsString(sb);
@@ -353,14 +333,14 @@ class BitSetStringGraph implements StringGraph {
     }
 
     private void topsString(StringBuilder into) {
-        BitSetUtils.forEach(tree.topLevelOrOrphanRules(), i -> {
-            into.append(' ').append(nameOf(i));
+        tree.topLevelOrOrphanNodes().forEachSetBitAscending((int i) -> {
+            into.append(' ').append(toNode(i));
         });
     }
 
     private void bottomsString(StringBuilder into) {
-        BitSetUtils.forEach(tree.bottomLevelRules(), i -> {
-            into.append(' ').append(nameOf(i));
+        tree.bottomLevelNodes().forEachSetBitAscending((int i) -> {
+            into.append(' ').append(toNode(i));
         });
     }
 
@@ -388,5 +368,10 @@ class BitSetStringGraph implements StringGraph {
             return false;
         }
         return Arrays.deepEquals(this.items, other.items);
+    }
+
+    @Override
+    public List<Score<String>> apply(RankingAlgorithm alg) {
+        return alg.apply(tree, this::toNode);
     }
 }

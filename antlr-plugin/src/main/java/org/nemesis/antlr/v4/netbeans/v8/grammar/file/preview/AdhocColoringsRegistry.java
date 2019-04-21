@@ -191,7 +191,7 @@ public final class AdhocColoringsRegistry {
         ColorUtils colors = new ColorUtils();
         Supplier<Color> backgrounds = colors.backgroundColorSupplier();
         Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
-        importantRules.addAll(tree.bottomLevelRules());
+        importantRules.addAll(tree.bottomLevelNodes());
 
         Extraction ext = sem.extraction();
         NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);

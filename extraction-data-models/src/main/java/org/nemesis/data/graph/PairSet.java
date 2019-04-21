@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.nemesis.data.Indexed;
+import org.nemesis.misc.utils.function.IntBiConsumer;
 
 /**
  * Tracks a set of pairs of coordinates in a coordinate space that have been
@@ -102,8 +103,8 @@ public final class PairSet implements Iterable<int[]> {
         return new Iter();
     }
 
-    public BitSetGraph toGraph() {
-        BitSetGraph.Builder bldr = BitSetGraph.builder(size);
+    public IntGraph toGraph() {
+        IntGraphBuilder bldr = IntGraph.builder(size);
         for (int bit = set.nextSetBit(0); bit >= 0; bit = set.nextSetBit(bit + 1)) {
             int x = bit % size;
             int y = bit / size;
@@ -154,6 +155,29 @@ public final class PairSet implements Iterable<int[]> {
 
     public <T> ObjectPairSet<T> toObjectPairSet(Indexed<T> indexed) {
         return new ObjectPairSet<>(this, indexed);
+    }
+
+//    public long hash() {
+//        long result = 0;
+//        int lastPos = -1;
+//        for (int position = set.nextSetBit(0); position >= 0; position = set.nextSetBit(position + 1)) {
+//            if (lastPos != -1) {
+//                result += (position - lastPos);
+//            }
+//            lastPos = position;
+//        }
+//        return result * set.cardinality();
+//    }
+
+    public int forEach(IntBiConsumer bi) {
+        int count = 0;
+        for (int position = set.nextSetBit(0); position >= 0; position = set.nextSetBit(position + 1)) {
+            int x = position % size;
+            int y = position / size;
+            bi.accept(x, y);
+            count++;
+        }
+        return count;
     }
 
     final class Iter implements Iterator<int[]> {

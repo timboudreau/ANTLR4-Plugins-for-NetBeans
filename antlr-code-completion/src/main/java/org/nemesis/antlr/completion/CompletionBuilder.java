@@ -6,13 +6,14 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.function.ToIntFunction;
 import java.util.regex.Pattern;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Token;
 import org.nemesis.antlr.completion.CompletionsBuilder.FinishableCompletionsBuilder;
-import org.nemesis.misc.utils.function.IntIntFunction;
 import org.nemesis.misc.utils.function.ThrowingBiConsumer;
+import org.nemesis.misc.utils.function.ThrowingTriConsumer;
 import org.netbeans.spi.editor.completion.CompletionTask;
 
 /**
@@ -24,15 +25,15 @@ import org.netbeans.spi.editor.completion.CompletionTask;
  */
 public final class CompletionBuilder<I> {
 
-    private IntIntFunction sortPriority = CompletionPriorities.DEFAULT;
+    private IntUnaryOperator sortPriority = CompletionPriorities.DEFAULT;
     private ItemRenderer<? super I> renderer = DefaultItemRenderer.INSTANCE;
     private Function<? super I, ? extends CompletionTask> docTaskFactory;
     private Function<? super I, ? extends CompletionTask> tooltipTask;
-    private ThrowingBiConsumer<? super I, ? super JTextComponent> performer = DefaultDocumentUpdater.INSTANCE;
+    private ThrowingTriConsumer<? super I, ? super JTextComponent, ? super TokenMatch> performer = DefaultDocumentUpdater.INSTANCE;
     private BiPredicate<? super I, ? super JTextComponent> instantSubstitution;
     private ThrowingBiConsumer<? super I, ? super KeyEvent> keyEventHandler;
     private ToIntFunction<? super I> sorter;
-    private BiFunction<? super List<Token>, ? super Token, ? extends String> tokenPatternMatcher;
+    private BiFunction<? super List<Token>, ? super Token, ? extends TokenMatch> tokenPatternMatcher;
     private final CompletionsBuilder all;
     private BiFunction<? super StringKind, ? super I, ? extends String> stringifier;
 
@@ -91,11 +92,11 @@ public final class CompletionBuilder<I> {
      *
      * @return this
      */
-    public CompletionBuilder<I> setTokenPatternMatcher(BiFunction<? super List<Token>, ? super Token, ? extends String> tokenPatternMatcher) {
+    public CompletionBuilder<I> setTokenPatternMatcher(BiFunction<? super List<Token>, ? super Token, ? extends TokenMatch> tokenPatternMatcher) {
         if (this.tokenPatternMatcher != null) {
-            BiFunction<? super List<Token>, ? super Token, ? extends String> old = this.tokenPatternMatcher;
+            BiFunction<? super List<Token>, ? super Token, ? extends TokenMatch> old = this.tokenPatternMatcher;
             this.tokenPatternMatcher = (toks, target) -> {
-                String result = old.apply(toks, target);
+                TokenMatch result = old.apply(toks, target);
                 if (result == null) {
                     result = tokenPatternMatcher.apply(toks, target);
                 }
@@ -120,7 +121,7 @@ public final class CompletionBuilder<I> {
      * {@link CompletionPriorities} for standard ones.
      * @return this
      */
-    public CompletionBuilder<I> setSortPriority(IntIntFunction sortPriority) {
+    public CompletionBuilder<I> setSortPriority(IntUnaryOperator sortPriority) {
         this.sortPriority = sortPriority;
         return this;
     }
@@ -279,7 +280,7 @@ public final class CompletionBuilder<I> {
      * @param performer The code that will update the document
      * @return this
      */
-    public CompletionBuilder<I> setInsertAction(ThrowingBiConsumer<? super I, ? super JTextComponent> performer) {
+    public CompletionBuilder<I> setInsertAction(ThrowingTriConsumer<? super I, ? super JTextComponent, ? super TokenMatch> performer) {
         this.performer = performer;
         return this;
     }

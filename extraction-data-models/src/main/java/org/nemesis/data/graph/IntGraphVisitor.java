@@ -6,10 +6,10 @@ package org.nemesis.data.graph;
  *
  * @author Tim Boudreau
  */
-public interface BitSetGraphVisitor {
+public interface IntGraphVisitor {
 
-    void enterRule(int ruleId, int depth);
+    void enterNode(int node, int depth);
 
-    default void exitRule(int ruleId, int depth) {
+    default void exitNode(int node, int depth) {
     }
 }

@@ -67,7 +67,7 @@ class AntlrRulesTreeNavigatorPanelConfig implements Appearance<NamedSemanticRegi
 
     @Override
     public void configureAppearance(HtmlRenderer.Renderer on, NamedSemanticRegion<RuleTypes> region, boolean componentActive, Set<String> scopingDelimiter, SortTypes sort) {
-        AntlrGrammarLanguageNavigatorPanelConfig.configureAppearance(on, region, componentActive, SortTypes.NATURAL);
+        AntlrGrammarLanguageNavigatorPanelConfig.configureAppearance(on, region, componentActive, scopingDelimiter, SortTypes.NATURAL);
         Integer depth = depths.getOrDefault(region.name(), 0);
         on.setIndent(PIXELS_PER_DEPTH_INCREMENT * depth);
     }

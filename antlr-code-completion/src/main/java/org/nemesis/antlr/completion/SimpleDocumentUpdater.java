@@ -2,7 +2,7 @@ package org.nemesis.antlr.completion;
 
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
-import org.nemesis.misc.utils.function.ThrowingBiConsumer;
+import org.nemesis.misc.utils.function.ThrowingTriConsumer;
 import org.netbeans.editor.BaseDocument;
 
 /**
@@ -10,7 +10,7 @@ import org.netbeans.editor.BaseDocument;
  *
  * @author Tim Boudreau
  */
-public interface SimpleDocumentUpdater<I> extends ThrowingBiConsumer<I, JTextComponent> {
+public interface SimpleDocumentUpdater<I> extends ThrowingTriConsumer<I, JTextComponent, TokenMatch> {
 
     /**
      * Compute the text to be inserted into the document.
@@ -30,7 +30,7 @@ public interface SimpleDocumentUpdater<I> extends ThrowingBiConsumer<I, JTextCom
      * @return The text to insert, or null if no insertion should be performed
      */
     String insertionText(I item, boolean replacement, JTextComponent component,
-            int caretPosition, int start, int end);
+            int caretPosition, int start, int end, TokenMatch match);
 
     /**
      * The default implementation either inserts or replaces the selection with
@@ -42,7 +42,7 @@ public interface SimpleDocumentUpdater<I> extends ThrowingBiConsumer<I, JTextCom
      * @throws Exception if someting goes wrong
      */
     @Override
-    default void accept(I item, JTextComponent component) throws Exception {
+    default void accept(I item, JTextComponent component, TokenMatch match) throws Exception {
         BaseDocument doc = (BaseDocument) component.getDocument();
         BadLocationException[] ex = new BadLocationException[1];
         doc.runAtomicAsUser(() -> {
@@ -52,7 +52,7 @@ public interface SimpleDocumentUpdater<I> extends ThrowingBiConsumer<I, JTextCom
                 int selEnd = component.getSelectionEnd();
                 int end = Math.max(selStart, selEnd);
                 int start = Math.max(selStart, selEnd);
-                String toInsert = insertionText(item, start != end, component, caretPosition, start, end);
+                String toInsert = insertionText(item, start != end, component, caretPosition, start, end, match);
                 if (selStart != selEnd) {
                     toInsert = DefaultDocumentUpdater.findSubsequence(toInsert, doc, caretPosition);
                 }
