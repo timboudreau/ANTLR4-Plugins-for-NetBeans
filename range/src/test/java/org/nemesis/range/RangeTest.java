@@ -169,6 +169,17 @@ public class RangeTest {
 
     @ParameterizedTest(name = "{1}")
     @MethodSource("factories")
+    public void testAllEmptyRangesAreEqual(RangeFactory<?> factory) {
+        this.factory = factory;
+        Range<?> r = factory.range(0, 0);
+        for (int i = 0; i < 5; i++) {
+            Range<?> r1 = factory.range(i, 0);
+            assertEquals(r, r1, r.getClass().getSimpleName());
+        }
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("factories")
     public void testOverlap(RangeFactory<?> factory) {
         this.factory = factory;
         Range<?> r = of(0, 10);
@@ -1105,6 +1116,9 @@ public class RangeTest {
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof Range<?>) {
+                if (((Range) obj).isEmpty() && isEmpty()) {
+                    return true;
+                }
                 return matches((Range<?>) obj);
             }
             return false;
@@ -1569,7 +1583,8 @@ public class RangeTest {
         }
 
         public boolean equals(Object o) {
-            return o instanceof Range<?> ? matches((Range<?>) o) : false;
+            return o instanceof Range<?> ? matches((Range<?>) o)
+                    || (((Range<?>) o).isEmpty() && isEmpty()) : false;
         }
 
         @Override

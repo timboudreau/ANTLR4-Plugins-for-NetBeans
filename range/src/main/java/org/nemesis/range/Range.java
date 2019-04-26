@@ -14,6 +14,16 @@ import java.util.function.LongConsumer;
  * domains, and is the root of myriad off-by-one errors. This library is an
  * attempt to get that logic right in a reusable fashion, after having had to
  * implement it from scratch several times over the last few decades.
+ * <h3>Implementation Notes</h3>
+ * The factory methods on this class should satisfy most needs. If you do
+ * implement Range, the following points are important for compatibility:
+ * <ul>
+ * <li>The sort order of ranges which overlap is as follows: If a range wholly
+ * contains another range and starts at the same position, they are sorted from
+ * largest to smallest.
+ * </li>
+ * <li>A range which is empty is equal to any other empty range</li>
+ * </ul>
  *
  * @author Tim Boudreau
  */
@@ -40,7 +50,8 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
     Number sizeValue();
 
     /**
-     * Create a new range of the same type as this one.
+     * Create a new range of the same type as this one. This is used for
+     * creating compatible temporary ranges to reply to queries for overlaps.
      *
      * @param start The start
      * @param size The size
@@ -51,10 +62,14 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
     /**
      * Create a new range of the same type as this one. If the implementation
      * class does not support values as large as those passed, it should throw
-     * an exception.
+     * an exception. This is used for creating compatible temporary ranges to
+     * reply to queries for overlaps.
      *
      * @param start The start
      * @param size The size
+     * @throws IllegalArgumentException if the size or start is negative, or if
+     * the resulting range (start + size) would exceed the maximum value of
+     * whatever type coordinates are stored as
      * @return A new range
      */
     R newRange(long start, long size);

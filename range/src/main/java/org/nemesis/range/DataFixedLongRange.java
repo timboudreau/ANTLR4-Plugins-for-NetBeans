@@ -55,6 +55,9 @@ final class DataFixedLongRange<T> implements DataLongRange<T, DataFixedLongRange
         } else if (obj == null) {
             return false;
         } else if (obj instanceof Range<?>) {
+            if (((Range) obj).isEmpty() && isEmpty()) {
+                return true;
+            }
             if (obj instanceof IntRange<?>) {
                 IntRange<?> oi = (IntRange<?>) obj;
                 return oi.start() == start() && oi.size() == size();
