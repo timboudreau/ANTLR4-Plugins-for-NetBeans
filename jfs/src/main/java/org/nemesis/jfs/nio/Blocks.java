@@ -522,7 +522,6 @@ final class Blocks implements Comparable<Blocks>, Range {
 
     public Range toPhysicalRange(BlockToBytesConverter mapper) {
         return new PhysRange(this, mapper);
-
     }
 
     private static final class PhysRange implements Range {
