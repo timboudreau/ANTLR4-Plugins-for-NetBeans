@@ -46,10 +46,6 @@ public interface Hashable {
         return new Hasher();
     }
 
-    public static int hashHashCode(Hashable hash) {
-        return newHasher().hashObject(hash).hash().hashCode();
-    }
-
     public static final class Hasher {
 
         private final ByteArrayOutputStream out = new ByteArrayOutputStream(1024);

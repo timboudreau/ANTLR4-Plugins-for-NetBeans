@@ -1,6 +1,5 @@
 package org.nemesis.data.named;
 
-import org.nemesis.data.named.NamedSemanticRegions;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -14,14 +13,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.data.named.NamedSemanticRegionsBuilder;
-import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.named.NamedSemanticRegionPositionIndex;
-import org.nemesis.data.named.NamedRegionReferenceSets;
-import org.nemesis.data.named.NamedRegionReferenceSet;
-import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
-import org.nemesis.data.named.NamedSemanticRegionReference;
-import org.nemesis.data.SemanticParserTest.RuleTypes;
 
 /**
  *
@@ -44,40 +35,40 @@ public class NamedSemanticRegionsTest {
 
     @Test
     public void testIndex() {
-        NamedSemanticRegionsBuilder<RuleTypes> bldr = NamedSemanticRegions.builder(RuleTypes.class);
-        bldr.add("CloseBrace", RuleTypes.LEXER, 464, 481);
-        bldr.add("Colon", RuleTypes.LEXER, 495, 507);
-        bldr.add("Comma", RuleTypes.LEXER, 451, 463);
-        bldr.add("DIGIT", RuleTypes.FRAGMENT, 680, 703);
-        bldr.add("Digits", RuleTypes.LEXER, 344, 360);
-        bldr.add("ESC", RuleTypes.FRAGMENT, 813, 844);
-        bldr.add("ESC2", RuleTypes.FRAGMENT, 845, 878);
-        bldr.add("FALSE", RuleTypes.FRAGMENT, 579, 604);
-        bldr.add("False", RuleTypes.LEXER, 521, 535);
-        bldr.add("ID", RuleTypes.FRAGMENT, 738, 812);
-        bldr.add("Identifier", RuleTypes.LEXER, 537, 553);
-        bldr.add("Minus", RuleTypes.LEXER, 482, 494);
-        bldr.add("Number", RuleTypes.LEXER, 320, 342);
-        bldr.add("OpenBrace", RuleTypes.LEXER, 434, 450);
-        bldr.add("STRING", RuleTypes.FRAGMENT, 605, 640);
-        bldr.add("STRING2", RuleTypes.FRAGMENT, 641, 679);
-        bldr.add("String", RuleTypes.LEXER, 363, 389);
-        bldr.add("TRUE", RuleTypes.FRAGMENT, 555, 578);
-        bldr.add("True", RuleTypes.LEXER, 508, 520);
-        bldr.add("WHITESPACE", RuleTypes.FRAGMENT, 704, 737);
-        bldr.add("Whitespace", RuleTypes.LEXER, 391, 432);
-        bldr.add("booleanValue", RuleTypes.PARSER, 231, 265);
-        bldr.add("items", RuleTypes.PARSER, 27, 58);
-        bldr.add("map", RuleTypes.PARSER, 60, 115);
-        bldr.add("mapItem", RuleTypes.PARSER, 117, 153);
-        bldr.add("numberValue", RuleTypes.PARSER, 292, 317);
-        bldr.add("stringValue", RuleTypes.PARSER, 266, 291);
-        bldr.add("value", RuleTypes.PARSER, 155, 229);
+        NamedSemanticRegionsBuilder<TestRuleTypes> bldr = NamedSemanticRegions.builder(TestRuleTypes.class);
+        bldr.add("CloseBrace", TestRuleTypes.LEXER, 464, 481);
+        bldr.add("Colon", TestRuleTypes.LEXER, 495, 507);
+        bldr.add("Comma", TestRuleTypes.LEXER, 451, 463);
+        bldr.add("DIGIT", TestRuleTypes.FRAGMENT, 680, 703);
+        bldr.add("Digits", TestRuleTypes.LEXER, 344, 360);
+        bldr.add("ESC", TestRuleTypes.FRAGMENT, 813, 844);
+        bldr.add("ESC2", TestRuleTypes.FRAGMENT, 845, 878);
+        bldr.add("FALSE", TestRuleTypes.FRAGMENT, 579, 604);
+        bldr.add("False", TestRuleTypes.LEXER, 521, 535);
+        bldr.add("ID", TestRuleTypes.FRAGMENT, 738, 812);
+        bldr.add("Identifier", TestRuleTypes.LEXER, 537, 553);
+        bldr.add("Minus", TestRuleTypes.LEXER, 482, 494);
+        bldr.add("Number", TestRuleTypes.LEXER, 320, 342);
+        bldr.add("OpenBrace", TestRuleTypes.LEXER, 434, 450);
+        bldr.add("STRING", TestRuleTypes.FRAGMENT, 605, 640);
+        bldr.add("STRING2", TestRuleTypes.FRAGMENT, 641, 679);
+        bldr.add("String", TestRuleTypes.LEXER, 363, 389);
+        bldr.add("TRUE", TestRuleTypes.FRAGMENT, 555, 578);
+        bldr.add("True", TestRuleTypes.LEXER, 508, 520);
+        bldr.add("WHITESPACE", TestRuleTypes.FRAGMENT, 704, 737);
+        bldr.add("Whitespace", TestRuleTypes.LEXER, 391, 432);
+        bldr.add("booleanValue", TestRuleTypes.PARSER, 231, 265);
+        bldr.add("items", TestRuleTypes.PARSER, 27, 58);
+        bldr.add("map", TestRuleTypes.PARSER, 60, 115);
+        bldr.add("mapItem", TestRuleTypes.PARSER, 117, 153);
+        bldr.add("numberValue", TestRuleTypes.PARSER, 292, 317);
+        bldr.add("stringValue", TestRuleTypes.PARSER, 266, 291);
+        bldr.add("value", TestRuleTypes.PARSER, 155, 229);
 
-        NamedSemanticRegions<RuleTypes> n = bldr.build();
+        NamedSemanticRegions<TestRuleTypes> n = bldr.build();
         System.out.println("GOT " + n);
 
-        NamedSemanticRegionPositionIndex<RuleTypes> index = n.index();
+        NamedSemanticRegionPositionIndex<TestRuleTypes> index = n.index();
         assertNotNull(index.regionAt(36));
         assertEquals("items", index.regionAt(36).name());
     }

@@ -1,13 +1,11 @@
 package org.nemesis.data.graph;
 
-import org.nemesis.graph.BitSetStringGraph;
 import org.nemesis.graph.StringGraph;
 import java.util.Arrays;
 import java.util.Iterator;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.graph.algorithm.Score;
 
 /**
  *
@@ -59,25 +57,6 @@ public class RuleTreeTest {
             names2[i] = RULES_2[i].name;
         }
         Arrays.sort(names2);
-    }
-
-    @Test
-    public void testCentrality() {
-        BitSetStringGraph irt = (BitSetStringGraph) traverseAll(RULES_2, new BitSetTreeBuilder(names2)).toRuleTree().toStringGraph(names2);
-        System.out.println("\n************* EIGENVECTOR ************");
-        for (Score<String> score : irt.eigenvectorCentrality()) {
-            System.out.println("  " + score + " closureSize " + irt.closureSize(score.node()));
-        }
-        System.out.println("\n************* PAGERANK ************");
-        for (Score<String> score : irt.pageRank()) {
-            System.out.println("  " + score);
-        }
-        System.out.println("disjoint: " + irt.disjointItems());
-
-        System.out.println("\n************* DISJUNCTION ************");
-        for (String score : irt.disjunctionOfClosureOfMostCentralNodes()) {
-            System.out.println("  " + score);
-        }
     }
 
     @Test

@@ -49,9 +49,9 @@ import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.bits.collections.BitSetSet;
 import org.nemesis.data.impl.ArrayUtil;
-import org.nemesis.data.impl.ArrayUtil.ArrayEndSupplier;
-import org.nemesis.data.impl.ArrayUtil.EndSupplier;
-import org.nemesis.data.impl.ArrayUtil.MutableEndSupplier;
+import org.nemesis.data.impl.ArrayEndSupplier;
+import org.nemesis.data.impl.EndSupplier;
+import org.nemesis.data.impl.MutableEndSupplier;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 
 /**

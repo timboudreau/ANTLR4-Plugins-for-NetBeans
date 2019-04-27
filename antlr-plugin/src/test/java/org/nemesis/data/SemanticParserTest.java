@@ -66,18 +66,18 @@ import org.nemesis.source.api.GrammarSource;
  */
 public class SemanticParserTest {
 
-    static NamedRegionData<RuleTypes> deriveIdFromLexerRule(TokenRuleDeclarationContext ctx) {
+    static NamedRegionData<TestRuleTypes> deriveIdFromLexerRule(TokenRuleDeclarationContext ctx) {
         TerminalNode tn = ctx.TOKEN_ID();
         if (tn != null) {
             org.antlr.v4.runtime.Token tok = tn.getSymbol();
             if (tok != null) {
-                return NamedRegionData.create(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
+                return NamedRegionData.create(tok.getText(), TestRuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
             }
         }
         return null;
     }
 
-    static NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
+    static NamedRegionData<TestRuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
         ANTLRv4Parser.ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
         if (decl != null) {
             ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
@@ -88,7 +88,7 @@ public class SemanticParserTest {
                     if (id != null) {
                         String ruleId = id.getText();
                         if (!MISSING_ID.equals(ruleId)) {
-                            return NamedRegionData.create(ruleId, RuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
+                            return NamedRegionData.create(ruleId, TestRuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
                         }
                     }
                 }
@@ -99,12 +99,12 @@ public class SemanticParserTest {
         return null;
     }
 
-    static NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+    static NamedRegionData<TestRuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
         TerminalNode idTN = ctx.TOKEN_ID();
         if (idTN != null) {
             Token idToken = idTN.getSymbol();
             if (idToken != null && !MISSING_TOKEN_ID.equals(idToken.getText())) {
-                return NamedRegionData.create(idToken.getText(), RuleTypes.FRAGMENT, idToken.getStartIndex(), idToken.getStopIndex() + 1);
+                return NamedRegionData.create(idToken.getText(), TestRuleTypes.FRAGMENT, idToken.getStartIndex(), idToken.getStopIndex() + 1);
 //                    names.add(idToken.getText(), AntlrRuleKind.FRAGMENT_RULE, idToken.getStartIndex(), idToken.getStopIndex() + 1);
             }
         }
@@ -201,7 +201,7 @@ public class SemanticParserTest {
         }
     }
 
-    static NamedRegionData<RuleTypes> extractAlternativeLabelInfo(ParserRuleLabeledAlternativeContext ctx) {
+    static NamedRegionData<TestRuleTypes> extractAlternativeLabelInfo(ParserRuleLabeledAlternativeContext ctx) {
         ANTLRv4Parser.IdentifierContext idc = ctx.identifier();
         if (idc != null) {
             TerminalNode idTN = idc.ID();
@@ -210,7 +210,7 @@ public class SemanticParserTest {
                 Token labelToken = idTN.getSymbol();
                 if (labelToken != null) {
                     String altnvLabel = labelToken.getText();
-                    return NamedRegionData.create(altnvLabel, RuleTypes.ALTERNATIVE_LABEL, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
+                    return NamedRegionData.create(altnvLabel, TestRuleTypes.ALTERNATIVE_LABEL, labelToken.getStartIndex(), labelToken.getStopIndex() + 1);
                 }
             }
         }
@@ -240,16 +240,10 @@ public class SemanticParserTest {
         return grammarType;
     }
 
-    public enum RuleTypes {
-        FRAGMENT,
-        LEXER,
-        PARSER,
-        ALTERNATIVE_LABEL
-    }
-    static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("namedAlternatives", RuleTypes.class);
-    static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
-    static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
-    static final NameReferenceSetKey<RuleTypes> REFS = RULE_NAMES.createReferenceKey("ruleRefs");
+    static final NamedRegionKey<TestRuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("namedAlternatives", TestRuleTypes.class);
+    static final NamedRegionKey<TestRuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", TestRuleTypes.class);
+    static final NamedRegionKey<TestRuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", TestRuleTypes.class);
+    static final NameReferenceSetKey<TestRuleTypes> REFS = RULE_NAMES.createReferenceKey("ruleRefs");
     static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
     static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
     static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
@@ -261,9 +255,9 @@ public class SemanticParserTest {
                 .extractingObjectWith(SemanticParserTest::findGrammarType)
                 .finishObjectExtraction()
                 // Extract named regions so they are addressable by name or position in file
-                .extractNamedRegionsKeyedTo(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(TestRuleTypes.class)
                 // Store the bounds of the entire rule in the resulting Extraction under the key
-                // RULE_BOUNDS, which will be parameterized on RuleTypes so we can query for a
+                // RULE_BOUNDS, which will be parameterized on TestRuleTypes so we can query for a
                 // NamedSemanticRegions<RuleTypes>
                 .recordingRuleRegionUnder(RULE_BOUNDS)
                 // Store the bounds of just the rule name (for goto declaration) under the key
@@ -275,13 +269,13 @@ public class SemanticParserTest {
                 // Extracts the rule id from a parser rule declaration, using reflection instead of
                 // a method, to show that works
                 .whereRuleIs(ANTLRv4Parser.ParserRuleSpecContext.class)
-                .derivingNameWith("parserRuleDeclaration().parserRuleIdentifier().PARSER_RULE_ID()", RuleTypes.PARSER)
+                .derivingNameWith("parserRuleDeclaration().parserRuleIdentifier().PARSER_RULE_ID()", TestRuleTypes.PARSER)
                 // Extracts the rule id from apublic  fragment declaration
                 .whereRuleIs(ANTLRv4Parser.FragmentRuleDeclarationContext.class)
                 .derivingNameWith(SemanticParserTest::deriveIdFromFragmentDeclaration)
                 // Generate fake definitions for declared tokens so we don't flag them as errors
                 .whereRuleIs(ANTLRv4Parser.TokenListContext.class)
-                .derivingNameFromTerminalNodes(RuleTypes.LEXER, SemanticParserTest::deriveTokenIdFromTokenList)
+                .derivingNameFromTerminalNodes(TestRuleTypes.LEXER, SemanticParserTest::deriveTokenIdFromTokenList)
                 // Now collect usages of the rule ids we just collected.  This gets us both
                 // the ability to query for a NamedReferenceSet<RuleTypes> which has the reference
                 // and can resolve the reference, and a bidirectional graph built from arrays of BitSets
@@ -294,11 +288,11 @@ public class SemanticParserTest {
                 // Done specifying how to collect references
                 .finishReferenceCollector()
                 .finishNamedRegions()
-                .extractNamedRegionsKeyedTo(RuleTypes.class)
+                .extractNamedRegionsKeyedTo(TestRuleTypes.class)
                 .recordingNamePositionUnder(NAMED_ALTERNATIVES)
                 .whereRuleIs(ParserRuleLabeledAlternativeContext.class)
                 //                .derivingNameWith(SemanticParserTest::extractAlternativeLabelInfo)
-                .derivingNameWith("identifier().ID()", RuleTypes.ALTERNATIVE_LABEL)
+                .derivingNameWith("identifier().ID()", TestRuleTypes.ALTERNATIVE_LABEL)
                 .finishNamedRegions()
                 // Just collect the offsets of all BlockContext trees, in a nested data structure
                 .extractingRegionsUnder(BLOCKS)
@@ -352,29 +346,29 @@ public class SemanticParserTest {
             System.out.println(r + ": '" + s + "'");
         }
 
-        NamedSemanticRegions<RuleTypes> nameds = extraction.namedRegions(RULE_NAMES);
+        NamedSemanticRegions<TestRuleTypes> nameds = extraction.namedRegions(RULE_NAMES);
 
         System.out.println("\n\n-------------------------- NAMEDS -------------------------------");
-        for (NamedSemanticRegion<RuleTypes> r : nameds) {
+        for (NamedSemanticRegion<TestRuleTypes> r : nameds) {
             System.out.println(r);
         }
 
 //        System.out.println("NAMEDS: " + nameds);
         System.out.println("\n\n-------------------------- BOUNDS -------------------------------");
-        NamedSemanticRegions<RuleTypes> bounds = extraction.namedRegions(RULE_BOUNDS);
+        NamedSemanticRegions<TestRuleTypes> bounds = extraction.namedRegions(RULE_BOUNDS);
 
-        for (NamedSemanticRegion<RuleTypes> r : bounds) {
+        for (NamedSemanticRegion<TestRuleTypes> r : bounds) {
             System.out.println(r);
         }
 
         assertFalse(nameds.equals(bounds));
 
-        NamedRegionReferenceSets<RuleTypes> refs = extraction.references(REFS);
+        NamedRegionReferenceSets<TestRuleTypes> refs = extraction.references(REFS);
 
         System.out.println("\n\n-------------------------- REFS -------------------------------");
-        for (NamedRegionReferenceSet<RuleTypes> r : refs) {
+        for (NamedRegionReferenceSet<TestRuleTypes> r : refs) {
             System.out.println("   ----------------- " + r.name() + " -----------------");
-            for (NamedSemanticRegion<RuleTypes> i : r) {
+            for (NamedSemanticRegion<TestRuleTypes> i : r) {
                 System.out.println("  " + i);
             }
         }
@@ -383,19 +377,19 @@ public class SemanticParserTest {
 
         System.out.println("GRAPH: \n" + graph);
 
-        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, NamedSemanticRegionReference<RuleTypes>, ?, NamedRegionReferenceSets<RuleTypes>> cr = bounds.crossReference(refs);
+        BitSetHeteroObjectGraph<NamedSemanticRegion<TestRuleTypes>, NamedSemanticRegionReference<TestRuleTypes>, ?, NamedRegionReferenceSets<TestRuleTypes>> cr = bounds.crossReference(refs);
 //        BitSetHeteroObjectGraph<SemanticRegion<Void>, NamedSemanticRegion<RuleTypes>, ?, NamedSemanticRegions<RuleTypes>> cr = blocks.crossReference(nameds);
 
         System.out.println("CROSS REF\n" + cr);
 
-        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<Set<EbnfProperty>>, ?, SemanticRegions<Set<EbnfProperty>>> cr2 = bounds.crossReference(ebnfs);
+        BitSetHeteroObjectGraph<NamedSemanticRegion<TestRuleTypes>, SemanticRegion<Set<EbnfProperty>>, ?, SemanticRegions<Set<EbnfProperty>>> cr2 = bounds.crossReference(ebnfs);
 
         System.out.println("\n\n-------------------------- RULES CONTAINING EBNFS -------------------------------");
         System.out.println(cr2);
 
-        NamedSemanticRegions<RuleTypes> alts = extraction.namedRegions(NAMED_ALTERNATIVES);
+        NamedSemanticRegions<TestRuleTypes> alts = extraction.namedRegions(NAMED_ALTERNATIVES);
         System.out.println("\n\n-------------------------- NAMED ALTERNATIVES -------------------------------");
-        for (NamedSemanticRegion<RuleTypes> r : alts) {
+        for (NamedSemanticRegion<TestRuleTypes> r : alts) {
             System.out.println(r);
         }
 
@@ -415,13 +409,13 @@ public class SemanticParserTest {
         Extraction ex2 = (Extraction) oin.readObject();
         assertTrue(ex2.namedRegions(RULE_NAMES).equalTo(nameds));
 
-        Iterable<NamedSemanticRegion<RuleTypes>> ite = nameds.combinedIterable(refs, true);
+        Iterable<NamedSemanticRegion<TestRuleTypes>> ite = nameds.combinedIterable(refs, true);
         System.out.println("\nREFS COMBINED WITH ALTS:");
-        for (NamedSemanticRegion<RuleTypes> nse : ite) {
+        for (NamedSemanticRegion<TestRuleTypes> nse : ite) {
             System.out.println("  " + nse);
         }
 
-        BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, NamedSemanticRegion<RuleTypes>, ?, NamedSemanticRegions<RuleTypes>> cr3 = alts.crossReference(bounds);
+        BitSetHeteroObjectGraph<NamedSemanticRegion<TestRuleTypes>, NamedSemanticRegion<TestRuleTypes>, ?, NamedSemanticRegions<TestRuleTypes>> cr3 = alts.crossReference(bounds);
         System.out.println("\n\n-------------------------- CROSS ALTS -------------------------------");
         System.out.println(cr3);
     }

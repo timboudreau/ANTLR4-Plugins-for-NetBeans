@@ -1,8 +1,8 @@
 package org.nemesis.data.impl;
 
-import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
 import static org.nemesis.data.impl.ArrayUtil.Bias.BACKWARD;
 import static org.nemesis.data.impl.ArrayUtil.Bias.FORWARD;
 import static org.nemesis.data.impl.ArrayUtil.Bias.NONE;
@@ -10,7 +10,7 @@ import static org.nemesis.data.impl.ArrayUtil.Bias.NONE;
 /**
  * Utilities for manipulating and searching in arrays and paris of start/end
  * arrays which may contain duplicate entries, or where the ends array may be
- * unsorted.  Non-API.
+ * unsorted. Non-API.
  *
  * @author Tim Boudreau
  */
@@ -24,6 +24,50 @@ public final class ArrayUtil {
     @SuppressWarnings("unchecked")
     public static <T> T[] ofType(T[] array, int newSize) {
         return genericArray((Class<T>) array.getClass().getComponentType(), newSize);
+    }
+
+    private static final class ArrayIUO implements IntUnaryOperator {
+
+        private final int[] array;
+
+        ArrayIUO(int[] array) {
+            assert array != null;
+            this.array = array;
+        }
+
+        @Override
+        public int applyAsInt(int operand) {
+            if (operand < 0 || operand >= array.length) {
+                return -1;
+            }
+            return array[operand];
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(this.array);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o instanceof ArrayIUO) {
+                return Arrays.equals(((ArrayIUO) o).array, array);
+            } else if (o instanceof IntUnaryOperator) {
+                IntUnaryOperator iuo = (IntUnaryOperator) o;
+                int[] others = new int[array.length];
+                for (int i = 0; i < array.length; i++) {
+                    others[i] = iuo.applyAsInt(i);
+                }
+                if (Arrays.equals(others, array)) {
+                    return iuo.applyAsInt(array.length) == -1;
+                }
+            }
+            return false;
+        }
+    }
+
+    public static IntUnaryOperator iuo(int[] items) {
+        return new ArrayIUO(items);
     }
 
     /**
@@ -41,7 +85,11 @@ public final class ArrayUtil {
      * @return A position, or -1 if the request cannot be satisfied
      */
     public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
-        int firstStart = starts[searchFirst];
+        return rangeBinarySearch(pos, searchFirst, searchLast, iuo(starts), ends, size);
+    }
+
+    public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, IntUnaryOperator starts, EndSupplier ends, int size) {
+        int firstStart = starts.applyAsInt(searchFirst);
         int lastEnd = ends.get(searchLast);
         int firstEnd = ends.get(searchFirst);
         if (pos >= firstStart && pos < firstEnd) {
@@ -53,7 +101,7 @@ public final class ArrayUtil {
         } else if (pos > lastEnd) {
             return -1;
         }
-        int lastStart = starts[searchLast];
+        int lastStart = starts.applyAsInt(searchLast);
         if (pos >= lastStart && pos < lastEnd) {
             return searchLast;
         } else if (pos == firstEnd - 1) {
@@ -63,7 +111,7 @@ public final class ArrayUtil {
         if (mid == searchFirst || mid == searchLast) {
             return -1;
         }
-        int midStart = starts[mid];
+        int midStart = starts.applyAsInt(mid);
         int midEnd = ends.get(mid);
         if (pos >= midStart && pos < midEnd) {
             return mid;
@@ -87,7 +135,11 @@ public final class ArrayUtil {
      * @return An integer offset or -1
      */
     public static int rangeBinarySearch(int pos, int[] starts, EndSupplier ends, int size) {
-        if (size == 0 || pos < starts[0] || pos >= ends.get(size - 1)) {
+        return rangeBinarySearch(pos, iuo(starts), ends, size);
+    }
+
+    public static int rangeBinarySearch(int pos, IntUnaryOperator starts, EndSupplier ends, int size) {
+        if (size == 0 || pos < starts.applyAsInt(0) || pos >= ends.get(size - 1)) {
             return -1;
         }
         return rangeBinarySearch(pos, 0, size - 1, starts, ends, size);
@@ -233,55 +285,6 @@ public final class ArrayUtil {
         return new Arr(ends);
     }
 
-    private static final class Arr implements EndSupplier {
-
-        private final int[] arr;
-
-        Arr(int[] arr) {
-            this.arr = arr;
-        }
-
-        @Override
-        public int get(int index) {
-            return arr[index];
-        }
-
-        @Override
-        public int size() {
-            return arr.length;
-        }
-
-        public boolean equals(Object o) {
-            if (o == this) {
-                return true;
-            } else if (o == null) {
-                return false;
-            } else if (o instanceof ArrayEndSupplier) {
-                return Arrays.equals(arr, ((ArrayEndSupplier) o).ends);
-            } else if (o instanceof Arr) {
-                return Arrays.equals(arr, ((Arr) o).arr);
-            } else if (o instanceof EndSupplier) {
-                EndSupplier other = (EndSupplier) o;
-                if (other.size() == size()) {
-                    int sz = size();
-                    for (int i = 0; i < sz; i++) {
-                        int a = get(i);
-                        int b = other.get(i);
-                        if (a != b) {
-                            return false;
-                        }
-                    }
-                }
-                return true;
-            }
-            return false;
-        }
-
-        public int hashCode() {
-            return endSupplierHashCode(this);
-        }
-    }
-
     private static int[] nestingBinarySearch(int pos, boolean hasNesting, int[] starts, int[] ends, int size, int depth, int firstUnsortedEndsEntry) {
         // Okay, this requires some explaining:
         //  - For many cases, binary search will work, unless it stumbles across an end that comes
@@ -407,99 +410,6 @@ public final class ArrayUtil {
 
     public static MutableEndSupplier createMutableArrayEndSupplier(int[] ends) {
         return new ArrayEndSupplier(ends);
-    }
-
-    public interface EndSupplier extends Serializable {
-
-        int get(int index);
-
-        /**
-         * Note that this size method returns the size of the underlying array,
-         * which may be greater than the size used by the owner. Used in
-         * equality tests.
-         *
-         * @return A size
-         */
-        int size();
-
-        default MutableEndSupplier toMutable(int size) {
-            int[] result = new int[size];
-            for (int i = 0; i < size; i++) {
-                result[i] = get(i);
-            }
-            return new ArrayEndSupplier(result);
-        }
-    }
-
-    public interface MutableEndSupplier extends EndSupplier {
-
-        void setEnd(int index, int val);
-
-        void remove(int index);
-    }
-
-    public static class ArrayEndSupplier implements MutableEndSupplier {
-
-        private final int[] ends;
-
-        public ArrayEndSupplier(int size) {
-            ends = new int[size];
-            Arrays.fill(ends, -1);
-        }
-
-        public ArrayEndSupplier(int[] ends) {
-            this.ends = ends;
-        }
-
-        @Override
-        public int get(int index) {
-            return ends[index];
-        }
-
-        @Override
-        public void setEnd(int index, int val) {
-            ends[index] = val;
-        }
-
-        public int size() {
-            return ends.length;
-        }
-
-        @Override
-        public void remove(int ix) {
-            int size = ends.length;
-            System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
-        }
-
-        public boolean equals(Object o) {
-            if (o == this) {
-                return true;
-            } else if (o == null) {
-                return false;
-            } else if (o instanceof ArrayEndSupplier) {
-                return Arrays.equals(ends, ((ArrayEndSupplier) o).ends);
-            } else if (o instanceof Arr) {
-                return Arrays.equals(ends, ((Arr) o).arr);
-            } else if (o instanceof EndSupplier) {
-                EndSupplier other = (EndSupplier) o;
-                if (other.size() == size()) {
-                    int sz = size();
-                    for (int i = 0; i < sz; i++) {
-                        int a = get(i);
-                        int b = other.get(i);
-                        if (a != b) {
-                            return false;
-                        }
-                    }
-                }
-                return true;
-            }
-            return false;
-        }
-
-        public int hashCode() {
-            return endSupplierHashCode(this);
-        }
     }
 
     public static int endSupplierHashCode(EndSupplier es) {

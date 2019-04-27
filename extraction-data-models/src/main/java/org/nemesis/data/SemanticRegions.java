@@ -18,6 +18,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.nemesis.data.SemanticRegions.SemanticRegionImpl;
 import org.nemesis.data.impl.ArrayUtil;
+import org.nemesis.data.impl.EndSupplier;
 
 /**
  * A collection of nestable semantic regions, which have some (optional) data
@@ -180,6 +181,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
      * @param item An item
      * @return Whether or not its type and owner match this collection
      */
+    @Override
     public boolean isChildType(IndexAddressableItem item) {
         return item instanceof SemanticRegion<?>;
     }
@@ -310,6 +312,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
     }
 
+    @Override
     public String toString() {
         String typeName = keys == null ? "Void" : keys.getClass().getComponentType().getSimpleName();
         StringBuilder sb = new StringBuilder("SemanticRegions<").append(typeName).append(">{\n");
@@ -326,6 +329,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return sb.toString();
     }
 
+    @Override
     public int size() {
         return size;
     }
@@ -956,7 +960,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
     }
 
-    private final class MES implements ArrayUtil.EndSupplier {
+    private final class MES implements EndSupplier {
 
         @Override
         public int get(int index) {

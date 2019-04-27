@@ -52,6 +52,7 @@ public interface NamedSemanticRegion<K extends Enum<K>> extends IndexAddressable
      *
      * @return
      */
+    @Override
     default NamedSemanticRegion<K> snapshot() {
         return new NamedSemanticRegionSnapshot<>(this);
     }
