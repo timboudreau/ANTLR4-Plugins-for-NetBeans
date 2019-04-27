@@ -38,7 +38,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.extraction.SingletonEncounters;
 
@@ -226,8 +226,8 @@ public class AntlrExtractorTest {
         for (NamedSemanticRegion<RuleTypes> o : ri.namedRegions(AntlrKeys.RULE_NAMES)) {
             IndexAddressable.IndexAddressableItem ruleBounds = ri.namedRegions(AntlrKeys.RULE_BOUNDS).regionFor(o.name());
             assertNotNull(ruleBounds);
-            assertTrue(ruleBounds.containsPosition(o.start()));
-            assertTrue(ruleBounds.containsPosition(o.end()));
+            assertTrue(ruleBounds.contains(o.start()));
+            assertTrue(ruleBounds.contains(o.end()));
         }
         SemanticRegions<Void> blocks = ri.regions(AntlrKeys.BLOCKS);
         System.out.println("BLOCKS: " + blocks);
@@ -246,8 +246,8 @@ public class AntlrExtractorTest {
         assertEquals("booleanValue", txt.substring(bv.start(), bv.end()));
         NamedSemanticRegion<RuleTypes> valueRule = ri.namedRegions(AntlrKeys.RULE_BOUNDS).regionFor("value");
         assertNotNull(valueRule);
-        assertTrue(valueRule.containsPosition(bv.start()));
-        assertTrue(valueRule.containsPosition(bv.end()));
+        assertTrue(valueRule.contains(bv.start()));
+        assertTrue(valueRule.contains(bv.end()));
     }
 
     private static final String[] expectedNmmBlocks = new String[]{

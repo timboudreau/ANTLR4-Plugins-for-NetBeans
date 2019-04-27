@@ -1,19 +1,21 @@
 package org.nemesis.data;
 
+import org.nemesis.indexed.Indexed;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
-import org.nemesis.data.graph.IntGraph;
-import org.nemesis.data.graph.bits.MutableBits;
+import org.nemesis.graph.IntGraph;
+import org.nemesis.bits.MutableBits;
 import org.nemesis.misc.utils.function.IntBiConsumer;
+import org.nemesis.range.IntRange;
 
 /**
  * Base interface for collections of that can be indexed and represent a range
  * of characters being parsed. Most subclasses have strict rules about the order
- * elements may be added in.  This is the base interface for several lightweight,
+ * elements may be added in. This is the base interface for several lightweight,
  * highly efficient data stores for information extracted during a parse.
  *
  * @author Tim Boudreau
@@ -150,7 +152,6 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
         return crossReference(this, other);
     }
 
-
     public interface NamedIndexAddressable<T extends IndexAddressableItem & Named> extends IndexAddressable<T> {
 
         Iterator<T> byPositionIterator();
@@ -173,54 +174,7 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
     /**
      * One item in an index addressable collection.
      */
-    public interface IndexAddressableItem extends Comparable<IndexAddressableItem> {
-
-        /**
-         * Determine if this item occurs after (start() &gt;= item.end())
-         * another item.
-         *
-         * @param item Another item
-         * @return
-         */
-        default boolean isAfter(IndexAddressableItem item) {
-            return start() >= item.end();
-        }
-
-        /**
-         * Determine if this item occurs before (end() &lt;= item.start())
-         * another item.
-         *
-         * @param item
-         * @return
-         */
-        default boolean isBefore(IndexAddressableItem item) {
-            return end() <= item.start();
-        }
-
-        /**
-         * Get the start offset, inclusive.
-         *
-         * @return The start offset
-         */
-        int start();
-
-        /**
-         * Get the end offset, exclusive.
-         *
-         * @return 23
-         */
-        int end();
-
-        /**
-         * Get the final position which is within this NamedSemanticRegions -
-         * equals to end()-1.
-         *
-         * @return
-         */
-        default int stop() {
-            return end() - 1;
-        }
-
+    public interface IndexAddressableItem extends IntRange<IndexAddressableItem> {
         /**
          * Get the index of this region within the NamedSemanticRegions which
          * owns it. The meaning of this number is unspecified other than that if
@@ -232,70 +186,23 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
         int index();
 
         /**
-         * Get the length of this region - end() - start().
+         * Get the size of this region - end() - start().
          *
-         * @return The length
+         * @return The size
          */
-        default int length() {
+        @Override
+        default int size() {
             return end() - start();
         }
 
-        /**
-         * Determine if this region contains a given position - equivalent to
-         * <code>pos &gt;= start() && pos &lt; end()</code>.
-         *
-         * @param pos A position
-         * @return true if it is contained
-         */
-        default boolean containsPosition(int pos) {
-            return pos >= start() && pos < end();
-        }
-
-        /**
-         * Determine if this region contains the passed region.
-         *
-         * @param start
-         * @param end
-         * @return
-         */
-        default boolean contains(int start, int end) {
-            assert end > start : "Start <= end: " + start + ":" + end;
-            return containsPosition(start) && end >= start && end <= end();
-        }
-
-        /**
-         * Determine if the bounds of the passed item are equal to or contained
-         * within the bounds of this one.
-         *
-         * @param item An item which may be from another collection than this
-         * one's owner
-         * @return true if it is contained or has equal bounds
-         */
-        default boolean contains(IndexAddressableItem item) {
-            return contains(item.start(), item.end());
-        }
-
-        default boolean offsetsEqual(IndexAddressableItem item) {
-            return item.start() == start() && item.end() == end();
-        }
-
-        /**
-         * Sorts items by their start and end position.
-         *
-         * @param o Another object
-         * @return the sort
-         */
         @Override
-        public default int compareTo(IndexAddressableItem o) {
-            int as = start();
-            int bs = o.start();
-            int result = as > bs ? 1 : as == bs ? 0 : -1;
-            if (result == 0) {
-                int ae = end();
-                int be = end();
-                result = ae > be ? 1 : ae == be ? 0 : -1;
-            }
-            return result;
+        public default IndexAddressableItem newRange(int start, int size) {
+            return new FixedRangeImpl(index(), start, size);
+        }
+
+        @Override
+        public default IndexAddressableItem newRange(long start, long size) {
+            return new FixedRangeImpl(index(), (int) start, (int) size);
         }
     }
 }

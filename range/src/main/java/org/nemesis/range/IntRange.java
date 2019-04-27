@@ -1,6 +1,7 @@
 package org.nemesis.range;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -27,6 +28,42 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
      * @return The size
      */
     int size();
+
+    /**
+     * Determine if this item occurs after (start() &gt;= item.end()) another
+     * item.
+     *
+     * @param item Another item
+     * @return
+     */
+    default boolean isAfter(Range<?> range) {
+        if (range instanceof IntRange<?>) {
+            IntRange<?> item = (IntRange<?>) range;
+            return start() >= item.end();
+        } else if (range instanceof LongRange<?>) {
+            LongRange<?> item = (LongRange<?>) range;
+            return start() >= item.end();
+        }
+        return Range.super.isAfter(range);
+    }
+
+    /**
+     * Determine if this item occurs before (end() &lt;= item.start()) another
+     * item.
+     *
+     * @param item
+     * @return
+     */
+    default boolean isBefore(Range<?> range) {
+        if (range instanceof IntRange<?>) {
+            IntRange<?> item = (IntRange<?>) range;
+            return end() <= item.start();
+        } else if (range instanceof LongRange<?>) {
+            LongRange<?> item = (LongRange<?>) range;
+            return end() <= item.start();
+        }
+        return Range.super.isBefore(range);
+    }
 
     @Override
     default OI forEachPosition(IntConsumer consumer) {
@@ -195,7 +232,7 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
         }
         if (range instanceof IntRange<?>) {
             IntRange<?> other = (IntRange<?>) range;
-            return contains(other.start()) || contains(other.end());
+            return contains(other.start()) || contains(other.stop());
         }
         return Range.super.containsBoundary(range);
     }
@@ -267,4 +304,51 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
         }
         return new int[0];
     }
+
+    default List<? extends OI> subtracting(Range<? extends Range<?>> r) {
+        if (!(r instanceof IntRange<?>)) {
+            return Range.super.subtracting(r);
+        }
+        IntRange<?> range = (IntRange<?>) r;
+        if (!overlaps(range) || range.isEmpty()) {
+            return Arrays.asList(cast());
+        }
+        RangeRelation rel = relationTo(range);
+        switch (rel) {
+            case AFTER:
+            case BEFORE:
+                return Arrays.asList(cast());
+            case CONTAINED:
+            case EQUAL:
+                return Collections.emptyList();
+            case CONTAINS:
+            case STRADDLES_START:
+            case STRADDLES_END:
+                int myStart = start();
+                int mySize = size();
+                int myEnd = myStart + mySize;
+                int otherStart = range.start();
+                int otherSize = range.size();
+                long otherEnd = otherStart + otherSize;
+                switch (rel) {
+                    case STRADDLES_START:
+                        return Arrays.asList(newRange(myStart, otherStart - myStart));
+                    case STRADDLES_END:
+                        return Arrays.asList(newRange(otherEnd, myEnd - otherEnd));
+                    default:
+                        if (myStart == otherStart) {
+                            return Arrays.asList(newRange(otherEnd, myEnd - otherEnd));
+                        } else if (myEnd == otherEnd) {
+                            return Arrays.asList(newRange(myStart, otherStart - myStart));
+                        } else {
+                            OI a = newRange(myStart, otherStart - myStart);
+                            OI b = newRange(otherEnd, myEnd - otherEnd);
+                            return Arrays.asList(a, b);
+                        }
+                }
+            default:
+                throw new AssertionError(rel);
+        }
+    }
+
 }

@@ -154,7 +154,7 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
                                 // Don't highlight the element the caret is in,
                                 // for consistency with other NetBeans
                                 // highlighters
-                                if (ref.containsPosition(caret)) {
+                                if (ref.contains(caret)) {
                                     if (log) {
                                         LOG.log(Level.FINEST, "Skip {0}:{1} ref for {2}", new Object[]{target.start(), target.end(), target.name()});
                                     }
@@ -171,7 +171,7 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
                                 // do this once
                                 if (!originalDone) {
                                     NamedSemanticRegion<T> orig = ref.referencing();
-                                    if (!orig.containsPosition(caret)) {
+                                    if (!orig.contains(caret)) {
                                         bag.addHighlight(orig.start(), orig.end(), coloring);
                                         if (log) {
                                             LOG.log(Level.FINEST, "Highlight orig {0}:{1} for {2}",

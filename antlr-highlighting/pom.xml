@@ -33,6 +33,10 @@
         </dependency>
         <dependency>
             <groupId>org.nemesis</groupId>
+            <artifactId>range</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.nemesis</groupId>
             <artifactId>antlr-language-spi</artifactId>
         </dependency>
         <dependency>

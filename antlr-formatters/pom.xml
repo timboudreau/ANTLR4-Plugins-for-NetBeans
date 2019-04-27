@@ -36,18 +36,6 @@
                     <additionalparam>-Xdoclint:none</additionalparam>
                     <excludePackageNames>org.nemesis.antlrformatting.impl</excludePackageNames>
                 </configuration>
-                    
-                <!--                    <executions>
-                    <execution>
-                        <id>attach-javadocs</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <additionalparam>-Xdoclint:none</additionalparam>
-                        </configuration>
-                    </execution>
-                </executions>-->
             </plugin>            
         </plugins>
     </build>

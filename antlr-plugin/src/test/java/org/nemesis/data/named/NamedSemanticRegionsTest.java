@@ -162,9 +162,9 @@ public class NamedSemanticRegionsTest {
                 assertEquals(Foo.BAR, i.kind());
             }
             assertEquals(names[ix++], i.name());
-            assertTrue(i.containsPosition(i.start()));
-            assertTrue(i.containsPosition(i.start() + 1));
-            assertTrue(i.containsPosition(i.end() - 1));
+            assertTrue(i.contains(i.start()));
+            assertTrue(i.contains(i.start() + 1));
+            assertTrue(i.contains(i.end() - 1));
         }
         pos = 0;
         NamedSemanticRegionPositionIndex<Foo> index = offsets.index();

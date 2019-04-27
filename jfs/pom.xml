@@ -6,6 +6,7 @@
         <artifactId>antlr-netbeans-parent</artifactId>
         <version>2.0</version>
     </parent>
+    <packaging>nbm</packaging>
     <artifactId>jfs</artifactId>
     <properties>
         <maven.test.skip>false</maven.test.skip>
@@ -14,6 +15,11 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>range</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -61,4 +67,60 @@
             <type>jar</type>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>nbm-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <cluster>antlr</cluster>
+                    <moduleType>autoload</moduleType>
+                    <useOSGiDependencies>false</useOSGiDependencies>
+                    <publicPackages>
+                        <publicPackage>org.nemesis.jfs</publicPackage>
+                        <publicPackage>org.nemesis.jfs.isolation</publicPackage>
+                        <publicPackage>org.nemesis.jfs.javac</publicPackage>
+                        <publicPackage>org.nemesis.jfs.spi</publicPackage>
+                    </publicPackages>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.3</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>post-unit-test</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>target/jacoco.exec</dataFile>
+                            <outputDirectory>target/jacoco-ut</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <jacoco-agent.destfile>target/jacoco.exec</jacoco-agent.destfile>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>                    
+        </plugins>
+    </build>
 </project>

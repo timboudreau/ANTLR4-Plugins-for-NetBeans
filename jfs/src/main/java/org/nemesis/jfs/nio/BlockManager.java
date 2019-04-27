@@ -1,10 +1,11 @@
 package org.nemesis.jfs.nio;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.BitSet;
+import java.util.List;
 import java.util.function.IntConsumer;
-import org.nemesis.jfs.nio.FunctionalLock.IoRunnable;
+import org.nemesis.range.IntRange;
+import org.nemesis.range.Range;
 
 /**
  * A poor man's memory manager, which manages a set of blocks, each consisting
@@ -22,14 +23,8 @@ final class BlockManager {
     private final Listener listener;
     private ExpansionAlgorithm expansionAlgorithm;
     private final int initialBlockCount;
-    private final FunctionalLock lock;
 
     BlockManager(int initialBlockCount, Listener phys) {
-        this(initialBlockCount, phys, new FunctionalLockImpl(false, "block-manager"));
-    }
-
-    BlockManager(int initialBlockCount, Listener phys, FunctionalLock lock) {
-        this.lock = lock;
         this.blockCount = initialBlockCount;
         this.initialBlockCount = initialBlockCount;
         expansionAlgorithm = new DefaultExpansionAlgorithm();
@@ -89,10 +84,6 @@ final class BlockManager {
         default void onResized(int start, int oldSize, int newSize) throws IOException {
 
         }
-
-        default void onDefrag(IoRunnable defragIt) throws IOException {
-            defragIt.call();
-        }
     }
 
     private int _expand(int minimumBlocks) throws IOException {
@@ -104,9 +95,7 @@ final class BlockManager {
     }
 
     int expand(int minimumBlocks) throws IOException {
-        return lock.underWriteLockIntIO(() -> {
-            return _expand(minimumBlocks);
-        });
+        return _expand(minimumBlocks);
     }
 
     public void shrink(int start, int oldSize, int newSize) throws IOException {
@@ -120,14 +109,12 @@ final class BlockManager {
         int diff = (oldSize - newSize) + 1;
 //        System.out.println("SHRINK DIFF " + diff + " shrink " + start + ":" + (start + oldSize - 1) + " -> " + start + ":" + (start + newSize - 1));
         if (diff != 0) {
-            lock.underReadLockIO(() -> {
-                listener.onResized(start, oldSize, newSize);
+            listener.onResized(start, oldSize, newSize);
 //            System.out.println("SHRINK DEALLOCATING " + diff + "@ " + (start + newSize));
-                if (onDone != null) {
-                    onDone.run();
-                }
-                _deallocate(start + newSize, oldSize - newSize);
-            });
+            if (onDone != null) {
+                onDone.run();
+            }
+            deallocate(start + newSize, oldSize - newSize);
         } else if (onDone != null) {
             onDone.run();
         }
@@ -151,7 +138,6 @@ final class BlockManager {
             expand(start + newSize);
         }
 
-        lock.readLock();
         try {
             boolean growInPlace = start + newSize < blockCount;
             if (growInPlace) {
@@ -163,110 +149,34 @@ final class BlockManager {
                 listener.onResized(start, oldSize, newSize);
                 result = start;
             } else {
-                lock.readUnlock();
-                lock.writeLock();
-                try {
-                    int nextSetBit = used.nextSetBit(start + oldSize);
-                    growInPlace = nextSetBit > start + newSize;
-                    if (growInPlace) {
-                        markAllocated(newSize - oldSize, start + oldSize);
-                        listener.onResized(start, oldSize, newSize);
-                        result = start;
+                int nextSetBit = used.nextSetBit(start + oldSize);
+                growInPlace = nextSetBit > start + newSize;
+                if (growInPlace) {
+                    markAllocated(newSize - oldSize, start + oldSize);
+                    listener.onResized(start, oldSize, newSize);
+                    result = start;
+                } else {
+                    int newStart = allocate(newSize);
+                    if (copy) {
+                        migrate(start, oldSize, newStart, newSize);
                     } else {
-                        int newStart = _allocate(newSize);
-                        if (copy) {
-                            _migrate(start, oldSize, newStart, newSize);
-                        } else {
-                            markUnallocated(oldSize, start);
-                            // XXX FIRE MIGRATE TO LISTENER?  WHAT HERE SO BLOCKS INSTANCES ARE UPDATED?
-                        }
-                        result = newStart;
+                        markUnallocated(oldSize, start);
+                        // XXX FIRE MIGRATE TO LISTENER?  WHAT HERE SO BLOCKS INSTANCES ARE UPDATED?
                     }
-                } finally {
-                    lock.readLock();
-                    lock.writeUnlock();
+                    result = newStart;
                 }
             }
         } finally {
-            try {
-                if (onDone != null) {
-                    onDone.accept(result);
-                }
-            } finally {
-                lock.readUnlock();
-            }
-        }
-
-//        }
-        return result;
-    }
-
-    public int xgrow(int start, int oldSize, int newSize, boolean copy, IntConsumer onDone) throws IOException {
-        int diff = newSize - oldSize;
-        if (diff == 0) {
             if (onDone != null) {
-                onDone.accept(start);
+                onDone.accept(result);
             }
-            return start;
         }
-//        System.out.println("test grow in place for " + start + ":" + (start + oldSize - 1) + " -> " + start + ":" + (start + newSize - 1));
-        int result = lock.underWriteLockIntIO(() -> {
-            if (start + newSize > blockCount) {
-                _expand(start + newSize);
-            }
 
-            boolean growInPlace = start + newSize < blockCount;
-//        synchronized (this) {
-            if (growInPlace) {
-                int nextSetBit = used.nextSetBit(start + oldSize);
-                growInPlace = nextSetBit > start + newSize;
-//                for (int i = start + oldSize; i < start + newSize; i++) {
-//                    growInPlace = !used.get(i);
-////            System.out.println("  check " + i + ": " + growInPlace);
-//                    if (!growInPlace) {
-//                        break;
-//                    }
-//                }
-            }
-            if (growInPlace) {
-//            System.out.println("   grow-in-place - mark allocated " + (newSize - oldSize) + " blocks at " + (start + oldSize));
-                markAllocated(newSize - oldSize, start + oldSize);
-                listener.onResized(start, oldSize, newSize);
-//                if (onDone != null) {
-//                    onDone.accept(start);
-//                }
-                return start;
-            }
-            int newStart = _allocate(newSize);
-            if (copy) {
-                _migrate(start, oldSize, newStart, newSize);
-//                if (onDone != null) {
-//                    onDone.accept(start);
-//                }
-            } else {
-                markUnallocated(oldSize, start);
-//                if (onDone != null) {
-//                    onDone.accept(start);
-//                }
-                // XXX FIRE MIGRATE TO LISTENER?  WHAT HERE SO BLOCKS INSTANCES ARE UPDATED?
-            }
-            return newStart;
 //        }
-        });
-        if (onDone != null) {
-            onDone.accept(result);
-        }
-
         return result;
     }
 
     public int allocate(int blocks) throws IOException {
-        return lock.underWriteLockIntIO(() -> {
-            return _allocate(blocks);
-        });
-    }
-
-    private int _allocate(int blocks) throws IOException {
         if (blocks == 0) {
             throw new IllegalArgumentException("Allocating 0 is silly");
         }
@@ -283,7 +193,7 @@ final class BlockManager {
             start = _expand(blockCount + blocks);
         } else if (start < 0) {
             int oldCount = blockCount;
-            int last = _lastUsedBlock();
+            int last = lastUsedBlock();
             last = last < 0 ? 0 : last;
             _expand(blockCount + blocks);
 //            start = findContigiuousUnallocated(last);
@@ -302,26 +212,13 @@ final class BlockManager {
         return start;
     }
 
-    private int _lastUsedBlock() {
+    public int lastUsedBlock() {
         return used.previousSetBit(blockCount);
     }
 
-    public int lastUsedBlock() {
-        return lock.underReadLockInt(() -> {
-            return _lastUsedBlock();
-        });
-    }
-
-    private void _deallocate(int start, int blocks) throws IOException {
+    public void deallocate(int start, int blocks) throws IOException {
         listener.onDeallocate(start, blocks);
         markUnallocated(blocks, start);
-
-    }
-
-    public void deallocate(int start, int blocks) throws IOException {
-        lock.underReadLockIO(() -> {
-            _deallocate(start, blocks);
-        });
     }
 
     public void clear() throws IOException {
@@ -361,45 +258,36 @@ final class BlockManager {
     }
 
     void _fullDefrag() throws IOException {
-        lock.underWriteLockIO(() -> {
-            int oldCardinality = used.cardinality();
-            int[] scratch = new int[2];
-            int[] lastEnd = new int[]{-1};
+        int oldCardinality = used.cardinality();
+        int[] scratch = new int[2];
+        int[] lastEnd = new int[]{-1};
 
-            int[] res;
-            // Scan regions forward from 0, shifting each one to abut the previous
-            // and notifying the listener to move byte buffer contents
-            while ((res = nextRegion(lastEnd[0] + 1, true, false, scratch)) != null) {
-                if (res[0] > lastEnd[0]) {
-                    int len = (res[1] - res[0]) + 1;
+        int[] res;
+        // Scan regions forward from 0, shifting each one to abut the previous
+        // and notifying the listener to move byte buffer contents
+        while ((res = nextRegion(lastEnd[0] + 1, true, false, scratch)) != null) {
+            if (res[0] > lastEnd[0]) {
+                int len = (res[1] - res[0]) + 1;
 //                System.out.println("defrag migrate " + Blocks.blockStringWithCoords(res[0], res[1]) + " to " + (lastEnd[0] + 1));
-                    lastEnd[0] = _migrate(res[0], len, lastEnd[0] + 1, len) - 1;
+                lastEnd[0] = migrate(res[0], len, lastEnd[0] + 1, len) - 1;
 //                System.out.println("  next start now " + lastEnd[0]);
-                } else {
+            } else {
 //                System.out.println("defrag NO migrate for " + Blocks.blockStringWithCoords(res[0], res[1]));
-                    lastEnd[0]++;
-                }
+                lastEnd[0]++;
             }
-            System.out.println("\n AFTER FULL DEFRAG " + this + "\n");
-            assert this.regionCount(true) == 1 : "After full defrag, there are still unallocated interstitial regions: " + this;
+        }
+        System.out.println("\n AFTER FULL DEFRAG " + this + "\n");
+        assert this.regionCount(true) == 1 : "After full defrag, there are still unallocated interstitial regions: " + this;
 //        System.out.println("AFTER FULL DEFRAG, " + this.regionCount(true) + " regions");
-            int newCardinality = used.cardinality();
-            assert oldCardinality == newCardinality : "Defrag changed cardinality - blocks dropped or phantom blocks added. Was "
-                    + oldCardinality + " but is now " + newCardinality;
-        });
+        int newCardinality = used.cardinality();
+        assert oldCardinality == newCardinality : "Defrag changed cardinality - blocks dropped or phantom blocks added. Was "
+                + oldCardinality + " but is now " + newCardinality;
     }
 
     private int migrate(int firstBlock, int blockCount, int newStart, int newBlockCount) throws IOException {
-        return lock.underWriteLockIntIO(() -> {
-            return _migrate(firstBlock, blockCount, newStart, newBlockCount);
-        });
-    }
-
-    private int _migrate(int firstBlock, int blockCount, int newStart, int newBlockCount) throws IOException {
         if (firstBlock == newStart && blockCount == newBlockCount) {
             return newStart + newBlockCount;
         }
-//        assert !(firstBlock == newStart && blockCount == newBlockCount) : "Nothing to do for " + firstBlock + "," + blockCount + "," + newStart + "," + newBlockCount;
 
         // Special case the condition where we are just unsetting
         // and setting a single bit
@@ -418,36 +306,29 @@ final class BlockManager {
         // buffer contents
         this.listener.onMigrate(firstBlock, blockCount, newStart, newBlockCount);
         // Create some temporary instances to compute the overlap
-        Blocks old = Blocks.createTemp(firstBlock, blockCount);
-        Blocks nue = Blocks.createTemp(newStart, newBlockCount);
-        int[] overlap = old.getOverlap(nue);
+
+        IntRange<? extends IntRange<?>> old = Range.of(firstBlock, blockCount);
+        IntRange<? extends IntRange<?>> nue = Range.of(newStart, newBlockCount);
+        IntRange<? extends IntRange<?>> overlap = old.getOverlap(nue);
         // If there is an overlap, we need to deallocate only those regions that
         // do not overlap
-        if (overlap.length == 2) {
-            if (overlap[1] < overlap[0]) {
-                throw new AssertionError("Mangled overlap " + old + " and " + nue + " gets " + Arrays.toString(overlap));
-            }
-
-            // This will be a 2- or 4- element array containing the non-overlapping
-            // areas of the old region superimposed over the new
-            int[] toUnset = old.getNonOverlap(nue);
-
-//            System.out.println("COMPLEX MIGRATE " + old + " -> " + nue
-//                    + " OVERLAP " + Arrays.toString(overlap) + " UNSET "
-//                    + Arrays.toString(toUnset) + " newBlockCount " + newBlockCount);
-            for (int i = 0; i < toUnset.length; i += 2) {
-                // If the non-overlapping region is contained in the new region,
-                // don't clear it because we're about to set it
-                if (!nue.contains(toUnset[i]) && !nue.contains(toUnset[i + 1])) {
-//                    System.out.println("  clear " + Blocks.blockStringWithCoords(toUnset[i], toUnset[i + 1]));
-                    used.clear(toUnset[i], toUnset[i + 1] + 1);
-                    listener.onDeallocate(toUnset[i], (toUnset[i + 1] - toUnset[i]) + 1);
+        if (!overlap.isEmpty()) {
+            List<? extends IntRange<?>> l = old.nonOverlap(nue);
+            for (IntRange<?> ir : l) {
+                if (!nue.overlaps(ir)) {
+                    used.clear(ir.start(), ir.end());
+                    // should subtract sub regions?
+                    listener.onDeallocate(ir.start(), ir.size());
+                } else {
+                    List<? extends IntRange<?>> subregions = ir.subtracting(nue);
+                    for (IntRange<?> sub : subregions) {
+                        used.clear(sub.start(), sub.end());
+                        listener.onDeallocate(sub.start(), sub.size());
+                    }
                 }
             }
 
-//            System.out.println("  and set " + Blocks.blockStringWithSize(newStart, newBlockCount));
             used.set(newStart, newStart + newBlockCount);
-//            System.out.println("  AFTER MIGRATE: " + this);
             return newStart + newBlockCount;
         } else {
             // Simple migration of non-overlapping content
@@ -463,30 +344,27 @@ final class BlockManager {
     volatile boolean inDefrag;
 
     void simpleDefrag() throws IOException {
-        listener.onDefrag(this::_simpleDefrag);
-    }
-
-    void _simpleDefrag() throws IOException {
         if (!defrag || inDefrag || used.isEmpty()) { // for tests
             return;
         }
         inDefrag = true;
         try {
             for (;;) {
-                int x = lock.underWriteLockIntIO(() -> {
-                    int[] last = lastBlock();
-                    if (last == null) {
-                        return 0;
-                    }
+                int x;
+                int[] last = lastBlock();
+                if (last == null) {
+                    x = 0;
+                } else {
                     int blockLength = (last[1] - last[0]) + 1;
                     int start = findContigiuous(0, blockLength, false, false);
                     if (start == -1 || start > last[1]) {
-                        return 0;
+                        x = 0;
+                    } else {
+                        int len = (last[1] - last[0]) + 1;
+                        migrate(last[0], len, start, len);
+                        x = 1;
                     }
-                    int len = (last[1] - last[0]) + 1;
-                    _migrate(last[0], len, start, len);
-                    return 1;
-                });
+                }
                 if (x == 0) {
                     break;
                 }
@@ -496,20 +374,18 @@ final class BlockManager {
             inDefrag = false;
         }
         if (fragmentation() > 0.4) {
-            _fullDefrag();
+            fullDefrag();
         }
 //        System.out.println("DEFRAG AFTER: " + this);
     }
 
     int regionCount(boolean allocated) throws IOException {
-        return lock.underReadLockIntIO(() -> {
-            int[] result = new int[1];
-            this.regions(allocated, false, (a, b) -> {
-                result[0]++;
-                return true;
-            });
-            return result[0];
+        int[] result = new int[1];
+        this.regions(allocated, false, (a, b) -> {
+            result[0]++;
+            return true;
         });
+        return result[0];
     }
 
     void fullDefrag() throws IOException {
@@ -518,18 +394,16 @@ final class BlockManager {
         }
         inDefrag = true;
         try {
-            listener.onDefrag(this::_fullDefrag);
+            this._fullDefrag();
         } finally {
             inDefrag = false;
         }
     }
 
     int[] lastBlock() {
-        return lock.getUnderReadLock(() -> {
-            int[] scratch = new int[2];
-            scratch = nextRegion(blockCount, true, true, scratch);
-            return scratch;
-        });
+        int[] scratch = new int[2];
+        scratch = nextRegion(blockCount, true, true, scratch);
+        return scratch;
     }
 
     public float fragmentation() throws IOException {
@@ -539,54 +413,44 @@ final class BlockManager {
     }
 
     public int fragmentedBlocks() throws IOException {
-        return lock.underReadLockIntIO(() -> {
-            int[] count = new int[1];
-            regions(false, false, (a, b) -> {
+        int[] count = new int[1];
+        regions(false, false, (a, b) -> {
 //            System.out.println("test " + a + "," + b);
-                if (a > 0 && b < blockCount - 1) {
+            if (a > 0 && b < blockCount - 1) {
 //                System.out.println("  included " + a + "," + b);
-                    count[0] += (b - a) + 1;
-                }
-                return true;
-            });
-            return count[0];
+                count[0] += (b - a) + 1;
+            }
+            return true;
         });
+        return count[0];
     }
 
     int findContigiuous(int from, int blocks, final boolean allocated, final boolean backwards) {
-        return lock.underReadLockInt(() -> {
-            int localFrom = from;
-            if (blocks > blockCount) {
-                return -1;
-            }
-            if (used.isEmpty() && blocks <= blockCount) {
-                return 0;
-            }
-            int[] scratch = new int[2];
-            for (;;) {
-                int[] res = _nextRegion(localFrom, allocated, backwards, scratch);
-                if (res != null) {
-                    if ((res[1] - res[0]) + 1 >= blocks) {
-                        return res[0];
+        int localFrom = from;
+        if (blocks > blockCount) {
+            return -1;
+        }
+        if (used.isEmpty() && blocks <= blockCount) {
+            return 0;
+        }
+        int[] scratch = new int[2];
+        for (;;) {
+            int[] res = nextRegion(localFrom, allocated, backwards, scratch);
+            if (res != null) {
+                if ((res[1] - res[0]) + 1 >= blocks) {
+                    return res[0];
 //                    } else {
 //                        tooSmallRegions++;
 //                        skippedBlocks += (res[1] - res[0]) + 1;
-                    }
-                    localFrom = backwards ? res[0] - 1 : res[1] + 1;
-                } else {
-                    return -1;
                 }
+                localFrom = backwards ? res[0] - 1 : res[1] + 1;
+            } else {
+                return -1;
             }
-        });
+        }
     }
 
     private int[] nextRegion(int from, boolean allocated, boolean backwards, int[] scratch) {
-        return lock.getUnderReadLock(() -> {
-            return _nextRegion(from, allocated, backwards, scratch);
-        });
-    }
-
-    private int[] _nextRegion(int from, boolean allocated, boolean backwards, int[] scratch) {
         if (scratch == null) {
             scratch = new int[2];
         }
@@ -722,31 +586,11 @@ final class BlockManager {
     }
 
     public boolean regions(boolean allocated, boolean backwards, RegionReceiver recv) throws IOException {
-        lock.readLock();
-        try {
-            return _regions(allocated, backwards, recv);
-        } finally {
-            lock.readUnlock();
-        }
-    }
-
-    public boolean _regions(boolean allocated, boolean backwards, RegionReceiver recv) throws IOException {
         int start = backwards ? blockCount + 1 : 0;
-        return _regions(start, allocated, backwards, recv);
+        return regions(start, allocated, backwards, recv);
     }
 
     public boolean regions(int from, boolean allocated, boolean backwards, RegionReceiver recv) throws IOException {
-        lock.readLock();
-        try {
-            return _regions(from, allocated, backwards, recv);
-        } finally {
-            lock.readUnlock();
-        }
-    }
-
-    private boolean _regions(int from, boolean allocated, boolean backwards, RegionReceiver recv) throws IOException {
-//        System.out.println((allocated ? "allocated" : "unallocated") + " regions " + (backwards ? " backwards " : " forwards ")
-//                + " from " + from);
         boolean result = false;
         int[] scratch = new int[]{-1, -1};
         for (;;) {

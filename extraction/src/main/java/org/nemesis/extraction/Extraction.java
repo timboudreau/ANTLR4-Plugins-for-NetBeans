@@ -20,7 +20,7 @@ import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -255,7 +255,7 @@ public final class Extraction implements Externalizable {
                 }
             }
             if (candidate != null) {
-                if (result == null || candidate.length() < result.length()) {
+                if (result == null || candidate.size() < result.size()) {
                     result = candidate;
                 }
             }

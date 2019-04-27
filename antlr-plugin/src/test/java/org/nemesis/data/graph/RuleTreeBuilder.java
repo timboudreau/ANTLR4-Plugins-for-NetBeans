@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.StringGraph;
 
 /**
  *

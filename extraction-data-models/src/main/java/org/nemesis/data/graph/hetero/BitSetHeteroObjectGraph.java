@@ -3,11 +3,11 @@ package org.nemesis.data.graph.hetero;
 import java.util.Set;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
-import org.nemesis.data.Indexed;
-import org.nemesis.data.graph.BitSetSet;
-import org.nemesis.data.graph.IntGraph;
-import org.nemesis.data.graph.IntGraphVisitor;
-import org.nemesis.data.graph.bits.Bits;
+import org.nemesis.indexed.Indexed;
+import org.nemesis.graph.BitSetSet;
+import org.nemesis.graph.IntGraph;
+import org.nemesis.graph.IntGraphVisitor;
+import org.nemesis.bits.Bits;
 
 /**
  * A graph of container and containee, where the types of the two are

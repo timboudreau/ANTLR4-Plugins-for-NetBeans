@@ -83,7 +83,7 @@ import org.nemesis.antlr.v4.netbeans.v8.project.helper.ProjectHelper;
 import org.nemesis.antlr.v4.netbeans.v8.project.helper.java.JavaClassHelper;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;

@@ -7,15 +7,15 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import org.nemesis.jfs.nio.FunctionalLock.IoRunnable;
 import org.nemesis.jfs.spi.JFSUtilities;
+import org.nemesis.range.IntRange;
+import org.nemesis.range.Range;
 
 /**
  *
@@ -48,7 +48,7 @@ final class BlockMapper implements BlockStorage {
     }
 
     BlockMapper(BlockToBytesConverter bytes, ByteBufferMapper buffers, int initialBlocks, Ops ops) {
-        this.man = new BlockManager(initialBlocks, lis, buffers.lock());
+        this.man = new BlockManager(initialBlocks, lis);
         this.bytesConverter = bytes;
         this.bufferMapper = buffers;
         this.ops = ops;
@@ -75,7 +75,7 @@ final class BlockMapper implements BlockStorage {
     private Blocks allocateBlocks(int blockCount) throws IOException {
         int start = man.allocate(blockCount);
         Blocks result = new Blocks(start, blockCount);
-        ops.set("bm-allocate {0}", result.copy());
+        ops.set("bm-allocate {0}", result);
         liveBlocksInstances.add(result);
         return result;
     }
@@ -136,39 +136,24 @@ final class BlockMapper implements BlockStorage {
         @Override
         public int size() {
             // We use the blocks lock to protect the physicalSize field:
-            blocks.readLock();
-            try {
-                return physicalSize;
-            } finally {
-                blocks.readUnlock();
-            }
+            return physicalSize;
 //            }
         }
 
         @Override
         public ByteBuffer readBuffer() {
 //            synchronized (lock()) {
-            blocks.readLock();
-            try {
-                ByteBuffer result = bufferMapper.slice(blocks);
-                result.limit(Math.min(physicalSize, result.capacity()));
-                return result;
-            } finally {
-                blocks.readUnlock();
-            }
+            ByteBuffer result = bufferMapper.slice(blocks);
+            result.limit(Math.min(physicalSize, result.capacity()));
+            return result;
 //            }
         }
 
         public ByteBuffer readBufferSnapshot() {
 //            synchronized (lock()) {
-            blocks.readLock();
-            try {
-                ByteBuffer result = bufferMapper.sliceAndSnapshot(blocks);
-                result.limit(Math.min(physicalSize, result.capacity()));
-                return result;
-            } finally {
-                blocks.readUnlock();
-            }
+            ByteBuffer result = bufferMapper.sliceAndSnapshot(blocks);
+            result.limit(Math.min(physicalSize, result.capacity()));
+            return result;
 //            }
         }
 
@@ -176,11 +161,9 @@ final class BlockMapper implements BlockStorage {
         public void delete() throws IOException {
             ops.set("delete {0} id {1}", blocks, blocks.hashCode());
 //            synchronized (lock()) {
-            blocks.readLock();
             try {
                 man.deallocate(blocks.start(), blocks.size());
             } finally {
-                blocks.readUnlock();;
                 blocks.discard();
             }
             liveBlocksInstances.remove(blocks);
@@ -196,19 +179,18 @@ final class BlockMapper implements BlockStorage {
 //            blocks.writeLock();
             try {
 //                BlockMapper.this.bufferMapper.underWriteLock(() -> {
-                    int[] ss = blocks.startAndSize();
-                    onBeforeChange(ss[0], ss[1]);
-                    int lim = -1;
-                    try {
-                        ByteBuffer buf = writeBuffer(bytes.length, true);
-                        lim = buf.limit();
-                        buf.put(bytes);
-                    } catch (Exception e) {
-                        throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
-                                + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
-                                + " over available " + bufferMapper.size() + " in buffer with limit " + lim + " for byte array of "
-                                + bytes.length, e);
-                    }
+                onBeforeChange(blocks.start(), blocks.size());
+                int lim = -1;
+                try {
+                    ByteBuffer buf = writeBuffer(bytes.length, true);
+                    lim = buf.limit();
+                    buf.put(bytes);
+                } catch (Exception e) {
+                    throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
+                            + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
+                            + " over available " + bufferMapper.size() + " in buffer with limit " + lim + " for byte array of "
+                            + bytes.length, e);
+                }
 //                });
             } finally {
 //                blocks.writeUnlock();
@@ -219,97 +201,24 @@ final class BlockMapper implements BlockStorage {
             int targetBlocks = bytesConverter.bytesToBlocks(size);
             ops.set("bm-writebuffer {0} id {1} newSize {2} currSize {3}", blocks, blocks.hashCode(), size, physicalSize);
 //            bufferMapper.underWriteLock(() -> {
-                blocks.writeLock();
-                try {
-                    int[] ss = blocks.startAndSize();
-                    int currBlocks = ss[1];
-                    if (targetBlocks < currBlocks) {
-                        man.shrink(blocks.start(), currBlocks, targetBlocks, () -> {
-                            physicalSize = size;
-                        });
-//                blocks.setSize(targetBlocks);
-                    } else if (targetBlocks > currBlocks) {
-                        man.grow(blocks.start(), blocks.size(), targetBlocks, copyExistingData, ns -> {
-                            physicalSize = size;
-                        });
-//                blocks.setStartAndSize(newStart, targetBlocks);
-                    } else {
-                        physicalSize = size;
-                    }
-                } catch (Exception e) {
-                    throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
-                            + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter), e);
-                } finally {
-                    blocks.writeUnlock();
-                }
-//            });
-            return readBuffer();
-        }
-
-        public ByteBuffer ywriteBuffer(int size, boolean copyExistingData) throws IOException {
-            int targetBlocks = bytesConverter.bytesToBlocks(size);
-            blocks.writeLock();
             try {
                 int currBlocks = blocks.size();
-                if (currBlocks != targetBlocks) {
-                    if (targetBlocks < currBlocks) {
-                        man.shrink(blocks.start(), currBlocks, targetBlocks);
+                if (targetBlocks < currBlocks) {
+                    man.shrink(blocks.start(), currBlocks, targetBlocks, () -> {
                         physicalSize = size;
-                        blocks.setSize(targetBlocks);
-                    } else if (targetBlocks > currBlocks) {
-                        int newSize = man.grow(blocks.start(), blocks.size(), targetBlocks, copyExistingData);
+                    });
+                } else if (targetBlocks > currBlocks) {
+                    man.grow(blocks.start(), blocks.size(), targetBlocks, copyExistingData, ns -> {
                         physicalSize = size;
-                        blocks.setSize(newSize);
-                    }
+                    });
                 } else {
                     physicalSize = size;
                 }
-            } finally {
-                blocks.writeUnlock();
+            } catch (Exception e) {
+                throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
+                        + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter), e);
             }
-            assert blocks.size() >= targetBlocks : "Blocks not resized to " + targetBlocks + ": " + blocks;
-            return readBuffer();
-        }
-
-        public ByteBuffer xwriteBuffer(int size, boolean copyExistingData) throws IOException {
-            int targetBlocks = bytesConverter.bytesToBlocks(size);
-            ops.set("bm-writebuffer {0} id {1} newSize {2} currSize {3}", blocks, blocks.hashCode(), size, physicalSize);
-            bufferMapper.underWriteLock(() -> {
-                blocks.writeLock();
-                try {
-                    int[] ss = blocks.startAndSize();
-                    int currBlocks = ss[1];
-                    if (targetBlocks < currBlocks) {
-                        man.shrink(blocks.start(), currBlocks, targetBlocks, () -> {
-                            blocks.writeLock();
-                            try {
-                                physicalSize = size;
-                            } finally {
-                                blocks.writeUnlock();
-                            }
-
-                        });
-//                blocks.setSize(targetBlocks);
-                    } else if (targetBlocks > currBlocks) {
-                        man.grow(blocks.start(), blocks.size(), targetBlocks, copyExistingData, ns -> {
-                            blocks.writeLock();
-                            try {
-                                physicalSize = size;
-                            } finally {
-                                blocks.writeUnlock();
-                            }
-                        });
-//                blocks.setStartAndSize(newStart, targetBlocks);
-                    } else {
-                        physicalSize = size;
-                    }
-                } catch (Exception e) {
-                    throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
-                            + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter), e);
-                } finally {
-                    blocks.writeUnlock();
-                }
-            });
+//            });
             return readBuffer();
         }
 
@@ -317,27 +226,21 @@ final class BlockMapper implements BlockStorage {
         public byte[] getBytes() throws IOException {
 //            synchronized (lock()) {
             ops.set("bm-getBytes {0} phys {1}", blocks, physicalSize);
-            blocks.readLock();
-            try {
-                byte[] b = new byte[physicalSize];
-                if (physicalSize == 0) {
-                    return b;
-                }
-                ByteBuffer buf = null;
-                try {
-                    buf = readBuffer();
-                    buf.get(b);
-                    return b;
-                } catch (Exception e) {
-                    throw new IOException("Exception reading buffer for " + blocks + " with phys size " + physicalSize
-                            + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
-                            + " over allocated " + bufferMapper.size() + " buffer limit " + (buf == null ? "null" : buf.limit()
-                            + " position " + (buf == null ? "null" : buf.position())), e);
-                }
-            } finally {
-                blocks.readUnlock();
+            byte[] b = new byte[physicalSize];
+            if (physicalSize == 0) {
+                return b;
             }
-//            }
+            ByteBuffer buf = null;
+            try {
+                buf = readBuffer();
+                buf.get(b);
+                return b;
+            } catch (Exception e) {
+                throw new IOException("Exception reading buffer for " + blocks + " with phys size " + physicalSize
+                        + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
+                        + " over allocated " + bufferMapper.size() + " buffer limit " + (buf == null ? "null" : buf.limit()
+                        + " position " + (buf == null ? "null" : buf.position())), e);
+            }
         }
 
         Blocks blocks() {
@@ -352,12 +255,7 @@ final class BlockMapper implements BlockStorage {
         @Override
         public InputStream openInputStream() {
             SnapshottableInputStream result;
-            blocks.readLock();
-            try {
-                result = new SnapshottableInputStream(physicalSize, this, liveStreams::remove);
-            } finally {
-                blocks.readUnlock();
-            }
+            result = new SnapshottableInputStream(physicalSize, this, liveStreams::remove);
             liveStreams.add(result);
             return result;
         }
@@ -384,8 +282,8 @@ final class BlockMapper implements BlockStorage {
         for (SnapshottableInputStream in : liveStreams) {
             Blocks blocks = in.blocks();
 //            System.out.println("FOUND LIVE INPUT STREAM " + blocks + " change in " + firstBlock + ":" + (firstBlock + blockCount - 1)
-//                    + " overlaps? " + blocks.overlaps(firstBlock, firstBlock + blockCount - 1));
-            if (blocks.overlaps(firstBlock, firstBlock + blockCount - 1)) {
+//                    + " overlapsStartAndEnd? " + blocks.overlapsStartAndEnd(firstBlock, firstBlock + blockCount - 1));
+            if (blocks.overlaps(Range.of(firstBlock, blockCount))) {
                 in.acquireSnapshot();
             }
         }
@@ -410,7 +308,7 @@ final class BlockMapper implements BlockStorage {
 //            }
 //            for (Blocks block : live) {
 //                synchronized (block) {
-//                    if (block.overlaps(start, start + blockCount)) {
+//                    if (block.overlapsStartAndEnd(start, start + blockCount)) {
 //                        if (start > block.start()) {
 //                            int newSize = (start - block.start()) + 1;
 //                            if (start + blockCount < block.end()) {
@@ -444,7 +342,6 @@ final class BlockMapper implements BlockStorage {
 //                        System.out.println("resized " + old + " to " + block);
                 }
             }
-//            });
         }
 
         public void onAllocate(int start, int blocks) throws IOException {
@@ -515,97 +412,46 @@ final class BlockMapper implements BlockStorage {
             onBeforeChange(firstBlock, blockCount);
             onBeforeChange(dest, blockCount);
 //            bufferMapper.underWriteLock(() -> {
-                int startByte = bytesConverter.blocksToBytes(firstBlock);
-                int length = bytesConverter.blocksToBytes(blockCount);
-                int destByte = bytesConverter.blocksToBytes(dest);
+            int startByte = bytesConverter.blocksToBytes(firstBlock);
+            int length = bytesConverter.blocksToBytes(blockCount);
+            int destByte = bytesConverter.blocksToBytes(dest);
 
-                byte[] check = bytes(firstBlock, blockCount);
+            byte[] check = bytes(firstBlock, blockCount);
 
 //                System.out.println("  migrate buffer from " + startByte + ":" + (startByte + length - 1) + " -> "
 //                        + destByte + ":" + (destByte + length - 1) + " for blocks " + firstBlock + ":" + (firstBlock + blockCount - 1) + " -> " + dest);
-                if (newBlockCount > blockCount) {
-                    bufferMapper.ensureBuffer(newBlockCount, bytesConverter.blocksToBytes(man.lastUsedBlock() + 1));
-                }
-                bufferMapper.migrate(startByte, length, destByte);
+            if (newBlockCount > blockCount) {
+                bufferMapper.ensureBuffer(newBlockCount, bytesConverter.blocksToBytes(man.lastUsedBlock() + 1));
+            }
+            bufferMapper.migrate(startByte, length, destByte);
 //                System.out.println("  MIGRATE BUFFERS " + startByte + " bytes " + length + " to " + destByte + " for migrate "
 //                        + Blocks.blockStringWithSize(firstBlock, blockCount) + " -> "
 //                        + Blocks.blockStringWithSize(dest, newBlockCount));
 
-                assertBytes(check, dest, blockCount);
+            assertBytes(check, dest, blockCount);
 
-                List<Blocks> liveBlocks = new ArrayList<>(currentLiveBlocks(dest > firstBlock));
-                Blocks old = Blocks.createTemp(firstBlock, blockCount);
-                for (Blocks block : liveBlocks) {
-                    if (block.isDiscarded()) {
-                        continue;
-                    }
-                    if (!old.contains(block) && !old.matches(block)) { // partial overlap - we did this one on a previous pass in defrag
-                        continue;
-                    }
-//                    if (block.overlaps(firstBlock, firstBlock + blockCount - 1)) {
+            List<Blocks> liveBlocks = new ArrayList<>(currentLiveBlocks(dest > firstBlock));
+            IntRange<?> old = Range.of(firstBlock, blockCount);
+            for (Blocks block : liveBlocks) {
+                if (block.isDiscarded()) {
+                    continue;
+                }
+                if (!old.contains(block) && !old.matches(block)) { // partial overlap - we did this one on a previous pass in defrag
+                    continue;
+                }
+//                    if (block.overlapsStartAndEnd(firstBlock, firstBlock + blockCount - 1)) {
 //                        System.out.println("  migrate block " + block + " in " + Blocks.blockStringWithSize(firstBlock, blockCount)
 //                                + " -> " + Blocks.blockStringWithSize(dest, newBlockCount));
 //                    }
-                    if (block.maybeMigrate(firstBlock, blockCount, dest, newBlockCount)) {
+                if (block.maybeMigrate(firstBlock, blockCount, dest, newBlockCount)) {
 //                        System.out.println("    migrated to " + block + " in " + Blocks.blockStringWithSize(dest, newBlockCount));
-                        ops.set("bm-evt-migrate-live {0} for {1}:{2} -> {3}:{4}", block, firstBlock, blockCount, dest, newBlockCount);
+                    ops.set("bm-evt-migrate-live {0} for {1}:{2} -> {3}:{4}", block, firstBlock, blockCount, dest, newBlockCount);
 //                        System.out.println("ON MIGRATE MIGRATED BLOCKS " + old + " -> " + block);
-                    }
                 }
+            }
 //            });
         }
-
-        private void lockAll(Collection<Blocks> blocks, IoRunnable run) throws IOException {
-//            // Stop the frigging world
-            Exception ex = null;
-            Set<Blocks> successfullyLocked = new HashSet<>();
-            try {
-                for (Blocks b : blocks) {
-                    b.writeLock();
-                    successfullyLocked.add(b);
-                }
-                bufferMapper.underWriteLock(run);
-            } finally {
-                for (Blocks b : successfullyLocked) {
-                    try {
-                        b.writeUnlock();
-                    } catch (Exception e1) {
-                        if (ex == null) {
-                            ex = e1;
-                        } else {
-                            ex.addSuppressed(ex);
-                        }
-                    }
-                }
-                if (ex != null) {
-                    if (ex instanceof IOException) {
-                        throw ((IOException) ex);
-                    } else {
-                        throw new IOException("Exception locking", ex);
-                    }
-                }
-            }
-
-        }
-
-        @Override
-        public void onDefrag(FunctionalLockImpl.IoRunnable defragIt) throws IOException {
-            Set<Blocks> liveBlocks;
-            synchronized (liveBlocksInstances) { // protect against a CME under concurrency
-                liveBlocks = new HashSet<>(liveBlocksInstances);
-            }
-            defragging = true;
-            try {
-                lockAll(liveBlocks, defragIt);
-
-            } finally {
-                defragging = false;
-            }
-
-        }
     }
-
-    private volatile boolean defragging;
 
     /**
      * An input stream which, in case of a pending write or relocation, can

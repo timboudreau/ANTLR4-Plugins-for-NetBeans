@@ -1,7 +1,7 @@
 package org.nemesis.extraction;
 
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;

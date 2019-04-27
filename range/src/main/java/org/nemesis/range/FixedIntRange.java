@@ -70,8 +70,6 @@ final class FixedIntRange implements IntRange<FixedIntRange> {
 
     @Override
     public FixedIntRange newRange(long start, long size) {
-        assert start <= Integer.MAX_VALUE;
-        assert size <= Integer.MAX_VALUE && size >= 0;
         return new FixedIntRange((int) start, (int) size);
     }
 

@@ -1,13 +1,13 @@
 package org.nemesis.data.graph;
 
-import org.nemesis.data.graph.BitSetStringGraph;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.BitSetStringGraph;
+import org.nemesis.graph.StringGraph;
 import java.util.Arrays;
 import java.util.Iterator;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
-import org.nemesis.data.graph.algorithm.Score;
+import org.nemesis.graph.algorithm.Score;
 
 /**
  *

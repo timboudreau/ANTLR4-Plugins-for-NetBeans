@@ -127,10 +127,10 @@ class RangeHolder<R extends Range<R>> {
 
     static void checkStartAndSize(int start, int size) {
         if (start < 0) {
-            throw new IllegalArgumentException("Negative start");
+            throw new IllegalArgumentException("Negative start " + start + " with size " + size);
         }
         if (size < 0) {
-            throw new IllegalArgumentException("Negative size");
+            throw new IllegalArgumentException("Negative size " + size + " with start " + start);
         }
         if ((long) start + (long) size > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Start " + start + " + "
@@ -140,10 +140,10 @@ class RangeHolder<R extends Range<R>> {
 
     static void checkStartAndSize(long start, long size) {
         if (start < 0) {
-            throw new IllegalArgumentException("Negative start");
+            throw new IllegalArgumentException("Negative start " + start + " with size " + size);
         }
         if (size < 0) {
-            throw new IllegalArgumentException("Negative size");
+            throw new IllegalArgumentException("Negative size " + size + " with start " + start);
         }
         if (Long.MAX_VALUE - start < size) {
             throw new IllegalArgumentException("Start " + start + " + "

@@ -33,6 +33,21 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>bits</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>range</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>graph</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-highlighting</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -141,13 +156,13 @@
             <artifactId>org-netbeans-modules-nbjunit</artifactId>
             <scope>test</scope> <!-- beyond platform cluster, this often needs to be dropped down to compile/runtime, some other modules in IDE clusters depend on it -->
         </dependency>
-<!--        <dependency>
+        <!--        <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-bootstrap</artifactId>
             <version>${netbeans.version}</version>
             <type>nbm</type>
         </dependency>-->
-<!--        <dependency>
+        <!--        <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-xml-xdm</artifactId>
             <version>${netbeans.version}</version>
@@ -158,7 +173,7 @@
             <version>${netbeans.version}</version>
             <type>nbm</type>
         </dependency>-->
-<!--        <dependency>
+        <!--        <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-core-netigso</artifactId>
             <version>${netbeans.version}</version>
@@ -175,7 +190,7 @@
             <version>${netbeans.version}</version>
             <type>nbm</type>
         </dependency>-->
-<!--        <dependency>
+        <!--        <dependency>
             <groupId>org.netbeans.external</groupId>
             <artifactId>osgi.core-7.0.0</artifactId>
             <version>${netbeans.version}</version>

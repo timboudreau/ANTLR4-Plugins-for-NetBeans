@@ -61,6 +61,7 @@ final class NamedSemanticRegionSnapshot<T extends Enum<T>> implements NamedSeman
         return index;
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;
@@ -73,10 +74,12 @@ final class NamedSemanticRegionSnapshot<T extends Enum<T>> implements NamedSeman
         return false;
     }
 
+    @Override
     public int hashCode() {
         return name.hashCode() + (7 * start) + (1029 * end);
     }
 
+    @Override
     public String toString() {
         return "snapshot:" + name + "@" + start + ":" + end;
     }

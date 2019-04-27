@@ -1,15 +1,12 @@
 package org.nemesis.jfs.nio;
 
-import org.nemesis.jfs.nio.Ops;
-import org.nemesis.jfs.nio.Blocks;
-import org.nemesis.jfs.nio.Range;
-import org.nemesis.jfs.nio.BlockToBytesConverter;
 import java.util.Arrays;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import org.nemesis.range.IntRange;
 
 /**
  *
@@ -18,51 +15,45 @@ import org.junit.Test;
 public class BlocksTest {
 
     private void assertOverlap(int start, int stop, Blocks a, Blocks b) {
-        int[] vals = a.getOverlap(b);
+        int[] vals = blocksOverlap(a, b);
         assertEquals("Unexpected start a in " + vals[0] + "," + vals[1], start, vals[0]);
         assertEquals("Unexpected stop a in " + vals[0] + "," + vals[1], stop, vals[1]);
-        vals = b.getOverlap(a);
+        vals = blocksOverlap(b, a);
         assertEquals("Unexpected start b in " + vals[0] + "," + vals[1], start, vals[0]);
         assertEquals("Unexpected stop b in " + vals[0] + "," + vals[1], stop, vals[1]);
     }
 
     private void assertNonOverlap(int start, int stop, Blocks a, Blocks b) {
-        int[] vals = a.getNonOverlap(b);
+        int[] vals = a.nonOverlappingCoordinates(b);
         assertEquals("Unexpected start a in " + vals[0] + "," + vals[1], start, vals[0]);
         assertEquals("Unexpected stop a in " + vals[0] + "," + vals[1], stop, vals[1]);
-        vals = b.getNonOverlap(a);
+        vals = b.nonOverlappingCoordinates(a);
         assertEquals("Unexpected start b in " + vals[0] + "," + vals[1], start, vals[0]);
         assertEquals("Unexpected stop b in " + vals[0] + "," + vals[1], stop, vals[1]);
         assertEquals(Arrays.toString(vals), 2, vals.length);
     }
 
     private void assertNonOverlap(int start, int stop, int start2, int stop2, Blocks a, Blocks b) {
-        int[] vals = a.getNonOverlap(b);
+        int[] vals = a.nonOverlappingCoordinates(b);
         assertEquals(Arrays.toString(vals), 4, vals.length);
         assertEquals("Unexpected start a in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], start, vals[0]);
         assertEquals("Unexpected stop a in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], stop, vals[1]);
         assertEquals("Unexpected start2 a in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], start2, vals[2]);
         assertEquals("Unexpected stop2 a in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], stop2, vals[3]);
-        vals = b.getNonOverlap(a);
+        vals = b.nonOverlappingCoordinates(a);
         assertEquals("Unexpected start b in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], start, vals[0]);
         assertEquals("Unexpected stop b in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], stop, vals[1]);
         assertEquals("Unexpected start2 b in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], start2, vals[2]);
         assertEquals("Unexpected stop2 b in " + vals[0] + "," + vals[1] + "," + vals[2] + "," + vals[3], stop2, vals[3]);
     }
 
-    @Test
-    public void testContains() {
-        assertTrue(new Blocks(0, 10).contains(new Blocks(1, 8)));
-        assertFalse(new Blocks(1, 9).contains(new Blocks(0, 10)));
-        assertTrue(new Blocks(0, 10).contains(Blocks.tempFromCoordinates(1, 9)));
-        assertTrue(new Blocks(0, 10).contains(Blocks.tempFromCoordinates(9, 9)));
-        Blocks b = Blocks.createTemp(0, 10);
-        for (int x = 0; x < 10; x++) {
-            for (int y = x+1; y < 10; y++) {
-                Blocks test = Blocks.tempFromCoordinates(x, y);
-                assertTrue(b + " should contain " + test, b.contains(test));
-            }
+    private int[] blocksOverlap(Blocks a, Blocks b) {
+        Blocks overlap = a.getOverlap(b);
+        if (overlap.isEmpty()) {
+            return new int[0];
         }
+        int[] result = new int[] { overlap.start(), overlap.stop() };
+        return result;
     }
 
     @Test
@@ -70,8 +61,8 @@ public class BlocksTest {
         // Mangled overlap [136:146 (11)] and [125:135 (11)] gets [136, 135]
         Blocks a = new Blocks(136, 11);
         Blocks b = new Blocks(125, 11);
-        int[] ao = a.getOverlap(b);
-        int[] bo = b.getOverlap(a);
+        int[] ao = blocksOverlap(a, b);
+        int[] bo = blocksOverlap(a, b);
         assertArrayEquals(Arrays.toString(ao), new int[0], ao);
         assertArrayEquals(Arrays.toString(bo), new int[0], bo);
     }
@@ -93,35 +84,35 @@ public class BlocksTest {
 
         b = new Blocks(10, 90);
         assertOverlap(10, 99, a, b);
-        assertArrayEquals(new int[0], a.getNonOverlap(b));
-        assertArrayEquals(new int[0], b.getNonOverlap(a));
+        assertArrayEquals(new int[0], a.nonOverlappingCoordinates(b));
+        assertArrayEquals(new int[0], b.nonOverlappingCoordinates(a));
 
         b = new Blocks(20, 30);
         assertOverlap(20, 49, a, b);
         assertNonOverlap(10, 19, 50, 99, a, b);
 
         b = new Blocks(1, 3);
-        assertArrayEquals(new int[0], a.getOverlap(b));
-        assertArrayEquals(new int[0], b.getOverlap(a));
-        assertArrayEquals(new int[0], a.getNonOverlap(b));
-        assertArrayEquals(new int[0], b.getNonOverlap(a));
+        assertArrayEquals(new int[0], blocksOverlap(a,b));
+        assertArrayEquals(new int[0], blocksOverlap(b,a));
+        assertArrayEquals(new int[0], a.nonOverlappingCoordinates(b));
+        assertArrayEquals(new int[0], b.nonOverlappingCoordinates(a));
     }
 
     @Test
     public void testOverlaps() {
         Blocks b = new Blocks(0, 9);
-        assertTrue(b.overlaps(0, 9));
-        assertTrue(b.overlaps(2, 2));
-        assertTrue(b.overlaps(2, 3));
-        assertTrue(b.overlaps(0, 10));
-        assertTrue(b.overlaps(-9, 9));
-        assertFalse(b.overlaps(10, 11));
-        assertFalse(b.overlaps(10, 12));
-        assertTrue(b.overlaps(8, 12));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 8)));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(2, 2)));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(2, 3)));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 10)));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 9)));
+        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(8, 11)));
+        assertFalse(b.overlaps(org.nemesis.range.Range.ofCoordinates(10, 11)));
+        assertFalse(b.overlaps(org.nemesis.range.Range.ofCoordinates(10, 12)));
 
         // migrate 58:1 to 12507:14 in [12506:12510 (5)]
         b = new Blocks(12506, 5);
-        assertFalse(b.overlaps(58, 1));
+        assertFalse(b.overlaps(new Blocks(58, 1)));
     }
 
     @Test
@@ -138,7 +129,7 @@ public class BlocksTest {
         assertEquals(3, b.stop());
         assertEquals(4, b.end());
 
-        Range r = b.toPhysicalRange(m);
+        IntRange<?> r = b.toPhysicalRange(m);
         assertEquals(10, r.start());
         assertEquals(30, r.stop());
         assertEquals(40, r.end());
@@ -197,7 +188,6 @@ public class BlocksTest {
         assertFalse(new Blocks(5761, 16).matches(b));
         assertFalse(new Blocks(5760, 17).matches(b));
 
-
         b = new Blocks(0, 2);
         assertFalse(b.maybeMigrate(1, 666, 0, 666));
         assertEquals(0, b.start());
@@ -222,7 +212,7 @@ public class BlocksTest {
         assertEquals(7, s.length);
         for (int i = 0; i < s.length; i++) {
             s[i] = s[i].trim();
-            assertTrue(s[i].endsWith("Item " + (i+5)));
+            assertTrue(s[i].endsWith("Item " + (i + 5)));
         }
     }
 }

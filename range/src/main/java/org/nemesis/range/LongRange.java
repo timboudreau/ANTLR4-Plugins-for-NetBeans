@@ -28,6 +28,42 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
      */
     long size();
 
+    /**
+     * Determine if this item occurs after (start() &gt;= item.end()) another
+     * item.
+     *
+     * @param item Another item
+     * @return
+     */
+    default boolean isAfter(Range<?> range) {
+        if (range instanceof IntRange<?>) {
+            IntRange<?> item = (IntRange<?>) range;
+            return start() >= item.end();
+        } else if (range instanceof LongRange<?>) {
+            LongRange<?> item = (LongRange<?>) range;
+            return start() >= item.end();
+        }
+        return Range.super.isAfter(range);
+    }
+
+    /**
+     * Determine if this item occurs before (end() &lt;= item.start()) another
+     * item.
+     *
+     * @param item
+     * @return
+     */
+    default boolean isBefore(Range<?> range) {
+        if (range instanceof IntRange<?>) {
+            IntRange<?> item = (IntRange<?>) range;
+            return end() <= item.start();
+        } else if (range instanceof LongRange<?>) {
+            LongRange<?> item = (LongRange<?>) range;
+            return end() <= item.start();
+        }
+        return Range.super.isBefore(range);
+    }
+
     @Override
     default OI forEachPosition(IntConsumer consumer) {
         long end = end();
@@ -47,7 +83,6 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
         }
         return cast();
     }
-
 
     @Override
     default OI shiftedBy(int amount) {

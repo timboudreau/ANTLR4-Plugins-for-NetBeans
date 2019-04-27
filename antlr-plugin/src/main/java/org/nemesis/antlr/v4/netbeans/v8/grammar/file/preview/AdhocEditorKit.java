@@ -23,7 +23,7 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
-import org.nemesis.data.graph.ObjectGraphVisitor;
+import org.nemesis.graph.ObjectGraphVisitor;
 
 /**
  *

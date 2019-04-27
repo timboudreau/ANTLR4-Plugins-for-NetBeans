@@ -74,6 +74,64 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
      */
     R newRange(long start, long size);
 
+    default boolean isAfter(Range<?> range) {
+        return startValue().longValue() >= range.startValue().longValue() + range.sizeValue().longValue();
+    }
+
+    default boolean isBefore(Range<?> range) {
+        return startValue().longValue() + sizeValue().longValue() <= range.startValue().longValue();
+    }
+
+    default boolean contains(int start, int end) {
+        return contains(ofCoordinates(start, end));
+    }
+
+    default boolean contains(long start, long end) {
+        return contains(ofCoordinates(start, end));
+    }
+
+    default List<? extends R> subtracting(Range<? extends Range<?>> range) {
+        if (!overlaps(range) || range.isEmpty()) {
+            return Arrays.asList(cast());
+        }
+        RangeRelation rel = relationTo(range);
+        switch (rel) {
+            case AFTER:
+            case BEFORE:
+                return Arrays.asList(cast());
+            case CONTAINED:
+            case EQUAL:
+                return Collections.emptyList();
+            case CONTAINS:
+            case STRADDLES_START:
+            case STRADDLES_END:
+                long myStart = startValue().longValue();
+                long mySize = sizeValue().longValue();
+                long myEnd = myStart + mySize;
+                long otherStart = range.startValue().longValue();
+                long otherSize = range.sizeValue().longValue();
+                long otherEnd = otherStart + otherSize;
+                switch (rel) {
+                    case STRADDLES_START:
+                        return Arrays.asList(newRange(myStart, otherStart - myStart));
+                    case STRADDLES_END:
+                        return Arrays.asList(newRange(otherEnd, myEnd - otherEnd));
+                    default:
+                        if (myStart == otherStart) {
+                            return Arrays.asList(newRange(otherEnd, myEnd - otherEnd));
+                        } else if (myEnd == otherEnd) {
+                            return Arrays.asList(newRange(myStart, otherStart - myStart));
+                        } else {
+                            R a = newRange(myStart, otherStart - myStart);
+                            R b = newRange(otherEnd, myEnd - otherEnd);
+                            return Arrays.asList(a, b);
+                        }
+                }
+            default:
+                throw new AssertionError(rel);
+        }
+    }
+
     /**
      * Determine if this range and another are exactly adjacent but not
      * overlapping.

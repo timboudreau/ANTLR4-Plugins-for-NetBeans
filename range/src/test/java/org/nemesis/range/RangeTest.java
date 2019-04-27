@@ -756,7 +756,6 @@ public class RangeTest {
             String nm = ((DataRange<String, ?>) oi).get();
             assertNotNull(nm, "No name for " + oi + " " + oi.getClass().getName());
             if (!nm.equals(sb.toString())) {
-                System.out.println("FAIL " + factory);
                 fail(ix + ":" + factory + ": Name mismatch " + oi + " should be " + sb + " for " + ois);
             }
         }
@@ -803,6 +802,20 @@ public class RangeTest {
 
         assertFalse(r.abuts(Range.of(201, 100)));
         assertFalse(r.abuts(Range.of(201L, 100L)));
+
+        Range<?> a = factory.ofCoordinates(8, 10);
+        Range<?> b = factory.ofCoordinates(10, 18);
+        String nm = a.getClass().getSimpleName();
+
+        assertTrue(a.abuts(b), nm);
+        assertTrue(b.abuts(a), nm);
+        a = factory.ofCoordinates(10, 19);
+        b = factory.ofCoordinates(19, 22);
+        assertTrue(a.abuts(b), nm);
+        assertTrue(b.abuts(a), nm);
+        b = factory.ofCoordinates(20, 22);
+        assertFalse(a.abuts(b), nm);
+        assertFalse(b.abuts(a), nm);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -1051,6 +1064,63 @@ public class RangeTest {
         r = factory.coalesce(b, a);
         assertEquals(1, r.size());
         assertSame(a, r.get(0));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("factories")
+    public void testSubtract(RangeFactory<?> factory) {
+        this.factory = factory;
+        Range<?> r = factory.range(100, 100);
+
+        // Non overlapping ranges should return the original range
+        // being subtracted from
+        assertFalse(r.subtracting(factory.range(10,10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(10,10)).contains(r));
+        assertFalse(r.subtracting(factory.range(300,10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(300,10)).contains(r));
+        assertFalse(r.subtracting(factory.range(200,10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(200,10)).contains(r));
+
+        List<? extends Range<?>> l = r.subtracting(factory.range(110, 80));
+
+        assertEquals(2, l.size(), l + "");
+        Range<?> a = l.get(0);
+        Range<?> b = l.get(1);
+        assertEquals(r.startValue().intValue(), a.startValue().intValue());
+        assertEquals(190, b.startValue().intValue());
+        assertEquals(10, a.sizeValue().intValue());
+        assertEquals(10, b.sizeValue().intValue());
+
+        l = r.subtracting(factory.range(110, 0));
+        assertTrue(l.contains(r));
+        assertEquals(1, l.size());
+
+        l = r.subtracting(factory.range(150, 50));
+        assertEquals(1, l.size());
+        a = l.get(0);
+        assertEquals(50, a.sizeValue().intValue());
+        assertEquals(100, a.startValue().intValue());
+
+        l = r.subtracting(factory.range(150, 100));
+        assertEquals(1, l.size());
+        a = l.get(0);
+        assertEquals(50, a.sizeValue().intValue());
+        assertEquals(100, a.startValue().intValue());
+
+        l = r.subtracting(factory.range(100, 99));
+        assertEquals(1, l.size());
+        a = l.get(0);
+        assertEquals(199, a.startValue().intValue());
+        assertEquals(1, a.sizeValue().intValue());
+
+        l = r.subtracting(factory.range(100, 40));
+        assertEquals(1, l.size());
+        a = l.get(0);
+        assertEquals(140, a.startValue().intValue());
+        assertEquals(60, a.sizeValue().intValue());
+
+        assertTrue(r.subtracting(r).isEmpty());
+        assertTrue(factory.range(110, 80).subtracting(r).isEmpty());
     }
 
     private static <T> List<T> arrayList(T... items) {

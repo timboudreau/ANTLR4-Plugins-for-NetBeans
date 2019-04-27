@@ -13,8 +13,8 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.data.graph.IntGraph;
-import org.nemesis.data.graph.StringGraph;
+import org.nemesis.graph.IntGraph;
+import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
@@ -201,7 +201,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                                 NamedSemanticRegion<T> containedBy = regions.index().regionAt(referenceOffsets.start);
                                 int referencedIndex = regions.indexOf(referenceOffsets.name);
                                 if (containedBy != null && referencedIndex != -1) {
-                                    assert containedBy.containsPosition(referenceOffsets.start) : "Index returned bogus result for position " + referenceOffsets.start + ": " + containedBy + " from " + regions.index() + "; code:\n" + regions.toCode();
+                                    assert containedBy.contains(referenceOffsets.start) : "Index returned bogus result for position " + referenceOffsets.start + ": " + containedBy + " from " + regions.index() + "; code:\n" + regions.toCode();
                                     int referenceIndex = containedBy.index();
                                     references[i][referencedIndex].set(referenceIndex);
                                     reverseReferences[i][referenceIndex].set(referencedIndex);

@@ -1,8 +1,5 @@
 package org.nemesis.jfs.nio;
 
-import org.nemesis.jfs.nio.Blocks;
-import org.nemesis.jfs.nio.BlockStorageKind;
-import org.nemesis.jfs.nio.BlockMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,7 +109,7 @@ public class BlockMapperTest {
             for (int j = 0; j < AMT; j++) {
                 if (j != i) {
                     Blocks test = allBlocks[j];
-                    if (b.overlaps(test.start(), test.stop())) {
+                    if (b.overlaps(test.shrunkBy(1))) {
                         fail("vf[" + i + "] and vf[" + j + "] overlap: " + b + " and " + test);
                     }
                 }

@@ -176,6 +176,8 @@
         <module>antlr-highlighting</module>
         <module>antlr-code-completion</module>
         <module>range</module>
+        <module>bits</module>
+        <module>graph</module>
     </modules>
     <repositories>
         <repository>
@@ -220,6 +222,21 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>jfs</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>range</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>bits</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>graph</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

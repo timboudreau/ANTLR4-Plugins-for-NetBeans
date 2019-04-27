@@ -34,6 +34,7 @@
                     <moduleType>autoload</moduleType>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
+                        <publicPackage>org.nemesis.indexed</publicPackage>
                         <publicPackage>org.nemesis.misc.utils</publicPackage>
                         <publicPackage>org.nemesis.misc.utils.function</publicPackage>
                         <publicPackage>org.nemesis.misc.utils.reflection</publicPackage>
