@@ -163,7 +163,7 @@ public class RangeTest {
             assertEquals(base + 10L, b.startValue().longValue());
             assertEquals(100L, a.sizeValue().longValue());
             assertTrue(a.contains(b));
-            assertEquals(b, a.getOverlap(b));
+            assertEquals(b, a.overlapWith(b));
         }
     }
 
@@ -213,8 +213,8 @@ public class RangeTest {
             assertTrue(r.overlaps(test));
             assertTrue(test.overlaps(r));
             Range<?> expectedOverlap = of(i, 10 - i);
-            assertEquals(expectedOverlap, r.getOverlap(test), "Expected overlap " + expectedOverlap + " for " + test + " in " + r + " with " + factory.getClass().getSimpleName());
-            assertEquals(expectedOverlap, test.getOverlap(r), "Expected rev-overlap " + expectedOverlap + " for " + test + " in " + r + " with " + factory.getClass().getSimpleName());
+            assertEquals(expectedOverlap, r.overlapWith(test), "Expected overlap " + expectedOverlap + " for " + test + " in " + r + " with " + factory.getClass().getSimpleName());
+            assertEquals(expectedOverlap, test.overlapWith(r), "Expected rev-overlap " + expectedOverlap + " for " + test + " in " + r + " with " + factory.getClass().getSimpleName());
             List<? extends Range<?>> no = r.nonOverlap(test);
             List<? extends Range<?>> noRev = test.nonOverlap(r);
             switch (i) {
@@ -474,21 +474,21 @@ public class RangeTest {
         assertFalse(a.contains(b));
         assertFalse(b.isContainedBy(a));
 
-        assertEquals(a, a.getOverlap(a));
-        assertSame(a, a.getOverlap(a));
+        assertEquals(a, a.overlapWith(a));
+        assertSame(a, a.overlapWith(a));
 
         // Hetero types
         b = Range.of(110L, 10L);
-        assertEquals(b, a.getOverlap(b));
-        assertEquals(b, b.getOverlap(a));
+        assertEquals(b, a.overlapWith(b));
+        assertEquals(b, b.overlapWith(a));
 
         b = Range.of(110, 10);
-        assertEquals(b, a.getOverlap(b));
-        assertEquals(b, b.getOverlap(a));
+        assertEquals(b, a.overlapWith(b));
+        assertEquals(b, b.overlapWith(a));
 
         b = Range.of(10, 10);
-        assertEquals(0, a.getOverlap(b).sizeValue().intValue());
-        assertEquals(0, b.getOverlap(a).sizeValue().intValue());
+        assertEquals(0, a.overlapWith(b).sizeValue().intValue());
+        assertEquals(0, b.overlapWith(a).sizeValue().intValue());
         assertEquals(0L, Range.span(Collections.emptyList()).size());
 
         assertTrue(a.nonOverlap(a).isEmpty());
@@ -538,7 +538,7 @@ public class RangeTest {
         RangeRelation rel2 = b.relationTo(a);
         assertEquals(STRADDLES_END, rel2);
         assertTrue(a.overlaps(b));
-        Range<?> overlap = a.getOverlap(b);
+        Range<?> overlap = a.overlapWith(b);
         assertNotNull(overlap);
         assertFalse(overlap.isEmpty());
         assertEquals(5, overlap.startValue().intValue());
@@ -585,8 +585,8 @@ public class RangeTest {
         GenericRange g1 = new GenericRange(5L, 43L, "23");
         GenericRange g2 = new GenericRange(10L, 24L, "4");
 
-        assertEquals(a1.getOverlap(a2), g1.getOverlap(g2), "getOverlap mismatch");
-        assertEquals(a2.getOverlap(a1), g2.getOverlap(g1), "getOverlap mismatch");
+        assertEquals(a1.overlapWith(a2), g1.overlapWith(g2), "getOverlap mismatch");
+        assertEquals(a2.overlapWith(a1), g2.overlapWith(g1), "getOverlap mismatch");
 
         assertEquals(a1.overlaps(a2), g1.overlaps(g2), "Overlaps mismatch");
         assertEquals(a2.overlaps(a1), g2.overlaps(g1), "Overlaps mismatch");

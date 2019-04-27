@@ -115,7 +115,7 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
     }
 
     @Override
-    default OI getOverlap(Range<?> other) {
+    default OI overlapWith(Range<?> other) {
         RangeRelation rel = relationTo(other);
         if (other instanceof IntRange<?>) {
             IntRange<?> oi = (IntRange<?>) other;
@@ -136,7 +136,7 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
                     throw new AssertionError(rel);
             }
         }
-        return Range.super.getOverlap(other);
+        return Range.super.overlapWith(other);
     }
 
     /**

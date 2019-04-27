@@ -309,7 +309,7 @@ final class BlockManager {
 
         IntRange<? extends IntRange<?>> old = Range.of(firstBlock, blockCount);
         IntRange<? extends IntRange<?>> nue = Range.of(newStart, newBlockCount);
-        IntRange<? extends IntRange<?>> overlap = old.getOverlap(nue);
+        IntRange<? extends IntRange<?>> overlap = old.overlapWith(nue);
         // If there is an overlap, we need to deallocate only those regions that
         // do not overlap
         if (!overlap.isEmpty()) {

@@ -1,4 +1,18 @@
 
+fix coalescer to support longs
+
+move BitSetSet to bits
+
+split out functions package
+
+split out annotation-utils and friends (class generation "java-vogon"?)
+
+move Hashable to misc utils?
+
+adhoc language highlighting should use DataRange / coalesce support
+
+-------
+
 Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
@@ -10,7 +24,6 @@ Add arbitrary scoping using other elements.
 Get the antlr module working
 
 Maybe generic scoping - parser rule based what can reference what?
-
 
 CODE COMPLETION:
  - Annotation + processor for registering it - OR ADD TO AntlrLanguageRegistration so it can access parser / lexer

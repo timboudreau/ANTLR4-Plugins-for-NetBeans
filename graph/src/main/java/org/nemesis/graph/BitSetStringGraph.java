@@ -1,5 +1,6 @@
 package org.nemesis.graph;
 
+import org.nemesis.bits.collections.BitSetSet;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;

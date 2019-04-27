@@ -24,6 +24,7 @@
                     <publicPackages>
                         <publicPackage>org.nemesis.bits</publicPackage>
                         <publicPackage>org.nemesis.bits.large</publicPackage>
+                        <publicPackage>org.nemesis.bits.collections</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>
@@ -43,6 +44,10 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-api-annotations-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

@@ -1,4 +1,4 @@
-package org.nemesis.graph;
+package org.nemesis.bits.collections;
 
 import java.util.AbstractSet;
 import java.util.BitSet;

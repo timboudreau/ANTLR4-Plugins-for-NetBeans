@@ -278,7 +278,7 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
      * @param other Another range
      * @return A range
      */
-    default R getOverlap(Range<?> other) {
+    default R overlapWith(Range<?> other) {
         if (other == this) {
             return cast();
         }
@@ -545,7 +545,7 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
                 return Arrays.asList(by.combine(cast(), other, startValue().intValue(), sizeValue().intValue()));
             default:
                 List<R> result = new ArrayList<>();
-                R over = getOverlap(other);
+                R over = overlapWith(other);
                 if (!over.isEmpty()) {
                     result.add(by.combine(cast(), other, over.startValue().intValue(), over.sizeValue().intValue()));
                 }

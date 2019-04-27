@@ -138,7 +138,7 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
     }
 
     @Override
-    default OI getOverlap(Range<?> other) {
+    default OI overlapWith(Range<?> other) {
         RangeRelation rel = relationTo(other);
 
         if (other instanceof LongRange<?>) {
@@ -160,7 +160,7 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
                     throw new AssertionError(rel);
             }
         }
-        return Range.super.getOverlap(other);
+        return Range.super.overlapWith(other);
     }
 
     /**

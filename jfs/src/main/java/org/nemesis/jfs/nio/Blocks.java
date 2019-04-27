@@ -120,7 +120,7 @@ final class Blocks implements  org.nemesis.range.MutableIntRange<Blocks> {
             return changed;
         } else if (overlaps(Range.of(firstBlock, blockCount))) {
             Blocks origRange = new Blocks(firstBlock, blockCount);
-            Blocks overlap = origRange.getOverlap(this);
+            Blocks overlap = origRange.overlapWith(this);
             int newStart, newSize;
             if (origRange.end() == end()) {
                 newStart = newFirstBlock + (overlap.start() - firstBlock);

@@ -47,7 +47,7 @@ import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
 import org.nemesis.indexed.Indexed;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.graph.BitSetSet;
+import org.nemesis.bits.collections.BitSetSet;
 import org.nemesis.data.impl.ArrayUtil;
 import org.nemesis.data.impl.ArrayUtil.ArrayEndSupplier;
 import org.nemesis.data.impl.ArrayUtil.EndSupplier;

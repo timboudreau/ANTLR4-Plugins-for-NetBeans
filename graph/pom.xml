@@ -20,6 +20,7 @@
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
                         <publicPackage>org.nemesis.graph</publicPackage>
+                        <publicPackage>org.nemesis.graph.algorithm</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

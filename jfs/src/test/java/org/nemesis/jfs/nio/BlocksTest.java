@@ -48,7 +48,7 @@ public class BlocksTest {
     }
 
     private int[] blocksOverlap(Blocks a, Blocks b) {
-        Blocks overlap = a.getOverlap(b);
+        Blocks overlap = a.overlapWith(b);
         if (overlap.isEmpty()) {
             return new int[0];
         }
