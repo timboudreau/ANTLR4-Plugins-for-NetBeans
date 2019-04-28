@@ -10,19 +10,19 @@ class JavaLongArray implements LongArray {
 
     private long[] value;
 
-    public JavaLongArray(long[] value) {
+    JavaLongArray(long[] value) {
         this.value = value;
     }
 
-    public JavaLongArray(long size) {
+    JavaLongArray(long size) {
         this((int) size);
     }
 
-    public JavaLongArray(int size) {
+    JavaLongArray(int size) {
         value = new long[(int) size];
     }
 
-    public JavaLongArray() {
+    JavaLongArray() {
         this(0);
     }
 

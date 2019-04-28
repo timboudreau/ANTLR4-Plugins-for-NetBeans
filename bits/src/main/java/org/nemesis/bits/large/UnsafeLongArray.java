@@ -1,6 +1,5 @@
 package org.nemesis.bits.large;
 
-import static org.nemesis.bits.large.UnsafeUtils.UNSAFE;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Timer;
@@ -9,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static org.nemesis.bits.large.UnsafeUtils.UNSAFE;
 
 /**
  *
@@ -20,11 +20,11 @@ final class UnsafeLongArray implements CloseableLongArray, OffHeap {
     private long address;
     final Handle handle;
 
-    public UnsafeLongArray(long size) {
+    UnsafeLongArray(long size) {
         this(size, UNSAFE.allocateMemory(Long.BYTES * size));
     }
 
-    public UnsafeLongArray(long[] items) {
+    UnsafeLongArray(long[] items) {
         this(items.length);
         for (int i = 0; i < items.length; i++) {
             set(i, items[i]);
@@ -274,7 +274,7 @@ final class UnsafeLongArray implements CloseableLongArray, OffHeap {
         private final long address;
         private volatile boolean disposed;
 
-        public Handle(UnsafeLongArray referent) {
+        Handle(UnsafeLongArray referent) {
             super(referent, QUEUE);
             this.address = referent.address;
         }

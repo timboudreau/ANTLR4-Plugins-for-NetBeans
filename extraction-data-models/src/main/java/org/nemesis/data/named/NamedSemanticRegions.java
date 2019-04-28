@@ -42,17 +42,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import org.nemesis.bits.collections.BitSetSet;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
-import org.nemesis.indexed.Indexed;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.bits.collections.BitSetSet;
-import org.nemesis.data.impl.ArrayUtil;
 import org.nemesis.data.impl.ArrayEndSupplier;
+import org.nemesis.data.impl.ArrayUtil;
+import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.EndSupplier;
 import org.nemesis.data.impl.MutableEndSupplier;
-import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
+import org.nemesis.indexed.Indexed;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in

@@ -1,14 +1,14 @@
 package org.nemesis.data;
 
-import org.nemesis.indexed.Indexed;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
+import org.nemesis.bits.MutableBits;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.graph.IntGraph;
-import org.nemesis.bits.MutableBits;
+import org.nemesis.indexed.Indexed;
 import org.nemesis.misc.utils.function.IntBiConsumer;
 import org.nemesis.range.IntRange;
 

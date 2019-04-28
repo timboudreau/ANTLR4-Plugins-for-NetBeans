@@ -23,4 +23,8 @@ final class UnsafeUtils {
         singletonInstanceField.setAccessible(true);
         return (Unsafe) singletonInstanceField.get(null);
     }
+
+    private UnsafeUtils() {
+        throw new AssertionError();
+    }
 }

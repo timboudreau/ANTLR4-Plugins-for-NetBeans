@@ -11,7 +11,7 @@ final class FixedIntRange implements IntRange<FixedIntRange> {
     private final int start;
     private final int size;
 
-    public FixedIntRange(int start, int size) {
+    FixedIntRange(int start, int size) {
         checkStartAndSize(start, size);
         this.start = start;
         this.size = size;

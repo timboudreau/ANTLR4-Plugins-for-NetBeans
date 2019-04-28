@@ -6,7 +6,7 @@ package org.nemesis.range;
  */
 final class SynchronizedMutableLongRange extends MutableLongRangeImpl {
 
-    public SynchronizedMutableLongRange(long start, long size) {
+    SynchronizedMutableLongRange(long start, long size) {
         super(start, size);
     }
 

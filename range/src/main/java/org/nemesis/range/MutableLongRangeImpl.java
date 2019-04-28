@@ -11,7 +11,7 @@ class MutableLongRangeImpl implements MutableLongRange<MutableLongRangeImpl> {
     private long start;
     private long size;
 
-    public MutableLongRangeImpl(long start, long size) {
+    MutableLongRangeImpl(long start, long size) {
         checkStartAndSize(start, size);
         this.start = start;
         this.size = size;

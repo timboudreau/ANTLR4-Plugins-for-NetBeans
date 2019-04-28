@@ -13,13 +13,13 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.graph.IntGraph;
-import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSetsBuilder;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.graph.IntGraph;
+import org.nemesis.graph.StringGraph;
 
 /**
  *

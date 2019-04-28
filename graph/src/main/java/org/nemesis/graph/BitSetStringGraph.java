@@ -1,6 +1,5 @@
 package org.nemesis.graph;
 
-import org.nemesis.bits.collections.BitSetSet;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -12,12 +11,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import org.nemesis.indexed.Indexed;
 import org.nemesis.bits.Bits;
 import org.nemesis.bits.MutableBits;
+import org.nemesis.bits.collections.BitSetSet;
 import org.nemesis.graph.algorithm.Algorithm;
 import org.nemesis.graph.algorithm.RankingAlgorithm;
 import org.nemesis.graph.algorithm.Score;
+import org.nemesis.indexed.Indexed;
 
 /**
  *

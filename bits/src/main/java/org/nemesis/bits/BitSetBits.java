@@ -10,7 +10,7 @@ final class BitSetBits implements BitSetBacked {
 
     private final BitSet bits;
 
-    public BitSetBits(BitSet bits) {
+    BitSetBits(BitSet bits) {
         this.bits = bits;
     }
 

@@ -10,7 +10,7 @@ final class MutableBitSetBits implements Bits, MutableBits, MutableBitSetBacked 
 
     private final BitSet bits;
 
-    public MutableBitSetBits(BitSet bits) {
+    MutableBitSetBits(BitSet bits) {
         this.bits = bits;
     }
 

@@ -1,8 +1,8 @@
 package org.nemesis.graph.algorithm;
 
 import java.util.Arrays;
-import org.nemesis.graph.IntGraph;
 import org.nemesis.bits.Bits;
+import org.nemesis.graph.IntGraph;
 
 /**
  *

@@ -7,9 +7,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import org.nemesis.indexed.Indexed;
 import org.nemesis.bits.Bits;
 import org.nemesis.bits.MutableBits;
+import org.nemesis.indexed.Indexed;
 
 /**
  * A Set implementation which can contain values which are one of a fixed set of

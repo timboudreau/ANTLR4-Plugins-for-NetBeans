@@ -201,29 +201,6 @@ public class LinesBuilder {
         sb.append(what);
         return this;
     }
-//    public LinesBuilder word(String what, boolean hangingWrap) {
-//        hangingWrap |= inHangingWrap;
-//        if (what == null) {
-//            throw new NullPointerException("Null word");
-//        }
-//        maybeWrapFor(what, hangingWrap);
-//        if (sb.length() > 0) {
-//            char c = sb.charAt(sb.length() - 1);
-//            if (!Character.isWhitespace(c)) {
-//                switch (c) {
-//                    case '[':
-//                    case '(':
-//                    case '{':
-//                    case '<':
-//                        break;
-//                    default:
-//                        sb.append(' ');
-//                }
-//            }
-//        }
-//        sb.append(what);
-//        return this;
-//    }
 
     public LinesBuilder appendStringLiteral(String literal) {
         sb.append('"').append(escape(literal)).append('"');
@@ -336,50 +313,6 @@ public class LinesBuilder {
         return false;
     }
 
-    /*
-    private List<String> splitOnWhitespace(String s) {
-        boolean inWhitespace = true;
-        List<String> contiguous = new ArrayList<>(20);
-        int currQuote = 0;
-        StringBuilder current = new StringBuilder();
-        char preceding = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            boolean closeWord = false;
-            boolean appendCurrent = true;
-            boolean isWhitespace = Character.isWhitespace(c);
-            if (currQuote != 0 && currQuote == c && preceding != '\\') {
-                closeWord = true;
-            } else if (c == '"' || c == '\'' && currQuote == 0 && preceding != '\\') {
-                closeWord = true;
-                appendCurrent = false;
-            } else if (isWhitespace && currQuote == 0) {
-                closeWord = true;
-                appendCurrent = false;
-            } else {
-                sb.append(c);
-            }
-            if (i == s.length() - 1) {
-                closeWord = true;
-            }
-            if (closeWord) {
-                if (appendCurrent) {
-                    current.append(c);
-                }
-                if (sb.length() > 0) {
-                    contiguous.add(sb.toString().trim());
-                    sb.setLength(0);
-                }
-                if (!appendCurrent) {
-                    sb.append(c);
-                }
-            }
-            inWhitespace = Character.isWhitespace(c);
-            preceding = c;
-        }
-        return contiguous;
-    }
-     */
     public LinesBuilder statement(String stmt) {
         maybeNewline();
         sb.append(stmt);
@@ -415,6 +348,7 @@ public class LinesBuilder {
     }
 
     int lengthAtWrappableEntry = -1;
+
     public LinesBuilder wrappable(Consumer<LinesBuilder> c) {
         if (sb.length() == lengthAtWrappableEntry) {
             c.accept(this);

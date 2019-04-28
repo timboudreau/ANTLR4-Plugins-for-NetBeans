@@ -5,9 +5,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import org.nemesis.indexed.Indexed;
 import org.nemesis.bits.Bits;
 import org.nemesis.bits.MutableBits;
+import org.nemesis.indexed.Indexed;
 
 /**
  * A set implementation which takes a larger bitset and a

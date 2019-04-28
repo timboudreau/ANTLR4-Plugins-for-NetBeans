@@ -81,7 +81,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
 
             private final T key;
 
-            public FixedKey(T key) {
+            FixedKey(T key) {
                 this.key = key;
             }
 

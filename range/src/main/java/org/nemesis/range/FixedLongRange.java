@@ -11,7 +11,7 @@ final class FixedLongRange implements LongRange<FixedLongRange> {
     private final long start;
     private final long size;
 
-    public FixedLongRange(long start, long size) {
+    FixedLongRange(long start, long size) {
         checkStartAndSize(start, size);
         this.start = start;
         this.size = size;

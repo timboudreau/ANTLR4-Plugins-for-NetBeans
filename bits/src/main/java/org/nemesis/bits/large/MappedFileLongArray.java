@@ -1,6 +1,5 @@
 package org.nemesis.bits.large;
 
-import static org.nemesis.bits.large.UnsafeUtils.UNSAFE;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -13,6 +12,7 @@ import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static org.nemesis.bits.large.UnsafeUtils.UNSAFE;
 
 /**
  *
@@ -24,15 +24,15 @@ final class MappedFileLongArray implements CloseableLongArray {
     private long workingLength;
     private final Path file;
 
-    public MappedFileLongArray() {
+    MappedFileLongArray() {
         this(newTempFile(), 0L);
     }
 
-    public MappedFileLongArray(Path file) {
+    MappedFileLongArray(Path file) {
         this(file, 0L);
     }
 
-    public MappedFileLongArray(Path file, long size) {
+    MappedFileLongArray(Path file, long size) {
         this.file = file;
         if (Files.exists(file)) {
             init();
@@ -54,7 +54,7 @@ final class MappedFileLongArray implements CloseableLongArray {
         }
     }
 
-    public MappedFileLongArray(long size) {
+    MappedFileLongArray(long size) {
         this(newTempFile(), size);
     }
 

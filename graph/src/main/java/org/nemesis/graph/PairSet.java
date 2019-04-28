@@ -157,18 +157,6 @@ public final class PairSet implements Iterable<int[]> {
         return new ObjectPairSet<>(this, indexed);
     }
 
-//    public long hash() {
-//        long result = 0;
-//        int lastPos = -1;
-//        for (int position = set.nextSetBit(0); position >= 0; position = set.nextSetBit(position + 1)) {
-//            if (lastPos != -1) {
-//                result += (position - lastPos);
-//            }
-//            lastPos = position;
-//        }
-//        return result * set.cardinality();
-//    }
-
     public int forEach(IntBiConsumer bi) {
         int count = 0;
         for (int position = set.nextSetBit(0); position >= 0; position = set.nextSetBit(position + 1)) {

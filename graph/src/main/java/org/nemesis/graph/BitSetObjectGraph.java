@@ -1,6 +1,5 @@
 package org.nemesis.graph;
 
-import org.nemesis.bits.collections.BitSetSet;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -14,12 +13,13 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
-import org.nemesis.indexed.Indexed;
 import org.nemesis.bits.Bits;
 import org.nemesis.bits.MutableBits;
+import org.nemesis.bits.collections.BitSetSet;
 import org.nemesis.graph.algorithm.Algorithm;
 import org.nemesis.graph.algorithm.RankingAlgorithm;
 import org.nemesis.graph.algorithm.Score;
+import org.nemesis.indexed.Indexed;
 
 /**
  *
@@ -118,7 +118,7 @@ class BitSetObjectGraph<T> implements ObjectGraph<T> {
         private final ToIntFunction<Object> toId;
         private final IntFunction<T> toObject;
 
-        public FIndexed(int size, ToIntFunction<Object> toId, IntFunction<T> toObject) {
+        FIndexed(int size, ToIntFunction<Object> toId, IntFunction<T> toObject) {
             this.size = size;
             this.toId = toId;
             this.toObject = toObject;

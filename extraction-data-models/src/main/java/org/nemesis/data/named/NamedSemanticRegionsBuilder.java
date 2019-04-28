@@ -185,10 +185,7 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
                 if (this.ordering != other.ordering) {
                     return false;
                 }
-                if (!Objects.equals(this.kind, other.kind)) {
-                    return false;
-                }
-                return true;
+                return Objects.equals(this.kind, other.kind);
             }
 
             @Override

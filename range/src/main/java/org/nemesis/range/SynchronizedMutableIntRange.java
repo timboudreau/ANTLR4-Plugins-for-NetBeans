@@ -6,7 +6,7 @@ package org.nemesis.range;
  */
 final class SynchronizedMutableIntRange extends MutableIntRangeImpl {
 
-    public SynchronizedMutableIntRange(int start, int size) {
+    SynchronizedMutableIntRange(int start, int size) {
         super(start, size);
     }
 

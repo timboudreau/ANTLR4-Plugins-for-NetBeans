@@ -13,7 +13,7 @@ final class DataFixedLongRange<T> implements DataLongRange<T, DataFixedLongRange
     private final long size;
     private final T object;
 
-    public DataFixedLongRange(long start, long size, T object) {
+    DataFixedLongRange(long start, long size, T object) {
         checkStartAndSize(start, size);
         this.start = start;
         this.size = size;

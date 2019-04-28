@@ -1,12 +1,12 @@
 package org.nemesis.extraction;
 
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.graph.StringGraph;
 import org.netbeans.api.annotations.common.NullAllowed;
 
 /**

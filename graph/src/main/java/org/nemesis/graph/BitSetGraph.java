@@ -1,6 +1,5 @@
 package org.nemesis.graph;
 
-import org.nemesis.misc.utils.function.IntBiConsumer;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -19,6 +18,7 @@ import org.nemesis.bits.MutableBits;
 import org.nemesis.graph.algorithm.Algorithm;
 import org.nemesis.graph.algorithm.EigenvectorCentrality;
 import org.nemesis.graph.algorithm.PageRank;
+import org.nemesis.misc.utils.function.IntBiConsumer;
 
 /**
  * A highly compact graph based on bit sets.
@@ -32,15 +32,15 @@ final class BitSetGraph implements IntGraph {
     private final Bits topLevel;
     private final Bits bottomLevel;
 
-    public BitSetGraph(BitSet[] outboundEdges, BitSet[] inboundEdges) {
+    BitSetGraph(BitSet[] outboundEdges, BitSet[] inboundEdges) {
         this(toBits(outboundEdges), toBits(inboundEdges));
     }
 
-    public BitSetGraph(BitSet[] edges) {
+    BitSetGraph(BitSet[] edges) {
         this(toBits(edges));
     }
 
-    public BitSetGraph(Bits[] outboundEdges, Bits[] inboundEdges) {
+    BitSetGraph(Bits[] outboundEdges, Bits[] inboundEdges) {
         assert sanityCheck(outboundEdges, inboundEdges);
         this.outboundEdges = outboundEdges;
         this.inboundEdges = inboundEdges;
@@ -65,7 +65,7 @@ final class BitSetGraph implements IntGraph {
         return bits;
     }
 
-    public BitSetGraph(Bits[] references) {
+    BitSetGraph(Bits[] references) {
         this(references, inverseOf(references));
     }
 
@@ -103,9 +103,9 @@ final class BitSetGraph implements IntGraph {
     public void save(ObjectOutput out) throws IOException {
         out.writeInt(1); // version
         out.writeInt(outboundEdges.length);
-        for (int i = 0; i < outboundEdges.length; i++) {
-            if (outboundEdges[i].cardinality() > 0) {
-                out.writeObject(outboundEdges[i].toByteArray());
+        for (Bits outboundEdge : outboundEdges) {
+            if (outboundEdge.cardinality() > 0) {
+                out.writeObject(outboundEdge.toByteArray());
             } else {
                 out.writeObject(null);
             }
