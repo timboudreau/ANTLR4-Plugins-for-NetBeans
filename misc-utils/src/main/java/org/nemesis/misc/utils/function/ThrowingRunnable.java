@@ -9,8 +9,6 @@ import java.util.concurrent.Callable;
 @FunctionalInterface
 public interface ThrowingRunnable {
 
-    public void run() throws Exception;
-
     default ThrowingRunnable andThen(ThrowingRunnable run) {
         return () -> {
             ThrowingRunnable.this.run();
@@ -31,4 +29,6 @@ public interface ThrowingRunnable {
             run.call();
         };
     }
+
+    void run() throws Exception;
 }

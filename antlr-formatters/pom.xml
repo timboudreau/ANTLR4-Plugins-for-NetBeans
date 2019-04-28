@@ -31,10 +31,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.10.4</version>
+                <version>3.0.1</version>
                 <configuration>
-                    <additionalparam>-Xdoclint:none</additionalparam>
                     <excludePackageNames>org.nemesis.antlrformatting.impl</excludePackageNames>
+                    <overview>${basedir}/src/main/javadoc/overview.html</overview>
+                    <quiet>true</quiet>
+                    <doclint>none</doclint>
                 </configuration>
             </plugin>            
         </plugins>

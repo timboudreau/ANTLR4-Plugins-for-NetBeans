@@ -47,8 +47,9 @@ final class PredicateUtils {
                 Supplier<String> old = name;
                 name = () -> old.get() + "<was:" + named.name() + ">";
             }
+            result = new NamedWrapperPredicate<>(name, pred);
         }
-        return new NamedWrapperPredicate<>(name, pred);
+        return result;
     }
 
     public static <T> NamedPredicate<T> namedPredicate(Predicate<T> pred) {

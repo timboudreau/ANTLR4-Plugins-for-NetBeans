@@ -85,20 +85,13 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <!-- 3.x breaks turning off doclint -->
-                    <version>2.10.4</version>
-                    <executions>
-                        <execution>
-                            <id>attach-javadocs</id>
-                            <goals>
-                                <goal>jar</goal>
-                            </goals>
-                            <configuration>
-                                <additionalparam>-Xdoclint:none</additionalparam>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
+                    <version>3.0.1</version>
+                    <configuration>
+                        <overview>${basedir}/src/main/javadoc/overview.html</overview>
+                        <quiet>true</quiet>
+                        <doclint>none</doclint>
+                    </configuration>
+                </plugin>            
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -140,18 +133,6 @@
                     <missing>${basedir}/tests-should-pass</missing>
                 </file>
             </activation>
-            <!-- Tests here are VERY unmaintained, and need to be restored
-                 to working order project-by-project, and in many cases
-                 while the module code has been kept buildable, its tests
-                 are many API changes away from being compilable.
-
-                 Tests need to be reenabled on a case-by-case basis.  To
-                 enable test compilation / running for a project, simply add
-                 an empty file named "tests-should-pass" to its basedir.
-
-                 In many cases, the code has been kept compiling, but the
-                 tests are many API changes away from being compilable.
-            -->
             <properties>
                 <maven.test.skip>true</maven.test.skip>
             </properties>

@@ -11,14 +11,14 @@ public interface ThrowingConsumer<T> {
 
     void accept(T t) throws Exception;
 
-    default ThrowingConsumer<T> and (ThrowingConsumer<T> other) {
+    default ThrowingConsumer<T> andThen (ThrowingConsumer<T> other) {
         return t -> {
             this.accept(t);
             other.accept(t);
         };
     }
 
-    default ThrowingConsumer<T> and(Consumer<T> other) {
+    default ThrowingConsumer<T> andThen(Consumer<T> other) {
         return t -> {
             this.accept(t);
             other.accept(t);

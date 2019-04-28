@@ -14,53 +14,150 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
+ * Utilities for working with iterable things.
  *
  * @author Tim Boudreau
  */
 public final class Iterables {
 
+    /**
+     * Returns a map which, if an item not present is requested, will use the
+     * passed Supplier to add one before returning it.
+     *
+     * @param <T> The key type
+     * @param <R> The value type
+     * @param supplier A supplier of missing objects
+     * @return A map
+     */
     public static <T, R> Map<T, R> supplierMap(Supplier<R> supplier) {
         return new SupplierMap<>(supplier);
     }
 
+    /**
+     * Returns a map which, if an item not present is requested, will use the
+     * passed Supplier to add one before returning it, wrapping the original map
+     * (which will be modified if new items are requested).
+     *
+     * @param <T> The key type
+     * @param <R> The value type
+     * @param supplier A supplier of missing objects
+     * @return A map
+     */
     public static <T, R> Map<T, R> supplierMap(Supplier<R> supplier, Map<T, R> delegate) {
         return new SupplierMap<>(supplier, delegate);
     }
 
+    /**
+     * Create a single Iterable which concatenates multiple iterables without
+     * copying them into another collection, so iteration happens only once.
+     *
+     * @param <T> The iterable type
+     * @param iterables A collection of iterables
+     * @return An iterable
+     */
     public static <T> Iterable<T> combine(Iterable<Iterable<T>> iterables) {
         return new MergeIterables<>(iterables);
     }
 
+    /**
+     * Create a single Iterable which concatenates multiple iterables without
+     * copying them into another collection, so iteration happens only once.
+     *
+     * @param <T> The iterable type
+     * @param iterables A collection of iterables
+     * @return An iterable
+     */
     public static <T> Iterable<T> combined(Iterable<T> a, Iterable<T> b) {
         return new MergeIterables<>(a, b);
     }
 
+    /**
+     * Create a single Iterable which concatenates multiple iterables without
+     * copying them into another collection, so iteration happens only once.
+     *
+     * @param <T> The iterable type
+     * @param iterables A collection of iterables
+     * @return An iterable
+     */
     public static <T> Iterable<T> combined(Iterable<T> a, Iterable<T> b, Iterable<T> c) {
         return new MergeIterables<>(a, b, c);
     }
 
+    /**
+     * Create a single Iterable which concatenates multiple iterables without
+     * copying them into another collection, so iteration happens only once.
+     *
+     * @param <T> The iterable type
+     * @param iterables A collection of iterables
+     * @return An iterable
+     */
     public static <T> Iterable<T> combine(Iterable<T>... iterables) {
         return new MergeIterables<>(iterables);
     }
 
+    /**
+     * Create an Iterable over another using the passed function to transform
+     * objects from the initial iterable to the returned one.
+     *
+     * @param <T> The original type
+     * @param <F> The transformed type
+     * @param delegate The original iterable
+     * @param converter The conversion function
+     * @return An iterable
+     */
     public static <T, F> Iterable<T> convertIterable(Iterable<F> delegate, Function<F, T> converter) {
         return new ConvertIterable<>(converter, delegate);
     }
 
+    /**
+     * Create an Iterator over another using the passed function to transform
+     * objects from the initial iterable to the returned one.
+     *
+     * @param <T> The original type
+     * @param <F> The transformed type
+     * @param delegate The original iterable
+     * @param converter The conversion function
+     * @return An iterable
+     */
     public static <T, F> Iterator<T> convertIterator(Iterator<F> delegate, Function<F, T> converter) {
         return new ConvertIterable.ConvertIterator<>(converter, delegate);
     }
 
+    /**
+     * Returns Iterables for a supplier of Iterator.
+     *
+     * @param <T>
+     * @param iteratorSupplier
+     * @return
+     */
     public static <T> Iterable<T> toIterable(Supplier<Iterator<T>> iteratorSupplier) {
         return new IteratorIterable<>(iteratorSupplier);
     }
 
+    /**
+     * For use with enhanced for loop from APIs where you are handed an
+     * iterator, create a one-shot iterable.
+     *
+     * @param <T> The iterated type
+     * @param iteratorSupplier A supplier of iterators
+     * @return An iterable
+     */
     public static <T> Iterable<T> toOneShotIterable(Iterator<T> iterator) {
         return new IteratorIterable<>(() -> {
             return iterator;
         });
     }
 
+    /**
+     * Transform a list one one type into a list of another type using the
+     * passed function.
+     *
+     * @param <T> The original type
+     * @param <R> The revised type
+     * @param list The original list
+     * @param xform The transformer
+     * @return A list
+     */
     public static <T, R> List<R> transform(List<? extends T> list, Function<T, R> xform) {
         List<R> result = list instanceof LinkedList<?> ? new LinkedList<>() : new ArrayList<>(list.size());
         for (T t : list) {
@@ -69,10 +166,20 @@ public final class Iterables {
         return result;
     }
 
-    public static <T, R> Set<R> transform(Set<? extends T> list, Function<T, R> xform) {
-        Set<R> result = list instanceof LinkedHashSet<?> || list instanceof TreeSet<?>
+    /**
+     * Transform a set one one type into a list of another type using the passed
+     * function.
+     *
+     * @param <T> The original type
+     * @param <R> The revised type
+     * @param set The original set
+     * @param xform The transformer
+     * @return A list
+     */
+    public static <T, R> Set<R> transform(Set<? extends T> set, Function<T, R> xform) {
+        Set<R> result = set instanceof LinkedHashSet<?> || set instanceof TreeSet<?>
                 ? new LinkedHashSet<>() : new HashSet<>();
-        for (T t : list) {
+        for (T t : set) {
             result.add(xform.apply(t));
         }
         return result;
