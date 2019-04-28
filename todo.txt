@@ -1,8 +1,6 @@
 
 fix coalescer to support longs
 
-move BitSetSet to bits
-
 split out functions package
 
 split out annotation-utils and friends (class generation "java-vogon"?)
@@ -14,6 +12,12 @@ adhoc language highlighting should use DataRange / coalesce support
 arrayutil sort methods should support Range, not IndexAddressableItem, and probably move to the range package
 
 move generally useful stuff out of here into mastfrog-util
+ - bits
+ - longarray
+ - graph
+ - range
+
+split out predicates
 
 -------
 

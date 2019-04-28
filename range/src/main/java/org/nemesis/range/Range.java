@@ -14,6 +14,7 @@ import java.util.function.LongConsumer;
  * domains, and is the root of myriad off-by-one errors. This library is an
  * attempt to get that logic right in a reusable fashion, after having had to
  * implement it from scratch several times over the last few decades.
+ *
  * <h3>Implementation Notes</h3>
  * The factory methods on this class should satisfy most needs. If you do
  * implement Range, the following points are important for compatibility:
@@ -24,6 +25,14 @@ import java.util.function.LongConsumer;
  * </li>
  * <li>A range which is empty is equal to any other empty range</li>
  * </ul>
+ * Range is parameterized on itself or a parent type, so that
+ * primitive-type-specific methods can be used, as typically any user of this
+ * library is dealing in either integers or longs, but not both, and knows
+ * which. This presents a little awkwardness, (typically you will find yourself
+ * defining variables as
+ * <code>IntRange&lt;? extends IntRange&lt;?&gt;&gt</code>, but offers the
+ * advantage that primitive integer access runs around 9x faster than boxed
+ * integer access.
  *
  * @author Tim Boudreau
  */
@@ -74,22 +83,68 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
      */
     R newRange(long start, long size);
 
+    /**
+     * Determines if this range is after and non-overlapping with this
+     * one.
+     *
+     * @param range Another range
+     * @return True if it is after
+     */
     default boolean isAfter(Range<?> range) {
         return startValue().longValue() >= range.startValue().longValue() + range.sizeValue().longValue();
     }
 
+    /**
+     * Determines if this range is before and non-overlapping with this
+     * one.
+     *
+     * @param range Another range
+     * @return True if it is before
+     */
     default boolean isBefore(Range<?> range) {
         return startValue().longValue() + sizeValue().longValue() <= range.startValue().longValue();
     }
 
+    /**
+     * Determine if this range contains the passed range, defined as
+     * start and end (not size!) coordinates.  Equivalent of
+     * <code>contains(Range.ofCoordinates(start, end))</code>.
+     *
+     * @param start A start coordinate
+     * @param end An end coordinate
+     * @return True if this range contains the passed coordinates, following
+     * the contract of <code>contains(Range&lt;?&gt)</code>
+     */
     default boolean contains(int start, int end) {
         return contains(ofCoordinates(start, end));
     }
 
+    /**
+     * Determine if this range contains the passed range, defined as
+     * start and end (not size!) coordinates.  Equivalent of
+     * <code>contains(Range.ofCoordinates(start, end))</code>.
+     *
+     * @param start A start coordinate
+     * @param end An end coordinate
+     * @return True if this range contains the passed coordinates, following
+     * the contract of <code>contains(Range&lt;?&gt)</code>
+     */
     default boolean contains(long start, long end) {
         return contains(ofCoordinates(start, end));
     }
 
+    /**
+     * Get the list of ranges that result from subtracting another range from
+     * this one. If the subtracted range is one in the middle and not touching
+     * either edge of this one, then you will get two ranges for the
+     * non-overlapping regions; otherwise you get a single range. If the passed
+     * range is equal to or extending past the edges of this range, you get an
+     * empty list. If the ranges do not overlap, this same region is the only
+     * element in the returned list.
+     *
+     * @param range Another range
+     * @return a list
+     */
     default List<? extends R> subtracting(Range<? extends Range<?>> range) {
         if (!overlaps(range) || range.isEmpty()) {
             return Arrays.asList(cast());

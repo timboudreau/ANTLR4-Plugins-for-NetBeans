@@ -97,6 +97,9 @@ public final class Predicates {
     }
 
     private static boolean noDuplicates(int[] vals) {
+        if (vals.length == 0) {
+            return true;
+        }
         return setOf(vals).size() == vals.length;
     }
 
