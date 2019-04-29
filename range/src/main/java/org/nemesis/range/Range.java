@@ -133,6 +133,40 @@ public interface Range<R extends Range<R>> extends Comparable<Range<?>> {
         return contains(ofCoordinates(start, end));
     }
 
+    default R gap(Range<?> range) {
+        if (range == this) {
+            return newRange(startValue().longValue(), 0);
+        }
+        RangeRelation rel = relationTo(range);
+        switch(rel) {
+            case EQUAL :
+            case CONTAINS :
+            case STRADDLES_END :
+                return newRange(range.startValue().longValue(), 0);
+            case CONTAINED :
+            case STRADDLES_START :
+                return newRange(startValue().longValue(), 0);
+            case AFTER :
+            case BEFORE :
+                long myStart = startValue().longValue();
+                long mySize = sizeValue().longValue();
+                long myEnd = myStart + mySize;
+                long otherStart = range.startValue().longValue();
+                long otherSize = range.sizeValue().longValue();
+                long otherEnd = otherStart + otherSize;
+                switch(rel) {
+                    case BEFORE :
+                        return newRange(myEnd, otherStart - myEnd);
+                    case AFTER :
+                        return newRange(otherEnd, myStart - otherEnd);
+                }
+                break;
+            default :
+                throw new AssertionError(rel);
+        }
+        return null;
+    }
+
     /**
      * Get the list of ranges that result from subtracting another range from
      * this one. If the subtracted range is one in the middle and not touching

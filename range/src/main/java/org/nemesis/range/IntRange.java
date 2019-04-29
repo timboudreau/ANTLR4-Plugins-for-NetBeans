@@ -29,6 +29,39 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
      */
     int size();
 
+    default OI gap(Range<?> other) {
+        if (other == this) {
+            return newRange(start(), 0);
+        }
+        if (other instanceof IntRange<?>) {
+            IntRange<?> range = (IntRange<?>) other;
+            RangeRelation rel = relationTo(range);
+            switch (rel) {
+                case EQUAL:
+                case CONTAINS:
+                case STRADDLES_END:
+                    return newRange(range.start(), 0);
+                case CONTAINED:
+                case STRADDLES_START:
+                    return newRange(start(), 0);
+                case AFTER:
+                case BEFORE:
+                    int myEnd = end();
+                    int otherEnd = range.end();
+                    switch (rel) {
+                        case BEFORE:
+                            return newRange(myEnd, range.start() - myEnd);
+                        case AFTER:
+                            return newRange(otherEnd, start() - otherEnd);
+                    }
+                    break;
+                default:
+                    throw new AssertionError(rel);
+            }
+        }
+        return Range.super.gap(other);
+    }
+
     /**
      * Determine if this item occurs after (start() &gt;= item.end()) another
      * item.

@@ -54,31 +54,52 @@ public class RangeTest {
 
     @ParameterizedTest(name = "{index}: {0} - {1}")
     @MethodSource("factories")
+    public void testGap(RangeFactory<?> factory) {
+        Range<?> a = factory.range(5, 10);
+        Range<?> b = factory.range(40, 10);
+        Range<?> gap = a.gap(b);
+        assertNotNull(gap);
+        assertEquals(25, gap.sizeValue().intValue());
+        assertEquals(15, gap.startValue().intValue());
+
+        gap = b.gap(a);
+        assertNotNull(gap);
+        assertEquals(25, gap.sizeValue().intValue());
+        assertEquals(15, gap.startValue().intValue());
+
+        gap = a.gap(a);
+        assertNotNull(gap);
+        assertEquals(0, gap.sizeValue().intValue());
+        assertEquals(5, gap.startValue().intValue());
+    }
+
+    @ParameterizedTest(name = "{index}: {0} - {1}")
+    @MethodSource("factories")
     public void testRelations(RangeFactory<?> factory) {
         this.factory = factory;
-        Range a = of(0, 10);
-        Range b = of(10, 10);
+        Range<?> a = of(0, 10);
+        Range<?> b = of(10, 10);
         assertRelation(RangeRelation.BEFORE, a, b);
         assertRelation(RangeRelation.AFTER, b, a);
-        Range c = of(5, 10);
+        Range<?> c = of(5, 10);
         assertRelation(RangeRelation.STRADDLES_START, a, c);
         assertRelation(RangeRelation.STRADDLES_END, b, c);
 
-        Range d = of(4, 11);
+        Range<?> d = of(4, 11);
         assertRelation(RangeRelation.CONTAINS, d, c);
         assertRelation(RangeRelation.CONTAINED, c, d);
 
-        Range e = of(4, 10);
+        Range<?> e = of(4, 10);
         assertRelation(RangeRelation.STRADDLES_START, e, c);
 
-        Range f = of(5, 10);
+        Range<?> f = of(5, 10);
         assertRelation(RangeRelation.EQUAL, f, c);
 
-        Range g = of(10, 11);
+        Range<?> g = of(10, 11);
         assertRelation(RangeRelation.AFTER, g, a);
         assertRelation(RangeRelation.BEFORE, a, g);
 
-        Range h = of(9, 1);
+        Range<?> h = of(9, 1);
         assertRelation(RangeRelation.CONTAINED, h, a);
         assertRelation(RangeRelation.CONTAINS, a, h);
         assertRelation(RangeRelation.BEFORE, h, b);
@@ -1074,12 +1095,12 @@ public class RangeTest {
 
         // Non overlapping ranges should return the original range
         // being subtracted from
-        assertFalse(r.subtracting(factory.range(10,10)).isEmpty());
-        assertTrue(r.subtracting(factory.range(10,10)).contains(r));
-        assertFalse(r.subtracting(factory.range(300,10)).isEmpty());
-        assertTrue(r.subtracting(factory.range(300,10)).contains(r));
-        assertFalse(r.subtracting(factory.range(200,10)).isEmpty());
-        assertTrue(r.subtracting(factory.range(200,10)).contains(r));
+        assertFalse(r.subtracting(factory.range(10, 10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(10, 10)).contains(r));
+        assertFalse(r.subtracting(factory.range(300, 10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(300, 10)).contains(r));
+        assertFalse(r.subtracting(factory.range(200, 10)).isEmpty());
+        assertTrue(r.subtracting(factory.range(200, 10)).contains(r));
 
         List<? extends Range<?>> l = r.subtracting(factory.range(110, 80));
 
