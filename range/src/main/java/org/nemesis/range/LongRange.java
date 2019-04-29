@@ -28,6 +28,7 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
      */
     long size();
 
+    @Override
     default OI gap(Range<?> other) {
         if (other == this) {
             return newRange(start(), 0);
@@ -57,7 +58,33 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
                 default:
                     throw new AssertionError(rel);
             }
+        } else if (other instanceof IntRange<?>) {
+            IntRange<?> range = (IntRange<?>) other;
+            RangeRelation rel = relationTo(range);
+            switch (rel) {
+                case EQUAL:
+                case CONTAINS:
+                case STRADDLES_END:
+                    return newRange(range.start(), 0);
+                case CONTAINED:
+                case STRADDLES_START:
+                    return newRange(start(), 0);
+                case AFTER:
+                case BEFORE:
+                    long myEnd = end();
+                    long otherEnd = range.end();
+                    switch (rel) {
+                        case BEFORE:
+                            return newRange(myEnd, range.start() - myEnd);
+                        case AFTER:
+                            return newRange(otherEnd, start() - otherEnd);
+                    }
+                    break;
+                default:
+                    throw new AssertionError(rel);
+            }
         }
+
         return Range.super.gap(other);
     }
 
@@ -68,6 +95,7 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
      * @param item Another item
      * @return
      */
+    @Override
     default boolean isAfter(Range<?> range) {
         if (range instanceof IntRange<?>) {
             IntRange<?> item = (IntRange<?>) range;
@@ -86,6 +114,7 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
      * @param item
      * @return
      */
+    @Override
     default boolean isBefore(Range<?> range) {
         if (range instanceof IntRange<?>) {
             IntRange<?> item = (IntRange<?>) range;
