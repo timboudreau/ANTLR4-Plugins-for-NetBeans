@@ -304,10 +304,12 @@ public interface LongRange<OI extends LongRange<OI>> extends Range<OI> {
         return Range.of(start(), size());
     }
 
+    @Override
     default PositionRelation relationToStart(int pos) {
         return PositionRelation.relation(pos, start());
     }
 
+    @Override
     default PositionRelation relationToEnd(int pos) {
         return PositionRelation.relation(pos, end());
     }

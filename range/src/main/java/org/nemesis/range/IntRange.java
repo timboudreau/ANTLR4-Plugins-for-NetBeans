@@ -95,6 +95,7 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
      * @param item Another item
      * @return
      */
+    @Override
     default boolean isAfter(Range<?> range) {
         if (range instanceof IntRange<?>) {
             IntRange<?> item = (IntRange<?>) range;
@@ -113,6 +114,7 @@ public interface IntRange<OI extends IntRange<OI>> extends Range<OI> {
      * @param item
      * @return
      */
+    @Override
     default boolean isBefore(Range<?> range) {
         if (range instanceof IntRange<?>) {
             IntRange<?> item = (IntRange<?>) range;

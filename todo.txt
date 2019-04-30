@@ -10,12 +10,16 @@ move Hashable to misc utils?
 adhoc language highlighting should use DataRange / coalesce support
 
 arrayutil sort methods should support Range, not IndexAddressableItem, and probably move to the range package
+  - replace endSupplier with IntUnaryOperator?
 
 move generally useful stuff out of here into mastfrog-util
  - bits
  - longarray
  - graph
  - range
+
+consolidate various predicate code
+ - is the ml media sniffer code a copy of BytePredicate stuff?
 
 split out predicates
 
