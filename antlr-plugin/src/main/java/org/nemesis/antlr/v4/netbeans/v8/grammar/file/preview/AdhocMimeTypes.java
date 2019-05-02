@@ -29,8 +29,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes.grammarFilePathForMimeType;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.InvalidMimeTypeRegistrationException.Reason;
-import org.nemesis.misc.utils.TimedCache;
-import org.nemesis.misc.utils.TimedCache.BidiCache;
+import com.mastfrog.util.cache.TimedCache;
+import com.mastfrog.util.cache.TimedBidiCache;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -99,11 +99,11 @@ public class AdhocMimeTypes {
         LOG.setLevel(Level.ALL);
     }
 
-    static BidiCache<Path, String, RuntimeException> typeForPath
+    static TimedBidiCache<Path, String, RuntimeException> typeForPath
             = TimedCache.create(30000, AdhocMimeTypes::_mimeTypeForGrammarFilePath)
                     .toBidiCache(AdhocMimeTypes::_pathForMimeType);
 
-    static BidiCache<String, String, RuntimeException> typeForExtension
+    static TimedBidiCache<String, String, RuntimeException> typeForExtension
             = TimedCache.create(30000, AdhocMimeTypes::_fileExtensionForMimeType)
                     .toBidiCache(AdhocMimeTypes::_mimeTypeForFileExtension);
 

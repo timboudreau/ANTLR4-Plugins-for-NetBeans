@@ -33,18 +33,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>bits</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>range</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>graph</artifactId>
-            <version>${project.version}</version>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

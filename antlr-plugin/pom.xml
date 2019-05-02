@@ -50,8 +50,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
-            <!--<type>jar</type>-->
-            <!--<version>${project.version}</version>-->
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -68,15 +66,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>bits</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>range</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>graph</artifactId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>        
         <dependency>
             <groupId>${project.groupId}</groupId>

@@ -13,7 +13,7 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
-import org.nemesis.misc.utils.function.ThrowingConsumer;
+import com.mastfrog.function.throwing.ThrowingConsumer;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.editor.BaseDocument;

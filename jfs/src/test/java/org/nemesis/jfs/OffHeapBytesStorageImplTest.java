@@ -30,7 +30,7 @@ public class OffHeapBytesStorageImplTest {
 
     private static final long MINUTE = 1000 * 60;
 
-    @Test(timeout = 2 * MINUTE)
+    @Test(timeout = 3 * MINUTE)
     public void thrashTest() throws Throwable {
         thrash(1);
         thrash(13849273);

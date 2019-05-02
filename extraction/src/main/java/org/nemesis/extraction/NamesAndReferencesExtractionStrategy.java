@@ -18,8 +18,8 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.nemesis.graph.IntGraph;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.graph.StringGraph;
 
 /**
  *

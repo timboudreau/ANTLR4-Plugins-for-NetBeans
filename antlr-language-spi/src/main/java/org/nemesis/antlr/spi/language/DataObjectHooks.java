@@ -2,10 +2,10 @@ package org.nemesis.antlr.spi.language;
 
 import java.io.IOException;
 import java.util.function.Supplier;
-import org.nemesis.misc.utils.function.IOBiFunction;
-import org.nemesis.misc.utils.function.IOFunction;
-import org.nemesis.misc.utils.function.IORunnable;
-import org.nemesis.misc.utils.function.IOTriFunction;
+import com.mastfrog.function.throwing.io.IOBiFunction;
+import com.mastfrog.function.throwing.io.IOFunction;
+import com.mastfrog.function.throwing.io.IORunnable;
+import com.mastfrog.function.throwing.io.IOTriFunction;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataFolder;
 import org.openide.loaders.DataObject;

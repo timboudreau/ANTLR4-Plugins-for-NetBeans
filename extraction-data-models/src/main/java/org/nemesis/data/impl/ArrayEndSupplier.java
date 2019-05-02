@@ -48,8 +48,8 @@ public class ArrayEndSupplier implements MutableEndSupplier {
             return Arrays.equals(ends, ((ArrayEndSupplier) o).ends);
         } else if (o instanceof Arr) {
             return Arrays.equals(ends, ((Arr) o).arr);
-        } else if (o instanceof EndSupplier) {
-            EndSupplier other = (EndSupplier) o;
+        } else if (o instanceof SizedArrayValueSupplier) {
+            SizedArrayValueSupplier other = (SizedArrayValueSupplier) o;
             if (other.size() == size()) {
                 int sz = size();
                 for (int i = 0; i < sz; i++) {

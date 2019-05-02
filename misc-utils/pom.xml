@@ -22,6 +22,10 @@
             <artifactId>hamcrest-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -34,7 +38,6 @@
                     <moduleType>autoload</moduleType>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
-                        <publicPackage>org.nemesis.indexed</publicPackage>
                         <publicPackage>org.nemesis.misc.utils</publicPackage>
                         <publicPackage>org.nemesis.misc.utils.function</publicPackage>
                         <publicPackage>org.nemesis.misc.utils.reflection</publicPackage>
@@ -49,6 +52,17 @@
                     <overview>${basedir}/src/main/javadoc/overview.html</overview>
                     <quiet>true</quiet>
                     <doclint>none</doclint>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.1</version>
+                <configuration>
+                    <!--to have the jar plugin pickup the nbm generated manifest--> 
+                    <archive>
+                        <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                    </archive>                    
                 </configuration>
             </plugin>            
         </plugins>

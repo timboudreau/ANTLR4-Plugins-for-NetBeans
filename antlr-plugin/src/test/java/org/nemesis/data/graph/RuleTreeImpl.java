@@ -9,9 +9,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.nemesis.graph.StringGraph;
-import org.nemesis.graph.algorithm.RankingAlgorithm;
-import org.nemesis.graph.algorithm.Score;
+import com.mastfrog.graph.StringGraph;
+import com.mastfrog.graph.algorithm.RankingAlgorithm;
+import com.mastfrog.graph.algorithm.Score;
 
 /**
  * The original, correct but far less efficient implementation of StringGraph,

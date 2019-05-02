@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.text.Position;
 import org.nemesis.antlr.spi.language.fix.DocumentEditBag.BLE;
-import org.nemesis.misc.utils.function.ThrowingRunnable;
+import com.mastfrog.function.throwing.ThrowingRunnable;
 import org.netbeans.editor.BaseDocument;
 
 /**

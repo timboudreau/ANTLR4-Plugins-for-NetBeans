@@ -2,7 +2,7 @@ package org.nemesis.antlr.completion;
 
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
-import org.nemesis.misc.utils.function.ThrowingTriConsumer;
+import com.mastfrog.function.throwing.ThrowingTriConsumer;
 import org.netbeans.editor.BaseDocument;
 
 /**
@@ -42,7 +42,7 @@ public interface SimpleDocumentUpdater<I> extends ThrowingTriConsumer<I, JTextCo
      * @throws Exception if someting goes wrong
      */
     @Override
-    default void accept(I item, JTextComponent component, TokenMatch match) throws Exception {
+    default void apply(I item, JTextComponent component, TokenMatch match) throws Exception {
         BaseDocument doc = (BaseDocument) component.getDocument();
         BadLocationException[] ex = new BadLocationException[1];
         doc.runAtomicAsUser(() -> {

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.Lexer;
-import org.nemesis.misc.utils.function.IOFunction;
+import com.mastfrog.function.throwing.io.IOFunction;
 import org.netbeans.spi.editor.completion.CompletionProvider;
 
 /**

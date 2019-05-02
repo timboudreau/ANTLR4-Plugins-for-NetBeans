@@ -2,5 +2,5 @@ Manifest-Version: 1.0
 AutoUpdate-Show-In-Client: true
 OpenIDE-Module-Implementation-Version: 1
 OpenIDE-Module-Localizing-Bundle: org/nemesis/misc/utils/Bundle.properties
-OpenIDE-Module-Java-Dependencies: Java > 9
+OpenIDE-Module-Java-Dependencies: Java > 8
 

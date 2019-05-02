@@ -40,7 +40,7 @@ import javax.swing.text.Position;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.misc.utils.function.ThrowingFunction;
+import com.mastfrog.function.throwing.ThrowingFunction;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.spi.editor.hints.ChangeInfo;
 import org.netbeans.spi.editor.hints.ErrorDescription;

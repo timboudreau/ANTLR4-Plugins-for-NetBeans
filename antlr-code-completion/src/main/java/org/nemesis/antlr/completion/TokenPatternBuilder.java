@@ -9,7 +9,7 @@ import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.Vocabulary;
 import org.nemesis.antlr.completion.TokenTriggersBuilder.Any;
-import org.nemesis.misc.utils.IntList;
+import com.mastfrog.util.collections.IntList;
 
 /**
  *

@@ -25,7 +25,7 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.openide.filesystems.FileUtil;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
-import org.nemesis.graph.ObjectGraphVisitor;
+import com.mastfrog.graph.ObjectGraphVisitor;
 
 /**
  *

@@ -1,13 +1,13 @@
 package org.nemesis.data.graph.hetero;
 
 import java.util.Set;
-import org.nemesis.bits.Bits;
-import org.nemesis.bits.collections.BitSetSet;
+import com.mastfrog.bits.Bits;
+import com.mastfrog.bits.collections.BitSetSet;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
-import org.nemesis.graph.IntGraph;
-import org.nemesis.graph.IntGraphVisitor;
-import org.nemesis.indexed.Indexed;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.graph.IntGraphVisitor;
+import com.mastfrog.abstractions.list.IndexedResolvable;
 
 /**
  * A graph of container and containee, where the types of the two are
@@ -272,7 +272,7 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         }
     }
 
-    private class AllIndexed implements Indexed<IndexAddressableItem> {
+    private class AllIndexed implements IndexedResolvable<IndexAddressableItem> {
 
         @Override
         public int indexOf(Object o) {

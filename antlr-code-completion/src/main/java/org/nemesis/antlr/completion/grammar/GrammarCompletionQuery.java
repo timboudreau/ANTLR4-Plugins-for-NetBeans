@@ -15,8 +15,8 @@ import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.Token;
 import static org.nemesis.antlr.completion.TokenUtils.findCaretToken;
-import org.nemesis.misc.utils.IntMap;
-import org.nemesis.misc.utils.function.IOFunction;
+import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.function.throwing.io.IOFunction;
 import org.netbeans.spi.editor.completion.CompletionResultSet;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionQuery;
 

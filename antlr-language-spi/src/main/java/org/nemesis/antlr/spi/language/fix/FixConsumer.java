@@ -5,7 +5,7 @@ import java.util.function.BiConsumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.misc.utils.function.ThrowingFunction;
+import com.mastfrog.function.throwing.ThrowingFunction;
 import org.netbeans.editor.BaseDocument;
 import org.openide.filesystems.FileObject;
 import org.openide.text.NbDocument;

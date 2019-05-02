@@ -3,7 +3,7 @@ package org.nemesis.extraction;
 import java.io.IOException;
 import java.io.Serializable;
 import org.nemesis.data.IndexAddressable;
-import org.nemesis.data.Named;
+import com.mastfrog.abstractions.Named;
 import org.nemesis.data.named.NamedSemanticRegion;
 
 /**

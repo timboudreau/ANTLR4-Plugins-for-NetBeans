@@ -2,8 +2,8 @@ package org.nemesis.jfs.nio;
 
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.nemesis.range.IntRange;
-import org.nemesis.range.Range;
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 
 /**
  * A set of blocks which may be used by a virtual file. Note that each set of
@@ -12,7 +12,7 @@ import org.nemesis.range.Range;
  *
  * @author Tim Boudreau
  */
-final class Blocks implements  org.nemesis.range.MutableIntRange<Blocks> {
+final class Blocks implements  com.mastfrog.range.MutableIntRange<Blocks> {
 
     static final AtomicInteger ids = new AtomicInteger();
     private int size;

@@ -8,7 +8,7 @@ package org.nemesis.antlr.fold;
 import java.util.function.Function;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
-import org.nemesis.data.Named;
+import com.mastfrog.abstractions.Named;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;

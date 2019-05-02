@@ -22,22 +22,41 @@
                 -->
                 <version>2.5.1</version>
                 <configuration>
-                    <!--<proc>none</proc>-->
                     <source>${java.source.level}</source>
                     <target>${java.source.level}</target>
                     <showDeprecation>false</showDeprecation>
                     <showWarnings>false</showWarnings>
-                    <!--<debug>true</debug>-->
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.1</version>
+                <configuration>
+                    <!-- We cannot override manifestFile to not have one - we 
+                    get the default, but it is the right setting for all the 
+                    modules, and this is the only non-module project -->
+                    <archive>
+                        <manifestFile>${project.basedir}/src/main/manifest.mf</manifestFile>
+                    </archive>
+                </configuration>
+            </plugin>            
         </plugins>
     </build>
     <dependencies>
         <dependency>
             <groupId>org.nemesis</groupId>
             <artifactId>misc-utils</artifactId>
-        </dependency>        
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>function</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-collections</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-api-annotations-common</artifactId>

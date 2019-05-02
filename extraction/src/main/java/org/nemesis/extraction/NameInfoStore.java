@@ -6,7 +6,7 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.StringGraph;
 import org.netbeans.api.annotations.common.NullAllowed;
 
 /**

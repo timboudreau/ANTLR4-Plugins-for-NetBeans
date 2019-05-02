@@ -1,5 +1,6 @@
 package org.nemesis.jfs;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,7 +38,6 @@ import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 import org.nemesis.jfs.nio.BlockStorageKind;
 import org.nemesis.jfs.spi.JFSUtilities;
-import org.nemesis.misc.utils.Iterables;
 
 /**
  * In-memory implementation of JavaFileManager, which creates virtual files
@@ -445,7 +445,7 @@ public final class JFS implements JavaFileManager {
             Iterable<JavaFileObject> fos
                     = delegate.list(location, packageName, kinds, recurse);
             if (storageForLocation.containsKey(location)) {
-                return Iterables.combine(fos, _list(location, packageName, kinds, recurse));
+                return CollectionUtils.concatenate(fos, _list(location, packageName, kinds, recurse));
             }
             return fos;
         }

@@ -1,8 +1,8 @@
 package org.nemesis.registration.utils;
 
 import org.nemesis.misc.utils.StringUtils;
-import org.nemesis.misc.utils.function.ThrowingRunnable;
-import org.nemesis.misc.utils.function.ThrowingBooleanSupplier;
+import com.mastfrog.function.throwing.ThrowingRunnable;
+import com.mastfrog.function.throwing.ThrowingBooleanSupplier;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.AnnotationTypeMismatchException;
 import java.text.MessageFormat;

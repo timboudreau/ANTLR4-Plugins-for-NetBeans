@@ -18,6 +18,7 @@ public interface CallbackTransform<In, Out> {
         });
     }
 
+    @SuppressWarnings("Convert2Lambda")
     default <T> CallbackTransform<In, T> transformCallback(CallbackTransform<Out, T> next) {
         return new CallbackTransform<In, T>() {
             @Override

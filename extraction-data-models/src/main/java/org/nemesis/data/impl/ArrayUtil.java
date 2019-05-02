@@ -84,14 +84,14 @@ public final class ArrayUtil {
      * entries
      * @return A position, or -1 if the request cannot be satisfied
      */
-    public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, EndSupplier ends, int size) {
+    public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, int[] starts, IntUnaryOperator ends, int size) {
         return rangeBinarySearch(pos, searchFirst, searchLast, iuo(starts), ends, size);
     }
 
-    public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, IntUnaryOperator starts, EndSupplier ends, int size) {
+    public static int rangeBinarySearch(int pos, int searchFirst, int searchLast, IntUnaryOperator starts, IntUnaryOperator ends, int size) {
         int firstStart = starts.applyAsInt(searchFirst);
-        int lastEnd = ends.get(searchLast);
-        int firstEnd = ends.get(searchFirst);
+        int lastEnd = ends.applyAsInt(searchLast);
+        int firstEnd = ends.applyAsInt(searchFirst);
         if (pos >= firstStart && pos < firstEnd) {
             return searchFirst;
         } else if (pos < firstStart) {
@@ -112,7 +112,7 @@ public final class ArrayUtil {
             return -1;
         }
         int midStart = starts.applyAsInt(mid);
-        int midEnd = ends.get(mid);
+        int midEnd = ends.applyAsInt(mid);
         if (pos >= midStart && pos < midEnd) {
             return mid;
         }
@@ -134,11 +134,11 @@ public final class ArrayUtil {
      * array size
      * @return An integer offset or -1
      */
-    public static int rangeBinarySearch(int pos, int[] starts, EndSupplier ends, int size) {
+    public static int rangeBinarySearch(int pos, int[] starts, SizedArrayValueSupplier ends, int size) {
         return rangeBinarySearch(pos, iuo(starts), ends, size);
     }
 
-    public static int rangeBinarySearch(int pos, IntUnaryOperator starts, EndSupplier ends, int size) {
+    public static int rangeBinarySearch(int pos, IntUnaryOperator starts, SizedArrayValueSupplier ends, int size) {
         if (size == 0 || pos < starts.applyAsInt(0) || pos >= ends.get(size - 1)) {
             return -1;
         }
@@ -276,12 +276,12 @@ public final class ArrayUtil {
     }
 
     /**
-     * Create an EndSupplier over an array.
+     * Create an SizedArrayValueSupplier over an array.
      *
      * @param ends An array of end positoins
      * @return A supplier
      */
-    public static final EndSupplier arrayEndSupplier(int[] ends) {
+    public static final SizedArrayValueSupplier arrayEndSupplier(int[] ends) {
         return new Arr(ends);
     }
 
@@ -412,12 +412,16 @@ public final class ArrayUtil {
         return new ArrayEndSupplier(ends);
     }
 
-    public static int endSupplierHashCode(EndSupplier es) {
-        int[] ends = new int[es.size()];
-        for (int i = 0; i < ends.length; i++) {
-            ends[i] = es.get(i);
+    public static int endSupplierHashCode(SizedArrayValueSupplier es) {
+        return endSupplierHashCode(es, es.size());
+    }
+
+    public static int endSupplierHashCode(IntUnaryOperator es, int size) {
+        int result = 1;
+        for (int i = 0; i < size; i++) {
+            result = 31 * result + es.applyAsInt(i);
         }
-        return Arrays.hashCode(ends);
+        return result;
     }
 
     public static enum Bias {

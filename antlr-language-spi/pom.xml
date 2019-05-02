@@ -101,7 +101,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>range</artifactId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

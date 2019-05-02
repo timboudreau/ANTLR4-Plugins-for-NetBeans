@@ -14,11 +14,11 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JMenuItem;
 import javax.swing.JRadioButtonMenuItem;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.StringGraph;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.graph.algorithm.Score;
+import com.mastfrog.graph.algorithm.Score;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle;
 

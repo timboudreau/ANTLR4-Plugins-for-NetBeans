@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.IntConsumer;
-import org.nemesis.range.IntRange;
-import org.nemesis.range.Range;
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 
 /**
  * A poor man's memory manager, which manages a set of blocks, each consisting

@@ -3,7 +3,7 @@ package org.nemesis.jfs.nio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
-import org.nemesis.range.IntRange;
+import com.mastfrog.range.IntRange;
 
 /**
  *

@@ -1,5 +1,6 @@
 package org.nemesis.registration.utils;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,7 +17,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.VariableElement;
-import org.nemesis.misc.utils.Iterables;
 import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 
 /**
@@ -26,7 +26,7 @@ import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
 public class MultiAnnotationTestBuilder {
 
     private final AnnotationUtils utils;
-    private final Map<String, AnnotationPredicateSet> byAnnotation = Iterables.supplierMap(AnnotationPredicateSet::new);
+    private final Map<String, AnnotationPredicateSet> byAnnotation = CollectionUtils.supplierMap(AnnotationPredicateSet::new);
 
     MultiAnnotationTestBuilder(AnnotationUtils utils) {
         this.utils = utils;
@@ -76,7 +76,7 @@ public class MultiAnnotationTestBuilder {
 
     private static class AnnotationPredicateSet implements BiPredicate<AnnotationMirror, Element> {
 
-        private final Map<ElementKind, List<NamedPredicate<Element>>> predicateForElementKind = Iterables.supplierMap(LinkedList::new);
+        private final Map<ElementKind, List<NamedPredicate<Element>>> predicateForElementKind = CollectionUtils.supplierMap(LinkedList::new);
         private final List<NamedPredicate<AnnotationMirror>> annoPredicates = new ArrayList<>(4);
         private final List<Supplier<AnnotationMirrorTestBuilderWithAssociatedElementTests<?, ?>>> suppliers = new ArrayList<>(2);
         private boolean initialized = false;
@@ -180,7 +180,7 @@ public class MultiAnnotationTestBuilder {
     private class AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl extends AnnotationMirrorTestBuilderWithAssociatedElementTests<MultiAnnotationTestBuilder, AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl> {
 
         private final String annoType;
-        private final Map<ElementKind, List<NamedPredicate<Element>>> elementTests = Iterables.supplierMap(ArrayList::new);
+        private final Map<ElementKind, List<NamedPredicate<Element>>> elementTests = CollectionUtils.supplierMap(ArrayList::new);
 
         AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl(String annoType, AnnotationUtils utils, Function<AnnotationMirrorTestBuilderWithAssociatedElementTestsImpl, MultiAnnotationTestBuilder> converter) {
             super(utils, converter);

@@ -1,6 +1,6 @@
 package org.nemesis.data.graph;
 
-import org.nemesis.graph.IntGraph;
+import com.mastfrog.graph.IntGraph;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;

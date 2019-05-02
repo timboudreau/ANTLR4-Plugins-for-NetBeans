@@ -6,7 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import org.nemesis.range.IntRange;
+import com.mastfrog.range.IntRange;
 
 /**
  *
@@ -101,14 +101,14 @@ public class BlocksTest {
     @Test
     public void testOverlaps() {
         Blocks b = new Blocks(0, 9);
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 8)));
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(2, 2)));
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(2, 3)));
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 10)));
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(0, 9)));
-        assertTrue(b.overlaps(org.nemesis.range.Range.ofCoordinates(8, 11)));
-        assertFalse(b.overlaps(org.nemesis.range.Range.ofCoordinates(10, 11)));
-        assertFalse(b.overlaps(org.nemesis.range.Range.ofCoordinates(10, 12)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(0, 8)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(2, 2)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(2, 3)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(0, 10)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(0, 9)));
+        assertTrue(b.overlaps(com.mastfrog.range.Range.ofCoordinates(8, 11)));
+        assertFalse(b.overlaps(com.mastfrog.range.Range.ofCoordinates(10, 11)));
+        assertFalse(b.overlaps(com.mastfrog.range.Range.ofCoordinates(10, 12)));
 
         // migrate 58:1 to 12507:14 in [12506:12510 (5)]
         b = new Blocks(12506, 5);

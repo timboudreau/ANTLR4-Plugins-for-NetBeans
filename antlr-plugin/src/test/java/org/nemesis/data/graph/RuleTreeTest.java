@@ -1,6 +1,6 @@
 package org.nemesis.data.graph;
 
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.StringGraph;
 import java.util.Arrays;
 import java.util.Iterator;
 import static org.junit.Assert.assertEquals;

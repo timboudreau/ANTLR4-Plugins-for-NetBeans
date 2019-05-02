@@ -6,7 +6,7 @@ import java.util.Arrays;
  *
  * @author Tim Boudreau
  */
-final class Arr implements EndSupplier {
+final class Arr implements SizedArrayValueSupplier {
 
     final int[] arr;
 
@@ -24,6 +24,7 @@ final class Arr implements EndSupplier {
         return arr.length;
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;
@@ -33,8 +34,8 @@ final class Arr implements EndSupplier {
             return Arrays.equals(arr, ((ArrayEndSupplier) o).ends);
         } else if (o instanceof Arr) {
             return Arrays.equals(arr, ((Arr) o).arr);
-        } else if (o instanceof EndSupplier) {
-            EndSupplier other = (EndSupplier) o;
+        } else if (o instanceof SizedArrayValueSupplier) {
+            SizedArrayValueSupplier other = (SizedArrayValueSupplier) o;
             if (other.size() == size()) {
                 int sz = size();
                 for (int i = 0; i < sz; i++) {

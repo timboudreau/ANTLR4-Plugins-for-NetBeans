@@ -1,16 +1,17 @@
 package org.nemesis.data;
 
+import com.mastfrog.abstractions.Named;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
-import org.nemesis.bits.MutableBits;
+import com.mastfrog.bits.MutableBits;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
-import org.nemesis.graph.IntGraph;
-import org.nemesis.indexed.Indexed;
-import org.nemesis.misc.utils.function.IntBiConsumer;
-import org.nemesis.range.IntRange;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.range.IntRange;
+import com.mastfrog.abstractions.list.IndexedResolvable;
 
 /**
  * Base interface for collections of that can be indexed and represent a range
@@ -20,7 +21,7 @@ import org.nemesis.range.IntRange;
  *
  * @author Tim Boudreau
  */
-public interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> extends Indexed<T> {
+public interface IndexAddressable<T extends IndexAddressable.IndexAddressableItem> extends IndexedResolvable<T> {
 
     /**
      * Get the element - the most specific in element in the case of nested
@@ -184,6 +185,14 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
          * @return
          */
         int index();
+
+        @Override
+        default int end() {
+            // So the default implementation does not endlessly loop between
+            // size() and end()
+            throw new UnsupportedOperationException(getClass() + " does not "
+                    + "implement end()");
+        }
 
         /**
          * Get the size of this region - end() - start().

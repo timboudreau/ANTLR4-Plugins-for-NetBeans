@@ -11,7 +11,7 @@ import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
-import org.nemesis.misc.utils.function.ThrowingRunnable;
+import com.mastfrog.function.throwing.ThrowingRunnable;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.indent.api.Reformat;

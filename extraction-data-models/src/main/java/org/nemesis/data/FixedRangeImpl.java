@@ -1,6 +1,6 @@
 package org.nemesis.data;
 
-import org.nemesis.range.Range;
+import com.mastfrog.range.Range;
 
 /**
  *

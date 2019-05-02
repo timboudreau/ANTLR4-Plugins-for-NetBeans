@@ -17,6 +17,7 @@
         <maven.test.skip>true</maven.test.skip>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
+        <mastfrog.version>2.5.0-dev</mastfrog.version>
     </properties>
     <licenses>
         <license>
@@ -44,7 +45,7 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>nbm-maven-plugin</artifactId>
-                    <version>4.2-SNAPSHOT</version>
+                    <version>4.1</version>
                     <extensions>true</extensions>
                     <configuration>
                         <branding.token>${nbcluster}</branding.token>
@@ -57,10 +58,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>2.4</version>
+                    <version>3.1.1</version>
                     <configuration>
-                        <!-- to have the jar plugin pickup the nbm generated manifest -->
-                        <useDefaultManifestFile>true</useDefaultManifestFile>
+                        <!--to have the jar plugin pickup the nbm generated manifest-->
+                        <archive>
+                            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                        </archive>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -91,7 +94,7 @@
                         <quiet>true</quiet>
                         <doclint>none</doclint>
                     </configuration>
-                </plugin>            
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -118,8 +121,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.3.2</version>
                 <configuration>
-                    <source>9</source>
-                    <target>9</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
         </plugins>
@@ -156,9 +159,7 @@
         <module>antlr-language-spi</module>
         <module>antlr-highlighting</module>
         <module>antlr-code-completion</module>
-        <module>range</module>
-        <module>bits</module>
-        <module>graph</module>
+        <module>mastfrog-utils-wrapper</module>
     </modules>
     <repositories>
         <repository>
@@ -206,19 +207,34 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-strings</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
                 <artifactId>range</artifactId>
-                <version>${project.version}</version>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.mastfrog</groupId>
                 <artifactId>bits</artifactId>
-                <version>${project.version}</version>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
+                <groupId>com.mastfrog</groupId>
                 <artifactId>graph</artifactId>
-                <version>${project.version}</version>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-preconditions</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-collections</artifactId>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
@@ -229,6 +245,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>misc-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>mastfrog-utils-wrapper</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -270,27 +291,27 @@
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-formatters</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-common</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-navigators</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-code-folding</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-language-spi</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>org.apache.bcel</groupId>
                 <artifactId>bcel</artifactId>
@@ -300,6 +321,16 @@
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>4.12</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>abstractions</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>function</artifactId>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.hamcrest</groupId>

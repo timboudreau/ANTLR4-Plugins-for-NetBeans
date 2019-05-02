@@ -5,9 +5,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import org.nemesis.bits.Bits;
-import org.nemesis.bits.MutableBits;
-import org.nemesis.indexed.Indexed;
+import com.mastfrog.bits.Bits;
+import com.mastfrog.bits.MutableBits;
+import com.mastfrog.abstractions.list.IndexedResolvable;
 
 /**
  * A set implementation which takes a larger bitset and a
@@ -21,10 +21,10 @@ import org.nemesis.indexed.Indexed;
 final class BitSetSliceSet<T> extends AbstractSet<T> implements Set<T> {
 
     private final Bits set;
-    private final Indexed<T> data;
+    private final IndexedResolvable<T> data;
     private final int start;
 
-    BitSetSliceSet(Indexed<T> data, Bits set, int start) {
+    BitSetSliceSet(IndexedResolvable<T> data, Bits set, int start) {
         this.data = data;
         this.set = set;
         this.start = start;

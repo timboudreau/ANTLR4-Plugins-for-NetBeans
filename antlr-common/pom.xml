@@ -35,7 +35,6 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util-ui</artifactId>
-            <version>RELEASE100-dev</version>
             <type>jar</type>
         </dependency>
     </dependencies>

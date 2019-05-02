@@ -28,19 +28,19 @@
             <artifactId>org-netbeans-api-annotations-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
-            <artifactId>range</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
             <groupId>org.nemesis</groupId>
             <artifactId>antlr-language-spi</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
         </dependency>
         <dependency>

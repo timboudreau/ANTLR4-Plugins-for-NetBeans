@@ -38,7 +38,7 @@ import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.TestDir;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.extraction.SingletonEncounters;
 

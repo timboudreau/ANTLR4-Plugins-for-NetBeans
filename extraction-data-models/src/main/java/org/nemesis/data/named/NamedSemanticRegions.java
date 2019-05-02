@@ -42,7 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
-import org.nemesis.bits.collections.BitSetSet;
+import com.mastfrog.bits.collections.BitSetSet;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
 import org.nemesis.data.SemanticRegion;
@@ -50,9 +50,9 @@ import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.impl.ArrayEndSupplier;
 import org.nemesis.data.impl.ArrayUtil;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
-import org.nemesis.data.impl.EndSupplier;
 import org.nemesis.data.impl.MutableEndSupplier;
-import org.nemesis.indexed.Indexed;
+import com.mastfrog.abstractions.list.IndexedResolvable;
+import org.nemesis.data.impl.SizedArrayValueSupplier;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in
@@ -66,7 +66,7 @@ import org.nemesis.indexed.Indexed;
 public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSemanticRegion<K>>, Externalizable, NamedIndexAddressable<NamedSemanticRegion<K>> {
 
     private final int[] starts;
-    private final EndSupplier ends;
+    private final SizedArrayValueSupplier ends;
     private final String[] names;
     private final K[] kinds;
     private int size;
@@ -88,7 +88,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
             kinds[i] = allKinds[in.readByte()];
         }
-        EndSupplier ends = (EndSupplier) in.readObject();
+        SizedArrayValueSupplier ends = (SizedArrayValueSupplier) in.readObject();
         try {
             Field f = NamedSemanticRegions.class.getDeclaredField("starts");
             f.setAccessible(true);
@@ -221,7 +221,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return new BitSetSet<>(new IndexedStringAdapter());
     }
 
-    class IndexedStringAdapter implements Indexed<String> {
+    class IndexedStringAdapter implements IndexedResolvable<String> {
 
         @Override
         public int indexOf(Object o) {
@@ -251,6 +251,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return new NamedSemanticRegionsBuilder<>(type);
     }
 
+    @Override
     public int indexOf(Object o) {
         if (o instanceof NamedSemanticRegion<?>) {
             NamedSemanticRegion<?> n = (NamedSemanticRegion<?>) o;
@@ -261,11 +262,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return -1;
     }
 
+    @Override
     public boolean isChildType(IndexAddressable.IndexAddressableItem item) {
         return item instanceof NamedSemanticRegion<?>;
     }
 
-    class StringEndSupplier implements EndSupplier {
+    class StringEndSupplier implements SizedArrayValueSupplier {
 
         @Override
         public int get(int index) {
@@ -278,8 +280,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 return true;
             } else if (o == null) {
                 return false;
-            } else if (o instanceof EndSupplier) {
-                EndSupplier other = (EndSupplier) o;
+            } else if (o instanceof SizedArrayValueSupplier) {
+                SizedArrayValueSupplier other = (SizedArrayValueSupplier) o;
                 if (other.size() == size()) {
                     int sz = size();
                     for (int i = 0; i < sz; i++) {
@@ -326,6 +328,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return result;
     }
 
+    @Override
     public int size() {
         return size;
     }
@@ -382,7 +385,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     }
 
     public Set<String> newSet() {
-        return new BitSetSet<>(Indexed.forSortedStringArray(names));
+        return new BitSetSet<>(IndexedResolvable.forSortedStringArray(names));
     }
 
     @Override
@@ -401,7 +404,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
      * the offsets of the names of sections of a source and also the bounds of
      * that named section.
      *
-     * @return An offsets with its starts and ends uninitialized.
+     * @return A NamedSemanticRegions with its starts and ends uninitialized.
      */
     public NamedSemanticRegions<K> secondary() {
         // XXX should return a builder

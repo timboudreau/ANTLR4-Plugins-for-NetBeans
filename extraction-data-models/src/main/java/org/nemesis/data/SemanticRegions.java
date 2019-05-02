@@ -18,7 +18,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.nemesis.data.SemanticRegions.SemanticRegionImpl;
 import org.nemesis.data.impl.ArrayUtil;
-import org.nemesis.data.impl.EndSupplier;
+import org.nemesis.data.impl.SizedArrayValueSupplier;
 
 /**
  * A collection of nestable semantic regions, which have some (optional) data
@@ -960,7 +960,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
     }
 
-    private final class MES implements EndSupplier {
+    private final class MES implements SizedArrayValueSupplier {
 
         @Override
         public int get(int index) {

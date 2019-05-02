@@ -15,9 +15,9 @@ import java.util.function.ToIntFunction;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Token;
 import static org.nemesis.antlr.completion.TokenMatch.DEFAULT_TOKEN_MATCH;
-import org.nemesis.misc.utils.function.ThrowingBiConsumer;
-import org.nemesis.misc.utils.function.ThrowingFunction;
-import org.nemesis.misc.utils.function.ThrowingTriConsumer;
+import com.mastfrog.function.throwing.ThrowingBiConsumer;
+import com.mastfrog.function.throwing.ThrowingFunction;
+import com.mastfrog.function.throwing.ThrowingTriConsumer;
 import org.netbeans.spi.editor.completion.CompletionItem;
 import org.netbeans.spi.editor.completion.CompletionTask;
 import org.openide.util.Exceptions;
@@ -114,7 +114,7 @@ final class CompletionStub<I> {
         @Override
         public void defaultAction(JTextComponent component) {
             try {
-                performer.accept(item, component, match);
+                performer.apply(item, component, match);
             } catch (Exception ex) {
                 Exceptions.printStackTrace(ex);
             }

@@ -5,7 +5,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.completion.annos.InsertAction;
 import org.nemesis.antlr.completion.annos.InsertPolicy;
-import org.nemesis.misc.utils.function.ThrowingTriConsumer;
+import com.mastfrog.function.throwing.ThrowingTriConsumer;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 
@@ -123,7 +123,7 @@ final class DefaultDocumentUpdater<I> implements ThrowingTriConsumer<I, JTextCom
     }
 
     @Override
-    public void accept(I a, JTextComponent component, TokenMatch match) throws Exception {
+    public void apply(I a, JTextComponent component, TokenMatch match) throws Exception {
         // XXX should be getting the caret position from the action
         BaseDocument doc = (BaseDocument) component.getDocument();
         int pos = component.getCaretPosition();

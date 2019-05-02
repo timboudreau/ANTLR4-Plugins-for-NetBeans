@@ -14,8 +14,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import org.nemesis.jfs.spi.JFSUtilities;
-import org.nemesis.range.IntRange;
-import org.nemesis.range.Range;
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 
 /**
  *

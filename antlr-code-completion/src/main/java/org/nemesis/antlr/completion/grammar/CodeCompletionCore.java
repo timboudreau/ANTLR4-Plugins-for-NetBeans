@@ -7,6 +7,7 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -28,11 +29,11 @@ import org.antlr.v4.runtime.atn.RuleStopState;
 import org.antlr.v4.runtime.atn.RuleTransition;
 import org.antlr.v4.runtime.atn.Transition;
 import org.antlr.v4.runtime.misc.IntervalSet;
-import org.nemesis.misc.utils.IntList;
-import org.nemesis.misc.utils.IntMap;
-import org.nemesis.misc.utils.IntMap.IntMapAbortableConsumer;
-import org.nemesis.misc.utils.IntMap.IntMapConsumer;
-import org.nemesis.misc.utils.IntSet;
+import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.collections.IntMap.IntMapAbortableConsumer;
+import com.mastfrog.util.collections.IntMap.IntMapConsumer;
+import com.mastfrog.util.collections.IntSet;
+import com.mastfrog.util.collections.IntList;
 
 /**
  * Borrowed from
@@ -78,7 +79,7 @@ public class CodeCompletionCore {
 
     static class IntArrayMapping {
 
-        private final IntMap<IntList> values = IntMap.create(() -> IntList.create(16));
+        private final IntMap<IntList> values = CollectionUtils.intMap(() -> IntList.create(16));
 
         void put(int key, List<Integer> vals) {
             values.get(key).addAll(vals);
@@ -107,7 +108,7 @@ public class CodeCompletionCore {
 
     static class IntSetMapping {
 
-        private final IntMap<IntSet> values = IntMap.create(() -> IntSet.create(5));
+        private final IntMap<IntSet> values = CollectionUtils.intMap(() -> IntSet.create(5));
 
         boolean containsKey(int key) {
             return values.containsKey(key);
@@ -181,8 +182,8 @@ public class CodeCompletionCore {
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
-    private final IntMap<IntMap<IntSet>> shortcutMap = IntMap.create(() -> {
-        return IntMap.create(IntSet::create);
+    private final IntMap<IntMap<IntSet>> shortcutMap = CollectionUtils.intMap(() -> {
+        return CollectionUtils.intMap(IntSet::create);
     });
 
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
@@ -497,7 +498,7 @@ public class CodeCompletionCore {
         //    multiple times.
         IntMap<FollowSetsHolder> setsPerState = cache.get(this.parser.getClass().getName());
         if (setsPerState == null) {
-            setsPerState = IntMap.create(16);
+            setsPerState = CollectionUtils.intMap(16);
             cache.put(this.parser.getClass().getName(), setsPerState);
         }
 

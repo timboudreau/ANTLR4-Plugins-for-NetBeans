@@ -18,8 +18,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>range</artifactId>
-            <version>${project.version}</version>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

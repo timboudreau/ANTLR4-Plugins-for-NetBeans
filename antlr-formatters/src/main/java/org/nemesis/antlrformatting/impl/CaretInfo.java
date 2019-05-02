@@ -3,7 +3,7 @@ package org.nemesis.antlrformatting.impl;
 import java.awt.Rectangle;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
-import org.nemesis.misc.utils.function.ThrowingConsumer;
+import com.mastfrog.function.throwing.ThrowingConsumer;
 
 /**
  *

@@ -35,20 +35,16 @@
             <artifactId>extraction</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
-            <artifactId>graph</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.nemesis</groupId>
-            <artifactId>bits</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.nemesis</groupId>
-            <artifactId>range</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
             <groupId>org.nemesis</groupId>
             <artifactId>extraction-data-models</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.nemesis</groupId>
+            <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

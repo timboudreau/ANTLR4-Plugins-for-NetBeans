@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.Set;
 import org.nemesis.antlr.spi.language.DataObjectHooks;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
-import org.nemesis.misc.utils.function.IORunnable;
+import com.mastfrog.function.throwing.io.IORunnable;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.util.NbBundle;

@@ -12,8 +12,8 @@ import java.util.regex.Pattern;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Token;
 import org.nemesis.antlr.completion.CompletionsBuilder.FinishableCompletionsBuilder;
-import org.nemesis.misc.utils.function.ThrowingBiConsumer;
-import org.nemesis.misc.utils.function.ThrowingTriConsumer;
+import com.mastfrog.function.throwing.ThrowingBiConsumer;
+import com.mastfrog.function.throwing.ThrowingTriConsumer;
 import org.netbeans.spi.editor.completion.CompletionTask;
 
 /**

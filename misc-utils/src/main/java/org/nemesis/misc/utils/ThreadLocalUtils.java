@@ -19,6 +19,6 @@ public final class ThreadLocalUtils {
     }
 
     public static <T> ThreadLocal<T> supplierThreadLocal(Supplier<? extends T> supp) {
-        return new SupplierThreadLocal<>(supp);
+        return ThreadLocal.withInitial(supp);
     }
 }

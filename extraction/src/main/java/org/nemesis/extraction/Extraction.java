@@ -32,7 +32,7 @@ import org.nemesis.extraction.key.NamedExtractionKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.StringGraph;
 import org.nemesis.misc.utils.TimedSoftReference;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.annotations.common.NullAllowed;

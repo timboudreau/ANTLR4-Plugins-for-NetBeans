@@ -55,8 +55,8 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.source.impl.GSAccessor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
-import org.nemesis.graph.IntGraph;
-import org.nemesis.graph.StringGraph;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.graph.StringGraph;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.source.api.GrammarSource;
 
