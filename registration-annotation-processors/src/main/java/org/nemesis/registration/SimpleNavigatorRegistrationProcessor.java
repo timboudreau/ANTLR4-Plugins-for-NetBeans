@@ -1,6 +1,6 @@
 package org.nemesis.registration;
 
-import org.nemesis.registration.api.AbstractRegistrationProcessor;
+import com.mastfrog.annotation.processor.AbstractDelegatingProcessor;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.BiPredicate;
@@ -25,9 +25,9 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.*;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -37,7 +37,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes(SimpleNavigatorRegistrationProcessor.SIMPLE_ANNOTATION_CLASS)
 @SupportedOptions(AU_LOG)
-public class SimpleNavigatorRegistrationProcessor extends AbstractRegistrationProcessor {
+public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProcessor {
 
     private static final String APPEARANCE_TYPE = "org.nemesis.antlr.navigator.Appearance";
     public static final String SIMPLE_ANNOTATION_CLASS = ANTLR_NAVIGATOR_PACKAGE + ".SimpleNavigatorRegistration";

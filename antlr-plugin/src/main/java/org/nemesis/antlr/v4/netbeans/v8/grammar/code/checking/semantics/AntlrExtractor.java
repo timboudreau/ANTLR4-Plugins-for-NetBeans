@@ -1,6 +1,7 @@
 package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -105,7 +106,7 @@ public final class AntlrExtractor {
         }
     }
 
-    @ExtractionRegistration(mimeType=ANTLR_MIME_TYPE, entryPoint=GrammarFileContext.class)
+    @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
     static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
         // First build code-fold regions - all comments and rules, plus
         // miscellaneous such as action and options blocks
@@ -230,8 +231,7 @@ public final class AntlrExtractor {
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.IMPORT)
                 .whenRuleType(ANTLRv4Parser.AnalyzerDirectiveSpecContext.class)
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.DIRECTIVE)
-                .finishRegionExtractor()
-                ;
+                .finishRegionExtractor();
     }
 
     AntlrExtractor() {
@@ -277,7 +277,12 @@ public final class AntlrExtractor {
     }
 
     public Extraction extract(GrammarFileContext ctx, GrammarSource<?> src, Supplier<TokenStream> tokensSource) {
-        return extractor.extract(ctx, src, tokensSource);
+        List<Token> tokens = new ArrayList<>();
+        TokenStream st = tokensSource.get();
+        for (int i = 0; i < st.size(); i++) {
+            tokens.add(st.get(i));
+        }
+        return extractor.extract(ctx, src, tokens);
     }
 
     public Extraction extract(GrammarSource<?> src) throws IOException {

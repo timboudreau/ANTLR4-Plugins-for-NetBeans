@@ -1,6 +1,6 @@
 package org.nemesis.registration;
 
-import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
+import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedOptions;
@@ -10,8 +10,8 @@ import static org.nemesis.registration.KeybindingsAnnotationProcessor.ANTLR_ACTI
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
-import org.nemesis.registration.api.Delegates;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
+import com.mastfrog.annotation.processor.Delegates;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 
@@ -23,7 +23,7 @@ import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATIO
 @SupportedAnnotationTypes({ANTLR_ACTION_ANNO_TYPE, REGISTRATION_ANNO, SEMANTIC_HIGHLIGHTING_ANNO,
     GROUP_SEMANTIC_HIGHLIGHTING_ANNO, GOTO_ANNOTATION})
 @SupportedOptions(AU_LOG)
-public class LanguageRegistrationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
+public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
     public static final String REGISTRATION_ANNO
             = "org.nemesis.antlr.spi.language.AntlrLanguageRegistration";

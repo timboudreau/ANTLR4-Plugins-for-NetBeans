@@ -28,8 +28,8 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.registration;
 
-import org.nemesis.registration.api.AbstractRegistrationProcessor;
-import org.nemesis.registration.utils.AnnotationUtils;
+import com.mastfrog.annotation.processor.AbstractDelegatingProcessor;
+import com.mastfrog.annotation.AnnotationUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -51,11 +51,11 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.tools.JavaFileObject;
-import static org.nemesis.registration.utils.AnnotationUtils.enclosingType;
+import static com.mastfrog.annotation.AnnotationUtils.enclosingType;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.codegen.LinesBuilder;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
+import com.mastfrog.java.vogon.ClassBuilder;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import com.mastfrog.java.vogon.LinesBuilder;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION;
 
@@ -68,7 +68,7 @@ import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProce
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes(NAVIGATOR_PANEL_REGISTRATION_ANNOTATION)
 @SupportedOptions(AU_LOG)
-public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractRegistrationProcessor {
+public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractDelegatingProcessor {
 
     public static final String ANTLR_NAVIGATOR_PACKAGE = "org.nemesis.antlr.navigator";
     public static final String NAVIGATOR_PANEL_REGISTRATION_ANNOTATION = ANTLR_NAVIGATOR_PACKAGE + ".AntlrNavigatorPanelRegistration";

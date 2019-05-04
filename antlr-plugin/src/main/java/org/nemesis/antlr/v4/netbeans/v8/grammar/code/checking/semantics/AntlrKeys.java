@@ -30,7 +30,6 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics;
 
 import java.util.Set;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
 import org.nemesis.antlr.common.extractiontypes.FoldableRegion;
 import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
@@ -38,16 +37,6 @@ import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
-import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
-import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
-import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
-import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
-import org.nemesis.antlr.spi.language.highlighting.Coloration;
-import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer.*;
-import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
-import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.AntlrKeys.ANTLR_SAMPLE;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
@@ -58,6 +47,7 @@ import org.nemesis.extraction.key.SingletonKey;
  *
  * @author Tim Boudreau
  */
+/*
 @AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
         parser = @ParserControl(type = ANTLRv4Parser.class, entryPointRule = ANTLRv4Parser.RULE_grammarFile),
         file = @FileType(extension = "g4", multiview = true, iconBase = ICON_PATH, hooks = AntlrDataObjectHooks.class),
@@ -108,6 +98,7 @@ import org.nemesis.extraction.key.SingletonKey;
         TYPE_LINE_COMMENT}, colors = @Coloration(fg = {128, 128, 128, 255}, italic = true))
         }
 )
+*/
 public class AntlrKeys {
 
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);

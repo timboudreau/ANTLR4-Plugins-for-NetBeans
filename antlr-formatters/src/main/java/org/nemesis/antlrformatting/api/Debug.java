@@ -5,8 +5,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Token;
-import org.nemesis.antlrformatting.api.util.Predicates;
-
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
 /**
  *
  * @author Tim Boudreau
@@ -69,7 +69,7 @@ class Debug implements Predicate<Token>, BooleanSupplier {
     }
 
     static IntPredicate predicate(int first, int... types) {
-        int[] vals = Predicates.combine(first, types);
+        int[] vals = IntPredicates.combine(first, types);
         Arrays.sort(vals);
         return new IntPredicate() {
             @Override
@@ -91,11 +91,7 @@ class Debug implements Predicate<Token>, BooleanSupplier {
     }
 
     static Predicate<String> predicate(String first, String... more) {
-        String[] vals = Predicates.combine(first, more);
-        Arrays.sort(vals);
-        return val -> {
-            return Arrays.binarySearch(vals, val) >= 0;
-        };
+        return StringPredicates.predicate(first, more);
     }
 
     public static class Builder {

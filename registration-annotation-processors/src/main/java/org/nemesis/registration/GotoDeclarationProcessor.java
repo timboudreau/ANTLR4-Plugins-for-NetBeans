@@ -22,12 +22,12 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
-import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
-import static org.nemesis.registration.utils.AnnotationUtils.capitalize;
-import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
-import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
+import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
+import static com.mastfrog.annotation.AnnotationUtils.capitalize;
+import static com.mastfrog.annotation.AnnotationUtils.simpleName;
+import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -37,7 +37,7 @@ import org.openide.util.lookup.ServiceProvider;
  */
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes({GOTO_ANNOTATION, REGISTRATION_ANNO})
-public class GotoDeclarationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
+public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
     static final String GOTO_ANNOTATION = "org.nemesis.antlr.spi.language.Goto";
     private Predicate<? super Element> fieldTest;

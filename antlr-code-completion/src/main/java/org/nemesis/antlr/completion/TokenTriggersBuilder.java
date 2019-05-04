@@ -1,5 +1,6 @@
 package org.nemesis.antlr.completion;
 
+import static com.mastfrog.predicates.integer.IntPredicates.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,7 +26,7 @@ public class TokenTriggersBuilder<I> {
 
     private static final int[] EMPTY = new int[0];
 
-    IntPredicate ignoring = Any.NONE;
+    IntPredicate ignoring = alwaysFalse();
     List<TokenTriggerPatternBuilder<I>> patterns = new ArrayList<>();
     final CompletionBuilder<I> bldr;
 
@@ -69,27 +70,6 @@ public class TokenTriggersBuilder<I> {
         return new TokenTriggerPatternBuilder<>(patternName, this, preceding);
     }
 
-    static final class IntArrayPredicate implements IntPredicate {
-
-        private final int[] array;
-
-        public IntArrayPredicate(int[] array) {
-            this.array = Arrays.copyOf(array, array.length);
-            Arrays.sort(array);
-        }
-
-        @Override
-        public boolean test(int value) {
-            return Arrays.binarySearch(array, value) >= 0;
-        }
-
-        @Override
-        public String toString() {
-            return "Matching " + Arrays.toString(array);
-        }
-
-    }
-
     /**
      * A builder for token triggers which contains at least one token pattern
      * and therefore can be finished.
@@ -113,7 +93,7 @@ public class TokenTriggersBuilder<I> {
          * @return The completion builder that created this builder
          */
         public CompletionBuilder<I> ignoring(int... tokenTypes) {
-            return ignoring(new IntArrayPredicate(tokenTypes));
+            return ignoring(anyOf(tokenTypes));
         }
 
         /**
@@ -166,7 +146,7 @@ public class TokenTriggersBuilder<I> {
                 deletionPolicies.add(p.deletionPolicies);
                 actions[i] = p.action;
             }
-            if (ignoring != Any.NONE) {
+            if (ignoring != alwaysFalse()) {
                 for (int i = 0; i < names.length; i++) {
                     for (int j = 0; j < befores[i].length; j++) {
                         if (ignoring.test(befores[i][j])) {
@@ -206,29 +186,6 @@ public class TokenTriggersBuilder<I> {
         }
     }
 
-
-    static final class Any implements IntPredicate {
-
-        static final Any ANY = new Any(true);
-        static final Any NONE = new Any(false);
-
-        private final boolean val;
-
-        public Any(boolean val) {
-            this.val = val;
-        }
-
-        @Override
-        public boolean test(int value) {
-            return val;
-        }
-
-        @Override
-        public String toString() {
-            return val ? "any" : "none";
-        }
-    }
-
     /**
      * The second step of defining a token pattern, which allows you to specify
      * tokens that should be matched which may come after the token the caret is
@@ -241,7 +198,7 @@ public class TokenTriggersBuilder<I> {
         private int[] preceding = EMPTY;
         private int[] subsequent = EMPTY;
         private final String name;
-        private IntPredicate caretTokenMatch = Any.ANY;
+        private IntPredicate caretTokenMatch = alwaysTrue();
         private InsertAction action = InsertAction.INSERT_BEFORE_CURRENT_TOKEN;
         private Set<InsertPolicy> insertPolicies = EnumSet.noneOf(InsertPolicy.class);
         private Set<DeletionPolicy> deletionPolicies = EnumSet.noneOf(DeletionPolicy.class);
@@ -257,7 +214,7 @@ public class TokenTriggersBuilder<I> {
 
         public int specificityScore() {
             int result = preceding.length + subsequent.length;
-            if (caretTokenMatch != Any.ANY) {
+            if (caretTokenMatch != alwaysTrue()) {
                 result++;
             }
             return result;
@@ -279,11 +236,11 @@ public class TokenTriggersBuilder<I> {
         }
 
         public TokenTriggerPatternBuilder<I> whereCaretTokenMatches(int... items) {
-            return whereCaretTokenMatches(new IntArrayPredicate(items));
+            return whereCaretTokenMatches(anyOf(items));
         }
 
         public TokenTriggerPatternBuilder<I> whereCaretTokenMatches(IntPredicate pred) {
-            if (caretTokenMatch == Any.ANY) {
+            if (caretTokenMatch == alwaysTrue()) {
                 caretTokenMatch = pred;
             } else {
                 caretTokenMatch = caretTokenMatch.or(pred);
@@ -292,7 +249,7 @@ public class TokenTriggersBuilder<I> {
         }
 
         boolean isEmpty() {
-            return preceding.length == 0 && subsequent.length == 0 && caretTokenMatch == Any.ANY;
+            return preceding.length == 0 && subsequent.length == 0 && caretTokenMatch == alwaysTrue();
         }
 
         void checkTokenIds(int[] ids, boolean befores) {

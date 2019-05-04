@@ -4,7 +4,6 @@ import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.NamedSemanticRegions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -16,7 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import org.antlr.v4.runtime.BufferedTokenStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -57,6 +55,7 @@ import org.nemesis.source.impl.GSAccessor;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.summary.GrammarType;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.StringGraph;
+import org.antlr.v4.runtime.Lexer;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.source.api.GrammarSource;
 
@@ -315,15 +314,13 @@ public class SemanticParserTest {
         CommonTokenStream cts = new CommonTokenStream(lex, 0);
         ANTLRv4Parser p = new ANTLRv4Parser(cts);
         GrammarSource<String> nmgSource = GSAccessor.getDefault().newGrammarSource(nmg);
-        Extraction extraction = ext.extract(p.grammarFile(), nmgSource, () -> {
-            try {
-                ANTLRv4Lexer lexer = new ANTLRv4Lexer(nmgSource.stream());
-                return new BufferedTokenStream(lexer);
-            } catch (IOException ex) {
-                throw new AssertionError(ex);
-            }
-        });
-//        });
+        List<Token> tokens = new ArrayList<>();
+        Token t;
+        while ((t = lex.nextToken()).getType() != Lexer.EOF) {
+            tokens.add(t);
+        }
+        lex.reset();
+        Extraction extraction = ext.extract(p.grammarFile(), nmgSource, tokens);
 
         System.out.println("GRAMMAR TYPE: " + extraction.encounters(GRAMMAR_TYPE));
 

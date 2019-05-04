@@ -1,5 +1,6 @@
-package org.nemesis.registration.codegen;
+package com.mastfrog.java.vogon;
 
+import com.mastfrog.java.vogon.ClassBuilder;
 import javax.lang.model.element.Modifier;
 import org.junit.jupiter.api.Test;
 

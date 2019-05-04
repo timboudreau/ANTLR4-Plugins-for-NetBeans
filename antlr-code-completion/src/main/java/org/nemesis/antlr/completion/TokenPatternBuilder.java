@@ -1,5 +1,6 @@
 package org.nemesis.antlr.completion;
 
+import com.mastfrog.predicates.integer.IntPredicates;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -8,7 +9,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.Vocabulary;
-import org.nemesis.antlr.completion.TokenTriggersBuilder.Any;
 import com.mastfrog.util.collections.IntList;
 
 /**
@@ -107,7 +107,7 @@ public class TokenPatternBuilder {
         List<OneTokenBuilder> all = tail.list();
         ArraysBuilder befores = new ArraysBuilder();
         ArraysBuilder afters = new ArraysBuilder();
-        IntPredicate target = Any.ANY;
+        IntPredicate target = IntPredicates.alwaysTrue();
         for (OneTokenBuilder b : all) {
             int index = b.index();
             if (index < 0) {

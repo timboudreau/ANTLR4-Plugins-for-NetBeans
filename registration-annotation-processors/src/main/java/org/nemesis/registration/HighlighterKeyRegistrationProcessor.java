@@ -27,11 +27,11 @@ import javax.lang.model.element.VariableElement;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
-import org.nemesis.registration.api.LayerGeneratingDelegate;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.codegen.ClassBuilder.BlockBuilder;
-import org.nemesis.registration.codegen.LinesBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
+import com.mastfrog.java.vogon.LinesBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
 import org.openide.filesystems.annotations.LayerBuilder;
 
 /**

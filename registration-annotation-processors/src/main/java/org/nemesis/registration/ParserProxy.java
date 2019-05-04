@@ -11,7 +11,7 @@ import javax.lang.model.element.Name;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import org.nemesis.registration.utils.AnnotationUtils;
+import com.mastfrog.annotation.AnnotationUtils;
 
 /**
  *

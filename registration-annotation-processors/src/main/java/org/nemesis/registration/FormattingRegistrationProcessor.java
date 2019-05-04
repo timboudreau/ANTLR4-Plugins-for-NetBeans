@@ -24,11 +24,11 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.FormattingRegistrationProcessor.FORMATTER_REGISTRATION_ANNO_TYPE;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
-import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
-import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
+import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -38,7 +38,7 @@ import org.openide.util.lookup.ServiceProvider;
 @SupportedOptions(AU_LOG)
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes({FORMATTER_REGISTRATION_ANNO_TYPE, REGISTRATION_ANNO})
-public class FormattingRegistrationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
+public class FormattingRegistrationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
     public static final String FORMATTER_REGISTRATION_PACKAGE
             = "org.nemesis.antlrformatting.spi";

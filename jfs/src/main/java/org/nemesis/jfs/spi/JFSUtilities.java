@@ -1,19 +1,14 @@
 package org.nemesis.jfs.spi;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.util.AbstractSet;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -107,7 +102,7 @@ public abstract class JFSUtilities {
      * @return A set
      */
     protected <T> Set<T> createWeakSet() {
-        return new SimpleWeakSet<>();
+        return CollectionUtils.weakSet();
     }
 
     private static final class WL implements DocumentListener {
@@ -156,69 +151,6 @@ public abstract class JFSUtilities {
             withDelegate(delegate -> {
                 delegate.changedUpdate(e);
             });
-        }
-    }
-
-    private static final class SimpleWeakSet<T> extends AbstractSet<T> {
-
-        private final Map<T, Boolean> backingStore = new WeakHashMap<>();
-
-        @Override
-        public Iterator<T> iterator() {
-            return backingStore.keySet().iterator();
-        }
-
-        @Override
-        public void clear() {
-            backingStore.clear();
-        }
-
-        @Override
-        public int size() {
-            return backingStore.size();
-        }
-
-        @Override
-        public boolean add(T e) {
-            if (e == null) {
-                throw new IllegalArgumentException("Null argument to add");
-            }
-            Boolean result = backingStore.put(e, Boolean.TRUE);
-            return result == null ? false : result;
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends T> c) {
-            int oldSize = size();
-            for (T t : c) {
-                backingStore.put(t, Boolean.TRUE);
-            }
-            return size() != oldSize;
-        }
-
-        @Override
-        public boolean removeAll(Collection<?> c) {
-            boolean changed = false;
-            for (Object o : c) {
-                changed |= backingStore.remove(o);
-            }
-            return changed;
-        }
-
-        @Override
-        public boolean retainAll(Collection<?> c) {
-            Set<T> toRemove = new HashSet<>();
-            for (Map.Entry<T, ?> e : backingStore.entrySet()) {
-                if (!c.contains(e.getKey())) {
-                    toRemove.add(e.getKey());
-                }
-            }
-            return removeAll(toRemove);
-        }
-
-        @Override
-        public boolean remove(Object o) {
-            return backingStore.remove(o);
         }
     }
 

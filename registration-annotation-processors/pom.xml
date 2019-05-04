@@ -55,11 +55,29 @@
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>predicates</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>annotation-tools</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>java-vogon</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>util-collections</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-api-annotations-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-filesystems</artifactId>
+            <type>jar</type>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -84,12 +102,6 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <version>5.3.1</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.netbeans.api</groupId>
-            <artifactId>org-openide-filesystems</artifactId>
-            <type>jar</type>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

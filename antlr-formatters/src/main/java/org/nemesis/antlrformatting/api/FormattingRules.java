@@ -15,7 +15,8 @@ import static org.nemesis.antlrformatting.api.Criterion.matching;
 import static org.nemesis.antlrformatting.api.Criterion.noneOf;
 import static org.nemesis.antlrformatting.api.Criterion.notMatching;
 import static org.nemesis.antlrformatting.api.FormattingRule.notMode;
-import static org.nemesis.antlrformatting.api.util.Predicates.combine;
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
 
 /**
  * A builder for the set of formatting rules which can be appled to reformat a
@@ -134,10 +135,10 @@ public final class FormattingRules {
 
     /**
      * Apply a bunch of rules to this FormattingRules inside the passed Consumer
-     * and all of them will have the criterion that subsequent token type must
-     * match the passed predicate.
+ and all of them will have the criterion that subsequent token type must
+ match the passed anyOf.
      *
-     * @param type A token type predicate
+     * @param type A token type anyOf
      * @param rules A consumer which can add some rules
      * @see Criterion
      * @return this
@@ -150,10 +151,10 @@ public final class FormattingRules {
 
     /**
      * Apply a bunch of rules to this FormattingRules inside the passed Consumer
-     * and all of them will have the criterion that preceding token type must
-     * match the passed predicate.
+ and all of them will have the criterion that preceding token type must
+ match the passed anyOf.
      *
-     * @param type A token type predicate
+     * @param type A token type anyOf
      * @param rules A consumer which can add some rules
      * @see Criterion
      * @return this
@@ -336,7 +337,7 @@ public final class FormattingRules {
             return onTokenType(tokenType);
         }
         FormattingRule result = new FormattingRule(anyOf(vocabulary,
-                combine(tokenType, moreTokenTypes)), this);
+                IntPredicates.combine(tokenType, moreTokenTypes)), this);
         addRule(result);
         sorted = false;
         return result;
@@ -387,7 +388,7 @@ public final class FormattingRules {
             return onTokenTypeNot(tokenType);
         }
         FormattingRule result = new FormattingRule(noneOf(vocabulary,
-                combine(tokenType, moreTokenTypes)), this);
+                IntPredicates.combine(tokenType, moreTokenTypes)), this);
         addRule(result);
         sorted = false;
         return result;
@@ -492,7 +493,7 @@ public final class FormattingRules {
      */
     public FormattingRules whenInMode(Consumer<FormattingRules> cons, String mode, String... more) {
         assert mode != null : "mode null";
-        IntPredicate modePredicate = FormattingRule.mode(combine(mode, more));
+        IntPredicate modePredicate = FormattingRule.mode(StringPredicates.combine(mode, more));
         applyRuleProcessor(rule -> {
             rule.whereMode(modePredicate);
         }, cons);
@@ -510,7 +511,7 @@ public final class FormattingRules {
      */
     public FormattingRules whenNotInMode(Consumer<FormattingRules> cons, String mode, String... more) {
         assert mode != null : "mode null";
-        IntPredicate modePredicate = notMode(combine(mode, more));
+        IntPredicate modePredicate = notMode(StringPredicates.combine(mode, more));
         applyRuleProcessor(rule -> {
             rule.whereMode(modePredicate);
         }, cons);

@@ -20,6 +20,16 @@ public final class TokenUtils {
         return result;
     }
 
+    /**
+     * Binary search over the token stream for the token containing or
+     * abutting the caret.
+     *
+     * @param caret The caret position
+     * @param stream The tokens
+     * @param start Search start
+     * @param stop Search end
+     * @return The token id
+     */
     public static int findCaretToken(int caret, List<Token> stream, int start, int stop) {
         // binary search
         Token first = stream.get(start);

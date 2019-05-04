@@ -1,5 +1,6 @@
 package org.nemesis.registration;
 
+import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,20 +43,19 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
-import org.nemesis.misc.utils.StringUtils;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.GotoDeclarationProcessor.DECLARATION_TOKEN_PROCESSOR_TYPE;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.ANTLR_ACTION_ANNO_TYPE;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
-import org.nemesis.registration.api.LayerGeneratingDelegate;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.codegen.LinesBuilder;
-import org.nemesis.registration.utils.AnnotationMirrorMemberTestBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
-import static org.nemesis.registration.utils.AnnotationUtils.capitalize;
-import static org.nemesis.registration.utils.AnnotationUtils.simpleName;
-import static org.nemesis.registration.utils.AnnotationUtils.stripMimeType;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.java.vogon.LinesBuilder;
+import com.mastfrog.annotation.validation.AnnotationMirrorMemberTestBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
+import static com.mastfrog.annotation.AnnotationUtils.capitalize;
+import static com.mastfrog.annotation.AnnotationUtils.simpleName;
+import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
@@ -918,7 +918,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             } else {
                 cl.field("WHITESPACE_TOKEN_IDS", fb -> {
                     fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL);
-                    fb.withInitializer("new int[] {" + StringUtils.commas(whitespaceTokens) + "}").ofType("int[]");
+                    fb.withInitializer("new int[] {" + Strings.commas(whitespaceTokens) + "}").ofType("int[]");
                 }).overridePublic("isWhitespaceToken").returning("boolean")
                         .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
                         .addArgument("int", "offset").addArgument("int", "tokenLength")

@@ -37,6 +37,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-code-completion</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-highlighting</artifactId>
             <version>${project.version}</version>
         </dependency>

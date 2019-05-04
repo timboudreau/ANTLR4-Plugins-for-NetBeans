@@ -10,7 +10,8 @@ import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-import static org.nemesis.antlrformatting.api.util.Predicates.combine;
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
 
 /**
  * A formatting rule; consists of several matching criteria and a
@@ -344,7 +345,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereMode(item);
         }
-        return whereMode(Criterion.anyOf(rules.vocabulary(), combine(item, more)));
+        return whereMode(Criterion.anyOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**
@@ -360,7 +361,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereMode(FormattingRule.notMode(rules.modeNames(), item));
         }
-        return whereMode(FormattingRule.notMode(combine(item, more)));
+        return whereMode(FormattingRule.notMode(StringPredicates.combine(item, more)));
     }
 
     /**
@@ -375,7 +376,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereMode(FormattingRule.mode(rules.modeNames(), item));
         }
-        return whereMode(FormattingRule.mode(combine(item, more)));
+        return whereMode(FormattingRule.mode(StringPredicates.combine(item, more)));
     }
 
     /**
@@ -392,7 +393,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereModeNot(item);
         }
-        return whereMode(Criterion.noneOf(rules.vocabulary(), combine(item, more)));
+        return whereMode(Criterion.noneOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**
@@ -518,7 +519,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
 
     /**
      * Make this rule match if the type of the token after the current one
-     * matches the passed predicate.
+ matches the passed anyOf.
      *
      * @param criterion Matching criterion
      * @return this
@@ -544,7 +545,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereNextTokenType(item);
         }
-        return whereNextTokenType(Criterion.anyOf(rules.vocabulary(), combine(item, more)));
+        return whereNextTokenType(Criterion.anyOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**
@@ -559,7 +560,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return whereNextTokenTypeNot(item);
         }
-        return whereNextTokenType(Criterion.noneOf(rules.vocabulary(), combine(item, more)));
+        return whereNextTokenType(Criterion.noneOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**
@@ -574,7 +575,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (more.length == 0) {
             return wherePreviousTokenType(item);
         }
-        return wherePreviousTokenType(Criterion.anyOf(rules.vocabulary(), combine(item, more)));
+        return wherePreviousTokenType(Criterion.anyOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**

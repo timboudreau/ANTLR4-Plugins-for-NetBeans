@@ -213,6 +213,21 @@
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
+                <artifactId>predicates</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>annotation-tools</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>java-vogon</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
                 <artifactId>range</artifactId>
                 <version>${mastfrog.version}</version>
             </dependency>
@@ -305,6 +320,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-code-folding</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-code-completion</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -1,5 +1,6 @@
 package org.nemesis.extraction;
 
+import com.mastfrog.predicates.integer.IntPredicates;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -39,7 +40,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
     }
 
     public TokenRegionExtractorBuilder<EntryPointType, RegionKeyType> whenTokenTypeMatches(int tokenType, int... moreTypes) {
-        return whenTokenTypeMatches(new MultiIntPredicate(tokenType, moreTypes));
+        return whenTokenTypeMatches(IntPredicates.anyOf(tokenType, moreTypes));
     }
 
     public static final class TokenRegionExtractorBuilder<EntryPointType extends ParserRuleContext, RegionKeyType> {

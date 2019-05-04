@@ -27,9 +27,13 @@
                         <publicPackage>com.mastfrog.function</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing.io</publicPackage>
-                        <publicPackage>com.mastfrog.range</publicPackage>
                         <publicPackage>com.mastfrog.graph</publicPackage>
                         <publicPackage>com.mastfrog.graph.algorithm</publicPackage>
+                        <publicPackage>com.mastfrog.predicates</publicPackage>
+                        <publicPackage>com.mastfrog.predicates.integer</publicPackage>
+                        <publicPackage>com.mastfrog.predicates.sequence</publicPackage>
+                        <publicPackage>com.mastfrog.predicates.string</publicPackage>
+                        <publicPackage>com.mastfrog.range</publicPackage>
                         <publicPackage>com.mastfrog.util.cache</publicPackage>
                         <publicPackage>com.mastfrog.util.collections</publicPackage>
                         <publicPackage>com.mastfrog.util.search</publicPackage>
@@ -63,10 +67,18 @@
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>graph</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>range</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>predicates</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>function</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
@@ -75,6 +87,10 @@
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>util-preconditions</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-strings</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>

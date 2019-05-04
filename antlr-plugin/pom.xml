@@ -86,6 +86,10 @@
         </dependency>        
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-code-completion</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>

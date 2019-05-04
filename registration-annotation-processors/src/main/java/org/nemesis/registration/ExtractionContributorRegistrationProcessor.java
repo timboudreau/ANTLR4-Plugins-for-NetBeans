@@ -1,6 +1,6 @@
 package org.nemesis.registration;
 
-import org.nemesis.registration.api.AbstractRegistrationProcessor;
+import com.mastfrog.annotation.processor.AbstractDelegatingProcessor;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -21,9 +21,9 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
-import org.nemesis.registration.codegen.ClassBuilder;
-import org.nemesis.registration.utils.AnnotationUtils;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
+import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.annotation.AnnotationUtils;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -33,7 +33,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes("org.nemesis.extraction.ExtractionRegistration")
 @SupportedOptions(AU_LOG)
-public class ExtractionContributorRegistrationProcessor extends AbstractRegistrationProcessor {
+public class ExtractionContributorRegistrationProcessor extends AbstractDelegatingProcessor {
 
     private static final String PKG = "org.nemesis.extraction.";
     static final String ANNO = PKG + "ExtractionRegistration";

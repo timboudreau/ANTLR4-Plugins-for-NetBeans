@@ -1,6 +1,6 @@
 package org.nemesis.registration;
 
-import org.nemesis.registration.utils.AnnotationUtils;
+import com.mastfrog.annotation.AnnotationUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -31,9 +31,9 @@ import static javax.lang.model.type.TypeKind.DECLARED;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.ANNO;
-import org.nemesis.registration.api.AbstractLayerGeneratingRegistrationProcessor;
-import org.nemesis.registration.codegen.ClassBuilder;
-import static org.nemesis.registration.utils.AnnotationUtils.AU_LOG;
+import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.java.vogon.ClassBuilder;
+import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -43,7 +43,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes(ANNO)
 @SupportedOptions(AU_LOG)
-public class FoldRegistrationAnnotationProcessor extends AbstractLayerGeneratingRegistrationProcessor {
+public class FoldRegistrationAnnotationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
     public static final String PKG = "org.nemesis.antlr.fold";
     public static final String ANNO = PKG + ".AntlrFoldsRegistration";
