@@ -230,7 +230,7 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                 ).withModifier(PUBLIC, FINAL)
                 .implementing(simpleName(REFORMAT_TASK_TYPE) + ".Factory")
                 .annotatedWith(simpleName(MIME_REG_TYPE))
-                .addStringArgument("mimeType", mimeType)
+                .addArgument("mimeType", mimeType)
                 .addClassArgument("service", simpleName(REFORMAT_TASK_TYPE) + ".Factory")
                 .closeAnnotation()
                 .overridePublic("createTask", mb -> {
@@ -270,7 +270,7 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                             white.forEach((w) -> {
                                                 String constantName = lexer.tokenName(w);
                                                 names.add(constantName);
-                                                ints.value(lexer.lexerClassSimple() + "." + constantName);
+                                                ints.expression(lexer.lexerClassSimple() + "." + constantName);
                                             });
                                             if (new HashSet<>(names).size() != names.size()) {
                                                 utils().fail("Whitespace token list contains duplicates for either "
@@ -294,7 +294,7 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                         .withNewArrayArgument("String", rns -> {
                                             if (parser != null) {
                                                 parser.ruleNamesSortedById().forEach((rule) -> {
-                                                    rns.stringLiteral(rule);
+                                                    rns.literal(rule);
                                                 });
                                             }
                                         })

@@ -216,13 +216,18 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
                                                     .body(lbb -> {
-                                                        lbb.ifCondition().variable("thrown").notEquals().literal("null")
-                                                                .endCondition(cbb -> {
+                                                        lbb.ifNotNull("thrown", cbb -> {
                                                                     cbb.log("Thrown in extracting", Level.FINER)
                                                                             .statement("Exceptions.printStackTrace(thrown)")
-                                                                            .statement("return")
-                                                                            .endBlock();
-                                                                });
+                                                                            .statement("return");
+                                                        });
+//                                                        lbb.ifCondition().variable("thrown").notEquals().literal("null")
+//                                                                .endCondition(cbb -> {
+//                                                                    cbb.log("Thrown in extracting", Level.FINER)
+//                                                                            .statement("Exceptions.printStackTrace(thrown)")
+//                                                                            .statement("return")
+//                                                                            .endBlock();
+//                                                                });
                                                         lbb.simpleLoop(simpleName(REF_SET_KEY_TYPE), "key")
                                                                 .over("KEYS", loopBody -> {
 
@@ -241,16 +246,24 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                                                             .argument("set")
                                                                             .logging("Start {0} for {1} gets {2}");
 
-                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
-                                                                            .endCondition(doNav -> {
-                                                                                doNav.log(Level.FINER)
+                                                                    loopBody.ifNotNull("set")
+                                                                            .log(Level.FINER)
                                                                                         .argument("set")
                                                                                         .argument("set.referencing()")
                                                                                         .argument("set.referencing().start()")
-                                                                                        .logging("Found ref {0} navigating to {1} at {2}");
-                                                                                doNav.statement("result[0] = set.referencing().start()");
-                                                                                doNav.endBlock();
-                                                                            });
+                                                                                        .logging("Found ref {0} navigating to {1} at {2}")
+                                                                                .statement("result[0] = set.referencing().start()");
+
+//                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
+//                                                                            .endCondition(doNav -> {
+//                                                                                doNav.log(Level.FINER)
+//                                                                                        .argument("set")
+//                                                                                        .argument("set.referencing()")
+//                                                                                        .argument("set.referencing().start()")
+//                                                                                        .logging("Found ref {0} navigating to {1} at {2}");
+//                                                                                doNav.statement("result[0] = set.referencing().start()");
+//                                                                                doNav.endBlock();
+//                                                                            });
 //                                                                    loopBody.endBlock();
                                                                 }).endBlock();
 
@@ -337,8 +350,11 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                     .addArgument("ActionEvent", "evt").addArgument("JTextComponent", "component")
                     .body(bb -> {
                         bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
-                        bb.ifCondition().variable("caret").equals().literal("null").endCondition()
-                                .statement("return").endBlock().endIf();
+//                        bb.ifCondition().variable("caret").equals().literal("null").endCondition()
+//                                .statement("return").endBlock().endIf();
+
+                        bb.ifNull("caret").statement("return").endIf();
+
                         bb.declare("position").initializedByInvoking("getDot").on("caret").as("int");
                         bb.log(Level.FINER).argument("position").stringLiteral(gotoDeclarationActionClassName)
                                 .logging("Invoke {0} at {1}");
@@ -346,13 +362,20 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                 .withLambdaArgument(lb -> {
                                     lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
                                             .body(lbb -> {
-                                                lbb.ifCondition().variable("thrown").notEquals().literal("null")
-                                                        .endCondition(cbb -> {
-                                                            cbb.log("Thrown in extracting", Level.FINER)
+//                                                lbb.ifCondition().variable("thrown").notEquals().literal("null")
+//                                                        .endCondition(cbb -> {
+//                                                            cbb.log("Thrown in extracting", Level.FINER)
+//                                                                    .statement("Exceptions.printStackTrace(thrown)")
+//                                                                    .statement("return")
+//                                                                    .endBlock();
+//                                                        });
+
+                                                lbb.ifNotNull("thrown")
+                                                        .log("Thrown in extracting", Level.FINER)
                                                                     .statement("Exceptions.printStackTrace(thrown)")
                                                                     .statement("return")
-                                                                    .endBlock();
-                                                        });
+                                                                    .endIf();
+
                                                 lbb.invoke("invokeLater")
                                                         .withLambdaArgument(invokeLater -> {
                                                             invokeLater.body()
@@ -391,8 +414,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                             .withArgument("position")
                                             .on("regions").as("NamedSemanticRegionReference<?>");
 
-                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
-                                            .endCondition(doNav -> {
+                                    loopBody.ifNotNull("set", doNav -> {
                                                 doNav.log(Level.FINER)
                                                         .argument("set")
                                                         .argument("set.referencing()")
@@ -400,8 +422,20 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                                         .logging("Found ref {0} navigating to {1} at {2}");
                                                 doNav.invoke("navigateTo").withArgument("component")
                                                         .withArgument("set.referencing().start()").inScope();
-                                                doNav.statement("return").endBlock();
-                                            });
+                                                doNav.statement("return");
+                                    });
+
+//                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
+//                                            .endCondition(doNav -> {
+//                                                doNav.log(Level.FINER)
+//                                                        .argument("set")
+//                                                        .argument("set.referencing()")
+//                                                        .argument("set.referencing().start()")
+//                                                        .logging("Found ref {0} navigating to {1} at {2}");
+//                                                doNav.overInvocationOf("navigateTo").withArgument("component")
+//                                                        .withArgument("set.referencing().start()").inScope();
+//                                                doNav.statement("return").endBlock();
+//                                            });
                                 }).endBlock();
                     });
         }).method("navigateTo", nav -> {
@@ -410,15 +444,24 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                     .withModifier(PRIVATE)
                     .body(bb -> {
                         bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
-                        bb.ifCondition().variable("caret").notEquals().literal("null")
-                                .endCondition(then -> {
+                        bb.ifNotNull("caret", then -> {
                                     then.log(Level.FINER)
                                             .argument("position")
                                             .argument("component")
                                             .logging("Setting caret to {0} in {1}");
                                     then.invoke("resetCaretMagicPosition").withArgument("component").inScope();
-                                    then.invoke("setDot").withArgument("position").on("caret").endBlock();
-                                });
+                                    then.invoke("setDot").withArgument("position").on("caret");
+                        });
+
+//                        bb.ifCondition().variable("caret").notEquals().literal("null")
+//                                .endCondition(then -> {
+//                                    then.log(Level.FINER)
+//                                            .argument("position")
+//                                            .argument("component")
+//                                            .logging("Setting caret to {0} in {1}");
+//                                    then.overInvocationOf("resetCaretMagicPosition").withArgument("component").inScope();
+//                                    then.overInvocationOf("setDot").withArgument("position").on("caret").endBlock();
+//                                });
                     });
         });
 

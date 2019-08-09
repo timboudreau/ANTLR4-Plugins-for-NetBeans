@@ -87,8 +87,8 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
                         EC_TYPE, "org.nemesis.extraction.ExtractorBuilder", entryPointType.toString())
                 .docComment("Generated from ", ANNO, " on method ", method.getSimpleName(), " of ", ownerTypeSimple,
                         " with entry point type ", entrySimple)
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
-                .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME).addStringArgument("path", registrationPath(mimeType, entryPointType.toString())).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME).addArgument("path", registrationPath(mimeType, entryPointType.toString())).closeAnnotation()
                 .method("accept", mb -> {
                     mb.override().withModifier(PUBLIC).addArgument("ExtractorBuilder<? super " + entrySimple + ">", "builder")
                             .body(bb -> {

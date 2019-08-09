@@ -1,3 +1,7 @@
+!!! Font color entries not written to layer unless the annotation processor
+is called multiple times (e.g. there is another highlighting entry on a
+highlighter registration annotation on a key).
+
 
 fix coalescer to support longs
 

@@ -1,22 +1,15 @@
 package org.nemesis.registration;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import javax.annotation.processing.Filer;
@@ -39,11 +32,18 @@ import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import com.mastfrog.annotation.processor.Key;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.validation.MethodTestBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
+import java.io.FileNotFoundException;
+import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.NoSuchFileException;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.TreeSet;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.xml.XMLUtil;
@@ -220,8 +220,8 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 //                .publicMethod("actionStub", mb -> {
 //                    mb.withModifier(STATIC)
 //                            .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
-//                            .addStringArgument("mimeType", mimeType)
-//                            .addArgument("order", actionPosition)
+//                            .addArgument("mimeType", mimeType)
+//                            .addExpressionArgument("order", actionPosition)
 //                            .closeAnnotation()
 //                            .returning("Action")
 //                            .body()
@@ -279,7 +279,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 .importing(toSubclass, ACTION_EVENT_TYPE, J_TEXT_COMPONENT_TYPE, ANTLR_ACTION_ANNO_TYPE)
                 .importing(argumentTypes)
                 .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
-                .addStringArgument("mimeType", mimeType)
+                .addArgument("mimeType", mimeType)
                 .addArgument("order", actionPosition)
                 .closeAnnotation()
                 .extending(simpleName(toSubclass))
@@ -294,7 +294,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                     typeToVar.put(ACTION_EVENT_TYPE, "evt");
                     typeToVar.put(J_TEXT_COMPONENT_TYPE, "target");
                     typeToVar.put(EXTRACTION_TYPE, "extraction");
-                    Consumer<BlockBuilder<?>> invokeTheMethod = bb -> {
+                    Consumer<BlockBuilderBase<?,?>> invokeTheMethod = bb -> {
                         if (argumentTypes.contains(DOCUMENT_TYPE)) {
                             bb.declare("doc").initializedByInvoking("getDocument").on("target").as(simpleName(DOCUMENT_TYPE));
                             typeToVar.put(DOCUMENT_TYPE, "doc");
@@ -306,7 +306,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                             invoker.withArgument(var);
                         }
                         invoker.on(owningClass.getQualifiedName().toString());
-                        bb.endBlock();
                     };
                     if (!BASE_ACTION_TYPE.equals(toSubclass) && async) {
                         mb.body(bb -> {
@@ -321,9 +320,9 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument(simpleName(EXTRACTION_TYPE), "extraction")
                                                     .withArgument("Exception", "thrown")
-                                                    .body().ifCondition().variable("thrown").notEquals().literal("null")
+                                                    .body().iff().variable("thrown").notEquals().expression("null")
                                                     .endCondition().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
-                                                    .endBlock().elseDo(invokeTheMethod).endBlock();
+                                                    .orElse(invokeTheMethod).endBlock();
                                         }).on(simpleName(ANTLR_UTILS_TYPE));
 
                                 bb.endBlock();

@@ -22,7 +22,6 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
     private boolean nextIsEof;
     private int pos = 0;
     private int cursor = -1;
-    private final int count;
 
     AdhocLexer(LexerRestartInfo<AdhocTokenId> info, AntlrProxies.ParseTreeProxy proxy, List<AdhocTokenId> ids, AdhocLanguageHierarchy creator) {
         this.info = info;
@@ -64,7 +63,6 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
             this.proxy = proxy;
         }
         this.ids = ids;
-        this.count = proxy.tokenCount();
     }
 
     private AdhocTokenId tokenIdForProxyToken(ProxyToken token) {
@@ -102,8 +100,12 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
 
     @Override
     public Token<AdhocTokenId> nextToken() {
-        if (cursor == count) {
+        if (cursor >= proxy.tokenCount() - 1) {
             // We reached the normal end of the parse
+            System.out.println("a. normal end with cursor at count");
+            if (info.input().readLength() > 0) {
+                return dummyToken(info.input().readLength());
+            }
             return null;
         }
         if (nextIsEof) {
@@ -112,6 +114,7 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
             // OR the lexer did not parse all characters in the file, and we
             // hit EOF but returned a dummy token for the tail of the lexer
             // input
+            System.out.println("a1. return null for next is eof ");
             nextIsEof = false;
             return null;
         }
@@ -125,14 +128,18 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
             int ch;
             // XXX we do not actually need to capture these characters in a stringbuilder - just
             // useful for logging
+            int lengthRead = info.input().readLength();
+//            info.input().
             while ((ch = info.input().read()) != -1) {
                 sb.append((char) ch);
             }
             if (sb.length() > 0) {
+                System.out.println("b. dispatch dummy token '" + sb + "'");
                 // Screwball EOF token handling I
                 nextIsEof = true;
                 return dummyToken(sb.length());
             }
+            System.out.println("c. normal eof");
             // Normal EOF token and no extraneous input - we're done
             return null;
         }
@@ -142,6 +149,7 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
         LexerInput in = info.input();
         // XXX don't need stringbuilder, just a count, once this is fully debugged
         StringBuilder sb = new StringBuilder();
+        /*
         int c, count = 0;
         while ((c = in.read()) != -1) {
             sb.append((char) c);
@@ -150,9 +158,19 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
                 break;
             }
         }
+        */
+        while (in.readLength() < tok.length()) {
+            int ch = in.read();
+            if (ch == -1) {
+                break;
+            }
+            sb.append((char) ch);
+        }
+
         // If the token contains different text than the LexerInput provided,
         // something is wrong - perhaps the grammar skipped some tokens?
         if (!tok.getText().equals(sb.toString())) {
+            System.out.println("token text mismatch: '" + tok.getText() + "' vs '" + sb + "'");
         }
         // If we didn't catch it earlier, we occasionally get Antlr tokens
         // which stop before they start as final tokens - generally this is
@@ -168,8 +186,11 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
                 // whitespace token for the last text read from the input, and ensure that
                 // the *next* call to nextToken() returns null
                 nextIsEof = true;
+                System.out.println("c. ret dummy token");
                 return dummyToken(2);
             } else {
+                System.out.println("d. " + tok.getType() + " " + tok.getStartIndex()
+                        + " " + tok.getStopIndex());
                 return null;
             }
         }
@@ -180,6 +201,14 @@ final class AdhocLexer implements Lexer<AdhocTokenId> {
         try {
             // XXX - shouldn't this be (tok.getStopIndex() - tok.getStartIndex()) + 1?  Why does
             // this work?
+            System.out.println("create token for '" + tok.getText() + "'");
+            if (tok.getStopIndex() == -1) {
+                while (info.input().read() != -1) {
+                    // do nothing
+                }
+                // empty file
+                return dummyToken(Math.max(1, info.input().readLength()));
+            }
             return info.tokenFactory().createToken(tid, tok.getStopIndex() - tok.getStartIndex());
         } catch (IndexOutOfBoundsException ex) {
             throw new IllegalStateException("IOOBE with token '" + tok.getText()

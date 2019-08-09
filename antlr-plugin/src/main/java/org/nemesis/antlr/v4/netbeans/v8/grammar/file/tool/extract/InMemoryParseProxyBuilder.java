@@ -4,18 +4,22 @@ import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.CompileJavaSources;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrLibrary;
 import org.nemesis.jfs.JFSClassLoader;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.AntlrSourceGenerationResult;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.InMemoryAntlrSourceGenerationBuilder;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.AntlrProxies.ParseTreeProxy;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool.extract.ExtractionCodeGenerator.PARSER_EXTRACTOR;
 import org.nemesis.antlr.v4.netbeans.v8.util.ReplanningStatusConsumer;
+import org.nemesis.jfs.isolation.IsolationClassLoader;
 
 /**
  *
@@ -124,7 +128,8 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
             long then = System.currentTimeMillis();
             long elapsed = -1;
             ClassLoader old = Thread.currentThread().getContextClassLoader();
-            try (JFSClassLoader cl = bldr.jfs().getClassLoader(StandardLocation.CLASS_OUTPUT, Thread.currentThread().getContextClassLoader())) {
+            IsolationClassLoader<?> isolated = defaultLoaderSupplier(AntlrLibrary.getDefault().getClasspath()).get();
+            try (JFSClassLoader cl = bldr.jfs().getClassLoader(StandardLocation.CLASS_OUTPUT, isolated)) {
                 Thread.currentThread().setContextClassLoader(cl);
                 Class<?> type = Class.forName(className, true, cl);
                 Method m = type.getMethod("extract", String.class);
@@ -147,6 +152,30 @@ public class InMemoryParseProxyBuilder implements ParseProxyBuilder {
         }
         return new ParserRunResult(Optional.ofNullable(thrown), Optional.ofNullable(prx), success);
     }
+
+    static Supplier<IsolationClassLoader<?>> defaultLoaderSupplier(URL... urls) {
+        return new Supplier<IsolationClassLoader<?>>() {
+            @Override
+            public IsolationClassLoader<?> get() {
+                return IsolationClassLoader.forURLs(Thread.currentThread().getContextClassLoader(),
+                        urls, (String s) -> s.startsWith("org.nemesis.antlr.v4"));
+            }
+
+            public String toString() {
+                StringBuilder sb = new StringBuilder()
+                        .append('{');
+                for (int i = 0; i < urls.length; i++) {
+                    URL u = urls[i];
+                    sb.append(u);
+                    if (i != urls.length - 1) {
+                        sb.append(", ");
+                    }
+                }
+                return sb.append('}').toString();
+            }
+        };
+    }
+
 
     @Override
     public ParseProxyBuilder regenerateAntlrCodeOnNextCall() {

@@ -440,19 +440,19 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                                 "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
                         //                .annotatedWith("MimeRegistrations", mrOuter -> {
                         //                    mrOuter.addAnnotationArgument("value", "MimeRegistration", mrInner -> {
-                        //                        mrInner.addStringArgument("mimeType", mimeType)
-                        //                                .addClassArgument("service", "HighlightsLayerFactory")
-                        //                                .addArgument("position", 1000)
+                        //                        mrInner.addArgument("mimeType", mimeType)
+                        //                                .addArgument("service", "HighlightsLayerFactory")
+                        //                                .addExpressionArgument("position", 1000)
                         //                                .closeAnnotation();
                         //                    }).closeAnnotation();
                         //                })
                         //                .annotatedWith("MimeRegistration", mrOuter -> {
-                        //                    mrOuter.addStringArgument("mimeType", mimeType)
-                        //                            .addClassArgument("service", "HighlightsLayerFactory")
-                        //                            .addArgument("position", 1000)
+                        //                    mrOuter.addArgument("mimeType", mimeType)
+                        //                            .addArgument("service", "HighlightsLayerFactory")
+                        //                            .addExpressionArgument("position", 1000)
                         //                            .closeAnnotation();
                         //                })
-                        .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                        .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                         .withModifier(PUBLIC).withModifier(FINAL)
                         .implementing("HighlightsLayerFactory")
                         .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
@@ -512,19 +512,19 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                             "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
                     //                .annotatedWith("MimeRegistrations", mrOuter -> {
                     //                    mrOuter.addAnnotationArgument("value", "MimeRegistration", mrInner -> {
-                    //                        mrInner.addStringArgument("mimeType", mimeType)
-                    //                                .addClassArgument("service", "HighlightsLayerFactory")
-                    //                                .addArgument("position", 1000)
+                    //                        mrInner.addArgument("mimeType", mimeType)
+                    //                                .addArgument("service", "HighlightsLayerFactory")
+                    //                                .addExpressionArgument("position", 1000)
                     //                                .closeAnnotation();
                     //                    }).closeAnnotation();
                     //                })
                     //                .annotatedWith("MimeRegistration", mrOuter -> {
-                    //                    mrOuter.addStringArgument("mimeType", mimeType)
-                    //                            .addClassArgument("service", "HighlightsLayerFactory")
-                    //                            .addArgument("position", 1000)
+                    //                    mrOuter.addArgument("mimeType", mimeType)
+                    //                            .addArgument("service", "HighlightsLayerFactory")
+                    //                            .addExpressionArgument("position", 1000)
                     //                            .closeAnnotation();
                     //                })
-                    .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                    .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                     .withModifier(PUBLIC).withModifier(FINAL)
                     .implementing("HighlightsLayerFactory")
                     .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
@@ -540,7 +540,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                     bb.endBlock();
                 }).endConstructor();
             })
-                    .override("createLayers").returning("HighlightsLayer[]").addArgument("HighlightsLayerFactory.Context", "ctx")
+                    .override("createLayers").returning("HighlightsLayer[]").addExpressionArgument("HighlightsLayerFactory.Context", "ctx")
                     .body(mb -> {
                         mb.debugLog("Create " + info);
                         mb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));

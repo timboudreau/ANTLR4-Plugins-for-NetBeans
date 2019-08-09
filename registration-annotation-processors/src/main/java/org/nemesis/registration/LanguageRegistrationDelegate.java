@@ -158,9 +158,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .build()
                                 .build();
                     }).testMemberAsAnnotation("genericCodeCompletion", gcc -> {
-                        gcc.testMember("ignoreTokens")
-                                .intValueMustBeGreaterThan(0).build();
-                    });
+                gcc.testMember("ignoreTokens")
+                        .intValueMustBeGreaterThan(0).build();
+            });
             ;
         }).build();
         System.out.println("MIRROR TEST: \n" + mirrorTest);
@@ -285,7 +285,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "org.nemesis.antlrformatting.api.Criteria"
                 ).extending("GrammarCompletionProvider")
                 .annotatedWith("MimeRegistration", ab -> {
-                    ab.addStringArgument("mimeType", mimeType)
+                    ab.addArgument("mimeType", mimeType)
                             .addClassArgument("service", "CompletionProvider");
                 })
                 .withModifier(PUBLIC, FINAL)
@@ -313,7 +313,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .withArgument("lexer").withArgument(streamChannel)
                                         .inScope().as("CommonTokenStream");
 
-                                bb.returningInvocationOf("new TypesParser").withArgument("stream").inScope();
+                                bb.returningInvocationOf("new " + parser.parserClassSimple()).withArgument("stream").inScope();
 
                             });
                 })
@@ -379,11 +379,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "org.openide.loaders.MultiFileLoader", "org.openide.util.Lookup",
                         "org.openide.util.NbBundle.Messages", "javax.annotation.processing.Generated"
                 ).staticImport(dataObjectFqn + ".ACTION_PATH")
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("MultiDataObject")
                 .withModifier(PUBLIC).withModifier(FINAL)
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
-                .withModifier(FINAL).withInitializer(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
+                .withModifier(FINAL).initializedTo(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
 
         List<String> hooksClass = utils().typeList(fileInfo, "hooks", "org.nemesis.antlr.spi.language.DataObjectHooks");
         Set<String> hooksMethods
@@ -399,18 +399,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         addActionAnnotations(cl, fileInfo);
         String msgName = "LBL_" + prefix + "_LOADER";
-        cl.annotatedWith("Messages").addStringArgument("value", msgName + "=" + prefix + " files").closeAnnotation();
+        cl.annotatedWith("Messages").addArgument("value", msgName + "=" + prefix + " files").closeAnnotation();
         cl.annotatedWith("DataObject.Registration", annoBuilder -> {
-            annoBuilder.addStringArgument("mimeType", mimeType)
-                    .addStringArgument("iconBase", iconBase)
-                    .addStringArgument("displayName", "#" + msgName) // xxx localize
+            annoBuilder.addArgument("mimeType", mimeType)
+                    .addArgument("iconBase", iconBase)
+                    .addArgument("displayName", "#" + msgName) // xxx localize
                     .addArgument("position", 1536 + dataObjectClassCount)
                     .closeAnnotation();
         });
         cl.annotatedWith("MIMEResolver.ExtensionRegistration", ab -> {
-            ab.addStringArgument("displayName", "#" + msgName)
-                    .addStringArgument("mimeType", mimeType)
-                    .addStringArgument("extension", extension)
+            ab.addArgument("displayName", "#" + msgName)
+                    .addArgument("mimeType", mimeType)
+                    .addArgument("extension", extension)
                     .addArgument("position", 1536 + dataObjectClassCount)
                     .closeAnnotation();
         });
@@ -430,7 +430,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .inScope().endBlock();
                         if (hooksMethods.contains("notifyCreated")) {
                             cb.annotatedWith("SuppressWarnings")
-                                    .addStringArgument("value", "LeakingThisInConstructor")
+                                    .addArgument("value", "LeakingThisInConstructor")
                                     .closeAnnotation();
                             bb.invoke("notifyCreated").withArgument("this").on("HOOKS");
                         }
@@ -441,11 +441,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (multiview) {
             cl.method("createEditor").addArgument("Lookup", "lkp").withModifier(PUBLIC).withModifier(STATIC)
                     .annotatedWith("MultiViewElement.Registration", ab -> {
-                        ab.addStringArgument("displayName", msgName)
-                                .addStringArgument("iconBase", iconBase)
-                                .addStringArgument("mimeType", mimeType)
-                                .addArgument("persistenceType", "TopComponent.PERSISTENCE_ONLY_OPENED")
-                                .addStringArgument("preferredID", prefix)
+                        ab.addArgument("displayName", msgName)
+                                .addArgument("iconBase", iconBase)
+                                .addArgument("mimeType", mimeType)
+                                .addExpressionArgument("persistenceType", "TopComponent.PERSISTENCE_ONLY_OPENED")
+                                .addArgument("preferredID", prefix)
                                 .addArgument("position", 1000).closeAnnotation();
                     })
                     .returning("MultiViewEditorElement")
@@ -529,14 +529,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         cb.importing("org.openide.util.Lookup", "org.openide.loaders.DataObject",
                 "java.util.function.Supplier", "org.openide.util.lookup.InstanceContent",
                 "org.openide.util.lookup.AbstractLookup", "org.openide.util.lookup.ProxyLookup")
-                .field("lookupContent").withModifier(PRIVATE, FINAL).withInitializer("new InstanceContent()").ofType("InstanceContent")
-                .field("contributedLookup").withModifier(PRIVATE, FINAL).withInitializer("new AbstractLookup(lookupContent)").ofType("Lookup")
+                .field("lookupContent").withModifier(PRIVATE, FINAL).initializedTo("new InstanceContent()").ofType("InstanceContent")
+                .field("contributedLookup").withModifier(PRIVATE, FINAL).initializedTo("new AbstractLookup(lookupContent)").ofType("Lookup")
                 .field("lkp").withModifier(PRIVATE).ofType("Lookup")
                 .overridePublic("getLookup").returning("Lookup")
                 .body(bb -> {
                     bb.synchronizeOn("lookupContent", sbb -> {
-                        sbb.ifCondition().variable("lkp").notEquals().literal("null")
-                                .endCondition().returning("lkp").endBlock().endIf();
+                        sbb.ifNotNull("lkp").returning("lkp").endIf();
+//                        sbb.ifCondition().variable("lkp").notEquals().expression("null")
+//                                .endCondition().returning("lkp").endBlock().endIf();
                         sbb.declare("superLookup").initializedByInvoking("getLookup")
                                 .onInvocationOf("getCookieSet").inScope().as("Lookup");
                         sbb.invoke("decorateLookup")
@@ -745,7 +746,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         cl.importing("java.io.IOException", "org.openide.loaders.DataObject");
         cl.field("HOOKS")
                 .withModifier(PRIVATE, STATIC, FINAL)
-                .withInitializer("new " + simpleName(hooksClassFqn) + "()")
+                .initializedTo("new " + simpleName(hooksClassFqn) + "()")
                 .ofType(simpleName(hooksClassFqn));
 
         for (String mth : overridden) {
@@ -767,11 +768,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         NB_EDITOR_KIT_TYPE,
                         EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
                 .extending(simpleName(NB_EDITOR_KIT_TYPE))
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
-                .initializedWithStringLiteral(mimeType)
+                .initializedWith(mimeType)
                 .field("INSTANCE").withModifier(STATIC).withModifier(FINAL)
-                .withInitializer("new " + editorKitName + "()").ofType("EditorKit")
+                .initializedTo("new " + editorKitName + "()").ofType("EditorKit")
                 .constructor().setModifier(PRIVATE).emptyBody()
                 .override("getContentType").withModifier(PUBLIC).returning(STRING).body().returning("MIME_TYPE").endBlock();
         if (syntaxName != null) {
@@ -895,14 +896,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 });
         if (!commentTokens.isEmpty()) {
             cl.field("COMMENT_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
-                    .withModifier(FINAL).withInitializer(tokensArraySpec(prefix, commentTokens, lexer))
+                    .withModifier(FINAL).initializedTo(tokensArraySpec(prefix, commentTokens, lexer))
                     .ofType("TokenID[]");
             cl.override("getCommentTokens").withModifier(PUBLIC).returning("TokenID[]")
                     .body(fieldReturner("COMMENT_TOKENS"));
         }
         if (!bracketSkipTokens.isEmpty()) {
             cl.field("BRACKET_SKIP_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
-                    .withModifier(FINAL).withInitializer(tokensArraySpec(prefix, bracketSkipTokens, lexer))
+                    .withModifier(FINAL).initializedTo(tokensArraySpec(prefix, bracketSkipTokens, lexer))
                     .ofType("TokenID[]");
             cl.override("getBracketSkipTokens").withModifier(PROTECTED).returning("TokenID[]")
                     .body(fieldReturner("BRACKET_SKIP_TOKENS"));
@@ -918,7 +919,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             } else {
                 cl.field("WHITESPACE_TOKEN_IDS", fb -> {
                     fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL);
-                    fb.withInitializer("new int[] {" + Strings.commas(whitespaceTokens) + "}").ofType("int[]");
+                    fb.initializedTo("new int[] {" + Strings.commas(whitespaceTokens) + "}").ofType("int[]");
                 }).overridePublic("isWhitespaceToken").returning("boolean")
                         .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
                         .addArgument("int", "offset").addArgument("int", "tokenLength")
@@ -1004,13 +1005,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             String category = parts[0];
             String actionId = parts[1];
             ClassBuilder.AnnotationBuilder<?> ab = annoBuilder.annotation("ActionReference")
-                    .addArgument("path", "ACTION_PATH")
+                    .addExpressionArgument("path", "ACTION_PATH")
                     .addArgument("position", position * 100);
             if (separator) {
                 ab.addArgument("separatorAfter", ++position * 100);
             }
             ab.addAnnotationArgument("id", "ActionID", aid -> {
-                aid.addStringArgument("category", category).addStringArgument("id", actionId).closeAnnotation();
+                aid.addArgument("category", category).addArgument("id", actionId).closeAnnotation();
             });
             ab.closeAnnotation();
             position++;
@@ -1053,18 +1054,22 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "org.nemesis.antlr.spi.language.IterableTokenSource", lexer.lexerClassFqn(),
                         parser.parserClassFqn()
                 )
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("Parser")
-                .docComment("NetBeans parser wrapping ", parser.parserClassSimple(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()");
+                .docComment("NetBeans parser wrapping ", parser.parserClassSimple(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()."
+                        + "  For the most part, you will not use this class directly, but rather register classes that are interested in processing"
+                        + " parse results for this MIME type, and then get passed them when a file is modified, opened, or reparsed for some other reason.");
         if (changeSupport) {
             cl.importing("java.util.Set", "org.openide.util.WeakSet", "org.openide.util.ChangeSupport")
-                    .field("INSTANCES").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).withInitializer("new WeakSet<>()").ofType("Set<" + nbParserName + ">")
-                    .field("changeSupport").withModifier(FINAL).withModifier(PRIVATE).withInitializer("new ChangeSupport(this)").ofType("ChangeSupport");
+                    .field("INSTANCES").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).initializedTo("new WeakSet<>()").ofType("Set<" + nbParserName + ">")
+                    .field("changeSupport").withModifier(FINAL).withModifier(PRIVATE).initializedTo("new ChangeSupport(this)").ofType("ChangeSupport");
         }
-        cl.field("HELPER").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).withInitializer("new " + helperClassName + "()").ofType(helperClassName)
-                .field("cancelled").withModifier(FINAL).withModifier(PRIVATE).withInitializer("new AtomicBoolean()").ofType("AtomicBoolean")
+        cl.field("HELPER")
+                .docComment("Helper class which can talk to the NetBeans adapter layer via protected methods which are not otherwise exposed.")
+                .withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).initializedTo("new " + helperClassName + "()").ofType(helperClassName)
+                .field("cancelled").withModifier(FINAL).withModifier(PRIVATE).initializedTo("new AtomicBoolean()").ofType("AtomicBoolean")
                 .field("lastResult").withModifier(PRIVATE).ofType(parserResultType)
-                .constructor().annotatedWith("SuppressWarnings").addStringArgument("value", "LeakingThisInConstructor").closeAnnotation().setModifier(PUBLIC)
+                .constructor().annotatedWith("SuppressWarnings").addArgument("value", "LeakingThisInConstructor").closeAnnotation().setModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
                         bb.lineComment("Languages which have alterable global configuration need to fire changes from their parser;");
@@ -1078,6 +1083,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     }
                 })
                 .method("parse", (mb) -> {
+                    mb.docComment("Parse a document or file snapshot associated with a parser task.");
                     mb.override().addArgument("Snapshot", "snapshot").addArgument("Task", "task").addArgument("SourceModificationEvent", "event")
                             .withModifier(PUBLIC)
                             .body(block -> {
@@ -1094,12 +1100,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .withArgument("bag").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
                                         .synchronizeOn("this")
                                         .statement("lastResult = result").endBlock()
-                                        .endBlock().catching("Exception")
+                                        .catching("Exception")
                                         .statement("Exceptions.printStackTrace(thrown)")
-                                        .endBlock().endTryCatch().endBlock();
+                                        .endTryCatch().endBlock();
                             });
                 })
                 .method("parse", mb -> {
+                    mb.docComment("Convenience method for initiating a parse programmatically rather than via the NetBeans parser infrastructure.");
                     mb.addArgument("ParsingBag", "bag").throwing("Exception").addArgument("BooleanSupplier", "cancelled").returning("AntlrParseResult")
                             .withModifier(PUBLIC).withModifier(STATIC)
                             .body(bb -> {
@@ -1167,14 +1174,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .withArgument("contents").withArgument("cancelled")
                                         .withArgument("errors")
                                         .on("HELPER")
-                                        .statement("result[0] = pr").endBlock()
+                                        .statement("result[0] = pr")
                                         .catching("Exception")
                                         .lineComment("The hook method may throw an exception, which we will need to catch")
                                         .statement("thrown[0] = ex")
-                                        .endBlock().namingException("ex").endTryCatch().endBlock()
+                                        .as("ex").endTryCatch().endBlock()
                                         .on(prefix + "Hierarchy");
-                                bb.ifCondition().variable("thrown[0]").notEquals().literal("null").endCondition()
-                                        .statement("Exceptions.printStackTrace(thrown[0])").endBlock().endIf();
+
+                                bb.ifNotNull("thrown[0]")
+                                        .statement("Exceptions.printStackTrace(thrown[0])").endIf();
+
+//                                bb.ifCondition().variable("thrown[0]").notEquals().expression("null").endCondition()
+//                                        .statement("Exceptions.printStackTrace(thrown[0])").endBlock().endIf();
                                 bb.returning("result[0]");
                                 bb.endBlock();
                             });
@@ -1202,21 +1213,27 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     }
                 })
                 // public void cancel (@NonNull CancelReason reason, @NullAllowed SourceModificationEvent event) {}
-                .override("cancel").withModifier(PUBLIC).addArgument("CancelReason", "reason")
+                .override("cancel")
+                .docComment("Cancel the last parse if it is still running.")
+                .withModifier(PUBLIC).addArgument("CancelReason", "reason")
                 .addArgument("SourceModificationEvent", "event")
                 .body(bb -> {
                     bb.log("Parse cancelled", Level.FINEST);
                     bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 })
                 .override("cancel")
-                .annotatedWith("SuppressWarnings").addStringArgument("value", "deprecation").closeAnnotation()
+                .annotatedWith("SuppressWarnings").addArgument("value", "deprecation").closeAnnotation()
                 .withModifier(PUBLIC)
                 .body(bb -> {
                     bb.log("Parse cancelled", Level.FINEST);
                     bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 });
         if (changeSupport) {
-            cl.method("forceReparse").withModifier(PRIVATE).body().invoke("fireChange").on("changeSupport").endBlock()
+            cl.method("forceReparse")
+                    .docComment("Cause all instance of this parser to fire a change event, triggering a "
+                            + "reparse.  This is used when the underlying <i>model</i> of the language or "
+                            + "project changes (say, a library was added or the source level was changed).")
+                    .withModifier(PRIVATE).body().invoke("fireChange").on("changeSupport").endBlock()
                     .method("languageSettingsChanged").withModifier(PUBLIC).withModifier(STATIC)
                     .body(bb -> {
                         bb.lineComment("Cause all existing instances of this class to fire a change, triggering");
@@ -1234,14 +1251,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC).build();
         }
 
-        /*
-import org.netbeans.api.editor.mimelookup.MimeRegistration;
-@MimeRegistration(mimeType = "text/x-g4", service = ParserFactory.class)
-         */
         cl.importing("org.netbeans.api.editor.mimelookup.MimeRegistration")
                 .innerClass(prefix + "ParserFactory").publicStaticFinal().extending("ParserFactory")
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
-                .annotatedWith("MimeRegistration").addArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
+                .docComment("Registers our parse with the NetBeans parser infrastructure.")
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("MimeRegistration").addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
                 .addClassArgument("service", "ParserFactory").closeAnnotation()
                 .method("createParser").override().withModifier(PUBLIC).returning("Parser")
                 .addArgument("Collection<Snapshot>", "snapshots")
@@ -1251,8 +1265,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         cl.importing("org.netbeans.modules.parsing.spi.TaskFactory",
                 "org.nemesis.antlr.spi.language.NbAntlrUtils")
                 .method("createErrorHighlighter", mb -> {
+                    mb.docComment("Creates a highlighter for source errors from the parser.");
                     mb.withModifier(PUBLIC).withModifier(STATIC)
-                            .annotatedWith("MimeRegistration").addArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
+                            .annotatedWith("MimeRegistration").addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
                             .addClassArgument("service", "TaskFactory").closeAnnotation()
                             .returning("TaskFactory")
                             .body(bb -> {
@@ -1284,16 +1299,17 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                         "org.nemesis.extraction.ExtractionRegistration", "org.nemesis.extraction.ExtractorBuilder",
                         "org.nemesis.extraction.key.RegionsKey", "org.antlr.v4.runtime.Token", entryPointType)
                 .withModifier(PUBLIC)
+                .docComment("Provides a generic Navigator panel which displays the syntax tree of the current file.")
                 .constructor(c -> {
                     c.setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
                 }).field("TREE_NODES", fb -> {
             fb.annotatedWith("SimpleNavigatorRegistration", ab -> {
                 if (icon != null) {
-                    ab.addStringArgument("icon", icon);
+                    ab.addArgument("icon", icon);
                 }
-                ab.addStringArgument("mimeType", mimeType)
+                ab.addArgument("mimeType", mimeType)
                         .addArgument("order", 20000)
-                        .addStringArgument("displayName", "Syntax Tree").closeAnnotation();
+                        .addArgument("displayName", "Syntax Tree").closeAnnotation();
             });
             fb.withModifier(STATIC).withModifier(FINAL)
                     .initializedFromInvocationOf("create").withArgument("String.class").withStringLiteral("tree")
@@ -1302,7 +1318,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         }).method("extractTree", mb -> {
             mb.withModifier(STATIC)
                     .annotatedWith("ExtractionRegistration")
-                    .addStringArgument("mimeType", mimeType)
+                    .addArgument("mimeType", mimeType)
                     .addClassArgument("entryPoint", entryPointSimple)
                     .closeAnnotation()
                     .addArgument("ExtractorBuilder<? super " + entryPointSimple + ">", "bldr")
@@ -1349,16 +1365,15 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .override("equals", mb -> {
                     mb.withModifier(PUBLIC).returning("boolean").addArgument("Object", "o")
                             .body(bb -> {
-                                bb.ifCondition().variable("this").equals().literal("o").endCondition()
-                                        .returning("true").endBlock()
-                                        .elseIf().variable("o").equals().literal("null").endCondition()
-                                        .returning("false").endBlock()
-                                        .elseIf().variable("o").instanceOf().literal(generatedClassName).endCondition()
+                                bb.iff().variable("this").equals().expression("o").endCondition()
+                                        .returning("true")
+                                        .elseIf().variable("o").equals().expression("null").endCondition()
+                                        .returning("false")
+                                        .elseIf().variable("o").instanceOf().expression(generatedClassName).endCondition()
                                         .returningInvocationOf("equals")
                                         .withArgument("o.toString()")
-                                        .on("category").endBlock()
-                                        .elseDo().returning("false").endBlock().endBlock();
-                                ;
+                                        .on("category")
+                                        .orElse().returning("false").endIf();
                             });
                 })
                 .override("hashCode", mb -> {
@@ -1402,18 +1417,33 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .makePublic()
                 .importing("org.netbeans.api.lexer.TokenId", proxy.lexerClassFqn())
                 .importing("javax.annotation.processing.Generated")
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
-                .field("MIME_TYPE").withModifier(FINAL).withModifier(STATIC).withModifier(PUBLIC).withInitializer(LinesBuilder.stringLiteral(mimeType)).ofType("String")
-                .method("ordinal").override().returning("int").closeMethod()
-                .method("symbolicName").returning(STRING).closeMethod()
-                .method("literalName").returning(STRING).closeMethod()
-                .method("displayName").returning(STRING).closeMethod()
-                .method("primaryCategory").override().returning(STRING).closeMethod()
-                .method("compareTo").override().returning("int").addArgument(tokenTypeName, "other").withModifier(DEFAULT)
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                .field("MIME_TYPE").withModifier(FINAL).withModifier(STATIC).withModifier(PUBLIC).initializedTo(LinesBuilder.stringLiteral(mimeType)).ofType("String")
+                .method("ordinal").override().docComment("Returns the same ordinal as the generated ANTLR grammar uses for this token, e.g. " + proxy.lexerClassSimple() + ".VOCABULARY.someTokenName")
+                .returning("int").closeMethod()
+                .method("symbolicName").docComment("Returns the symbolic name of this token - the name it has in the originating ANTLR grammar.").returning(STRING).closeMethod()
+                .method("literalName").docComment("Returns the literal name of this token's ordinal "
+                + "in the generated ANTLR grammar's Vocabulary.  The literal name is only defined "
+                + "for tokens which have no wildcard content (e.g. keywords, symbols - not, say, user-defined names of methods)").returning(STRING).closeMethod()
+                .method("displayName").docComment("Returns the display name of this token, as defined in the generated lexer's Vocabulary.").returning(STRING).closeMethod()
+                .method("primaryCategory").override().docComment("Returns the category specified in the annotation (or, if unspecified, a heuristic-derived category).").returning(STRING).closeMethod()
+                .method("compareTo").docComment("Tokens compare on their ordinal.").override().returning("int").addArgument(tokenTypeName, "other").withModifier(DEFAULT)
                 .body().returning("ordinal() > other.ordinal() ? 1 : ordinal() == other.ordinal() ? 0 : -1").endBlock()
                 .method("name").annotatedWith("Override").closeAnnotation().returning("String").withModifier(DEFAULT)
-                .body().returning("literalName() != null ? literalName() \n: symbolicName() != null \n? symbolicName() \n: "
-                        + "displayName() != null \n? displayName() \n: Integer.toString(ordinal())").endBlock();
+                .docComment("Returns a name for this token, which is one of the following in order of precedence:\n"
+                        + "<ul><li>The literal name</li>\n<li>The symbolic name</li>\n<li>The display name</li>\n"
+                        + "<li>The string value of this token's ordinal</li></ul>")
+                .body(bb -> {
+                    bb.returningValue().ternary().invoke("literalName").inScope().notEquals().expression("null")
+                            .endCondition().invoke("literalName").inScope()
+                            .ternary().invoke("symbolicName").inScope().notEquals().expression("null")
+                            .endCondition().invoke("symbolicName").inScope().ternary()
+                            .invoke("displayName").inScope().notEquals().expression("null")
+                            .endCondition().invoke("displayName").inScope().invoke("toString").withArgumentFromInvoking("ordinal").inScope().on("Integer");
+
+                });
+//                .body().returning("literalName() != null ? literalName() \n: symbolicName() != null \n? symbolicName() \n: "
+//                        + "displayName() != null \n? displayName() \n: Integer.toString(ordinal())").endBlock();
 
         if (tokenWrapperClass != null) {
             cb.implementing(EDITOR_TOKEN_ID_TYPE);
@@ -1434,18 +1464,18 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // for looking them up by name, character, etc.
         ClassBuilder<String> toks = ClassBuilder.forPackage(pkg).named(tokensTypeName)
                 .makePublic().makeFinal()
-                //                .docComment("Provides all tokens for the  ", prefix,
-                //                        "Generated by ", getClass().getSimpleName(),
-                //                        " from fields on ", proxy.lexerClassSimple(),
-                //                        " from annotation on ", type.getSimpleName())
+                .docComment("Entry point for actual Token instances for the " + prefix + " language."
+                        + "\nGenerated by ", getClass().getSimpleName(),
+                        " from fields on ", proxy.lexerClassSimple(),
+                        " from annotations on ", type.getSimpleName() + ".")
                 .importing("java.util.Arrays", "java.util.HashMap", "java.util.Map", "java.util.Optional",
                         "java.util.List", "java.util.ArrayList", "java.util.Collections",
                         "org.nemesis.antlr.spi.language.highlighting.TokenCategorizer",
                         "javax.annotation.processing.Generated", proxy.lexerClassFqn())
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
-                // Static categorizer field - fall back to a heuristic categorizer if nothing is specified
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                // Static categorizer field - fall back toExpression a heuristic categorizer if nothing is specified
                 .field("CATEGORIZER").withModifier(FINAL)/*.withModifier(PRIVATE)*/.withModifier(STATIC)
-                .withInitializer(tokenCatName == null ? "TokenCategorizer.heuristicCategorizer()" : "new " + tokenCatName + "()")
+                .initializedTo(tokenCatName == null ? "TokenCategorizer.heuristicCategorizer()" : "new " + tokenCatName + "()")
                 .ofType("TokenCategorizer")
                 // Make it non-instantiable
                 .constructor().setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
@@ -1462,16 +1492,15 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .declare("symName").initializedByInvoking("symbolicName").on("tok").as(STRING)
                 .declare("litName").initializedByInvoking("literalName").on("tok").as(STRING)
                 .declare("litStripped").initializedWith("stripQuotes(litName)").as(STRING)
-                .ifCondition().variable("symName").notEquals().literal("null").endCondition()
+                .ifNotNull("symName")
                 .invoke("put").withArgument("symName").withArgument("tok").on("bySymbolicName")
-                .endBlock().endIf()
-                .ifCondition().variable("litStripped").notEquals().literal("null").endCondition()
+                .endIf()
+                .ifNotNull("litStripped")
                 .invoke("put").withArgument("litStripped").withArgument("tok").on("byLiteralName")
-                .ifCondition().invoke("length").on("litStripped").equals().literal(1).endCondition()
+                .iff().invoke("length").on("litStripped").equals().literal(1).endCondition()
                 .invoke("put").withArgument("litStripped.charAt(0)").withArgument("tok").on("tokForCharMap")
                 .invoke("add").withArgument("litStripped.charAt(0)").on("charsList")
-                .endBlock().endIf()
-                .endBlock()
+                .endIf()
                 .endIf()
                 .endBlock()
                 .invoke("sort").withArgument("charsList").on("Collections")
@@ -1485,26 +1514,34 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 
         // Lookup for tokens which are a single character, look them up by character
         toks.method("forSymbol").addArgument("char", "ch").returning("Optional<" + tokenTypeName + ">")
+                .docComment("Look up the token id for a single character such as ';'.")
                 .withModifier(STATIC).withModifier(PUBLIC).body()
                 .declare("ix").initializedWith("Arrays.binarySearch(chars, ch)").as("int")
-                .ifCondition().variable("ix").greaterThanOrEqualto().literal(0).endCondition()
-                .returning("Optional.of(tokForChar[ix])").endBlock().endIf()
+                .iff().variable("ix").greaterThanOrEqualto().literal(0).endCondition()
+                .returning("Optional.of(tokForChar[ix])").endIf()
                 .returning("Optional.empty()").endBlock();
 
         // Lookup by symbolic name method
-        toks.method("forSymbolicName").addArgument("String", "name").returning("Optional<" + tokenTypeName + ">")
+        toks.method("forSymbolicName")
+                .docComment("Look up a token by its name in the ANTLR grammar.")
+                .addArgument("String", "name").returning("Optional<" + tokenTypeName + ">")
                 .withModifier(STATIC).withModifier(PUBLIC).body().returning("Optional.ofNullable(bySymbolicName.get(name))").endBlock();
 
-        // Lookup by literal name method
-        toks.method("forLiteralName").addArgument("String", "name").returning("Optional<" + tokenTypeName + ">")
+        // Lookup by expression name method
+        toks.method("forLiteralName")
+                .docComment("Look up a token by its literal text content, usable for tokens whose text is "
+                        + "entirely defined in the ANTLR grammar (symbols, keywords, things with no wildcards or user defined text).")
+                .addArgument("String", "name").returning("Optional<" + tokenTypeName + ">")
                 .withModifier(STATIC).withModifier(PUBLIC).body().returning("Optional.ofNullable(byLiteralName.get(name))").endBlock();
 
-        // Helper method - literal names in antlr generated code come surrounded in
+        // Helper method - expression names in antlr generated code come surrounded in
         // single quotes - strip those
         toks.method("stripQuotes").addArgument("String", "name").returning("String")
-                .withModifier(STATIC)/*.withModifier(PRIVATE)*/.body().ifCondition().variable("name").notEquals().literal("null").and().invoke("isEmpty").on("name").equals().literal("false").and()
+                .docComment("ANTLR Vocabulary instances return text content in quotes, which need to be removed.")
+                .withModifier(STATIC)/*.withModifier(PRIVATE)*/.body()
+                .iff().variable("name").notEquals().expression("null").and().invoke("isEmpty").on("name").equals().expression("false").and()
                 .invoke("charAt").withArgument("0").on("name").equals().literal('\'').and().invoke("charAt").withArgument("name.length()-1")
-                .on("name").equals().literal('\'').endCondition().returning("name.substring(1, name.length()-1)").endBlock().endIf()
+                .on("name").equals().literal('\'').endCondition().returning("name.substring(1, name.length()-1)").endIf()
                 .returning("name").endBlock();
 
         // Our implementation of the TokenId sub-interface defined as the first class above,
@@ -1535,11 +1572,15 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // Now build a giant switch statement for lookup by id
         List<Integer> keys = proxy.allTypesSortedByName();
         ClassBuilder.SwitchBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> idSwitch
-                = toks.method("forId").withModifier(PUBLIC)
+                = toks.method("forId")
+                        .docComment("Look up a NetBeans token by its ANTLR token ID.")
+                        .withModifier(PUBLIC)
                         .withModifier(STATIC).returning(tokenTypeName)
                         .addArgument("int", "id").body().switchingOn("id");
 
-        toks.method("all").withModifier(STATIC).withModifier(PUBLIC)
+        toks.method("all")
+                .docComment("Returns the set of all tokens defined by the grammar.")
+                .withModifier(STATIC).withModifier(PUBLIC)
                 .returning(tokenTypeName + "[]").body()
                 .returning("Arrays.copyOf(ALL, ALL.length)").endBlock();
 
@@ -1549,7 +1590,11 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         for (Integer k : keys) {
             String fieldName = proxy.toFieldName(k);
             toks.field(fieldName).withModifier(STATIC).withModifier(PUBLIC).withModifier(FINAL)
-                    .withInitializer("new " + tokensImplName + "(" + k + ")")
+                    .docComment(k.equals(proxy.erroneousTokenId())
+                            ? "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable."
+                            : "Constant for NetBeans token corresponding to token "
+                            + proxy.tokenName(k) + " in " + proxy.lexerClassSimple() + ".VOCABULARY.")
+                    .initializedTo("new " + tokensImplName + "(" + k + ")")
                     .ofType(tokenTypeName);
             idSwitch.inCase(k).returning(fieldName).endBlock();
             if (k != -1) {
@@ -1563,8 +1608,8 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         // Create our array and map fields here (so they are placed below the
         // constants in the source file - these are populated in the static block
         // defined above)
-        toks.field("bySymbolicName").withInitializer("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
-        toks.field("byLiteralName").withInitializer("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
+        toks.field("bySymbolicName").initializedTo("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
+        toks.field("byLiteralName").initializedTo("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
         toks.field("chars").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("char[]");
         toks.field("tokForChar").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType(tokenTypeName + "[]");
 
@@ -1592,23 +1637,23 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .importing("javax.annotation.processing.Generated")
                 .makePublic().makeFinal()
                 .constructor().setModifier(PUBLIC).body().debugLog("Create a new " + hierName).endBlock()
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("LanguageHierarchy<" + tokenTypeName + ">")
                 .field("LANGUAGE").withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
-                /*.withInitializer("new " + hierName + "().language()").*/.ofType("Language<" + tokenTypeName + ">")
+                /*.initializedTo("new " + hierName + "().language()").*/.ofType("Language<" + tokenTypeName + ">")
                 .field("CATEGORIES").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL).ofType("Map<String, Collection<" + tokenTypeName + ">>")
                 .staticBlock(bb -> {
                     bb.declare("map").initializedWith("new HashMap<>()").as("Map<String, Collection<" + tokenTypeName + ">>")
                             .lineComment("Assign fields here to guarantee initialization order")
                             .statement("IDS = Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()));")
                             .simpleLoop(tokenTypeName, "tok").over("IDS")
-                            .ifCondition().invoke("ordinal").on("tok").equals().literal(-1).endCondition()
+                            .iff().invoke("ordinal").on("tok").equals().literal(-1).endCondition()
                             .lineComment("Antlr has a token type -1 for EOF; editor's cache cannot handle negative ordinals")
-                            .statement("continue").endBlock().endIf()
+                            .statement("continue").endIf()
                             .declare("curr").initializedByInvoking("get").withArgument("tok.primaryCategory()").on("map").as("Collection<" + tokenTypeName + ">")
-                            .ifCondition().variable("curr").equals().literal("null").endCondition()
+                            .iff().variable("curr").equals().expression("null").endCondition()
                             .statement("curr = new ArrayList<>()")
-                            .invoke("put").withArgument("tok.primaryCategory()").withArgument("curr").on("map").endBlock()
+                            .invoke("put").withArgument("tok.primaryCategory()").withArgument("curr").on("map")
                             .endIf()
                             .invoke("add").withArgument("tok").on("curr")
                             .endBlock()
@@ -1617,17 +1662,18 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             .endBlock();
                 })
                 .field("IDS").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL).ofType("Collection<" + tokenTypeName + ">")
-                //                .withInitializer("Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()))").ofType("Collection<" + tokenTypeName + ">")
+                //                .initializedTo("Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()))").ofType("Collection<" + tokenTypeName + ">")
                 .method("mimeType")
+                .docComment("Get the MIME type.")
                 .returning(STRING)
                 .annotatedWith("Override").closeAnnotation()
                 .withModifier(PROTECTED).withModifier(FINAL).body()
                 .returning(tokenTypeName + ".MIME_TYPE").endBlock()
                 .method(languageMethodName).withModifier(PUBLIC).withModifier(STATIC).returning("Language<" + tokenTypeName + ">")
                 //                .annotatedWith("MimeRegistration", ab -> {
-                //                    ab.addStringArgument("mimeType", mimeType)
-                //                            .addClassArgument("service", "Language")
-                //                            .addArgument("position", 500).closeAnnotation();
+                //                    ab.addArgument("mimeType", mimeType)
+                //                            .addArgument("service", "Language")
+                //                            .addExpressionArgument("position", 500).closeAnnotation();
                 //                })
                 .body().returning("LANGUAGE").endBlock()
                 .method("createTokenIds").returning("Collection<" + tokenTypeName + ">").override().withModifier(PROTECTED).withModifier(FINAL).body().returning("IDS").endBlock()
@@ -1636,7 +1682,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                     bb.debugLog("Create a new " + prefix + " Lexer");
                     bb.returning("NbAntlrUtils.createLexer(info, LEXER_ADAPTER)").endBlock();
                 })
-                .method("isRetainTokenText").override().withModifier(PROTECTED).withModifier(FINAL).returning("boolean").addArgument(tokenTypeName, "tok")
+                .method("isRetainTokenText")
+                .docComment("Returns true for tokens which are entirely defined within the ANTLR grammar (keywords, symbols).")
+                .override().withModifier(PROTECTED).withModifier(FINAL).returning("boolean").addArgument(tokenTypeName, "tok")
                 .body().returning("tok.literalName() == null").endBlock()
                 .method("createTokenCategories").override().withModifier(PROTECTED).withModifier(FINAL)
                 .returning("Map<String, Collection<" + tokenTypeName + ">>").body().returning("CATEGORIES").endBlock()
@@ -1645,6 +1693,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .addArgument("CharStream", "stream")
                 .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock()
                 .method("newParseResult", mth -> {
+                    mth.docComment("Parse a document and pass it to the BiConsumer.");
                     mth.withModifier(STATIC)
                             .addArgument("Snapshot", "snapshot")
                             .addArgument("Extraction", "extraction")
@@ -1661,6 +1710,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             });
                 })
                 .method("createWrappedTokenSource", mb -> {
+                    mb.docComment("Creates a token source which wraps the lexer contents and can "
+                            + "have its position wound forward and backwards, for processing tools "
+                            + "to process it individually without a reparse.");
                     mb.addArgument(proxy.lexerClassSimple(), "lexer")
                             .withModifier(STATIC)
                             .returning("IterableTokenSource")
@@ -1670,18 +1722,22 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                             });
                 });
 
-        // Inner implementation of NbLexerAdapter, which allows us to use a generic
+        // Inner implementation of NbLexerAdapter, which allows us toExpression use a generic
         // Lexer class and takes care of creating the Antlr lexer and calling methods
         // that will exist on the lexer implementation class but not on the parent class
         lh.innerClass(adapterClassName).withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .extending("NbLexerAdapter<" + tokenTypeName + ", " + proxy.lexerClassSimple() + ">")
                 .method("createLexer").override().withModifier(PUBLIC).returning(proxy.lexerClassSimple()).addArgument("CharStream", "stream")
+                .docComment("Creates a NetBeans lexer wrapper for an ANTLR lexer.")
                 .body(bb -> {
                     bb.declare("result").initializedWith("new " + proxy.lexerClassSimple() + "(stream)").as(proxy.lexerClassSimple());
                     bb.invoke("removeErrorListeners").on("result");
                     bb.returning("result").endBlock();
                 })
                 .method("createWrappedTokenSource", mb -> {
+                    mb.docComment("Creates a token source which wraps the lexer contents and can "
+                            + "have its position wound forward and backwards, for processing tools "
+                            + "to process it individually without a reparse.");
                     mb.addArgument(proxy.lexerClassSimple(), "lexer").returning("IterableTokenSource")
                             .body().returningInvocationOf("wrapLexer")
                             .withArgument("lexer").on("super").endBlock();
@@ -1701,6 +1757,7 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .lineComment("but is not exposed in the parent class Lexer")
                 .returning("lexer.getInitialStackedModeNumber()").endBlock()
                 .method("newParseResult", mth -> {
+                    mth.docComment("Invokes ANTLR and creates a parse result.");
                     mth.addArgument("Snapshot", "snapshot")
                             .addArgument("Extraction", "extraction")
                             .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
@@ -1713,11 +1770,13 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 })
                 .build();
 
-        lh.field("LEXER_ADAPTER").withInitializer("new " + adapterClassName + "()").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
+        lh.field("LEXER_ADAPTER")
+                .docComment("Adapter which lets us talk to ANTLR.")
+                .initializedTo("new " + adapterClassName + "()").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .ofType(adapterClassName);
         //.ofType("NbLexerAdapter<" + tokenTypeName + ", " + lexerClass + ">");
 
-        // Save generated source files to disk
+        // Save generated source files toExpression disk
         writeOne(cb);
         writeOne(toks);
         writeOne(lh);
@@ -1746,8 +1805,9 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
         }
 
         addLayerTask(lb -> {
+            log("Run layer task to create bundle info");
             // For some reason, the generated @MimeRegistration annotation is resulting
-            // in an attempt to load a *class* named with the fqn + method name.
+            // in an attempt toExpression load a *class* named with the fqn + method name.
             // So, do it the old fashioned way
             try {
                 lb.folder("Editors/" + mimeType).bundlevalue("displayName",
@@ -1783,11 +1843,13 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                 .importing("org.nemesis.antlr.spi.language.highlighting.TokenCategorizer")
                 .implementing("TokenCategorizer")
                 .conditionally(tokenCategorizerClass != null, cbb -> {
-                    cbb.field("DEFAULT_CATEGORIZER").withInitializer("new " + tokenCategorizerClass + "()").ofType("TokenCategorizer");
+                    cbb.field("DEFAULT_CATEGORIZER").initializedTo("new " + tokenCategorizerClass + "()").ofType("TokenCategorizer");
                 });
 
         // categoryFor(ordinal(), displayName(), symbolicName(), literalName())
         cb.publicMethod("categoryFor", catFor -> {
+            catFor.docComment("Find the category for a token, either by returning the value "
+                    + "specified in an annotation, or using a heuristic.");
             catFor.addArgument("int", "id")
                     .addArgument(STRING, "displayName").addArgument(STRING, "symbolicName")
                     .addArgument(STRING, "literalName").returning(STRING)
@@ -1800,8 +1862,8 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
                                     .withArgument("symbolicName")
                                     .withArgument("literalName")
                                     .on("DEFAULT_CATEGORIZER");
-                            bb.ifCondition().variable("result").notEquals().literal("null").endCondition()
-                                    .returning("result").endBlock().endIf();
+                            bb.iff().variable("result").notEquals().expression("null").endCondition()
+                                    .returning("result").endIf();
                         }).switchingOn("id", (ClassBuilder.SwitchBuilder<?> sw) -> {
                             for (AnnotationMirror cat : categories) {
                                 String name = utils().annotationValue(cat, "name", String.class);

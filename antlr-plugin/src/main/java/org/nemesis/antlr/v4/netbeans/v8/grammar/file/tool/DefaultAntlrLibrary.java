@@ -23,7 +23,8 @@ public final class DefaultAntlrLibrary implements AntlrLibrary {
     private static final String[] LIB_FILES = {
         "antlr4-4.7.1.jar",
         "ST4-4.0.8.jar",
-        "antlr4-runtime-4.7.1.jar"
+        "antlr4-runtime-4.7.1.jar",
+        "antlr-runtime-3.5.2.jar"
     };
 
     @Override

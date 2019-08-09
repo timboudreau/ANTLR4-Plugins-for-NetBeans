@@ -30,6 +30,7 @@ import org.nemesis.registration.FontsColorsBuilder.Fc;
 import org.nemesis.registration.FontsColorsBuilder.MultiThemeFontsColorsBuilder;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.annotation.AnnotationUtils;
+import javax.annotation.processing.ProcessingEnvironment;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.xml.sax.SAXException;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
@@ -45,6 +46,12 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     static final String GROUP_SEMANTIC_HIGHLIGHTING_NAME = "HighlighterKeyRegistrations";
     static final String SEMANTIC_HIGHLIGHTING_ANNO = SEMANTIC_HIGHLIGHTING_PKG + "." + SEMANTIC_HIGHLIGHTING_NAME;
     static final String GROUP_SEMANTIC_HIGHLIGHTING_ANNO = SEMANTIC_HIGHLIGHTING_PKG + "." + GROUP_SEMANTIC_HIGHLIGHTING_NAME;
+
+    @Override
+    protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
+        AnnotationUtils.forceLogging();
+        super.onInit(env, utils); //To change body of generated methods, choose Tools | Templates.
+    }
 
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
@@ -83,6 +90,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     @Override
     protected boolean processTypeAnnotation(TypeElement on, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (mirror.getAnnotationType().toString().equals(REGISTRATION_ANNO)) {
+            log("LanguageFontsColorsProcessor processTypeAnnotation {0}", on.getSimpleName().toString());
             return processLanguageRegistration(on, mirror, roundEnv);
         } else {
             log("  - wrong anntation type - skipping - for not " + REGISTRATION_ANNO);
@@ -154,6 +162,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
                 result.add(proxy);
             }
         }
+        log("Calling generate theme files with save layer true for {0}");
         generateThemeFiles(false, true);
         return result;
     }
@@ -316,14 +325,14 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         for (ColoringProxy px : colorings) {
             Fc fc = bldr.add(px.categoryName, px);
             px.updateFC(fc);
-            log("   added {0}", fc);
+            log("   added to {0}: {1}", mimeType, fc);
         }
     }
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws IOException {
-        log("onRoundCompleted with {0} proc over? {1} error raised? {2}", processed.size(),
-                env.processingOver(), env.errorRaised());
+        log("onRoundCompleted with {0} proc over? {1} error raised? {2} entries {3}", processed.size(),
+                env.processingOver(), env.errorRaised(), themeBuilderForMimeType.keySet());
         if (env.processingOver() && !env.errorRaised()) {
             for (Map.Entry<String, MultiThemeFontsColorsBuilder> e : themeBuilderForMimeType.entrySet()) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Generating theme files for " + e.getKey());
@@ -331,6 +340,8 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
             }
         } else if (env.processingOver()) {
             utils().warn("Not running fonts-colors generation because error was raised");
+        } else {
+            log("Not running layer generation because round completed is false");
         }
         return true;
     }
@@ -356,8 +367,10 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     }
 
     private boolean generateThemeFiles(boolean saveTheme, boolean saveLayer) throws IOException {
+        log("generateThemeFiles0 (saveTheme: {0}, saveLayer: {1} for {2})", saveTheme, saveLayer, themeBuilderForMimeType.keySet());
         boolean result = true;
         for (Map.Entry<String, MultiThemeFontsColorsBuilder> e : this.themeBuilderForMimeType.entrySet()) {
+            log("  generate for {0}", e.getKey());
             result &= generateThemeFiles(e.getKey(), e.getValue(), saveTheme, saveLayer);
         }
         return result;
@@ -372,7 +385,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
             if (capitalizeNext && Character.isLetter(c)) {
                 c = Character.toUpperCase(c);
                 sb.append(c);
-            capitalizeNext = false;
+                capitalizeNext = false;
                 continue;
             }
             if (Character.isUpperCase(c)) {
@@ -383,7 +396,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
                 capitalizeNext = false;
                 continue;
             }
-            switch(c) {
+            switch (c) {
                 case '-':
                 case '_':
                 case '.':
@@ -412,7 +425,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
     private final Set<String> writtenSamples = new HashSet<>();
 
     private boolean generateThemeFiles(String mimeType, MultiThemeFontsColorsBuilder bldr, boolean saveTheme, boolean saveLayer) throws IOException {
-
+        log("generateThemeFiles1 ({2} saveTheme: {0}, saveLayer: {1})", saveTheme, saveLayer, mimeType);
         Element[] declaringElements = elementsForMimeType(mimeType);
         String sample = sampleForMimeType.get(mimeType);
         String pfx = prefix(mimeType);
@@ -434,6 +447,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
 
         Properties locBundle = new Properties();
         loadExitingProperties(filer, locBundle, genBundlePath);
+        log("Got past load existing properties {0}", locBundle);
         for (String name : bldr.names()) {
             locBundle.setProperty(name, capitalize(name));
         }
@@ -470,24 +484,26 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         });
         if (saveLayer) {
             LayerBuilder layer = layer(declaringElements);
-            LayerBuilder.File file = layer.file(sampleLayerPath)
-                    .url("nbres:/" + sampleFilePath);
-            if (!bundle.isEmpty()) {
-                file.stringvalue("SystemFileSystem.localizingBundle", bundle);
-            }
-            file.write();
-
-            themeFileResourcePathForTheme.forEach((theme, pathInJar) -> {
-                String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
-                LayerBuilder.File themeLayerFile = layer.file(layerPath);
-                themeLayerFile.url("nbres:/" + pathInJar);
+                LayerBuilder.File file = layer.file(sampleLayerPath)
+                        .url("nbres:/" + sampleFilePath);
                 if (!bundle.isEmpty()) {
-                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
-                } else {
-                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                    file.stringvalue("SystemFileSystem.localizingBundle", bundle);
                 }
-                themeLayerFile.write();
-            });
+                file.write();
+                log("generating layer {0} with {1}", layer, themeFileResourcePathForTheme);
+
+                themeFileResourcePathForTheme.forEach((theme, pathInJar) -> {
+                    String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
+                    LayerBuilder.File themeLayerFile = layer.file(layerPath);
+                    themeLayerFile.url("nbres:/" + pathInJar);
+                    if (!bundle.isEmpty()) {
+                        themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                    } else {
+                        themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                    }
+                    themeLayerFile.write();
+                });
+//            }, declaringElements);
         }
         // Returning true could stop LanguageRegistrationProcessor from being run
         if (saveTheme) {
@@ -496,7 +512,6 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
                 locBundle.store(out, "Generated by " + getClass().getName());
             }
         }
-
         return false;
     }
 

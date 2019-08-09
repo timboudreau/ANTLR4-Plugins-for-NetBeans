@@ -17,7 +17,7 @@
         <maven.test.skip>true</maven.test.skip>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
-        <mastfrog.version>2.5.0-dev</mastfrog.version>
+        <mastfrog.version>2.5.1-dev</mastfrog.version>
     </properties>
     <licenses>
         <license>
@@ -160,6 +160,7 @@
         <module>antlr-highlighting</module>
         <module>antlr-code-completion</module>
         <module>mastfrog-utils-wrapper</module>
+        <module>protoc-antlr</module>
     </modules>
     <repositories>
         <repository>

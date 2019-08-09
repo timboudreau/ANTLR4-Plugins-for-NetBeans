@@ -3,6 +3,7 @@ package org.nemesis.antlr.v4.netbeans.v8.grammar.file.tool;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,6 +39,10 @@ public interface AntlrLibrary extends Supplier<URL[]> {
      * @return The classpath contents
      */
     URL[] getClasspath();
+
+    default ClassLoader createClassLoader() {
+        return new URLClassLoader(getClasspath());
+    }
 
     /**
      * Create a new AntlrLibrary from some paths to jars or folders

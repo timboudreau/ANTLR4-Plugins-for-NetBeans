@@ -1,0 +1,3 @@
+#!/bin/sh
+jdk9 && mvn -f ../antlr-plugin/pom.xml install && jdk8 && mvn clean install && cp src/application/etc/antlr.conf target/antlr/etc/ && jdk11 && target/antlr/bin/antlr
+

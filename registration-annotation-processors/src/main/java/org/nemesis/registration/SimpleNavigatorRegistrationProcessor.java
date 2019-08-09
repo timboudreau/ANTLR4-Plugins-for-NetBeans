@@ -151,14 +151,14 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
                         NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
                         "javax.annotation.processing.Generated"
                 )
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName()).addStringArgument("comments", versionString()).closeAnnotation()
+                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
                 .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock()
                 .method("create", mb -> {
                     mb.withModifier(PUBLIC).withModifier(STATIC)
                             .annotatedWith("AntlrNavigatorPanelRegistration")
-                            .addStringArgument("mimeType", mimeType)
-                            .addStringArgument("displayName", displayName)
+                            .addArgument("mimeType", mimeType)
+                            .addArgument("displayName", displayName)
                             .addArgument("order", order).closeAnnotation()
                             .returning(configTypeName)
                             .body(bb -> {

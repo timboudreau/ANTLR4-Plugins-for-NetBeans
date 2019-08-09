@@ -137,7 +137,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
         DeclaredType declaredFieldType = (DeclaredType) fieldType;
 
         TypeMirror type = utils().typeForSingleClassAnnotationMember(mirror, "converter");
-        if (type == null) { // using the default value
+        if (type == null) { // using the default expression
             return true;
         }
         TypeMirror parameterizedOn = null;
@@ -239,8 +239,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                         REGION_TO_FOLD_CONVERTER_TYPE,
                         MIME_REGISTRATION_ANNOT_TYPE, itemType,
                         FOLD_MANAGER_FACTORY_TYPE)
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName())
-                .addStringArgument("comments", versionString())
+                .annotatedWith("Generated").addArgument("value", getClass().getName())
+                .addArgument("comments", versionString())
                 .closeAnnotation()
                 .docComment("Generated from field ", field.getSimpleName(), " on ", encType.getQualifiedName(),
                         " annotated with ", mirror.toString().replaceAll("@", "&#064;"))
@@ -263,7 +263,7 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                                     .on(REGION_TO_FOLD_CONVERTER_SIMPLE);
                         }
                     } else {
-                        fb.withInitializer("new " + converterType + "()");
+                        fb.initializedTo("new " + converterType + "()");
                     }
                     fb.ofType(REGION_TO_FOLD_CONVERTER_SIMPLE + "<" + itemTypeSimple + "<" + paramType + ">>");
 //                    fb.ofType(SEMANTIC_REGION_TO_FOLD_CONVERTER_SIMPLE + "<" + fieldRawType + "<" + field.asType() + ">>");
@@ -271,8 +271,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .method("createFoldManagerFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning(FOLD_MANAGER_FACTORY_NAME)
-                //                .annotatedWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", FOLD_MANAGER_FACTORY_NAME)
-                //                .addArgument("position", "" + (670 + layerPos)).closeAnnotation()
+                //                .annotatedWith("MimeRegistration").addArgument("mimeType", mime).addArgument("service", FOLD_MANAGER_FACTORY_NAME)
+                //                .addExpressionArgument("position", "" + (670 + layerPos)).closeAnnotation()
                 .body(bb -> {
                     bb.log("Create a " + genClassName);
                     bb.returningInvocationOf("createFoldManagerFactory")
@@ -284,8 +284,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .method("createFoldRefreshTaskFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning("TaskFactory")
-                .annotatedWith("MimeRegistration").addStringArgument("mimeType", mime).addClassArgument("service", "TaskFactory")
-                .addArgument("position", "" + (670 + (layerPos))).closeAnnotation()
+                .annotatedWith("MimeRegistration").addArgument("mimeType", mime).addClassArgument("service", "TaskFactory")
+                .addArgument("position", (670 + (layerPos))).closeAnnotation()
                 .body(bb -> {
                     bb.log(Level.FINE).stringLiteral(mime)
                             .argument(fieldFqn)
@@ -338,11 +338,11 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 MIME_REGISTRATION_ANNOT_TYPE)
                 .implementing("FoldTypeProvider")
                 .withModifier(PUBLIC).withModifier(FINAL)
-                .annotatedWith("Generated").addStringArgument("value", getClass().getName())
-                .addStringArgument("comments", versionString())
+                .annotatedWith("Generated").addArgument("value", getClass().getName())
+                .addArgument("comments", versionString())
                 .closeAnnotation()
                 .annotatedWith("MimeRegistration")
-                .addStringArgument("mimeType", mimeType)
+                .addArgument("mimeType", mimeType)
                 .addClassArgument("service", "FoldTypeProvider")
                 .addArgument("position", pos)
                 .closeAnnotation()
@@ -363,7 +363,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 .initializedFromInvocationOf("singleton").withArgument(foldFieldName)
                 .on("Collections").ofType("Collection<FoldType>")
                 .overridePublic("getValues")
-                .annotatedWith("SuppressWarnings").addArrayArgument("value").stringLiteral("unchecked").stringLiteral("rawTypes").closeArray().closeAnnotation()
+                .annotatedWith("SuppressWarnings").addArrayArgument("value").literal("unchecked")
+                .literal("rawTypes").closeArray().closeAnnotation()
                 .addArgument("Class", "type")
                 .returning("Collection")
                 .body().returning("ALL").endBlock()
