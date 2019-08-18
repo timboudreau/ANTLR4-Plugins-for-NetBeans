@@ -52,6 +52,7 @@ import javax.swing.text.Document;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.NBANTLRv4Parser.ANTLRv4ParserResult;
+import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.semantics.file.AntlrDataObject;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.UndoRedoProvider;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.AdhocMimeTypes;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.file.preview.ui.CulpritFinder;
@@ -87,7 +88,7 @@ import org.openide.windows.WindowManager;
 @Messages({"LBL_G4_VISUAL=Tester", "LBL_LOADING=Loading..."})
 public final class G4VisualElement extends JPanel implements MultiViewElement, LookupListener {
 
-    private final G4DataObject obj;
+    private final AntlrDataObject obj;
     private final JToolBar toolbar = new JToolBar();
     private transient MultiViewElementCallback callback;
     private final JLabel loadingLabel = new JLabel(Bundle.LBL_LOADING());
@@ -100,7 +101,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     private Lookup.Result<SaveCookie> saveCookieResult;
 
     public G4VisualElement(Lookup lkp) {
-        obj = lkp.lookup(G4DataObject.class);
+        obj = lkp.lookup(AntlrDataObject.class);
         this.lkp = new MutableProxyLookup(lkp);
         assert obj != null;
         initComponents();

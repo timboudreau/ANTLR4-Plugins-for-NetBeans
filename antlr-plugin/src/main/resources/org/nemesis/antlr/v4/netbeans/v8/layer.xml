@@ -11,6 +11,7 @@
     </folder>    
     <folder name="Editors">
         <folder name="text">
+            <!--
             <folder name="x-g4">
                 <folder name="Keybindings">
                     <folder name="NetBeans">
@@ -37,6 +38,7 @@
                           stringvalue="org.nemesis.antlr.v4.netbeans.v8.grammar.file.ErrorBadgingUpdater$Factory"/>
                 </file>
             </folder>
+                        -->
             <folder name="x-tokens">
                 <attr name="SystemFileSystem.localizingBundle"
                       stringvalue="org.nemesis.antlr.v4.netbeans.v8.Bundle"/>

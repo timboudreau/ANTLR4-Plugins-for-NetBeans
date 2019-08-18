@@ -53,6 +53,7 @@
                         <licenseName>BSD</licenseName>
                         <licenseFile>${project.parent.relativePath}/../License.txt</licenseFile>
                         <requiresRestart>false</requiresRestart>
+                        <finalName>${project.artifactId}</finalName>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -64,6 +65,7 @@
                         <archive>
                             <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
                         </archive>
+                        <finalName>${project.artifactId}</finalName>
                     </configuration>
                 </plugin>
                 <plugin>

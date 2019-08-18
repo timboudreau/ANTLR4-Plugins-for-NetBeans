@@ -30,30 +30,23 @@ import org.openide.awt.Mnemonics;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataLoader;
 import org.openide.loaders.DataLoaderPool;
+import org.openide.loaders.DataObject;
 import org.openide.util.HelpCtx;
-import org.openide.util.NbBundle;
 
 /**
  *
  * @author Tim Boudreau
  */
-@NbBundle.Messages({"associationsDialog=Add File Extension",
-    "fileExtension=&File Name Extension",
-    "existingAssociations=E&xisting Extensions",
-    "noAssociations=<no extensions yet>",
-    "extensionTip=Choose a file extension such as 'foo' and the IDE will recognize files"
-    + " whose names end with that extension as belonging to your grammar.  You"
-    + " can set up syntax coloring on the preview tab of the editor for your grammar.",
-    "add=&Add",})
+
 public class AssociateFileExtensionDialog extends JPanel
         implements BiConsumer<String, String>, ActionListener, DocumentListener {
 
-    private final G4DataObject obj;
+    private final DataObject obj;
 
     /**
      * Creates new form AssociateFileExtensionDialog
      */
-    public AssociateFileExtensionDialog(G4DataObject obj) {
+    public AssociateFileExtensionDialog(DataObject obj) {
         this.obj = obj;
         initComponents();
         Mnemonics.setLocalizedText(fieldLabel, Bundle.fileExtension());
@@ -64,7 +57,7 @@ public class AssociateFileExtensionDialog extends JPanel
         errorsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
     }
 
-    public static void showDialog(G4DataObject dob) {
+    public static void showDialog(DataObject dob) {
         DialogDescriptor dlg = new DialogDescriptor(new AssociateFileExtensionDialog(dob), Bundle.associationsDialog(), true,
                 new Object[]{DialogDescriptor.CLOSED_OPTION}, DialogDescriptor.CLOSED_OPTION,
                 DialogDescriptor.DEFAULT_ALIGN, HelpCtx.DEFAULT_HELP, new ActionListener() {
