@@ -59,6 +59,11 @@ a logic-free description you could turn into a language of its own as possible.
 
 ### Slightly Unusual Collection-like Data Structures
 
+> "Binary search is so simple and robust that you can code up five subtly 
+> different binary searches for different places in your code, all using 
+> optimized direct references into your internal structures, and not 
+> suffer any software engineering angst." - Tim Bray
+
 All of these implement `Iterable` and other familiar interfaces where it makes
 sense - but like Antlr itself, internally they are highly optimized, and 
 typically operate over 1-2 `int[]`'s, use 
