@@ -381,7 +381,7 @@ tokens; for those, usually you will use an extraction key and `@HighlighterKeyRe
 the `@TokenCategory` annotation _does_ allow for simple "highlight everything in this rule like this"
 highlighting by specifying, e.g. `parserRuleIds={MyParser.RULE_one, MyParser.RULE_two}`.
 
-Bear in mind that highlighting has a *layering* order (which can be specified in `@HighlighterKeyRegistration`,
+Bear in mind that highlighting has a *layering* order (which can be specified in `@HighlighterKeyRegistration`),
 so two superimposed highlightings that both set the background will not be combined (even if one has alpha),
 but the higher overrides the lower.  In addition, there are layers of sets-of-layers in highlighting, 
 specifying the syntax "rack" a highlighting belongs to - this enables things like mark-occurrences
@@ -697,7 +697,8 @@ extraction.
 ### JFS
 
 JFS is a piece of more advanced tooling, which allows you to generate
-source files from an Antlr grammar to an in-memory [JavaFileSystem],
+source files from an Antlr grammar to an in-memory JavaFileSystem
+(the virtual filesystem `javac` uses internally),
 run `javac` on them and even load the generated classes in an isolated
 classloader, and parse a file.  The backing storage for JFS can either
 be the Java heap or a memory mapped file (under the hood it uses a simple
