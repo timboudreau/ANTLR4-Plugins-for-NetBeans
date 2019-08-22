@@ -388,7 +388,7 @@ specifying the syntax "rack" a highlighting belongs to - this enables things lik
 to always override syntax values, even though the code for each doesn't know about the other.
 
 Simply minimally defining the `@AntlrLanguageRegistration` with a lexer and some token categories
-and other required fields is sufficient.
+and other required fields is sufficient to get basic language suport up and running.
 
 
 ### Errors in Sources
