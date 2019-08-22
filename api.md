@@ -170,7 +170,8 @@ An `enum` named `RuleTypes` defines these three _kinds_ of named rule, and maps 
 `NamedRegionKey<RuleTypes>`:
 
 ```java
-public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
+public static final NamedRegionKey<RuleTypes> RULE_NAMES 
+        = NamedRegionKey.create("ruleNames", RuleTypes.class);
 ```
 
 Code that wants to, say, populate a Navigator window or handle syntax highlighting
