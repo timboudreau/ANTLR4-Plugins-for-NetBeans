@@ -13,9 +13,15 @@ This is what the APIs in the modules here are for.
 Patterns
 --------
 
+
+### Annotations and LOTS of Code Generation
+
 Most of the "code" you write will be in the form of Java annotations - to get
 basic syntax highlighting working, a single (large) annotation can take care
 of that.
+
+
+### Those generated fields on your lexer and parser are your friends
 
 Antlr's generated classes contain
 
@@ -30,6 +36,51 @@ A lot of the annotations you will use involve mapping things like editor
 colorings to lists of tokens.  The fields on the lexer and parser are what you
 will use in these.
 
+### You describe _what you want_ not _how to do it_ wherever possible
+
+A pattern you will see in all of the APIs is that complex tasks are made
+_as declarative as possible_ - for example, for each of 
+
+ * Extracting regions of interest and identifying data from a parse tree
+
+ * Defining code-reformatting rules and the conditions under which to apply them
+
+ * Defining the conditions under which one or another code-completion provider
+should be asked for suggestions
+
+you implement a class that is passed a _builder_ of some sort;  you use it to
+describe, as sets of predicates you build up, under what conditions a particular
+action is to be run (and usually that action is something predefined).  So the
+norm is not that you write code that does something to source code, but rather,
+you describe to the system what to do and when to do it.
+
+Ideally (though it is not an ideal world), the result should be as close to
+a logic-free description you could turn into a language of its own as possible.
+
+### Slightly Unusual Collection-like Data Structures
+
+All of these implement `Iterable` and other familiar interfaces where it makes
+sense - but like Antlr itself, internally they are highly optimized, and 
+typically operate over 1-2 `int[]`'s, use 
+[binary search](https://www.tbray.org/ongoing/When/200x/2003/03/22/Binary) to
+reply to queries.  It turns out
+you can actually write a _multiply nested_ data structure with two arrays of
+integers and a slight variant on traditional binary search.
+
+All of this is code that needs to be able to be run over hundreds of files
+in a minute, and may be called several times per-second as the user types, and
+should neither create GC pressure, nor be noticable to the user.  Sometimes
+there is no substitute for using *exactly* the right data structure for the
+job.
+
+In general, these are easy to use, but need to be populated in an exact,
+append-only order - which, no coincidence, happens to be the order in which 
+Antlr traverses a parse tree.  Populating them is taken care of for you -
+they are handed to you to query, and are easy to use.
+
+So, yes, it's weird, but it's also why this whole thing works, and can do
+so faster and in a fraction of the memory footprint of most language-support
+NetBeans plugins - for any language you have a grammar for.
 
 Concepts
 --------
@@ -42,11 +93,28 @@ to handle syntax trees is to _extract what you need to render the UI_ and
 throw everything else away - you'll be doing it again, likely in a few milliseconds
 anyway.
 
+To hammer that home - in the era of NetBeans 5.0, circa 2002, we replaced the
+Java editor infrastructure _entirely_ with a metadata-repository based system
+that made refactoring possible - via live-editable, bidirectional syntax trees.
+The performance of the result was so horrific that the entire thing got scrapped
+within less than a year (replacing it with directly using `javac`'s parser,
+extracting what we needed and discarding syntax trees).  Now, who, with 200+
+people working full time on it, rewrites the biggest subsystem in an IDE and
+then _does it again_ a year later, breaking a year's worth of everybody else's
+work?  That's how bad it was.  So, seriously:  Syntax trees are for compilers.
+If you're not writing a compiler, extract _only_ what you can use from the syntax
+tree you are handed and get rid it.  Another will be along in
+milliseconds and parsing is cheap.
+
 Separating the concerns of "how do I get the data?" from 
-"what data do I want" and "what do I want to do with it?" also helps to build
+"what data do I want" and "what do I want to do with it?" has other benefits:
+It lets you build
 tooling where changes at one layer - say, a new language version or updated
 grammar - don't have cascading effects across all code that touches that
-language, resulting in more maintainable, future-proof plugins.
+language, resulting in more maintainable, future-proof plugins.  Rename a
+grammar rule, and the code that pulls stuff out of the syntax tree may
+need a one-line change; but the things that use the results aren't
+affected at all.
 
 The programmatic APIs you will use are largely oriented around _extraction_,
 which their names reflect.
@@ -61,14 +129,16 @@ things is taken care of.
 ### Extraction
 
 When a file is parsed, the result is an `ExtractionParseResult` - an extension
-to NetBeans' parser result class, with a `extraction()` method, which returns
+to NetBeans' parser result class, with an `extraction()` method, which returns
 an type named - you guessed it - `Extraction`.
 
 
 An `Extraction` is basically a typed map - pass it a key, and get back a data
 structure that is (typically) a collection of region start- and end- positions
-in the file (note, `end` positions in this API and NetBeans are _exclusive_;
-Antlr's native `stop` positions are _inclusive_!), with some other associated
+in the file (note, `end` positions in this API and NetBeans APIs are _exclusive_;
+Antlr's native `stop` positions are _inclusive_!  If you directly deal in 
+pulling offsets out of tokens, add 1 to the stop token's stop position!), 
+with some other associated
 data, such as a name and/or subtype of the thing extracted - enough information
 to, say, apply a different syntax coloring to different items (even though
 they may all have the same lexical token), or to create a Navigator window
@@ -98,7 +168,7 @@ iterated.
 #### Keys and Collections
 
 There are several kinds of key types and collection types obtainable from an
-`Extractions` - you will learn below how to register keys and populate the
+`Extraction` - you will learn below how to register keys and populate the
 extraction after a parse.  Each of these has specific characteristics and is
 right for certain kinds of data, but not others:
 
