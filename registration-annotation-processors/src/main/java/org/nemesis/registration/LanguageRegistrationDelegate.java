@@ -56,6 +56,7 @@ import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import com.mastfrog.util.collections.CollectionUtils;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
@@ -248,7 +249,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
         }
 
-        generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix);
+        generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
 
         AnnotationMirror fileInfo = utils().annotationValue(mirror, "file", AnnotationMirror.class);
         if (fileInfo != null && !roundEnv.errorRaised()) {
@@ -1387,7 +1388,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     // Lexer generation
-    private void generateTokensClasses(TypeElement type, AnnotationMirror mirror, LexerProxy proxy, TypeMirror tokenCategorizerClass, String prefix) throws Exception {
+    private void generateTokensClasses(TypeElement type, AnnotationMirror mirror, LexerProxy proxy, TypeMirror tokenCategorizerClass, String prefix, ParserProxy parser) throws Exception {
 
         List<AnnotationMirror> categories = utils().annotationValues(mirror, "categories", AnnotationMirror.class);
 
@@ -1783,6 +1784,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         if (categories != null) {
             handleCategories(categories, proxy, type, mirror, tokenCategorizerClass, tokenCatName, pkg, prefix);
+            maybeGenerateParserRuleExtractors(mimeType, categories, proxy, type, mirror, tokenCategorizerClass, hierName, pkg, prefix, parser);
         }
         String bundle = utils().annotationValue(mirror, "localizingBundle", String.class);
 
@@ -1835,6 +1837,151 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             return specifiedClass == null ? null : specifiedClass.toString();
         }
         return prefix + "TokenCategorizer";
+    }
+
+    private void maybeGenerateParserRuleExtractors(String mimeType, List<AnnotationMirror> categories, LexerProxy lexer, TypeElement type, AnnotationMirror mirror, TypeMirror tokenCategorizerClass, String catName, Name pkg, String prefix, ParserProxy parser) throws Exception {
+        System.out.println("HAVE " + categories.size() + " CATEGORIES");
+        List<AnnotationMirror> relevant = new ArrayList<>(categories.size() / 2);
+        Map<Integer, Set<String>> ownership = CollectionUtils.supplierMap(TreeSet::new);
+        for (AnnotationMirror am : categories) {
+            List<Integer> parserRuleIds = utils().annotationValues(am, "parserRuleIds", Integer.class);
+            if (!parserRuleIds.isEmpty()) {
+                relevant.add(am);
+                Set<Integer> overlap = new HashSet<>(ownership.keySet());
+                overlap.retainAll(parserRuleIds);
+                String categoryName = utils().annotationValue(am, "name", String.class, "<unnamed>");
+                if (!overlap.isEmpty()) {
+                    for (Integer i : overlap) {
+                        String name = parser.nameForRule(i);
+                        Set<String> others = ownership.get(i);
+                        StringBuilder sb = new StringBuilder(64).append(name)
+                                .append(" is used by multiple token categories: ");
+                        for (Iterator<String> it = others.iterator(); it.hasNext();) {
+                            sb.append(it.next());
+                            if (it.hasNext()) {
+                                sb.append(", ");
+                            }
+                        }
+                        sb.append(" and ").append(categoryName).append(". ")
+                                .append("One will win and others will lose.");
+                        utils().warn(sb.toString(), type, am);
+                    }
+                }
+            }
+        }
+        System.out.println("FOUND " + relevant.size() + " relevant categories");
+        for (AnnotationMirror am : relevant) {
+            Set<Integer> parserRuleIds = new TreeSet<>(utils().annotationValues(am, "parserRuleIds", Integer.class));
+            StringBuilder genClassName = new StringBuilder(prefix).append('_');
+            StringBuilder keyFieldName = new StringBuilder("KEY");
+            String categoryName = utils().annotationValue(am, "name", String.class, "<unnamed>");
+            genClassName.append(toUsableFieldName(categoryName));
+            List<String> fieldNames = new ArrayList<>(parserRuleIds.size());
+            System.out.println("  CATEGORY " + categoryName + " maps");
+            for (int val : parserRuleIds) {
+                String nm = parser.nameForRule(val);
+                System.out.println("     " + nm);
+                genClassName.append('_').append(nm);
+                keyFieldName.append('_').append(nm.toUpperCase());
+                fieldNames.add(parser.ruleFieldForRuleId(val));
+            }
+            genClassName.append("RuleHighlighting");
+            /*
+.extractingRegionsUnder(AntlrKeys.STUFF)
+                .whenRuleIdIn(ANTLRv4Parser.RULE_fragmentRuleDeclaration, ANTLRv4Parser.RULE_labeledParserRuleElement)
+                .extractingKeyWith(rule -> {
+                    String name = ANTLRv4Parser.ruleNames[rule.getRuleIndex()];
+                    System.out.println("ID KEY " + name + ": " + rule.getText());
+                    return name;
+                }).finishRegionExtractor()
+
+public static final RegionsKey<String> STUFF = RegionsKey.create(String.class, "stuff");
+
+    @HighlighterKeyRegistration(mimeType = MIME_TYPE, positionInZOrder = 10, order = 11,
+            colors = @ColoringCategory(name = "stuff",
+                    colors = @Coloration(bg = {100, 255, 100})))
+
+org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration
+
+             */
+            ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(type)).named(genClassName.toString())
+                    .makePublic().makeFinal()
+                    .importing("org.nemesis.extraction.ExtractionRegistration",
+                            "org.nemesis.extraction.ExtractorBuilder",
+                            "org.nemesis.extraction.key.RegionsKey",
+                            "org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration",
+                            parser.parserEntryPointReturnTypeFqn(),
+                            parser.parserClassFqn())
+                    .field(keyFieldName.toString(), fb -> {
+                        fb.withModifier(PUBLIC, STATIC, FINAL)
+                                .annotatedWith("HighlighterKeyRegistration", ab -> {
+                                    ab.addArgument("mimeType", mimeType)
+                                            .addArgument("coloringName", categoryName);
+                                })
+                                .initializedFromInvocationOf("create")
+                                .withArgument("String.class")
+                                .withStringLiteral(keyFieldName.toString())
+                                .on("RegionsKey")
+                                .ofType("RegionsKey<String>");
+                    })
+                    .method("extract", mb -> {
+                        mb.annotatedWith("ExtractionRegistration", ab -> {
+                            ab.addArgument("mimeType", mimeType)
+                                    .addClassArgument("entryPoint", parser.parserEntryPointReturnTypeSimple());
+                        }).withModifier(PUBLIC, STATIC)
+                                .addArgument("ExtractorBuilder<? super "
+                                        + parser.parserEntryPointReturnTypeSimple() + ">", "bldr")
+                                .body(bb -> {
+                                    bb.invoke("finishRegionExtractor")
+                                            .onInvocationOf("extractingKeyWith")
+                                            .withLambdaArgument(lb -> {
+                                                lb.withArgument("rule")
+                                                        .body(lbb -> {
+                                                            lbb.returning(parser.parserClassSimple()
+                                                                    + ".ruleNames[rule.getRuleIndex()]");
+                                                        });
+                                            }).onInvocationOf("whenRuleIdIn")
+                                            .withNewArrayArgument("int", avb -> {
+                                                fieldNames.forEach((fn) -> {
+                                                    avb.expression(parser.parserClassSimple() + "." + fn);
+                                                });
+                                            }).onInvocationOf("extractingRegionsUnder")
+                                            .withArgument(keyFieldName.toString())
+                                            .on("bldr");
+                                });
+
+                    });
+            ;
+
+            System.out.println("GENERATE\n" + cb);
+
+            writeOne(cb);
+
+        }
+    }
+
+    static String toUsableFieldName(String s) {
+        StringBuilder sb = new StringBuilder();
+        int max = s.length();
+        for (int i = 0; i < max; i++) {
+            char c = s.charAt(i);
+            boolean valid;
+            switch (i) {
+                case 0:
+                    valid = Character.isJavaIdentifierStart(c);
+                    if (valid) {
+                        c = Character.toLowerCase(c);
+                    }
+                    break;
+                default:
+                    valid = Character.isJavaIdentifierPart(c);
+            }
+            if (!valid) {
+                continue;
+            }
+            sb.append(c);
+        }
+        return sb.toString();
     }
 
     private void handleCategories(List<AnnotationMirror> categories, LexerProxy lexer, TypeElement type, AnnotationMirror mirror, TypeMirror tokenCategorizerClass, String catName, Name pkg, String prefix) throws Exception {

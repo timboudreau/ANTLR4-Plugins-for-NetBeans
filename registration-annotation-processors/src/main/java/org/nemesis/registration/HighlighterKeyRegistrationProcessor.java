@@ -32,6 +32,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
+import java.util.Comparator;
 import org.openide.filesystems.annotations.LayerBuilder;
 
 /**
@@ -163,9 +164,21 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             if (entries.isEmpty()) {
                 return "Highlighter_NoEntries";
             }
-            Entry e = iterator().next();
-            return e.enclosingType.getSimpleName() + "_"
-                    + "_HighlighterRegistrations";
+//            Entry e = iterator().next();
+            List<String> enclosingTypes = new ArrayList<>();
+            List<String> varNames = new ArrayList<>();
+            for (Entry e : this) {
+                varNames.add(e.variableName());
+                enclosingTypes.add(e.enclosingType.getSimpleName().toString());
+            }
+            enclosingTypes.sort(Comparator.naturalOrder());
+            varNames.sort(Comparator.naturalOrder());
+            StringBuilder sb = new StringBuilder(enclosingTypes.get(0));
+            for (String name : varNames) {
+                sb.append('_').append(name);
+            }
+            sb.append("_HighlighterRegistrations");
+            return sb.toString();
         }
 
         public String generatedFqn() {
@@ -228,7 +241,8 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                         .withArgument(refreshTrigger()).withArgument(zOrder())
                         .withArgument(fixedSize()).withArgument(positionInZOrder(entryIndex)) //                        .withStringLiteral(mimeType)
                         ;
-                kind.generateColorCode(this, builderVar, var, coloringName(), functionClassName(), iv, mimeType);
+                kind.generateColorCode(this, builderVar, var, coloringName(), functionClassName(), iv, mimeType,
+                    hasColorFinder(), utils() );
                 iv.on(builderVar);
             }
 
@@ -246,12 +260,23 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 return into.append(" ").append(name).append('=').append(val);
             }
 
+            boolean hasColorFinder() {
+                return !utils().typeList(mirror, "colorFinder").isEmpty();
+            }
+
+            boolean hasAttributeSetFinder() {
+                return !utils().typeList(mirror, "attributeSetFinder").isEmpty();
+            }
+
             String functionClassName() {
-                List<String> type = utils().typeList(mirror, "colorFinder", "java.util.Function");
+                List<String> type = utils().typeList(mirror, "colorFinder" /*, "java.util.Function" */);
                 if (type.isEmpty()) {
-                    type = utils().typeList(mirror, "attributeSetFinder", "java.util.Function");
+                    type = utils().typeList(mirror, "attributeSetFinder" /*, "java.util.Function" */);
                 }
-                return type.isEmpty() ? null : type.get(0);
+                if (!type.isEmpty()) {
+                    return type.get(0).replace('$', '.');
+                }
+                return null;
             }
 
             String coloringName() {
@@ -293,6 +318,10 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
             private PackageElement pkg() {
                 return processingEnv.getElementUtils().getPackageOf(enclosingType);
+            }
+
+            String variableName() {
+                return var.getSimpleName().toString();
             }
 
             private int packageDepth(PackageElement el) {
@@ -609,8 +638,16 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
         private void generateColorCode(HighlightingInfo.Entry aThis, String builderVar,
                 VariableElement var, String coloringName, String functionClassName,
-                ClassBuilder.InvocationBuilder<?> iv, String mimeType) {
+                ClassBuilder.InvocationBuilder<?> iv, String mimeType, boolean hasColorFinder, AnnotationUtils utils) {
             iv.withArgument(var.getSimpleName().toString());
+            System.out.println("\n\nTYPE " + var.asType() + "\n\n");
+            if (utils.isAssignable(utils.erasureOf(var.asType()), "org.nemesis.extraction.key.NamedRegionKey") && !hasColorFinder && functionClassName != null) {
+                // Builder uses a different argument order when passing a NamedRegionKey to
+                // avoid an erasure clash
+                iv.withNewInstanceArgument().ofType(functionClassName)
+                        .withStringLiteral(mimeType);
+                return;
+            }
             if (isFunction()) {
                 iv.withStringLiteral(mimeType);
                 iv.withArgument("new " + functionClassName + "()");

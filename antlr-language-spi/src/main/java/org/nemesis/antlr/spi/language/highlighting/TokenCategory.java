@@ -24,21 +24,29 @@ public @interface TokenCategory {
     String name();
 
     /**
-     * All tokens which belong to this category (they will be static
-     * fields on your generated Antlr lexer - use those here, as
-     * numbers can change when the grammar is edited).
+     * All tokens which belong to this category (they will be static fields on
+     * your generated Antlr lexer - use those here, as numbers can change when
+     * the grammar is edited).
      *
      * @return An array of token ids for this category
      */
     int[] tokenIds() default {};
 
     /**
-     * The colors to use for this token category - each Coloration can
-     * specify multiple themes (NetBeans, Darkula, etc.) they apply
-     * to.
+     * All parser rules which belong to this category (they will be static
+     * fields on your generated Antlr <i>parser</i> with variable names prefixed
+     * with <code>RULE_</code>, e.g. <code>RULE_methodArguments</code> - use
+     * those here, as numbers can change when the grammar is edited).
      *
-     * @return An array of coloring configurations for different editor
-     * themes
+     * @return An array of token ids for this category
+     */
+    int[] parserRuleIds() default {};
+
+    /**
+     * The colors to use for this token category - each Coloration can specify
+     * multiple themes (NetBeans, Darkula, etc.) they apply to.
+     *
+     * @return An array of coloring configurations for different editor themes
      */
     Coloration[] colors() default {};
 

@@ -607,12 +607,12 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         }
 
         if (result == null) {
-            result = (Graphics2D) GraphicsEnvironment
+            result = GraphicsEnvironment
                     .getLocalGraphicsEnvironment()
                     .getDefaultScreenDevice()
                     .getDefaultConfiguration()
                     .createCompatibleImage(1, 1)
-                    .getGraphics();
+                    .createGraphics();
             if (!noCacheGraphics) {
                 scratchGraphics = new SoftReference<Graphics2D>(result);
             }

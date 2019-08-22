@@ -1,7 +1,9 @@
 package org.nemesis.extraction;
 
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.nemesis.extraction.key.RegionsKey;
 
 /**
  *
@@ -19,4 +21,7 @@ public interface ExtractionContributor<T extends ParserRuleContext> extends Cons
         return null;
     }
 
+    static ExtractionContributor<ParserRuleContext> createGenericRuleRegionExtractor(RegionsKey<String> key, Function<ParserRuleContext, String> convert, int... ruleIds) {
+        return new GenericRuleIdExtractionContributor<>(convert, ParserRuleContext.class, key, ruleIds);
+    }
 }

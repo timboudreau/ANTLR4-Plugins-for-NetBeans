@@ -44,7 +44,9 @@ import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
+import org.nemesis.antlr.spi.language.highlighting.ColoringCategory;
 import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
+import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Lexer;
 import org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser;
 import static org.nemesis.antlr.v4.netbeans.v8.grammar.code.checking.impl.ANTLRv4Parser.*;
@@ -67,7 +69,7 @@ import org.nemesis.extraction.key.SingletonKey;
                     HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
                     OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS}
         ),
-        sample=ANTLR_SAMPLE,
+        sample = ANTLR_SAMPLE,
         lineCommentPrefix = "//",
         categories = {
             @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR}, colors = @Coloration(fg = {255, 255, 0, 255})),
@@ -115,6 +117,12 @@ public class AntlrKeys {
             guardedEnd = 3, displayText = "rules"))
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
     public static final NamedRegionKey<ImportKinds> IMPORTS = NamedRegionKey.create("imports", ImportKinds.class);
+
+    @HighlighterKeyRegistration(mimeType = "text/g4",
+            colors = @ColoringCategory(name = "alternatives", colors = @Coloration(
+                    themes = {"NetBeans", "NetBeans55", "NetBeans_Solarized_Dark", "BlueTheme"},
+                    bg = {255, 255, 242}
+            )))
     public static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("labels", RuleTypes.class);
 
     @AntlrFoldsRegistration(mimeType = "text/x-g4", foldSpec = @FoldTypeSpec(name = "header", guardedStart = 3,

@@ -43,9 +43,9 @@
                     <version>1.8</version>
                 </plugin>
                 <plugin>
-                    <groupId>org.codehaus.mojo</groupId>
+                    <groupId>org.apache.netbeans.utilities</groupId>
                     <artifactId>nbm-maven-plugin</artifactId>
-                    <version>4.1</version>
+                    <version>4.2</version>
                     <extensions>true</extensions>
                     <configuration>
                         <branding.token>${nbcluster}</branding.token>
@@ -162,6 +162,7 @@
         <module>antlr-highlighting</module>
         <module>antlr-code-completion</module>
         <module>mastfrog-utils-wrapper</module>
+        <module>simple-test-language</module>
         <module>protoc-antlr</module>
     </modules>
     <repositories>

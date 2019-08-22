@@ -18,6 +18,10 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.editor.mimelookup.MimePath;
+import org.netbeans.api.editor.settings.FontColorSettings;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
@@ -27,6 +31,9 @@ import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Lookup;
+import org.openide.util.LookupEvent;
+import org.openide.util.LookupListener;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
@@ -212,12 +219,18 @@ abstract class GeneralHighlighter<T> implements Runnable {
         };
     }
 
-    static final class DocumentOriented<T> extends GeneralHighlighter<T> implements DocumentListener {
+    static final class DocumentOriented<T> extends GeneralHighlighter<T> implements DocumentListener, LookupListener {
+
+        private final Lookup.Result<FontColorSettings> res;
 
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
             doc.addDocumentListener(WeakListeners.document(this, doc));
+            MimePath mimePath = MimePath.parse(NbEditorUtilities.getMimeType(doc));
+            res = MimeLookup.getLookup(mimePath).lookupResult(FontColorSettings.class);
+            res.addLookupListener(this);
+            res.allInstances();
             scheduleRefresh();
         }
 
@@ -240,6 +253,11 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         @Override
         public final void changedUpdate(DocumentEvent e) {
+            scheduleRefresh();
+        }
+
+        @Override
+        public void resultChanged(LookupEvent ev) {
             scheduleRefresh();
         }
     }

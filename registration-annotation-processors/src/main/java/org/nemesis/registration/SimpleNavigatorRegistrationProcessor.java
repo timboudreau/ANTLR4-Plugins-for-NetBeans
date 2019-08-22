@@ -52,7 +52,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
                     .testMember("mimeType").validateStringValueAsMimeType().build()
                     // Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
                     .testMember("appearance").asType(tmtb -> {
-                tmtb.isSubtype(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
+                tmtb.isSubtypeWithErasure(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
                 tmtb.asElement().doesNotHaveModifier(PRIVATE).mustHavePublicNoArgConstructor().build();
             }).build()
                     .whereFieldIsAnnotated(fieldTestBuilder -> {
@@ -146,6 +146,8 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
         String configTypeName = isSemanticRegion ? SEMANTIC_REGION_PANEL_CONFIG_NAME
                 : NAVIGATOR_PANEL_CONFIG_NAME;
 
+        TypeMirror appearance = utils().typeForSingleClassAnnotationMember(mirror, "appearance");
+
         ClassBuilder<String> bldr = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .importing(configType,
                         NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
@@ -178,6 +180,14 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
                                 if (!icon.isEmpty()) {
                                     bb.invoke("setSingleIcon").withStringLiteral(icon).on("result");
                                 }
+
+                                if (appearance != null) {
+                                    bb.invoke("withAppearance").withNewInstanceArgument().ofType(appearance.toString())
+                                            .on("result");
+                                }
+
+//                                ADD APPEARANCE
+
                                 bb.invoke("setDisplayName").withArgument("displayName").on("result");
                                 bb.invoke("sortable").on("result");
                                 bb.returning("result.build()").endBlock();

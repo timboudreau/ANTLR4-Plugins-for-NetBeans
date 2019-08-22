@@ -94,10 +94,23 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
             return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
         }
 
+        public <T> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
+                int positionInZOrder, RegionsKey<T> key, String mimeType, String coloringName) {
+            Supplier<AntlrHighlighter> supp = ()
+                    -> AntlrHighlighter.create(mimeType, key, coloringName);
+            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+        }
+
         public Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NamedRegionKey<?> key, String mimeType, String coloringName) {
             Supplier<AntlrHighlighter> supp = ()
                     -> AntlrHighlighter.create(key, mimeType, coloringName);
+            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+        }
+
+        public <T extends Enum<T>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
+                int positionInZOrder, NamedRegionKey<T> key, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup, String mimeType) {
+            Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
             return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
         }
 
@@ -108,7 +121,7 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
         }
 
         public <T extends Enum<T>> Builder create(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
-                int positionInZOrder, NamedRegionKey<T> key, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup) {
+                int positionInZOrder, NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
             return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
         }

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.nemesis</groupId>
@@ -56,9 +55,30 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
+            <artifactId>antlr-language-grammar</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>tokens-file-grammar</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>java-file-grammar</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-file-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+<!--        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
+            <version>${project.version}</version>
+        </dependency>-->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
@@ -229,7 +249,7 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
+                <groupId>org.apache.netbeans.utilities</groupId>
                 <artifactId>nbm-maven-plugin</artifactId>
                 <executions>
                     <execution>
@@ -261,18 +281,10 @@
                             <target name="copy-conf-file">
                                 <echo>Copying customized netbeans.conf file</echo>
                                 <mkdir dir="${basedir}/target/${brandingToken}/etc/"/>
-                                <copy
-                                    file="${basedir}/src/application/etc/antlr.conf"
-                                    tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf"
-                                    verbose="true"
-                                    overwrite="true"
-                                    outputencoding="UTF-8">
+                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true">
                                 </copy>
                                 <mkdir dir="${basedir}/target/netbeans_clusters"/>
-                                <copy
-                                    todir="${basedir}/target/netbeans_clusters/${brandingToken}"
-                                    overwrite="true"
-                                    outputencoding="UTF-8">
+                                <copy outputencoding="UTF-8" overwrite="true" todir="${basedir}/target/netbeans_clusters/${brandingToken}">
                                     <fileset dir="${basedir}/target/${brandingToken}/${brandingToken}"/>
                                 </copy>
                             </target>
@@ -288,17 +300,9 @@
                             <target name="copy-conf-file">
                                 <echo>Copying customized netbeans.conf file</echo>
                                 <mkdir dir="${basedir}/target/${brandingToken}/etc/"/>
-                                <copy
-                                    file="${basedir}/src/application/etc/antlr.conf"
-                                    tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf"
-                                    verbose="true"
-                                    overwrite="true"
-                                    outputencoding="UTF-8">
+                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true">
                                 </copy>
-                                <copy
-                                    todir="${basedir}/target/netbeans_clusters/${brandingToken}"
-                                    overwrite="true"
-                                    outputencoding="UTF-8">
+                                <copy outputencoding="UTF-8" overwrite="true" todir="${basedir}/target/netbeans_clusters/${brandingToken}">
                                     <fileset dir="${basedir}/target/${brandingToken}/${brandingToken}"/>
                                 </copy>
                             </target>

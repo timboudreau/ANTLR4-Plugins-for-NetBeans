@@ -35,6 +35,10 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         return new RegionExtractionBuilderForOneRuleType<>(bldr, key, type);
     }
 
+    public <T extends ParserRuleContext> RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whenRuleIdIn(int... types) {
+        return new RegionExtractionBuilderForRuleIds<>(bldr, key, types);
+    }
+
     public TokenRegionExtractorBuilder<EntryPointType, RegionKeyType> whenTokenTypeMatches(IntPredicate tokenTypeMatcher) {
         return new TokenRegionExtractorBuilder<>(bldr, key, tokenTypeMatcher);
     }
@@ -101,7 +105,84 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
                 hasher.hashObject(key);
             }
         }
+    }
 
+    /**
+     * Builder for the use case of extracting the region covered by a rule, by
+     * ID.
+     *
+     * @param <EntryPointType>
+     * @param <RegionKeyType>
+     */
+    public static final class RegionExtractionBuilderForRuleIds<EntryPointType extends ParserRuleContext, RegionKeyType> {
+
+        private final ExtractorBuilder<EntryPointType> bldr;
+        private final RegionsKey<RegionKeyType> key;
+        private final int[] ruleIds;
+        private Predicate<RuleNode> ancestorQualifier;
+        private final Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors = new HashSet<>();
+        private final Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors = new HashSet<>();
+
+        RegionExtractionBuilderForRuleIds(ExtractorBuilder<EntryPointType> bldr, RegionsKey<RegionKeyType> key, int[] ruleIds, Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> set, Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors) {
+            this(bldr, key, ruleIds);
+            this.extractors.addAll(set);
+            this.tokenExtractors.addAll(tokenExtractors);
+        }
+
+        RegionExtractionBuilderForRuleIds(ExtractorBuilder<EntryPointType> bldr, RegionsKey<RegionKeyType> key, int[] ruleIds) {
+            this.bldr = bldr;
+            this.key = key;
+            this.ruleIds = Arrays.copyOf(ruleIds, ruleIds.length);
+            Arrays.sort(ruleIds);
+        }
+
+        public RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whenAncestorMatches(Predicate<RuleNode> pred) {
+            if (ancestorQualifier == null) {
+                ancestorQualifier = pred;
+            } else {
+                ancestorQualifier = ancestorQualifier.or(pred);
+            }
+            return this;
+        }
+
+        public RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whenAncestorRuleOf(Class<? extends RuleNode> type) {
+            return whenAncestorMatches(new QualifierPredicate(type));
+        }
+
+        private FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> finish() {
+            return new FinishableRegionExtractorBuilder<>(bldr, key, extractors, tokenExtractors);
+        }
+
+        public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> extractingKeyWith(Function<ParserRuleContext, RegionKeyType> func) {
+            extractors.add(RegionExtractionStrategy.forRuleIds(ancestorQualifier, ruleIds, func));
+            return finish();
+        }
+
+        public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> extractingKeyWith(RegionKeyType type) {
+            extractors.add(RegionExtractionStrategy.forRuleIds(ancestorQualifier, ruleIds, new FixedKey<>(type)));
+            return finish();
+        }
+
+        static class FixedKey<RegionKeyType> implements Function<ParserRuleContext, RegionKeyType>, Hashable {
+
+            private final RegionKeyType type;
+
+            public FixedKey(RegionKeyType type) {
+                this.type = type;
+            }
+
+            @Override
+            public RegionKeyType apply(ParserRuleContext t) {
+                return type;
+            }
+
+            @Override
+            public void hashInto(Hasher hasher) {
+                hasher.writeString(getClass().getName());
+                hasher.writeString(type == null ? null : type.getClass().getName());
+                hasher.hashObject(type);
+            }
+        }
     }
 
     public static final class RegionExtractionBuilderForOneRuleType<EntryPointType extends ParserRuleContext, RegionKeyType, RuleType extends ParserRuleContext> {

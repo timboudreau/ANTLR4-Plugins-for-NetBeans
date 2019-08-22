@@ -73,9 +73,7 @@ class HtmlLabelUI extends LabelUI {
         return calcPreferredSize((HtmlRendererImpl) c);
     }
 
-    /**
-     * Get the width of the text
-     */
+    /** Get the width of the text */
     private static int textWidth(String text, Graphics g, Font f, boolean html) {
         if (text != null) {
             if (html) {
@@ -159,8 +157,7 @@ class HtmlLabelUI extends LabelUI {
         return ret;
     }
 
-    public @Override
-    void update(Graphics g, JComponent c) {
+    public @Override void update(Graphics g, JComponent c) {
         Color bg = getBackgroundFor((HtmlRendererImpl) c);
         HtmlRendererImpl h = (HtmlRendererImpl) c;
         if (bg == null && h.getType() == HtmlRendererImpl.Type.UNKNOWN) {
@@ -216,8 +213,7 @@ class HtmlLabelUI extends LabelUI {
         paint(g, c);
     }
 
-    public @Override
-    void paint(Graphics g, JComponent c) {
+    public @Override void paint(Graphics g, JComponent c) {
 
         ((Graphics2D) g).addRenderingHints(getHints());
 
@@ -230,9 +226,7 @@ class HtmlLabelUI extends LabelUI {
         }
     }
 
-    /**
-     * Actually paint the icon and text using our own html rendering engine.
-     */
+    /** Actually paint the icon and text using our own html rendering engine. */
     private void paintIconAndText(Graphics g, HtmlRendererImpl r) {
         Font f = r.getFont();
         g.setFont(f);
@@ -291,8 +285,8 @@ class HtmlLabelUI extends LabelUI {
                 icon.paintIcon(r, g, iconX, iconY);
             } catch (NullPointerException npe) {
                 Exceptions.attachMessage(npe,
-                        "Probably an ImageIcon with a null source image: "
-                        + icon + " - " + r.getText()); //NOI18N
+                                         "Probably an ImageIcon with a null source image: " +
+                                         icon + " - " + r.getText()); //NOI18N
                 Exceptions.printStackTrace(npe);
             }
 
@@ -511,9 +505,7 @@ class HtmlLabelUI extends LabelUI {
         return "Nimbus".equals(UIManager.getLookAndFeel().getID());
     }
 
-    /**
-     * Get the system-wide unfocused selection background color
-     */
+    /** Get the system-wide unfocused selection background color */
     private static Color getUnfocusedSelectionBackground() {
         if (unfocusedSelBg == null) {
             //allow theme/ui custom definition
@@ -539,9 +531,7 @@ class HtmlLabelUI extends LabelUI {
         return unfocusedSelBg;
     }
 
-    /**
-     * Get the system-wide unfocused selection foreground color
-     */
+    /** Get the system-wide unfocused selection foreground color */
     private static Color getUnfocusedSelectionForeground() {
         if (unfocusedSelFg == null) {
             //allow theme/ui custom definition
@@ -564,7 +554,7 @@ class HtmlLabelUI extends LabelUI {
     public static final boolean gtkShouldAntialias() {
         if (gtkAA == null) {
             Object o = Toolkit.getDefaultToolkit().getDesktopProperty("gnome.Xft/Antialias"); //NOI18N
-            gtkAA = Integer.valueOf(1).equals(o) ? Boolean.TRUE : Boolean.FALSE;
+            gtkAA = Integer.valueOf(1).equals(o);
         }
 
         return gtkAA.booleanValue();

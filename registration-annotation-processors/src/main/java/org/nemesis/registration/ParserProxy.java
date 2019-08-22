@@ -26,6 +26,7 @@ class ParserProxy {
     private final TypeMirror parserClass;
     private final Map<String, ExecutableElement> methodsForNames;
     private final int entryPointRuleNumber;
+    private final Map<Integer, String> ruleConstantFieldNameForRuleId;
 
     public List<String> ruleNamesSortedById() {
         List<String> result = new ArrayList<>();
@@ -43,22 +44,26 @@ class ParserProxy {
         Map<Integer, String> ruleIdForName = new HashMap<>();
         Map<String, Integer> nameForRuleId = new HashMap<>();
         Map<String, ExecutableElement> methodsForNames = new HashMap<>();
+        Map<Integer, String> ruleConstantFieldNameForRuleId = new HashMap<>();
         if (parserClassElement != null) {
             String entryPointRule = null;
             for (Element el : parserClassElement.getEnclosedElements()) {
                 if (el instanceof VariableElement) {
                     VariableElement ve = (VariableElement) el;
                     String nm = ve.getSimpleName().toString();
-                    if (nm == null || !nm.startsWith("RULE_") || !"int".equals(ve.asType().toString())) {
+                    if (nm == null || !nm.startsWith("RULE_") || !"int".equals(ve.asType().toString()) || ve.getConstantValue() == null || nm.length() <= 5) {
                         continue;
                     }
                     String ruleName = nm.substring(5);
-                    if (!ruleName.isEmpty() && ve.getConstantValue() != null) {
-                        int val = (Integer) ve.getConstantValue();
-                        ruleIdForName.put(val, ruleName);
-                        if (val == entryPointRuleId) {
-                            entryPointRule = ruleName;
-                        }
+
+                    int val = (Integer) ve.getConstantValue();
+                    
+                    nameForRuleId.put(ruleName, val);
+                    ruleConstantFieldNameForRuleId.put(val, ve.getSimpleName().toString());
+
+                    ruleIdForName.put(val, ruleName);
+                    if (val == entryPointRuleId) {
+                        entryPointRule = ruleName;
                     }
                 } else if (entryPointRule != null && el instanceof ExecutableElement) {
                     Name name = el.getSimpleName();
@@ -76,7 +81,9 @@ class ParserProxy {
             utils.fail("Could not find entry point method for rule id " + entryPointRuleId + " in " + parserClass);
             return null;
         }
-        return new ParserProxy(ruleIdForName, nameForRuleId, parserEntryPointMethod, parserClassElement, parserClass, methodsForNames, entryPointRuleId);
+        return new ParserProxy(ruleIdForName, nameForRuleId, parserEntryPointMethod,
+                parserClassElement, parserClass, methodsForNames,
+                entryPointRuleId, ruleConstantFieldNameForRuleId);
     }
 
     static String typeName(TypeMirror mirror) {
@@ -85,6 +92,10 @@ class ParserProxy {
             return result.substring(2);
         }
         return result;
+    }
+
+    public String ruleFieldForRuleId(int id) {
+        return ruleConstantFieldNameForRuleId.get(id);
     }
 
     public ExecutableElement parserEntryPoint() {
@@ -150,7 +161,7 @@ class ParserProxy {
         return i == null ? null : ruleTypeForId(i);
     }
 
-    private ParserProxy(Map<Integer, String> ruleIdForName, Map<String, Integer> nameForRuleId, ExecutableElement parserEntryPointMethod, TypeElement parserClassElement, TypeMirror parserClass, Map<String, ExecutableElement> methodsForNames, int entryPointRuleNumber) {
+    private ParserProxy(Map<Integer, String> ruleIdForName, Map<String, Integer> nameForRuleId, ExecutableElement parserEntryPointMethod, TypeElement parserClassElement, TypeMirror parserClass, Map<String, ExecutableElement> methodsForNames, int entryPointRuleNumber, Map<Integer, String> ruleConstantFieldNameForRuleId) {
         this.ruleIdForName = ruleIdForName;
         this.nameForRuleId = nameForRuleId;
         this.parserEntryPointMethod = parserEntryPointMethod;
@@ -158,6 +169,7 @@ class ParserProxy {
         this.parserClass = parserClass;
         this.methodsForNames = methodsForNames;
         this.entryPointRuleNumber = entryPointRuleNumber;
+        this.ruleConstantFieldNameForRuleId = ruleConstantFieldNameForRuleId;
     }
 
 }
