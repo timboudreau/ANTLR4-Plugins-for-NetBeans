@@ -138,6 +138,16 @@ So the main pattern here is
 3. Query it, passing a key, and getting back a collection of items you described
 how to extract, which have file offsets and whatever other information you asked
 for them to be populated with
+4. Annotate your key (a static field) with annotations that use the data collected
+under that key to implement some feature, such as code folding, or navigator panels,
+or semantic highlighting - often with no additional code required at all.
+   * For example, to implement the Goto Declaration editor action over a key
+for references to names, you literally just add `@Goto` above the field.
+   * In some cases, you can optionally implement some interface and reference
+your implementation from the annotation to customize the behavior - for example,
+a Navigator panel is a one-line annotation, but you can implement `Appearance` to
+give the items pretty icons and indenting depending on the type of source element
+they represent
 
 
 ### Extraction
@@ -158,8 +168,8 @@ to, say, apply a different syntax coloring to different items (even though
 they may all have the same lexical token), or to create a Navigator window
 panel and use different icons for different subtypes.
 
-For example, in the Antlr Grammar Language module - the module which provides editor support for Antlr
-`.g4` files, there are three kinds of grammar rule:
+For example, in the Antlr Grammar Language module - the module which provides 
+editor support for Antlr `.g4` files, there are three kinds of grammar rule:
 
  * _Parser_ rules define rules for how lexical tokens can be defined
  * _Token_ rules define lexical tokens
