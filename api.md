@@ -49,7 +49,7 @@ _as declarative as possible_ - for example, for each of
 should be asked for suggestions
 
 you implement a class that is passed a _builder_ of some sort;  you use it to
-describe, as sets of predicates you build up, under what conditions a particular
+describe, as trees of predicates you build up, under what conditions a particular
 action is to be run (and usually that action is something predefined).  So the
 norm is not that you write code that does something to source code, but rather,
 you describe to the system what to do and when to do it.
