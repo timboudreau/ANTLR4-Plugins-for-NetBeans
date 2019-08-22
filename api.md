@@ -453,7 +453,7 @@ that let you define formatting and analysis rules.
 `StubFormatter` has a method you implement for that purpose:
 `configure(LexingStateBuilder<StateEnum, ?> stateBuilder, FormattingRules rules, C config)`.
 
-The `FormattingRules` is what lets you define rules - preferring token-, not rule-
+The `FormattingRules` is what lets you define rules - preferring token-, not parser-rule-
 based (if you've used an editor that completely screwed a source file because you
 reformatted a source file that had an error in it, that is why - you *can* rely
 on parser rules, but you shouldn't).
