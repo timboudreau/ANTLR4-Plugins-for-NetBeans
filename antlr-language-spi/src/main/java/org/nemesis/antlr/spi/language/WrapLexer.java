@@ -9,6 +9,8 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenFactory;
 
 /**
+ * Wraps a lexer and implements TokenSource and allows for replaying the tokens
+ * via the iterator.
  *
  * @author Tim Boudreau
  */

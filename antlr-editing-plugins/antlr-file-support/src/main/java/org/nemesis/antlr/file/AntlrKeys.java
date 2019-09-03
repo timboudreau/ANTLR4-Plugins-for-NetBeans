@@ -49,7 +49,6 @@ import static org.nemesis.antlr.file.AntlrKeys.ANTLR_SAMPLE;
 import org.nemesis.antlr.file.impl.AntlrNavigatorAppearance;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
-import org.nemesis.antlr.fold.FoldTypeSpec;
 import org.nemesis.antlr.navigator.SimpleNavigatorRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
@@ -188,8 +187,8 @@ public class AntlrKeys {
     private static final String[] DARK_THEMES = {"NetBeans_Solarized_Dark", "BlueTheme"};
     private static final String[] BRIGHT_THEMES = new String[] {"NetBeans", "NetBeans55"};
 
-    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "rules", guardedStart = 3,
-            guardedEnd = 3, displayText = "rules"))
+//    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "rules", guardedStart = 3,
+//            guardedEnd = 3, displayText = "rules"))
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
     public static final NamedRegionKey<ImportKinds> IMPORTS = NamedRegionKey.create("imports", ImportKinds.class);
 
@@ -210,8 +209,8 @@ public class AntlrKeys {
                         ),}))
     public static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("alternatives", RuleTypes.class);
 
-    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "header", guardedStart = 3,
-            guardedEnd = 3, displayText = "header"))
+//    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "header", guardedStart = 3,
+//            guardedEnd = 3, displayText = "header"))
     public static final RegionsKey<HeaderMatter> HEADER_MATTER = RegionsKey.create(HeaderMatter.class, "headerMatter");
 
     @HighlighterKeyRegistration(mimeType = MIME_TYPE, positionInZOrder = 10, order = 11,
@@ -308,8 +307,8 @@ public class AntlrKeys {
             }))
     public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
 
-    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "block", guardedStart = 3,
-            guardedEnd = 3, displayText = "block"))
+//    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "block", guardedStart = 3,
+//            guardedEnd = 3, displayText = "block"))
     public static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
 
     @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldType = FoldTypeName.MEMBER)
@@ -321,7 +320,7 @@ public class AntlrKeys {
             + "    ( def? ':' ts=Timestamp constraints) #IsoTimestamp\n"
             + "    |(def? ':' amt=digits) #IntTimestamp \n"
             + "    |(def? ':' digits) #FooTimestamp;\n"
-            + "\n"
+            + "\n// line comment\n"
             + "constraints: (min=min | max=max | req=req)*;\n"
             + "\n"
             + "max : 'max' value=timestampLiteral;\n"

@@ -1,0 +1,2 @@
+grammar Wookie;
+word : Tok;Tok : [a-z]+

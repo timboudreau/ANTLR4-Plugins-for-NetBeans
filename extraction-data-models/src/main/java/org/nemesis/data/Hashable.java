@@ -88,12 +88,16 @@ public interface Hashable {
             return null;
         }
 
-        public Hasher writeIntArray(int[] vals) throws IOException {
+        public Hasher writeIntArray(int[] vals) {
             ByteBuffer bb = ByteBuffer.allocate(vals.length * (Integer.SIZE / 8));
             for (int i = 0; i < vals.length; i++) {
                 bb.putInt(i);
             }
-            out.write(bb.array());
+            try {
+                out.write(bb.array());
+            } catch (IOException ex) {
+                LOG.log(Level.SEVERE, null, ex);
+            }
             return this;
         }
 

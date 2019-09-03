@@ -32,6 +32,9 @@ public class OffHeapBytesStorageImplTest {
 
     @Test(timeout = 3 * MINUTE)
     public void thrashTest() throws Throwable {
+        if (isRunningInIDE()) {
+            return;
+        }
         thrash(1);
         thrash(13849273);
         thrash(1638492319L);
@@ -305,8 +308,16 @@ public class OffHeapBytesStorageImplTest {
         }
     }
 
+    static boolean isRunningInIDE() {
+        String s = System.getProperty("maven.ext.class.path");
+        return s != null && s.contains("netbeans-eventspy");
+    }
+
     @Test
     public void testReadWrite() throws IOException {
+        if (isRunningInIDE()) {
+            return;
+        }
         NioBytesStorageAllocator pool = new NioBytesStorageAllocator(1024, 512, BlockStorageKind.OFF_HEAP);
         BytesStorageWrapper item = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);
         BytesStorageWrapper item2 = pool.allocate(null, Name.forFileName("foo"), StandardLocation.ANNOTATION_PROCESSOR_PATH);

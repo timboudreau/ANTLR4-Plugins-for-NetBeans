@@ -218,7 +218,7 @@ public final class Extractor<T extends ParserRuleContext> {
 
     private <K> void runSingles(SingletonExtractionStrategies<K> single, T ruleNode, Extraction extraction, BooleanSupplier cancelled) {
         SingletonEncounters<K> encounters = single.extract(ruleNode, cancelled);
-        extraction.addSingle(single.key, encounters);
+        extraction.addSingleton(single.key, encounters);
     }
 
     private static final BooleanSupplier FALSE = () -> false;

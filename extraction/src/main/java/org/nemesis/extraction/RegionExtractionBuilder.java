@@ -251,10 +251,6 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             c.accept(null, new int[]{rule.getStart().getStartIndex(), rule.getStop().getStopIndex() + 1});
         }
 
-        private static <RuleType extends ParserRuleContext, R> void extractBounds(RuleType rule, R key, BiConsumer<R, int[]> c) {
-            c.accept(key, new int[]{rule.getStart().getStartIndex(), rule.getStop().getStopIndex() + 1});
-        }
-
         public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> extractingBoundsFromRuleUsingKey(RegionKeyType key) {
             return extractingKeyAndBoundsWith((rule, c) -> {
                 c.accept(key, new int[]{rule.getStart().getStartIndex(), rule.getStop().getStopIndex() + 1});
@@ -330,7 +326,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         }
     }
 
-    private static final class MultiIntPredicate implements IntPredicate {
+    private static final class MultiIntPredicate implements IntPredicate, Hashable {
 
         private final int[] values;
 
@@ -348,6 +344,12 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         @Override
         public String toString() {
             return "tokenType(" + Arrays.toString(values) + ")";
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.writeString("mi");
+            hasher.writeIntArray(values);
         }
 
         @Override

@@ -38,6 +38,8 @@
                         <publicPackage>com.mastfrog.util.collections</publicPackage>
                         <publicPackage>com.mastfrog.util.search</publicPackage>
                         <publicPackage>com.mastfrog.util.strings</publicPackage>
+                        <publicPackage>com.mastfrog.util.file</publicPackage>
+                        <publicPackage>com.mastfrog.util.streams</publicPackage>
                         <publicPackage>com.mastfrog.util.preconditions</publicPackage>
                     </publicPackages>
                     <author>Tim Boudreau</author>

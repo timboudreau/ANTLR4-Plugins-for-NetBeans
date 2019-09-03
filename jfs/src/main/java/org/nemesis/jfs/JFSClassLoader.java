@@ -51,7 +51,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
         for (JFSFileObjectImpl file : all) {
             String nm = file.getName();
             // strip .class from the file name
-            names.add(file.getName().substring(0, nm.length()-6));
+            names.add(file.getName().substring(0, nm.length() - 6));
         }
         while (!all.isEmpty()) {
             for (Iterator<JFSFileObjectImpl> iter = all.iterator(); iter.hasNext();) {
@@ -74,10 +74,33 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
     }
 
     @Override
+    public String toString() {
+        StringBuilder res = new StringBuilder("JFSClassLoader(");
+        List<String> all = new ArrayList<>(classes.keySet());
+        Collections.sort(all);
+        for (Iterator<String> it = all.iterator(); it.hasNext();) {
+            res.append(it.next());
+            if (it.hasNext()) {
+                res.append(", ");
+            }
+        }
+        res.append(')');
+        ClassLoader par = getParent();
+        if (par != null && par != this) {
+            res.append(" -> ").append(par);
+        }
+        return res.toString();
+    }
+
+    @Override
     public void close() throws IOException {
         packages = new Package[0];
         classes.clear();
         storage.classloaderClosed(this);
+        ClassLoader parent = this.getParent();
+        if (parent instanceof JFSClassLoader && parent != this) {
+            ((JFSClassLoader) parent).close();
+        }
     }
 
     @Override
@@ -147,8 +170,9 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
         JFSFileObjectImpl fo = storage.find(Name.forFileName(name));
         return fo == null ? null : fo.toURL();
     }
-    
+
     static final class SingletonEnumeration<T> implements Enumeration<T> {
+
         private final T obj;
         private volatile boolean done;
 

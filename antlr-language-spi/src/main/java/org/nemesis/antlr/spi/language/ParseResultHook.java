@@ -4,27 +4,101 @@ import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
 import org.openide.util.Parameters;
 
 /**
  * A hook method which allows modules to registor contributors to parser result
  * contents - implement and register using MimeRegistration with type
- * ParseResultHook.
+ * ParseResultHook.  Programmatic registration is also available to support
+ * refreshing dynamically generated editor kits when a grammar is reparsed.
  *
  * @author Tim Boudreau
  */
 public class ParseResultHook<T extends ParserRuleContext> {
 
     private final Class<T> type;
+    private static final Logger LOG = Logger.getLogger(ParseResultHook.class.getName());
 
     protected ParseResultHook(Class<T> type) {
         Parameters.notNull("type", type);
         this.type = type;
+    }
+
+    /**
+     * Programmatically register a hook to get called when a <i>specific
+     * file</i> is reparsed. If you are registering your hook with
+     * <code>&#064;MimeRegistration</code> then <b>it is a mistake to also call
+     * this method</b> - programmatic registration is available for handling the
+     * case of implementing file types over live antlr grammars, were, when the
+     * grammar is altered, all open editors over files of that type should
+     * update their syntax highlighting.
+     * <p>
+     * The passed hook must remain <i>strongly referenced</i> or it wil be
+     * garbage collected and never called.
+     * </p>
+     *
+     * @param <T> The entry point rule context type
+     * @param fo A file object
+     * @param hook A hook
+     */
+    public static <T extends ParserRuleContext> void register(FileObject fo, ParseResultHook<T> hook) {
+        ProgrammaticParseResultHookRegistry.register(fo, hook);
+    }
+
+    /**
+     * Programmatically register a hook to get called when any file of a
+     * <i>particular mime type</i> is reparsed. If you are registering your hook
+     * with <code>&#064;MimeRegistration</code> then <b>it is a mistake to also
+     * call this method</b> - programmatic registration is available for
+     * handling the case of implementing file types over live antlr grammars,
+     * were, when the grammar is altered, all open editors over files of that
+     * type should update their syntax highlighting.
+     * <p>
+     * The passed hook must remain <i>strongly referenced</i> or it wil be
+     * garbage collected and never called.
+     * </p>
+     *
+     * @param <T> The entry point rule context type
+     * @param String mimeType
+     * @param hook A hook
+     */
+    public static <T extends ParserRuleContext> void register(String mimeType, ParseResultHook<T> hook) {
+        ProgrammaticParseResultHookRegistry.register(mimeType, hook);
+    }
+
+    /**
+     * Unregister a hook that was previously registered with a programmatic call
+     * to <code>register()</code> (has no effect if the hook is registered via
+     * <code>&#064;MimeRegistration</code>
+     *
+     * @param <T> The tree type
+     * @param mimeType The mime type
+     * @param hook The hook
+     * @return true if the hook had indeeed been registered and was removed
+     */
+    public static <T extends ParserRuleContext> boolean deregister(String mimeType, ParseResultHook<T> hook) {
+        return ProgrammaticParseResultHookRegistry.deregister(mimeType, hook);
+    }
+
+    /**
+     * Unregister a hook that was previously registered with a programmatic call
+     * to <code>register()</code> (has no effect if the hook is registered via
+     * <code>&#064;MimeRegistration</code>
+     *
+     * @param <T> The tree type
+     * @param fo The file
+     * @param hook The hook
+     * @return true if the hook had indeeed been registered and was removed
+     */
+    public static <T extends ParserRuleContext> boolean deregister(FileObject fo, ParseResultHook<T> hook) {
+        return ProgrammaticParseResultHookRegistry.deregister(fo, hook);
     }
 
     private <R> ParseResultHook<? super R> castIfCompatible(R obj) {
@@ -32,6 +106,10 @@ public class ParseResultHook<T extends ParserRuleContext> {
             return (ParseResultHook<? super R>) this;
         }
         return null;
+    }
+
+    Class<T> type() {
+        return type;
     }
 
     /**
@@ -62,17 +140,25 @@ public class ParseResultHook<T extends ParserRuleContext> {
     static <R extends ParserRuleContext> void runForMimeType(String mimeType, R ctx, Extraction extraction, ParseResultContents populate, Fixes fixes) {
         Collection<? extends ParseResultHook> all = MimeLookup.getLookup(mimeType).lookupAll(ParseResultHook.class);
         List<ParseResultHook<? super R>> found = new ArrayList<>(3);
-        System.out.println("RUN FOR MIME TYPE " + mimeType);
         for (ParseResultHook<?> p : all) {
             ParseResultHook<? super R> matched = p.castIfCompatible(ctx);
-            System.out.println("  FOUND " + p + " COMPATIBLE? " + (matched != null));
             if (matched != null) {
                 found.add(matched);
             }
         }
-        for (ParseResultHook<? super R> p : found) {
-            System.out.println("    RUN " + p);
-            p.reparsed(ctx, mimeType, extraction, populate, fixes);
+        try {
+            for (ParseResultHook<? super R> p : found) {
+                try {
+                    p.reparsed(ctx, mimeType, extraction, populate, fixes);
+                } catch (Exception ex) {
+                    LOG.log(Level.WARNING, "Exception running hook " + p + " for "
+                            + mimeType + " against " + extraction.source(), ex);
+                }
+            }
+        } finally {
+            if (ProgrammaticParseResultHookRegistry.active()) {
+                ProgrammaticParseResultHookRegistry.onReparse(ctx, mimeType, extraction, populate, fixes);
+            }
         }
     }
 }

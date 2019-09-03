@@ -27,7 +27,7 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.misc.Interval;
 import org.netbeans.spi.lexer.LexerInput;
 
-class AntlrStreamAdapter implements CharStream {
+final class AntlrStreamAdapter implements CharStream {
 
     private final String name;
     private int index = 0;

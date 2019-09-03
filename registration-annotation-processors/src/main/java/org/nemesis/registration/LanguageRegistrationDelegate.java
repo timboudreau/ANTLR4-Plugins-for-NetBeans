@@ -1,6 +1,5 @@
 package org.nemesis.registration;
 
-import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -372,6 +371,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String dataObjectFqn = dataObjectPackage + "." + dataObjectClassName;
         String actionPath = "Loaders/" + mimeType + "/Actions";
         boolean multiview = utils().annotationValue(fileInfo, "multiview", Boolean.class, false);
+        // Leave DataObject subclass non-final for subclassing to programmatically
+        // register it in tests, in order to be able to create a fake DataEditorSupport.Env
+        // over it
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage).named(dataObjectClassName)
                 .importing("org.openide.awt.ActionID", "org.openide.awt.ActionReference",
                         "org.openide.awt.ActionReferences", "org.openide.filesystems.FileObject",
@@ -382,7 +384,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 ).staticImport(dataObjectFqn + ".ACTION_PATH")
                 .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("MultiDataObject")
-                .withModifier(PUBLIC).withModifier(FINAL)
+                .withModifier(PUBLIC)/* .withModifier(FINAL) */
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
                 .withModifier(FINAL).initializedTo(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
 
@@ -400,7 +402,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         addActionAnnotations(cl, fileInfo);
         String msgName = "LBL_" + prefix + "_LOADER";
-        cl.annotatedWith("Messages").addArgument("value", msgName + "=" + prefix + " files").closeAnnotation();
+        String sourceTabName = multiview ? "LBL_" + prefix + "_SOURCE_TAB" : null;
+        cl.annotatedWith("Messages", ab -> {
+            String msgValue = msgName + "=" + prefix + " files";
+            if (sourceTabName != null) {
+                ab.addArrayArgument("value", arr -> {
+                    arr.literal(msgValue).literal(sourceTabName + "=" + prefix + " Source");
+                });
+            } else {
+                ab.addArgument("value", msgValue);
+            }
+        });
+//        cl.annotatedWith("Messages").addArgument("value", msgName + "=" + prefix + " files\n" + sourceTabName + "=" + prefix + " Source").closeAnnotation();
         cl.annotatedWith("DataObject.Registration", annoBuilder -> {
             annoBuilder.addArgument("mimeType", mimeType)
                     .addArgument("iconBase", iconBase)
@@ -442,7 +455,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (multiview) {
             cl.method("createEditor").addArgument("Lookup", "lkp").withModifier(PUBLIC).withModifier(STATIC)
                     .annotatedWith("MultiViewElement.Registration", ab -> {
-                        ab.addArgument("displayName", msgName)
+                        ab.addArgument("displayName", '#' + sourceTabName)
                                 .addArgument("iconBase", iconBase)
                                 .addArgument("mimeType", mimeType)
                                 .addExpressionArgument("persistenceType", "TopComponent.PERSISTENCE_ONLY_OPENED")
@@ -897,8 +910,20 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 });
         if (!commentTokens.isEmpty()) {
             cl.field("COMMENT_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
-                    .withModifier(FINAL).initializedTo(tokensArraySpec(prefix, commentTokens, lexer))
-                    .ofType("TokenID[]");
+                    .withModifier(FINAL)
+                    .docComment("The set of tokens specified to represent "
+                            + "comments in the " + registrationAnno.getAnnotationType()
+                            + " that generated this class")
+                    .initializedAsArrayLiteral("TokenID", alb -> {
+                        for (int id : commentTokens) {
+                            String fieldName = lexer.toFieldName(id);
+                            if (fieldName == null) {
+                                utils().fail("No token id for " + id);
+                                continue;
+                            }
+                            alb.field(fieldName).of(prefix + "Tokens");
+                        }
+                    });
             cl.override("getCommentTokens").withModifier(PUBLIC).returning("TokenID[]")
                     .body(fieldReturner("COMMENT_TOKENS"));
         }
@@ -920,7 +945,16 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             } else {
                 cl.field("WHITESPACE_TOKEN_IDS", fb -> {
                     fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL);
-                    fb.initializedTo("new int[] {" + Strings.commas(whitespaceTokens) + "}").ofType("int[]");
+                    fb.docComment("A sorted and usable for binary search list "
+                            + "of token ids");
+                    cl.importing(lexer.lexerClassFqn());
+                    fb.initializedAsArrayLiteral("int", alb -> {
+                        for (int ws : whitespaceTokens) {
+                            String tokenField = lexer.lexerClassSimple()
+                                    + "." + lexer.tokenName(ws);
+                            alb.add(tokenField);
+                        }
+                    });
                 }).overridePublic("isWhitespaceToken").returning("boolean")
                         .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
                         .addArgument("int", "offset").addArgument("int", "tokenLength")
@@ -931,24 +965,42 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         if (useDeclarationTokenProcessor(mimeType)) {
             String className = capitalize(stripMimeType(mimeType)) + simpleName(DECLARATION_TOKEN_PROCESSOR_TYPE);
-            cl.overridePublic("createDeclarationTokenProcessor").returning(DECLARATION_TOKEN_PROCESSOR_TYPE)
+            cl.overridePublic("createDeclarationTokenProcessor").returning(className)
                     .addArgument("String", "varName")
                     .addArgument("int", "startPos")
                     .addArgument("int", "endPos")
-                    .bodyReturning("new " + className + "(varName, startPos, endPos, getDocument())");
-            cl.overridePublic("findDeclarationPosition")
-                    .addArgument("String", "varName")
-                    .addArgument("int", "varPos")
-                    .returning("int")
-                    .bodyReturning("new " + className + "(varName, varPos, -1, getDocument()).getDeclarationPosition()");
-            cl.overridePublic("findLocalDeclarationPosition")
-                    .addArgument("String", "varName")
-                    .addArgument("int", "varPos")
-                    .returning("int")
-                    .bodyReturning("new " + className + "(varName, varPos, -1, getDocument()).getDeclarationPosition()");
+                    .body(bb -> {
+                        bb.log(Level.FINER).argument("varName").argument("startPos").argument("endPos")
+                                .logging(cl.className() + ".createDeclarationTokenProcessor({0},{1},{2}");
+                        bb.returningNew(nb -> {
+                            nb.withArgument("varName")
+                                    .withArgument("startPos")
+                                    .withArgument("endPos")
+                                    .withArgumentFromInvoking("getDocument").inScope()
+                                    .ofType(className);
+                        });
+                    });
+
+            declPositionMethod("findDeclarationPosition", className, cl);
+            declPositionMethod("findLocalDeclarationPosition", className, cl);
         }
         writeOne(cl);
         return generatedClassName;
+    }
+
+    static void declPositionMethod(String name, String className, ClassBuilder<?> cl) {
+        cl.overridePublic(name)
+                .addArgument("String", "varName")
+                .addArgument("int", "varPos")
+                .returning("int")
+                .body(bb -> {
+                    bb.declare("result").initializedByInvoking("getDeclarationPosition").onInvocationOf("createDeclarationTokenProcessor")
+                            .withArgument("varName").withArgument("varPos").withArgument(-1)
+                            .inScope().as("int");
+                    bb.log(Level.FINEST).argument("varName").argument("varPos").argument("result")
+                            .logging(className + "." + name + "({0}, {1}) returning {2}");
+                    bb.returning("result");
+                });
     }
 
     private Consumer<ClassBuilder.BlockBuilder<?>> fieldReturner(String name) {

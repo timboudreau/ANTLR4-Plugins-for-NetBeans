@@ -286,8 +286,8 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
             tool.longMessages = true;
 
             Grammar g = tool.loadGrammar(sourceFile.getFileName().toString());
-            generateAllGrammars(tool, g, new HashSet<>(), generate);
             grammarName = g.name;
+            generateAllGrammars(tool, g, new HashSet<>(), generate);
             errors.addAll(tool.errors());
             infos.addAll(tool.infoMessages());
             if (!errors.isEmpty()) {
@@ -347,7 +347,7 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         return Paths.get(pkg.replace('.', '/'));
     }
 
-    private String keyFor(Grammar g) {
+    private static String keyFor(Grammar g) {
         return g.name + ":" + g.getTypeString();
     }
 
@@ -355,22 +355,10 @@ public final class InMemoryAntlrSourceGenerationBuilder implements AntlrSourceGe
         if (!seen.contains(keyFor(g))) {
             LOG.log(Level.FINEST, "MemoryTool generating {0}", g.fileName);
             seen.add(keyFor(g));
-//            tool.generateATNs(g);
             if (g.implicitLexer != null) {
-//                LOG.log(Level.FINEST, "Gen implicit lexer {0}", g.implicitLexer.fileName);
-//                if ("SampleGrammar.g4".equals(g.implicitLexer.fileName)) {
-//                    g.implicitLexer.fileName = g.implicitLexer.name + ".g4";
-//                }
                 tool.process(g.implicitLexer, generate);
-//                generateAllGrammars(tool, g.implicitLexer, seen, generate);
             }
             tool.process(g, generate);
-//            if (g.importedGrammars != null) {
-//                for (Grammar gg : g.importedGrammars) {
-//                    System.out.println("generate imported grammar " + gg.fileName);
-//                    generateAllGrammars(tool, gg, seen, generate);
-//                }
-//            }
             if (g.isCombined()) {
                 String suffix = Grammar.getGrammarTypeToFileNameSuffix(ANTLRParser.LEXER);
                 String lexer = g.name + suffix + ".g4";

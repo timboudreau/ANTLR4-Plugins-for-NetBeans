@@ -64,3 +64,10 @@ Temporary Items
 /range/nbproject/
 /bits/nbproject/
 /extraction/nbproject/
+/antlr-editing-plugins/antlr-in-memory-build/nbproject/
+/antlr-editing-plugins/antlr-in-memory-execution/nbproject/
+/antlr-editing-plugins/antlr-project-helpers/nbproject/
+/antlr-editing-plugins/antlr-project-helpers-maven/nbproject/
+/antlr-editing-plugins/antlr-grammar-file-resolver/nbproject/
+/antlr-editing-plugins/antlr-live/nbproject/
+/antlr-editing-plugins/antlr-live-execution/nbproject/

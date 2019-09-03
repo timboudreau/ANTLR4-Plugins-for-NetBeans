@@ -27,6 +27,9 @@ import org.openide.filesystems.FileObject;
 import org.openide.util.RequestProcessor;
 
 /**
+ * A syntax error in source which can be added to a set of fixes to
+ * make it visible to the user in the editor - implement ParseResultHooks
+ * and register to add errors to a parser result.
  *
  * @author Tim Boudreau
  */

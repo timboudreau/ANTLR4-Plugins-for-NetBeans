@@ -322,7 +322,7 @@ public class SemanticParserTest {
         lex.reset();
         Extraction extraction = ext.extract(p.grammarFile(), nmgSource, tokens);
 
-        System.out.println("GRAMMAR TYPE: " + extraction.encounters(GRAMMAR_TYPE));
+        System.out.println("GRAMMAR TYPE: " + extraction.singletons(GRAMMAR_TYPE));
 
         System.out.println("EXTRACTION: \n" + extraction);
 

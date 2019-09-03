@@ -14,23 +14,59 @@ import org.openide.util.Lookup;
 import org.openide.util.lookup.InstanceContent;
 
 /**
+ * Can be specified in the <code>&#064;FileType</code> field of your
+ * <a href="AntlrLanguageRegistration.html"><code>&#064;AntlrLanguageRegistration</code></a>
+ * annotation, to be notified about creation and other events relating to an
+ * Antlr file type. All methods on this class allow you to intercept lifecycle
+ * methods of {@link DataObject} and either invoke the default behavior or
+ * provide your own.
  *
  * @author Tim Boudreau
  */
 public interface DataObjectHooks {
 
+    /**
+     * Called when a DataObject of your type is created.
+     *
+     * @param dob A DataObject
+     */
     default void notifyCreated(DataObject dob) {
         // do nothing
     }
 
+    /**
+     * Called post-creation, allowing you to add or monitor contents in the
+     * DataObject's lookup.
+     *
+     * @param on The data object
+     * @param content The content, which you can contribute to
+     * @param superGetLookup Returns the super lookup created by default for the
+     * data object, which is also merged into the lookup returned by the data
+     * object's <code>getLookup()</code> method
+     */
     default void decorateLookup(DataObject on, InstanceContent content, Supplier<Lookup> superGetLookup) {
         // do nothing
     }
 
+    /**
+     * Allows for overriding creation of the data object's node.
+     *
+     * @param on The data object in question
+     * @param superDelegate A supplier that returns the original node
+     * @return A node
+     */
     default Node createNodeDelegate(DataObject on, Supplier<Node> superDelegate) {
         return superDelegate.get();
     }
 
+    /**
+     * Handle deletion (hint: if you want to delay / override it, throw a
+     * <code>UserQuestionException</code>).
+     *
+     * @param obj The data object in question
+     * @param superHandleDelete Call this to invoke default delete handling
+     * @throws IOException If something goes wrong
+     */
     default void handleDelete(DataObject obj, IORunnable superHandleDelete) throws IOException {
         superHandleDelete.run();
     }
@@ -51,7 +87,7 @@ public interface DataObjectHooks {
         return superHandleCreateFromTemplate.apply(df, name);
     }
 
-    default DataObject handleCopyRename(DataObject on, DataFolder df, String name, String ext, IOTriFunction<DataFolder, String,String, DataObject> superHandleRenameCopy) throws IOException {
+    default DataObject handleCopyRename(DataObject on, DataFolder df, String name, String ext, IOTriFunction<DataFolder, String, String, DataObject> superHandleRenameCopy) throws IOException {
         return superHandleRenameCopy.apply(df, name, ext);
     }
 }

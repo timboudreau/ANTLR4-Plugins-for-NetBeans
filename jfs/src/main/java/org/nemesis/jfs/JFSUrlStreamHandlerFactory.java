@@ -120,7 +120,9 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
     }
 
     private void _unregister(JFS filesystem) {
-        filesystems.remove(filesystem);
+        if (filesystems != null) {
+            filesystems.remove(filesystem);
+        }
     }
 
 }

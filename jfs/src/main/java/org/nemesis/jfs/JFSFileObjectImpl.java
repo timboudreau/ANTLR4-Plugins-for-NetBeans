@@ -22,16 +22,23 @@ import javax.tools.JavaFileManager.Location;
  */
 class JFSFileObjectImpl implements JFSFileObject {
 
-    private final JFSBytesStorage storage;
+    final JFSBytesStorage storage;
     private final Location location;
     private final Name name;
     private final Charset encoding;
+    private volatile boolean deleted;
 
     JFSFileObjectImpl(JFSBytesStorage storage, Location location, Name name, Charset encoding) {
         this.storage = storage;
         this.location = location;
         this.name = name;
         this.encoding = encoding;
+    }
+
+    private void checkDeleted() throws IOException {
+        if (deleted) {
+            throw new IOException(name + " was already deleted");
+        }
     }
 
     @Override
@@ -64,8 +71,13 @@ class JFSFileObjectImpl implements JFSFileObject {
         return "jfs://" + storage.storage().urlPath() + "/" + name;
     }
 
+    @Override
     public String toString() {
-        return name + " (" + storage.length() + ")";
+        String result = name + " (" + storage.length() + ")";
+        if (storage instanceof DocumentBytesStorageWrapper) {
+            result += " -> " + storage;
+        }
+        return result;
     }
 
     @Override
@@ -84,21 +96,25 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public void setBytes(byte[] bytes, long lastModified) throws IOException {
+        checkDeleted();
         storage.setBytes(bytes, lastModified);
     }
 
     @Override
     public ByteBuffer asByteBuffer() throws IOException {
+        checkDeleted();
         return storage.asByteBuffer();
     }
 
     @Override
     public InputStream openInputStream() throws IOException {
+        checkDeleted();
         return storage.openInputStream();
     }
 
     @Override
     public OutputStream openOutputStream() throws IOException {
+        checkDeleted();
         return storage.openOutputStream();
     }
 
@@ -114,12 +130,13 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public Writer openWriter() throws IOException {
+        checkDeleted();
         return new OutputStreamWriter(openOutputStream(), storage.encoding());
     }
 
     @Override
     public long getLastModified() {
-        return storage.lastModified();
+        return deleted ? Long.MAX_VALUE : storage.lastModified();
     }
 
     @Override
@@ -130,7 +147,11 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public boolean delete() {
         storage.discard();
-        return storage.storage().delete(name, storage);
+        boolean result = storage.storage().delete(name, storage);
+        if (result) {
+            deleted = true;
+        }
+        return result;
     }
 
     @Override
@@ -153,6 +174,7 @@ class JFSFileObjectImpl implements JFSFileObject {
     }
 
     public byte[] asBytes() throws IOException {
+        checkDeleted();
         return storage.asBytes();
     }
 }

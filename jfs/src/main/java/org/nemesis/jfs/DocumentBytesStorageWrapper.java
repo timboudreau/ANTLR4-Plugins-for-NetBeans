@@ -51,6 +51,14 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
         return CharBuffer.wrap(segment, segment.offset, segment.offset + segment.count);
     }
 
+    Document document() {
+        return doc;
+    }
+
+    public String toString() {
+        return doc.toString();
+    }
+
     @Override
     public ByteBuffer asByteBuffer() throws IOException {
         Charset encoding = storage.encoding();
@@ -95,7 +103,6 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
     @Override
     public void setBytes(byte[] bytes, long lastModified) throws IOException {
         CharsetDecoder dec = storage.encoding().newDecoder();
-        Exception[] ble = new Exception[1];
         CharBuffer cb = dec.decode(ByteBuffer.wrap(bytes));
         int maxTries = 3;
         for (int i = 0; i < maxTries;) {

@@ -29,11 +29,26 @@ Copyright (C) 2012-2019 Tim Boudreau
     <artifactId>antlr-editor-plugins-parent</artifactId>
     <packaging>pom</packaging>
     <name>Antlr IDE Plugins Parent</name>
+    <properties>
+        <netbeans.hint.licensePath>${project.parent.relativePath}/../../License.txt</netbeans.hint.licensePath>
+    </properties>
     <modules>
         <module>antlr-language-grammar</module>
         <module>tokens-file-grammar</module>
         <module>java-file-grammar</module>
         <module>antlr-file-support</module>
+        <module>antlr-in-memory-build</module>
+        <module>antlr-in-memory-execution</module>
+        <module>antlr-project-helpers</module>
+        <module>antlr-project-helpers-maven</module>
+        <module>antlr-grammar-file-resolver</module>
+        <module>antlr-live</module>
+        <module>antlr-live-execution</module>
+        <module>antlr-project-extensions</module>
+        <module>adhoc-mime-types</module>
+        <module>antlr-error-highlighting</module>
+        <module>test-fixtures-support</module>
+        <module>antlr-live-parsing</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -58,10 +73,99 @@ Copyright (C) 2012-2019 Tim Boudreau
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-in-memory-build</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>adhoc-mime-types</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live-execution</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-helpers</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-in-memory-execution</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-grammar-file-resolve</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-helpers-maven</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>test-fixtures-support</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-core-multiview</artifactId>
                 <version>${netbeans.version}</version>
-            </dependency>            
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-params</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-core</artifactId>
+                <version>${netbeans.version}</version>
+                <type>jar</type>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-editor-settings-storage</artifactId>
+                <version>${netbeans.version}</version>
+                <type>jar</type>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-settings-lib</artifactId>
+                <version>${netbeans.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-tools-storage</artifactId>
+                <version>${netbeans.version}</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

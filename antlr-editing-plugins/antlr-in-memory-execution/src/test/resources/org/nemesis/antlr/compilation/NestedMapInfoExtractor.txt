@@ -1,0 +1,131 @@
+package com.foo.bar;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.atn.ATNConfigSet;
+import org.antlr.v4.runtime.dfa.DFA;
+import org.antlr.v4.runtime.tree.RuleNode;
+
+public final class NestedMapInfoExtractor {
+
+    private final String name;
+    private final String text;
+
+    public NestedMapInfoExtractor(String name, String text) {
+        this.name = name;
+        this.text = text;
+    }
+
+    @Override
+    public String toString() {
+        return name;
+    }
+
+    public int length() {
+        return text().length();
+    }
+
+    public String text() {
+        return text;
+    }
+
+    public InputStream inputStream() {
+        return new ByteArrayInputStream(text().getBytes(UTF_8));
+    }
+
+    public CharStream charStream() throws IOException {
+        InputStream in = inputStream();
+        return CharStreams.fromReader(new InputStreamReader(in,
+                UTF_8), name);
+    }
+
+    public NestedMapGrammarLexer lexer() throws IOException {
+        NestedMapGrammarLexer lexer = new NestedMapGrammarLexer(charStream());
+        lexer.removeErrorListeners();
+        return lexer;
+    }
+
+    public NestedMapGrammarLexer lexer(ANTLRErrorListener l) throws IOException {
+        NestedMapGrammarLexer lexer = lexer();
+        lexer.addErrorListener(l);
+        return lexer;
+    }
+
+    public NestedMapGrammarParser parser(ANTLRErrorListener l) throws IOException {
+        NestedMapGrammarLexer lexer = lexer(l);
+        CommonTokenStream cts = new CommonTokenStream(lexer, 0);
+        NestedMapGrammarParser result = new NestedMapGrammarParser(cts);
+        result.removeErrorListeners();
+        return result;
+    }
+
+    public static Map<String, Object> parseText(String name, String text) throws IOException {
+        Map<String, Object> info = new HashMap<>();
+        ErrL errors = new ErrL();
+        info.put("errors", errors.errors);
+        NestedMapInfoExtractor sf = new NestedMapInfoExtractor(name, text);
+        NestedMapGrammarParser parser = sf.parser(errors);
+        V v = new V();
+        parser.map().accept(v);
+        info.put("tree", v.sb.toString());
+        return info;
+    }
+
+    static class V extends NestedMapGrammarBaseVisitor {
+
+        private final StringBuilder sb = new StringBuilder();
+
+        @Override
+        public Object visitChildren(RuleNode node) {
+            if (node instanceof ParserRuleContext) {
+                ParserRuleContext ctx = (ParserRuleContext) node;
+                int ix = ctx.getRuleIndex();
+                String rule = NestedMapGrammarParser.ruleNames[ix];
+                if (sb.length() != 0) {
+                    sb.append(' ');
+                }
+                sb.append(rule);
+            }
+            return super.visitChildren(node);
+        }
+    }
+
+    private static final class ErrL implements ANTLRErrorListener {
+
+        private final List<String> errors = new ArrayList<>();
+
+        @Override
+        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
+            errors.add("syntaxError: " + line + ":" + charPositionInLine + " " + msg);
+        }
+
+        @Override
+        public void reportAmbiguity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, boolean exact, BitSet ambigAlts, ATNConfigSet configs) {
+        }
+
+        @Override
+        public void reportAttemptingFullContext(Parser recognizer, DFA dfa, int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {
+        }
+
+        @Override
+        public void reportContextSensitivity(Parser recognizer, DFA dfa, int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {
+        }
+    }
+}
+

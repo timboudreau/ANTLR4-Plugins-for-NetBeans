@@ -9,6 +9,7 @@ import java.util.function.Function;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import com.mastfrog.abstractions.Named;
+import org.nemesis.antlr.common.extractiontypes.FoldableRegion;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -108,6 +109,21 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
                 String name = ((Named) t).name();
                 FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
                 actualType = foldType.derive(name, name, ft);
+            } else if (t instanceof SemanticRegion<?>) {
+                Object key = ((SemanticRegion<?>) t).key();
+                actualType = FoldType.MEMBER;
+                if (key instanceof Named) {
+                    String name = ((Named) t).name();
+                    FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
+                    actualType = foldType.derive(name, name, ft);
+                } else if (key instanceof FoldableRegion) {
+                    FoldableRegion reg = (FoldableRegion) key;
+                    String name = reg.text;
+                    if (name != null) {
+                        FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
+                        actualType = foldType.derive(name, name, ft);
+                    }
+                }
             }
             return FoldInfo.range(t.start(), t.end(), actualType);
         }

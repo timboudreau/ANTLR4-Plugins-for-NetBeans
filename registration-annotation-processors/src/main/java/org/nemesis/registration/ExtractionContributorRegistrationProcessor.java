@@ -80,15 +80,33 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(method);
         String generatedClassName = owner.getSimpleName() + "_ExtractionContributor" + "_" + method.getSimpleName();
+
+        String registrationFieldName = "REGISTRATION_PATH";
+
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg == null ? null : pkg.getQualifiedName())
-                .named(generatedClassName).implementing(EC_NAME + "<" + entrySimple + ">")
+                .named(generatedClassName);
+
+        cb.docComment("Registers the static method ", method.getSimpleName(), " on ", owner.getQualifiedName(),
+                " to be called for extraction whenever a file of type ", mimeType, " is parsed.  Generated from ",
+                mirror);
+        String registrationFieldCNB = cb.fqn() + "." + registrationFieldName;
+        cb.implementing(EC_NAME + "<" + entrySimple + ">")
                 .withModifier(PUBLIC).withModifier(FINAL)
                 .importing("javax.annotation.processing.Generated", "org.openide.util.lookup.ServiceProvider",
                         EC_TYPE, "org.nemesis.extraction.ExtractorBuilder", entryPointType.toString())
-                .docComment("Generated from ", ANNO, " on method ", method.getSimpleName(), " of ", ownerTypeSimple,
-                        " with entry point type ", entrySimple)
+                .staticImport(registrationFieldCNB)
                 .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
-                .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME).addArgument("path", registrationPath(mimeType, entryPointType.toString())).closeAnnotation()
+                .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME)
+                .addExpressionArgument("path", registrationFieldName)
+                //                .addArgument("path", registrationPath(mimeType, entryPointType.toString()))
+                .closeAnnotation()
+                .field(registrationFieldName, fb -> {
+                    fb.docComment("Tests can use this field to place an instance of " + cb.className()
+                            + " in a NamedServicesProvider instance programmatically to make it available "
+                            + "when running tests");
+                    fb.withModifier(PUBLIC, STATIC, FINAL)
+                            .initializedWith(registrationPath(mimeType, entryPointType.toString()));
+                })
                 .method("accept", mb -> {
                     mb.override().withModifier(PUBLIC).addArgument("ExtractorBuilder<? super " + entrySimple + ">", "builder")
                             .body(bb -> {

@@ -39,8 +39,14 @@ import org.netbeans.api.annotations.common.NullAllowed;
 
 /**
  * A lightweight, high performance database of information about data extracted
- * by parsing a single file, which may be serialized and cached.
- *
+ * by parsing a single file, which may be serialized and cached. An extraction,
+ * once created, is passed via an ExtractionParserResult to things that process
+ * items found during parsing and extraction. To populate the extraction,
+ * register an {@link ExtractionContributor} via {@link ExtractionRegistration}
+ * against a particular MIME type and it will be called for all files of that
+ * type.  An Extraction will not change once parsing is completed.  In general,
+ * as with parse trees, it is preferable to get what you need from it to populate
+ * UI elements and not keep references to objects from it.
  */
 public final class Extraction implements Externalizable {
 
@@ -624,16 +630,33 @@ public final class Extraction implements Externalizable {
         return result;
     }
 
+    /**
+     * Get singleton uses of a particular singleton key; in properly formed
+     * sources there will be only one of a particular singleton, but of course,
+     * in an editor, the normal state of soures is malformed.
+     *
+     * @param <K> The key type
+     * @param key The key
+     * @return A collection of singleton regions that match the key
+     */
     @SuppressWarnings("unchecked")
-    public <K> SingletonEncounters<K> encounters(SingletonKey<K> key) {
+    public <K> SingletonEncounters<K> singletons(SingletonKey<K> key) {
         SingletonEncounters<K> result = (SingletonEncounters<K>) singles.get(key);
         return result == null ? new SingletonEncounters<>() : result;
     }
 
-    <K> void addSingle(SingletonKey<K> key, SingletonEncounters<K> encounters) {
+    <K> void addSingleton(SingletonKey<K> key, SingletonEncounters<K> encounters) {
         singles.put(key, encounters);
     }
 
+    /**
+     * Named regions can have a "scoping delimiter" in names, which is used by
+     * generated navigator panels to determine what is a child of what, and
+     * remove prefixes from names for display.
+     *
+     * @param key An extraction key
+     * @return A scoping delimiter or null
+     */
     public String getScopingDelimiter(ExtractionKey<?> key) {
         return scopingDelimiters.get(key);
     }

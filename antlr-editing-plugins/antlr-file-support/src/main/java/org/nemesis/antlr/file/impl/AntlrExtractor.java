@@ -19,6 +19,7 @@ import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDeclarationContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarTypeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.RuleSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.TokenRuleDeclarationContext;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -52,38 +53,24 @@ public final class AntlrExtractor {
 
     private final Extractor<ANTLRv4Parser.GrammarFileContext> extractor;
 
-    private static boolean containsNewlines(ParserRuleContext ctx) {
-        String txt = ctx.getText();
+    private static boolean containsNonTrailingNewlines(ParserRuleContext ctx) {
+        return containsNonTrailingNewlines(ctx.getText());
+    }
+
+    private static boolean containsNonTrailingNewlines(String txt) {
         return txt == null ? false : txt.trim().indexOf('\n') > 0;
     }
 
-    static void extractFragmentRuleBounds(FragmentRuleDeclarationContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
-//        System.out.println("EXTRACT FRAGMENT " + ctx.TOKEN_ID().getText());
-        if (containsNewlines(ctx)) {
-            cons.accept(FoldableKind.RULE.createFor(ctx.TOKEN_ID().getText()), ctx);
+    private static void extractActionBounds(ParserRuleContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
+        if (containsNonTrailingNewlines(ctx)) {
+            cons.accept(FoldableKind.ACTION.createFor(ctx.getText()), ctx);
         }
     }
 
-    static void extractLexerRuleBounds(TokenRuleDeclarationContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
-//        System.out.println("EXTRACT LEXER " + ctx.TOKEN_ID().getText());
-        if (containsNewlines(ctx)) {
-            cons.accept(FoldableKind.RULE.createFor(ctx.TOKEN_ID().getText()), ctx);
+    private static FoldableRegion regionForToken(Token token) {
+        if (!containsNonTrailingNewlines(token.getText())) {
+            return null;
         }
-    }
-
-    static void extractParserRuleBounds(ParserRuleDeclarationContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
-//        System.out.println("EXTRACT PARSER " + ctx.parserRuleIdentifier().PARSER_RULE_ID().getText());
-        if (containsNewlines(ctx)) {
-            cons.accept(FoldableKind.RULE.createFor(ctx.parserRuleIdentifier().PARSER_RULE_ID().getText()), ctx);
-        }
-    }
-
-    static void extractActionBounds(ParserRuleContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
-//        System.out.println("EXTRACT ACTION");
-        cons.accept(FoldableKind.ACTION.createFor(ctx.getText()), ctx);
-    }
-
-    static FoldableRegion regionForToken(Token token) {
         switch (token.getType()) {
             case ANTLRv4Lexer.CHN_BLOCK_COMMENT:
             case ANTLRv4Lexer.HEADER_BLOCK_COMMENT:
@@ -105,6 +92,38 @@ public final class AntlrExtractor {
         }
     }
 
+    static void extractRuleSpecFoldBounds(RuleSpecContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
+        if (ctx.getText().length() < 60) {
+            // we can't test for newlines because they are routed to a different
+            // channel
+            return;
+        }
+        String name = null;
+        ANTLRv4Parser.LexerRuleSpecContext lexSpec = ctx.lexerRuleSpec();
+        if (lexSpec != null) {
+            FragmentRuleDeclarationContext fragDec = lexSpec.fragmentRuleDeclaration();
+            if (fragDec != null) {
+                name = fragDec.getText().trim();
+            } else {
+                TokenRuleDeclarationContext tokDec = lexSpec.tokenRuleDeclaration();
+                if (tokDec != null) {
+                    name = tokDec.getText().trim();
+                }
+            }
+        } else {
+            ANTLRv4Parser.ParserRuleSpecContext parSpec = ctx.parserRuleSpec();
+            if (parSpec != null) {
+                ParserRuleDeclarationContext parDec = parSpec.parserRuleDeclaration();
+                if (parDec != null) {
+                    name = parDec.getText().trim();
+                }
+            }
+        }
+        if (name != null) {
+            cons.accept(FoldableKind.RULE.createFor(name), ctx);
+        }
+    }
+
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
     static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
         // First build code-fold regions - all comments and rules, plus
@@ -123,12 +142,8 @@ public final class AntlrExtractor {
                         ANTLRv4Lexer.PARDEC_BLOCK_COMMENT,
                         ANTLRv4Lexer.TOK_BLOCK_COMMENT)
                 .derivingKeyWith(AntlrExtractor::regionForToken)
-                .whenRuleType(ANTLRv4Parser.FragmentRuleDeclarationContext.class)
-                .extractingKeyAndBoundsFromRuleWith(AntlrExtractor::extractFragmentRuleBounds)
-                .whenRuleType(ANTLRv4Parser.ParserRuleDeclarationContext.class)
-                .extractingKeyAndBoundsFromRuleWith(AntlrExtractor::extractParserRuleBounds)
-                .whenRuleType(ANTLRv4Parser.TokenRuleDeclarationContext.class)
-                .extractingKeyAndBoundsFromRuleWith(AntlrExtractor::extractLexerRuleBounds)
+                .whenRuleType(RuleSpecContext.class)
+                .extractingKeyAndBoundsFromRuleWith(AntlrExtractor::extractRuleSpecFoldBounds)
                 .whenRuleType(ANTLRv4Parser.ActionContext.class)
                 .extractingKeyAndBoundsFromRuleWith(AntlrExtractor::extractActionBounds)
                 .whenRuleType(ANTLRv4Parser.ActionBlockContext.class)

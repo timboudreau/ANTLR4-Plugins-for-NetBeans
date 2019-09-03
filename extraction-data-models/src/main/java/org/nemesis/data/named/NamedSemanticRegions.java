@@ -197,11 +197,28 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return names;
     }
 
+    /**
+     * Get a list of all names in this collection.
+     *
+     * @return A list of strings
+     */
     public List<String> allNames() {
         return Arrays.asList(nameArray());
     }
 
+    /**
+     * Determine if this has the same contents as another NamedSemanticRegions;
+     * this is not done by <code>equals()</code> because it is not unusual to
+     * add NamedSemanticRegions instances to sets, where equals() will be called
+     * a lot, and it is not cheap.
+     *
+     * @param other Another regions
+     * @return True if they are effectively equal
+     */
     public boolean equalTo(NamedSemanticRegions<?> other) {
+        if (other == this) {
+            return true;
+        }
         if (other != null && other.size == size && other.kinds.getClass().getComponentType() == kinds.getClass().getComponentType()) {
             return Arrays.equals(names, other.names)
                     && Arrays.equals(kinds, other.kinds)
@@ -211,6 +228,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return false;
     }
 
+    /**
+     * Return a set populated with all names that match the passed predicate.
+     *
+     * @param pred A predicate
+     * @return A set of strings
+     */
     public Set<String> collectNames(Predicate<NamedSemanticRegion<K>> pred) {
         BitSet set = new BitSet(size());
         for (NamedSemanticRegion<K> r : this) {
@@ -251,6 +274,13 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return new NamedSemanticRegionsBuilder<>(type);
     }
 
+    /**
+     * Get the index of a NamedSemanticRegion (the type is Object for collection
+     * compatibility, but results are only returned for NamedSemanticRegion).
+     *
+     * @param o An object
+     * @return An index or -1
+     */
     @Override
     public int indexOf(Object o) {
         if (o instanceof NamedSemanticRegion<?>) {
@@ -262,6 +292,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return -1;
     }
 
+    /**
+     * Determine if an item could possibly be a child of this collection.
+     *
+     * @param item An item
+     * @return true if it is the right type
+     */
     @Override
     public boolean isChildType(IndexAddressable.IndexAddressableItem item) {
         return item instanceof NamedSemanticRegion<?>;
@@ -328,11 +364,23 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return result;
     }
 
+    /**
+     * Get the number of items in this collection.
+     *
+     * @return A count of items
+     */
     @Override
     public int size() {
         return size;
     }
 
+    /**
+     * Get the <code>index</code>'th element of this collection.
+     *
+     * @param index An index
+     * @return A region
+     * @throws IllegalArgumentException if the index is out of bounds.
+     */
     @Override
     public NamedSemanticRegion<K> forIndex(int index) {
         if (index < 0 || index >= size) {
@@ -384,15 +432,32 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return true;
     }
 
+    /**
+     * Create a minimal-footprint set (backed by a BitSet mapping indices in
+     * this collection's name array) which can contain elements that are present
+     * in this collection (you cannot add foreign strings to it).
+     *
+     * @return
+     */
     public Set<String> newSet() {
         return new BitSetSet<>(IndexedResolvable.forSortedStringArray(names));
     }
 
+    /**
+     * Iterate items by position.
+     *
+     * @return An iterator
+     */
     @Override
     public Iterator<NamedSemanticRegion<K>> byPositionIterator() {
         return index().iterator();
     }
 
+    /**
+     * Iterate items by name.
+     *
+     * @return An iterator
+     */
     @Override
     public Iterator<NamedSemanticRegion<K>> byNameIterator() {
         return iterator();
@@ -437,6 +502,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return Arrays.binarySearch(index.starts, 0, size, starts[ix]);
     }
 
+    /**
+     * Get the index of a name in position-order.
+     *
+     * @param name A name
+     * @return An index
+     */
     public int orderingOf(String name) {
         return orderingOf(internalIndexOf(name));
     }
@@ -613,6 +684,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return new ByKindIter(kind);
     }
 
+    /**
+     * Add all items in this collection to the passed list, in position order.
+     *
+     * @param into
+     */
     public void collectItems(List<? super NamedSemanticRegion<K>> into) {
         for (NamedSemanticRegion<K> i : this) {
             into.add(i);
@@ -727,6 +803,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
+    /**
+     * Create a builder for a reference set that stores offsets of "references"
+     * to elements in this collection.
+     *
+     * @return A reference set builder
+     */
     public NamedRegionReferenceSetsBuilder<K> newReferenceSetsBuilder() {
         return new ReferenceSetsBuilderImpl();
     }
@@ -1208,6 +1290,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
+    /**
+     * Get an index which can be used to quickly and efficiently look up items
+     * by position.
+     *
+     * @return An index
+     */
     public NamedSemanticRegionPositionIndex<K> index() {
         if (index != null) {
             return index;
@@ -1252,6 +1340,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return sb.toString();
     }
 
+    /**
+     * Get the region whose bounds contains the passed position, if any.
+     *
+     * @param position A character position
+     * @return A region
+     */
     public NamedSemanticRegion<K> at(int position) {
         return index().regionAt(position);
     }
@@ -1523,5 +1617,64 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 }
             }
         }
+    }
+
+    /**
+     * Get the top <i>n</i> most similar names in the collection using the
+     * levenshtein distance algorithm; useful when offering hints to replace an
+     * unknown reference to a source element.
+     *
+     * @param name The name
+     * @param count The maximum number of results to return
+     * @return A list of strings
+     */
+    public List<String> topSimilarNames(String name, int count) {
+        return sortByDistanceTop(count, name, new ArrayList<>(this.allNames()));
+    }
+
+    private static List<String> sortByDistanceTop(int count, String to, List<String> l) {
+        sortByDistance(to, l);
+        return l.subList(0, Math.min(count, l.size()));
+    }
+
+    private static void sortByDistance(String to, List<String> l) {
+        Collections.sort(l, (a, b) -> {
+            int da = levenshteinDistance(to, a, false);
+            int db = levenshteinDistance(to, b, false);
+            return da > db ? 1 : da < db ? -1 : 0;
+        });
+    }
+
+    private static int levenshteinDistance(
+            String str1,
+            String str2,
+            final boolean caseSensitive) {
+        if (!caseSensitive) {
+            str1 = str1.toLowerCase();
+            str2 = str2.toLowerCase();
+        }
+        int[][] distance = new int[str1.length() + 1][str2.length() + 1];
+
+        for (int i = 0; i <= str1.length(); i++) {
+            distance[i][0] = i;
+        }
+        for (int j = 1; j <= str2.length(); j++) {
+            distance[0][j] = j;
+        }
+
+        for (int i = 1; i <= str1.length(); i++) {
+            for (int j = 1; j <= str2.length(); j++) {
+                distance[i][j] = minimum(
+                        distance[i - 1][j] + 1,
+                        distance[i][j - 1] + 1,
+                        distance[i - 1][j - 1] + ((str1.charAt(i - 1) == str2.charAt(j - 1)) ? 0 : 1));
+            }
+        }
+
+        return distance[str1.length()][str2.length()];
+    }
+
+    private static int minimum(int a, int b, int c) {
+        return Math.min(Math.min(a, b), c);
     }
 }

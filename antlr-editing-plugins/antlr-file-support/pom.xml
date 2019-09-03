@@ -68,6 +68,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-project-helpers</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>registration-annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -83,10 +87,31 @@
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util-lookup</artifactId>
         </dependency>
+        <dependency>
+            <!-- Generated annotations reference 
+            TopComponent.PERSISTENCE_ONLY_OPENED which generates
+            a warning
+            -->
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-windows</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- transitive dependencies -->
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-nodes</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-projectapi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-queries</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
@@ -142,7 +167,9 @@
                 <configuration>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
+                        <publicPackage>org.nemesis.antlr.file</publicPackage>
                         <publicPackage>org.nemesis.antlr.file.api</publicPackage>
+                        <publicPackage>org.nemesis.antlr.file.impl</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

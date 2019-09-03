@@ -28,18 +28,19 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.fold;
 
+import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JEditorPane;
+import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.netbeans.api.editor.fold.Fold;
 import org.netbeans.api.editor.fold.FoldHierarchy;
 import org.netbeans.api.editor.fold.FoldType;
 import org.netbeans.spi.editor.fold.FoldInfo;
@@ -82,8 +83,7 @@ final class FoldCommitter implements Runnable {
         sb.append(stamp)
                 .append(", currVersion=").append(version.getAsLong())
                 .append(", componentId=").append(componentIdHash())
-                .append(", doc=").append(doc)
-                ;
+                .append(", doc=").append(doc);
         return sb.append('}').toString();
     }
 
@@ -117,24 +117,7 @@ final class FoldCommitter implements Runnable {
         if (!rendering) {
             startTime = System.currentTimeMillis();
             rendering = true;
-            // retain import & initial comment states
             doc.render(this);
-//            FoldHierarchy hier = operation.getHierarchy();
-//            if (hier != null) {
-//                JTextComponent comp = hier.getComponent();
-//                if (comp != null) {
-//                    Document doc = comp.getDocument();
-//                    if (doc != null) {
-//                        doc.render(this);
-//                    } else {
-//                        LOG.log(Level.INFO, "document null for {0}", operation);
-//                    }
-//                } else {
-//                    LOG.log(Level.INFO, "component null for {0}", operation);
-//                }
-//            } else {
-//                LOG.log(Level.INFO, "hierachy null for {0}", operation);
-//            }
             return;
         }
         if (first) {
@@ -151,53 +134,75 @@ final class FoldCommitter implements Runnable {
                 }
             }
         }
-        operation.getHierarchy().lock();
-        try {
-            if (!first) {
-                // the first call must always complete - it initializes the folds
-                // folds will be absent if this one is cancelled
-                if (version.getAsLong() != stamp || operation.getHierarchy().getComponent().getDocument() != doc) {
-                    return;
-                }
-            }
-            int expandIndex = -1;
-            if (caretPos >= 0) {
-                for (int i = 0; i < anchors.size(); i++) {
-                    int a = anchors.get(i);
-                    if (a > caretPos) {
-                        continue;
+        JTextComponent c = operation.getHierarchy().getComponent();
+        final int currentCaretPos = caretPos;
+        maintainingScrollPosition(c, () -> {
+            operation.getHierarchy().lock();
+            try {
+                if (!first) {
+                    // the first call must always complete - it initializes the folds
+                    // folds will be absent if this one is cancelled
+                    if (version.getAsLong() != stamp || operation.getHierarchy().getComponent().getDocument() != doc) {
+                        return;
                     }
-                    FoldInfo fi = infos.get(i);
-                    if (a == caretPos) {
-                        // do not expand comments if the pos is at the start, not within
-                        FoldType ft = fi.getType();
-                        if (ft.isKindOf(FoldType.INITIAL_COMMENT) || ft.isKindOf(FoldType.COMMENT) || ft.isKindOf(FoldType.DOCUMENTATION)) {
+                }
+                int expandIndex = -1;
+                if (currentCaretPos >= 0) {
+                    for (int i = 0; i < anchors.size(); i++) {
+                        int a = anchors.get(i);
+                        if (a > currentCaretPos) {
                             continue;
                         }
-                    }
-                    if (fi.getEnd() > caretPos) {
-                        expandIndex = i;
-                        break;
+                        FoldInfo fi = infos.get(i);
+                        if (a == currentCaretPos) {
+                            // do not expand comments if the pos is at the start, not within
+                            FoldType ft = fi.getType();
+                            if (ft.isKindOf(FoldType.INITIAL_COMMENT) || ft.isKindOf(FoldType.COMMENT) || ft.isKindOf(FoldType.DOCUMENTATION)) {
+                                continue;
+                            }
+                        }
+                        if (fi.getEnd() > currentCaretPos) {
+                            expandIndex = i;
+                            break;
+                        }
                     }
                 }
+                if (expandIndex != -1) {
+                    infos = new ArrayList<>(infos);
+                    FoldInfo newInfo = expanded(infos.get(expandIndex));
+                    infos.set(expandIndex, newInfo);
+                }
+                operation.update(infos, null, null);
+            } catch (BadLocationException e) {
+                Exceptions.printStackTrace(e);
+            } finally {
+                operation.getHierarchy().unlock();
+                LOG.log(Level.FINE, "Finish commiting folds with {0} folds on {1}", new Object[]{infos.size(), doc});
             }
-            if (expandIndex != -1) {
-                infos = new ArrayList<>(infos);
-                infos.set(expandIndex, expanded(infos.get(expandIndex)));
-            }
-            Map<FoldInfo, Fold> folds = operation.update(infos, null, null);
-            if (folds == null) {
-                // manager has been released.
-                return;
-            }
-        } catch (BadLocationException e) {
-            Exceptions.printStackTrace(e);
-        } finally {
-            operation.getHierarchy().unlock();
-            LOG.log(Level.FINE, "Finish commiting folds with {0} folds on {1}", new Object[]{infos.size(), doc});
-        }
+        });
         long endTime = System.currentTimeMillis();
         Logger.getLogger("TIMER").log(Level.FINE, "AFolds - 2", new Object[]{doc, endTime - startTime});
     }
 
+    static void maintainingScrollPosition(JTextComponent comp, Runnable run) {
+        JScrollPane pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, comp);
+        if (pane == null) {
+            run.run();
+            return;
+        }
+        Point viewPosition = pane.getViewport().getViewPosition();
+        boolean oldCompIgnoreRepaint = comp.getIgnoreRepaint();
+        boolean oldPaneIgnoreRepaint = pane.getIgnoreRepaint();
+        comp.setIgnoreRepaint(true);
+        pane.setIgnoreRepaint(true);
+        try {
+            run.run();
+        } finally {
+            pane.getViewport().setViewPosition(viewPosition);
+            comp.setIgnoreRepaint(oldCompIgnoreRepaint);
+            pane.setIgnoreRepaint(oldPaneIgnoreRepaint);
+            pane.repaint();
+            comp.repaint();
+        }
+    }
 }

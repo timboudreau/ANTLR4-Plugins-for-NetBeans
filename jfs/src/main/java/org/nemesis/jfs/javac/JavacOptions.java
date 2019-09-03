@@ -23,7 +23,8 @@ public class JavacOptions {
     private int maxErrors = 1;
     private boolean runAnnotationProcessors;
     private Charset encoding = UTF_8;
-    private int sourceAndTarget = 8;
+    private int sourceLevel = 8;
+    private int targetLevel = 8;
 
     public JavacOptions() {
 
@@ -38,8 +39,33 @@ public class JavacOptions {
         this.encoding = x.encoding;
     }
 
+    void setFrom(JavacOptions opts) {
+        if (opts == this) {
+            return;
+        }
+        debug = opts.debug;
+        warn = opts.warn;
+        maxWarnings = opts.maxWarnings;
+        maxErrors = opts.maxErrors;
+        runAnnotationProcessors = opts.runAnnotationProcessors;
+        encoding = opts.encoding;
+        sourceLevel = opts.sourceLevel;
+        targetLevel = opts.targetLevel;
+    }
+
     public JavacOptions sourceAndTargetLevel(int tgt) {
-        this.sourceAndTarget = tgt;
+        sourceLevel = tgt;
+        targetLevel = tgt;
+        return this;
+    }
+
+    public JavacOptions sourceLevel(int level) {
+        sourceLevel = level;
+        return this;
+    }
+
+    public JavacOptions targetLevel(int level) {
+        targetLevel = level;
         return this;
     }
 
@@ -80,6 +106,13 @@ public class JavacOptions {
         }
     }
 
+    private static String levelString(int sourceOrTarget) {
+        if (sourceOrTarget < 8) {
+            return "1." + sourceOrTarget;
+        }
+        return Integer.toString(sourceOrTarget);
+    }
+
     public List<String> options(JavaCompiler compiler) {
         // Borrowed from NetBeans
         List<String> options = new ArrayList<>(9);
@@ -111,11 +144,11 @@ public class JavacOptions {
         // If we do not do this, building generated sources will fail on
         // JDK 9 for lack of a module info, or if we generate one, will
         // fail on JDK 8
-        
+
         options.add("-source");
-        options.add(Integer.toString(sourceAndTarget));
+        options.add(levelString(sourceLevel));
         options.add("-target");
-        options.add(Integer.toString(sourceAndTarget));
+        options.add(levelString(targetLevel));
         boolean lastWasRemoved = false;
         for (Iterator<String> iter = options.iterator(); iter.hasNext();) {
             String opt = iter.next();

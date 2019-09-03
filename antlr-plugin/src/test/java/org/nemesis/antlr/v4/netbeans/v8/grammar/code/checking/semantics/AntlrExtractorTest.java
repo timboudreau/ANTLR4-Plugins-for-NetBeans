@@ -52,9 +52,9 @@ public class AntlrExtractorTest {
     public void testForeignReferences() throws Throwable {
         Extraction ext = AntlrExtractor.getDefault().extract(GSAccessor.getDefault().newGrammarSource(rust));
 
-        assertNotNull("Grammar type not encountered", ext.encounters(AntlrKeys.GRAMMAR_TYPE));
-        assertFalse("Multiple grammar statements claimed to be present", ext.encounters(AntlrKeys.GRAMMAR_TYPE).hasMultiple());
-        assertTrue("Wrong grammar type found", ext.encounters(AntlrKeys.GRAMMAR_TYPE).is(GrammarType.COMBINED));
+        assertNotNull("Grammar type not encountered", ext.singletons(AntlrKeys.GRAMMAR_TYPE));
+        assertFalse("Multiple grammar statements claimed to be present", ext.singletons(AntlrKeys.GRAMMAR_TYPE).hasMultiple());
+        assertTrue("Wrong grammar type found", ext.singletons(AntlrKeys.GRAMMAR_TYPE).is(GrammarType.COMBINED));
 
         SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = ext.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
         System.out.println("---------------------- UNKNOWNS -----------------------------");
@@ -99,7 +99,7 @@ public class AntlrExtractorTest {
             System.out.println("FOLD: " + region);
         }
 
-        SingletonEncounters<GrammarType> grammarType = ext.encounters(AntlrKeys.GRAMMAR_TYPE);
+        SingletonEncounters<GrammarType> grammarType = ext.singletons(AntlrKeys.GRAMMAR_TYPE);
         assertNotNull(grammarType);
         System.out.println("GRAMMAR TYPE " + grammarType);
         System.out.println("VALUE " + grammarType.first());

@@ -1,8 +1,3 @@
-/*
- * To addChange this license header, choose License Headers in Project Properties.
- * To addChange this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.spi.language.fix;
 
 import java.awt.EventQueue;

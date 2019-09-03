@@ -237,8 +237,8 @@ public final class JFS implements JavaFileManager {
         }
 
         /**
-         * Set the character set to be used by the input streams of
-         * returned files.
+         * Set the character set to be used by the input streams of returned
+         * files.
          *
          * @param charset The character set
          * @return this
@@ -315,7 +315,7 @@ public final class JFS implements JavaFileManager {
         }
     }
 
-    void setClasspathTo(Collection<File> files) throws IOException {
+    public void setClasspathTo(Collection<File> files) throws IOException {
         delegate.setLocation(StandardLocation.CLASS_PATH, new ArrayList<>(files));
     }
 
@@ -377,8 +377,7 @@ public final class JFS implements JavaFileManager {
     }
 
     /**
-     * Retrieve the number of bytes used by all file objects
-     * in this JFS.
+     * Retrieve the number of bytes used by all file objects in this JFS.
      *
      * @return The size
      */
@@ -391,8 +390,8 @@ public final class JFS implements JavaFileManager {
     }
 
     /**
-     * Discard the bytes held in a particular location.  Useful for
-     * reusing a JFS for multiple invocations.
+     * Discard the bytes held in a particular location. Useful for reusing a JFS
+     * for multiple invocations.
      *
      * @param locations
      * @throws IOException
@@ -417,7 +416,8 @@ public final class JFS implements JavaFileManager {
     public JFSClassLoader getClassLoader(Location location) {
         JFSStorage storage = forLocation(location, false);
         try {
-            return storage.createClassLoader(delegate.getClassLoader(StandardLocation.CLASS_PATH));
+            return storage == null ? null
+                    : storage.createClassLoader(delegate.getClassLoader(StandardLocation.CLASS_PATH));
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
@@ -433,7 +433,49 @@ public final class JFS implements JavaFileManager {
      */
     public JFSClassLoader getClassLoader(Location location, ClassLoader parent) throws IOException {
         JFSStorage storage = forLocation(location, false);
-        return storage.createClassLoader(parent);
+        return storage == null ? null : storage.createClassLoader(parent);
+    }
+
+    /**
+     * Create a classloader subsuming multiple locations in this JFS, with
+     * parents in order of precedence.
+     *
+     * @param includeEmptyLocations If true, create storage areas for locations
+     * which have not yet been used, anticipating loading classes from them. If
+     * false, this method may return null if this JFS is empty.
+     *
+     * @param parent The parent classloader
+     * @param loc The location to create the initial classloader over
+     * @param more Additional locations
+     * @return A class loader
+     * @throws IOException If something goes wrongF
+     */
+    public JFSClassLoader getClassLoader(boolean includeEmptyLocations,
+            ClassLoader parent, Location loc, Location... more) throws IOException {
+        if (more.length == 0) {
+            return getClassLoader(loc, parent);
+        }
+        Set<Location> all = new HashSet<>();
+        Location[] locs = new Location[more.length + 1];
+        System.arraycopy(more, 0, locs, 1, more.length);
+        locs[0] = loc;
+        JFSClassLoader result = null;
+        for (int i = 0; i < locs.length; i++) {
+            Location l = locs[i];
+            if (all.contains(l)) {
+                continue;
+            }
+            JFSStorage storage = forLocation(l, includeEmptyLocations);
+            if (storage == null) {
+                continue;
+            }
+            if (result == null) {
+                result = storage.createClassLoader(parent);
+            } else {
+                result = storage.createClassLoader(result);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -589,6 +631,11 @@ public final class JFS implements JavaFileManager {
         return getFileForOutput(StandardLocation.SOURCE_PATH, nm.packageName(), nm.getName(), null);
     }
 
+    public JFSFileObject getSourceFileForOutput(String filePath, Location loc) throws IOException {
+        Name nm = Name.forFileName(filePath);
+        return getFileForOutput(loc, nm.packageName(), nm.getName(), null);
+    }
+
     @Override
     public JFSFileObject getFileForOutput(Location location, String packageName, String relativeName, FileObject sibling) throws IOException {
         Name name = Name.forFileName(packageName, relativeName);
@@ -639,6 +686,7 @@ public final class JFS implements JavaFileManager {
     }
 
     private volatile boolean closeCalled;
+    private ThreadLocal<Boolean> inClose = ThreadLocal.withInitial(() -> false);
 
     /**
      * Close this JFS. Resources may not be released if a classloader still
@@ -646,25 +694,33 @@ public final class JFS implements JavaFileManager {
      */
     @Override
     public void close() throws IOException {
-        closeCalled = true;
-        Set<Location> toRemove = new HashSet<>();
-        for (Map.Entry<Location, JFSStorage> e : new ArrayList<>(storageForLocation.entrySet())) {
-            if (e.getValue().close()) {
-                toRemove.add(e.getKey());
-            } else {
-                LOG.log(Level.FINE, "JFS.close(): Will not close {0} in {1} - a live classloader over it exists",
-                        new Object[]{e.getKey(), fsid});
+        if (inClose.get()) {
+            return;
+        }
+        inClose.set(true);
+        try {
+            closeCalled = true;
+            Set<Location> toRemove = new HashSet<>();
+            for (Map.Entry<Location, JFSStorage> e : new ArrayList<>(storageForLocation.entrySet())) {
+                if (e.getValue().close()) {
+                    toRemove.add(e.getKey());
+                } else {
+                    LOG.log(Level.FINE, "JFS.close(): Will not close {0} in {1} - a live classloader over it exists",
+                            new Object[]{e.getKey(), fsid});
+                }
             }
-        }
-        for (Location loc : toRemove) {
-            LOG.log(Level.FINER, "JFS.close(): removing {0} from {1}", new Object[]{loc, fsid});
-            storageForLocation.remove(loc);
-        }
-        if (storageForLocation.isEmpty()) {
-            LOG.log(Level.FINER, "JFS.close(): empty and no live classloaders - unregistering {0}", fsid);
-            JFSUrlStreamHandlerFactory.unregister(this);
-            delegate.close();
-            allocator.destroy();
+            for (Location loc : toRemove) {
+                LOG.log(Level.FINER, "JFS.close(): removing {0} from {1}", new Object[]{loc, fsid});
+                storageForLocation.remove(loc);
+            }
+            if (storageForLocation.isEmpty()) {
+                LOG.log(Level.FINER, "JFS.close(): empty and no live classloaders - unregistering {0}", fsid);
+                JFSUrlStreamHandlerFactory.unregister(this);
+                delegate.close();
+                allocator.destroy();
+            }
+        } finally {
+            inClose.set(false);
         }
     }
 

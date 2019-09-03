@@ -9,7 +9,7 @@
     <description>NetBeans ANTLR modules parent POM</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <netbeans.version>RELEASE110-dev</netbeans.version>
+        <netbeans.version>RELEASE120-dev</netbeans.version>
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/License.txt</netbeans.hint.licensePath>
         <antlr.version>4.7.2</antlr.version>
@@ -18,6 +18,10 @@
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
         <mastfrog.version>2.5.1-dev</mastfrog.version>
+        <antlr.message.format>gnu</antlr.message.format>
+        <old.junit.version>4.12</old.junit.version>
+        <new.junit.version>5.5.1</new.junit.version>
+        <manifest.file.path>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifest.file.path>
     </properties>
     <licenses>
         <license>
@@ -37,6 +41,15 @@
                     <groupId>org.antlr</groupId>
                     <artifactId>antlr4-maven-plugin</artifactId>
                     <version>${antlr.version}</version>
+                    <configuration>
+                        <arguments>
+                            <!-- Enables Netbeans output error hyperlinking
+                            to work -->
+                            <argument>-message-format</argument>
+                            <!--<argument>gnu</argument>-->
+                            <argument>${antlr.message.format}</argument>
+                        </arguments>                        
+                    </configuration>
                 </plugin>
                 <plugin>
                     <artifactId>maven-antrun-plugin</artifactId>
@@ -63,7 +76,7 @@
                     <configuration>
                         <!--to have the jar plugin pickup the nbm generated manifest-->
                         <archive>
-                            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                            <manifestFile>${manifest.file.path}</manifestFile>
                         </archive>
                         <finalName>${project.artifactId}</finalName>
                     </configuration>
@@ -144,7 +157,7 @@
         </profile>
     </profiles>
     <modules>
-        <module>antlr-plugin</module>
+        <!--<module>antlr-plugin</module>-->
         <module>jfs</module>
         <module>misc-utils</module>
         <module>extraction-data-models</module>
@@ -164,6 +177,8 @@
         <module>mastfrog-utils-wrapper</module>
         <module>simple-test-language</module>
         <module>protoc-antlr</module>
+        <module>jfs-nb</module>
+        <module>antlr-editing-plugins</module>
     </modules>
     <repositories>
         <repository>
@@ -308,6 +323,11 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>jfs-nb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-formatters</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -344,8 +364,26 @@
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
-                <version>4.12</version>
+                <version>${old.junit.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-params</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${new.junit.version}</version>
+                <scope>test</scope>
+            </dependency>            
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>abstractions</artifactId>
@@ -382,6 +420,11 @@
                 <!-- currently used only by annotation processor path -->
                 <groupId>org.netbeans.modules</groupId>
                 <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-maven</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>

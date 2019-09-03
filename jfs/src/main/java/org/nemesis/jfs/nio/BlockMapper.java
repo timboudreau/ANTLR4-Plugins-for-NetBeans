@@ -100,6 +100,7 @@ final class BlockMapper implements BlockStorage {
         return ops.toString();
     }
 
+    @Override
     public String toString() {
         return recentOps();
     }
@@ -161,14 +162,17 @@ final class BlockMapper implements BlockStorage {
         public void delete() throws IOException {
             ops.set("delete {0} id {1}", blocks, blocks.hashCode());
 //            synchronized (lock()) {
-            try {
-                man.deallocate(blocks.start(), blocks.size());
-            } finally {
-                blocks.discard();
-            }
-            liveBlocksInstances.remove(blocks);
-            if (++deleteCount % 5 == 0 && man.fragmentation() > 0.6) {
-                man.fullDefrag();
+            Blocks b = blocks;
+            if (b != null) {
+                try {
+                    man.deallocate(b.start(), b.size());
+                } finally {
+                    b.discard();
+                }
+                liveBlocksInstances.remove(b);
+                if (++deleteCount % 5 == 0 && man.fragmentation() > 0.6) {
+                    man.fullDefrag();
+                }
             }
 //            }
         }

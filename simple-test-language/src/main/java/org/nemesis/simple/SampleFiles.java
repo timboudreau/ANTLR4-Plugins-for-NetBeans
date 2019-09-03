@@ -61,7 +61,7 @@ public enum SampleFiles {
 
     public InputStream inputStream() {
         InputStream result = SampleFiles.class.getResourceAsStream(name);
-        assert result != null : name + " not found in " + SampleFiles.class.getPackageName().replace('.', '/');
+        assert result != null : name + " not found in " + SampleFiles.class.getPackage().getName().replace('.', '/');
         return result;
     }
 

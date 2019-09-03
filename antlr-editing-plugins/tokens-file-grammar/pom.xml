@@ -19,6 +19,9 @@
             <artifactId>org-netbeans-api-annotations-common</artifactId>
         </dependency>
     </dependencies>
+    <properties>
+        <antlr.message.format>gnu</antlr.message.format>
+    </properties>
     <build>
         <plugins>
             <plugin>
@@ -26,9 +29,9 @@
                 <artifactId>nbm-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                     <moduleType>autoload</moduleType>
-                     <useOSGiDependencies>false</useOSGiDependencies>
-                     <publicPackages>
+                    <moduleType>autoload</moduleType>
+                    <useOSGiDependencies>false</useOSGiDependencies>
+                    <publicPackages>
                         <publicPackage>org.nemesis.tokens</publicPackage>
                     </publicPackages>
                 </configuration>
@@ -49,12 +52,6 @@
                             <options>
                                 <language>Java</language>
                             </options>
-                            <arguments>
-                                <!-- Enables Netbeans output error hyperlinking
-                                to work -->
-                                <argument>-message-format</argument>
-                                <argument>gnu</argument>
-                            </arguments>
                         </configuration>
                     </execution>
                 </executions>

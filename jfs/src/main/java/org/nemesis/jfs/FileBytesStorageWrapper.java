@@ -31,6 +31,10 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
         return result == null ? JFSBytesStorage.super.encoding() : result;
     }
 
+    public String toString() {
+        return path.toString();
+    }
+
     @Override
     public byte[] asBytes() throws IOException {
         boolean nukeBytes = lastModifiedAtLoad != lastModified();

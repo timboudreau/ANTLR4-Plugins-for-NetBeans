@@ -31,11 +31,19 @@ package org.nemesis.antlr.file.impl;
 import java.io.IOException;
 import org.nemesis.antlr.spi.language.DataObjectHooks;
 import com.mastfrog.function.throwing.io.IORunnable;
+import java.nio.charset.Charset;
 import java.util.Iterator;
+import java.util.function.Supplier;
 import org.nemesis.antlr.file.api.GrammarFileDeletionHook;
+import org.nemesis.antlr.project.AntlrConfiguration;
+import org.netbeans.api.project.FileOwnerQuery;
+import org.netbeans.api.project.Project;
+import org.netbeans.spi.queries.FileEncodingQueryImplementation;
+import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
+import org.openide.util.lookup.InstanceContent;
 
 /**
  *
@@ -47,6 +55,34 @@ import org.openide.util.NbBundle;
     "hasRegisteredExtensions=Grammar {0} has the file extension(s) {1} registered to it. "
     + "Unregister those extensions and really delete it?"})
 public class AntlrDataObjectHooks implements DataObjectHooks {
+
+    static final EncImpl encodingQuery = new EncImpl();
+
+    @Override
+    public void decorateLookup(DataObject on, InstanceContent content, Supplier<Lookup> superGetLookup) {
+        // The ANTLR configuration can specify a different encoding from the
+        // project, so ensure it is present
+        content.add(new EncImpl());
+    }
+
+    static class EncImpl extends FileEncodingQueryImplementation {
+
+        @Override
+        public Charset getEncoding(FileObject file) {
+            if (!"text/x-g4".equals(file.getMIMEType())) {
+                return null;
+            }
+            Project project = FileOwnerQuery.getOwner(file);
+            if (project == null) {
+                return null;
+            }
+            AntlrConfiguration config = AntlrConfiguration.forProject(project);
+            if (config != null) {
+                return config.encoding();
+            }
+            return null;
+        }
+    }
 
     @Override
     public void handleDelete(DataObject on, IORunnable superHandleDelete) throws IOException {

@@ -22,14 +22,17 @@ final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameRe
         this.index = index;
     }
 
+    @Override
     public String name() {
         return name;
     }
 
+    @Override
     public int start() {
         return start;
     }
 
+    @Override
     public int end() {
         return end;
     }
@@ -38,6 +41,7 @@ final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameRe
         return true;
     }
 
+    @Override
     public int index() {
         return index;
     }

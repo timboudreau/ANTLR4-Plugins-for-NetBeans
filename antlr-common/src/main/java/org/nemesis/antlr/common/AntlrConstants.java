@@ -28,6 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.common;
 
+import java.awt.Image;
 import java.util.EnumMap;
 import java.util.Map;
 import javax.swing.ImageIcon;
@@ -53,9 +54,25 @@ public final class AntlrConstants {
     public static final String ICON_PATH = PACKAGE_IMAGE_PATH + "antlr-g4-file-type.png";
 
     private static Map<RuleTypes, ImageIcon> iconForTypeMap;
+    private static ImageIcon ANTLR_ICON;
+    private static Image ANTLR_IMAGE;
 
     private AntlrConstants() {
         throw new AssertionError();
+    }
+
+    public static ImageIcon antlrIcon() {
+        if (ANTLR_ICON == null) {
+            ANTLR_ICON = ImageUtilities.loadImageIcon(ICON_PATH, false);
+        }
+        return ANTLR_ICON;
+    }
+
+    public static Image antlrImage() {
+        if (ANTLR_IMAGE == null) {
+            ANTLR_IMAGE = ImageUtilities.loadImage(ICON_PATH);
+        }
+        return ANTLR_IMAGE;
     }
 
     public static Map<? super RuleTypes, ImageIcon> iconForTypeMap() {
