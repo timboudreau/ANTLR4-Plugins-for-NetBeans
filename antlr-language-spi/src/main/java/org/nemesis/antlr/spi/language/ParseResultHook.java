@@ -16,7 +16,7 @@ import org.openide.util.Parameters;
 /**
  * A hook method which allows modules to registor contributors to parser result
  * contents - implement and register using MimeRegistration with type
- * ParseResultHook.  Programmatic registration is also available to support
+ * ParseResultHook. Programmatic registration is also available to support
  * refreshing dynamically generated editor kits when a grammar is reparsed.
  *
  * @author Tim Boudreau
@@ -146,6 +146,8 @@ public class ParseResultHook<T extends ParserRuleContext> {
                 found.add(matched);
             }
         }
+        LOG.log(Level.FINEST, "Run {0} hooks registered to {1} for reparse of {2}",
+                new Object[] { all.size(), mimeType, extraction.source()});
         try {
             for (ParseResultHook<? super R> p : found) {
                 try {

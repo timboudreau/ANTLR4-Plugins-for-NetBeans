@@ -35,6 +35,11 @@ class JFSFileObjectImpl implements JFSFileObject {
         this.encoding = encoding;
     }
 
+    @Override
+    public JFSStorageKind storageKind() {
+        return storage.storageKind();
+    }
+
     private void checkDeleted() throws IOException {
         if (deleted) {
             throw new IOException(name + " was already deleted");
@@ -74,9 +79,10 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public String toString() {
         String result = name + " (" + storage.length() + ")";
-        if (storage instanceof DocumentBytesStorageWrapper) {
-            result += " -> " + storage;
-        }
+//        if (storage instanceof DocumentBytesStorageWrapper
+//                || storage instanceof FileBytesStorageWrapper) {
+        result += " -> " + storage;
+//        }
         return result;
     }
 
@@ -120,7 +126,7 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public Reader openReader(boolean ignoreEncodingErrors) throws IOException {
-        return new InputStreamReader(openInputStream(), storage.encoding());
+        return new InputStreamReader(openInputStream(), encoding == null ? storage.encoding() : encoding);
     }
 
     @Override
@@ -131,7 +137,7 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public Writer openWriter() throws IOException {
         checkDeleted();
-        return new OutputStreamWriter(openOutputStream(), storage.encoding());
+        return new OutputStreamWriter(openOutputStream(), encoding == null ? storage.encoding() : encoding);
     }
 
     @Override
@@ -173,6 +179,7 @@ class JFSFileObjectImpl implements JFSFileObject {
         return Objects.hash(storage.storage().id(), name, location.getName());
     }
 
+    @Override
     public byte[] asBytes() throws IOException {
         checkDeleted();
         return storage.asBytes();

@@ -2,6 +2,7 @@ package org.nemesis.antlr.memory;
 
 import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.nemesis.jfs.result.UpToDateness;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -13,6 +14,7 @@ import java.util.Set;
 import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
@@ -79,6 +81,10 @@ public final class AntlrGenerationResult implements ProcessingResult {
 
     public AntlrGenerator toGenerator() {
         return new AntlrGenerator(toBuilder());
+    }
+
+    public AntlrGenerationResult rebuild() {
+        return toGenerator().run(grammarName, AntlrLoggers.getDefault().forPath(Paths.get(grammarFile.getName())), true);
     }
 
     public AntlrGeneratorBuilder<AntlrGenerationResult> toBuilder() {
@@ -162,15 +168,9 @@ public final class AntlrGenerationResult implements ProcessingResult {
             return UpToDateness.UNKNOWN;
         }
         if (grammarFile.getLastModified() > grammarFileLastModified) {
-            return UpToDateness.STALE;
+            return UpToDateness.staleStatus().add(Paths.get(grammarFile.getName())).build();
         }
-        for (Map.Entry<JFSFileObject, Long> e : modifiedFiles.entrySet()) {
-            if (e.getValue() < grammarFileLastModified
-                    || e.getKey().getLastModified() > e.getValue()) {
-                return UpToDateness.STALE;
-            }
-        }
-        return UpToDateness.CURRENT;
+        return UpToDateness.fromFileTimes(modifiedFiles);
     }
 
     public Set<JFSFileObject> touched() {

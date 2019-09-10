@@ -30,7 +30,7 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
-import org.nemesis.antlr.file.GrammarType;
+import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
@@ -250,7 +250,6 @@ public final class AntlrExtractor {
                 .whenRuleIdIn(ANTLRv4Parser.RULE_fragmentRuleDeclaration, ANTLRv4Parser.RULE_labeledParserRuleElement)
                 .extractingKeyWith(rule -> {
                     String name = ANTLRv4Parser.ruleNames[rule.getRuleIndex()];
-                    System.out.println("ID KEY " + name + ": " + rule.getText());
                     return name;
                 }).finishRegionExtractor();
         ;

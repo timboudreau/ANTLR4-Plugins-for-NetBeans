@@ -256,7 +256,7 @@ final class MavenInfo {
             // antlr info
             noteDependencies(parents);
 
-            logPoms(parents);
+//            logPoms(parents);
 
             for (PomFileAnalyzer a : CollectionUtils.reversed(parents)) {
                 PomFileAnalyzer.PluginConfigurationInfo info = a.antlrPluginInfo();

@@ -49,6 +49,9 @@ Copyright (C) 2012-2019 Tim Boudreau
         <module>antlr-error-highlighting</module>
         <module>test-fixtures-support</module>
         <module>antlr-live-parsing</module>
+        <module>antlr-live-language-editors</module>
+        <module>antlr-editing-kit</module>
+        <module>antlr-live-preview</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -109,9 +112,33 @@ Copyright (C) 2012-2019 Tim Boudreau
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live-language-editors</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-extensions</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-error-highlighting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-project-helpers-maven</artifactId>
                 <version>${project.version}</version>
-                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live-preview</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live-parsing</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>

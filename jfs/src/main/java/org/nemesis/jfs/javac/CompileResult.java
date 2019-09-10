@@ -22,6 +22,7 @@ import org.nemesis.jfs.result.UpToDateness;
 public class CompileResult implements ProcessingResult {
 
     boolean callResult;
+    long elapsed;
     private final List<JavacDiagnostic> diagnostics = new ArrayList<>();
     Throwable thrown;
     private final Path sourceRoot;
@@ -37,16 +38,23 @@ public class CompileResult implements ProcessingResult {
     }
 
     @Override
+    public String toString() {
+        return "CompileResult(completed " + callResult + " thrown " + thrown
+                + " diagnostics " + diagnostics.size() + " sourceFiles "
+                + files.size() + " elapsedMs " + elapsed + ")";
+    }
+
+    public long elapsedMillis() {
+        return elapsed;
+    }
+
+    void elapsedMillis(long elapsedMillis) {
+        this.elapsed = elapsedMillis;
+    }
+
+    @Override
     public UpToDateness currentStatus() {
-        if (!isUsable() || sourceFilesToModifications.isEmpty()) {
-            return UpToDateness.UNKNOWN;
-        }
-        for (Map.Entry<JavaFileObject, Long> e : sourceFilesToModifications.entrySet()) {
-            if (e.getKey().getLastModified() > e.getValue()) {
-                return UpToDateness.STALE;
-            }
-        }
-        return UpToDateness.CURRENT;
+        return UpToDateness.fromFileTimes(sourceFilesToModifications);
     }
 
     static final class Builder {
@@ -57,6 +65,7 @@ public class CompileResult implements ProcessingResult {
         private Throwable thrown;
         private boolean callResult;
         private final Map<JavaFileObject, Long> sourceFilesToModifications = new HashMap<>();
+        long elapsed;
 
         Builder(Path sourceRoot) {
             assert sourceRoot != null : "Source root null";
@@ -68,6 +77,10 @@ public class CompileResult implements ProcessingResult {
             return this;
         }
 
+        void elapsed(long elapsed) {
+            this.elapsed = elapsed;
+        }
+
         public CompileResult build() {
             CompileResult res = new CompileResult(sourceRoot);
             res.diagnostics.addAll(diagnostics);
@@ -75,6 +88,7 @@ public class CompileResult implements ProcessingResult {
             res.thrown = thrown;
             res.callResult = callResult;
             res.sourceFilesToModifications.putAll(sourceFilesToModifications);
+            res.elapsedMillis(elapsed);
             return res;
         }
 

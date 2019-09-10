@@ -88,7 +88,7 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-public class AdhocMimeTypes {
+public final class AdhocMimeTypes {
 
     private static final Logger LOG = Logger.getLogger(AdhocMimeTypes.class.getName());
 
@@ -595,7 +595,7 @@ public class AdhocMimeTypes {
         return null;
     }
 
-    static String rawFileName(Path path) {
+    public static String rawFileName(Path path) {
         String result = path.getFileName().toString();
         int ix = result.lastIndexOf('.');
         if (ix >= 0 && ix < result.length() - 1) {

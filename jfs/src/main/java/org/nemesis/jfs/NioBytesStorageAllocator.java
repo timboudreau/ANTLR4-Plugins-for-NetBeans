@@ -81,6 +81,11 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
             this.name = name;
         }
 
+        @Override
+        public JFSStorageKind storageKind() {
+            return JFSStorageKind.MAPPED_BYTES;
+        }
+
         public String toString() {
             return name + "{" + file + "}";
         }

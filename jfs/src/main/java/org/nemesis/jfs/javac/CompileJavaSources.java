@@ -130,7 +130,7 @@ public class CompileJavaSources {
             result.withJavacResult(javacResult);
             long elapsed = System.currentTimeMillis() - then;
             result.withFiles(paths);
-            System.out.println("COMPILE TOOK " + elapsed + "ms");
+            result.elapsed(elapsed);
             LOG.log(Level.FINE, "Compile took {0}ms. Ok? {1}", new Object[]{elapsed, javacResult});
         } catch (Exception e) {
             LOG.log(Level.INFO, "Virtual compilation threw", e);

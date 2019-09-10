@@ -115,7 +115,7 @@ public class TestFixtures {
         set.addAll(Arrays.asList(DEFAULT_LOOKUP_CONTENTS));
         set.addAll(defaultLookupContents);
         MockServices.setServices(set.toArray(new Class[set.size()]));
-        onShutdown.andAlwaysRun(() -> MockServices.setServices(new Class[0]));
+//        onShutdown.andAlwaysRun(() -> MockServices.setServices(new Class[0]));
         // Force init
         assertNotNull(Lookup.getDefault().lookup(ActiveDocumentProvider.class));
         onShutdown.andAlwaysFirst(() -> {
@@ -196,7 +196,7 @@ public class TestFixtures {
     }
 
     public TestFixtures includeLogs(String... names) {
-        excludeLogs.addAll(Arrays.asList(names));
+        includeLogs.addAll(Arrays.asList(names));
         return this;
     }
 
@@ -512,7 +512,7 @@ public class TestFixtures {
 
         public static void rethrow() throws Throwable {
             for (MockErrorManager t : ERROR_MANAGERS) {
-                t.rethrow();
+                t._rethrow();
             }
         }
 

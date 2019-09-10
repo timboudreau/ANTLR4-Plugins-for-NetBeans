@@ -8,6 +8,9 @@
     </parent>
     <artifactId>antlr-live-parsing</artifactId>
     <packaging>nbm</packaging>
+    <properties>
+        <maven.test.skip>false</maven.test.skip>
+    </properties>
     <build>
         <plugins>
             <plugin>
@@ -35,15 +38,17 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>            
+            </plugin>
             <plugin>
                 <groupId>org.apache.netbeans.utilities</groupId>
                 <artifactId>nbm-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
                     <moduleType>autoload</moduleType>
+                    <verifyRuntime>false</verifyRuntime>
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.live.parsing</publicPackage>
+                        <publicPackage>org.nemesis.antlr.live.parsing.extract</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>
@@ -56,9 +61,10 @@
                         <configuration>
                             <target name="copy-antlr-sources">
                                 <echo>Copying ParserExtractor.java to ParserExtractor.template</echo>
-                                <mkdir dir="${basedir}/src/main/resources/org/nemesis/antlr/live/parsing"/>
-                                <copy file="${basedir}/src/main/java/org/nemesis/antlr/live/parsing/extract/ParserExtractor.java" 
-                                      outputencoding="UTF-8" 
+                                <mkdir dir="${basedir}/src/main/resources/org/nemesis/antlr/live/parsing/extract"/>
+                                <mkdir dir="${basedir}/target/classes/org/nemesis/antlr/live/parsing/extract"/>
+                                <copy file="${basedir}/src/main/java/org/nemesis/antlr/live/parsing/extract/ParserExtractor.java"
+                                      outputencoding="UTF-8"
                                       tofile="${basedir}/target/classes/org/nemesis/antlr/live/parsing/extract/ParserExtractor.template">
                                 </copy>
                             </target>
@@ -79,6 +85,22 @@
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util-lookup</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-parsing-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-filesystems</artifactId>
         </dependency>
         <dependency>
@@ -87,11 +109,28 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-live-execution</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>extraction</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>adhoc-mime-types</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-input</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-file-support</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -112,6 +151,52 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-in-memory-execution</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>test-fixtures-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-project-helpers-maven</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-grammar-file-resolver</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-modules-maven-embedder</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-modules-projectapi-nb</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-modules-masterfs</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -28,6 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.file;
 
+import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import java.awt.Color;
 import org.nemesis.antlr.file.impl.AntlrDataObjectHooks;
 import java.util.Set;
@@ -279,7 +280,6 @@ public class AntlrKeys {
 
         @Override
         public AttributeSet apply(NamedSemanticRegion<RuleTypes> t) {
-            System.out.println("COLOR FOR " + t.name() + " " + t.kind());
             switch (t.kind()) {
                 case FRAGMENT:
                     return boldItalic;

@@ -52,14 +52,11 @@ public class AntlrInvocationTest {
         assertNotNull(r);
         Map<String, Object> map = r.get();
         assertNotNull(map);
-        System.out.println("\nMAP\n");
-        System.out.println(map);
 
         assertEquals("map mapItem value numberValue mapItem value booleanValue mapItem value stringValue mapItem value numberValue", map.get("tree"));
         assertEquals(Collections.emptyList(), map.get("errors"));
         if (CLREF.get() != null) {
             for (int i = 0; i < 10 && CLREF.get() != null; i++) {
-                System.out.println("cl iter " + i);
                 System.gc();
                 System.runFinalization();
                 Thread.sleep(100);
@@ -74,8 +71,6 @@ public class AntlrInvocationTest {
         r.rethrow();
         assertNotNull(r);
         Map<String, Object> map = r.get();
-        System.out.println("ERRS: ");
-        System.out.println(map);
         assertEquals("map", map.get("tree"));
         List<String> errs = (List<String>) map.get("errors");
         assertNotNull(errs);
@@ -83,12 +78,9 @@ public class AntlrInvocationTest {
         assertEquals("syntaxError: 1:18 token recognition error at: ']'", errs.get(0));
         assertEquals("syntaxError: 1:19 token recognition error at: '['", errs.get(1));
 
-        System.out.println("\nGENOUT \n" + r.generationOutput());
-        System.out.println("MSGS " + r.lastGood());
 
         if (CLREF.get() != null) {
             for (int i = 0; i < 10 && CLREF.get() != null; i++) {
-                System.out.println("cl iter " + i);
                 System.gc();
                 System.runFinalization();
                 Thread.sleep(100);
@@ -102,7 +94,6 @@ public class AntlrInvocationTest {
         subTestLeaking();
         if (CLREF.get() != null) {
             for (int i = 0; i < 10 && CLREF.get() != null; i++) {
-                System.out.println("cl iter " + i);
                 System.gc();
                 System.runFinalization();
                 Thread.sleep(100);
@@ -120,8 +111,6 @@ public class AntlrInvocationTest {
         r.disposeResult();
         r = null;
         assertNotNull(o);
-        System.out.println("TYPE " + o.getClass().getName());
-        System.out.println("CLASSLOADER " + o.getClass().getClassLoader());
         assertTrue(strongRef instanceof JFSClassLoader, strongRef.getClass().getName());
         assertTrue(o.getClass().getClassLoader() == strongRef
                 || o.getClass().getClassLoader() == strongRef.getParent());
@@ -129,7 +118,6 @@ public class AntlrInvocationTest {
         strongRef = null;
         if (CLREF.get() != null) {
             for (int i = 0; i < 10 && CLREF.get() != null; i++) {
-                System.out.println("cl iter " + i);
                 System.gc();
                 System.runFinalization();
                 Thread.sleep(100);
@@ -178,7 +166,6 @@ public class AntlrInvocationTest {
     }
 
     public static Object leaky() throws Exception {
-        System.out.println("\n\nLEAKY " + Thread.currentThread().getContextClassLoader());
         Class<?> type = Thread.currentThread().getContextClassLoader().loadClass("com.foo.bar.NestedMapInfoExtractor");
         Constructor<?> con = type.getConstructor(String.class, String.class);
         CLREF = new WeakReference<>(strongRef = type.getClassLoader());
@@ -198,7 +185,6 @@ public class AntlrInvocationTest {
     }
 
     private void onFileCreated(JavaFileManager.Location loc, FileObject file) {
-        System.out.println("\"" + file + "\",");
         if (loc == StandardLocation.CLASS_OUTPUT && file.getName().endsWith(".class")) {
             generatedClassFiles.add(file.getName());
         }

@@ -1,6 +1,7 @@
 package org.nemesis.antlr.compilation;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,12 +77,7 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         if (result.mayRequireRebuild()) {
             return result;
         }
-        for (Map.Entry<JFSFileObject, Long> e : touched.entrySet()) {
-            if (e.getKey().getLastModified() > e.getValue()) {
-                return UpToDateness.STALE;
-            }
-        }
-        return UpToDateness.CURRENT;
+        return UpToDateness.fromFileTimes(touched);
     }
 
     @Override
@@ -133,7 +129,7 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
     }
 
     public List<JavacDiagnostic> javacDiagnostics() {
-        return compilationResult.diagnostics();
+        return compilationResult == null ? Collections.emptyList() : compilationResult.diagnostics();
     }
 
 }

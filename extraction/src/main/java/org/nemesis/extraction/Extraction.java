@@ -63,10 +63,16 @@ public final class Extraction implements Externalizable {
     private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>();
     private String extractorsHash;
     private GrammarSource<?> source;
+    private String tokensHash;
 
-    Extraction(String extractorsHash, GrammarSource<?> source) {
+    Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash) {
         this.extractorsHash = extractorsHash;
         this.source = source;
+        this.tokensHash = tokensHash;
+    }
+
+    public String tokensHash() {
+        return tokensHash;
     }
 
     public boolean isPlaceholder() {

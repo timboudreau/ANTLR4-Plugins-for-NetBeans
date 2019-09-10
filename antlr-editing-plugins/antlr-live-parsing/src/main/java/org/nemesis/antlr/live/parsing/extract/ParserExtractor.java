@@ -54,7 +54,7 @@ public class ParserExtractor {
         return extract(text, index); //parser
     } //parser
 
-    public static AntlrProxies.ParseTreeProxy extract(String text) {
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(String text) {
         return extract(text, 0);
     }
 
@@ -82,13 +82,17 @@ public class ParserExtractor {
                 // Use deprecated ANTLRInputStream rather than 4.7's CharStreams,
                 // since we may be running against an older version of Antlr where
                 // that call would fail
-                DummyLanguageLexer lex = new DummyLanguageLexer(new org.antlr.v4.runtime.ANTLRInputStream(text.toCharArray(), text.length()));
+                DummyLanguageLexer lex = new DummyLanguageLexer(new org.antlr.v4.runtime.ANTLRInputStream(
+                        text.toCharArray(), text.length()));
                 lex.removeErrorListeners();
                 // Collect all of the tokens
                 ErrL errorListener = new ErrL(proxies);
                 lex.addErrorListener(errorListener);
                 Token tok;
                 int tokenIndex = 0;
+                if ("ignoreme.placeholder.DummyLanguageLexer".equals(lex.getClass().getName())) {
+                    throw new IllegalStateException("Lexer name not replaced correctly: " + lex.getClass().getName());
+                }
                 do {
                     tok = lex.nextToken();
                     int type = tok.getType();
@@ -103,6 +107,9 @@ public class ParserExtractor {
                         // And the text may be "<EOF>" which we don't want
                         // to accidentally return as a netbeans token
                         txt = "";
+                        // We may be better off not returning EOF,but it
+                        // will require fixes elsewhere
+//                        break;
                     }
                     proxies.onToken(txt, type,
                             tok.getLine(), tok.getCharPositionInLine(),

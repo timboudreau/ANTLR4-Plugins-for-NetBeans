@@ -3,6 +3,7 @@ package org.nemesis.antlr.live.execution;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -11,12 +12,14 @@ import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
 import org.nemesis.antlr.compilation.AntlrRunBuilder;
+import org.nemesis.antlr.compilation.GrammarProcessingOptions;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.compilation.WithGrammarRunner;
 import org.nemesis.antlr.live.RebuildSubscriptions;
@@ -25,6 +28,7 @@ import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.openide.filesystems.FileObject;
@@ -44,7 +48,7 @@ public class AntlrRunSubscriptions {
         LOG.setLevel(Level.ALL);
     }
     private static Set<String> WARNED = new HashSet<>(3);
-    private final Map<Class<?>, Entry<?>> subscriptionsByType = new HashMap<>();
+    private final Map<Class<?>, Entry<?, ?>> subscriptionsByType = new HashMap<>();
 
     private static volatile AntlrRunSubscriptions INSTANCE;
 
@@ -61,15 +65,15 @@ public class AntlrRunSubscriptions {
         return result;
     }
 
-    public static <T> InvocationSubscriptions<T> subscribe(Class<T> type) {
+    public static <T> InvocationSubscriptions<T> forType(Class<T> type) {
         return new InvocationSubscriptions<>(type);
     }
 
     @SuppressWarnings("unchecked")
     synchronized <T> Runnable _subscribe(FileObject fo, Class<T> type, BiConsumer<Extraction, GrammarRunResult<T>> c) {
-        Entry<T> e = (Entry<T>) subscriptionsByType.get(type);
+        Entry<T, ?> e = (Entry<T, ?>) subscriptionsByType.get(type);
         if (e == null) {
-            InvocationRunner<T> runner = find(type);
+            InvocationRunner<T, ?> runner = find(type);
             if (runner != null) {
                 e = new Entry<>(runner, c, this::remove);
                 LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}", new Object[]{runner, c});
@@ -78,7 +82,7 @@ public class AntlrRunSubscriptions {
         } else {
             boolean subscribed = e.subscribe(c);
             if (!subscribed) { // was empty but not yet removed
-                Entry<T> newEntry = new Entry<>(e.runner, c, this::remove);
+                Entry<T, ?> newEntry = new Entry<>(e.runner, c, this::remove);
                 LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}"
                         + "replacing dead {3}", new Object[]{newEntry, c, e});
                 e = newEntry;
@@ -88,10 +92,10 @@ public class AntlrRunSubscriptions {
         if (e == null) {
             return null;
         }
-        Entry<T> en = e;
+        Entry<T, ?> en = e;
         // XXX need to track consumers by file object
         Runnable unsubscribeFromNotifications = RebuildSubscriptions.subscribe(fo, en);
-        System.out.println("SUBSCRIBE " + fo + " " + en + " unsubscriber " + unsubscribeFromNotifications);
+        LOG.log(Level.FINER, "Subscribed {0} to rebuilds of {1}", new Object[]{c, fo});
         return () -> {
             if (en.unsubscribe(c)) {
                 unsubscribeFromNotifications.run();
@@ -99,19 +103,19 @@ public class AntlrRunSubscriptions {
         };
     }
 
-    private synchronized void remove(Entry<?> e) {
+    private synchronized void remove(Entry<?, ?> e) {
         if (subscriptionsByType.get(e.type()) == e) {
             subscriptionsByType.remove(e.type());
         }
     }
 
-    static String pathForType(Class<?> type) {
+    public static String pathForType(Class<?> type) {
         return BASE_PATH + type.getName().replace('.', '/').replace('$', '/');
     }
 
-    private static <T> InvocationRunner<T> find(Class<T> type) {
+    private static <T> InvocationRunner<T, ?> find(Class<T> type) {
         String path = pathForType(type);
-        InvocationRunner<?> runner = Lookups.forPath(path).lookup(InvocationRunner.class);
+        InvocationRunner<?, ?> runner = Lookups.forPath(path).lookup(InvocationRunner.class);
         if (runner != null) {
             if (!type.equals(runner.type())) {
                 LOG.log(Level.SEVERE, "InvocationRunner returns type " + runner.type()
@@ -121,7 +125,7 @@ public class AntlrRunSubscriptions {
             }
             LOG.log(Level.FINE, "Found InvocationRunner {0} for {1} with type {2}",
                     new Object[]{runner, path, runner.type().getName()});
-            return (InvocationRunner<T>) runner;
+            return (InvocationRunner<T, ?>) runner;
         }
         if (!WARNED.contains(type.getName())) {
             WARNED.add(type.getName());
@@ -132,15 +136,15 @@ public class AntlrRunSubscriptions {
         return null;
     }
 
-    static final class Entry<T> implements Subscriber {
+    static final class Entry<T, A> implements Subscriber {
 
-        private final InvocationRunner<T> runner;
+        private final InvocationRunner<T, A> runner;
         private final Set<ConsumerReference> refs = Collections.synchronizedSet(new HashSet<>());
         private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
-        private final Consumer<Entry<?>> onEmpty;
+        private final Consumer<Entry<?, ?>> onEmpty;
         private boolean disposed;
 
-        public Entry(InvocationRunner<T> runner, BiConsumer<Extraction, GrammarRunResult<T>> res, Consumer<Entry<?>> onEmpty) {
+        public Entry(InvocationRunner<T, A> runner, BiConsumer<Extraction, GrammarRunResult<T>> res, Consumer<Entry<?, ?>> onEmpty) {
             this.runner = runner;
             refs.add(new ConsumerReference(res));
             this.onEmpty = onEmpty;
@@ -257,23 +261,44 @@ public class AntlrRunSubscriptions {
                 String mimeType, Extraction extraction,
                 AntlrGenerationResult res, ParseResultContents populate,
                 Fixes fixes) {
-            System.out.println("ENTRY.onRebuilt " + extraction.source());
             JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
             try {
-                runner.onBeforeCompilation(res.jfs(), bldr, res.packageName());
+                CSC csc = new CSC();
+                A arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
+
                 bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
                 CompileResult cr = bldr.compile();
-                System.out.println("COMPILE RESULT " + cr);
-                System.out.println("DIAGS " + cr.diagnostics());
 
                 AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
-                WithGrammarRunner rb = AntlrRunBuilder.fromGenerationPhase(compiler).build(extraction.source().name());
-                GrammarRunResult<T> rr = rb.run(runner);
+
+                AntlrRunBuilder runBuilder = AntlrRunBuilder
+                        .fromGenerationPhase(compiler).isolated();
+
+                if (csc.t != null) {
+                    runBuilder.withParentClassLoader(csc.t);
+                }
+
+                WithGrammarRunner rb = runBuilder
+                        .build(extraction.source().name());
+                GrammarRunResult<T> rr = rb.run(arg, runner, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE));
                 run(extraction, rr);
             } catch (IOException ex) {
                 Logger.getLogger(Entry.class.getName()).log(Level.WARNING,
                         "Exception configuring compiler to parse "
                         + extraction.source(), ex);
+            } catch (Error err) {
+                handleEiiE(err, res.jfs());
+                throw err;
+            }
+        }
+
+        static class CSC implements Consumer<Supplier<ClassLoader>> {
+
+            private Supplier<ClassLoader> t;
+
+            @Override
+            public void accept(Supplier<ClassLoader> t) {
+                this.t = t;
             }
         }
 
@@ -290,4 +315,16 @@ public class AntlrRunSubscriptions {
             }
         }
     }
+
+    private static void handleEiiE(Error ex, JFS jfs) {
+        try {
+            LOG.log(Level.SEVERE, "Classpath: " + jfs.currentClasspath(), ex);
+        } catch (Throwable t) {
+            ex.addSuppressed(t);
+            LOG.log(Level.SEVERE, t.toString(), ex);
+            LOG.log(Level.SEVERE, null, t);
+            throw ex;
+        }
+    }
+
 }

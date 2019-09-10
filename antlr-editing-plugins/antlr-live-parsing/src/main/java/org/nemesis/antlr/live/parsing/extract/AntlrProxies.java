@@ -179,6 +179,89 @@ public class AntlrProxies {
             this.thrown = thrown;
         }
 
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 23 * hash + Objects.hashCode(this.tokens);
+            hash = 23 * hash + Objects.hashCode(this.tokenTypes);
+            hash = 23 * hash + Objects.hashCode(this.root);
+            hash = 23 * hash + Objects.hashCode(this.eofType);
+            hash = 23 * hash + Objects.hashCode(this.treeElements);
+            hash = 23 * hash + Objects.hashCode(this.syntaxErrors);
+            hash = 23 * hash + Arrays.deepHashCode(this.parserRuleNames);
+            hash = 23 * hash + Arrays.deepHashCode(this.channelNames);
+            hash = 23 * hash + (this.hasParseErrors ? 1 : 0);
+            hash = 23 * hash + Objects.hashCode(this.hashString);
+            hash = 23 * hash + Objects.hashCode(this.grammarName);
+            hash = 23 * hash + Objects.hashCode(this.grammarPath);
+            hash = 23 * hash + (this.isUnparsed ? 1 : 0);
+            hash = 23 * hash + Objects.hashCode(this.text);
+            hash = 23 * hash + Objects.hashCode(this.thrown);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ParseTreeProxy other = (ParseTreeProxy) obj;
+            if (this.hasParseErrors != other.hasParseErrors) {
+                return false;
+            }
+            if (this.isUnparsed != other.isUnparsed) {
+                return false;
+            }
+            if (!Objects.equals(this.hashString, other.hashString)) {
+                return false;
+            }
+            if (!Objects.equals(this.grammarName, other.grammarName)) {
+                return false;
+            }
+            if (!Objects.equals(this.grammarPath, other.grammarPath)) {
+                return false;
+            }
+            if (!Objects.equals(this.text, other.text)) {
+                return false;
+            }
+            if (!Objects.equals(this.tokens, other.tokens)) {
+                return false;
+            }
+            if (!Objects.equals(this.tokenTypes, other.tokenTypes)) {
+                return false;
+            }
+            if (!Objects.equals(this.root, other.root)) {
+                return false;
+            }
+            if (!Objects.equals(this.eofType, other.eofType)) {
+                return false;
+            }
+            if (!Objects.equals(this.treeElements, other.treeElements)) {
+                return false;
+            }
+            if (!Objects.equals(this.syntaxErrors, other.syntaxErrors)) {
+                return false;
+            }
+            if (!Arrays.deepEquals(this.parserRuleNames, other.parserRuleNames)) {
+                return false;
+            }
+            if (!Arrays.deepEquals(this.channelNames, other.channelNames)) {
+                return false;
+            }
+            if (!Objects.equals(this.thrown, other.thrown)) {
+                return false;
+            }
+            return true;
+        }
+
+
+
         /**
          * Returns a ParseTreeProxy like this one, but with only some whitespace
          * characters stuck in an EOF token. Document inserts sometimes cause
@@ -859,6 +942,18 @@ public class AntlrProxies {
             }
             sb.append(" (").append(type).append(")");
             return sb.toString();
+        }
+
+        public String programmaticName() {
+            if (symbolicName != null) {
+                return symbolicName;
+            } else if (literalName != null) {
+                return literalName;
+            } else if (displayName != null) {
+                return displayName;
+            } else {
+                return "<no-name>";
+            }
         }
 
         public String name() {

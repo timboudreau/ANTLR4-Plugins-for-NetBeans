@@ -174,7 +174,6 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
                     lines = fileReader.apply(path);
                     linesForPath.put(path, lines);
                 }
-                System.out.println("FOUND " + lines.size() + " lines for " + path);
                 for (int currLineNumber = 0; currLineNumber < lines.size(); currLineNumber++) {
                     String line = lines.get(currLineNumber);
                     if (currLineNumber == err.lineNumber()) {

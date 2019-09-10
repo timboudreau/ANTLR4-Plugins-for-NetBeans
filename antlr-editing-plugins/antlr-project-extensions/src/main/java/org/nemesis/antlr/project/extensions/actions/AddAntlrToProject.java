@@ -197,7 +197,6 @@ public final class AddAntlrToProject extends AbstractAction {
                     NotifyDescriptor.OK_OPTION);
             Object result = DialogDisplayer.getDefault().notify(no);
             if (NotifyDescriptor.OK_OPTION.equals(result)) {
-                System.out.println("Retruning " + dlg.info());
                 return dlg.info();
             }
             return null;
@@ -366,9 +365,4 @@ public final class AddAntlrToProject extends AbstractAction {
             return DEFAULT_ANTLR;
         }
     }
-
-    public static void main(String[] args) {
-        System.out.println(findHighestLocalAntlrVersion());
-    }
-
 }

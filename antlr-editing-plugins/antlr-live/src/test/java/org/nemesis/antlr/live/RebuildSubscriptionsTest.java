@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4Parser;
-import org.nemesis.test.fixtures.support.MavenProjectBuilder.GeneratedMavenProject;
+import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import static org.nemesis.antlr.live.SanityCheckPlumbingTest.initAntlrTestFixtures;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
@@ -59,7 +59,6 @@ public class RebuildSubscriptionsTest {
         assertNotNull(jfs, "No jfs");
         jfs.list(StandardLocation.SOURCE_PATH, "", EnumSet.allOf(JavaFileObject.Kind.class), true)
                 .forEach(jfo -> {
-                    System.out.println(" - " + jfo);
                     if (jfo.getName().contains("NMLexer")) {
                         assertTrue(jfo.toString().contains("Document"), "Not using document mapping for "
                                 + jfo + ", though document was loaded.  EditorCookie.Observable did not "
@@ -88,7 +87,6 @@ public class RebuildSubscriptionsTest {
         @Override
         public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
             count.incrementAndGet();
-            System.out.println("\n\nREBUILD " + extraction.source() + " res " + res + " on " + Thread.currentThread() + "\n");
             latch.releaseAll();
         }
 

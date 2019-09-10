@@ -487,9 +487,15 @@ public class JFSTest {
         Path tempFile = Paths.get(System.getProperty("java.io.tmpdir"), "map-me.txt");
         try {
             Files.write(tempFile, Arrays.asList("Hello utf 16!"), UTF_16, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-            JFSFileObject fo = jfs.masquerade(tempFile, SOURCE_PATH, Paths.get("foo/bar.txt"));
+            JFSFileObject fo = jfs.masquerade(tempFile, SOURCE_PATH, Paths.get("foo/bar.utf16"), UTF_16);
             assertNotNull(fo);
-            assertSame(fo, jfs.get(SOURCE_PATH, Paths.get("foo/bar.txt")));
+            assertSame(fo, jfs.get(SOURCE_PATH, Paths.get("foo/bar.utf16")));
+            
+            assertTrue(fo instanceof JFSFileObjectImpl);
+            JFSFileObjectImpl foi = (JFSFileObjectImpl) fo;
+            
+            System.out.println("STORAGE " + foi.storage.getClass().getName());
+
             long lm = fo.getLastModified();
 
             String msg = fo.getCharContent(true).toString();
@@ -506,14 +512,14 @@ public class JFSTest {
                 // do nothing
             }
             fo.delete();
-            assertNull("Still present", jfs.get(SOURCE_PATH, Paths.get("foo/bar.txt")));
+            assertNull("Still present", jfs.get(SOURCE_PATH, Paths.get("foo/bar.utf16")));
             assertTrue("Disk file was deleted", Files.exists(tempFile));
             jfs.close();
 
             jfs = new JFS(UTF_16);
-            fo = jfs.copy(tempFile, tempFile.getParent(), SOURCE_PATH);
+            fo = jfs.copy(tempFile, UTF_16, SOURCE_PATH, Paths.get("poozle/wheez.plee"));
             assertNotNull(fo);
-            assertEquals("map-me.txt", fo.getName());
+            assertEquals("poozle/wheez.plee", fo.getName());
             assertEquals("Hello again utf 16!\n", fo.getCharContent(true).toString());
             try (OutputStream str=fo.openOutputStream()) {
                 str.write("Uh oh".getBytes(UTF_16));
@@ -528,10 +534,11 @@ public class JFSTest {
         }
     }
 
+    Document document;
     @Test
     public void testMapDocuments() throws Throwable {
         JFS jfs = new JFS(UTF_16);
-        Document document = new DefaultStyledDocument();
+        document = new DefaultStyledDocument();
         String txt = "This is some text\nWhich shall be given up for you\n";
         document.insertString(0, txt, null);
         Path pth = Paths.get("/some/docs/Doc.txt");
@@ -541,6 +548,7 @@ public class JFSTest {
         long lm = fo.getLastModified();
         long len = fo.length();
         String newText = "And now things are different\nin this here document.\n";
+        Thread.sleep(100);
         try (OutputStream out = fo.openOutputStream()) {
             out.write(newText.getBytes(UTF_16));
         }

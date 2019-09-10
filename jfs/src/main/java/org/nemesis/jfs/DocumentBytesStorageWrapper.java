@@ -51,10 +51,16 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
         return CharBuffer.wrap(segment, segment.offset, segment.offset + segment.count);
     }
 
+    @Override
+    public JFSStorageKind storageKind() {
+        return JFSStorageKind.MASQUERADED_DOCUMENT;
+    }
+
     Document document() {
         return doc;
     }
 
+    @Override
     public String toString() {
         return doc.toString();
     }
@@ -114,7 +120,7 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
                 doc.insertString(0, cb.toString(), null);
                 break;
             } catch (BadLocationException ex) {
-                if (i == maxTries -1) {
+                if (i == maxTries - 1) {
                     throw new IOException("Exception setting document bytes in " + doc);
                 } else {
                     JFS.LOG.log(Level.FINEST, "Reattempting document update", ex);

@@ -229,9 +229,7 @@ public class DynamicLanguageSupport {
         }
     }
 
-    private AdhocMimeDataProvider mimeData() {
-        return Lookup.getDefault().lookup(AdhocMimeDataProvider.class);
-    }
+
 
     private void updateParsingEnvironment(GenerateBuildAndRunGrammarResult buildResult, ParseTreeProxy lastParseResult) {
         LOG.log(Level.FINE, "Update parsing envioronment for {0}", loggableMimeType(lastParseResult.mimeType()));
@@ -250,7 +248,9 @@ public class DynamicLanguageSupport {
     public static Set<String> mimeTypes() {
         return Collections.unmodifiableSet(registrations.keySet());
     }
-
+    private AdhocMimeDataProvider mimeData() {
+        return Lookup.getDefault().lookup(AdhocMimeDataProvider.class);
+    }
     public static Parser parser(String mimeType) {
         AdhocParserFactory pf = INSTANCE.mimeData().getLookup(mimeType).lookup(AdhocParserFactory.class);
         if (pf == null) {

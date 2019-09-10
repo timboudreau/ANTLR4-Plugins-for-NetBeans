@@ -27,7 +27,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     private final Extraction extraction;
     private final List<SyntaxError> syntaxErrors = new ArrayList<>();
     private BiFunction<Snapshot, SyntaxError, ErrorDescription> errorConverter;
-    private final List<ErrorDescription> addedErrorDescriptions = new ArrayList<>(5);
+    private final List<ErrorDescription> addedErrorDescriptions = new ArrayList<>(25);
     private static volatile long IDS;
     private final long id = IDS++;
     private final NbLexerAdapter<?,?> adapter;

@@ -163,6 +163,9 @@ public final class AntlrGenerator {
     }
 
     public AntlrGenerationResult run(String grammarFileName, PrintStream logStream, boolean generate) {
+        if (logStream == System.out || logStream == System.err) {
+            new IllegalArgumentException("GOTCHA!").printStackTrace();
+        }
         List<ParsedAntlrError> errors = new ArrayList<>();
         List<String> infos = new ArrayList<>();
         String[] args = AntlrGenerationOption.toAntlrArguments(
@@ -238,7 +241,6 @@ public final class AntlrGenerator {
         }
         success &= errors.isEmpty();
         Set<JFSFileObject> postFiles = new HashSet<>();
-        Set<JFSFileObject> touched = new HashSet<>();
         Map<JFSFileObject, Long> touchedLastModified = new HashMap<>();
         jfs.listAll().entrySet().stream().filter((e) -> {
             return grammarSourceLocation.equals(e.getValue()) || outputLocation.equals(e.getValue());
@@ -251,10 +253,10 @@ public final class AntlrGenerator {
             Long mod = modificationDates.get(f.getKey());
             long currentLastModified = f.getKey().getLastModified();
             if (mod == null) {
-                touched.add(f.getKey());
                 touchedLastModified.put(file, currentLastModified);
             } else if (mod < currentLastModified) {
-                touched.add(f.getKey());
+                touchedLastModified.put(file, currentLastModified);
+            } else if (file.storageKind().isMasqueraded()) {
                 touchedLastModified.put(file, currentLastModified);
             }
             postFiles.add(f.getKey());

@@ -1,5 +1,10 @@
 package org.nemesis.extraction;
 
+import java.nio.ByteBuffer;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.Collection;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -188,7 +193,8 @@ public final class Extractor<T extends ParserRuleContext> {
      * extractor's builder.
      */
     public Extraction extract(T ruleNode, GrammarSource<?> source, BooleanSupplier cancelled, Iterable<? extends Token> tokens) {
-        Extraction extraction = new Extraction(extractorsHash(), source);
+        String tkHash = hashTokens(tokens);
+        Extraction extraction = new Extraction(extractorsHash(), source, tkHash);
         long then = System.currentTimeMillis();
         for (RegionExtractionStrategies<?> r : regionsInfo) {
             if (cancelled.getAsBoolean()) {
@@ -214,6 +220,30 @@ public final class Extractor<T extends ParserRuleContext> {
         long elapsed = System.currentTimeMillis() - then;
         LOG.log(Level.FINEST, "Extraction of {0} took {1}ms", new Object[]{source.id(), elapsed});
         return extraction;
+    }
+
+    private String hashTokens(Iterable<? extends Token> tokens) {
+        try {
+            byte[] ttype = new byte[Integer.BYTES];
+            ByteBuffer buf = ByteBuffer.wrap(ttype);
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            for (Token t : tokens) {
+                if (t.getChannel() == 0) {
+                    buf.rewind();
+                    buf.putInt(t.getType());
+                    buf.flip();
+                    digest.update(ttype);
+                }
+                String txt = t.getText();
+                if (txt != null) {
+                    byte[] b = txt.getBytes(UTF_8);
+                    digest.update(b);
+                }
+            }
+            return Base64.getUrlEncoder().encodeToString(digest.digest());
+        } catch (NoSuchAlgorithmException ex) {
+            throw new AssertionError(ex);
+        }
     }
 
     private <K> void runSingles(SingletonExtractionStrategies<K> single, T ruleNode, Extraction extraction, BooleanSupplier cancelled) {

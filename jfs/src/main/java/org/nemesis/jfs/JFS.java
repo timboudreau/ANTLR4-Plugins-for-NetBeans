@@ -127,6 +127,11 @@ public final class JFS implements JavaFileManager {
         this(allocator, listener, Locale.getDefault());
     }
 
+    @Override
+    public String toString() {
+        return "JFS-" + this.fsid + "-" + allocator.encoding() + "-" + allocator;
+    }
+
     private JFS(JFSStorageAllocator<?> allocator, BiConsumer<Location, FileObject> listener, Locale locale) {
         this.fsid = Integer.toString(System.identityHashCode(this), 36)
                 + "."
@@ -137,6 +142,39 @@ public final class JFS implements JavaFileManager {
                 locale, allocator.encoding());
         JFSUrlStreamHandlerFactory.register(this);
         LOG.log(Level.FINE, "Created JFS {0}", fsid);
+    }
+
+    /**
+     * In the case of files added to the filesystem using one of the
+     * <code>masquerade</code> methods, which make a file appear to be part of
+     * the JFS filesystem while delegating to the file or document for
+     * retrieving actual bytes, this method will return the original object
+     * (possibly applying some conversion). The implementation of
+     * <code>JFSUtilities.convert()</code> is used for any non-trivial
+     * conversions (such as NetBeans Document -&gt; FileObject -&gt; Path), so
+     * the exact operation of this method depends on that.
+     *
+     * @param <T> The type to return as
+     * @param fo The file object in question
+     * @param as The type requested
+     * @return An object or null
+     */
+    public <T> T originOf(FileObject fo, Class<T> as) {
+        if (fo instanceof JFSFileObjectImpl) {
+            JFSFileObjectImpl file = (JFSFileObjectImpl) fo;
+            Object origin = null;
+            if (file.storage instanceof DocumentBytesStorageWrapper) {
+                DocumentBytesStorageWrapper stor = (DocumentBytesStorageWrapper) file.storage;
+                origin = stor.document();
+            } else if (file.storage instanceof FileBytesStorageWrapper) {
+                FileBytesStorageWrapper stor = (FileBytesStorageWrapper) file.storage;
+                origin = stor.path;
+            }
+            if (origin != null) {
+                return JFSUtilities.convertOrigin(file, as, origin);
+            }
+        }
+        return null;
     }
 
     /**
@@ -315,7 +353,26 @@ public final class JFS implements JavaFileManager {
         }
     }
 
+    private Collection<File> currentClasspath = Collections.emptyList();
+
+    public String currentClasspath() {
+        StringBuilder sb = new StringBuilder();
+        currentClasspath.forEach((f) -> {
+            if (sb.length() > 0) {
+                sb.append(":");
+            }
+            sb.append(f.getPath());
+        });
+        return sb.toString();
+    }
+
+    public Collection<? extends File> classpathContents() {
+        return Collections.unmodifiableCollection(currentClasspath);
+    }
+
     public void setClasspathTo(Collection<File> files) throws IOException {
+        LOG.log(Level.FINEST, "Set classpath to {0}", files);
+        currentClasspath = files;
         delegate.setLocation(StandardLocation.CLASS_PATH, new ArrayList<>(files));
     }
 
@@ -856,6 +913,15 @@ public final class JFS implements JavaFileManager {
         return copyBytes(name, bytes, location, lastModified);
     }
 
+    public JFSFileObject copy(Path file, Charset fileEncoding, Location location, Path as) throws IOException {
+        long lastModified = Files.getLastModifiedTime(file).toMillis();
+        Name name = Name.forPath(as);
+        byte[] bytes = convertEncoding(Files.readAllBytes(file), file, fileEncoding, name);
+        LOG.log(Level.FINEST, "JFS.copy(): Copying file {0} as {1} to {2} in {3}",
+                new Object[]{file, name, location, fsid});
+        return copyBytes(name, bytes, location, lastModified);
+    }
+
     /**
      * Shared implementation for copying an array of bytes into the filesystem
      * at a specific location.
@@ -890,6 +956,20 @@ public final class JFS implements JavaFileManager {
         // If we are copying in a file from disk, convert it to the encoding
         // this JFS is using
         Charset inputCharset = JFSUtilities.encodingFor(forFile);
+        if (inputCharset != null && !inputCharset.equals(encoding())) {
+            String in = new String(bytes, inputCharset);
+            return in.getBytes(encoding());
+        }
+        return bytes;
+    }
+
+    private byte[] convertEncoding(byte[] bytes, Path forFile, Charset fileEncoding, Name name) {
+        if (name.kind() == JavaFileObject.Kind.CLASS) {
+            return bytes;
+        }
+        // If we are copying in a file from disk, convert it to the encoding
+        // this JFS is using
+        Charset inputCharset = fileEncoding;
         if (inputCharset != null && !inputCharset.equals(encoding())) {
             String in = new String(bytes, inputCharset);
             return in.getBytes(encoding());

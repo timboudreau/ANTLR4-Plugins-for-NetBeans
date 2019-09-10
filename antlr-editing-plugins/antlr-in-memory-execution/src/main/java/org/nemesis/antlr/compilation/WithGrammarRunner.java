@@ -1,5 +1,6 @@
 package org.nemesis.antlr.compilation;
 
+import com.mastfrog.function.throwing.ThrowingFunction;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.function.Supplier;
 import javax.tools.StandardLocation;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSClassLoader;
@@ -19,14 +21,14 @@ public final class WithGrammarRunner {
 
     private final String grammarFileName;
     private final AntlrGeneratorAndCompiler compiler;
-    private final boolean isolated;
     private final Map<Object, GrammarRunResult<?>> lastGoodResults
             = new WeakHashMap<>();
+    private final Supplier<ClassLoader> classLoaderSupplier;
 
-    WithGrammarRunner(String grammarFileName, AntlrGeneratorAndCompiler compiler, boolean isolated) {
+    WithGrammarRunner(String grammarFileName, AntlrGeneratorAndCompiler compiler, Supplier<ClassLoader> classLoaderSupplier) {
         this.grammarFileName = grammarFileName;
         this.compiler = compiler;
-        this.isolated = isolated;
+        this.classLoaderSupplier = classLoaderSupplier;
     }
 
     private GenerationAndCompilationResult generateAndCompile(String sourceFileName, Set<GrammarProcessingOptions> options) {
@@ -39,13 +41,24 @@ public final class WithGrammarRunner {
         return run(reflectiveRunner, reflectiveRunner, options);
     }
 
-    @SuppressWarnings("ManualArrayToCollectionCopy")
     public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
         return run(reflectiveRunner, GrammarProcessingOptions.setOf(options));
     }
 
     public <T> GrammarRunResult<T> run(ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         return run(reflectiveRunner, reflectiveRunner, options);
+    }
+
+    public <T, A> GrammarRunResult<T> run(A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+        return runWithArg(arg, reflectiveRunner, arg, options);
+    }
+
+    public <T, A> GrammarRunResult<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, GrammarProcessingOptions... options) {
+        return run(key, arg, reflectiveRunner, GrammarProcessingOptions.setOf(options));
+    }
+
+    public <T, A> GrammarRunResult<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+        return runWithArg(key, reflectiveRunner, arg, options);
     }
 
     private <T> GrammarRunResult<T> lastGood(Object key) {
@@ -57,13 +70,14 @@ public final class WithGrammarRunner {
 
     private JFSClassLoader createClassLoader() throws IOException {
         JFS jfs = compiler.jfs();
-        ClassLoader parent;
-        if (isolated) {
-            parent = ClassLoader.getSystemClassLoader();
-        } else {
-            parent = Thread.currentThread().getContextClassLoader();
-        }
-        return jfs.getClassLoader(true, parent, StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
+        return jfs.getClassLoader(true, classLoaderSupplier.get(), StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
+    }
+
+    public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner, A arg, Set<GrammarProcessingOptions> options) {
+        ThrowingSupplier<T> supp = () -> {
+            return reflectiveRunner.apply(arg);
+        };
+        return run(key, supp, options);
     }
 
     public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {

@@ -21,6 +21,16 @@ final class HeapBytesStorageImpl implements JFSBytesStorage {
     }
 
     @Override
+    public synchronized String toString() {
+        return  "HeapBytesStorageImpl(" + (bytes == null ? "unalloacated" : bytes.length) + " bytes)";
+    }
+
+    @Override
+    public JFSStorageKind storageKind() {
+        return JFSStorageKind.HEAP_BYTES;
+    }
+
+    @Override
     public synchronized byte[] asBytes() {
         return bytes == null ? new byte[0] : bytes;
     }
@@ -62,6 +72,7 @@ final class HeapBytesStorageImpl implements JFSBytesStorage {
         return storage;
     }
 
+    @Override
     public synchronized void discard() {
         lastModified = 0;
         bytes = null;

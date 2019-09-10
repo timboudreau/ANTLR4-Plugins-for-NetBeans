@@ -1,6 +1,7 @@
 package org.nemesis.jfs.spi;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import java.io.File;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
@@ -15,6 +16,7 @@ import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.JFSUrlStreamHandlerFactory;
 
 /**
@@ -64,6 +66,14 @@ public abstract class JFSUtilities {
         return null;
     }
 
+    /**
+     * Get the encoding for a file which is being masqueraded or copied, and may
+     * differ from the default system encoding, or may be a file format which
+     * specifies its encoding internally.
+     *
+     * @param file A file
+     * @return A character set or null
+     */
     public static Charset encodingFor(Path file) {
         return getDefault().getEncodingFor(file);
     }
@@ -72,14 +82,76 @@ public abstract class JFSUtilities {
         return getDefault().getLastModifiedFor(doc);
     }
 
+    /**
+     * Weakly listen on a document, so the document does not hold a strong
+     * reference to the listener.
+     *
+     * @param doc A document
+     * @param listener A listener
+     */
     public static void attachWeakListener(Document doc, DocumentListener listener) {
         getDefault().weakListen(doc, listener);
     }
 
+    /**
+     * Create a weak set.
+     *
+     * @param <T> The set contents type
+     * @return A weak set
+     */
     public static <T> Set<T> newWeakSet() {
         return getDefault().createWeakSet();
     }
 
+    /**
+     * For the case of JFS files which are masqueraded documents or files,
+     * return the original masqueraded item, possibly (as in NetBeans, where a
+     * FileObject can be looked up from a Document) performing some conversion
+     * or lookup along the way.
+     *
+     * @param <T> The desired typ
+     * @param file The file that is masqueraded
+     * @param type The type that is desired
+     * @param obj The masqueraded object
+     * @return An object of the correct type, or null
+     */
+    public static <T> T convertOrigin(JFSFileObject file, Class<T> type, Object obj) {
+        return getDefault().convert(file, type, obj);
+    }
+
+    /**
+     * For the case of JFS files which are masqueraded documents or files,
+     * return the original masqueraded item, possibly (as in NetBeans, where a
+     * FileObject can be looked up from a Document) performing some conversion
+     * or lookup along the way.
+     * <p>
+     * The default implementation will return the object if it is an instance of
+     * T, and will perform Path to File conversion if the object is a path and
+     * the type requested is File.
+     *
+     * @param <T> The desired typ
+     * @param file The file that is masqueraded
+     * @param type The type that is desired
+     * @param obj The masqueraded object
+     * @return An object of the correct type, or null
+     */
+    protected <T> T convert(JFSFileObject file, Class<T> type, Object obj) {
+        if (type.isInstance(obj)) {
+            return type.cast(obj);
+        }
+        if (type == File.class && obj instanceof Path) {
+            return type.cast(((Path) obj).toFile());
+        }
+        return null;
+    }
+
+    /**
+     * Get the encoding for a file on disk, which may be project-specific or (in
+     * cases like XML), file-specific.
+     *
+     * @param file A file
+     * @return The encoding
+     */
     protected abstract Charset getEncodingFor(Path file);
 
     protected abstract long getLastModifiedFor(Document document);
@@ -111,8 +183,8 @@ public abstract class JFSUtilities {
         private final Reference<DocumentListener> delegateRef;
 
         WL(Document doc, DocumentListener delegate) {
-            docRef = new WeakReference<Document>(doc);
-            delegateRef = new WeakReference<DocumentListener>(delegate);
+            docRef = new WeakReference<>(doc);
+            delegateRef = new WeakReference<>(delegate);
         }
 
         private DocumentListener delegate() {
@@ -122,9 +194,9 @@ public abstract class JFSUtilities {
 
         private void withDelegate(Consumer<DocumentListener> c) {
             DocumentListener delegate = delegate();
-            if (delegate == null) {
+            if (delegate != null) {
                 Document doc = docRef.get();
-                if (doc != null) {
+                if (doc == null) {
                     doc.removeDocumentListener(this);;
                 } else {
                     c.accept(delegate);

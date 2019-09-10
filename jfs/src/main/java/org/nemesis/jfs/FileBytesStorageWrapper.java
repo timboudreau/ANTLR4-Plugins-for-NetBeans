@@ -16,25 +16,52 @@ import org.nemesis.jfs.spi.JFSUtilities;
 final class FileBytesStorageWrapper implements JFSBytesStorage {
 
     private final JFSStorage storage;
-    private final Path path;
+    final Path path;
     private byte[] bytes;
     private volatile long lastModifiedAtLoad = 0;
+    private final Charset encoding;
 
-    FileBytesStorageWrapper(JFSStorage storage, Path path) {
+    FileBytesStorageWrapper(JFSStorage storage, Path path, Charset encoding) {
         this.storage = storage;
         this.path = path;
+        this.encoding = encoding;
     }
 
     @Override
     public Charset encoding() {
+        if (encoding != null) {
+            return encoding;
+        }
         Charset result = JFSUtilities.encodingFor(path);
         return result == null ? JFSBytesStorage.super.encoding() : result;
     }
 
+    @Override
     public String toString() {
         return path.toString();
     }
 
+    @Override
+    public JFSStorageKind storageKind() {
+        return JFSStorageKind.MASQUERADED_FILE;
+    }
+
+    /*
+    @Override
+    public InputStream openInputStream() throws IOException {
+        return new BufferedInputStream(Files.newInputStream(path), 512);
+    }
+
+    @Override
+    public ByteBuffer asByteBuffer() throws IOException {
+        try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
+            ByteBuffer buf = ByteBuffer.allocate((int) ch.size());
+            ch.read(buf);
+            buf.flip();
+            return buf;
+        }
+    }
+     */
     @Override
     public byte[] asBytes() throws IOException {
         boolean nukeBytes = lastModifiedAtLoad != lastModified();
@@ -44,10 +71,7 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
             } else if (bytes != null) {
                 return bytes;
             }
-        }
-        byte[] b = Files.readAllBytes(path);
-        synchronized (this) {
-            bytes = b;
+            bytes = Files.readAllBytes(path);
         }
         return bytes;
     }

@@ -34,13 +34,18 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.PlainDocument;
 import javax.tools.StandardLocation;
 import org.antlr.runtime.CommonTokenStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.live.execution.AntlrRunSubscriptionsTest.TEXT_1;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 
@@ -48,7 +53,7 @@ import org.nemesis.jfs.javac.JFSCompileBuilder;
  *
  * @author Tim Boudreau
  */
-public class IR extends InvocationRunner<Map> {
+public class IR extends InvocationRunner<Map, Void> {
 
     private static String infoText;
     static IR IR;
@@ -60,7 +65,6 @@ public class IR extends InvocationRunner<Map> {
     public IR() {
         super(Map.class);
         IR = this;
-        System.out.println("created an IR");
     }
 
     public void assertCompileCalls(int ct) {
@@ -98,25 +102,22 @@ public class IR extends InvocationRunner<Map> {
     String gpn = "com.foo.bar";
 
     @Override
-    protected void onBeforeCompilation(JFS jfs, JFSCompileBuilder bldr, String grammarPackageName) throws IOException {
+    protected Void onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> cs) throws IOException {
         gpn = grammarPackageName;
         compileConfigCount++;
-        System.out.println("IR.onBeforeCompilation grammarPackageName " + grammarPackageName);
         bldr.addToClasspath(CommonTokenStream.class);
         bldr.addToClasspath(org.antlr.v4.runtime.ANTLRErrorListener.class);
-
 //        jfs.create(Paths.get("com/foo/bar/NestedMapInfoExtractor.java"), StandardLocation.SOURCE_PATH, infoText());
         jfs.masquerade(doc(grammarPackageName),
                 StandardLocation.SOURCE_PATH, Paths.get(grammarPackageName.replace('.', '/') + "/NestedMapInfoExtractor.java"));
+        return null;
     }
 
     @Override
     @SuppressWarnings("rawtype")
-    public Map get() throws Exception {
-        System.out.println("IR RUN ");
+    public Map apply(Void ignored) throws Exception {
         callCount++;
         Map m = doit();
-        System.out.println("  RETURNING " + m);
         return m;
     }
 

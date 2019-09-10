@@ -190,6 +190,8 @@ final class ProgrammaticParseResultHookRegistry {
         extraction.source().lookup(FileObject.class, file -> {
             allHooks.addAll(byFile.get(file));
         });
+        LOG.log(Level.FINEST, "Run {0} programmatically registered hooks for reparse of {1}",
+                new Object[]{allHooks.size(), extraction.source()});
         allHooks.forEach((hook) -> {
             try {
                 hook.onReparse(tree, mimeType, extraction, populate, fixes);
@@ -268,9 +270,11 @@ final class ProgrammaticParseResultHookRegistry {
 
         private final FileObject fo;
         private final L l = new L();
+        private final String stringVal;
 
         public FileResultHookReference(ParseResultHook<T> referent, FileObject fo) {
             super(referent);
+            stringVal = referent.toString();
             this.fo = fo;
             fo.addFileChangeListener(l);
         }
@@ -282,6 +286,8 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         protected void onDestroyed() {
+            LOG.log(Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
+                    new Object[]{fo, stringVal});
             fo.removeFileChangeListener(l);
             deregister(fo, (ResultHookReference) this);
         }
@@ -298,9 +304,11 @@ final class ProgrammaticParseResultHookRegistry {
     private static final class MimeTypeResultHookReference<T extends ParserRuleContext> extends ResultHookReference<T> {
 
         private final String mimeType;
+        private final String stringVal;
 
         public MimeTypeResultHookReference(ParseResultHook<T> referent, String mimeType) {
             super(referent);
+            stringVal = referent.toString();
             this.mimeType = mimeType;
         }
 
@@ -311,6 +319,8 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         protected void onDestroyed() {
+            LOG.log(Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
+                    new Object[]{mimeType, stringVal});
             deregister(mimeType, this);
         }
     }

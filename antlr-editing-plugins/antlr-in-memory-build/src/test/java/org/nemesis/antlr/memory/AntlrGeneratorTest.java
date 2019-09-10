@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.nemesis.antlr.memory.output.ParsedAntlrError;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.nio.BlockStorageKind;
@@ -90,11 +90,9 @@ public class AntlrGeneratorTest {
         assertTrue(newLastModified > oldLastModified);
         assertFalse(result.currentStatus().isUpToDate());
 
-        AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, System.err, true);
+        AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, AntlrLoggers.getDefault().forPath(Paths.get(GRAMMAR_FILE_NAME)), true);
         assertFalse(newResult.isUsable());
-        for (ParsedAntlrError err : newResult.errors) {
-            System.out.println("ERR: " + err);
-        }
+//        assertFalse(newResult.errors().isEmpty());
 
         result.clean();
         List<JavaFileObject> classesAfterClean = new ArrayList<>();

@@ -102,9 +102,14 @@ final class JFSStorage {
         return alloc.encoding();
     }
 
+    @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        return sb.toString();
+        StringBuilder sb = new StringBuilder(super.toString()).append('(');
+        sb.append("fsid").append(" ")
+                .append(fileSystemId)
+                .append(' ').append(location)
+                .append(' ').append(alloc);
+        return sb.append(')').toString();
     }
 
     boolean isClosed() {
@@ -204,7 +209,8 @@ final class JFSStorage {
     JFSFileObjectImpl addRealFile(Path localName, Path realFile, Charset encoding) {
         Name name = Name.forPath(localName);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
-        FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this, realFile);
+        FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this, 
+                realFile, encoding);
         JFSFileObjectImpl fo
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding)
                         : new JFSFileObjectImpl(wrapper, location, name, encoding);

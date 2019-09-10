@@ -1,5 +1,6 @@
 package org.nemesis.antlr.highlighting;
 
+import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
@@ -199,9 +200,20 @@ abstract class GeneralHighlighter<T> implements Runnable {
             return;
         }
         LOG.log(Level.FINEST, "Call refresh now");
-        OffsetsBag bag = getHighlightsBag();
-        if (bag != null) {
-            refresh(doc, argument, semantics, result, bag);
+        OffsetsBag papasGotA = getHighlightsBag();
+        if (papasGotA != null) {
+            OffsetsBag brandNewBag = new OffsetsBag(doc);
+            refresh(doc, argument, semantics, result, brandNewBag);
+            if (EventQueue.isDispatchThread()) {
+                papasGotA.setHighlights(brandNewBag);
+            } else {
+                // We can get into complex deadlocks with the parser
+                // when the document picks up changes fired by the bag
+                // on a non-EQ thread
+                EventQueue.invokeLater(() -> {
+                    papasGotA.setHighlights(brandNewBag);
+                });
+            }
         }
     }
 

@@ -1141,6 +1141,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .withModifier(PUBLIC)
                             .body(block -> {
                                 block.statement("assert snapshot != null")
+                                        .log(nbParserName + ".parse({0})", Level.FINER, "snapshot")
                                         .debugLog(nbParserName + ".parse on snapshot")
                                         .invoke("set").withArgument("false").on("cancelled")
                                         .declare("snapshotSource").initializedByInvoking("find")
@@ -1271,7 +1272,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .withModifier(PUBLIC).addArgument("CancelReason", "reason")
                 .addArgument("SourceModificationEvent", "event")
                 .body(bb -> {
-                    bb.log("Parse cancelled", Level.FINEST);
+                    bb.log("Parse cancelled due to {0}", Level.FINEST, "reason");
                     bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 })
                 .override("cancel")
@@ -1753,7 +1754,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
                             .body(bb -> {
                                 bb.debugLog("new " + prefix + " parse result");
-                                bb.log("New {0} parse result: {1}", Level.WARNING,
+                                bb.log("New {0} parse result: {1}", Level.FINE,
                                         LinesBuilder.stringLiteral(prefix),
                                         "extraction.logString()");
                                 bb.invoke("newParseResult")

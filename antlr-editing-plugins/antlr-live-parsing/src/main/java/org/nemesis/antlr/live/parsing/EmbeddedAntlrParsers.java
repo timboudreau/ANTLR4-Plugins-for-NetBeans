@@ -25,12 +25,24 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
-*/
-
-
+ */
 package org.nemesis.antlr.live.parsing;
 
+import com.mastfrog.util.collections.CollectionUtils;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
+import org.nemesis.antlr.live.parsing.impl.ReparseListeners;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 
 /**
  *
@@ -38,7 +50,76 @@ import org.openide.filesystems.FileObject;
  */
 public class EmbeddedAntlrParsers {
 
-    public static EmbeddedAntlrParser subscribe(FileObject grammar, Runnable grammarChangedNotifier) {
-        return null;
+    private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParsers.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+    private final Map<FileObject, Set<EmbeddedAntlrParser>> liveParsersForFile
+            = CollectionUtils.concurrentSupplierMap(() -> {
+                return Collections.synchronizedSet(CollectionUtils.weakSet());
+            });
+
+    private static volatile EmbeddedAntlrParsers INSTANCE;
+
+    private static EmbeddedAntlrParsers instance() {
+        EmbeddedAntlrParsers result = INSTANCE;
+        if (result == null) {
+            synchronized (EmbeddedAntlrParsers.class) {
+                result = INSTANCE;
+                if (result == null) {
+                    result = INSTANCE = new EmbeddedAntlrParsers();
+                    LOG.log(Level.FINEST, "Create default instance");
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get an embedded antlr parser which can be passed some text
+     * which will be processed using an in-memory-compiled version of
+     * the passed Antlr grammar file, returning an analysis of
+     * the syntax tree, any errors encountered, etc.  In the case
+     * that an exception is thrown or compilation fails, an unparsed
+     * representation with a single token type will be returned.
+     *
+     * @param grammar A grammar
+     * @return A parser
+     */
+    public static EmbeddedAntlrParser forGrammar(FileObject grammar) {
+        return instance()._subscribe(grammar);
+    }
+
+    /**
+     * Subscribe to analyses for a particular path; when any
+     * EmbeddedAntlrParser parses something using the given grammar
+     * file path, the listener will get a notification.
+     *
+     * @param path The path
+     * @param listener A listener
+     */
+    public static void listen(Path path, BiConsumer<? super GrammarRunResult<EmbeddedParser>, ? super AntlrProxies.ParseTreeProxy> listener) {
+        ReparseListeners.listen(path, listener);
+    }
+
+    public static void unlisten(Path path, BiConsumer<? super GrammarRunResult<EmbeddedParser>, ? super AntlrProxies.ParseTreeProxy> listener) {
+        ReparseListeners.unlisten(path, listener);
+    }
+
+    private EmbeddedAntlrParser _subscribe(FileObject grammar) {
+        Set<EmbeddedAntlrParser> set = liveParsersForFile.get(grammar);
+        Path path = FileUtil.toFile(grammar).toPath();
+        EmbeddedAntlrParser p = new EmbeddedAntlrParser(path, grammar.getName());
+
+        LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
+                + " {1} subscribers",
+                new Object[]{grammar.getPath(), set.size()});
+        Runnable unsubscriber = AntlrRunSubscriptions
+                .forType(EmbeddedParser.class)
+                .subscribe(grammar, p.subscriber);
+        p.unsubscriber = unsubscriber;
+        set.add(p);
+        return p;
     }
 }

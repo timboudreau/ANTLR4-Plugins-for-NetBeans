@@ -28,12 +28,23 @@ OF SUCH DAMAGE.
 */
 
 
-package org.nemesis.antlr.live.parsing;
+package org.nemesis.antlr.live.preview;
+
+import java.io.PrintStream;
+import java.nio.file.Path;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
+import org.openide.util.lookup.ServiceProvider;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class EmbeddedParsingResult {
+@ServiceProvider(service=AntlrLoggers.class)
+public class AntlrLoggersImpl extends AntlrLoggers {
+
+    @Override
+    public PrintStream forPath(Path path) {
+        return nullPrintStream();
+    }
 
 }

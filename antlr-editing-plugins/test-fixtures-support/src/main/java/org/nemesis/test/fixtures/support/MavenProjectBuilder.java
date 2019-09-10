@@ -1,28 +1,21 @@
 package org.nemesis.test.fixtures.support;
 
-import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.streams.Streams;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import javax.swing.text.StyledDocument;
-import org.netbeans.api.project.Project;
-import org.openide.cookies.EditorCookie;
-import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
-import org.openide.loaders.DataObject;
-import org.openide.loaders.DataObjectNotFoundException;
 
 /**
  *
@@ -144,83 +137,41 @@ public final class MavenProjectBuilder {
             Files.write(toWrite, body.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             result.map.put(toWrite.getFileName().toString(), toWrite);
         }
+        if (verboseLogging) {
+            TestFixtures.excludedLogs.addAll(logExclude);
+            TestFixtures.includedLogs.addAll(logInclude);
+            TestFixtures.initLogging();
+        }
         return result;
     }
 
-    public static final class GeneratedMavenProject {
-
-        private final Path dir;
-        private final String name;
-        private final Map<String, Path> map = new HashMap<>();
-        private volatile boolean preserve;
-
-        public GeneratedMavenProject(Path dir, String name) {
-            this.dir = dir;
-            this.name = name;
-        }
-        
-        public GeneratedMavenProject preserve() {
-            preserve = true;
-            return this;
-        }
-
-        public GeneratedMavenProject  deletedBy(ThrowingRunnable run) {
-            run.andAlways(() -> {
-                if (!preserve) {
-                    delete();
-                }
-            });
-            return this;
-        }
-
-        public Project project() throws IOException {
-            return ProjectTestHelper.findProject(dir);
-        }
-
-        public FileObject file(String filename) {
-            File file = get(filename).toFile();
-            return FileUtil.toFileObject(FileUtil.normalizeFile(file));
-        }
-
-        public DataObject dataObject(String filename) throws DataObjectNotFoundException {
-            return DataObject.find(file(filename));
-        }
-
-        public EditorCookie.Observable cookie(String filename) throws DataObjectNotFoundException {
-            DataObject dob = dataObject(filename);
-            return dob.getLookup().lookup(EditorCookie.Observable.class);
-        }
-
-        public StyledDocument document(String filename) throws DataObjectNotFoundException, IOException {
-            return cookie(filename).openDocument();
-        }
-
-        public Path get(String filename) {
-            Path result = map.get(filename);
-            assertNotNull(result, "No file '" + filename + "' written in " + map);
-            return result;
-        }
-
-        public Path dir() {
-            return dir;
-        }
-
-        public String toString() {
-            return name;
-        }
-
-        public void delete() throws IOException {
-            if (dir != null && Files.exists(dir)) {
-                FileUtils.deltree(dir);
-            }
-        }
-    }
 
     static void assertNotNull(Object o, String msg) {
         if (o == null) {
             throw new AssertionError(msg);
         }
     }
+
+    private boolean verboseLogging;
+    public MavenProjectBuilder verboseLogging() {
+        this.verboseLogging = true;
+        return this;
+    }
+
+    private final Set<String> logExclude = new HashSet<>();
+    private final Set<String> logInclude = new HashSet<>();
+
+    public MavenProjectBuilder logExclude(String s, String... more) {
+        logExclude.add(s);
+        logExclude.addAll(Arrays.asList(more));
+        return this;
+    }
+    public MavenProjectBuilder logInclude(String s, String... more) {
+        logInclude.add(s);
+        logInclude.addAll(Arrays.asList(more));
+        return this;
+    }
+
 
     private static String POM_TEMPLATE = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             + "<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n"

@@ -29,6 +29,8 @@ public interface JFSBytesStorage {
      */
     byte[] asBytes() throws IOException;
 
+    JFSStorageKind storageKind();
+
     default ByteBuffer asByteBuffer() throws IOException {
         return ByteBuffer.wrap(asBytes());
     }

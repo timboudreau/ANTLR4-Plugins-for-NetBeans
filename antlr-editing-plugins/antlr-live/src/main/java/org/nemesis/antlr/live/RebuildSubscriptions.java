@@ -5,6 +5,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,6 +24,8 @@ import javax.tools.StandardLocation;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerator;
+import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.project.Folders;
 import static org.nemesis.antlr.project.Folders.ANTLR_GRAMMAR_SOURCES;
 import static org.nemesis.antlr.project.Folders.ANTLR_IMPORTS;
@@ -40,6 +43,7 @@ import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
+import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
@@ -110,18 +114,19 @@ public final class RebuildSubscriptions {
         }
         File foFile = FileUtil.toFile(fo);
         if (foFile == null) {
-            System.err.println(fo.getPath() + " is not a disk file, cannot subscribe");
+            LOG.log(Level.WARNING, "Not a disk file, cannot subscribe to {0}", fo.getPath());
             return null;
         }
         Project project = FileOwnerQuery.getOwner(fo);
         if (project == null) {
-            System.err.println("Cannot subscribe to an Antlr file not in a project");
+            LOG.log(Level.WARNING, "Not a disk file, cannot subscribe to {0}", fo.getPath());
             return null;
         }
         File file = FileUtil.toFile(project.getProjectDirectory());
         if (file == null) {
-            System.err.println("Project " + project + " dir cannot resolve to "
-                    + "a file - not a real disk file?");
+            LOG.log(Level.WARNING, "Project dir for {0} not a disk file"
+                    + ", cannot subscribe to {1}", new Object[]{project, fo.getPath()});
+            return null;
         }
         // XXX use JFS MAPPING to enable cleanup
         Generator generator = generatorForMapping.get(project);
@@ -270,11 +275,12 @@ public final class RebuildSubscriptions {
                 if (obs != null) {
                     obs.addPropertyChangeListener(WeakListeners.propertyChange(this, obs));
                 } else {
-                    System.err.println("no EditorCookie.Observable in " + fo.getPath());
+                    LOG.log(Level.WARNING, "No EditorCookie.Observable for {0}", fo.getPath());
                 }
                 fo.addFileChangeListener(FileUtil.weakFileChangeListener(this, fo));
             }
 
+            @Override
             public String toString() {
                 return fo.getPath() + " -> " + targetPath + " as " + mode;
             }
@@ -309,8 +315,7 @@ public final class RebuildSubscriptions {
                         if (file != null) {
                             jfs.masquerade(file.toPath(), StandardLocation.SOURCE_PATH, targetPath);
                         } else {
-                            System.err.println("Cannot map " + fo
-                                    + " into JFS - not a disk file");
+                            LOG.log(Level.WARNING, "Cannot map {0} into JFS - non-disk", fo);
                         }
                         break;
                     default:
@@ -341,12 +346,8 @@ public final class RebuildSubscriptions {
 
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
-//                System.out.println("GENERATOR " + id + " got cookie change " + fo.getName()
-//                        + " " + evt.getPropertyName() + " -> " + evt.getNewValue());
-
                 LOG.log(Level.FINEST, "Generator-{0} got cookie change {1} from {2}", new Object[]{id,
                     evt.getNewValue(), fo.getName()});
-                EditorCookie.Observable ec = (EditorCookie.Observable) evt.getSource();
                 if (EditorCookie.Observable.PROP_OPENED_PANES.equals(evt.getPropertyName())) {
                     JTextComponent[] comp = (JTextComponent[]) evt.getNewValue();
                     if (comp == null || comp.length == 0) {
@@ -380,21 +381,37 @@ public final class RebuildSubscriptions {
 
             void subscribe(Subscriber subscribe, FileObject to) {
                 subscribers.add(subscribe);
+                LOG.log(Level.FINEST, "RebuildHook subscribe {0} to {1} count {2}",
+                        new Object[]{subscribe, to.getPath(), subscribers.size()});
                 // Trigger a parse immediately
                 if (subscribers.size() == 1) {
                     Source src = Source.create(to);
-                    LOG.log(Level.FINE, "Force parse of {0} for initial subscriber in Generator {1}",
-                            new Object[]{to.getName(), id});
+                    LOG.log(Level.FINE, "Force parse of {0} for initial subscriber in "
+                            + "Generator {1} for {2}",
+                            new Object[]{to.getName(), id, subscribe});
                     Runnable doParse = () -> {
                         try {
                             ParserManager.parse(Collections.singleton(src), new UserTask() {
                                 @Override
                                 public void run(ResultIterator resultIterator) throws Exception {
-                                    resultIterator.getParserResult();
+                                    try {
+                                        Parser.Result res = resultIterator.getParserResult();
+                                        LOG.log(Level.FINEST, "Parse of {0} completed on {1} with {2}",
+                                                new Object[]{to.getPath(), Thread.currentThread(),
+                                                    res});
+                                    } catch (Exception e) {
+                                        LOG.log(Level.SEVERE, "Exception parsing " + to, e);
+                                    } catch (Error e) {
+                                        LOG.log(Level.SEVERE, "Error parsing " + to, e);
+                                        throw e;
+                                    }
                                 }
                             });
                         } catch (ParseException ex) {
                             LOG.log(Level.INFO, "Exception parsing " + to.getPath(), ex);
+                        } catch (Error e) {
+                            LOG.log(Level.SEVERE, "Error parsing " + to, e);
+                            throw e;
                         }
                     };
                     if (EventQueue.isDispatchThread()) {
@@ -440,32 +457,76 @@ public final class RebuildSubscriptions {
                 LOG.log(Level.FINER, "Create JFS for {0} owned by {1} in generator ", new Object[]{fo.getName(), owner, id});
                 Path relPath = owner == ANTLR_IMPORTS ? Paths.get("imports/" + fo.getNameExt())
                         : Folders.ownerRelativePath(fo);
-                return gen = AntlrGenerator.builder(jfs)
+                AntlrGeneratorBuilder<AntlrGenerator> agb = AntlrGenerator.builder(jfs);
+                if (relPath.getParent() != null) {
+                    String pkg = relPath.getParent().toString().replace('/', '.');
+                    agb.generateIntoJavaPackage(pkg);
+                }
+                return gen = agb
                         .building(relPath.getParent() == null ? Paths.get("") : relPath.getParent(), Paths.get("imports"));
+            }
+
+            private PrintStream outputFor(Extraction ext) {
+                Path p = Paths.get(initialFile.getPath());
+                return AntlrLoggers.getDefault().forPath(p);
             }
 
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
-
+                LOG.log(Level.FINER, "onReparse {0}", extraction.source());
+//                LOG.log(Level.FINEST, "Who is triggering me - " + extraction.source().lookup(Path.class), new Exception());
                 AntlrGenerator gen = gen(extraction);
-                AntlrGenerationResult result = mapping.whileLocked(gen.jfs(), () -> {
-                    return gen.run(extraction.source().name(), System.err, true);
-                });
+                try {
+                    PrintStream output = outputFor(extraction);
+                    AntlrGenerationResult result = mapping.whileLocked(gen.jfs(), () -> {
+                        try {
+                            return gen.run(extraction.source().name(), output, true);
+                        } catch (Error eiie) {
+                            handleEiiE(eiie, gen.jfs());
+                            throw eiie;
+                        }
+                    });
 
-                LOG.log(Level.WARNING, "Reparse received by genertor {0} for {1} placeholder {2} result usable {3} run result {4} send to {5} subscribers",
-                        new Object[]{id, extraction.source().name(),
-                            extraction.isPlaceholder(), result.isUsable(), result, subscribers.size()});
+                    LOG.log(Level.FINER, "Reparse received by generator {0} for "
+                            + "{1} placeholder {2} result usable {3} run result "
+                            + "{4} send to {5} subscribers",
+                            new Object[]{id, extraction.source().name(),
+                                extraction.isPlaceholder(), result.isUsable(), result, subscribers.size()});
 
-                subscribers.forEach((s) -> {
-                    try {
-                        s.onRebuilt(tree, mimeType, extraction, result, populate, fixes);
-                    } catch (Exception e) {
-                        Logger.getLogger(RebuildHook.class.getName()).log(Level.SEVERE,
-                                "Exception processing parse result of "
-                                + extraction.source(), e);
-                    }
-                });
+                    subscribers.forEach((s) -> {
+                        try {
+                            LOG.log(Level.FINEST, "Call onRebuild() on {0} for {1}",
+                                    new Object[]{s, extraction.source()});
+                            s.onRebuilt(tree, mimeType, extraction, result, populate, fixes);
+                        } catch (Exception e) {
+                            LOG.log(Level.SEVERE,
+                                    "Exception processing parse result of "
+                                    + extraction.source(), e);
+                        } catch (Error e) {
+                            handleEiiE(e, gen.jfs());
+                            throw e;
+                        }
+                    });
+                } catch (Error ex) {
+                    // This will otherwise be swallowed
+                    handleEiiE(ex, gen.jfs());
+                    throw ex;
+                } catch (Exception ex) {
+                    LOG.log(Level.SEVERE, "Exception thrown running generator "
+                            + "for " + extraction.source(), ex);
+                }
             }
+        }
+    }
+
+    private static void handleEiiE(Error ex, JFS jfs) {
+        try {
+            LOG.log(Level.SEVERE, "Classpath: " + jfs.currentClasspath(), ex);
+        } catch (Throwable t) {
+            ex.addSuppressed(t);
+            LOG.log(Level.SEVERE, t.toString(), ex);
+            LOG.log(Level.SEVERE, null, t);
+            throw ex;
         }
     }
 }

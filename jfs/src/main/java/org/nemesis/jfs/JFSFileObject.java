@@ -85,4 +85,6 @@ public interface JFSFileObject extends FileObject {
     default Path toPath() {
         return Paths.get(getName());
     }
+
+    JFSStorageKind storageKind();
 }

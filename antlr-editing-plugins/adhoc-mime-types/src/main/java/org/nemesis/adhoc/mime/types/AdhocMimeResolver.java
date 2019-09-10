@@ -21,10 +21,10 @@ import org.openide.util.Utilities;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
- * Resolves custom MIME types generated from Antlr grammar file paths.
- * Note that we *must* use the deprecated constructor which does not
- * specify a particular MIME type, since we handle multiple types and
- * they are unknown at initialization-time and the list can change.
+ * Resolves custom MIME types generated from Antlr grammar file paths. Note that
+ * we *must* use the deprecated constructor which does not specify a particular
+ * MIME type, since we handle multiple types and they are unknown at
+ * initialization-time and the list can change.
  *
  * @author Tim Boudreau
  */
@@ -33,6 +33,10 @@ import org.openide.util.lookup.ServiceProvider;
 public class AdhocMimeResolver extends MIMEResolver {
 
     private final int[] codes;
+    private static final Logger LOG = Logger.getLogger(AdhocMimeResolver.class.getName());
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     @SuppressWarnings("deprecation")
     public AdhocMimeResolver() {
@@ -43,6 +47,7 @@ public class AdhocMimeResolver extends MIMEResolver {
         // test for the common case.  Since this resolver may be called for
         // every single file in the known universe, it can slow down *all*
         // operations of the IDE - this minimizes that.
+        LOG.log(Level.FINEST, "Create an AdhocMimeResolver");
         org.openide.filesystems.FileSystem configFileSystem = Repository.getDefault().getDefaultFileSystem();
         Set<Integer> idHashCodes = new HashSet<>();
         idHashCodes.add(System.identityHashCode(configFileSystem));
@@ -128,6 +133,11 @@ public class AdhocMimeResolver extends MIMEResolver {
                 case "html":
                 case "js":
                 case "c":
+                case "o":
+                case "sh":
+                case "png":
+                case "gif":
+                case "jpg":
                 case "g4":
                 case "g":
                 case "interp":
@@ -142,6 +152,7 @@ public class AdhocMimeResolver extends MIMEResolver {
     }
 
     static final class Pair {
+
         private final Reference<FileObject> fo;
         private final String type;
 
@@ -178,12 +189,15 @@ public class AdhocMimeResolver extends MIMEResolver {
         }
         String ext = fo.getExt();
         if (ext != null && !ext.isEmpty()) {
+            LOG.log(Level.FINEST, "Look up {0} for {1}", new Object[]{ext, fo.getNameExt()});
             if (AdhocMimeTypes.isAdhocMimeTypeFileExtension(ext) || AdhocMimeTypes.isRegisteredExtension(ext)) {
                 String mime = AdhocMimeTypes.mimeTypeForFileExtension(ext);
                 if (mime != null) {
+                    LOG.log(Level.FINER, "Matched {0} for {1} for {2}", new Object[]{mime, ext, fo});
                     return setLast(fo, mime);
                 }
             } else {
+                LOG.log(Level.FINEST, "No match for {0} with {1}", new Object[]{ext, fo});
 //                System.out.println("not an adhoc extension: " + ext + " for " + fo.getPath()
 //                        + " registered: " + AdhocMimeTypes.EXTENSIONS_REGISTRY.toString());
             }

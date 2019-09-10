@@ -33,6 +33,7 @@ import com.mastfrog.function.throwing.ThrowingRunnable;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.thread.OneThreadLatch;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.tools.StandardLocation;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,14 +54,17 @@ import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
-import org.nemesis.test.fixtures.support.MavenProjectBuilder;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
 import org.netbeans.spi.editor.document.DocumentFactory;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.JavacDiagnostic;
+import org.nemesis.test.fixtures.support.GeneratedMavenProject;
+import org.netbeans.modules.parsing.api.ParserManager;
 import org.openide.filesystems.FileObject;
 
 /**
@@ -69,7 +74,7 @@ import org.openide.filesystems.FileObject;
 public class AntlrRunSubscriptionsTest {
 
     private ThrowingRunnable onShutdown;
-    private MavenProjectBuilder.GeneratedMavenProject genProject;
+    private GeneratedMavenProject genProject;
     public static final String TEXT_1
             = "{ skiddoo : 23, meaningful : true,\n"
             + "meaning: '42', \n"
@@ -79,28 +84,30 @@ public class AntlrRunSubscriptionsTest {
     public void testReparseHappens() throws Throwable {
         // Runs some trivial code that runs the parser and extracts
         // a little info to prove it
+
+        assertTrue(ParserManager.canBeParsed("text/x-g4"), "Parsing support "
+                + "for Antlr not registered");
+
         FileObject fo = genProject.file("NestedMaps.g4");
         Bic bic = new Bic();
-        InvocationSubscriptions<Map> is = AntlrRunSubscriptions.subscribe(Map.class);
+        InvocationSubscriptions<Map> is = AntlrRunSubscriptions.forType(Map.class);
         Runnable unsub = is.subscribe(fo, bic);
         assertNotNull(unsub);
         assertNotNull(IR.IR);
         Thread.sleep(1000);
         GrammarRunResult<Map> r = bic.assertExtracted();
-        System.out.println("RUN RESULT: " + r);
-        System.out.println("MAP: " + r.get());
-        System.out.println("DIAGS: " + r.diagnostics());
-        System.out.println("DIAGS: " + r.diagnostics());
+        JFS jfs = r.jfs();
+
+
+        JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, Paths.get("com/foo/bar/NestedMaps.g4"));
+        jfo = jfs.get(StandardLocation.SOURCE_PATH, Paths.get("imports/NMLexer.g4"));
+
         assertEquals(2, r.diagnostics().size(), () -> r.diagnostics().toString());
         Set<String> dgs = new HashSet<>();
         for (JavacDiagnostic d : r.diagnostics()) {
-            System.out.println("  diag: '" + d.sourceCode()+ "'");
             dgs.add(d.sourceCode());
         }
         assertEquals(setOf("compiler.note.unchecked.filename", "compiler.note.unchecked.recompile"), dgs);
-        r.jfs().listAll((loc, f) -> {
-            System.out.println(" " + loc + ":\t" + f);
-        });
         r.rethrow();
         assertTrue(r.isUsable());
         assertNotNull(r.get());
@@ -133,7 +140,6 @@ public class AntlrRunSubscriptionsTest {
 
         @Override
         public void accept(Extraction t, GrammarRunResult<Map> u) {
-            System.out.println("MAP: " + u);
             map = u;
             latch.releaseOne();
         }

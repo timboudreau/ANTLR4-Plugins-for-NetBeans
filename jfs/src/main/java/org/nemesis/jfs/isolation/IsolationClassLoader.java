@@ -1,19 +1,21 @@
 package org.nemesis.jfs.isolation;
 
+import com.mastfrog.util.strings.Strings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * A general-purpose child-first classloader which can optionally take
- * a predicate that allows certain classes to be loaded from its
- * parent.
+ * A general-purpose child-first classloader which can optionally take a
+ * predicate that allows certain classes to be loaded from its parent.
  *
  * @author Tim Boudreau
  */
@@ -62,6 +64,7 @@ public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass
         return super.getClassLoadingLock(className);
     }
 
+    @Override
     public String toString() {
         return "IsolationClassLoader{" + childClassLoader + "}";
     }
@@ -87,6 +90,10 @@ public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass
             return new ChildURLClassLoader(urls, par, forceLoadFromParent);
         };
         return new IsolationClassLoader<>(parent, createWithParent);
+    }
+
+    public static IsolationClassLoaderBuilder builder() {
+        return new IsolationClassLoaderBuilder();
     }
 
     @Override
@@ -124,10 +131,12 @@ public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass
             return super.getClassLoadingLock(className);
         }
 
+        @Override
         public String toString() {
             return getName();
         }
 
+        @Override
         public Class<?> lookupClass(String name) throws ClassNotFoundException {
             return super.findClass(name);
         }
@@ -156,12 +165,24 @@ public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass
         }
 
         @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("IsolationClassLoader.ChildURLClassLoader([");
+            String urls = Strings.join(", ", Arrays.asList(super.getURLs()));
+            sb.append(urls).append("] under ").append(realParent)
+                    .append(" allowing ").append(forceLoadFromParent)
+                    .append(" currently with ").append(Strings.join(", ",
+                    new TreeSet<>(found.keySet())));
+            return sb.toString();
+        }
+
+        @Override
         public synchronized void close() throws IOException {
             found.clear();
             super.close();
             realParent = null;
         }
 
+        @Override
         public Class<?> lookupClass(String name) throws ClassNotFoundException {
             return findClass(name);
         }

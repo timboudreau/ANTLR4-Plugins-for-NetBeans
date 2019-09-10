@@ -1,5 +1,6 @@
 package org.nemesis.antlr.live.parsing.extract;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.streams.Streams;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -85,6 +86,7 @@ public class ExtractionCodeGenerator {
     public static JFSFileObject saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName) throws IOException {
         // We presume antlr generation has been done here
         Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
+        generated = CollectionUtils.concatenate(generated, fs.list(SOURCE_PATH, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false));
         JavaFileObject candidateLexer = null;
         JavaFileObject foundParser = null;
         JavaFileObject foundLexer = null;
@@ -149,20 +151,18 @@ public class ExtractionCodeGenerator {
         // needed when generation is fixed, or an uncompilable turd
         if (foundLexer == null && candidateLexer == null && foundParser == null) {
             throw new IOException("Could not find any lexer or parser java "
-                    + "sources.  Either the grammar is broken or code generation "
-                    + "failed.");
+                    + "sources in " + pkg + ".  Either the grammar is broken or code generation "
+                    + "failed.  Searched: " + generated);
         }
         String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix);
-//        System.out.println("\n\n********************* CODE ***********************\n");
-//        System.out.println(code);
-//        System.out.println("\n\n");
         Path extractorPath = Paths.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
         return fs.create(extractorPath, SOURCE_PATH, code);
     }
 
     public static String getLexerExtractorSourceCode(Path originalGrammarFile, String pkg,
             String classNamePrefix, boolean lexerOnly, String lexerSuffix) throws IOException {
-        String result = Streams.readResourceAsUTF8(ExtractionCodeGenerator.class, PARSER_EXTRACTOR_SOURCE_FILE);
+        String result = Streams.readResourceAsUTF8(ParserExtractor.class, PARSER_EXTRACTOR_TEMPLATE);
+        assert result != null : PARSER_EXTRACTOR_TEMPLATE + " not adjacent to " + ExtractionCodeGenerator.class;
         String extractorPackage = AntlrProxies.class.getPackage().getName();
         // Change the package statement
         result = result.replace("package org.nemesis.antlr.live.parsing.extract;",
@@ -187,7 +187,7 @@ public class ExtractionCodeGenerator {
         // If a lexer grammar, remove parser related stuff as it would be uncompilable
         // with no parser
         if (lexerOnly) {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new StringBuilder(result.length());
             for (String line : result.split("\n")) {
                 line = line.trim();
                 if (line.isEmpty() || line.endsWith("//parser") || line.startsWith("//")
@@ -198,6 +198,7 @@ public class ExtractionCodeGenerator {
             }
             result = sb.toString();
         }
+        result = result.replaceAll(" //parser", "").replaceAll("\n\n", "\n");
         return result;
     }
 }

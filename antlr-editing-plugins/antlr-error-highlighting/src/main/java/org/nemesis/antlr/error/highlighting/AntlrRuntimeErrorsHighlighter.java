@@ -80,16 +80,18 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 shouldAdd = p.endsWith(err.path());
             }
             if (shouldAdd) {
-                System.out.println("RH Errs add " + err.fileOffset() + ":" + (err.fileOffset() + err.length())
-                        + " line " + err.lineNumber() + " pos " + err.lineOffset());
-                bag.addHighlight(err.fileOffset(), err.fileOffset() + err.length(), underlining);
-
                 try {
+                    System.out.println("RH Errs add " + err.fileOffset() + ":" + (err.fileOffset() + err.length())
+                            + " line " + err.lineNumber() + " pos " + err.lineOffset());
+                    bag.addHighlight(err.fileOffset(), err.fileOffset() + err.length(), underlining);
+
                     if (!handleFix(err, fixes, extraction)) {
                         String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
                         fixes.addError(errId, err.fileOffset(), err.fileOffset() + err.length(),
                                 err.message());
                     }
+                } catch (IllegalStateException ex) {
+                    System.err.println("No line offsets in " + err);
                 } catch (BadLocationException ex) {
                     LOG.log(Level.WARNING, "Bad error location " + err.fileOffset() + ":"
                             + (err.fileOffset() + err.length()), ex);

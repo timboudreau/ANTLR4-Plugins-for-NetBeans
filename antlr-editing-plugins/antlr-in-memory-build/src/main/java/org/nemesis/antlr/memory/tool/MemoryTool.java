@@ -153,15 +153,11 @@ public final class MemoryTool extends Tool {
                 Logger.getLogger(MemoryTool.class.getName()).log(Level.INFO,
                         "Failed reading " + path, ex);
             }
-        } else {
-            System.err.println("FILL IN ERRORS FAILED TO FIND " + path
-                    + " in any of " + attempts);
         }
         return Collections.emptyList();
     }
 
     private void fillInErrors(List<ParsedAntlrError> l) {
-        System.out.println("FILL IN ERRORS WITH " + l.size());
         ParsedAntlrError.computeFileOffsets(l, this::lines);
     }
 
@@ -559,8 +555,8 @@ public final class MemoryTool extends Tool {
             Matcher m = ERRNUM.matcher(message);
             if (m.find() && m.group(1).length() > 0) {
                 message = m.group(1);
-            } else {
-                System.out.println("NO PATTERN IN '" + message + "'");
+//            } else {
+//                System.out.println("NO PATTERN IN '" + message + "'");
             }
             ParsedAntlrError pae = new ParsedAntlrError(isError, etype.code, pth, line, charPositionInLine, message);
             if (startOffset != -1 && stopOffset != -1) {
@@ -587,29 +583,6 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public static void main(String[] args) {
-        /*
-NO PATTERN IN 'com/mastfrog/rust/Rust.g4(19,0) : error 51 : rule compilation_unit redefinition; previous at line 16'
-NO PATTERN IN 'nbantlr/xi4fyxy/sesjzw9bf7y/run1/Rust.g4(19,0) : error 51 : rule compilation_unit redefinition; previous at line 16'
-
-        */
-        String a = "com/mastfrog/rust/Rust.g4(19,0) : error 51 : rule compilation_unit redefinition; previous at line 16";
-        String b = "nbantlr/xi4fyxy/sesjzw9bf7y/run1/Rust.g4(19,0) : error 51 : rule compilation_unit redefinition; previous at line 16";
-        Matcher m = ErrM.ERRNUM.matcher(a);
-        if (m.find()) {
-            System.out.println(m.group(1));
-        } else {
-            System.out.println(" no a ");
-        }
-        m = ErrM.ERRNUM.matcher(b);
-        if (m.find()) {
-            System.out.println(m.group(1));
-        } else {
-            System.out.println(" no b ");
-        }
-
-    }
-
     /**
      * We could use mastfrog IOSupplier, but we want to limit the number of
      * classes that need to be exposed through the isolating classloader.
@@ -625,5 +598,4 @@ NO PATTERN IN 'nbantlr/xi4fyxy/sesjzw9bf7y/run1/Rust.g4(19,0) : error 51 : rule 
 
         void run() throws IOException;
     }
-
 }

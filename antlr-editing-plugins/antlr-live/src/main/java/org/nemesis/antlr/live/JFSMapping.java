@@ -4,12 +4,14 @@ import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.nemesis.jfs.JFS;
 import org.netbeans.api.project.Project;
-import org.openide.util.Exceptions;
 import org.openide.util.Utilities;
 
 /**
@@ -21,6 +23,7 @@ class JFSMapping {
     // also may need to kill it if low memory
     private final Map<Project, ProjectReference> refs
             = new WeakHashMap<>();
+    private static final Logger LOG = Logger.getLogger(JFSMapping.class.getName());
 
     synchronized JFS forProject(Project project) throws IOException {
         ProjectReference ref = refs.get(project);
@@ -40,7 +43,7 @@ class JFSMapping {
     }
 
     JFS createJFS() throws IOException {
-        return JFS.builder().build();
+        return JFS.builder().withCharset(UTF_8).build();
     }
 
     <T> T whileLocked(JFS jfs, ThrowingSupplier<T> run) throws Exception {
@@ -92,11 +95,13 @@ class JFSMapping {
 
         private <T> T whileLocked(ThrowingSupplier<T> run, Project[] p) throws Exception {
             p[0] = get();
+            LOG.log(Level.FINEST, "Lock {0} for {1}", new Object[]{jfs, run});
             lock.lock();
             try {
                 return run.get();
             } finally {
                 lock.unlock();
+                LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
             }
         }
 
@@ -104,9 +109,10 @@ class JFSMapping {
         public void run() {
             disposed = true;
             try {
+                LOG.log(Level.FINER, "Project disappeared - close {0}", jfs);
                 jfs.close();
             } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
+                LOG.log(Level.WARNING, "Closing jfs", ex);
             }
         }
     }

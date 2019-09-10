@@ -122,10 +122,19 @@
                         <forkCount>8</forkCount>
                         <reuseForks>true</reuseForks>
                         <trimStackTrace>false</trimStackTrace>
+                        <argline>--illegal-access=permit</argline>
                         <systemPropertyVariables>
                             <unit.test>true</unit.test>
                             <forkNumber>${surefire.forkNumber}</forkNumber>
                         </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>versions-maven-plugin</artifactId>
+                    <version>2.7</version>
+                    <configuration>
+                        <generateBackupPoms>false</generateBackupPoms>
                     </configuration>
                 </plugin>
             </plugins>

@@ -75,7 +75,6 @@ public class AddAntlrAction extends AbstractAction implements ContextAwareAction
         res = lkp.lookupResult(Project.class);
         res.addLookupListener(this);
         res.allInstances();
-        System.out.println("CREAETE AN AddAntlrAction " + lkp.lookup(Project.class));
     }
 
     public AddAntlrAction() {
@@ -92,7 +91,6 @@ public class AddAntlrAction extends AbstractAction implements ContextAwareAction
     @Override
     public Action createContextAwareInstance(Lookup actionContext) {
         Project p = lkp.lookup(Project.class);
-        System.out.println("CREATE CONTEXT INSTANCE FOR " + p);
         AddAntlrToProject result = new AddAntlrToProject(p);
         return result;
     }
