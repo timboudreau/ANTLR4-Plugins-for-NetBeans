@@ -44,7 +44,7 @@ import org.openide.util.Lookup;
  *
  * @author Tim Boudreau
  */
-final class SourceInvalidator implements Consumer<FileObject> {
+public final class SourceInvalidator implements Consumer<FileObject> {
 
     private Class<?> sourceAccessorClass;
     private Object instance;
@@ -53,7 +53,7 @@ final class SourceInvalidator implements Consumer<FileObject> {
     SourceInvalidator() {
     }
 
-    static Consumer<FileObject> create() {
+    public static Consumer<FileObject> create() {
         SourceInvalidator invalidator = new SourceInvalidator();
         try {
             invalidator.invalidateMethod();
@@ -107,6 +107,7 @@ final class SourceInvalidator implements Consumer<FileObject> {
         try {
             Method m = invalidateMethod();
             Source src = Source.create(file);
+            System.out.println("INVALDIATE " + file);
             m.invoke(instance(), src, true);
         } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             EmbeddedAntlrParser.LOG.log(Level.SEVERE, null, ex);

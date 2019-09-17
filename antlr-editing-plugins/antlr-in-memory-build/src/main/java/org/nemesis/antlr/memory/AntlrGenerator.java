@@ -163,9 +163,6 @@ public final class AntlrGenerator {
     }
 
     public AntlrGenerationResult run(String grammarFileName, PrintStream logStream, boolean generate) {
-        if (logStream == System.out || logStream == System.err) {
-            new IllegalArgumentException("GOTCHA!").printStackTrace();
-        }
         List<ParsedAntlrError> errors = new ArrayList<>();
         List<String> infos = new ArrayList<>();
         String[] args = AntlrGenerationOption.toAntlrArguments(
@@ -187,11 +184,8 @@ public final class AntlrGenerator {
         String grammarName = "--";
         Grammar mainGrammar = null;
         try {
-            MemoryTool tool = new MemoryTool(jfs, grammarSourceLocation,
-                    virtualSourcePath, outputLocation, args);
-            if (logStream != null) {
-                tool.setLogStream(logStream);
-            }
+            MemoryTool tool = MemoryTool.create(virtualSourcePath, jfs, grammarSourceLocation,
+                    outputLocation, logStream, args);
             tool.generate_ATN_dot = opts.contains(AntlrGenerationOption.GENERATE_ATN);
             tool.grammarEncoding = grammarEncoding.name();
             tool.gen_dependencies = opts.contains(AntlrGenerationOption.GENERATE_DEPENDENCIES);
@@ -230,6 +224,7 @@ public final class AntlrGenerator {
             LOG.log(Level.FINE, "Error loading grammar " + grammarFileName, ex);
             thrown = ex;
             success = false;
+            LOG.log(Level.SEVERE, grammarName, ex);
         }
         if (!errors.isEmpty()) {
             LOG.log(Level.INFO, "Errors generating virtual Antlr sources");

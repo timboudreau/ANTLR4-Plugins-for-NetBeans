@@ -26,6 +26,10 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
     private final String mimeType;
     private final EmbeddedAntlrParser embeddedParser;
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     @SuppressWarnings("LeakingThisInConstructor")
     public AdhocParserFactory(String mimeType) {
         this.mimeType = mimeType;

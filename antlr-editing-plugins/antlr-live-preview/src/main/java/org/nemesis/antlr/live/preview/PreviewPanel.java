@@ -6,6 +6,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Insets;
+import java.awt.Rectangle;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
@@ -44,6 +46,8 @@ import org.nemesis.antlr.live.language.AdhocReparseListeners;
 import org.nemesis.antlr.live.language.SampleFiles;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.debug.api.Debug;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.EditorUI;
@@ -72,6 +76,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             = java.util.logging.Logger.getLogger(PreviewPanel.class.getName());
 
     private final JList<String> rules = new JList<>();
+    private final JScrollPane rulesPane = new JScrollPane(rules);
+    private final SyntaxTreeListModel syntaxModel = new SyntaxTreeListModel();
+    private final JList<SyntaxTreeListModel.ModelEntry> syntaxTreeList
+            = syntaxModel.createList();
+    private final JScrollPane syntaxTreeScroll = new JScrollPane(syntaxTreeList);
+    private final JSplitPane listsSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private final AdhocColorings colorings;
     private final AdhocColoringPanel customizer = new AdhocColoringPanel();
 
@@ -106,14 +116,22 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // Add the selected coloring customizer at the top
         add(customizer, BorderLayout.NORTH);
         // Put the rules list in a scroll pane
-        JScrollPane rulesPane = new JScrollPane(rules);
+
         // "border buildup" avoidance
         Border empty = BorderFactory.createEmptyBorder();
-        rulesPane.setBorder(BorderFactory.createMatteBorder(1, 1, 0, 0,
-                color("controlShadow", Color.DARK_GRAY)));
+        Border line = BorderFactory.createMatteBorder(1, 1, 0, 0,
+                color("controlShadow", Color.DARK_GRAY));
+        rulesPane.setBorder(line);
         rulesPane.setViewportBorder(empty);
+
+        syntaxTreeScroll.setBorder(line);
+        syntaxTreeScroll.setViewportBorder(empty);
+
+        listsSplit.setTopComponent(rulesPane);
+        listsSplit.setBottomComponent(syntaxTreeScroll);
+
         // Add the rules pane
-        add(rulesPane, BorderLayout.EAST);
+        add(listsSplit, BorderLayout.EAST);
         // Create an editor pane
         editorPane = new JEditorPane();
         // Create a runnable that will run asynchronously to update the
@@ -190,28 +208,62 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         breadcrumbPanel.add(breadcrumb, BorderLayout.CENTER);
         add(breadcrumbPanel, BorderLayout.SOUTH);
         // listen on the caret to update the breadcrumb
-        editorPane.getCaret().addChangeListener(this);
+        syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick);
+    }
 
-        // Stores a weak reference - no leak
-//        NBANTLRv4Parser.notifyOnReparse(clone.getDocument(), this);
+    List<ProxyToken> proxyTokens() {
+        ParseTreeProxy proxy = getLookup().lookup(ParseTreeProxy.class);
+        if (proxy == null) {
+            return Collections.emptyList();
+        }
+        return proxy.tokens();
+    }
+
+    void onSyntaxTreeClick(int[] range) {
+        editorPane.setSelectionStart(range[0]);
+        editorPane.setSelectionEnd(range[1]);
+        try {
+            Rectangle a = editorPane.getUI().modelToView(editorPane, range[0]);
+            Rectangle b = editorPane.getUI().modelToView(editorPane, range[1]);
+            a.add(b);
+            editorPane.scrollRectToVisible(a);
+            editorPane.requestFocusInWindow();
+        } catch (BadLocationException ex) {
+            LOG.log(Level.INFO, null, ex);
+        }
     }
 
     @Override
-    public void apply(Document a, GrammarRunResult<?> b, ParseTreeProxy s) {
-        ParseTreeProxy oldProxy = internalLookup.lookup(ParseTreeProxy.class);
-        GrammarRunResult<?> old = internalLookup.lookup(GrammarRunResult.class);
-        if (b != null) {
-            content.add(b);
-            if (old != null) {
-                content.remove(old);
+    public void apply(Document a, GrammarRunResult<?> b, ParseTreeProxy newProxy) {
+        Debug.run(this, "preview-update " + mimeType, () -> {
+            StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
+            sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
+            sb.append("Proxy grammar file: ").append(newProxy.grammarPath());
+            sb.append("Proxy grammar name: ").append(newProxy.grammarName());
+            sb.append("Document: ").append(a).append('\n');
+            sb.append("RunResult").append(b).append('\n');
+            sb.append("Text: ").append(newProxy.text()).append('\n');
+            return "";
+        }, () -> {
+            ParseTreeProxy oldProxy = internalLookup.lookup(ParseTreeProxy.class);
+            GrammarRunResult<?> old = internalLookup.lookup(GrammarRunResult.class);
+            if (b != null) {
+                content.add(b);
+                if (old != null) {
+                    content.remove(old);
+                }
             }
-        }
-        if (s != null) {
-            content.add(s);
-            if (oldProxy != null) {
-                content.remove(oldProxy);
+            if (newProxy != null) {
+                if (!newProxy.mimeType().equals(mimeType)) {
+                    new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
+                }
+                content.add(newProxy);
+                if (oldProxy != null) {
+                    content.remove(oldProxy);
+                }
+                syntaxModel.update(newProxy);
             }
-        }
+        });
     }
 
     static final class TextSupplier implements Supplier<String> {
@@ -236,6 +288,27 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     @Override
     public void addNotify() {
         super.addNotify();
+        if (initialAdd) {
+            doNotifyShowing();
+        }
+    }
+
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        initialAdd = false;
+    }
+
+    private boolean showing;
+
+    public void notifyShowing() {
+        if (initialAdd) {
+            return;
+        }
+        doNotifyShowing();
+    }
+
+    private void doNotifyShowing() {
         // Sync the colorings JList with the stored list of colorings
         updateColoringsList();
         // Listen for changes in it
@@ -246,18 +319,19 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
         updateSplitPosition();
         AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
+        editorPane.getCaret().addChangeListener(this);
+        stateChanged(new ChangeEvent(editorPane.getCaret()));
     }
 
-    @Override
-    public void removeNotify() {
+    public void notifyHidden() {
         AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
         colorings.removeChangeListener(this);
         colorings.removePropertyChangeListener(this);
         split.removePropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
-        super.removeNotify();
-        initialAdd = false;
+        editorPane.getCaret().removeChangeListener(this);
     }
 
+    @Override
     public Lookup getLookup() {
         return lookup;
     }
@@ -306,8 +380,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             splitPaneLocationUpdated((int) evt.getNewValue());
             return;
         }
+        System.out.println("PROPERTY CHANGE " + evt.getSource().getClass().getName() + " " + evt.getPropertyName());
         if (triggerRerunHighlighters != null) {
-            triggerRerunHighlighters.schedule(400);
+            triggerRerunHighlighters.schedule(250);
             return;
         }
         Object trigger = editorPane.getClientProperty("trigger");
@@ -319,7 +394,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             // it directly
             triggerRerunHighlighters = RequestProcessor.getDefault()
                     .create((Runnable) trigger);
-            triggerRerunHighlighters.schedule(400);
+            triggerRerunHighlighters.schedule(250);
         }
     }
 
@@ -361,13 +436,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void updateBreadcrumb(String text, Caret caret, ParseTreeProxy prx) {
-        System.out.println("Update breadcrumb for " + caret.getDot());
+//        System.out.println("Update breadcrumb for " + caret.getDot());
         StringBuilder sb = new StringBuilder();
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
             stringifier.tokenRulePathString(prx, tok, sb, true);
-        } else {
-            System.out.println("no token at position in " + prx.summary());
+//        } else {
+//            System.out.println("no token at position in " + prx.summary());
         }
         breadcrumb.setText(sb.toString());
         breadcrumb.invalidate();
@@ -423,6 +498,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (e.getSource() instanceof Caret) {
             updateBreadcrumb((Caret) e.getSource());
         } else {
+            System.out.println("StateChanged from " + e.getSource().getClass().getName());
             // a reparse will fire changes on the parse thread
             // if rules have been added
             Mutex.EVENT.readAccess(this::updateColoringsList);

@@ -81,13 +81,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             }
             if (shouldAdd) {
                 try {
-                    System.out.println("RH Errs add " + err.fileOffset() + ":" + (err.fileOffset() + err.length())
-                            + " line " + err.lineNumber() + " pos " + err.lineOffset());
-                    bag.addHighlight(err.fileOffset(), err.fileOffset() + err.length(), underlining);
-
+//                    System.out.println("RH Errs add " + err.fileOffset() + ":" + (err.fileOffset() + err.length())
+//                            + " line " + err.lineNumber() + " pos " + err.lineOffset());
+                    if (err.length() > 0) {
+                        bag.addHighlight(err.fileOffset(), err.fileOffset() + err.length(), underlining);
+                    } else {
+                        LOG.log(Level.WARNING, "Got {0} length error {1}", new Object[] {err.length(), err});
+                        continue;
+                    }
                     if (!handleFix(err, fixes, extraction)) {
                         String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
-                        fixes.addError(errId, err.fileOffset(), err.fileOffset() + err.length(),
+                        fixes.addError(errId, err.fileOffset(), Math.max(err.fileOffset() + 1, err.fileOffset() + err.length()),
                                 err.message());
                     }
                 } catch (IllegalStateException ex) {

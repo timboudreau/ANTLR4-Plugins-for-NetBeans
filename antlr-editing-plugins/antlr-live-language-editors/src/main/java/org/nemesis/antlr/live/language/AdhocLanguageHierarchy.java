@@ -5,13 +5,14 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
@@ -21,6 +22,7 @@ import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.debug.api.Debug;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.LanguagePath;
 import org.netbeans.api.lexer.Token;
@@ -37,32 +39,57 @@ import org.openide.filesystems.FileUtil;
  *
  * @author Tim Boudreau
  */
-final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Runnable {
+final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Runnable, Supplier<TokensInfo> {
 
     public static final String DUMMY_TOKEN_ID = "__dummyToken__";
     private final String mimeType;
     private final EmbeddedAntlrParser parser;
-    private final Map<String, Collection<AdhocTokenId>> categories = new HashMap<>();
-    private final List<AdhocTokenId> tokenIds = new CopyOnWriteArrayList<>();
+    private final AtomicReference<TokensInfo> info = new AtomicReference<>(TokensInfo.EMPTY);
     private static final Logger LOG = Logger.getLogger(AdhocLanguageHierarchy.class.getName());
 
     static {
         LOG.setLevel(Level.ALL);
     }
+    private final AtomicBoolean listening = new AtomicBoolean();
 
-    @SuppressWarnings("LeakingThisInConstructor")
     AdhocLanguageHierarchy(String mimeType) {
         this.mimeType = mimeType;
         LOG.log(Level.FINE, "Create lang hier for {0}", mimeType);
-        parser = EmbeddedAntlrParsers.forGrammar(FileUtil.toFileObject(AdhocMimeTypes.grammarFilePathForMimeType(mimeType).toFile()));
-        updateTokensListAndCategories();
-        parser.listen(this);
+        parser = EmbeddedAntlrParsers.forGrammar(
+                FileUtil.toFileObject(
+                        FileUtil.normalizeFile(
+                                AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
+                                        .toFile())));
+    }
+
+    boolean initIfNecessary() {
+        boolean result;
+        if (result = listening.compareAndSet(false, true)) {
+
+            LOG.log(Level.FINE, "Hierarchy for {0} begins listening on {1}",
+                    new Object[]{AdhocMimeTypes.loggableMimeType(mimeType),
+                        parser});
+            try {
+                initializing = true;
+                updateTokensListAndCategories();
+                parser.listen(this);
+            } finally {
+                initializing = false;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "AdhocLanguageHierarchy(" + Integer.toString(System.identityHashCode(this), 36)
+                + " listening=" + listening.get() + " tokens " + info.get() + ")";
     }
 
     @Override
     public void run() {
         LOG.log(Level.FINE, "Hier for {0} notified of grammar change from {1}",
-                new Object[]{mimeType, parser});
+                new Object[]{AdhocMimeTypes.loggableMimeType(mimeType), parser});
         languageUpdated();
     }
 
@@ -95,23 +122,11 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         return null;
     }
 
-    List<AdhocTokenId> tokens() {
-        maybeUpdate();
-        return tokenIds;
-    }
-
-    Collection<AdhocTokenId> tokensForCategory(String category) {
-        maybeUpdate();
-        return categories.get(category);
-    }
-
-    Set<String> categories() {
-        maybeUpdate();
-        return categories.keySet();
-    }
+    private boolean initializing;
 
     private void maybeUpdate() {
-        if (tokenIds.isEmpty()) {
+        boolean wasInitialCall = initIfNecessary();
+        if (!wasInitialCall && info.get().isEmpty()) {
             updateTokensListAndCategories();
         }
     }
@@ -119,7 +134,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
     @Override
     protected Collection<AdhocTokenId> createTokenIds() {
         maybeUpdate();
-        return tokenIds;
+        return info.get().tokens();
     }
 
     public static Document document(LexerRestartInfo<AdhocTokenId> info) {
@@ -166,29 +181,36 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 }
             }
         }
-        return new AdhocLexerNew(mimeType, info, parser, tokenIds);
+        return new AdhocLexerNew(mimeType, info, parser, this);
     }
 
     @Override
     protected Map<String, Collection<AdhocTokenId>> createTokenCategories() {
         maybeUpdate();
-        return categories;
+        return info.get().categories();
     }
 
-    void languageUpdated() {
+    boolean languageUpdated() {
         LOG.log(Level.FINEST, "Language updated for {0}",
                 AdhocMimeTypes.loggableMimeType(mimeType));
         // Live lexers are keeping copies of the tokens list, and we
         // *want* them updated on the fly;  a lexer in progress
         // definitely shouldn't suddenly find itself with no
         // contents
-        updateTokensListAndCategories();
+        boolean isReentry = updateTokensListAndCategories();
 //        AdhocMimeDataProvider.getDefault().gooseLanguage(mimeType);
-        wipeLanguage();
+        if (!initializing && !isReentry) {
+            // If we are inside a call to super.language(), we shouldn't
+            // clear the language field, and the synchronization of that
+            // method makes it trivial to deadlock
+            wipeLanguage();
+        }
+        return initializing || isReentry;
     }
 
     static Field languageField;
     static boolean logged;
+
     static Field languageField() {
         if (languageField != null) {
             return languageField;
@@ -225,30 +247,104 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         ids.add(nue);
     }
 
-    private synchronized void updateTokensListAndCategories() {
-        Map<String, Set<AdhocTokenId>> cats = CollectionUtils.supplierMap(TreeSet::new);
-        List<AdhocTokenId> newIds = new ArrayList<>();
-        ParseTreeProxy prox;
+    private int entryCount;
+
+    private boolean updateTokensListAndCategories() {
+        if (entryCount > 0) {
+            return true;
+        }
+        entryCount++;
         try {
-            prox = parser.parse(null);
-        } catch (Exception ex) {
-            Logger.getLogger(AdhocLanguageHierarchy.class.getName()).log(Level.SEVERE, "Exception getting token categories for "
-                    + AdhocMimeTypes.loggableMimeType(mimeType), ex);
-            prox = AntlrProxies.forUnparsed(AdhocMimeTypes.grammarFilePathForMimeType(mimeType), "x", "abc");
+            String msg = "hierarchy-tokens-update " + AdhocMimeTypes.loggableMimeType(mimeType)
+                    + " on " + Integer.toString(System.identityHashCode(this), 36);
+            Debug.run(this, msg, () -> {
+                Map<String, Collection<AdhocTokenId>> cats = CollectionUtils.supplierMap(HashSet::new);
+                List<AdhocTokenId> newIds = new ArrayList<>();
+                ParseTreeProxy prox;
+                try {
+                    prox = parser.parse(null);
+                } catch (Exception ex) {
+                    Logger.getLogger(AdhocLanguageHierarchy.class.getName()).log(Level.SEVERE, "Exception getting token categories for "
+                            + AdhocMimeTypes.loggableMimeType(mimeType), ex);
+                    prox = AntlrProxies.forUnparsed(AdhocMimeTypes.grammarFilePathForMimeType(mimeType), "x", "abc");
+                }
+                List<ProxyTokenType> allTypes = prox.tokenTypes();
+                Set<String> names = new HashSet<>(allTypes.size());
+                for (ProxyTokenType ptt : allTypes) {
+                    AdhocTokenId id = new AdhocTokenId(prox, ptt, names);
+                    newIds.add(id);
+                    cats.get(id.primaryCategory()).add(id);
+                }
+                LOG.log(Level.FINEST, "Update tokens for {0} with {1} for {2} on {3}",
+                        new Object[]{AdhocMimeTypes.loggableMimeType(mimeType),
+                            newIds.size(), this, Thread.currentThread()});
+                Collections.sort(newIds);
+                includeDummyToken(newIds);
+                TokensInfo newInfo = new TokensInfo(newIds, cats);
+                TokensInfo old = info.get();
+                if (!newInfo.equals(old)) {
+                    info.set(newInfo);
+                }
+            });
+        } finally {
+            entryCount--;
         }
-        List<ProxyTokenType> allTypes = prox.tokenTypes();
-        Set<String> names = new HashSet<>(allTypes.size());
-        for (ProxyTokenType ptt : allTypes) {
-            AdhocTokenId id = new AdhocTokenId(prox, ptt, names);
-            newIds.add(id);
-            cats.get(id.primaryCategory()).add(id);
+        return false;
+    }
+
+    @Override
+    public TokensInfo get() {
+        TokensInfo result = info.get();
+        if (result.isEmpty()) {
+            maybeUpdate();
+            result = info.get();
         }
-        LOG.log(Level.FINEST, "Update tokens for {0} to {1}", new Object[]{mimeType, newIds});
-        Collections.sort(newIds);
-        includeDummyToken(newIds);
-        tokenIds.clear();
-        categories.clear();
-        categories.putAll(cats);
-        tokenIds.addAll(newIds);
+        return result;
+    }
+
+    static final class HierarchyInfo implements Runnable {
+
+        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(false);
+        private TokensInfo info = TokensInfo.EMPTY;
+        private EmbeddedAntlrParser parser;
+        private final String mimeType;
+        private final ReentrantReadWriteLock.ReadLock readLock;
+        private final ReentrantReadWriteLock.WriteLock writeLock;
+
+        public HierarchyInfo(String mimeType) {
+            this.mimeType = mimeType;
+            readLock = lock.readLock();
+            writeLock = lock.writeLock();
+        }
+
+        private TokensInfo recreateInfo() {
+            return null;
+        }
+
+        public TokensInfo info() {
+            TokensInfo result;
+            readLock.lock();
+            try {
+                result = info;
+            } finally {
+                readLock.unlock();
+            }
+            long id = result.id();
+            if (result.isEmpty()) {
+                writeLock.lock();
+                try {
+                    result = recreateInfo();
+                } finally {
+                    writeLock.unlock();
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public void run() {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+
     }
 }

@@ -5,12 +5,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
 import org.nemesis.jfs.result.UpToDateness;
@@ -27,10 +26,15 @@ public class CompileResult implements ProcessingResult {
     Throwable thrown;
     private final Path sourceRoot;
     private final List<Path> files = new ArrayList<>();
-    private final Map<JavaFileObject, Long> sourceFilesToModifications = new HashMap<>();
+    private final JFSFileModifications filesState;
 
-    CompileResult(Path sourceRoot) {
+    CompileResult(Path sourceRoot, JFSFileModifications filesState) {
         this.sourceRoot = sourceRoot;
+        this.filesState = filesState;
+    }
+
+    public JFSFileModifications filesState() {
+        return filesState;
     }
 
     static CompileResult.Builder builder(Path sourceRoot) {
@@ -54,7 +58,7 @@ public class CompileResult implements ProcessingResult {
 
     @Override
     public UpToDateness currentStatus() {
-        return UpToDateness.fromFileTimes(sourceFilesToModifications);
+        return filesState.changes().status();
     }
 
     static final class Builder {
@@ -64,8 +68,8 @@ public class CompileResult implements ProcessingResult {
         private final List<Path> files = new ArrayList<>();
         private Throwable thrown;
         private boolean callResult;
-        private final Map<JavaFileObject, Long> sourceFilesToModifications = new HashMap<>();
         long elapsed;
+        private JFSFileModifications filesState;
 
         Builder(Path sourceRoot) {
             assert sourceRoot != null : "Source root null";
@@ -73,7 +77,6 @@ public class CompileResult implements ProcessingResult {
         }
 
         public Builder addSource(JavaFileObject fo) {
-            sourceFilesToModifications.put(fo, fo.getLastModified());
             return this;
         }
 
@@ -82,12 +85,11 @@ public class CompileResult implements ProcessingResult {
         }
 
         public CompileResult build() {
-            CompileResult res = new CompileResult(sourceRoot);
+            CompileResult res = new CompileResult(sourceRoot, filesState);
             res.diagnostics.addAll(diagnostics);
             res.files.addAll(files);
             res.thrown = thrown;
             res.callResult = callResult;
-            res.sourceFilesToModifications.putAll(sourceFilesToModifications);
             res.elapsedMillis(elapsed);
             return res;
         }
@@ -136,6 +138,10 @@ public class CompileResult implements ProcessingResult {
             JavacDiagnostic wrapper = JavacDiagnostic.create(sourcePath(diag), sourceRoot, diag);
             diagnostics.add(wrapper);
             return this;
+        }
+
+        public void setInitialFileStatus(JFSFileModifications status) {
+            this.filesState = status;
         }
     }
 

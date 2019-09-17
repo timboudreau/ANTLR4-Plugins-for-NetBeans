@@ -45,6 +45,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>debug-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
@@ -70,7 +74,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-spi</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-in-memory-execution</artifactId>
@@ -78,6 +82,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jfs</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -196,19 +204,16 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-settings-lib</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-tools-storage</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-editor-settings-storage</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -269,7 +274,6 @@
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-lexer-nbbridge</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
             <type>jar</type>
         </dependency>

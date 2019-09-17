@@ -2,10 +2,12 @@ package org.nemesis.jfs;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Level;
+import static org.nemesis.jfs.JFS.LOG;
 import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
@@ -71,7 +73,18 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
             } else if (bytes != null) {
                 return bytes;
             }
-            bytes = Files.readAllBytes(path);
+            try {
+                bytes = Files.readAllBytes(path);
+            } catch (ClosedByInterruptException ex) {
+                // Clear the flag
+                Thread.interrupted();
+                // WTF?
+                LOG.log(Level.FINE, "Read of FileBytesStorageWrapper for " + path
+                        + "closed by interrupt. Rereading and then setting "
+                        + "interrupted flag.", ex);
+                bytes = Files.readAllBytes(path);
+//                Thread.currentThread().interrupt();
+            }
         }
         return bytes;
     }

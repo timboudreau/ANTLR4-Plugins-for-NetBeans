@@ -132,6 +132,11 @@ public class UpToDateness {
         public UpToDateness build() {
             return stale;
         }
+
+        public StaleStatusBuilder addAll(Set<Path> modified) {
+            stale.stalePaths.addAll(modified);
+            return this;
+        }
     }
 
     static class Stale extends UpToDateness {

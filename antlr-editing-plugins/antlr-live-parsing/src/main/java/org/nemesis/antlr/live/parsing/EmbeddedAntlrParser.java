@@ -29,9 +29,11 @@ OF SUCH DAMAGE.
 package org.nemesis.antlr.live.parsing;
 
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,14 +75,14 @@ public class EmbeddedAntlrParser {
     private final String grammarName;
     static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
     Runnable unsubscriber;
+    final BiConsumer<Extraction, GrammarRunResult<EmbeddedParser>> subscriber
+            = new BC();
+    private final Set<Runnable> changeListeners = new WeakSet<>();
+    volatile boolean disposed;
 
     static {
         LOG.setLevel(Level.ALL);
     }
-    final BiConsumer<Extraction, GrammarRunResult<EmbeddedParser>> subscriber
-            = new BC();
-
-    private final Set<Runnable> changeListeners = new WeakSet<>();
 
     public EmbeddedAntlrParser(Path path, String grammarName) {
         this.path = path;
@@ -118,6 +120,7 @@ public class EmbeddedAntlrParser {
     public void dispose() {
         // This disposes of the reference that is keeping our subscription
         // to reparses alive, so we won't be called for new reparses
+        disposed = true;
         if (unsubscriber != null) {
             unsubscriber.run();
             unsubscriber = null;
@@ -126,6 +129,10 @@ public class EmbeddedAntlrParser {
         if (g != null && g.get() != null) {
             g.get().onDiscard();
         }
+    }
+
+    boolean isDisposed() {
+        return disposed;
     }
 
     private final class BC implements BiConsumer<Extraction, GrammarRunResult<EmbeddedParser>> {
@@ -185,13 +192,17 @@ public class EmbeddedAntlrParser {
 
     static ThreadLocal<Integer> staleCheckEntryCount = ThreadLocal.withInitial(() -> 0);
 
-    private void checkStale() {
+    private boolean checkStale() {
         int reentries = staleCheckEntryCount.get();
         if (reentries > 0) {
-            return;
+            return false;
         }
         staleCheckEntryCount.set(reentries + 1);
+        boolean result = false;
         try {
+            if (Thread.interrupted()) {
+                return false;
+            }
             GrammarRunResult<EmbeddedParser> r = runner.get();
             if (r == null || r.currentStatus().mayRequireRebuild()) {
                 LOG.log(Level.FINER, "Force reparse of {0} for stale embedded parser", path);
@@ -202,15 +213,27 @@ public class EmbeddedAntlrParser {
                 // ParserManager et. al. will reuse an old copy of the source
                 // (tests will fail if this line is removed)
                 sourceInvalidator().accept(fo);
+                if (Thread.interrupted()) {
+                    return false;
+                }
                 if (fo != null) {
-                    // Force a reparse, which will trigger a call to setRunner()
-                    Collection<Source> srcs = Collections.singleton(Source.create(fo));
-                    try {
-                        // Must not use a static instance of UT or we will get the
-                        // same result again and again
-                        ParserManager.parse(srcs, new UT());
-                    } catch (ParseException ex) {
-                        LOG.log(Level.INFO, grammarName, ex);
+                    for (;;) {
+                        // Force a reparse, which will trigger a call to setRunner()
+                        Collection<Source> srcs = Collections.singleton(Source.create(fo));
+                        try {
+                            // Must not use a static instance of UT or we will get the
+                            // same result again and again
+                            ParserManager.parse(srcs, new UT());
+                            result = true;
+                            break;
+                        } catch (ParseException ex) {
+                            if (ex.getCause() instanceof ClosedByInterruptException) {
+                                LOG.log(Level.WARNING, grammarName, ex);
+                            } else {
+                                LOG.log(Level.WARNING, grammarName, ex);
+                                break;
+                            }
+                        }
                     }
                 } else {
                     LOG.log(Level.WARNING, "File object for {0} gone", path);
@@ -219,6 +242,7 @@ public class EmbeddedAntlrParser {
         } finally {
             staleCheckEntryCount.set(reentries);
         }
+        return result;
     }
 
     static Consumer<FileObject> SOURCE_INVALIDATOR;
@@ -230,42 +254,74 @@ public class EmbeddedAntlrParser {
         return SOURCE_INVALIDATOR;
     }
 
-    private ParseTreeProxy tellListeners(GrammarRunResult<EmbeddedParser> runResult, ParseTreeProxy proxy) {
+    private String lastText;
+    private ParseTreeProxy lastResult;
 
-        return proxy;
+    private synchronized ParseTreeProxy setTextAndResult(String text, ParseTreeProxy prox) {
+        if (text != null) {
+            lastText = text;
+            lastResult = prox;
+        }
+        return prox;
+    }
+
+    private synchronized ParseTreeProxy lastResultIfMatches(boolean wasStale, String t) {
+        if (!wasStale) {
+            if (lastText != null && lastResult != null
+                    && Objects.equals(t, lastText) && !lastResult.isUnparsed()) {
+//                LOG.log(Level.INFO, "Use cached result from {0}", this);
+//                return lastResult;
+            }
+        }
+        return null;
     }
 
     public ParseTreeProxy parse(String t) throws Exception {
-        checkStale();
+        boolean wasStale = checkStale();
+        ParseTreeProxy result = lastResultIfMatches(wasStale, t);
+        if (result != null) {
+            return result;
+        }
         GrammarRunResult<EmbeddedParser> r = runner.get();
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return r.get().parse(t);
+        return setTextAndResult(t, r.get().parse(t));
     }
 
     public ParseTreeProxy parse(String t, int ruleNo) throws Exception {
-        checkStale();
+        boolean wasStale = checkStale();
+        ParseTreeProxy result = lastResultIfMatches(wasStale, t);
+        if (result != null) {
+            return result;
+        }
         GrammarRunResult<EmbeddedParser> r = runner.get();
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return r.get().parse(t, ruleNo);
+        return setTextAndResult(t, r.get().parse(t, ruleNo));
     }
 
     public ParseTreeProxy parse(String t, String ruleName) throws Exception {
-        checkStale();
+        boolean wasStale = checkStale();
+        ParseTreeProxy result = lastResultIfMatches(wasStale, t);
+        if (result != null) {
+            return result;
+        }
         GrammarRunResult<EmbeddedParser> r = runner.get();
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return r.get().parse(t, ruleName);
+        return setTextAndResult(t, r.get().parse(t, ruleName));
     }
 
     static final class UT extends UserTask {
 
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
+            if (Thread.interrupted()) {
+                return;
+            }
             Parser.Result res = resultIterator.getParserResult();
             LOG.log(Level.FINEST, "Forced reparse of {0} gets {1}",
                     new Object[]{resultIterator.getSnapshot().getSource(),

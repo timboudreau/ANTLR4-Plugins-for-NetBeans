@@ -9,13 +9,13 @@ import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
@@ -32,18 +32,14 @@ import static org.nemesis.antlr.project.Folders.ANTLR_IMPORTS;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
+import org.nemesis.misc.utils.CachingSupplier;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.queries.FileEncodingQuery;
-import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
@@ -62,34 +58,24 @@ import org.openide.util.WeakListeners;
 public final class RebuildSubscriptions {
 
     private static final Logger LOG = Logger.getLogger(RebuildSubscriptions.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
     private final JFSMapping mapping = new JFSMapping();
     private static final RequestProcessor RP = new RequestProcessor("rebuild-antlr-subscriptions", 2, true);
-
     private final Map<Project, Generator> generatorForMapping
             = new WeakHashMap<>();
 
-    private static RebuildSubscriptions INSTANCE;
+    static Supplier<RebuildSubscriptions> INSTANCE_SUPPLIER
+            = CachingSupplier.of(RebuildSubscriptions::new);
 
     JFS jfsFor(Project project) { // for tests
         return mapping.getIfPresent(project);
     }
 
     public static int liveSubscriptions() {
-        if (INSTANCE == null) {
-            return 0;
-        }
-        return INSTANCE.generatorForMapping.size();
+        return INSTANCE_SUPPLIER.get().generatorForMapping.size();
     }
 
-    static synchronized RebuildSubscriptions instance() {
-        if (INSTANCE == null) {
-            INSTANCE = new RebuildSubscriptions();
-        }
-        return INSTANCE;
+    static RebuildSubscriptions instance() {
+        return INSTANCE_SUPPLIER.get();
     }
 
     public static String info() {
@@ -385,29 +371,14 @@ public final class RebuildSubscriptions {
                         new Object[]{subscribe, to.getPath(), subscribers.size()});
                 // Trigger a parse immediately
                 if (subscribers.size() == 1) {
-                    Source src = Source.create(to);
+//                    Source src = Source.create(to);
                     LOG.log(Level.FINE, "Force parse of {0} for initial subscriber in "
                             + "Generator {1} for {2}",
                             new Object[]{to.getName(), id, subscribe});
                     Runnable doParse = () -> {
                         try {
-                            ParserManager.parse(Collections.singleton(src), new UserTask() {
-                                @Override
-                                public void run(ResultIterator resultIterator) throws Exception {
-                                    try {
-                                        Parser.Result res = resultIterator.getParserResult();
-                                        LOG.log(Level.FINEST, "Parse of {0} completed on {1} with {2}",
-                                                new Object[]{to.getPath(), Thread.currentThread(),
-                                                    res});
-                                    } catch (Exception e) {
-                                        LOG.log(Level.SEVERE, "Exception parsing " + to, e);
-                                    } catch (Error e) {
-                                        LOG.log(Level.SEVERE, "Error parsing " + to, e);
-                                        throw e;
-                                    }
-                                }
-                            });
-                        } catch (ParseException ex) {
+                            ParsingUtils.parse(to);
+                        } catch (Exception ex) {
                             LOG.log(Level.INFO, "Exception parsing " + to.getPath(), ex);
                         } catch (Error e) {
                             LOG.log(Level.SEVERE, "Error parsing " + to, e);
@@ -477,15 +448,28 @@ public final class RebuildSubscriptions {
 //                LOG.log(Level.FINEST, "Who is triggering me - " + extraction.source().lookup(Path.class), new Exception());
                 AntlrGenerator gen = gen(extraction);
                 try {
+                    if (Thread.interrupted()) {
+                        return;
+                    }
                     PrintStream output = outputFor(extraction);
-                    AntlrGenerationResult result = mapping.whileLocked(gen.jfs(), () -> {
-                        try {
-                            return gen.run(extraction.source().name(), output, true);
-                        } catch (Error eiie) {
-                            handleEiiE(eiie, gen.jfs());
-                            throw eiie;
-                        }
+                    // Build the message here so the UI doesn't hold a reference to the extraction
+                    // indefinitiely
+                    String msg = "Regenerate Antlr Grammar " + mimeType + " for " + extraction.source().lookup(Path.class);
+                    AntlrGenerationResult result = Debug.runObjectThrowing(this, "generate " + extraction.source(), () -> {
+                        return msg;
+                    }, () -> {
+                        return mapping.whileLocked(gen.jfs(), () -> {
+                            try {
+                                return gen.run(extraction.source().name(), output, true);
+                            } catch (Error eiie) {
+                                handleEiiE(eiie, gen.jfs());
+                                throw eiie;
+                            }
+                        });
                     });
+                    if (Thread.interrupted()) {
+                        return;
+                    }
 
                     LOG.log(Level.FINER, "Reparse received by generator {0} for "
                             + "{1} placeholder {2} result usable {3} run result "

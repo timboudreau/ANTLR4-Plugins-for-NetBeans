@@ -14,15 +14,17 @@ final class AlternateTokenLoadingGrammar extends Grammar {
         super(tool, ast);
     }
 
+    @Override
     public String toString() {
         return name + "(" + fileName + ":" + rules + ")" ;
     }
 
+    @Override
     public void importTokensFromTokensFile() {
         String vocab = getOptionString("tokenVocab");
         if (vocab != null) {
-            AlternateTokenVocabParser vparser = new AlternateTokenVocabParser(this, (MemoryTool) tool);
-            Map<String, Integer> tokens = vparser.load();
+            AlternateTokenVocabParser vparser = new AlternateTokenVocabParser();
+            Map<String, Integer> tokens = vparser.load((MemoryTool) tool, this);
             tool.log("grammar", "tokens=" + tokens);
             for (String t : tokens.keySet()) {
                 if (t.charAt(0) == '\'') {

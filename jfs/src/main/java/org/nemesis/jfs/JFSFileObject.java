@@ -87,4 +87,6 @@ public interface JFSFileObject extends FileObject {
     }
 
     JFSStorageKind storageKind();
+
+    JFSFileObject setTextContent(String txt) throws IOException;
 }

@@ -2,10 +2,11 @@ lexer grammar JavaLexer;
 
 import LexBasic;
 
-
 @lexer::members {
 protected int initialStackedModeNumber = -1; // -1 means undefined value
 }
+
+BOO : BLOCK_COMMENT LINE_COMMENT;
 
 // For syntax checking purpose we skip block comments
 BLOCK_COMMENT :

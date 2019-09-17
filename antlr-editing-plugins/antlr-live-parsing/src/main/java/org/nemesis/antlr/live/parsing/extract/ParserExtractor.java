@@ -173,14 +173,16 @@ public class ParserExtractor {
     private static class RuleTreeVisitor implements ParseTreeVisitor<Void> { //parser
 
         private final org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder; //parser
-
+        private int currentDepth; //parser
         public RuleTreeVisitor(org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder) { //parser
             this.builder = builder; //parser
         } //parser
 
         @Override //parser
         public Void visit(ParseTree tree) { //parser
+            currentDepth++; //parser
             tree.accept(this); //parser
+            currentDepth--; //parser
             return null; //parser
         } //parser
 
@@ -189,7 +191,7 @@ public class ParserExtractor {
             String ruleName = DummyLanguageParser.ruleNames[node.getRuleContext().getRuleIndex()]; //parser
             int alt = node.getRuleContext().getAltNumber(); //parser
             Interval ival = node.getSourceInterval(); //parser
-            builder.addRuleNode(ruleName, alt, ival.a, ival.b, () -> { //parser
+            builder.addRuleNode(ruleName, alt, ival.a, ival.b, currentDepth, () -> { //parser
                 int n = node.getChildCount(); //parser
                 for (int i = 0; i < n; i++) { //parser
                     ParseTree c = node.getChild(i); //parser
@@ -201,13 +203,13 @@ public class ParserExtractor {
 
         @Override //parser
         public Void visitTerminal(TerminalNode node) { //parser
-            builder.addTerminalNode(node.getSymbol().getTokenIndex(), node.getText()); //parser
+            builder.addTerminalNode(node.getSymbol().getTokenIndex(), node.getText(), currentDepth + 1); //parser
             return null; //parser
         } //parser
 
         @Override //parser
         public Void visitErrorNode(ErrorNode node) { //parser
-            builder.addErrorNode(node.getSourceInterval().a, node.getSourceInterval().b); //parser
+            builder.addErrorNode(node.getSourceInterval().a, node.getSourceInterval().b, currentDepth); //parser
             return null; //parser
         } //parser
     } //parser

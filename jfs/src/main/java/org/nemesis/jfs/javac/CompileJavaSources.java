@@ -1,6 +1,7 @@
 package org.nemesis.jfs.javac;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -105,6 +106,7 @@ public class CompileJavaSources {
 
     public CompileResult compile(JFS jfs, Path singleSource, Location... sourceLocations) {
         CompileResult.Builder result = CompileResult.builder(Paths.get(""));
+        result.setInitialFileStatus(jfs.status(setOf(sourceLocations)));
         try {
             if (includedCodeBaseOf != null) {
                 throw new IllegalStateException("Cannot include the codebase of " + includedCodeBaseOf.getName()

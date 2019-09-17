@@ -32,10 +32,6 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     private boolean highlightReferencesUnderCaret;
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static void log(String msg, Object... args) {
         LOG.log(Level.FINER, msg, args);
     }

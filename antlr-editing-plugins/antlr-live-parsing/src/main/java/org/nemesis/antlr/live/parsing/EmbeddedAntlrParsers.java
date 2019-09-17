@@ -15,15 +15,15 @@ modification, are permitted provided that the following conditions are met:
 * The name of its author may not be used to endorse or promote products
   derived from this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED 
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
-SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
 EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
 OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.parsing;
@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.compilation.GrammarRunResult;
@@ -41,6 +42,7 @@ import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ReparseListeners;
+import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 
@@ -51,38 +53,28 @@ import org.openide.filesystems.FileUtil;
 public class EmbeddedAntlrParsers {
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParsers.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
     private final Map<FileObject, Set<EmbeddedAntlrParser>> liveParsersForFile
             = CollectionUtils.concurrentSupplierMap(() -> {
                 return Collections.synchronizedSet(CollectionUtils.weakSet());
             });
 
-    private static volatile EmbeddedAntlrParsers INSTANCE;
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
+    private static final Supplier<EmbeddedAntlrParsers> INSTANCE_SUPPLIER
+            = CachingSupplier.of(EmbeddedAntlrParsers::new);
 
     private static EmbeddedAntlrParsers instance() {
-        EmbeddedAntlrParsers result = INSTANCE;
-        if (result == null) {
-            synchronized (EmbeddedAntlrParsers.class) {
-                result = INSTANCE;
-                if (result == null) {
-                    result = INSTANCE = new EmbeddedAntlrParsers();
-                    LOG.log(Level.FINEST, "Create default instance");
-                }
-            }
-        }
-        return result;
+        return INSTANCE_SUPPLIER.get();
     }
 
     /**
-     * Get an embedded antlr parser which can be passed some text
-     * which will be processed using an in-memory-compiled version of
-     * the passed Antlr grammar file, returning an analysis of
-     * the syntax tree, any errors encountered, etc.  In the case
-     * that an exception is thrown or compilation fails, an unparsed
-     * representation with a single token type will be returned.
+     * Get an embedded antlr parser which can be passed some text which will be
+     * processed using an in-memory-compiled version of the passed Antlr grammar
+     * file, returning an analysis of the syntax tree, any errors encountered,
+     * etc. In the case that an exception is thrown or compilation fails, an
+     * unparsed representation with a single token type will be returned.
      *
      * @param grammar A grammar
      * @return A parser
@@ -92,9 +84,9 @@ public class EmbeddedAntlrParsers {
     }
 
     /**
-     * Subscribe to analyses for a particular path; when any
-     * EmbeddedAntlrParser parses something using the given grammar
-     * file path, the listener will get a notification.
+     * Subscribe to analyses for a particular path; when any EmbeddedAntlrParser
+     * parses something using the given grammar file path, the listener will get
+     * a notification.
      *
      * @param path The path
      * @param listener A listener
@@ -107,10 +99,26 @@ public class EmbeddedAntlrParsers {
         ReparseListeners.unlisten(path, listener);
     }
 
+    private EmbeddedAntlrParser find(Set<EmbeddedAntlrParser> parsers) {
+        for (EmbeddedAntlrParser e : parsers) {
+            if (e != null && !e.isDisposed()) {
+                return e;
+            }
+        }
+        return null;
+    }
+
     private EmbeddedAntlrParser _subscribe(FileObject grammar) {
         Set<EmbeddedAntlrParser> set = liveParsersForFile.get(grammar);
+
+        EmbeddedAntlrParser p;
+//        EmbeddedAntlrParser p = find(set);
+//        if (p != null) {
+//            return p;
+//        }
+
         Path path = FileUtil.toFile(grammar).toPath();
-        EmbeddedAntlrParser p = new EmbeddedAntlrParser(path, grammar.getName());
+        p = new EmbeddedAntlrParser(path, grammar.getName());
 
         LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
                 + " {1} subscribers",

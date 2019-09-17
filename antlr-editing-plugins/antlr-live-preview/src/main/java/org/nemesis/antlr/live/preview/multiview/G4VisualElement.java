@@ -33,6 +33,7 @@ import java.awt.EventQueue;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Action;
@@ -83,10 +84,11 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     private static final Logger LOG = Logger.getLogger(
             G4VisualElement.class.getName());
     private static final RequestProcessor INIT
-            = new RequestProcessor(G4VisualElement.class.getName(), 3);
+            = new RequestProcessor(G4VisualElement.class.getName(), 5);
     private final MutableProxyLookup lkp;
     private UndoRedo undoRedo = UndoRedo.NONE;
     private Lookup.Result<SaveCookie> saveCookieResult;
+    VeryLazyInitPanel superLazy = new VeryLazyInitPanel(this::veryLazyInit, INIT);
 
     public G4VisualElement(Lookup lkp) {
         obj = lkp.lookup(DataObject.class);
@@ -168,7 +170,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                         initTask = INIT.create(() -> {
                             _lazyInit(file.toPath());
                         });
-                        initTask.schedule(50);
+                        initTask.schedule(5);
                     } else {
                         loadingLabel.setText(Bundle.NOT_REGULAR_FILE(obj.getPrimaryFile().getPath()));
                     }
@@ -181,12 +183,83 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         }
     }
 
+    void veryLazyInit(Consumer<JComponent> onEqWhenDone) {
+        long then = System.currentTimeMillis();
+        if (obj.isValid()) {
+            Folders flds = Folders.ownerOf(obj.getPrimaryFile());
+            switch (flds) {
+                case ANTLR_TEST_GRAMMAR_SOURCES:
+                case ANTLR_GRAMMAR_SOURCES:
+                    File file = FileUtil.toFile(obj.getPrimaryFile());
+                    if (file != null) {
+                        StatusDisplayer.getDefault().setStatusText(
+                                Bundle.REGISTERING_DYNAMIC(obj.getPrimaryFile().getNameExt()));
+                    } else {
+                        loadingLabel.setText(Bundle.NOT_REGULAR_FILE(obj.getPrimaryFile().getPath()));
+                    }
+                    String mime = AdhocMimeTypes.mimeTypeForPath(file.toPath());
+                    if (DynamicLanguages.ensureRegistered(mime)) {
+                        try {
+                            // XXX we are racing here with the file change listener that
+                            // detects newly installed languages - really we need
+                            // something to listen on that will fire a change when the
+                            // language is fully registered - otherwise we'll wind up
+                            // with a text/plain component
+                            Thread.sleep(100);
+                        } catch (InterruptedException ex) {
+                            LOG.log(Level.INFO, null, ex);
+                        }
+                    }
+                    EventQueue.invokeLater(() -> {
+                        StatusDisplayer.getDefault()
+                                .setStatusText(
+                                        Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
+                        LOG.log(Level.FINEST,
+                                "Lazy load completed in {0} ms", new Object[]{
+                                    System.currentTimeMillis() - then});
+                        PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup());
+                        UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
+                        if (prov != null) {
+                            this.undoRedo = prov.get();
+                            super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
+                        }
+                        this.lkp.setAdditional(pnl.getLookup());
+                        saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
+                        saveCookieResult.addLookupListener(this);
+                        onEqWhenDone.accept(pnl);
+                        pnl.notifyShowing();
+                    });
+                    break;
+                default:
+                    EventQueue.invokeLater(() -> {
+                        loadingLabel.setText(Bundle.WRONG_FOLDER());
+                        onEqWhenDone.accept(loadingLabel);
+                    });
+            }
+        } else {
+            loadingLabel.setText(Bundle.NOT_A_FILE(obj.getPrimaryFile().getPath()));
+        }
+    }
+
+    private PreviewPanel panel;
+
     private void _lazyInit(Path path) {
         assert !EventQueue.isDispatchThread();
         // XXX theoretically the file can be deleted between lazyInit() and
         // this being run on a background thread
         String mime = AdhocMimeTypes.mimeTypeForPath(path);
-        DynamicLanguages.ensureRegistered(mime);
+        if (DynamicLanguages.ensureRegistered(mime)) {
+            try {
+                // XXX we are racing here with the file change listener that
+                // detects newly installed languages - really we need
+                // something to listen on that will fire a change when the
+                // language is fully registered - otherwise we'll wind up
+                // with a text/plain component
+                Thread.sleep(100);
+            } catch (InterruptedException ex) {
+                LOG.log(Level.INFO, null, ex);
+            }
+        }
         LOG.log(Level.FINER, "Background lanugage registration of {0}"
                 + " as pseudo-mime-type {1}", new Object[]{obj.getPrimaryFile().getPath(), mime});
         long then = System.currentTimeMillis();
@@ -197,7 +270,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
             LOG.log(Level.FINEST,
                     "Lazy load completed in {0} ms", new Object[]{
                         System.currentTimeMillis() - then});
-            PreviewPanel pnl = new PreviewPanel(mime, obj.getLookup());
+            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup());
             UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
             if (prov != null) {
                 this.undoRedo = prov.get();
@@ -209,6 +282,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
             remove(loadingLabel);
 //            toolbar.add(new FindCulpritAction(pnl.getLookup()));
             add(pnl, BorderLayout.CENTER);
+            pnl.notifyShowing();
         });
     }
 
@@ -223,10 +297,18 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
     @Override
     public void componentShowing() {
+        superLazy.showing();
+        if (panel != null) {
+            panel.notifyShowing();
+        }
     }
 
     @Override
     public void componentHidden() {
+        superLazy.hidden();
+        if (panel != null) {
+            panel.notifyHidden();
+        }
     }
 
     @Override

@@ -94,10 +94,5 @@
             <groupId>com.mastfrog</groupId>
             <artifactId>util-strings</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.mastfrog</groupId>
-            <artifactId>util-strings</artifactId>
-            <version>${mastfrog.version}</version>
-        </dependency>
     </dependencies>
 </project>

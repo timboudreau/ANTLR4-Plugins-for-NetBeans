@@ -35,13 +35,16 @@ import org.nemesis.antlr.ANTLRv4Parser;
  * @author Tim Boudreau
  */
 enum GrammarKind {
-    PARSER, LEXER, COMBINED;
+    PARSER, LEXER, COMBINED, UNKNOWN;
 
     boolean isLexerOnly() {
         return this == LEXER;
     }
 
     static GrammarKind forTree(ANTLRv4Parser.GrammarFileContext tree) {
+        if (tree == null || tree.grammarSpec() == null || tree.grammarSpec().grammarType() == null) {
+            return UNKNOWN;
+        }
         boolean isLexer = tree.grammarSpec().grammarType().LEXER() != null;
         boolean isParser = tree.grammarSpec().grammarType().PARSER() != null;
         if (isLexer) {

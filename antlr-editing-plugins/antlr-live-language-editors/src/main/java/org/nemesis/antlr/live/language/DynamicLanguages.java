@@ -40,7 +40,7 @@ import org.openide.util.Lookup;
 public class DynamicLanguages {
 
     public static void deregister(String mimeType) {
-        if (!AdhocColoringsRegistry.getDefault().isRegsitered(mimeType)) {
+        if (!AdhocColoringsRegistry.getDefault().isRegistered(mimeType)) {
             AdhocColoringsRegistry.getDefault().remove(mimeType);
         }
         if (!AdhocMimeDataProvider.getDefault().isRegistered(mimeType)) {
@@ -52,13 +52,17 @@ public class DynamicLanguages {
         return AdhocColoringsRegistry.getDefault().mimeTypes();
     }
 
-    public static void ensureRegistered(String mimeType) {
-        if (!AdhocColoringsRegistry.getDefault().isRegsitered(mimeType)) {
+    public static boolean ensureRegistered(String mimeType) {
+        boolean result = false;
+        if (!AdhocColoringsRegistry.getDefault().isRegistered(mimeType)) {
             AdhocColoringsRegistry.getDefault().get(mimeType);
+            result = true;
         }
         if (!AdhocMimeDataProvider.getDefault().isRegistered(mimeType)) {
             AdhocMimeDataProvider.getDefault().addMimeType(mimeType);
+            result = true;
         }
+        return result;
     }
 
     static AdhocMimeDataProvider mimeData() {

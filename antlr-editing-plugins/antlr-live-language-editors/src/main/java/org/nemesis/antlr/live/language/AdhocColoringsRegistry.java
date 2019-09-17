@@ -29,11 +29,10 @@ import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import com.mastfrog.graph.StringGraph;
 import java.io.File;
-import java.util.Collection;
-import java.util.Collections;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.file.AntlrKeys;
+import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -41,12 +40,7 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
-import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
@@ -80,7 +74,7 @@ public final class AdhocColoringsRegistry {
         // do nothing
     }
 
-    boolean isRegsitered(String mimeType) {
+    boolean isRegistered(String mimeType) {
         return coloringsForMimeType.containsKey(mimeType);
     }
 
@@ -274,20 +268,17 @@ public final class AdhocColoringsRegistry {
                 Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
                 File f = path.toFile();
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(f));
-                Collection<Source> src = Collections.singleton(Source.create(fo));
-                ParserManager.parse(src, new UserTask() {
-                    @Override
-                    public void run(ResultIterator resultIterator) throws Exception {
-                        Parser.Result res = resultIterator.getParserResult();
-                        if (res instanceof ExtractionParserResult) {
-                            update(mimeType, ((ExtractionParserResult) res).extraction());
-                        }
-                    }
+                Extraction extraction = ParsingUtils.parse(fo, res -> {
+                    return res instanceof ExtractionParserResult ?
+                            ((ExtractionParserResult) res).extraction() : null;
                 });
+                if (extraction != null) {
+                    update(mimeType, extraction);
+                }
             }
             return colorings;
-        } catch (IOException | ParseException ex) {
-            Exceptions.printStackTrace(ex);
+        } catch (Exception ex) {
+            LOG.log(Level.SEVERE, "Getting colorings for " + AdhocMimeTypes.loggableMimeType(mimeType), ex);
             return new AdhocColorings();
         }
     }

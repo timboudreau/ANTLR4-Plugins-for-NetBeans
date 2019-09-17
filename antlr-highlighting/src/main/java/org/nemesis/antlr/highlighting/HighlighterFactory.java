@@ -48,7 +48,6 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
 
     private int zorderPosition() {
         String s = zorder.toString();
-        System.out.println("ZORDER '" + s + "'");
         int open = s.indexOf('(');
         int close = s.indexOf(')');
         if (open > 0 && close > 0 && close > open) {
@@ -114,7 +113,6 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
     public HighlightsLayer createLayer(Context ctx) {
         GeneralHighlighter<?> highlighter = createHighlighter(ctx);
         LOG.log(Level.FINER, "Create highlights layer for {0}", highlighter);
-        System.out.println("CREATE LAYER " + highlighter);
         return highlighter == null ? null
                 : HighlightsLayer.create(id.toString(), zorder.forPosition(positionInZOrder),
                         fixedSize, highlighter.getHighlightsBag());

@@ -63,7 +63,6 @@ public final class SampleFiles {
             }
             sampleFile.setAttribute("sample", true);
             DynamicLanguages.ensureRegistered(mimeType);
-            FileUtil.setMIMEType(ext, mimeType);
         } else {
             DynamicLanguages.ensureRegistered(mimeType);
         }

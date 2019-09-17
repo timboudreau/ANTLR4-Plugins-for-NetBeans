@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Field;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import org.antlr.v4.tool.GrammarTransformPipeline;
 import org.antlr.v4.tool.LexerGrammar;
 import org.antlr.v4.tool.ast.GrammarAST;
 import org.antlr.v4.tool.ast.GrammarRootAST;
+import static org.nemesis.antlr.memory.tool.ToolContext.currentFile;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.stringtemplate.v4.ST;
@@ -51,30 +53,37 @@ import org.stringtemplate.v4.ST;
  */
 public final class MemoryTool extends Tool {
 
-    private final JFS jfs;
-    final Location inputLocation;
-    private final Path dir;
-    private PrintStream logStream;
     private static final String OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT = "vs2005";
-    private final Location outputLocation;
     private final boolean initialized;
-    private final ThreadLocal<Path> currentFile = new ThreadLocal<>();
 
-    public MemoryTool(JFS jfs, Location inputLocation, Path dir, Location outputLocation, String... args) {
+    MemoryTool(ToolContext ctx, String... args) {
         super(args);
-        this.jfs = jfs;
-        if (jfs.get(inputLocation, dir) != null) {
+        if (ctx.jfs.get(ctx.inputLocation, ctx.dir) != null) {
             throw new IllegalArgumentException("Input directory is actually "
-                    + "a JFS file, not its parent: " + dir);
+                    + "a JFS file, not its parent: " + ctx.dir);
         }
-        this.inputLocation = inputLocation;
-        this.outputLocation = outputLocation;
-        this.dir = dir;
+        // We cannot serialize UnixPath, or ST4's Interpreter will
+        // go into an endless loop
         this.msgFormat = OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT;
-        this.errMgr = new ErrM(this, currentFile::get);
+        this.errMgr = new ErrM(this);
         errMgr.setFormat(msgFormat);
-        grammarEncoding = jfs.encoding().name();
+        grammarEncoding = ctx.jfs.encoding().name();
         initialized = true;
+    }
+
+    void initLog(ToolContext ctx) {
+        if (ctx.logStream != null) {
+            ctx.logStream.println("Init " + getClass().getName() + " " + versionInfo());
+            ctx.logStream.println("Over JFS with\n" + list());
+        }
+    }
+
+    public static MemoryTool create(Path dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
+        return ToolContext.create(dir, jfs, inputLocation, outputLocation, logStream, args);
+    }
+
+    private Path dir() {
+        return ToolContext.get(this).dir;
     }
 
     public void error(ANTLRMessage msg) {
@@ -102,18 +111,17 @@ public final class MemoryTool extends Tool {
     }
 
     JFS jfs() {
-        return jfs;
+        return ToolContext.get(this).jfs;
     }
 
-    public MemoryTool setLogStream(PrintStream printStream) {
-        this.logStream = printStream;
-        if (logStream != null) {
-            logStream.println("Init " + getClass().getName() + " " + versionInfo());
-            logStream.println("Over JFS with\n" + list());
-        }
-        return this;
-    }
-
+//    public MemoryTool setLogStream(PrintStream printStream) {
+//        this.logStream = printStream;
+//        if (logStream != null) {
+//            logStream.println("Init " + getClass().getName() + " " + versionInfo());
+//            logStream.println("Over JFS with\n" + list());
+//        }
+//        return this;
+//    }
     private int errorsFilledIn = -1;
 
     public List<ParsedAntlrError> errors() {
@@ -141,9 +149,17 @@ public final class MemoryTool extends Tool {
         return result;
     }
 
+    Location inputLocation() {
+        return ToolContext.get(this).inputLocation;
+    }
+
+    Location outputLocation() {
+        return ToolContext.get(this).outputLocation;
+    }
+
     private List<String> lines(Path path) {
         Set<LoadAttempt> attempts = new HashSet<>();
-        JFSFileObject fo = getFO(inputLocation, path, attempts);
+        JFSFileObject fo = getFO(inputLocation(), path, attempts, ToolContext.get(this));
         if (fo != null) {
             try {
                 CharSequence content = fo.getCharContent(true);
@@ -168,36 +184,39 @@ public final class MemoryTool extends Tool {
     @Override
     public void log(String msg) {
         // do nothing
-        if (logStream != null) {
-            logStream.println(msg);
-        }
+//        ToolContext ctx = ToolContext.get(this);
+//        if (ctx.logStream != null) {
+//            ctx.logStream.println(msg);
+//        }
     }
 
     @Override
     public void log(String component, String msg) {
-        // do nothing
-//        System.out.println(component + ": " + msg);
+        ToolContext ctx = ToolContext.get(this);
+        if (ctx.logStream != null) {
+            ctx.logStream.println(component + ": " + msg);
+        }
     }
 
     @Override
     public File getOutputDirectory(String fileNameWithPath) {
-//        throw new UnsupportedOperationException("File output not permitted:"
-//                + fileNameWithPath);
         return fileNameWithPath == null
                 ? new File(System.getProperty("java.io.tmpdir"))
                 : new File(fileNameWithPath);
     }
 
     Path resolveRelativePath(Path rel) {
-        return dir.resolve(rel);
+        return dir().resolve(rel);
     }
 
     @Override
     public Writer getOutputFileWriter(Grammar g, String fileName) throws IOException {
-        Path pth = dir.resolve(fileName);
+        ToolContext ctx = ToolContext.get(this);
+        Path pth = ctx.dir.resolve(fileName);
         // PENDING:  In Maven, .tokens file always end up in the default package.
         // Do that here?
-        JFSFileObject fo = jfs.getSourceFileForOutput(pth.toString(), outputLocation);
+        JFSFileObject fo = ctx.jfs.getSourceFileForOutput(pth.toString(),
+                ctx.outputLocation);
         return fo.openWriter();
     }
 
@@ -242,40 +261,94 @@ public final class MemoryTool extends Tool {
     }
 
     public Grammar loadGrammar(String fileName, Consumer<JFSFileObject> c) {
-        JFSFileObject fo = jfs.get(inputLocation, Paths.get(fileName));
+        ToolContext ctx = ToolContext.get(this);
+        JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, Paths.get(fileName));
         Set<LoadAttempt> attemptedPaths = new HashSet<>(3);
         if (fo == null) {
-            fo = getFO(inputLocation, dir.resolve(fileName), attemptedPaths);
+            fo = getFO(ctx.inputLocation, dir().resolve(fileName), attemptedPaths, ctx);
         }
         if (fo == null) {
-            fo = getFO(inputLocation, dir, attemptedPaths);
+            fo = getFO(ctx.inputLocation, dir(), attemptedPaths, ctx);
         }
         if (fo != null) {
             JFSFileObject finalFile = fo;
             return withCurrentPath(Paths.get(fo.getName()), () -> {
                 c.accept(finalFile);
-                try (Reader inReader = finalFile.openReader(true)) {
-                    org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(inReader, finalFile.length(), 512);
-                    GrammarRootAST grammarRootAST = parse(fileName, charStream);
-                    final Grammar g = createGrammar(grammarRootAST);
-                    if (g != null) {
-                        g.fileName = fileName;
-                        log("Loaded primary grammar " + g.name + " file "
-                                + g.fileName + " from " + inputLocation
-                                + ":" + finalFile);
-                        process(g, false);
-                    }
-                    return g;
-                } catch (IOException oi) {
-                    oi.printStackTrace();
-                    errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, oi, fileName);
-                    return null;
-                }
+                return readOneGrammar(finalFile, fileName, ctx);
             });
         } else {
             log("Could not load primary grammar " + fileName + " from any of " + attemptedPaths);
         }
         return null;
+    }
+
+    public Grammar readOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx) {
+        try {
+            CharSequence seq;
+            try {
+                seq = finalFile.getCharContent(true);
+            } catch (ClosedByInterruptException ex) {
+                if (ctx.logStream != null) {
+                    ex.printStackTrace(ctx.logStream);
+                }
+                Thread.interrupted();
+                seq = finalFile.getCharContent(true);
+            }
+            CharSequenceCharStream str = new CharSequenceCharStream(seq);
+            return doReadOneGrammar(finalFile, fileName, ctx, str);
+        } catch (IOException oi) {
+            oi.printStackTrace();
+            errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, oi, fileName);
+            return null;
+        }
+    }
+
+    public Grammar xreadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx) {
+        try (Reader inReader = finalFile.openReader(true)) {
+            return xdoReadOneGrammar(finalFile, fileName, ctx, inReader);
+        } catch (ClosedByInterruptException ex) {
+            Thread.interrupted();
+            try (Reader reader2 = finalFile.openReader(true)) {
+                return xdoReadOneGrammar(finalFile, fileName, ctx, reader2);
+            } catch (IOException ex1) {
+                ex1.printStackTrace();
+                errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, ex1, fileName);
+                return null;
+            }
+        } catch (IOException oi) {
+            oi.printStackTrace();
+            errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, oi, fileName);
+            return null;
+        }
+    }
+
+    private Grammar doReadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx, org.antlr.runtime.CharStream stream) throws IOException {
+        GrammarRootAST grammarRootAST = parse(fileName, stream);
+        final Grammar g = createGrammar(grammarRootAST);
+        if (g != null) {
+            g.fileName = fileName;
+            log("Loaded primary grammar " + g.name + " file "
+                    + g.fileName + " from " + ctx.inputLocation
+                    + ":" + finalFile);
+            process(g, false);
+        }
+        return g;
+    }
+
+    private Grammar xdoReadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx, Reader reader) throws IOException {
+        int len = finalFile.length();
+        System.out.println("LENGTH " + len + " " + finalFile);
+        org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(reader, len, 512);
+        GrammarRootAST grammarRootAST = parse(fileName, charStream);
+        final Grammar g = createGrammar(grammarRootAST);
+        if (g != null) {
+            g.fileName = fileName;
+            log("Loaded primary grammar " + g.name + " file "
+                    + g.fileName + " from " + ctx.inputLocation
+                    + ":" + finalFile);
+            process(g, false);
+        }
+        return g;
     }
 
     @Override
@@ -301,10 +374,11 @@ public final class MemoryTool extends Tool {
     }
 
     public JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName) {
+        ToolContext ctx = ToolContext.get(this);
         Set<LoadAttempt> failures = new HashSet<>(7);
-        JFSFileObject result = getImportedGrammarFileObject(g, fileName, inputLocation, failures);
+        JFSFileObject result = getImportedGrammarFileObject(g, fileName, ctx.inputLocation, failures, ctx);
         if (result == null) {
-            result = getImportedGrammarFileObject(g, fileName, outputLocation, failures);
+            result = getImportedGrammarFileObject(g, fileName, ctx.outputLocation, failures, ctx);
         }
         if (result == null) {
             log("Could not find imported " + fileName + " from " + g.name + " in any of "
@@ -313,28 +387,28 @@ public final class MemoryTool extends Tool {
         return result;
     }
 
-    private JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName, Location loc, Set<? super LoadAttempt> failures) {
-        JFSFileObject fo = jfs.get(loc, dir.resolve(fileName));
+    private JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName, Location loc, Set<? super LoadAttempt> failures, ToolContext ctx) {
+        JFSFileObject fo = ctx.jfs.get(loc, ctx.dir.resolve(fileName));
         if (fo == null) {
             Path nxt = Paths.get(fileName);
-            fo = jfs.get(loc, nxt);
+            fo = ctx.jfs.get(loc, nxt);
             if (fo == null && nxt.getParent() != null) {
-                fo = getFO(loc, nxt.getParent().resolve(fileName), failures);
+                fo = getFO(loc, nxt.getParent().resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("import").resolve(fileName), failures);
+                fo = getFO(loc, Paths.get("import").resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("imports").resolve(fileName), failures);
+                fo = getFO(loc, Paths.get("imports").resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("import").resolve(g.fileName), failures);
+                fo = getFO(loc, Paths.get("import").resolve(g.fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("imports").resolve(g.fileName), failures);
+                fo = getFO(loc, Paths.get("imports").resolve(g.fileName), failures, ctx);
             }
             if (fo == null && libDirectory != null) {
-                fo = getFO(loc, Paths.get(libDirectory).resolve(g.fileName), failures);
+                fo = getFO(loc, Paths.get(libDirectory).resolve(g.fileName), failures, ctx);
             }
         }
         if (fo != null) {
@@ -343,8 +417,8 @@ public final class MemoryTool extends Tool {
         return fo;
     }
 
-    JFSFileObject getFO(Location loc, Path path, Set<? super LoadAttempt> attempted) {
-        JFSFileObject fo = jfs.get(loc, path);
+    JFSFileObject getFO(Location loc, Path path, Set<? super LoadAttempt> attempted, ToolContext ctx) {
+        JFSFileObject fo = ctx.jfs.get(loc, path);
         if (fo == null) {
             attempted.add(new LoadAttempt(path, loc));
 //            log("Failed loading " + path + " from " + loc);
@@ -355,10 +429,11 @@ public final class MemoryTool extends Tool {
     }
 
     private String list() {
-        StringBuilder sb = new StringBuilder("Input location: " + inputLocation + "\n")
-                .append("Output location: ").append(outputLocation)
+        ToolContext ctx = ToolContext.get(this);
+        StringBuilder sb = new StringBuilder("Input location: " + ctx.inputLocation + "\n")
+                .append("Output location: ").append(ctx.outputLocation)
                 .append('\n');
-        for (Map.Entry<JFSFileObject, Location> e : jfs.listAll().entrySet()) {
+        for (Map.Entry<JFSFileObject, Location> e : ctx.jfs.listAll().entrySet()) {
             sb.append(e.getValue()).append('\t').append(e.getKey().getName()).append('\n');
         }
         return sb.toString();
@@ -490,11 +565,9 @@ public final class MemoryTool extends Tool {
 
         private final List<ParsedAntlrError> errors = new ArrayList<>(13);
         private final List<String> infos = new ArrayList<>(3);
-        private final Supplier<Path> currentFile;
 
-        public ErrM(Tool tool, Supplier<Path> currentFile) {
+        public ErrM(Tool tool) {
             super(tool);
-            this.currentFile = currentFile;
         }
 
         private String replaceWithPath(String name) {

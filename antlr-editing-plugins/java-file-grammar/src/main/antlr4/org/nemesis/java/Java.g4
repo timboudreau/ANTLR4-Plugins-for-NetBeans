@@ -42,7 +42,7 @@ grammar Java;
 options { tokenVocab = JavaLexer; }
 
 // starting point for parsing a java file
-compilationUnit :
+compilationUnitx :
     packageDeclaration?
     importDeclaration*
     typeDeclaration*

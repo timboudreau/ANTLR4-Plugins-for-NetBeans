@@ -15,6 +15,7 @@ import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
+import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
@@ -46,6 +47,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final boolean generateAll;
     public final Set<AntlrGenerationOption> options;
     public final Charset grammarEncoding;
+    public final JFSFileModifications filesStatus;
 
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
             String grammarName, Grammar grammar, List<ParsedAntlrError> errors,
@@ -68,6 +70,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.modifiedFiles = new HashMap<>(touched);
         this.allGrammars = Collections.unmodifiableSet(allGrammars);
         this.jfs = jfs;
+        this.filesStatus = jfs.status(inputLocation);
         this.grammarSourceLocation = inputLocation;
         this.javaSourceOutputLocation = outputLocation;
         this.grammarFile = grammarFile;
@@ -164,13 +167,14 @@ public final class AntlrGenerationResult implements ProcessingResult {
 
     @Override
     public UpToDateness currentStatus() {
-        if (grammarFile == null || modifiedFiles.isEmpty()) {
-            return UpToDateness.UNKNOWN;
-        }
-        if (grammarFile.getLastModified() > grammarFileLastModified) {
-            return UpToDateness.staleStatus().add(Paths.get(grammarFile.getName())).build();
-        }
-        return UpToDateness.fromFileTimes(modifiedFiles);
+//        if (grammarFile == null || modifiedFiles.isEmpty()) {
+//            return UpToDateness.UNKNOWN;
+//        }
+//        if (grammarFile.getLastModified() > grammarFileLastModified) {
+//            return UpToDateness.staleStatus().add(Paths.get(grammarFile.getName())).build();
+//        }
+//        return UpToDateness.fromFileTimes(modifiedFiles);
+        return filesStatus.changes().status();
     }
 
     public Set<JFSFileObject> touched() {

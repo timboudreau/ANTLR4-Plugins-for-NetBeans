@@ -9,7 +9,6 @@ import javax.swing.text.Document;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 
@@ -17,15 +16,10 @@ import org.netbeans.api.editor.document.LineDocumentUtils;
  *
  * @author Tim Boudreau
  */
-public class AdhocErrorHighlighter extends AbstractAntlrHighlighter.DocumentOriented<Void, AdhocParserResult, ParseTreeProxy> {
+public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
 
-    private final String mimeType;
-
-    public AdhocErrorHighlighter(Document doc, String mimeType) {
-        super(doc, AdhocParserResult.class, res -> {
-            return res.parseTree();
-        });
-        this.mimeType = mimeType;
+    public AdhocErrorHighlighter(Document doc) {
+        super(doc);
     }
 
     static AttributeSet errorColoring;
@@ -47,7 +41,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter.DocumentOrie
     }
 
     @Override
-    protected void refresh(Document doc, Void argument, ParseTreeProxy semantics, AdhocParserResult result) {
+    protected void refresh(HighlightingInfo info) {
+        Document doc = info.doc;
+        AntlrProxies.ParseTreeProxy semantics = info.semantics;
         LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
         bag.clear();
         if (!semantics.syntaxErrors().isEmpty()) {

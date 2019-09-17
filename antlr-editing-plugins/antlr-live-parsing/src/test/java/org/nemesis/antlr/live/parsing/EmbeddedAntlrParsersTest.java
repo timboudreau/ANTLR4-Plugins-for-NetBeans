@@ -34,7 +34,6 @@ import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,7 +86,9 @@ public class EmbeddedAntlrParsersTest {
         assertEquals("NestedMaps", ptp.grammarName());
 
         AntlrProxies.ParseTreeProxy ptp1 = p.parse(TEXT_1);
-        assertNotSame(ptp, ptp1);
+        // XXX disabled caching for now
+//        assertSame(ptp, ptp1);
+//        assertNotSame(ptp, p.parse(TEXT_1 + "  "));
         assertEquals(ptp, ptp1);
         assertEquals(1, p.rev());
 

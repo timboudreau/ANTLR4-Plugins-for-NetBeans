@@ -105,6 +105,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>debug-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live</artifactId>
         </dependency>
         <dependency>
@@ -135,6 +139,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jfs</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

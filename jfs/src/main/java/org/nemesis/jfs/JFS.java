@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
@@ -194,6 +195,70 @@ public final class JFS implements JavaFileManager {
      */
     public static JFSBuilder builder() {
         return new JFSBuilder();
+    }
+
+    /**
+     * Get a JFSFileModifications object, which collects last modified dates for
+     * all files in the specified locations, and can report if they have been
+     * modified, deleted, et cetera, at some later time, to figure out if a
+     * rebuild is needed.
+     *
+     * @param locations A set of locations
+     * @throws IllegalArgumentException if the set of locations is empty
+     * @return A JFSFileModifications
+     */
+    public final JFSFileModifications status(Set<Location> locations) {
+        if (locations.isEmpty()) {
+            throw new IllegalArgumentException("No locations");
+        }
+        return new JFSFileModifications(this, locations);
+    }
+
+    /**
+     * Get a JFSFileModifications object, which collects last modified dates for
+     * all files in the specified locations, and can report if they have been
+     * modified, deleted, et cetera, at some later time, to figure out if a
+     * rebuild is needed.
+     *
+     * @param locations A set of locations
+     * @param filter Filter the set of files that are tracked
+     * @throws IllegalArgumentException if the set of locations is empty
+     * @return A JFSFileModifications
+     */
+    public final JFSFileModifications status(Set<Location> locations, Predicate<Path> filter) {
+        if (locations.isEmpty()) {
+            throw new IllegalArgumentException("No locations");
+        }
+        return new JFSFileModifications(this, filter, locations);
+    }
+
+    /**
+     * Get a JFSFileModifications object, which collects last modified dates for
+     * all files in the specified locations, and can report if they have been
+     * modified, deleted, et cetera, at some later time, to figure out if a
+     * rebuild is needed.
+     *
+     * @param first The first location
+     * @param filter Filter the set of files that are tracked
+     * @param more Any additional locations
+     * @return A JFSFileModifications
+     */
+    public final JFSFileModifications status(Location first, Location... more) {
+        return new JFSFileModifications(this, first, more);
+    }
+
+    /**
+     * Get a JFSFileModifications object, which collects last modified dates for
+     * all files in the specified locations, and can report if they have been
+     * modified, deleted, et cetera, at some later time, to figure out if a
+     * rebuild is needed.
+     *
+     * @param first The first location
+     * @param more Any additional locations
+     * @return A JFSFileModifications
+     */
+    public final JFSFileModifications status(Predicate<Path> filter, Location first, Location... more) {
+        return new JFSFileModifications(this, filter, first, more);
     }
 
     /**
@@ -533,6 +598,14 @@ public final class JFS implements JavaFileManager {
             }
         }
         return result;
+    }
+
+    int list(Location location, BiConsumer<Location, JFSFileObject> consumer) {
+        JFSStorage stor = storageForLocation.get(location);
+        if (stor == null) {
+            return 0;
+        }
+        return stor.list(consumer);
     }
 
     @Override

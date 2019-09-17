@@ -3,7 +3,6 @@ package org.nemesis.antlr.compilation;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import javax.tools.JavaFileManager;
 import org.antlr.v4.tool.Grammar;
@@ -11,7 +10,7 @@ import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.jfs.result.UpToDateness;
 import org.nemesis.jfs.JFS;
-import org.nemesis.jfs.JFSFileObject;
+import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.jfs.result.ProcessingResult;
@@ -25,11 +24,11 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
     private final AntlrGenerationResult grammarGenerationResult;
     private final CompileResult compilationResult;
     private final Throwable thrown;
-    private final Map<JFSFileObject, Long> touched;
+    private final JFSFileModifications touched;
 
     AntlrGenerationAndCompilationResult(AntlrGenerationResult grammarGenerationResult,
             CompileResult compilationResult, Throwable thrown,
-            Map<JFSFileObject, Long> touched) {
+            JFSFileModifications touched) {
         this.grammarGenerationResult = grammarGenerationResult;
         this.compilationResult = compilationResult;
         this.thrown = thrown;
@@ -66,7 +65,7 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
 
     @Override
     public UpToDateness currentStatus() {
-        if (grammarGenerationResult == null || compilationResult == null || touched.isEmpty()) {
+        if (grammarGenerationResult == null || compilationResult == null) {
             return UpToDateness.UNKNOWN;
         }
         UpToDateness result = grammarGenerationResult.currentStatus();
@@ -77,7 +76,7 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         if (result.mayRequireRebuild()) {
             return result;
         }
-        return UpToDateness.fromFileTimes(touched);
+        return touched.changes().status();
     }
 
     @Override
@@ -103,7 +102,7 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
     }
 
     public Path sourceRoot() {
-        return compilationResult.sourceRoot();
+        return compilationResult == null ? null : compilationResult.sourceRoot();
     }
 
     @Override
@@ -121,11 +120,11 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
     }
 
     public boolean compileFailed() {
-        return compilationResult.compileFailed();
+        return compilationResult == null ? false : compilationResult.compileFailed();
     }
 
     public List<Path> compiledSourceFiles() {
-        return compilationResult.sources();
+        return compilationResult == null ? Collections.emptyList() : compilationResult.sources();
     }
 
     public List<JavacDiagnostic> javacDiagnostics() {

@@ -92,6 +92,7 @@ public class AntlrGeneratorTest {
 
         AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, AntlrLoggers.getDefault().forPath(Paths.get(GRAMMAR_FILE_NAME)), true);
         assertFalse(newResult.isUsable());
+//        assertTrue(newResult.thrown().isPresent());
 //        assertFalse(newResult.errors().isEmpty());
 
         result.clean();

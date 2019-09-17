@@ -36,8 +36,10 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.debug.api.Debug;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.modules.parsing.api.Source;
 import org.openide.filesystems.FileObject;
@@ -71,7 +73,8 @@ public final class AdhocReparseListeners {
             arl.documentListeners.get(doc).add(listener);
         });
         if (!found) {
-            LOG.log(Level.WARNING, "Dynamic language not registered for mime type " + mimeType, new Exception());
+            LOG.log(Level.WARNING, "Dynamic language not registered for mime type " + mimeType, new Exception(
+                    "Dynamic language not registered for mime type " + mimeType));
         }
     }
 
@@ -105,26 +108,36 @@ public final class AdhocReparseListeners {
     }
 
     void onReparse(Source src, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
-        FileObject fo = src.getFileObject();
-        if (fo != null && fileListeners.containsKey(fo)) {
-            for (TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : fileListeners.get(fo)) {
-                try {
-                    listener.apply(fo, gbrg, proxy);
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, "Notifying " + fo, ex);
+        Debug.run(this, "on-reparse " + AdhocMimeTypes.loggableMimeType(src.getMimeType()) + " " + AdhocMimeTypes.loggableMimeType(proxy.mimeType()), () -> {
+            StringBuilder sb = new StringBuilder("Source mime type: ").append(src.getMimeType()).append('\n');
+            sb.append("Source: ").append(src.getFileObject()).append('\n');
+            sb.append("Proxy mime type: ").append(proxy.mimeType()).append('\n');
+            sb.append("Proxy grammar file: ").append(proxy.grammarPath()).append('\n');
+            sb.append("\nPROXY:\n").append(proxy);
+            sb.append("\nTEXT:\n").append(proxy.text());
+            return sb.toString();
+        }, () -> {
+            FileObject fo = src.getFileObject();
+            if (fo != null && fileListeners.containsKey(fo)) {
+                for (TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : fileListeners.get(fo)) {
+                    try {
+                        listener.apply(fo, gbrg, proxy);
+                    } catch (Exception ex) {
+                        LOG.log(Level.SEVERE, "Notifying " + fo, ex);
+                    }
                 }
             }
-        }
-        Document doc = src.getDocument(false);
-        if (doc != null && documentListeners.containsKey(doc)) {
-            for (TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : documentListeners.get(doc)) {
-                try {
-                    listener.apply(doc, gbrg, proxy);
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, "Notifying " + doc, ex);
+            Document doc = src.getDocument(false);
+            if (doc != null && documentListeners.containsKey(doc)) {
+                for (TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : documentListeners.get(doc)) {
+                    try {
+                        listener.apply(doc, gbrg, proxy);
+                    } catch (Exception ex) {
+                        LOG.log(Level.SEVERE, "Notifying " + doc, ex);
+                    }
                 }
             }
-        }
+        });
     }
 
     void onReparse(Document doc, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {

@@ -48,11 +48,13 @@ import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.live.execution.InvocationRunner;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerationResult;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerator;
+import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner.GenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
-import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.isolation.IsolationClassLoader;
 import org.nemesis.jfs.isolation.IsolationClassLoaderBuilder;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
@@ -66,25 +68,29 @@ import org.stringtemplate.v4.Interpreter;
  */
 @ServiceProvider(service = InvocationRunner.class, path
         = "antlr/invokers/org/nemesis/antlr/live/parsing/impl/EmbeddedParser")
-public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, String> {
+public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, GenerationResult> {
 
     private static final Logger LOG = Logger.getLogger(
             ProxiesInvocationRunner.class.getName());
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);
     }
 
     @Override
-    protected String onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
+    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
         GrammarKind kind = GrammarKind.forTree(tree);
         Optional<Path> realSourceFile = extraction.source().lookup(Path.class);
         if (realSourceFile.isPresent()) {
             Path path = realSourceFile.get();
-            JFSFileObject fo = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs, res.packageName, res.grammarName());
-            LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} jfs {2}", new Object[]{path, kind, fo});
+            ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs, res.packageName, res.grammarName());
+            LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
             bldr.addToClasspath(AntlrProxies.class);
             bldr.addToClasspath(ANTLRErrorListener.class);
             bldr.addToClasspath(Tool.class);
@@ -94,7 +100,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, St
             bldr.addSourceLocation(StandardLocation.SOURCE_PATH);
             bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
             csc.accept(CLASSLOADER_FACTORY);
-            return res.packageName;
+            return new GenerationResult(genResult, res.packageName, path, res.grammarName);
         } else {
             LOG.log(Level.WARNING, "No source file for extraction {0}", extraction.logString());
         }
@@ -102,10 +108,29 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, St
     }
 
     @Override
-    public EmbeddedParser apply(String pkgName) throws Exception {
+    public EmbeddedParser apply(GenerationResult res) throws Exception {
+        if (!res.res.isSuccess()) {
+            LOG.log(Level.WARNING, "Failed to generate extractor: {0}", res);
+            return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
+        }
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, pkgName);
+        PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
         return env;
+    }
+
+    static class GenerationResult {
+
+        final ExtractionCodeGenerationResult res;
+        final String packageName;
+        final Path grammarPath;
+        final String grammarName;
+
+        public GenerationResult(ExtractionCodeGenerationResult res, String packageName, Path grammarPath, String grammarName) {
+            this.res = res;
+            this.packageName = packageName;
+            this.grammarPath = grammarPath;
+            this.grammarName = grammarName;
+        }
     }
 
     static final class EnvRef extends WeakReference<PreservedInvocationEnvironment> implements Runnable {
@@ -180,21 +205,43 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, St
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
-            ClassLoader old = Thread.currentThread().getContextClassLoader();
-            Thread.currentThread().setContextClassLoader(ldr);
-            try {
-                return th.get();
-            } finally {
-                if (old != ldr) {
-                    Thread.currentThread().setContextClassLoader(old);
+            return Debug.runObjectThrowing(this, "enter-embedded-parser " + typeName, () -> {
+                return ldr.toString();
+            }, () -> {
+                ClassLoader old = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(ldr);
+                try {
+                    return th.get();
+                } finally {
+                    if (old != ldr) {
+                        Thread.currentThread().setContextClassLoader(old);
+                    }
                 }
-            }
+            });
         }
 
         @Override
         public AntlrProxies.ParseTreeProxy parse(String body) throws Exception {
-            return clRun(() -> {
-                return reflectively(typeName, new Class<?>[]{String.class}, body);
+            AntlrProxies.ParseTreeProxy[] prex = new AntlrProxies.ParseTreeProxy[1];
+            return Debug.runObjectThrowing(this, "embedded-parse", () -> {
+                StringBuilder sb = new StringBuilder("************* BODY ***************\n");
+                sb.append(body);
+                sb.append("\n******************* PROXY *********************\n");
+                sb.append(prex[0]);
+                return "";
+            }, () -> {
+                return clRun(() -> {
+                    prex[0] = reflectively(typeName, new Class<?>[]{String.class}, body);
+                    Debug.message("" + prex[0].grammarPath());
+                    if (prex[0].isUnparsed()) {
+                        Debug.failure("unparsed result", () -> {
+                            return prex[0].grammarName() + " = " + prex[0].grammarPath();
+                        });
+                    } else {
+                        Debug.success("parsed", prex[0].tokenCount() + " tokens");
+                    }
+                    return prex[0];
+                });
             });
         }
 
@@ -228,5 +275,32 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, St
         public synchronized void onDiscard() {
             ref.run();
         }
+    }
+
+    static class DeadEmbeddedParser implements EmbeddedParser {
+
+        private final Path grammarPath;
+        private final String grammarName;
+
+        public DeadEmbeddedParser(Path path, String grammarName) {
+            this.grammarPath = path;
+            this.grammarName = grammarName;
+        }
+
+        @Override
+        public AntlrProxies.ParseTreeProxy parse(String body, int ruleNo) throws Exception {
+            return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
+        }
+
+        @Override
+        public AntlrProxies.ParseTreeProxy parse(String body, String ruleName) throws Exception {
+            return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
+        }
+
+        @Override
+        public void onDiscard() {
+            // do nothing
+        }
+
     }
 }

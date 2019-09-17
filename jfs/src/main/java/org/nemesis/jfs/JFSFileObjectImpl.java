@@ -46,6 +46,11 @@ class JFSFileObjectImpl implements JFSFileObject {
         }
     }
 
+    public JFSFileObjectImpl setTextContent(String txt) throws IOException {
+        setBytes(txt.getBytes(storage.encoding()), System.currentTimeMillis());
+        return this;
+    }
+
     @Override
     public JFSJavaFileObjectImpl toJavaFileObject() {
         if (this instanceof JFSJavaFileObjectImpl) {

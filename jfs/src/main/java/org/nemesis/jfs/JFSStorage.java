@@ -209,7 +209,7 @@ final class JFSStorage {
     JFSFileObjectImpl addRealFile(Path localName, Path realFile, Charset encoding) {
         Name name = Name.forPath(localName);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
-        FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this, 
+        FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this,
                 realFile, encoding);
         JFSFileObjectImpl fo
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding)
@@ -276,6 +276,15 @@ final class JFSStorage {
             return allocate(name, true).toJavaFileObject();
         }
         return null;
+    }
+
+    int list(BiConsumer<Location, JFSFileObject> c) {
+        int count = 0;
+        for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
+            c.accept(location, e.getValue());
+            count++;
+        }
+        return count;
     }
 
     Iterable<JavaFileObject> list(String packageName, Set<JavaFileObject.Kind> kinds, boolean recurse) {

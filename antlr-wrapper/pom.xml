@@ -38,5 +38,13 @@
             <groupId>org.antlr</groupId>
             <artifactId>antlr4</artifactId>
         </dependency>
+        <!-- for debugging -->
+        <!--
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>ST4</artifactId>
+            <version>4.2.1-SNAPSHOT</version>
+        </dependency>
+        -->
     </dependencies>
 </project>

@@ -12,6 +12,7 @@ import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.lexer.Language;
@@ -37,19 +38,25 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     private final Map<String, MimeEntry> lookups = new ConcurrentHashMap<>();
     private final Hook hook = new Hook();
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     void clear() { // tests
         lookups.clear();
     }
 
     void gooseLanguage(String mimeType) {
-        MimeEntry me = lookups.get(mimeType);
-        if (me != null) {
-            LOG.log(Level.FINEST, "Goose language {0}", AdhocMimeTypes.loggableMimeType(mimeType));
-            me.goose();
-        } else {
-            LOG.log(Level.FINEST, "No entry to goose for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
-        }
-        AdhocLanguageFactory.get().kill(mimeType);
+        Debug.run(this, "goose-language " + mimeType, () -> {
+            MimeEntry me = lookups.get(mimeType);
+            if (me != null) {
+                LOG.log(Level.FINEST, "Goose language {0}", AdhocMimeTypes.loggableMimeType(mimeType));
+                me.goose();
+            } else {
+                LOG.log(Level.FINEST, "No entry to goose for {0}", AdhocMimeTypes.loggableMimeType(mimeType));
+            }
+            AdhocLanguageFactory.get().kill(mimeType);
+        });
     }
 
     class Hook extends ParseResultHook<ParserRuleContext> {
@@ -67,6 +74,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             if (ext.isPlaceholder()) {
                 return false;
             }
+            System.out.println("exthash " + ext.tokensHash());
             Long lastMod = lastModificationDateForMimeType.get(mimeType);
             boolean result = false;
             if (lastMod == null) {
@@ -75,6 +83,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             if (!result) {
                 try {
                     long currentLastModified = ext.source().lastModified();
+                    System.out.println("MOD TIME DIFF " + (currentLastModified - lastMod));
                     if (currentLastModified > lastMod) {
                         String lastHash = lastExtractionHashForMimeType.get(mimeType);
                         if (lastHash == null) {
@@ -82,6 +91,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                         } else {
                             result = !lastHash.equals(ext.tokensHash());
                         }
+                        System.out.println("HASHES " + lastHash + " -> " + ext.tokensHash());
                     }
                 } catch (IOException ex) {
                     LOG.log(Level.WARNING, ext.source().toString(), ex);
@@ -101,15 +111,36 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         @Override
         protected void onReparse(ParserRuleContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
             LOG.log(Level.FINE, "AdhocMimeDataProvider.hook got reparse of {0}", extraction.source());
-            Optional<Path> pth = extraction.source().lookup(Path.class);
-            if (pth.isPresent()) {
-                String mime = AdhocMimeTypes.mimeTypeForPath(pth.get());
-                if (mime != null) {
-                    if (isRealUpdate(mimeType, extraction)) {
-                        updateMimeType(mime);
-                        gooseLanguage(mimeType);
-                    }
-                }
+            Optional<Path> sourcePathOpt = extraction.source().lookup(Path.class);
+            assert sourcePathOpt.isPresent() : "Could not translate " + extraction.source() + " into Path";
+            if (sourcePathOpt.isPresent()) {
+                Path sourcePath = sourcePathOpt.get();
+                String realMime = AdhocMimeTypes.mimeTypeForPath(sourcePath);
+                Debug.runThrowing(this, "AdhocMimeDataProvider-hook.onReparse " + mimeType + " " + extraction.source(),
+                        () -> {
+                            StringBuilder sb = new StringBuilder(mimeType);
+                            sb.append("\nsource: ").append(extraction.source().lookup(Path.class).isPresent()
+                                    ? extraction.source().lookup(Path.class) : "no-path").append('\n');
+                            return sb.toString();
+                        }, () -> {
+                            if (extraction.isPlaceholder()) {
+                                Debug.message("placeholder extraction");
+                            }
+                            System.out.println("Adhoc mime data provider on reparse");
+                            System.out.println("MIME IS " + AdhocMimeTypes.loggableMimeType(realMime));
+                            Debug.message("Mime type for path: " + realMime);
+                            if (isRealUpdate(realMime, extraction)) {
+                                System.out.println("REAL UPDATE ");
+                                AdhocDataObject.invalidateSources(realMime);
+                                updateMimeType(realMime);
+//                                gooseLanguage(realMime);
+//                                AdhocLanguageFactory.get().fire();
+                            } else {
+                                Debug.failure("not a real update", () -> {
+                                    return realMime + " " + mimeType;
+                                });
+                            }
+                        });
             }
         }
     }
@@ -150,18 +181,28 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
 
     void updateMimeType(String mime) {
         LOG.log(Level.FINER, "Update parsing environment for {0}", AdhocMimeTypes.loggableMimeType(mime));
-        AdhocLanguageFactory.get().update(mime);
+        boolean isReentry = AdhocLanguageFactory.get().update(mime);
+//        if (!isReentry) {
         MimeEntry me = lookups.get(mime);
         if (me != null) {
-            AdhocParserFactory pf = me.pf;
-            if (pf != null) {
-                pf.updated();
-            }
-            AdhocLanguageHierarchy hier = me.lookup.lookup(AdhocLanguageHierarchy.class);
-            if (hier != null) {
-                hier.languageUpdated();
-            }
+            Debug.run(this, "update-mime-type " + mime, () -> {
+                AdhocParserFactory pf = me.pf;
+                if (pf != null) {
+                    pf.updated();
+                } else {
+                    Debug.failure("no parser factory", me::toString);
+                }
+                AdhocLanguageHierarchy hier = me.lookup.lookup(AdhocLanguageHierarchy.class);
+                if (hier != null) {
+                    if (!isReentry) {
+                        hier.languageUpdated();
+                    }
+                } else {
+                    Debug.failure("no hierarchy", me::toString);
+                }
+            });
         }
+//        }
     }
 
     static final class DebugLookup extends Lookup {
@@ -213,13 +254,15 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.add(mimeType, layers = new HighlightsIC());
             content.add(errorHighlighter = AdhocErrorsHighlighter.create());
             content.add(listeners = new AdhocReparseListeners());
-            this.lookup = new DebugLookup(new AbstractLookup(content), mimeType);
-//            this.lookup = new AbstractLookup(content);
+//            this.lookup = new DebugLookup(new AbstractLookup(content), mimeType);
+            this.lookup = new AbstractLookup(content);
         }
 
         void goose() {
             LOG.log(Level.FINE, "Replace language converter for {0}",
                     AdhocMimeTypes.loggableMimeType(mimeType));
+
+            Debug.message("replace-hierarchy for " + mimeType);
             content.remove(mimeType, cvt);
             // We need a new LanguageIC instance or we get the old
             // result - lookup weakly caches it?

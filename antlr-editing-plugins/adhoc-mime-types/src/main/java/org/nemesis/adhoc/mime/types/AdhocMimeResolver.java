@@ -34,9 +34,6 @@ public class AdhocMimeResolver extends MIMEResolver {
 
     private final int[] codes;
     private static final Logger LOG = Logger.getLogger(AdhocMimeResolver.class.getName());
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     @SuppressWarnings("deprecation")
     public AdhocMimeResolver() {

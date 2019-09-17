@@ -1,14 +1,16 @@
 package org.nemesis.antlr.live.execution;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -31,6 +33,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Utilities;
 import org.openide.util.lookup.Lookups;
@@ -43,26 +46,13 @@ public class AntlrRunSubscriptions {
 
     public static final String BASE_PATH = "antlr/invokers/";
     private static final Logger LOG = Logger.getLogger(AntlrRunSubscriptions.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-    private static Set<String> WARNED = new HashSet<>(3);
+    private static final Set<String> WARNED = new HashSet<>(3);
     private final Map<Class<?>, Entry<?, ?>> subscriptionsByType = new HashMap<>();
-
-    private static volatile AntlrRunSubscriptions INSTANCE;
+    private static final Supplier<AntlrRunSubscriptions> INSTANCE_SUPPLIER
+            = CachingSupplier.of(AntlrRunSubscriptions::new);
 
     static AntlrRunSubscriptions instance() {
-        AntlrRunSubscriptions result = INSTANCE;
-        if (result == null) {
-            synchronized (AntlrRunSubscriptions.class) {
-                result = INSTANCE;
-                if (result == null) {
-                    result = INSTANCE = new AntlrRunSubscriptions();
-                }
-            }
-        }
-        return result;
+        return INSTANCE_SUPPLIER.get();
     }
 
     public static <T> InvocationSubscriptions<T> forType(Class<T> type) {
@@ -70,23 +60,26 @@ public class AntlrRunSubscriptions {
     }
 
     @SuppressWarnings("unchecked")
-    synchronized <T> Runnable _subscribe(FileObject fo, Class<T> type, BiConsumer<Extraction, GrammarRunResult<T>> c) {
-        Entry<T, ?> e = (Entry<T, ?>) subscriptionsByType.get(type);
-        if (e == null) {
-            InvocationRunner<T, ?> runner = find(type);
-            if (runner != null) {
-                e = new Entry<>(runner, c, this::remove);
-                LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}", new Object[]{runner, c});
-                subscriptionsByType.put(type, e);
-            }
-        } else {
-            boolean subscribed = e.subscribe(c);
-            if (!subscribed) { // was empty but not yet removed
-                Entry<T, ?> newEntry = new Entry<>(e.runner, c, this::remove);
-                LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}"
-                        + "replacing dead {3}", new Object[]{newEntry, c, e});
-                e = newEntry;
-                subscriptionsByType.put(type, e);
+    <T> Runnable _subscribe(FileObject fo, Class<T> type, BiConsumer<Extraction, GrammarRunResult<T>> c) {
+        Entry<T, ?> e;
+        synchronized (this) {
+            e = (Entry<T, ?>) subscriptionsByType.get(type);
+            if (e == null) {
+                InvocationRunner<T, ?> runner = find(type);
+                if (runner != null) {
+                    e = new Entry<>(runner, fo, c, this::remove);
+                    LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}", new Object[]{runner, c});
+                    subscriptionsByType.put(type, e);
+                }
+            } else {
+                boolean subscribed = e.subscribe(fo, c);
+                if (!subscribed) { // was empty but not yet removed
+                    Entry<T, ?> newEntry = new Entry<>(e.runner, fo, c, this::remove);
+                    LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}"
+                            + "replacing dead {3}", new Object[]{newEntry, c, e});
+                    e = newEntry;
+                    subscriptionsByType.put(type, e);
+                }
             }
         }
         if (e == null) {
@@ -97,7 +90,7 @@ public class AntlrRunSubscriptions {
         Runnable unsubscribeFromNotifications = RebuildSubscriptions.subscribe(fo, en);
         LOG.log(Level.FINER, "Subscribed {0} to rebuilds of {1}", new Object[]{c, fo});
         return () -> {
-            if (en.unsubscribe(c)) {
+            if (en.unsubscribe(fo, c)) {
                 unsubscribeFromNotifications.run();
             }
         };
@@ -139,14 +132,19 @@ public class AntlrRunSubscriptions {
     static final class Entry<T, A> implements Subscriber {
 
         private final InvocationRunner<T, A> runner;
-        private final Set<ConsumerReference> refs = Collections.synchronizedSet(new HashSet<>());
+//        private final Set<ConsumerReference> refs = Collections.synchronizedSet(new HashSet<>());
+        private final Map<FileObject, Set<ConsumerReference>> refs
+                = CollectionUtils.concurrentSupplierMap(ConcurrentHashMap::newKeySet);
         private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
         private final Consumer<Entry<?, ?>> onEmpty;
         private boolean disposed;
 
-        public Entry(InvocationRunner<T, A> runner, BiConsumer<Extraction, GrammarRunResult<T>> res, Consumer<Entry<?, ?>> onEmpty) {
+        public Entry(InvocationRunner<T, A> runner,
+                FileObject fo,
+                BiConsumer<Extraction, GrammarRunResult<T>> res,
+                Consumer<Entry<?, ?>> onEmpty) {
             this.runner = runner;
-            refs.add(new ConsumerReference(res));
+            refs.get(fo).add(new ConsumerReference(res));
             this.onEmpty = onEmpty;
         }
 
@@ -179,26 +177,27 @@ public class AntlrRunSubscriptions {
             }
         }
 
-        boolean unsubscribe(BiConsumer<Extraction, GrammarRunResult<T>> res) {
+        boolean unsubscribe(FileObject fo, BiConsumer<Extraction, GrammarRunResult<T>> res) {
             ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
             boolean found = false;
             try {
                 Set<ConsumerReference> toRemove = new HashSet<>();
                 writeLock.lock();
-                for (Iterator<ConsumerReference> it = refs.iterator(); it.hasNext();) {
-                    ConsumerReference ref = it.next();
-                    BiConsumer<Extraction, GrammarRunResult<T>> bc = ref.get();
-                    if (bc == res) {
-                        found = true;
+                if (this.refs.containsKey(fo)) {
+                    for (ConsumerReference ref : refs.get(fo)) {
+                        BiConsumer<Extraction, GrammarRunResult<T>> bc = ref.get();
+                        if (bc == res) {
+                            found = true;
+                        }
+                        if (found || bc == null) {
+                            toRemove.add(ref);
+                        }
                     }
-                    if (found || bc == null) {
-                        toRemove.add(ref);
+                    LOG.log(Level.FINE, "Remove {0}", toRemove);
+                    refs.get(fo).removeAll(toRemove);
+                    if (refs.isEmpty()) {
+                        disposed();
                     }
-                }
-                LOG.log(Level.FINE, "Remove {0}", toRemove);
-                refs.removeAll(toRemove);
-                if (refs.isEmpty()) {
-                    disposed();
                 }
             } finally {
                 writeLock.unlock();
@@ -206,14 +205,14 @@ public class AntlrRunSubscriptions {
             return found;
         }
 
-        boolean subscribe(BiConsumer<Extraction, GrammarRunResult<T>> res) {
+        boolean subscribe(FileObject fo, BiConsumer<Extraction, GrammarRunResult<T>> res) {
             ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
             try {
                 writeLock.lock();
                 if (disposed) {
                     return false;
                 }
-                refs.add(new ConsumerReference(res));
+                refs.get(fo).add(new ConsumerReference(res));
             } finally {
                 writeLock.unlock();
             }
@@ -221,20 +220,27 @@ public class AntlrRunSubscriptions {
         }
 
         void run(Extraction ex, GrammarRunResult<T> res) {
+            Optional<FileObject> ofo = ex.source().lookup(FileObject.class);
+            if (!ofo.isPresent()) {
+                return;
+            }
+            FileObject fo = ofo.get();
             ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
             Set<ConsumerReference> toRemove = new HashSet<>();
             try {
                 readLock.lock();
-                for (Iterator<ConsumerReference> it = refs.iterator(); it.hasNext();) {
-                    ConsumerReference ref = it.next();
-                    BiConsumer<Extraction, GrammarRunResult<T>> toInvoke = ref.get();
-                    if (toInvoke == null) {
-                        toRemove.add(ref);
-                    } else {
-                        try {
-                            toInvoke.accept(ex, res);
-                        } catch (Exception e) {
-                            LOG.log(Level.SEVERE, "Exception running " + toInvoke, ex);
+                if (refs.containsKey(fo)) {
+                    for (Iterator<ConsumerReference> it = refs.get(fo).iterator(); it.hasNext();) {
+                        ConsumerReference ref = it.next();
+                        BiConsumer<Extraction, GrammarRunResult<T>> toInvoke = ref.get();
+                        if (toInvoke == null) {
+                            toRemove.add(ref);
+                        } else {
+                            try {
+                                toInvoke.accept(ex, res);
+                            } catch (Exception e) {
+                                LOG.log(Level.SEVERE, "Exception running " + toInvoke, ex);
+                            }
                         }
                     }
                 }
@@ -246,7 +252,7 @@ public class AntlrRunSubscriptions {
                 ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
                 try {
                     writeLock.lock();
-                    refs.removeAll(toRemove);
+                    refs.get(fo).removeAll(toRemove);
                     if (refs.isEmpty()) {
                         disposed();
                     }

@@ -15,7 +15,6 @@ import javax.tools.JavaFileObject;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.jfs.JFS;
-import org.nemesis.jfs.JFSFileObject;
 
 /**
  * Takes ParserExtractor.template (symlink to ParserExtractor.java in this
@@ -83,10 +82,14 @@ public class ExtractionCodeGenerator {
         return dest;
     }
 
-    public static JFSFileObject saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName) throws IOException {
+    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName) throws IOException {
+        ExtractionCodeGenerationResult result = new ExtractionCodeGenerationResult(grammarName, pkg);
         // We presume antlr generation has been done here
+//        Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
+//        generated = CollectionUtils.concatenate(generated, fs.list(SOURCE_PATH, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false));
         Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
         generated = CollectionUtils.concatenate(generated, fs.list(SOURCE_PATH, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false));
+
         JavaFileObject candidateLexer = null;
         JavaFileObject foundParser = null;
         JavaFileObject foundLexer = null;
@@ -112,6 +115,9 @@ public class ExtractionCodeGenerator {
             String fn = Paths.get(fo.getName()).getFileName().toString();
             if (fn.endsWith(".java")) {
                 String nm = fn.substring(0, fn.length() - 5);
+                if (nm.toLowerCase().endsWith("lexer") || nm.toLowerCase().endsWith("parser") || grammarName.equalsIgnoreCase(nm)) {
+                    result.examined(nm);
+                }
                 // Look for GrammarNameParser.java - if it is not present,
                 // we probably have a lexer grammar
                 if (foundParser == null && nm.endsWith("Parser") && nm.length() > 6) {
@@ -146,17 +152,18 @@ public class ExtractionCodeGenerator {
         if (foundLexer == null && candidateLexer != null) {
             lexerSuffix = "";
         }
+        if (foundLexer == null && candidateLexer != null) {
+            foundLexer = candidateLexer;
+        }
         // If we found nothing, we're not going to generate anything compilable,
         // so bail here so we don't leave behind either a class missing parts
         // needed when generation is fixed, or an uncompilable turd
         if (foundLexer == null && candidateLexer == null && foundParser == null) {
-            throw new IOException("Could not find any lexer or parser java "
-                    + "sources in " + pkg + ".  Either the grammar is broken or code generation "
-                    + "failed.  Searched: " + generated);
+            return result;
         }
         String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix);
         Path extractorPath = Paths.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
-        return fs.create(extractorPath, SOURCE_PATH, code);
+        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
 
     public static String getLexerExtractorSourceCode(Path originalGrammarFile, String pkg,

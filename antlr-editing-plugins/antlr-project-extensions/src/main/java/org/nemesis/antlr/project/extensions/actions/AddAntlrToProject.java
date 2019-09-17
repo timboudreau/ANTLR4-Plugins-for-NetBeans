@@ -177,7 +177,7 @@ public final class AddAntlrToProject extends AbstractAction {
             }
             List<Version> l = new ArrayList<Version>(av);
             if (!l.isEmpty()) {
-                mdl.setSelectedItem(l.get(l.size() - 1));
+                mdl.setSelectedItem(l.get(l.size() - 1).toString());
             } else {
                 mdl.setSelectedItem("4.7.2");
             }
@@ -203,6 +203,7 @@ public final class AddAntlrToProject extends AbstractAction {
         }
 
         public NewAntlrConfigurationInfo info() {
+
             String version = ((String) versionBox.getSelectedItem()).trim();
             if (version.isEmpty()) {
                 version = "4.7.2";

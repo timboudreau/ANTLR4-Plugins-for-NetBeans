@@ -47,7 +47,7 @@ import org.openide.util.WeakListeners;
  */
 abstract class GeneralHighlighter<T> implements Runnable {
 
-    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 3, true);
+    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, true);
     private final AtomicReference<Future<?>> future = new AtomicReference<>();
     protected final static int REFRESH_DELAY = 100;
     protected final Document doc;
@@ -154,11 +154,15 @@ abstract class GeneralHighlighter<T> implements Runnable {
         @Override
         public void run(ResultIterator ri) throws Exception {
             LOG.log(Level.FINEST, "parseWhenScanFinished completed on {0}", Thread.currentThread());
-            try {
-                withParseResult(doc, ri, getArgument());
-            } catch (Exception e) {
-                LOG.log(Level.WARNING, "Exception rebuilding highlights", e);
-            }
+            // Ensure we don't do a bunch of long-running stuff while
+            // holding the parser manager's lock
+            THREAD_POOL.submit(() -> {
+                try {
+                    withParseResult(doc, ri, getArgument());
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING, "Exception rebuilding highlights", e);
+                }
+            });
         }
 
         @Override

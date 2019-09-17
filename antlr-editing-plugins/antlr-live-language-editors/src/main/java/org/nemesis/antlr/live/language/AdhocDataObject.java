@@ -11,6 +11,8 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -19,6 +21,7 @@ import javax.swing.Action;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.rawGrammarNameForMimeType;
 import org.nemesis.antlr.common.AntlrConstants;
+import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.openide.actions.CopyAction;
 import org.openide.actions.CutAction;
 import org.openide.actions.DeleteAction;
@@ -58,6 +61,7 @@ import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
+import org.openide.util.WeakSet;
 import org.openide.util.actions.SystemAction;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
@@ -73,6 +77,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
     private final Lookup lookup;
     private final CookieSet cookies;
     private final SaveCookieImpl saver;
+    private static final Set<FileObject> KNOWN = new WeakSet<>();
 
     @SuppressWarnings("LeakingThisInConstructor")
     public AdhocDataObject(FileObject pf, DataLoader loader) throws DataObjectExistsException {
@@ -89,6 +94,18 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
         cookies.add(supp);
         addPropertyChangeListener(this);
+        KNOWN.add(pf);
+    }
+
+    private static final Consumer<FileObject> INV = SourceInvalidator.create();
+    static void invalidateSources(String mimeType) {
+        System.out.println("INVALIDATE SOURCESF RO " + AdhocMimeTypes.loggableMimeType(mimeType));
+        for (FileObject fo : KNOWN) {
+            if (mimeType.equals(fo.getMIMEType())) {
+                System.out.println("INVALIDATE SOURCE OBJECTS FOR " + fo);
+                INV.accept(fo);
+            }
+        }
     }
 
     public String get() {
@@ -122,6 +139,13 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         @Override
         public void save() throws IOException {
             des.saveDocument();
+        }
+
+        @Override
+        public String toString() {
+            // ToString on the SaveCookie is what is printed
+            // to the status line on save
+            return des.getDataObject().getName();
         }
     }
 

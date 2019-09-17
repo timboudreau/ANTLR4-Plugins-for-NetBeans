@@ -89,9 +89,6 @@ public final class AntlrSources extends FileChangeAdapter implements Sources, Co
         for (File possibleBuildFile : possibleBuildFiles()) {
             FileUtil.addFileChangeListener(this, possibleBuildFile);
             LOG.log(Level.FINER, "{0} listen on {1}", new Object[]{this, possibleBuildFile});
-            if (LOG.isLoggable(Level.FINEST)) {
-                LOG.log(Level.FINEST, this + " addNotify() via ", new Exception());
-            }
         }
         Path path = FileUtil.toFile(projectLookup.lookup(Project.class).getProjectDirectory()).toPath();
         ProjectUpdates.subscribeToChanges(path, this);

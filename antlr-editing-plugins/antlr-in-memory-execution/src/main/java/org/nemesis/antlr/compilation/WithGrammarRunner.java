@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Supplier;
 import javax.tools.StandardLocation;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSClassLoader;
 
@@ -70,6 +71,7 @@ public final class WithGrammarRunner {
 
     private JFSClassLoader createClassLoader() throws IOException {
         JFS jfs = compiler.jfs();
+        Debug.message("create-classloader", jfs::currentClasspath);
         return jfs.getClassLoader(true, classLoaderSupplier.get(), StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
     }
 
@@ -87,33 +89,37 @@ public final class WithGrammarRunner {
         // - optionally return the last good result if there is one
         //    - Maybe a closure that takes both?
         // - clean method on results
-        GenerationAndCompilationResult res;
-        if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
-                && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
-            res = generateAndCompile(grammarFileName, options);
-        } else {
-            res = lastGenerationResult;
-        }
-        if (!res.genAndCompileResult.isUsable()) {
-            lastGenerationResult = null;
-            return new GrammarRunResult<>(null, null, res, lastGood(key));
-        }
-        lastGenerationResult = res;
-        ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
-        try {
-            try (JFSClassLoader nue = createClassLoader()) {
-                Thread.currentThread().setContextClassLoader(nue);
-                T result = reflectiveRunner.get();
-                GrammarRunResult<T> grr = new GrammarRunResult(result, null, res, null);
-                if (grr.isUsable()) {
-                    lastGoodResults.put(key, grr);
-                }
-                return grr;
+        return Debug.runObject(this, "with-grammar-runner-run " + grammarFileName, () -> {
+            GenerationAndCompilationResult res;
+            if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
+                    && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
+                Debug.message("regenerate-and-compile");
+                res = generateAndCompile(grammarFileName, options);
+            } else {
+                res = lastGenerationResult;
             }
-        } catch (Exception ex) {
-            return new GrammarRunResult(null, ex, res, lastGood(key));
-        } finally {
-            Thread.currentThread().setContextClassLoader(oldLoader);
-        }
+            if (!res.genAndCompileResult.isUsable()) {
+                lastGenerationResult = null;
+                Debug.failure("unusable-result", res::toString);
+                return new GrammarRunResult<>(null, null, res, lastGood(key));
+            }
+            lastGenerationResult = res;
+            ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
+            try {
+                try (JFSClassLoader nue = createClassLoader()) {
+                    Thread.currentThread().setContextClassLoader(nue);
+                    T result = reflectiveRunner.get();
+                    GrammarRunResult<T> grr = new GrammarRunResult(result, null, res, null);
+                    if (grr.isUsable()) {
+                        lastGoodResults.put(key, grr);
+                    }
+                    return grr;
+                }
+            } catch (Exception ex) {
+                return new GrammarRunResult(null, ex, res, lastGood(key));
+            } finally {
+                Thread.currentThread().setContextClassLoader(oldLoader);
+            }
+        });
     }
 }

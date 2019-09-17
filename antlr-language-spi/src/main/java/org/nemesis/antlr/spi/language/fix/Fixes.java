@@ -61,13 +61,7 @@ import org.openide.util.RequestProcessor;
 public final class Fixes {
 
     static final Logger LOG = Logger.getLogger(Fixes.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private final Extraction extraction;
-
     private final ParseResultContents contents;
 
     /**
@@ -109,6 +103,7 @@ public final class Fixes {
         add(null, Severity.HINT, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Add a hint with Severity.HINT and a callback which will be invoked to
      * collect possible fixes.
@@ -149,6 +144,7 @@ public final class Fixes {
         add(errorId, Severity.HINT, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Add a hint with Severity.HINT and a callback which will be invoked to
      * collect possible fixes.
@@ -185,6 +181,7 @@ public final class Fixes {
         add(errorId, Severity.HINT, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.HINT and an id.
      *
@@ -216,6 +213,7 @@ public final class Fixes {
         add(null, Severity.HINT, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.HINT.
      *
@@ -251,6 +249,7 @@ public final class Fixes {
         add(null, Severity.WARNING, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Ad a hint with Severity.WARNING and a callback which will be invoked to
      * collect possible fixes.
@@ -291,6 +290,7 @@ public final class Fixes {
         add(errorId, Severity.WARNING, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Add a hint with Severity.WARNING and a callback which will be invoked to
      * collect possible fixes.
@@ -328,6 +328,7 @@ public final class Fixes {
         add(errorId, Severity.WARNING, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.WARNING.
      *
@@ -359,6 +360,7 @@ public final class Fixes {
         add(null, Severity.WARNING, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.WARNING.
      *
@@ -392,6 +394,7 @@ public final class Fixes {
         add(null, Severity.ERROR, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Add a hint with Severity.ERROR and a callback which will be invoked to
      * collect possible fixes.
@@ -431,6 +434,7 @@ public final class Fixes {
         add(id, Severity.ERROR, message, item.start(), item.end(), lazyFixes);
         return this;
     }
+
     /**
      * Add a hint with Severity.ERROR and a callback which will be invoked to
      * collect possible fixes.
@@ -468,6 +472,7 @@ public final class Fixes {
         add(errorId, Severity.ERROR, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.ERROR.
      *
@@ -500,6 +505,7 @@ public final class Fixes {
         add(null, Severity.ERROR, message, item.start(), item.end(), null);
         return this;
     }
+
     /**
      * Add a hint with Severity.ERROR
      *
@@ -596,13 +602,13 @@ public final class Fixes {
 
         @Override
         public void addPropertyChangeListener(PropertyChangeListener l) {
-            LOG.log(Level.FINEST, "Add property change listener to {0}: {1}", new Object[] {this, l});
+            LOG.log(Level.FINEST, "Add property change listener to {0}: {1}", new Object[]{this, l});
             supp.addPropertyChangeListener(l);
         }
 
         @Override
         public void removePropertyChangeListener(PropertyChangeListener l) {
-            LOG.log(Level.FINEST, "Remove property change listener from {0}: {1}", new Object[] {this, l});
+            LOG.log(Level.FINEST, "Remove property change listener from {0}: {1}", new Object[]{this, l});
             Future<?> fut = this.future;
             supp.removePropertyChangeListener(l);
             if (fut != null && supp.getPropertyChangeListeners().length == 0) {
@@ -662,7 +668,7 @@ public final class Fixes {
             } finally {
                 computed = true;
                 future = null;
-                LOG.log(Level.FINEST, "Fix computation completed for {0} with {1}", new Object[] {this, fixen});
+                LOG.log(Level.FINEST, "Fix computation completed for {0} with {1}", new Object[]{this, fixen});
             }
             supp.firePropertyChange(PROP_COMPUTED, false, true);
             if (fixen.size() > 0) {

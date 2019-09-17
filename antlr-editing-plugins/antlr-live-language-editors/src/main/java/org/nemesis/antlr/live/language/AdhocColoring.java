@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.Vector;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.StyleConstants;
+import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.openide.util.Parameters;
 
 /**
@@ -61,6 +62,14 @@ public class AdhocColoring implements AttributeSet, Serializable {
         }
         Color c = color == null ? other.color : color;
         return new AdhocColoring(flags | other.flags, c);
+    }
+
+    public static AttributeSet combine(AdhocColoring a, AdhocColoring b) {
+        AttributeSet result = a.combine(b);
+        if (result == null) {
+            return AttributesUtilities.createImmutable(b, a);
+        }
+        return result;
     }
 
     boolean isColor() {

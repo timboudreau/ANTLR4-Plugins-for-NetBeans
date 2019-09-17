@@ -6,19 +6,18 @@
 package org.nemesis.antlr.compilation;
 
 import java.io.PrintStream;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.file.Path;
 import java.util.Set;
-import static javax.tools.JavaFileObject.Kind.CLASS;
+import java.util.function.Supplier;
 import javax.tools.StandardLocation;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerator;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
-import org.nemesis.jfs.JFSFileObject;
+import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 
 /**
  *
@@ -60,43 +59,84 @@ public class AntlrGeneratorAndCompiler {
     private CompileResult lastCompileResult;
 
     public AntlrGenerationAndCompilationResult compile(String grammarFileName, PrintStream logStream, Set<GrammarProcessingOptions> opts) {
-        AntlrGenerationResult run = null;
-        try {
-            if (opts.contains(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES) || (lastGenerationResult == null || !lastGenerationResult.isUsable())) {
-                run = (lastGenerationResult = generator.run(grammarFileName, logStream, true));
-            }
-        } catch (Exception ex) {
-            return new AntlrGenerationAndCompilationResult(run, null, ex, Collections.emptyMap());
-        }
-        if (run == null || !run.isUsable()) {
-            return new AntlrGenerationAndCompilationResult(run, null, null, Collections.emptyMap());
-        }
-        Map<JFSFileObject, Long> classFiles = new HashMap<>();
-        Map<JFSFileObject, Long> touched = new HashMap<>();
-        CompileResult res = null;
-        if (opts.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastCompileResult == null || !lastCompileResult.isUsable())) {
+        return Debug.runObject(this, "compile " + grammarFileName, () -> {
+            return "Opts " + opts + "\nGenerator: " + generator + "\nJFS: " + jfs;
+        }, () -> {
+            AntlrGenerationResult run = null;
             try {
-                jfs.list(StandardLocation.CLASS_OUTPUT, "", EnumSet.of(CLASS), true)
-                        .forEach(fo -> {
-                            classFiles.put((JFSFileObject) fo, fo.getLastModified());
-                        });
-                res = lastCompileResult = compileBuilder.compile();
-                jfs.list(StandardLocation.CLASS_OUTPUT, "", EnumSet.of(CLASS), true)
-                        .forEach(fo -> {
-                            @SuppressWarnings("element-type-mismatch")
-                            Long oldLastModified = classFiles.get(fo);
-                            long currLastModified = fo.getLastModified();
-                            if (oldLastModified == null || oldLastModified < currLastModified) {
-                                touched.put((JFSFileObject) fo, currLastModified);
-                            }
-                        });
+                if (opts.contains(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES) || (lastGenerationResult == null || !lastGenerationResult.isUsable())) {
+                    run = (lastGenerationResult = generator.run(grammarFileName, logStream, true));
+                }
             } catch (Exception ex) {
-                return new AntlrGenerationAndCompilationResult(run, res, ex, touched);
+                Debug.thrown(ex);
+                return new AntlrGenerationAndCompilationResult(run, null, ex, JFSFileModifications.empty());
             }
-        } else {
-            res = lastCompileResult;
-        }
-        return new AntlrGenerationAndCompilationResult(run, res, null, touched);
+            if (run == null || !run.isUsable()) {
+                AntlrGenerationResult cr = run;
+                Debug.failure("failed or unusable", () -> {
+                    return cr == null ? "null result" : cr.toString();
+                });
+                if (cr.thrown().isPresent()) {
+                    Debug.thrown(cr.thrown().get());
+                }
+                return new AntlrGenerationAndCompilationResult(run, null, null, JFSFileModifications.empty());
+            }
+            boolean shouldBuild = false;
+            if (opts.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES)) {
+                shouldBuild = true;
+            } else if (lastCompileResult == null || !lastCompileResult.isUsable()) {
+                shouldBuild = true;
+            } else if (lastCompileResult != null && !lastCompileResult.filesState().changes().filter(AntlrGeneratorAndCompiler::isJavaSource).isUpToDate()) {
+                shouldBuild = true;
+            }
+            CompileResult res;
+            if (shouldBuild) {
+                try {
+                    synchronized (this) {
+                        res = lastCompileResult = Debug.runObjectThrowing(this, "javac-compile " + grammarFileName, () -> {
+                            return generator.sourcePath().toString();
+                        }, compileBuilder::compile);
+                        if (res.isUsable()) {
+                            Debug.success("good compile", res::toString);
+                        } else {
+                            Debug.failure("bad compile", res::toString);
+                        }
+                        if (res.thrown().isPresent()) {
+                            Debug.thrown(res.thrown().get());
+                        }
+                    }
+                } catch (Exception ex) {
+                    return new AntlrGenerationAndCompilationResult(run, null, ex, JFSFileModifications.empty());
+                }
+            } else {
+                res = lastCompileResult;
+            }
+            return new AntlrGenerationAndCompilationResult(run, res, null, jfs.status(AntlrGeneratorAndCompiler::isJavaSource, StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT));
+        });
     }
 
+    static Supplier<String> info(CompileResult cr) {
+        Supplier<String> info = () -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Elapsed ms: ").append(cr.elapsedMillis()).append("\n\n");
+            sb.append("Compile failed: ").append(cr.compileFailed()).append('\n');
+            for (JavacDiagnostic diag : cr.diagnostics()) {
+                sb.append(diag).append('\n');
+            }
+            sb.append("\nSources:");
+            for (Path p : cr.sources()) {
+                sb.append(p).append('\n');
+            }
+            return sb.toString();
+        };
+        return info;
+    }
+
+    static boolean isJavaSource(Path path) {
+        return path.getFileName().toString().endsWith(".java");
+    }
+
+    static boolean isClassFile(Path path) {
+        return path.getFileName().toString().endsWith(".class");
+    }
 }

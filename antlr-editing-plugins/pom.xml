@@ -52,6 +52,8 @@ Copyright (C) 2012-2019 Tim Boudreau
         <module>antlr-live-language-editors</module>
         <module>antlr-editing-kit</module>
         <module>antlr-live-preview</module>
+        <module>debug-api/debug-api</module>
+        <module>debug-ui</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -138,6 +140,16 @@ Copyright (C) 2012-2019 Tim Boudreau
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-live-parsing</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>debug-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>debug-ui</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

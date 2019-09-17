@@ -120,7 +120,7 @@ public class AntlrProxies {
         ProxyToken all = new ProxyToken(text, 0, 0, 0, 0, 0, 0, text.length() - 1);
         ProxyToken eof = new ProxyToken("", -1, 0, 0, 0, 1, text.length(), text.length());
         ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
-        ParseTreeElement child = new RuleNodeTreeElement("everything", 0, 0, 1);
+        ParseTreeElement child = new RuleNodeTreeElement("unparsed", 0, 0, 1, 1);
         ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
         root.add(child);
         List<ProxyTokenType> tokenTypes = Arrays.asList(EOF_TYPE, textType);
@@ -259,8 +259,6 @@ public class AntlrProxies {
             }
             return true;
         }
-
-
 
         /**
          * Returns a ParseTreeProxy like this one, but with only some whitespace
@@ -1178,10 +1176,10 @@ public class AntlrProxies {
         }
 
         public ParseTreeBuilder addRuleNode(String ruleName, int alternative,
-                int sourceIntervalStart, int sourceIntervalEnd, Runnable run) {
+                int sourceIntervalStart, int sourceIntervalEnd, int depth, Runnable run) {
             ParseTreeElement old = element;
             try {
-                element = new RuleNodeTreeElement(ruleName, alternative, sourceIntervalStart, sourceIntervalEnd);
+                element = new RuleNodeTreeElement(ruleName, alternative, sourceIntervalStart, sourceIntervalEnd, depth);
                 element.index = index++;
                 proxies.addElement(element);
                 old.add(element);
@@ -1192,16 +1190,16 @@ public class AntlrProxies {
             return this;
         }
 
-        public ParseTreeBuilder addTerminalNode(int tokenIndex, String tokenText) {
-            TerminalNodeTreeElement nue = new TerminalNodeTreeElement(tokenIndex, tokenText);
+        public ParseTreeBuilder addTerminalNode(int tokenIndex, String tokenText, int currentDepth) {
+            TerminalNodeTreeElement nue = new TerminalNodeTreeElement(tokenIndex, tokenText, currentDepth);
             nue.index = index++;
             proxies.addElement(nue);
             element.add(nue);
             return this;
         }
 
-        public ParseTreeBuilder addErrorNode(int startToken, int endToken) {
-            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken);
+        public ParseTreeBuilder addErrorNode(int startToken, int endToken, int depth) {
+            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth);
             err.index = index++;
             proxies.addElement(err);
             element.add(err);
@@ -1223,6 +1221,10 @@ public class AntlrProxies {
 
         public ParseTreeElement(ParseTreeElementKind kind) {
             this.kind = kind;
+        }
+
+        public int depth() {
+            return 0;
         }
 
         public int index() {
@@ -1275,6 +1277,7 @@ public class AntlrProxies {
             return children.iterator();
         }
 
+        @Override
         public String toString() {
             return toString("", new StringBuilder()).toString();
         }
@@ -1321,7 +1324,7 @@ public class AntlrProxies {
         }
     }
 
-    interface TokenAssociated extends Serializable {
+    public interface TokenAssociated extends Serializable {
 
         int startTokenIndex();
 
@@ -1338,14 +1341,20 @@ public class AntlrProxies {
         private final int alternative;
         private final int startTokenIndex;
         private final int endTokenIndex;
+        private final short depth;
 
         public RuleNodeTreeElement(String ruleName, int alternative,
-                int startTokenIndex, int endTokenIndex) {
+                int startTokenIndex, int endTokenIndex, int depth) {
             super(ParseTreeElementKind.RULE);
             this.ruleName = ruleName;
             this.alternative = alternative;
             this.startTokenIndex = startTokenIndex;
             this.endTokenIndex = endTokenIndex;
+            this.depth = (short) depth;
+        }
+
+        public int depth() {
+            return depth;
         }
 
         public String name() {
@@ -1395,10 +1404,7 @@ public class AntlrProxies {
             if (this.endTokenIndex != other.endTokenIndex) {
                 return false;
             }
-            if (!Objects.equals(this.ruleName, other.ruleName)) {
-                return false;
-            }
-            return true;
+            return Objects.equals(this.ruleName, other.ruleName);
         }
     }
 
@@ -1406,11 +1412,18 @@ public class AntlrProxies {
 
         private final int startTokenIndex;
         private final int stopTokenIndex;
+        private final short depth;
 
-        public ErrorNodeTreeElement(int startToken, int stopToken) {
+        public ErrorNodeTreeElement(int startToken, int stopToken, int depth) {
             super(ParseTreeElementKind.ERROR);
             this.startTokenIndex = startToken;
             this.stopTokenIndex = stopToken;
+            this.depth = (short) depth;
+        }
+
+        @Override
+        public int depth() {
+            return depth;
         }
 
         public int startTokenIndex() {
@@ -1459,17 +1472,26 @@ public class AntlrProxies {
 
         private final int tokenIndex;
         private final String tokenText;
+        private final short depth;
 
-        public TerminalNodeTreeElement(int tokenIndex, String tokenText) {
+        public TerminalNodeTreeElement(int tokenIndex, String tokenText, int depth) {
             super(ParseTreeElementKind.TERMINAL);
             this.tokenIndex = tokenIndex;
             this.tokenText = tokenText;
+            this.depth = (short) depth;
         }
 
+        @Override
+        public int depth() {
+            return depth;
+        }
+
+        @Override
         public String stringify() {
             return "'" + tokenText + "'";
         }
 
+        @Override
         public String name() {
             return tokenText;
         }

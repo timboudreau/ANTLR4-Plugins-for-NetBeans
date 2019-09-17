@@ -117,7 +117,7 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
 
     @Override
     public int hashCode() {
-        return (type.type + 1) * 7 * grammarPath.hashCode();
+        return (type.type + 1) * 43;
     }
 
     @Override
@@ -129,5 +129,4 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
     public int compareTo(TokenId o) {
         return Integer.compare(ordinal(), o.ordinal());
     }
-
 }

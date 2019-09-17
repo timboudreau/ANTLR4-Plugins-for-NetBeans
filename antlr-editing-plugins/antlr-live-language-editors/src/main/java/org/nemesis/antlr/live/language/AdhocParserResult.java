@@ -26,6 +26,7 @@ public final class AdhocParserResult extends Parser.Result {
 
     @Override
     protected void invalidate() {
+//        new Exception("Invalidate " + proxy.grammarName()).printStackTrace();
         invalidator.accept(this);
     }
 

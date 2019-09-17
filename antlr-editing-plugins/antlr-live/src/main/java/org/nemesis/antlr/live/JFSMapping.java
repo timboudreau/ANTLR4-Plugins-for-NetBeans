@@ -10,6 +10,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
 import org.netbeans.api.project.Project;
 import org.openide.util.Utilities;
@@ -96,13 +97,25 @@ class JFSMapping {
         private <T> T whileLocked(ThrowingSupplier<T> run, Project[] p) throws Exception {
             p[0] = get();
             LOG.log(Level.FINEST, "Lock {0} for {1}", new Object[]{jfs, run});
-            lock.lock();
-            try {
-                return run.get();
-            } finally {
-                lock.unlock();
-                LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
-            }
+            return Debug.runObjectThrowing(jfs, "lock-jfs", () -> {
+                StringBuilder sb = new StringBuilder("JFS-").append(jfs.id());
+                if (p[0] != null) {
+                    sb.append(" for ").append(p[0].getProjectDirectory().getName());
+                }
+                sb.append('\n');
+                jfs.listAll((loc, fo) -> {
+                    sb.append(loc).append(": ").append(fo);
+                });
+                return sb.toString();
+            }, () -> {
+                lock.lock();
+                try {
+                    return run.get();
+                } finally {
+                    lock.unlock();
+                    LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
+                }
+            });
         }
 
         @Override

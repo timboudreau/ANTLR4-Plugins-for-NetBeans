@@ -67,6 +67,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>debug-api</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-common</artifactId>
         </dependency>
         <dependency>
@@ -89,6 +93,10 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-live</artifactId>
+        </dependency>        
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-spi</artifactId>
@@ -229,6 +237,11 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-live-execution</artifactId>
+            <scope>test</scope>
+        </dependency>        
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>test-fixtures-support</artifactId>
