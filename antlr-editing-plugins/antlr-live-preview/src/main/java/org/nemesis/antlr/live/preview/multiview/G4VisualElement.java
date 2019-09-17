@@ -30,30 +30,40 @@ package org.nemesis.antlr.live.preview.multiview;
 
 import java.awt.BorderLayout;
 import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
+import static javax.swing.text.Document.StreamDescriptionProperty;
+import javax.swing.text.StyledDocument;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
+import org.nemesis.antlr.live.language.DiscardChangesCookie;
 import org.nemesis.antlr.live.language.DynamicLanguages;
+import org.nemesis.antlr.live.language.SampleFiles;
 import org.nemesis.antlr.live.language.UndoRedoProvider;
 import org.nemesis.antlr.live.preview.PreviewPanel;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
+import org.netbeans.core.spi.multiview.MultiViewFactory;
+import org.openide.actions.SaveAction;
 import org.openide.awt.StatusDisplayer;
 import org.openide.awt.UndoRedo;
+import org.openide.cookies.EditorCookie;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -63,6 +73,8 @@ import org.openide.util.LookupListener;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
+import org.openide.util.actions.SystemAction;
+import org.openide.util.lookup.Lookups;
 
 import org.openide.windows.TopComponent;
 
@@ -98,7 +110,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         loadingLabel.setHorizontalAlignment(SwingConstants.CENTER);
         loadingLabel.setVerticalAlignment(SwingConstants.CENTER);
         loadingLabel.setEnabled(false);
-        add(loadingLabel, BorderLayout.CENTER);
+        add(superLazy, BorderLayout.CENTER);
     }
 
     @Override
@@ -185,6 +197,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
     void veryLazyInit(Consumer<JComponent> onEqWhenDone) {
         long then = System.currentTimeMillis();
+        Thread.currentThread().setName("G4VisualElement-init-" + obj.getName());
         if (obj.isValid()) {
             Folders flds = Folders.ownerOf(obj.getPrimaryFile());
             switch (flds) {
@@ -210,25 +223,40 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.INFO, null, ex);
                         }
                     }
-                    EventQueue.invokeLater(() -> {
-                        StatusDisplayer.getDefault()
-                                .setStatusText(
-                                        Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
-                        LOG.log(Level.FINEST,
-                                "Lazy load completed in {0} ms", new Object[]{
-                                    System.currentTimeMillis() - then});
-                        PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup());
-                        UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
-                        if (prov != null) {
-                            this.undoRedo = prov.get();
-                            super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
-                        }
-                        this.lkp.setAdditional(pnl.getLookup());
-                        saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
-                        saveCookieResult.addLookupListener(this);
-                        onEqWhenDone.accept(pnl);
-                        pnl.notifyShowing();
-                    });
+                    // Find or create a sample file to work with
+                    DataObject sampleFileDataObject = SampleFiles.sampleFile(mime);
+                    try {
+                        EditorCookie ck = sampleFileDataObject.getLookup().lookup(EditorCookie.class);
+                        // Open the document and set it on the editor pane
+                        StyledDocument doc = ck.openDocument();
+                        doc.putProperty("mimeType", mime);
+                        doc.putProperty(StreamDescriptionProperty, sampleFileDataObject);
+
+                        EventQueue.invokeLater(() -> {
+                            StatusDisplayer.getDefault()
+                                    .setStatusText(
+                                            Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
+                            LOG.log(Level.FINEST,
+                                    "Lazy load completed in {0} ms", new Object[]{
+                                        System.currentTimeMillis() - then});
+                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc);
+                            UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
+                            if (prov != null) {
+                                this.undoRedo = prov.get();
+                                super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
+                            }
+                            this.lkp.setAdditional(pnl.getLookup());
+                            saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
+                            saveCookieResult.addLookupListener(this);
+                            onEqWhenDone.accept(pnl);
+                        });
+                    } catch (Exception ex) {
+                        LOG.log(Level.SEVERE, "Exception opening " + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+                        EventQueue.invokeLater(() -> {
+                            loadingLabel.setText(ex.toString());
+                            onEqWhenDone.accept(loadingLabel);
+                        });
+                    }
                     break;
                 default:
                     EventQueue.invokeLater(() -> {
@@ -238,6 +266,9 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
             }
         } else {
             loadingLabel.setText(Bundle.NOT_A_FILE(obj.getPrimaryFile().getPath()));
+            EventQueue.invokeLater(() -> {
+                onEqWhenDone.accept(loadingLabel);
+            });
         }
     }
 
@@ -263,40 +294,60 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         LOG.log(Level.FINER, "Background lanugage registration of {0}"
                 + " as pseudo-mime-type {1}", new Object[]{obj.getPrimaryFile().getPath(), mime});
         long then = System.currentTimeMillis();
-        EventQueue.invokeLater(() -> {
-            StatusDisplayer.getDefault()
-                    .setStatusText(
-                            Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
-            LOG.log(Level.FINEST,
-                    "Lazy load completed in {0} ms", new Object[]{
-                        System.currentTimeMillis() - then});
-            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup());
-            UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
-            if (prov != null) {
-                this.undoRedo = prov.get();
-                super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
-            }
-            this.lkp.setAdditional(pnl.getLookup());
-            saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
-            saveCookieResult.addLookupListener(this);
-            remove(loadingLabel);
+        // Find or create a sample file to work with
+        DataObject sampleFileDataObject = SampleFiles.sampleFile(mime);
+
+        try {
+            EditorCookie ck = sampleFileDataObject.getLookup().lookup(EditorCookie.class);
+            // Open the document and set it on the editor pane
+            StyledDocument doc = ck.openDocument();
+            doc.putProperty("mimeType", mime);
+            doc.putProperty(StreamDescriptionProperty, sampleFileDataObject);
+            EventQueue.invokeLater(() -> {
+                StatusDisplayer.getDefault()
+                        .setStatusText(
+                                Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
+                LOG.log(Level.FINEST,
+                        "Lazy load completed in {0} ms", new Object[]{
+                            System.currentTimeMillis() - then});
+
+                PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc);
+                UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
+                if (prov != null) {
+                    this.undoRedo = prov.get();
+                    super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
+                }
+                this.lkp.setAdditional(pnl.getLookup());
+                saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
+                saveCookieResult.addLookupListener(this);
+                remove(loadingLabel);
 //            toolbar.add(new FindCulpritAction(pnl.getLookup()));
-            add(pnl, BorderLayout.CENTER);
-            pnl.notifyShowing();
-        });
+                add(pnl, BorderLayout.CENTER);
+                pnl.notifyShowing();
+            });
+        } catch (IOException ex) {
+            LOG.log(Level.SEVERE, "Exception opening " + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+            EventQueue.invokeLater(() -> {
+                loadingLabel.setText(ex.toString());
+
+            });
+        }
     }
 
     @Override
     public void componentOpened() {
-        lazyInit();
+//        lazyInit();
+        System.out.println("Component opened");
     }
 
     @Override
     public void componentClosed() {
+        System.out.println("component closed");
     }
 
     @Override
     public void componentShowing() {
+        System.out.println("component showing");
         superLazy.showing();
         if (panel != null) {
             panel.notifyShowing();
@@ -305,6 +356,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
     @Override
     public void componentHidden() {
+        System.out.println("component hidden");
         superLazy.hidden();
         if (panel != null) {
             panel.notifyHidden();
@@ -330,8 +382,35 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     }
 
     @Override
+    @Messages("save_sample_file=Save sample file?")
     public CloseOperationState canCloseElement() {
+        Collection<? extends SaveCookie> cks = saveCookieResult.allInstances();
+        if (!cks.isEmpty()) {
+            SaveAction save = SystemAction.get(SaveAction.class);
+            Lookup ctx = Lookups.fixed(cks.toArray());
+            MultiViewFactory.createUnsafeCloseState(Bundle.save_sample_file(),
+                    save.createContextAwareInstance(ctx),
+                    new DiscardAction(obj.getLookup().lookup(DiscardChangesCookie.class)));
+        }
         return CloseOperationState.STATE_OK;
+    }
+
+    @Messages("discard=Discard Changes")
+    static class DiscardAction extends AbstractAction {
+
+        private final DiscardChangesCookie ck;
+
+        public DiscardAction(DiscardChangesCookie ck) {
+            super(Bundle.discard());
+            this.ck = ck;
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (ck != null) {
+                ck.discardChanges();
+            }
+        }
     }
 
     @Override

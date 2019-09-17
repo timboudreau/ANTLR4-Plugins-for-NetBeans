@@ -206,7 +206,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
             return Debug.runObjectThrowing(this, "enter-embedded-parser " + typeName, () -> {
-                return ldr.toString();
+                return ldr.toString().replace(',', '\n');
             }, () -> {
                 ClassLoader old = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(ldr);
@@ -221,9 +221,9 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         @Override
-        public AntlrProxies.ParseTreeProxy parse(String body) throws Exception {
+        public AntlrProxies.ParseTreeProxy parse(String logName, String body) throws Exception {
             AntlrProxies.ParseTreeProxy[] prex = new AntlrProxies.ParseTreeProxy[1];
-            return Debug.runObjectThrowing(this, "embedded-parse", () -> {
+            return Debug.runObjectThrowing(this, "embedded-parse for " + logName, () -> {
                 StringBuilder sb = new StringBuilder("************* BODY ***************\n");
                 sb.append(body);
                 sb.append("\n******************* PROXY *********************\n");
@@ -246,14 +246,14 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         @Override
-        public AntlrProxies.ParseTreeProxy parse(String body, int ruleNo) throws Exception {
+        public AntlrProxies.ParseTreeProxy parse(String logName, String body, int ruleNo) throws Exception {
             return clRun(() -> {
                 return reflectively(typeName, new Class<?>[]{String.class, int.class}, body, ruleNo);
             });
         }
 
         @Override
-        public AntlrProxies.ParseTreeProxy parse(String body, String ruleName) throws Exception {
+        public AntlrProxies.ParseTreeProxy parse(String logName, String body, String ruleName) throws Exception {
             return clRun(() -> {
                 return reflectively(typeName, new Class<?>[]{String.class, String.class}, body, ruleName);
             });
@@ -288,12 +288,12 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         @Override
-        public AntlrProxies.ParseTreeProxy parse(String body, int ruleNo) throws Exception {
+        public AntlrProxies.ParseTreeProxy parse(String logName, String body, int ruleNo) throws Exception {
             return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
         }
 
         @Override
-        public AntlrProxies.ParseTreeProxy parse(String body, String ruleName) throws Exception {
+        public AntlrProxies.ParseTreeProxy parse(String logName, String body, String ruleName) throws Exception {
             return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
         }
 
@@ -301,6 +301,5 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         public void onDiscard() {
             // do nothing
         }
-
     }
 }

@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -35,15 +34,12 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
-import javax.swing.text.Document;
-import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.language.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
-import org.nemesis.antlr.live.language.SampleFiles;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
@@ -52,10 +48,10 @@ import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
+import org.openide.awt.StatusDisplayer;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
@@ -68,8 +64,8 @@ import org.openide.util.lookup.ProxyLookup;
  * @author Tim Boudreau
  */
 public final class PreviewPanel extends JPanel implements ChangeListener,
-        ListSelectionListener, DocumentListener, Runnable, PropertyChangeListener,
-        Lookup.Provider, TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy> {
+        ListSelectionListener, DocumentListener, PropertyChangeListener,
+        Lookup.Provider, TriConsumer<FileObject, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy> {
 
     static final Comparator<String> RULE_COMPARATOR = new RuleNameComparator();
     private static final java.util.logging.Logger LOG
@@ -85,7 +81,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final AdhocColorings colorings;
     private final AdhocColoringPanel customizer = new AdhocColoringPanel();
 
-    private final RequestProcessor.Task task;
     private final JEditorPane editorPane;
     private final SimpleHtmlLabel breadcrumb = new SimpleHtmlLabel();
     private final JPanel breadcrumbPanel = new JPanel(new BorderLayout());
@@ -97,17 +92,19 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private RequestProcessor.Task updateOutputWindowTask;
     private final ErrorUpdater outputWindowUpdaterRunnable;
     private RequestProcessor.Task triggerRerunHighlighters;
-    private String previewTextAsOfOnLastDocumentChange;
     private final RulePathStringifier stringifier = new RulePathStringifierImpl();
     private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
     private SplitLocationSaver splitLocationSaver;
     private final InstanceContent content = new InstanceContent();
     private final AbstractLookup internalLookup = new AbstractLookup(content);
     private final String mimeType;
+    private final JEditorPane grammarEditorClone = new JEditorPane();
+    private final DataObject sampleFileDataObject;
 
     @SuppressWarnings("LeakingThisInConstructor")
-    public PreviewPanel(final String mimeType, Lookup lookup) {
+    public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject, StyledDocument doc) {
         this.mimeType = mimeType;
+        this.sampleFileDataObject = sampleFileDataObject;
         setLayout(new BorderLayout());
         // Get the colorings for this grammar's pseudo-mime-type, creating
         // them if necessary
@@ -140,29 +137,17 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         this.outputWindowUpdaterRunnable
                 = new ErrorUpdater(editorPane, new RulePathStringifierImpl());
 
-        // Find or create a sample file to work with
-        DataObject dob = SampleFiles.sampleFile(mimeType);
         // We will include its lookup in our own, so it can be saved
-        this.lookup = new ProxyLookup(dob.getLookup(), internalLookup);
+        this.lookup = new ProxyLookup(sampleFileDataObject.getLookup(), internalLookup);
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
         Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
         EditorKit kit = lkp.lookup(EditorKit.class);
         // Configure the editor pane to use it
         editorPane.setEditorKit(kit);
-
-        EditorCookie ck = this.lookup.lookup(EditorCookie.class);
         // Open the document and set it on the editor pane
-        StyledDocument doc;
-        try {
-            doc = ck.openDocument();
-            doc.putProperty("mimeType", mimeType);
-            doc.putProperty(StreamDescriptionProperty, dob);
-            content.add(doc);
-            editorPane.setDocument(doc);
-        } catch (IOException ex) {
-            Exceptions.printStackTrace(ex);
-        }
+        content.add(doc);
+        editorPane.setDocument(doc);
         LOG.log(Level.INFO, "PreviewPanel content type is {0}", editorPane.getContentType());
         // EditorUI gives us line number gutter, error gutter, etc.
         EditorUI editorUI = Utilities.getEditorUI(editorPane);
@@ -177,17 +162,16 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // be running
         JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
         // Create our own editor
-        JEditorPane clone = new JEditorPane();
-        clone.setEditorKit((EditorKit) grammarFileOriginalEditor.getEditorKit().clone());
-        clone.setDocument(grammarFileOriginalEditor.getDocument());
+        grammarEditorClone.setEditorKit((EditorKit) grammarFileOriginalEditor.getEditorKit().clone());
+        grammarEditorClone.setDocument(grammarFileOriginalEditor.getDocument());
 
-        EditorUI grammarFileEditorUI = Utilities.getEditorUI(clone);
+        EditorUI grammarFileEditorUI = Utilities.getEditorUI(grammarEditorClone);
         split.setOneTouchExpandable(true);
         // This sometimes gets us an invisible component
         if (grammarFileEditorUI != null) {
             split.setBottomComponent(grammarFileEditorUI.getExtComponent());
         } else {
-            split.setBottomComponent(new JScrollPane(clone));
+            split.setBottomComponent(new JScrollPane(grammarEditorClone));
         }
         // The splitter is our central component, showing the sample content in
         // the top and the grammar file in the bottom
@@ -197,9 +181,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         rules.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor));
         // Listen for changes to force re-highlighting if necessary
         editorPane.getDocument().addDocumentListener(this);
-        // Create a task to be triggered on a resettable delay when the
-        // document changes
-        task = RequestProcessor.getDefault().create(this);
 
         // More border munging
         breadcrumbPanel.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 0));
@@ -234,55 +215,43 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     @Override
-    public void apply(Document a, GrammarRunResult<?> b, ParseTreeProxy newProxy) {
-        Debug.run(this, "preview-update " + mimeType, () -> {
-            StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
-            sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
-            sb.append("Proxy grammar file: ").append(newProxy.grammarPath());
-            sb.append("Proxy grammar name: ").append(newProxy.grammarName());
-            sb.append("Document: ").append(a).append('\n');
-            sb.append("RunResult").append(b).append('\n');
-            sb.append("Text: ").append(newProxy.text()).append('\n');
-            return "";
-        }, () -> {
-            ParseTreeProxy oldProxy = internalLookup.lookup(ParseTreeProxy.class);
-            GrammarRunResult<?> old = internalLookup.lookup(GrammarRunResult.class);
-            if (b != null) {
-                content.add(b);
-                if (old != null) {
-                    content.remove(old);
+    public void apply(FileObject a, GrammarRunResult<?> b, ParseTreeProxy newProxy) {
+        StatusDisplayer.getDefault().setStatusText("Woo hoo!!! " + (newProxy == null ? "null" : newProxy.grammarName()));
+        System.out.println("\n\n*****************************************************");
+        System.out.println("\nPreviewPanel for " + a + " got new proxy \n" + newProxy + "\n\n grr \n" + b);
+        System.out.println("\n\n*****************************************************");
+        Mutex.EVENT.readAccess(() -> {
+            Debug.run(this, "preview-update " + mimeType, () -> {
+                StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
+                sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
+                sb.append("Proxy grammar file: ").append(newProxy.grammarPath());
+                sb.append("Proxy grammar name: ").append(newProxy.grammarName());
+                sb.append("Document: ").append(a).append('\n');
+                sb.append("RunResult").append(b).append('\n');
+                sb.append("Text: ").append(newProxy.text()).append('\n');
+                return "";
+            }, () -> {
+                ParseTreeProxy oldProxy = internalLookup.lookup(ParseTreeProxy.class);
+                GrammarRunResult<?> old = internalLookup.lookup(GrammarRunResult.class);
+                if (b != null) {
+                    content.add(b);
+                    if (old != null) {
+                        content.remove(old);
+                    }
                 }
-            }
-            if (newProxy != null) {
-                if (!newProxy.mimeType().equals(mimeType)) {
-                    new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
+                if (newProxy != null && !newProxy.equals(oldProxy)) {
+                    if (!newProxy.mimeType().equals(mimeType)) {
+                        new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
+                    }
+                    content.add(newProxy);
+                    if (oldProxy != null) {
+                        content.remove(oldProxy);
+                    }
+                    syntaxModel.update(newProxy);
                 }
-                content.add(newProxy);
-                if (oldProxy != null) {
-                    content.remove(oldProxy);
-                }
-                syntaxModel.update(newProxy);
-            }
+            });
         });
-    }
-
-    static final class TextSupplier implements Supplier<String> {
-
-        private final DataObject dob;
-
-        TextSupplier(DataObject dob) {
-            this.dob = dob;
-        }
-
-        @Override
-        public String get() {
-            try {
-                return dob.getPrimaryFile().asText();
-            } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
-                return null;
-            }
-        }
+        enqueueRehighlighting();
     }
 
     @Override
@@ -309,6 +278,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void doNotifyShowing() {
+        if (showing) {
+            return;
+        }
+        showing = true;
         // Sync the colorings JList with the stored list of colorings
         updateColoringsList();
         // Listen for changes in it
@@ -318,13 +291,18 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             rules.setSelectedIndex(0);
         }
         updateSplitPosition();
-        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
+        AdhocReparseListeners.listen(mimeType, this.sampleFileDataObject.getPrimaryFile(), this);
         editorPane.getCaret().addChangeListener(this);
         stateChanged(new ChangeEvent(editorPane.getCaret()));
+        editorPane.requestFocusInWindow();
     }
 
     public void notifyHidden() {
-        AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
+        if (!showing) {
+            return;
+        }
+        showing = false;
+        AdhocReparseListeners.unlisten(mimeType, sampleFileDataObject.getPrimaryFile(), this);
         colorings.removeChangeListener(this);
         colorings.removePropertyChangeListener(this);
         split.removePropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
@@ -337,12 +315,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void docChanged() {
-        previewTextAsOfOnLastDocumentChange = null;
-        task.schedule(1250);
-        DataObject dob = this.getLookup().lookup(DataObject.class);
-        if (dob != null) {
-            dob.setModified(true);
-        }
+        enqueueRehighlighting();
     }
 
     @Override
@@ -360,27 +333,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         docChanged();
     }
 
-    @Override
-    public void run() {
-        // Grab a snapshot of the text as of the last change, for use in
-        // various places
-        String[] txt = new String[2];
-        editorPane.getDocument().render(() -> {
-            txt[0] = editorPane.getText();
-            txt[1] = editorPane.getContentType();
-        });
-        previewTextAsOfOnLastDocumentChange = txt[0];
-    }
-
-    @Override
-    public void propertyChange(PropertyChangeEvent evt) {
-        if (evt.getSource() instanceof JSplitPane
-                && JSplitPane.DIVIDER_LOCATION_PROPERTY.equals(
-                        evt.getPropertyName())) {
-            splitPaneLocationUpdated((int) evt.getNewValue());
-            return;
-        }
-        System.out.println("PROPERTY CHANGE " + evt.getSource().getClass().getName() + " " + evt.getPropertyName());
+    void enqueueRehighlighting() {
         if (triggerRerunHighlighters != null) {
             triggerRerunHighlighters.schedule(250);
             return;
@@ -398,51 +351,48 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
-    private String getText() {
-        return editorPane.getText();
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        if (evt.getSource() instanceof JSplitPane
+                && JSplitPane.DIVIDER_LOCATION_PROPERTY.equals(
+                        evt.getPropertyName())) {
+            splitPaneLocationUpdated((int) evt.getNewValue());
+            return;
+        }
+//        System.out.println("PROPERTY CHANGE " + evt.getSource().getClass().getName() + " " + evt.getPropertyName());
+        enqueueRehighlighting();
     }
 
     private void updateBreadcrumb(Caret caret) {
         if (caret.getMark() != caret.getDot()) {
             breadcrumb.setText(" ");
         }
-        EventQueue.invokeLater(() -> {
-            String text = getText();
-            if (text != null && !text.isEmpty()) {
+        if (editorPane.getDocument().getLength() > 0) {
+            EventQueue.invokeLater(() -> {
                 ParseTreeProxy prx
                         = getLookup().lookup(ParseTreeProxy.class);
-//                        DynamicLanguageSupport.parseImmediately(editorPane.getContentType(), text, Reason.UPDATE_PREVIEW);
-//                    DynamicLanguageSupport.lastParseResult(editorPane.getContentType(), lastText);
-//                ParseTreeProxy old = internalLookup.lookup(ParseTreeProxy.class);
-//                if (old != null && !old.equals(prx)) {
-//                    this.content.remove(old);
-//                }
-//                this.content.add(prx);
                 if (prx != null) {
-                    updateBreadcrumb(text, caret, prx);
+                    updateBreadcrumb(caret, prx);
                 }
                 GrammarRunResult<?> runResult = getLookup().lookup(GrammarRunResult.class);
                 updateErrors(runResult, prx);
-            }
-        });
+            });
+        }
     }
 
     private void updateErrors(GrammarRunResult<?> g, ParseTreeProxy prx) {
         if (updateOutputWindowTask == null) {
             updateOutputWindowTask = asyncUpdateOutputWindowPool.create(outputWindowUpdaterRunnable);
         }
-        outputWindowUpdaterRunnable.update(g, prx, previewTextAsOfOnLastDocumentChange);
+        outputWindowUpdaterRunnable.update(g, prx);
         updateOutputWindowTask.schedule(300);
     }
 
-    private void updateBreadcrumb(String text, Caret caret, ParseTreeProxy prx) {
-//        System.out.println("Update breadcrumb for " + caret.getDot());
+    private void updateBreadcrumb(Caret caret, ParseTreeProxy prx) {
         StringBuilder sb = new StringBuilder();
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
             stringifier.tokenRulePathString(prx, tok, sb, true);
-//        } else {
-//            System.out.println("no token at position in " + prx.summary());
         }
         breadcrumb.setText(sb.toString());
         breadcrumb.invalidate();

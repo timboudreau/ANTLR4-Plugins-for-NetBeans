@@ -58,21 +58,19 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
         this.stringifier = stringifier;
     }
 
-    void update(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy, String previewTextAsOfOnLastDocumentChange) {
+    void update(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy) {
         // Ensure both are updated atomically by wrapping the update of the
         // second in an update of the first
-        info.set(new ParseInfo(res, proxy, previewTextAsOfOnLastDocumentChange));
+        info.set(new ParseInfo(res, proxy));
     }
 
     static final class ParseInfo {
         public final GrammarRunResult<?> res;
         public final AntlrProxies.ParseTreeProxy proxy;
-        public final String text;
 
-        public ParseInfo(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy, String text) {
+        public ParseInfo(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy) {
             this.res = res;
             this.proxy = proxy;
-            this.text = text;
         }
     }
 
@@ -102,7 +100,7 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
                 IOSelect.select(io, EnumSet.of(IOSelect.AdditionalOperation.OPEN, IOSelect.AdditionalOperation.REQUEST_VISIBLE));
             } else {
                 io.setOutputVisible(true);
-                io.setFocusTaken(true);
+//                io.setFocusTaken(true);
             }
             writingFirstOutputWindowOutput = false;
         }
@@ -112,7 +110,6 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
                 // XXX get the full result and print compiler diagnostics?
                 ioPrint(io, Bundle.unparsed(), IOColors.OutputType.ERROR);
                 GrammarRunResult<?> buildResult = info.res;
-//                GenerateBuildAndRunGrammarResult buildResult = DynamicLanguageSupport.lastBuildResult(editorPane.getContentType(), text.get(), Reason.ERROR_HIGHLIGHTING);
                 if (buildResult != null) {
                     boolean wasGenerate = !buildResult.genResult().isUsable();
                     if (wasGenerate) {
@@ -188,7 +185,7 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
 
     @Override
     public void apply(Document a, GrammarRunResult<?> b, AntlrProxies.ParseTreeProxy s) {
-        updateErrorsInOutputWindow(new ParseInfo(b, s, null));
+        updateErrorsInOutputWindow(new ParseInfo(b, s));
     }
 
     final class ErrOutputListener implements OutputListener {

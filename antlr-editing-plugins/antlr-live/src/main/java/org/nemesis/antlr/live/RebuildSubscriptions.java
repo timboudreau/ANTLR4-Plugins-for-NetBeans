@@ -1,5 +1,6 @@
 package org.nemesis.antlr.live;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import java.awt.EventQueue;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -52,6 +53,10 @@ import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
 /**
+ * Allows callers to pass a callback which will be triggered whenever a new
+ * parser result for an Antlr file is being constructed, and process it (for
+ * example, compiling it in-memory and running something against the compiled
+ * classes in an isolating classloader, or adding hints, or whatever).
  *
  * @author Tim Boudreau
  */
@@ -78,7 +83,7 @@ public final class RebuildSubscriptions {
         return INSTANCE_SUPPLIER.get();
     }
 
-    public static String info() {
+    public static String info() { // debug stuff, deleteme
         StringBuilder sb = new StringBuilder();
         instance().generatorForMapping.entrySet().forEach((e) -> {
             sb.append(e.getKey().getProjectDirectory().getName()).append('\n')
@@ -87,8 +92,59 @@ public final class RebuildSubscriptions {
         return sb.toString();
     }
 
+    /**
+     * Subscribe the passed subscriber to re-parses of the passed file object.
+     * If this is the first call to subscribe for this file, a parse will be
+     * triggered.
+     *
+     * @param fo A fileobject for an Antlr grammar file
+     * @param sub A subscriber that will be invoked on reparse
+     * @return A runnable which will unsubscribe the subscriber; the surrounding
+     * plumbing that enables the subscription is strongly referenced <i>by</i>
+     * the unsubscriber - allow that to be garbage collected and you may not get
+     * notified of changes.
+     */
     public static Runnable subscribe(FileObject fo, Subscriber sub) {
         return instance()._subscribe(fo, sub);
+    }
+
+    /**
+     * Get the most recent last modified time for any grammar file in the
+     * grammar source folders of the project that owns the passed file,
+     * preferring the most recent (saved or not) <i>Document</i> edit times
+     * where those are available, since we JFS-masquerade documents when
+     * present, and listen and update a timestamp for them. If no subscribers
+     * are registered for the project, returns the file timestamps.
+     *
+     * @param fo A file object
+     * @return The most recent last modified time, or -1 if it cannot be
+     * determined (grammar file deleted, etc.)
+     * @throws IOException If something goes wrong
+     */
+    public static long mostRecentGrammarLastModifiedInProjectOf(FileObject fo) throws IOException {
+        String mime = fo.getMIMEType();
+        Project p = FileOwnerQuery.getOwner(fo);
+        if (p == null) {
+            return -1;
+        }
+        Generator g = instance().generatorForMapping.get(p);
+        if (g == null) {
+            return mostRecentGrammarLastModifiedInProjectTheHardWay(mime, fo, p);
+        }
+        return g.newestGrammarLastModified();
+    }
+
+    private static long mostRecentGrammarLastModifiedInProjectTheHardWay(String mime, FileObject fo, Project project) throws IOException {
+        Iterable<FileObject> files = CollectionUtils.concatenate(
+                Folders.ANTLR_GRAMMAR_SOURCES.findFileObject(project, fo),
+                Folders.ANTLR_IMPORTS.findFileObject(project, fo));
+        long result = -1;
+        for (FileObject curr : files) {
+            if ("text/x-g4".equals(curr.getMIMEType())) {
+                result = Math.max(result, curr.lastModified().getTime());
+            }
+        }
+        return result == -1 ? fo.lastModified().getTime() : result;
     }
 
     // XXX need general subscribe to mime type / all
@@ -162,12 +218,18 @@ public final class RebuildSubscriptions {
 
         @SuppressWarnings("LeakingThisInConstructor")
         Generator(FileObject subscribeTo, Project in, JFSMapping mapping) throws IOException {
+            // Create the callback that will be invoked
             hook = new RebuildHook();
             this.mapping = mapping;
             this.initialFile = subscribeTo;
             encoding = FileEncodingQuery.getEncoding(subscribeTo);
             Set<FileObject> subscribed = new HashSet<>();
             LOG.log(Level.FINEST, "Create Generator {0} for {1}", new Object[]{id, subscribeTo.getPath()});
+            // Find every file under the sources and imports dirs, and map them
+            // into the JFS - masquerading documents if a document exists for
+            // the file (it's open in the editor), otherwise masquerade the file,
+            // and listen for document creation to replace the masquerade as
+            // needed
             Folders.ANTLR_GRAMMAR_SOURCES.allFileObjects(in)
                     .forEach(fo -> {
                         // Antlr imports may be underneath antlr sources,
@@ -181,6 +243,8 @@ public final class RebuildSubscriptions {
                 mappings.add(map(subscribeTo, owner));
                 subscribed.add(subscribeTo);
             }
+            // Listen on folders to ensure we detect new file creation
+            // and set up mapping for newly created files
             Set<FileObject> listeningToDirs = new HashSet<>();
             for (Folders f : new Folders[]{ANTLR_GRAMMAR_SOURCES, ANTLR_IMPORTS}) {
                 for (FileObject dir : f.findFileObject(subscribeTo)) {
@@ -198,6 +262,20 @@ public final class RebuildSubscriptions {
                     }
                 }
             }
+        }
+
+        public long newestGrammarLastModified() throws IOException {
+            long result = Long.MIN_VALUE;
+            JFS jfs = mapping.forProject(FileOwnerQuery.getOwner(initialFile));
+            for (Mapping mapping : mappings) {
+                if (mapping.isGrammarFile()) {
+                    long val = mapping.lastModified(jfs);
+                    if (val > 0) {
+                        result = Math.max(result, val);
+                    }
+                }
+            }
+            return result;
         }
 
         @Override
@@ -264,6 +342,18 @@ public final class RebuildSubscriptions {
                     LOG.log(Level.WARNING, "No EditorCookie.Observable for {0}", fo.getPath());
                 }
                 fo.addFileChangeListener(FileUtil.weakFileChangeListener(this, fo));
+            }
+
+            public boolean isGrammarFile() {
+                return fo.isValid() && "text/x-g4".equals(fo.getMIMEType());
+            }
+
+            public long lastModified(JFS jfs) {
+                JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, targetPath);
+                if (jfo == null) {
+                    return fo.lastModified().getTime();
+                }
+                return jfo.getLastModified();
             }
 
             @Override
@@ -371,7 +461,6 @@ public final class RebuildSubscriptions {
                         new Object[]{subscribe, to.getPath(), subscribers.size()});
                 // Trigger a parse immediately
                 if (subscribers.size() == 1) {
-//                    Source src = Source.create(to);
                     LOG.log(Level.FINE, "Force parse of {0} for initial subscriber in "
                             + "Generator {1} for {2}",
                             new Object[]{to.getName(), id, subscribe});
@@ -385,6 +474,7 @@ public final class RebuildSubscriptions {
                             throw e;
                         }
                     };
+                    // Try to keep this stuff off the event dispatch thread
                     if (EventQueue.isDispatchThread()) {
                         RP.post(doParse);
                     } else {
@@ -445,9 +535,13 @@ public final class RebuildSubscriptions {
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
                 LOG.log(Level.FINER, "onReparse {0}", extraction.source());
-//                LOG.log(Level.FINEST, "Who is triggering me - " + extraction.source().lookup(Path.class), new Exception());
                 AntlrGenerator gen = gen(extraction);
                 try {
+                    // The parsing plumbing interrupts the parse thread in the event
+                    // of cancellation (e.g. user typed a character).  This can wreak
+                    // unholy havoc with I/O since it may cause a failure at any
+                    // point that manifests as an IOException or some other failure,
+                    // so try to detect the situation and bail out
                     if (Thread.interrupted()) {
                         return;
                     }

@@ -76,7 +76,7 @@ public class EmbeddedAntlrParsersTest {
         assertTrue(ParserManager.canBeParsed("text/x-g4"), "Antlr parser not "
                 + "registered.");
 
-        EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar(gen.file("NestedMaps.g4"));
+        EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test", gen.file("NestedMaps.g4"));
         AntlrProxies.ParseTreeProxy ptp = p.parse(TEXT_1);
         assertNotNull(ptp);
         assertTrue(p.isUpToDate());

@@ -26,24 +26,17 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.antlr.live.parsing.impl;
-
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+package org.nemesis.antlr.live.language;
 
 /**
+ * Allows the preview to tell the data object to discard edits.
  *
  * @author Tim Boudreau
  */
-public interface EmbeddedParser {
+public interface DiscardChangesCookie {
 
-    default AntlrProxies.ParseTreeProxy parse(String logName, String body) throws Exception {
-        return parse(logName, body, 0);
-    }
-
-    AntlrProxies.ParseTreeProxy parse(String logName, String body, int ruleNo) throws Exception;
-
-    AntlrProxies.ParseTreeProxy parse(String logName, String body, String ruleName) throws Exception;
-
-    void onDiscard();
-
+    /**
+     * Triggers DataEditorSupport.reloadDocument().
+     */
+    void discardChanges();
 }

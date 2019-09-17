@@ -129,6 +129,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                             System.out.println("Adhoc mime data provider on reparse");
                             System.out.println("MIME IS " + AdhocMimeTypes.loggableMimeType(realMime));
                             Debug.message("Mime type for path: " + realMime);
+                            long lm = extraction.source().lastModified();
                             if (isRealUpdate(realMime, extraction)) {
                                 System.out.println("REAL UPDATE ");
                                 AdhocDataObject.invalidateSources(realMime);
@@ -137,7 +138,12 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
 //                                AdhocLanguageFactory.get().fire();
                             } else {
                                 Debug.failure("not a real update", () -> {
-                                    return realMime + " " + mimeType;
+                                    return realMime + " " + mimeType + "\n"
+                                            + extraction.tokensHash() +
+                                            " " + lm
+                                            + "\n"
+                                            + lastExtractionHashForMimeType.get(realMime)
+                                            + " " + lastModificationDateForMimeType.get(realMime);
                                 });
                             }
                         });

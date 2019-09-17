@@ -71,6 +71,7 @@ public class EmbeddedAntlrParser {
 
     private final AtomicReference<GrammarRunResult<EmbeddedParser>> runner = new AtomicReference<>();
     private final AtomicInteger revCount = new AtomicInteger();
+    private final String logName;
     private final Path path;
     private final String grammarName;
     static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
@@ -84,7 +85,8 @@ public class EmbeddedAntlrParser {
         LOG.setLevel(Level.ALL);
     }
 
-    public EmbeddedAntlrParser(Path path, String grammarName) {
+    public EmbeddedAntlrParser(String logName, Path path, String grammarName) {
+        this.logName = logName;
         this.path = path;
         this.grammarName = grammarName;
     }
@@ -140,9 +142,10 @@ public class EmbeddedAntlrParser {
         @Override
         public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult) {
             LOG.log(Level.FINER, "Got new run result for {0}: {2}, usable? "
-                    + "{3} status {4}", new Object[]{
+                    + "{3} status {4} on {5}", new Object[]{
                         EmbeddedAntlrParser.this, t.source(),
-                        runResult.isUsable(), runResult.currentStatus()
+                        runResult.isUsable(), runResult.currentStatus(),
+                        logName
                     });
             if (runResult.isUsable()) {
                 setRunner(runResult);
@@ -160,7 +163,7 @@ public class EmbeddedAntlrParser {
 
     @Override
     public String toString() {
-        return super.toString() + "(" + grammarName + " " + path + " " + rev()
+        return super.toString() + "(" + logName + " " + grammarName + " " + path + " " + rev()
                 + ")";
     }
 
@@ -176,7 +179,7 @@ public class EmbeddedAntlrParser {
                 r.run();
             } catch (Exception ex) {
                 LOG.log(Level.SEVERE, "Exception updating " + r + " for "
-                        + runner, ex);
+                        + runner + " - " + logName, ex);
             }
         }
         return result;
@@ -205,7 +208,8 @@ public class EmbeddedAntlrParser {
             }
             GrammarRunResult<EmbeddedParser> r = runner.get();
             if (r == null || r.currentStatus().mayRequireRebuild()) {
-                LOG.log(Level.FINER, "Force reparse of {0} for stale embedded parser", path);
+                LOG.log(Level.FINER, "Force reparse of {0} for stale embedded parser for {1}",
+                        new Object[] { path, logName });
                 // XXX should see if we have a document?
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
                 // Invalidate the source - we cannot guarantee we have received a
@@ -236,7 +240,7 @@ public class EmbeddedAntlrParser {
                         }
                     }
                 } else {
-                    LOG.log(Level.WARNING, "File object for {0} gone", path);
+                    LOG.log(Level.WARNING, "File object for {0} gone for {1}", new Object[] { path, logName });
                 }
             }
         } finally {
@@ -286,7 +290,7 @@ public class EmbeddedAntlrParser {
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return setTextAndResult(t, r.get().parse(t));
+        return setTextAndResult(t, r.get().parse(logName, t));
     }
 
     public ParseTreeProxy parse(String t, int ruleNo) throws Exception {
@@ -299,7 +303,7 @@ public class EmbeddedAntlrParser {
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return setTextAndResult(t, r.get().parse(t, ruleNo));
+        return setTextAndResult(t, r.get().parse(logName, t, ruleNo));
     }
 
     public ParseTreeProxy parse(String t, String ruleName) throws Exception {
@@ -312,7 +316,7 @@ public class EmbeddedAntlrParser {
         if (r == null || r.get() == null) {
             return AntlrProxies.forUnparsed(path, grammarName, t);
         }
-        return setTextAndResult(t, r.get().parse(t, ruleName));
+        return setTextAndResult(t, r.get().parse(logName, t, ruleName));
     }
 
     static final class UT extends UserTask {

@@ -41,8 +41,12 @@ import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.debug.api.Debug;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.Source;
+import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
+import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Lookup;
 import org.openide.util.WeakSet;
 
@@ -61,13 +65,22 @@ public final class AdhocReparseListeners {
             = CollectionUtils.weakSupplierMap(WeakSet::new);
 
     /**
-     * Listen for reparses of a file object of a particular (adhoc) mime type.
+     * Listen for reparses of a document of a particular (adhoc) mime type. The
+     * listener is weakly referenced.
      *
      * @param mimeType A mime type
      * @param doc A document of that type
      * @param listener A listener callback
      */
     public static void listen(String mimeType, Document doc, TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
+        String actualMimeType = NbEditorUtilities.getMimeType(doc);
+        if (!mimeType.equals(actualMimeType)) {
+            IllegalArgumentException iae = new IllegalArgumentException("Attempting to listen for reparses "
+                    + " of " + mimeType + " for a document of type " + actualMimeType + " which will "
+                    + "never fire a change");
+            LOG.log(Level.WARNING, null, iae);
+        }
+
         DynamicLanguages.ensureRegistered(mimeType);
         boolean found = withListeners(mimeType, true, arl -> {
             arl.documentListeners.get(doc).add(listener);
@@ -76,6 +89,17 @@ public final class AdhocReparseListeners {
             LOG.log(Level.WARNING, "Dynamic language not registered for mime type " + mimeType, new Exception(
                     "Dynamic language not registered for mime type " + mimeType));
         }
+    }
+
+    public static void unlisten(String mimeType, FileObject fo, TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
+        withListeners(mimeType, false, arl -> {
+            Set<TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy>> set
+                    = arl.fileListeners.get(fo);
+            set.remove(listener);
+            if (set.isEmpty()) {
+                arl.fileListeners.remove(fo);
+            }
+        });
     }
 
     public static void unlisten(String mimeType, Document doc, TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
@@ -107,6 +131,38 @@ public final class AdhocReparseListeners {
         }
     }
 
+    private static Document documentFor(Source src) {
+        Document d = src.getDocument(false);
+        if (d != null) {
+            return d;
+        }
+        FileObject fo = src.getFileObject();
+        if (fo == null) {
+            return null;
+        }
+        try {
+            DataObject dob = DataObject.find(fo);
+            EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+            if (ck != null) {
+                return ck.getDocument();
+            }
+        } catch (DataObjectNotFoundException ex) {
+            LOG.log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
+
+    FileObject fileObjectFor(Source src) {
+        FileObject result = src.getFileObject();
+        if (result == null) {
+            Document d = src.getDocument(false);
+            if (d != null) {
+                result = NbEditorUtilities.getFileObject(d);
+            }
+        }
+        return result;
+    }
+
     void onReparse(Source src, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
         Debug.run(this, "on-reparse " + AdhocMimeTypes.loggableMimeType(src.getMimeType()) + " " + AdhocMimeTypes.loggableMimeType(proxy.mimeType()), () -> {
             StringBuilder sb = new StringBuilder("Source mime type: ").append(src.getMimeType()).append('\n');
@@ -117,20 +173,22 @@ public final class AdhocReparseListeners {
             sb.append("\nTEXT:\n").append(proxy.text());
             return sb.toString();
         }, () -> {
-            FileObject fo = src.getFileObject();
+            FileObject fo = fileObjectFor(src);
             if (fo != null && fileListeners.containsKey(fo)) {
                 for (TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : fileListeners.get(fo)) {
                     try {
+                        Debug.message("Call " + listener);
                         listener.apply(fo, gbrg, proxy);
                     } catch (Exception ex) {
                         LOG.log(Level.SEVERE, "Notifying " + fo, ex);
                     }
                 }
             }
-            Document doc = src.getDocument(false);
+            Document doc = documentFor(src);
             if (doc != null && documentListeners.containsKey(doc)) {
                 for (TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : documentListeners.get(doc)) {
                     try {
+                        Debug.message("Call " + listener);
                         listener.apply(doc, gbrg, proxy);
                     } catch (Exception ex) {
                         LOG.log(Level.SEVERE, "Notifying " + doc, ex);

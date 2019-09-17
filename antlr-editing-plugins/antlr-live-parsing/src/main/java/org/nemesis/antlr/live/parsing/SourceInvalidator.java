@@ -40,7 +40,9 @@ import org.openide.util.Lookup;
  * Cannot seem to find a way to reparse a modified file and have the
  * infrastructure actually notice that it has been modified and not return a
  * stale parse result. May be because tests are missing native file listener? At
- * any rate this hack should do it for now.
+ * any rate this hack should do it for now.  Basically, we need to invalidate
+ * the parsing plumbing's cached Source instances for all files belonging to the
+ * mime type of some grammar file whenever the grammar file changes.
  *
  * @author Tim Boudreau
  */

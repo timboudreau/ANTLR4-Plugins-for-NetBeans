@@ -93,7 +93,6 @@ final class AdhocParser extends Parser {
                 return snapshot.getSource().getDocument(false) + "\n\nTEXT:\n"
                         + snapshot.getText() + "\n\n"
                         + snapshot.getSource().getFileObject();
-
             }, () -> {
                 System.out.println("AdhocParser parse " + task);
                 AntlrProxies.ParseTreeProxy res = parser.parse(snapshot.getText().toString());

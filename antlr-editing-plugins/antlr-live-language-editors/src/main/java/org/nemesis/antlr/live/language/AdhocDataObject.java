@@ -149,10 +149,11 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
     }
 
+
     static final class DES extends DataEditorSupport implements OpenCookie,
             EditorCookie, EditorCookie.Observable,
             CloseCookie, PrintCookie,
-            UndoRedoProvider {
+            UndoRedoProvider, DiscardChangesCookie {
 
         private static final long serialVersionUID = 1;
         final String mimeType;
@@ -161,6 +162,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             super(d, d.getLookup(), new DEnv(d));
             super.setMIMEType(mimeType);
             this.mimeType = mimeType;
+
         }
 
         @Override
@@ -179,6 +181,11 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         @Override
         public UndoRedo get() {
             return super.getUndoRedo();
+        }
+
+        @Override
+        public void discardChanges() {
+            super.reloadDocument().run();
         }
     }
 

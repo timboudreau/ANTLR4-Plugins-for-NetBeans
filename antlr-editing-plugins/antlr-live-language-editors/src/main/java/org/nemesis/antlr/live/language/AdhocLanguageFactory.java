@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.debug.api.Debug;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.LanguagePath;
@@ -72,11 +73,12 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     void reallyFire() {
         System.out.println("\n\nADHOC LANG KIT FIRE");
         LOG.log(Level.FINEST, "Really fire property change to force LanguageManager to refresh");
-        Thread.dumpStack();
+//        Thread.dumpStack();
         super.firePropertyChange(null);
     }
 
     void fire() {
+        Debug.message("AdhocLanguageFactory schedule fire languages change");
         LOG.log(Level.FINEST, "Schedule property change to force LanguageManager to refresh");
         refresh.schedule(100);
     }

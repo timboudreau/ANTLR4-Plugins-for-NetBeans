@@ -34,10 +34,12 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JComponent;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.SwingConstants;
+import org.nemesis.antlr.live.preview.PreviewPanel;
+import org.nemesis.antlr.live.preview.Spinner;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -48,18 +50,16 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
 
     private final RequestProcessor threadPool;
     private final Consumer<Consumer<JComponent>> innerComponentFactory;
-    private final JLabel loadingLabel = new JLabel("Really Loading...");
-    private Future<?> fut;
+    private final JComponent loadingLabel = new Spinner();
+    private volatile Future<?> fut;
     private Reference<JComponent> oldInner;
+    private boolean showing;
 
     public VeryLazyInitPanel(Consumer<Consumer<JComponent>> innerComponentFactory, RequestProcessor threadPool) {
         super(new BorderLayout());
-        add(loadingLabel, BorderLayout.CENTER);
         this.innerComponentFactory = innerComponentFactory;
         this.threadPool = threadPool;
-        loadingLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        loadingLabel.setVerticalAlignment(SwingConstants.CENTER);
-        loadingLabel.setEnabled(false);
+//        loadingLabel.setEnabled(false);
     }
 
     @Override
@@ -67,28 +67,63 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
         super.addNotify();
     }
 
+    private void danceLikeSomebodysLooking() {
+        // the irritating incantation after you update the hierarchy
+        invalidate();
+        revalidate();
+        repaint();
+    }
+
     void showing() {
+        System.out.println("showing");
+        if (showing) {
+            System.out.println(" already showing");
+            return;
+        }
+        showing = true;
         JComponent inner = oldInner == null ? null : oldInner.get();
         if (inner != null) {
+            System.out.println("   have old component");
             if (inner.getParent() != this) {
                 removeAll();
                 add(inner, BorderLayout.CENTER);
+                System.out.println("      add it");
+                danceLikeSomebodysLooking();
+            } else {
+                System.out.println("      already a child");
             }
         } else {
             if (getComponentCount() == 0) {
+                System.out.println("  add the loading label");
                 add(loadingLabel, BorderLayout.CENTER);
+                danceLikeSomebodysLooking();
             }
+            System.out.println("   start background init");
             fut = threadPool.submit(() -> {
-                innerComponentFactory.accept(this);
+                try {
+                    System.out.println("     background init running");
+                    innerComponentFactory.accept(this);
+                } catch (Exception | Error e) {
+                    Logger.getLogger(VeryLazyInitPanel.class.getName()).log(
+                            Level.INFO, "Failed opening preview", e);
+                }
             });
         }
     }
 
     void hidden() {
+        System.out.println("hidden");
+        if (!showing) {
+            System.out.println(" already hidden");
+            return;
+        }
+        showing = false;
         Future<?> f = fut;
         if (f != null) {
             f.cancel(false);
-            fut = null;
+            if (fut == f) {
+                fut = null;
+            }
         }
     }
 
@@ -99,7 +134,9 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     }
 
     @Override
-    public void accept(JComponent t) {
+    public void accept(JComponent t
+    ) {
+        System.out.println("Received component from background: " + t);
         assert EventQueue.isDispatchThread();
         fut = null;
         if (isDisplayable()) {
@@ -111,9 +148,10 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
                 removeAll();
                 add(t, BorderLayout.CENTER);
             }
-            invalidate();
-            revalidate();
-            repaint();
+            danceLikeSomebodysLooking();
+            if (t instanceof PreviewPanel) {
+                ((PreviewPanel) t).notifyShowing();
+            }
         }
     }
 }

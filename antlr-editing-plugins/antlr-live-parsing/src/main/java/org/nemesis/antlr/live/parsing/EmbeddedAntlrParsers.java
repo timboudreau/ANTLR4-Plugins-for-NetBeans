@@ -79,8 +79,8 @@ public class EmbeddedAntlrParsers {
      * @param grammar A grammar
      * @return A parser
      */
-    public static EmbeddedAntlrParser forGrammar(FileObject grammar) {
-        return instance()._subscribe(grammar);
+    public static EmbeddedAntlrParser forGrammar(String logName, FileObject grammar) {
+        return instance()._subscribe(logName, grammar);
     }
 
     /**
@@ -108,7 +108,7 @@ public class EmbeddedAntlrParsers {
         return null;
     }
 
-    private EmbeddedAntlrParser _subscribe(FileObject grammar) {
+    private EmbeddedAntlrParser _subscribe(String logName, FileObject grammar) {
         Set<EmbeddedAntlrParser> set = liveParsersForFile.get(grammar);
 
         EmbeddedAntlrParser p;
@@ -118,7 +118,7 @@ public class EmbeddedAntlrParsers {
 //        }
 
         Path path = FileUtil.toFile(grammar).toPath();
-        p = new EmbeddedAntlrParser(path, grammar.getName());
+        p = new EmbeddedAntlrParser(logName, path, grammar.getName());
 
         LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
                 + " {1} subscribers",

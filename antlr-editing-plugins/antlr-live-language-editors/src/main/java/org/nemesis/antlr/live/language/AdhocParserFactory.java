@@ -35,7 +35,7 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
         this.mimeType = mimeType;
         Path grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
         FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.toFile()));
-        embeddedParser = EmbeddedAntlrParsers.forGrammar(fo);
+        embeddedParser = EmbeddedAntlrParsers.forGrammar("parser-factory:" + AdhocMimeTypes.loggableMimeType(mimeType), fo);
         embeddedParser.listen(this);
     }
 

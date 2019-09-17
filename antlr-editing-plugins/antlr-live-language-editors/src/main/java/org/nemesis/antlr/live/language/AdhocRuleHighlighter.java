@@ -20,10 +20,12 @@ import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.debug.api.Debug;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
+import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.RequestProcessor.Task;
 import org.openide.util.WeakListeners;
@@ -48,7 +50,8 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
         super(ctx.getDocument());
         this.mimeType = mimeType;
         colorings = AdhocColoringsRegistry.getDefault().get(mimeType);
-        parser = EmbeddedAntlrParsers.forGrammar(FileUtil.toFileObject(
+        parser = EmbeddedAntlrParsers.forGrammar("rule-higlighter "
+                + logNameOf(ctx, mimeType), FileUtil.toFileObject(
                 AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
                         .toFile()));
         JTextComponent c = ctx.getComponent();
@@ -60,7 +63,22 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
         if (c.isShowing()) {
             compl.setShowing(c, true);
         }
+        Runnable r = this::scheduleRefresh;
+        c.putClientProperty("trigger", r);
         updateTask = threadPool.create(this::doChange);
+    }
+
+    static final String logNameOf(Context ctx, String mimeType) {
+        Document doc = ctx.getDocument();
+        if (doc != null) {
+            FileObject fo = NbEditorUtilities.getFileObject(doc);
+            if (fo != null) {
+                return fo.getNameExt() + ":" + AdhocMimeTypes.loggableMimeType(mimeType);
+            } else {
+                return doc.toString() + ":" + AdhocMimeTypes.loggableMimeType(mimeType);
+            }
+        }
+        return "unknown";
     }
 
     class CompL extends ComponentAdapter implements PropertyChangeListener {

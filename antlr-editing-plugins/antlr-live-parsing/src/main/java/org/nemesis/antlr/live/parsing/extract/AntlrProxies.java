@@ -13,6 +13,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 
@@ -157,6 +159,9 @@ public class AntlrProxies {
         private boolean isUnparsed;
         private final String text;
         private final RuntimeException thrown;
+        private static final AtomicLong IDS = new AtomicLong();
+        private final long id = IDS.getAndIncrement();
+        private final long when = System.currentTimeMillis();
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
@@ -177,6 +182,18 @@ public class AntlrProxies {
             this.grammarPath = grammarPath.toString();
             this.text = text;
             this.thrown = thrown;
+        }
+
+        public Duration age() {
+            return Duration.ofMillis(System.currentTimeMillis() - when);
+        }
+
+        public long createdAt() {
+            return when;
+        }
+
+        public long id() {
+            return id;
         }
 
         @Override
