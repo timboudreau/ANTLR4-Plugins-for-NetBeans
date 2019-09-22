@@ -45,6 +45,7 @@ import org.nemesis.antlr.live.parsing.extract.ParserExtractor;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
+import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
@@ -79,8 +80,9 @@ public class EmbeddedAntlrParsersTest {
         EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test", gen.file("NestedMaps.g4"));
         AntlrProxies.ParseTreeProxy ptp = p.parse(TEXT_1);
         assertNotNull(ptp);
+        ptp.rethrow();
         assertTrue(p.isUpToDate());
-//        assertFalse(ptp.hasErrors());
+        assertFalse(ptp.hasErrors());
         assertFalse(ptp.isUnparsed());
         assertEquals(gen.get("NestedMaps.g4"), ptp.grammarPath());
         assertEquals("NestedMaps", ptp.grammarName());
@@ -147,7 +149,8 @@ public class EmbeddedAntlrParsersTest {
                         MavenFolderStrategyFactory.class,
                         NbMavenProjectFactory.class,
                         AntlrFileObjectRelativeResolver.class,
-                        NbProjectManager.class
+                        NbProjectManager.class,
+                        NbJFSUtilities.class
                 );
     }
 

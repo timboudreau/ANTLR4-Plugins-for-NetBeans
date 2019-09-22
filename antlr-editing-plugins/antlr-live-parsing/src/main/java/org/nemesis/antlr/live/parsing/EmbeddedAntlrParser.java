@@ -41,10 +41,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -80,10 +82,6 @@ public class EmbeddedAntlrParser {
             = new BC();
     private final Set<Runnable> changeListeners = new WeakSet<>();
     volatile boolean disposed;
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     public EmbeddedAntlrParser(String logName, Path path, String grammarName) {
         this.logName = logName;
@@ -147,6 +145,24 @@ public class EmbeddedAntlrParser {
                         runResult.isUsable(), runResult.currentStatus(),
                         logName
                     });
+            AntlrGenerationAndCompilationResult g = runResult.genResult();
+            AntlrGenerationResult gg = g.generationResult();
+            Path p = t.source().lookup(Path.class).isPresent() ? t.source().lookup(Path.class).get() : null;
+
+            Path actualGeneratedGrammar = g.jfs().originOf(gg.grammarFile, Path.class);
+            if (!path.equals(actualGeneratedGrammar) || (p != null && !p.equals(path)) || !grammarName.equals(gg.grammarName)) {
+                String msg = "EmbeddedAntlrParser " + this + " was passed a GrammarRunResult whose "
+                        + " Antlr generation result belongs to another file"
+                        + "\nPath  : " + path
+                        + "\nExtsrc: " + p
+                        + "\nGensrc: " + gg.grammarFile
+                        + "\nGPaths: " + runResult.sources()
+                        + "\nMy Grammar Name: " + grammarName
+                        + "\nRR Grammar Name: " + gg.grammarName;
+                LOG.log(Level.SEVERE, msg, new Exception(msg));
+                return;
+            }
+
             if (runResult.isUsable()) {
                 setRunner(runResult);
             }
@@ -156,6 +172,7 @@ public class EmbeddedAntlrParser {
     boolean isUpToDate() {
         GrammarRunResult<EmbeddedParser> res = runner.get();
         if (res == null) {
+            System.out.println("null result");
             return false;
         }
         return res.currentStatus().isUpToDate();
@@ -168,8 +185,7 @@ public class EmbeddedAntlrParser {
     }
 
     int setRunner(GrammarRunResult<EmbeddedParser> runner) {
-        GrammarRunResult<EmbeddedParser> old = this.runner.get();
-        this.runner.set(runner);
+        GrammarRunResult<EmbeddedParser> old = this.runner.getAndSet(runner);
         if (old != null && old.get() != null) {
             old.get().onDiscard();
         }
@@ -208,8 +224,9 @@ public class EmbeddedAntlrParser {
             }
             GrammarRunResult<EmbeddedParser> r = runner.get();
             if (r == null || r.currentStatus().mayRequireRebuild()) {
-                LOG.log(Level.FINER, "Force reparse of {0} for stale embedded parser for {1}",
-                        new Object[] { path, logName });
+                LOG.log(Level.FINER, "Force reparse of {0} for stale embedded parser for {1}"
+                        + " old result {2}",
+                        new Object[]{path, logName, r, r == null ? null : r.currentStatus()});
                 // XXX should see if we have a document?
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
                 // Invalidate the source - we cannot guarantee we have received a
@@ -240,7 +257,7 @@ public class EmbeddedAntlrParser {
                         }
                     }
                 } else {
-                    LOG.log(Level.WARNING, "File object for {0} gone for {1}", new Object[] { path, logName });
+                    LOG.log(Level.WARNING, "File object for {0} gone for {1}", new Object[]{path, logName});
                 }
             }
         } finally {
@@ -258,10 +275,10 @@ public class EmbeddedAntlrParser {
         return SOURCE_INVALIDATOR;
     }
 
-    private String lastText;
+    private CharSequence lastText;
     private ParseTreeProxy lastResult;
 
-    private synchronized ParseTreeProxy setTextAndResult(String text, ParseTreeProxy prox) {
+    private synchronized ParseTreeProxy setTextAndResult(CharSequence text, ParseTreeProxy prox) {
         if (text != null) {
             lastText = text;
             lastResult = prox;
@@ -269,28 +286,28 @@ public class EmbeddedAntlrParser {
         return prox;
     }
 
-    private synchronized ParseTreeProxy lastResultIfMatches(boolean wasStale, String t) {
+    private synchronized ParseTreeProxy lastResultIfMatches(boolean wasStale, CharSequence t) {
         if (!wasStale) {
             if (lastText != null && lastResult != null
                     && Objects.equals(t, lastText) && !lastResult.isUnparsed()) {
-//                LOG.log(Level.INFO, "Use cached result from {0}", this);
-//                return lastResult;
+                LOG.log(Level.INFO, "Use cached result from {0}", this);
+                return lastResult;
             }
         }
         return null;
     }
 
-    public ParseTreeProxy parse(String t) throws Exception {
+    public ParseTreeProxy parse(CharSequence textToParse) throws Exception {
         boolean wasStale = checkStale();
-        ParseTreeProxy result = lastResultIfMatches(wasStale, t);
+        ParseTreeProxy result = lastResultIfMatches(wasStale, textToParse);
         if (result != null) {
             return result;
         }
         GrammarRunResult<EmbeddedParser> r = runner.get();
         if (r == null || r.get() == null) {
-            return AntlrProxies.forUnparsed(path, grammarName, t);
+            return AntlrProxies.forUnparsed(path, grammarName, textToParse);
         }
-        return setTextAndResult(t, r.get().parse(logName, t));
+        return setTextAndResult(textToParse, r.get().parse(logName, textToParse));
     }
 
     public ParseTreeProxy parse(String t, int ruleNo) throws Exception {

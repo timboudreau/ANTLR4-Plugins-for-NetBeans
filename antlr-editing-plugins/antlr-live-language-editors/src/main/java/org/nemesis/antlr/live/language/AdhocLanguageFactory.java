@@ -36,10 +36,6 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     private final Map<String, AdhocLanguageHierarchy> cache
             = Collections.synchronizedMap(new WeakHashMap<>());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     static AdhocLanguageFactory get() {
         return Lookup.getDefault().lookup(AdhocLanguageFactory.class);
     }
@@ -70,14 +66,26 @@ public final class AdhocLanguageFactory extends LanguageProvider {
         return getOrCreate(mimeType, true);
     }
 
+    long countAtLastFire = -1;
+    private volatile boolean pendingFire;
+
     void reallyFire() {
         System.out.println("\n\nADHOC LANG KIT FIRE");
         LOG.log(Level.FINEST, "Really fire property change to force LanguageManager to refresh");
 //        Thread.dumpStack();
-        super.firePropertyChange(null);
+        long ct = count.get();
+        if (ct != countAtLastFire) {
+            countAtLastFire = ct;
+            super.firePropertyChange(null);
+            pendingFire = false;
+        }
     }
 
     void fire() {
+        if (pendingFire) {
+            return;
+        }
+        pendingFire = true;
         Debug.message("AdhocLanguageFactory schedule fire languages change");
         LOG.log(Level.FINEST, "Schedule property change to force LanguageManager to refresh");
         refresh.schedule(100);
@@ -99,12 +107,12 @@ public final class AdhocLanguageFactory extends LanguageProvider {
                         cache.remove(mime);
                     }
                 }
-                reallyFire();
+                fire();
             }
             return reentry;
         } else {
             LOG.log(Level.FINE, "No hierarchies to update for {0}", AdhocMimeTypes.loggableMimeType(mime));
-            reallyFire();
+//            reallyFire();
             return false;
         }
     }
@@ -114,7 +122,7 @@ public final class AdhocLanguageFactory extends LanguageProvider {
             return null;
         }
         AdhocLanguageHierarchy hierarchy = getOrCreate(mimeType, true);
-        return hierarchy.language();
+        return hierarchy.languageUnsafe();
     }
 
     @Override

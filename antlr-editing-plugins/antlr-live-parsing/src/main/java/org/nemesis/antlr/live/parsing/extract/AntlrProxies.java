@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -59,9 +60,10 @@ public class AntlrProxies {
     private RuntimeException thrown;
     private final String grammarName;
     private final Path grammarPath;
-    private final String text;
+    private final CharSequence text;
+    private BitSet[] ruleReferences;
 
-    public AntlrProxies(String grammarName, Path grammarPath, String text) {
+    public AntlrProxies(String grammarName, Path grammarPath, CharSequence text) {
         this.grammarName = grammarName;
         this.grammarPath = grammarPath;
         tokenTypes.add(EOF_TYPE);
@@ -99,7 +101,7 @@ public class AntlrProxies {
         newHash();
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
-                grammarName, grammarPath, text, thrown);
+                grammarName, grammarPath, text, thrown, ruleReferences);
     }
 
     /**
@@ -114,7 +116,7 @@ public class AntlrProxies {
      * @return A dummy ParseTreeProxy which does not require background work or
      * large amounts of I/O which can be used until a real one is ready
      */
-    public static ParseTreeProxy forUnparsed(Path pth, String grammarName, String text) {
+    public static ParseTreeProxy forUnparsed(Path pth, String grammarName, CharSequence text) {
         if (text == null) {
             text = "(sample code here)\n";
         }
@@ -130,7 +132,7 @@ public class AntlrProxies {
         ParseTreeProxy prox = new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE, Arrays.asList(root, child),
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
-                grammarName, pth, text, null);
+                grammarName, pth, text, null, new BitSet[1]);
         prox.isUnparsed = true;
         return prox;
     }
@@ -157,17 +159,19 @@ public class AntlrProxies {
         private final String grammarName;
         private final String grammarPath;
         private boolean isUnparsed;
-        private final String text;
+        private final CharSequence text;
         private final RuntimeException thrown;
         private static final AtomicLong IDS = new AtomicLong();
         private final long id = IDS.getAndIncrement();
         private final long when = System.currentTimeMillis();
+        private BitSet[] ruleReferencesForToken;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
                 Set<ProxySyntaxError> errors, String[] parserRuleNames,
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
-                Path grammarPath, String text, RuntimeException thrown) {
+                Path grammarPath, CharSequence text, RuntimeException thrown,
+                BitSet[] ruleReferencesForToken) {
             this.tokens = tokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
@@ -182,6 +186,38 @@ public class AntlrProxies {
             this.grammarPath = grammarPath.toString();
             this.text = text;
             this.thrown = thrown;
+            this.ruleReferencesForToken = ruleReferencesForToken;
+        }
+
+        public int referencesCount(ProxyToken tok) {
+            int ix = tok.getTokenIndex();
+            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length < ix || tok.getType() == -1) {
+                return 0;
+            }
+            BitSet set = ruleReferencesForToken[ix];
+            if (set == null) {
+                return 0;
+            }
+            return set.cardinality();
+        }
+
+        public List<ParseTreeElement> referencedBy(ProxyToken tok) {
+            int ix = tok.getTokenIndex();
+            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length < ix || tok.getType() == -1) {
+                return Collections.emptyList();
+            }
+            BitSet set = ruleReferencesForToken[ix];
+            if (set == null || set.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<ParseTreeElement> result = new ArrayList<>(set.cardinality());
+            for (int bit = set.nextSetBit(0); bit >= 0; bit = set.nextSetBit(bit + 1)) {
+                result.add(treeElements.get(bit));
+            }
+            Collections.sort(result, (a, b) -> {
+                return Integer.compare(a.depth(), b.depth());
+            });
+            return result;
         }
 
         public Duration age() {
@@ -212,7 +248,22 @@ public class AntlrProxies {
             hash = 23 * hash + Objects.hashCode(this.grammarName);
             hash = 23 * hash + Objects.hashCode(this.grammarPath);
             hash = 23 * hash + (this.isUnparsed ? 1 : 0);
-            hash = 23 * hash + Objects.hashCode(this.text);
+            // We cannot call hashCode() on a char sequence from the
+            // lexer infrastructure; the tokens hash will take care of
+            // containing the same information anyway
+/*
+java.lang.ArrayIndexOutOfBoundsException: 2441
+	at org.netbeans.modules.editor.lib2.document.CharContent.charAt(CharContent.java:55)
+	at org.netbeans.lib.lexer.TextLexerInputOperation.readExisting(TextLexerInputOperation.java:74)
+	at org.netbeans.lib.lexer.LexerInputOperation.readExistingAtIndex(LexerInputOperation.java:166)
+	at org.netbeans.spi.lexer.LexerInput$ReadText.charAt(LexerInput.java:342)
+	at org.netbeans.lib.editor.util.CharSequenceUtilities.stringLikeHashCode(CharSequenceUtilities.java:46)
+	at org.netbeans.lib.editor.util.AbstractCharSequence$StringLike.hashCode(AbstractCharSequence.java:96)
+	at java.base/java.util.Objects.hashCode(Objects.java:116)
+	at org.nemesis.antlr.live.parsing.extract.AntlrProxies$ParseTreeProxy.hashCode(AntlrProxies.java:215)
+
+             */
+//            hash = 23 * hash + Objects.hashCode(this.text);
             hash = 23 * hash + Objects.hashCode(this.thrown);
             return hash;
         }
@@ -242,9 +293,6 @@ public class AntlrProxies {
                 return false;
             }
             if (!Objects.equals(this.grammarPath, other.grammarPath)) {
-                return false;
-            }
-            if (!Objects.equals(this.text, other.text)) {
                 return false;
             }
             if (!Objects.equals(this.tokens, other.tokens)) {
@@ -292,7 +340,7 @@ public class AntlrProxies {
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
-                    Paths.get(grammarPath), whitespace, null);
+                    Paths.get(grammarPath), whitespace, null, null);
         }
 
         public RuntimeException thrown() {
@@ -401,7 +449,7 @@ public class AntlrProxies {
             return null;
         }
 
-        public String text() {
+        public CharSequence text() {
             return text;
         }
 
@@ -562,12 +610,21 @@ public class AntlrProxies {
             // will be -1 token index
             return;
         }
+        int index = treeElements.size();
         treeElements.add(el);
         if (el instanceof TokenAssociated) {
             TokenAssociated ta = (TokenAssociated) el;
             for (int tokenIndex = Math.max(0, ta.startTokenIndex()); tokenIndex < ta.endTokenIndex(); tokenIndex++) {
-                ProxyToken tok = tokens.get(tokenIndex);
-                tok.addRuleReference(el);
+//                ProxyToken tok = tokens.get(tokenIndex);
+//                tok.addRuleReference(el);
+                if (ruleReferences == null) {
+                    ruleReferences = new BitSet[tokens.size() + 1];
+                }
+                BitSet set = ruleReferences[tokenIndex];
+                if (set == null) {
+                    set = ruleReferences[tokenIndex] = new BitSet(treeElements.size());
+                }
+                set.set(index);
             }
         }
     }
@@ -990,7 +1047,7 @@ public class AntlrProxies {
 
     public static final class ProxyToken implements Comparable<ProxyToken>, Serializable {
 
-        private final String text;
+        private final CharSequence text;
         private final int type;
         private final int line;
         private final int charPositionInLine;
@@ -998,9 +1055,9 @@ public class AntlrProxies {
         private final int tokenIndex;
         private final int startIndex;
         private final int stopIndex;
-        private List<ParseTreeElement> referencedBy;
+//        private List<ParseTreeElement> referencedBy;
 
-        ProxyToken(String text, int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
+        ProxyToken(CharSequence text, int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
             this.text = text;
             this.type = type;
             this.line = line;
@@ -1011,17 +1068,15 @@ public class AntlrProxies {
             this.stopIndex = stopIndex;
         }
 
-        public List<ParseTreeElement> referencedBy() {
-            return referencedBy == null ? Collections.emptyList() : referencedBy;
-        }
-
-        void addRuleReference(ParseTreeElement el) {
-            if (referencedBy == null) {
-                referencedBy = new ArrayList<>(8);
-            }
-            referencedBy.add(el);
-        }
-
+//        public List<ParseTreeElement> referencedBy() {
+//            return referencedBy == null ? Collections.emptyList() : referencedBy;
+//        }
+//        void addRuleReference(ParseTreeElement el) {
+//            if (referencedBy == null) {
+//                referencedBy = new ArrayList<>(8);
+//            }
+//            referencedBy.add(el);
+//        }
         public boolean startsAfter(int line, int position) {
             if (this.line > line) {
                 return true;
@@ -1094,6 +1149,10 @@ public class AntlrProxies {
         }
 
         public String getText() {
+            return text.toString();
+        }
+
+        public CharSequence text() {
             return text;
         }
 

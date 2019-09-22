@@ -3,13 +3,20 @@ package org.nemesis.antlr.live.execution;
 import com.mastfrog.util.collections.CollectionUtils;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -31,6 +38,8 @@ import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileModifications;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.nemesis.misc.utils.CachingSupplier;
@@ -262,32 +271,157 @@ public class AntlrRunSubscriptions {
             }
         }
 
+        byte[] hash(JFS jfs) {
+            try {
+                MessageDigest dig = MessageDigest.getInstance("SHA-1");
+                List<JFSFileObject> files = new ArrayList<>();
+                jfs.list(StandardLocation.SOURCE_PATH, (loc, fo) -> {
+                    files.add(fo);
+                });
+                jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+                    files.add(fo);
+                });
+                Collections.sort(files, (a, b) -> {
+                    return a.getName().compareTo(b.getName());
+                });
+                for (JFSFileObject fo : files) {
+                    fo.hash(dig);
+                }
+                return dig.digest();
+            } catch (NoSuchAlgorithmException ex) {
+                throw new AssertionError(ex);
+            } catch (IOException ex) {
+                LOG.log(Level.SEVERE, null, ex);
+                return new byte[0];
+            }
+        }
+
+        static class CachedResults<A> {
+
+            private CompileResult lastCompileResult;
+            private WithGrammarRunner lastRunner;
+            private A lastArg;
+            private JFSFileModifications lastStatus;
+            private long lastLastModified;
+            private byte[] lastHash;
+
+            CachedResults() {
+
+            }
+
+            CachedResults(CompileResult res, WithGrammarRunner runner, A arg, JFSFileModifications mods,
+                    long lastModified, byte[] hash) {
+                this.lastCompileResult = res;
+                this.lastRunner = runner;
+                this.lastArg = arg;
+                this.lastLastModified = lastModified;
+                this.lastHash = hash;
+            }
+
+            private synchronized WithGrammarRunner maybeReuse(Extraction ext, byte[] hash) throws IOException {
+                return lastCompileResult != null && lastStatus != null && lastHash != null
+                        && lastLastModified == ext.source().lastModified()
+                        && lastCompileResult.isUsable()
+                        && lastCompileResult.currentStatus().isUpToDate()
+                        && lastStatus.changes().isUpToDate()
+                        && Arrays.equals(lastHash, hash)
+                        ? lastRunner : null;
+            }
+
+            synchronized void update(CompileResult res, WithGrammarRunner runner, A arg, JFSFileModifications mods,
+                    long lastModified, byte[] hash) {
+                this.lastCompileResult = res;
+                this.lastRunner = runner;
+                this.lastArg = arg;
+                this.lastLastModified = lastModified;
+                this.lastHash = hash;
+            }
+        }
+
+        private final Map<FileObject, CachedResults<A>> resultsCache
+                = Collections.synchronizedMap(new WeakHashMap<>(20));
+
+        CachedResults<A> cachedResults(Extraction ext) {
+            Optional<FileObject> fo = ext.source().lookup(FileObject.class);
+            CachedResults<A> results;
+            if (fo.isPresent()) { // should always be unless source is an NB virtual file, or nbjfsutils not installed
+                FileObject f = fo.get();
+                synchronized (resultsCache) {
+                    results = resultsCache.get(f);
+                    if (results == null) {
+                        results = new CachedResults();
+                        resultsCache.put(f, results);
+                    }
+                }
+            } else {
+                results = new CachedResults();
+            }
+            return results;
+        }
+
         @Override
         public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree,
                 String mimeType, Extraction extraction,
                 AntlrGenerationResult res, ParseResultContents populate,
                 Fixes fixes) {
-            JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
+            if (!res.isUsable()) {
+                return;
+            }
             try {
-                CSC csc = new CSC();
-                A arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
+                // Try to reuse existing stuff - we can be called in the event
+                // thread during a re-lex because of an insert or delete,
+                // and recompiling and rebuilding will cause a noticable pause
+                WithGrammarRunner rb;
+                CompileResult cr;
+                A arg;
+                JFSFileModifications grammarStatus;
+                long lastModified = Long.MIN_VALUE;
+                boolean created = false;
+                byte[] newHash = hash(res.jfs());
+                CachedResults<A> cache = cachedResults(extraction);
+                rb = cache.maybeReuse(extraction, newHash);
+                if (rb == null) {
+                    created = true;
+                    JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
+                    CSC csc = new CSC();
+                    arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
 
-                bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
-                CompileResult cr = bldr.compile();
+                    bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+                    cr = bldr.compile();
 
-                AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
+                    if (!cr.isUsable()) {
+                        LOG.log(Level.FINE, "Unusable compile result {0}", cr);
+                        return;
+                    }
 
-                AntlrRunBuilder runBuilder = AntlrRunBuilder
-                        .fromGenerationPhase(compiler).isolated();
+                    AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
 
-                if (csc.t != null) {
-                    runBuilder.withParentClassLoader(csc.t);
+                    AntlrRunBuilder runBuilder = AntlrRunBuilder
+                            .fromGenerationPhase(compiler).isolated();
+
+                    if (csc.t != null) {
+                        runBuilder.withParentClassLoader(csc.t);
+                    }
+
+                    rb = runBuilder
+                            .build(extraction.source().name());
+
+                } else {
+                    System.out.println("USE CACHED");
+                    arg = cache.lastArg;
+                    cr = cache.lastCompileResult;
                 }
-
-                WithGrammarRunner rb = runBuilder
-                        .build(extraction.source().name());
                 GrammarRunResult<T> rr = rb.run(arg, runner, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE));
-                run(extraction, rr);
+                if (rr.isUsable()) {
+                    if (created) {
+                        grammarStatus = res.filesStatus;
+                        cache.update(cr, rb, arg, grammarStatus, lastModified, newHash);
+                    }
+                    run(extraction, rr);
+                    if (!created) {
+                        cache.lastRunner.resetFileModificationStatusForReuse();
+                    }
+                }
             } catch (IOException ex) {
                 Logger.getLogger(Entry.class.getName()).log(Level.WARNING,
                         "Exception configuring compiler to parse "

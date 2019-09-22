@@ -6,8 +6,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
-import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
-import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.ParserFactory;
@@ -24,22 +22,20 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
     private final Set<AdhocParser> liveParsers = new WeakSet<>();
     private static final Logger LOG = Logger.getLogger(AdhocParserFactory.class.getName());
     private final String mimeType;
-    private final EmbeddedAntlrParser embeddedParser;
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
+//    private final EmbeddedAntlrParser embeddedParser;
 
     @SuppressWarnings("LeakingThisInConstructor")
     public AdhocParserFactory(String mimeType) {
         this.mimeType = mimeType;
         Path grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
         FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.toFile()));
-        embeddedParser = EmbeddedAntlrParsers.forGrammar("parser-factory:" + AdhocMimeTypes.loggableMimeType(mimeType), fo);
-        embeddedParser.listen(this);
+//        embeddedParser = EmbeddedAntlrParsers.forGrammar("parser-factory:" + AdhocMimeTypes.loggableMimeType(mimeType), fo);
+//        embeddedParser.listen(this);
+        AdhocLanguageHierarchy.parserFor(mimeType).listen(this);
     }
 
     private boolean updating;
+    private int idAtLastUpdate = -1;
 
     void updated() {
         if (updating) {
@@ -49,7 +45,7 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
             updating = true;
             LOG.log(Level.FINE, "Received update notification from embedded parser "
                     + "{0} with {1} live parsers for underlying grammar change",
-                    new Object[]{embeddedParser, liveParsers.size()});
+                    new Object[]{AdhocLanguageHierarchy.parserFor(mimeType), liveParsers.size()});
             for (AdhocParser p : liveParsers) {
                 p.updated();
             }
@@ -61,7 +57,15 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
 
     @Override
     public Parser createParser(Collection<Snapshot> clctn) {
-        AdhocParser parser = new AdhocParser(mimeType, embeddedParser);
+        if (!clctn.isEmpty()) {
+            Snapshot snap = clctn.iterator().next();
+            String m = snap.getMimeType();
+            if (!mimeType.equals(m)) {
+                LOG.log(Level.SEVERE, "AdhocParserFactory for " + mimeType + " asked to create a parser for " + m,
+                        new Exception("AdhocParserFactory for " + mimeType + " asked to create a parser for " + m));
+            }
+        }
+        AdhocParser parser = new AdhocParser(mimeType);
         liveParsers.add(parser);
         LOG.log(Level.FINER, "Created a parser {0} over {1} grammar {2}",
                 new Object[]{parser, clctn, mimeType});

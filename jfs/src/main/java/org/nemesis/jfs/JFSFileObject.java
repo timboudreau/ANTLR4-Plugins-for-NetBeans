@@ -5,6 +5,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import javax.tools.FileObject;
 
 /**
@@ -89,4 +90,8 @@ public interface JFSFileObject extends FileObject {
     JFSStorageKind storageKind();
 
     JFSFileObject setTextContent(String txt) throws IOException;
+
+    default void hash(MessageDigest digest) throws IOException {
+        digest.update(asBytes());
+    }
 }

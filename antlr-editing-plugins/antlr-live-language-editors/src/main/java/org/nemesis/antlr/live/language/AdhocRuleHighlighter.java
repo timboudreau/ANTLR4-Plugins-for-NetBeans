@@ -17,6 +17,7 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
+import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.debug.api.Debug;
@@ -139,7 +140,7 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
 
     @Override
     protected void refresh(HighlightingInfo info) {
-        if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().isEmpty()) {
+        if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
             return;
         }
         AdhocHighlightsSequence seq = new AdhocHighlightsSequence(colorings,
@@ -184,14 +185,17 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
                     d = info.doc;
                 }
             }
-            if (d != null) {
-                try {
-                    String txt = d.getText(0, d.getLength());
-                    parser.parse(txt);
-                    scheduleRefresh();
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, null, ex);
-                }
+            if (d == null) {
+                return;
+            }
+
+            try {
+                ParsingUtils.parse(d);
+                String txt = d.getText(0, d.getLength());
+                parser.parse(txt);
+                scheduleRefresh();
+            } catch (Exception ex) {
+                LOG.log(Level.SEVERE, null, ex);
             }
         });
     }

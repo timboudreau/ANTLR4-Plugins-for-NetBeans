@@ -82,6 +82,13 @@ public final class WithGrammarRunner {
         return run(key, supp, options);
     }
 
+    public void resetFileModificationStatusForReuse() {
+        GenerationAndCompilationResult r = lastGenerationResult;
+        if (r != null) {
+            r.genResult().refreshFileStatusForReuse();
+        }
+    }
+
     public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         // XXX
         // - results checks if stale or not

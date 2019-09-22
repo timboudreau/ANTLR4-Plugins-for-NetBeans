@@ -34,24 +34,30 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
+import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
+import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.language.AdhocColorings;
-import org.nemesis.antlr.live.language.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.debug.api.Debug;
+import org.netbeans.api.editor.caret.CaretMoveContext;
+import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
+import org.netbeans.spi.editor.caret.CaretMoveHandler;
 import org.openide.awt.StatusDisplayer;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
+import org.openide.text.NbDocument;
 import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
@@ -102,13 +108,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final DataObject sampleFileDataObject;
 
     @SuppressWarnings("LeakingThisInConstructor")
-    public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject, StyledDocument doc) {
+    public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject,
+            StyledDocument doc, AdhocColorings colorings) {
         this.mimeType = mimeType;
         this.sampleFileDataObject = sampleFileDataObject;
+        this.colorings = colorings;
         setLayout(new BorderLayout());
-        // Get the colorings for this grammar's pseudo-mime-type, creating
-        // them if necessary
-        colorings = AdhocColoringsRegistry.getDefault().get(mimeType);
         rules.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         // Add the selected coloring customizer at the top
         add(customizer, BorderLayout.NORTH);
@@ -131,7 +136,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         add(listsSplit, BorderLayout.EAST);
         // Create an editor pane
         editorPane = new JEditorPane();
-        // Create a runnable that will run asynchronously to update the
+        // Create a runnable that will run asynchronously to beginScroll the
         // output window after the sample text has been altered or the
         // grammar has
         this.outputWindowUpdaterRunnable
@@ -176,7 +181,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // The splitter is our central component, showing the sample content in
         // the top and the grammar file in the bottom
         add(split, BorderLayout.CENTER);
-        // Listen to the rule list to update the rule customizer
+        // Listen to the rule list to beginScroll the rule customizer
         rules.getSelectionModel().addListSelectionListener(this);
         rules.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor));
         // Listen for changes to force re-highlighting if necessary
@@ -188,8 +193,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // The breadcrumb shows the rule path the caret is in
         breadcrumbPanel.add(breadcrumb, BorderLayout.CENTER);
         add(breadcrumbPanel, BorderLayout.SOUTH);
-        // listen on the caret to update the breadcrumb
-        syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick);
+        // listen on the caret to beginScroll the breadcrumb
+        syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
     }
 
     List<ProxyToken> proxyTokens() {
@@ -200,10 +205,62 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         return proxy.tokens();
     }
 
-    void onSyntaxTreeClick(int[] range) {
-        editorPane.setSelectionStart(range[0]);
-        editorPane.setSelectionEnd(range[1]);
+    @SuppressWarnings("deprecation")
+    void selectRangeInPreviewEditor(int[] range) {
+        if (selectingRange) {
+            // ensure we don't re-enter because we noticed the
+            // selection change and wind up grabbing the parent
+            // element or some other element that has the
+            // same span
+            return;
+        }
+        selectingRange = true;
+        // Must make the selection start the head of the
+        // element, or the synax tree will get two notifications
+        // and the second will put it at the *next* element
         try {
+            Caret caret = editorPane.getCaret();
+            if (caret instanceof EditorCaret) {
+                Document doc = editorPane.getDocument();
+                // If we grabbed traiiling whitespace, eliminate it
+                String txt = doc.getText(range[0], range[1] - range[0]);
+                int subtract = 0;
+                for (int i = txt.length() - 1; i >= 0; i--) {
+                    char c = txt.charAt(i);
+                    if (Character.isWhitespace(c)) {
+                        subtract++;
+                    } else {
+                        break;
+                    }
+                }
+                int endPoint = range[1];
+                if (subtract > 0 && subtract < txt.length()) {
+                    endPoint -= subtract;
+                }
+                EditorCaret ec = (EditorCaret) caret;
+                // We need to set the dot to the *beginning* of the token or we can accidentally
+                // beginScroll the context to the token that abuts the new caret position
+                Position begin = NbDocument.createPosition(editorPane.getDocument(), endPoint, Position.Bias.Backward);
+                Position end = NbDocument.createPosition(editorPane.getDocument(), range[0], Position.Bias.Forward);
+                org.netbeans.api.editor.caret.CaretInfo info = ec.getLastCaret();
+                ec.moveCarets(new CaretMoveHandler() {
+                    @Override
+                    public void moveCarets(CaretMoveContext context) {
+                        // This seems to usually run later in the event
+                        // queue, so try to preserve the selection the user chose
+                        selectingRange = true;
+                        try {
+                            context.setDotAndMark(info, end, Position.Bias.Forward, begin, Position.Bias.Backward);
+                        } finally {
+                            selectingRange = false;
+                        }
+                    }
+                });
+            } else {
+                editorPane.setSelectionStart(Math.max(range[0], range[1] - 1));
+                editorPane.setSelectionEnd(range[0]);
+            }
+            // XXX can't use modelToView2D until we can depend on JDK 10
             Rectangle a = editorPane.getUI().modelToView(editorPane, range[0]);
             Rectangle b = editorPane.getUI().modelToView(editorPane, range[1]);
             a.add(b);
@@ -211,15 +268,24 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             editorPane.requestFocusInWindow();
         } catch (BadLocationException ex) {
             LOG.log(Level.INFO, null, ex);
+        } finally {
+            selectingRange = false;
         }
+    }
+
+    private boolean selectingRange;
+
+    void onSyntaxTreeClick(int[] range) {
+        selectRangeInPreviewEditor(range);
     }
 
     @Override
     public void apply(FileObject a, GrammarRunResult<?> b, ParseTreeProxy newProxy) {
         StatusDisplayer.getDefault().setStatusText("Woo hoo!!! " + (newProxy == null ? "null" : newProxy.grammarName()));
-        System.out.println("\n\n*****************************************************");
-        System.out.println("\nPreviewPanel for " + a + " got new proxy \n" + newProxy + "\n\n grr \n" + b);
-        System.out.println("\n\n*****************************************************");
+        if (!newProxy.mimeType().equals(mimeType)) {
+            new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
+            return;
+        }
         Mutex.EVENT.readAccess(() -> {
             Debug.run(this, "preview-update " + mimeType, () -> {
                 StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
@@ -240,9 +306,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     }
                 }
                 if (newProxy != null && !newProxy.equals(oldProxy)) {
-                    if (!newProxy.mimeType().equals(mimeType)) {
-                        new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
-                    }
                     content.add(newProxy);
                     if (oldProxy != null) {
                         content.remove(oldProxy);
@@ -359,7 +422,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             splitPaneLocationUpdated((int) evt.getNewValue());
             return;
         }
-//        System.out.println("PROPERTY CHANGE " + evt.getSource().getClass().getName() + " " + evt.getPropertyName());
         enqueueRehighlighting();
     }
 
@@ -393,6 +455,26 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
             stringifier.tokenRulePathString(prx, tok, sb, true);
+            List<ParseTreeElement> referenceChain = prx.referencedBy(tok); //tok.referencedBy();
+            if (!referenceChain.isEmpty()) {
+                ParseTreeElement rule = referenceChain.get(referenceChain.size() - 1);
+                int ix = syntaxModel.select(rule);
+                if (ix >= 0) {
+                    Scroller.get(syntaxTreeList).beginScroll(syntaxTreeList, ix);
+                }
+                if (referenceChain.size() > 1) {
+                    rule = referenceChain.get(referenceChain.size() - 2);
+                    String ruleName = rule.name();
+                    for (int i = 0; i < rules.getModel().getSize(); i++) {
+                        String el = rules.getModel().getElementAt(i);
+                        if (ruleName.equals(el) || el.contains(">" + ruleName + "<")) {
+                            rules.setSelectionInterval(i, i);
+                            Scroller.get(rules).beginScroll(rules, i);
+                            break;
+                        }
+                    }
+                }
+            }
         }
         breadcrumb.setText(sb.toString());
         breadcrumb.invalidate();
@@ -446,9 +528,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     @Override
     public void stateChanged(ChangeEvent e) {
         if (e.getSource() instanceof Caret) {
-            updateBreadcrumb((Caret) e.getSource());
+            if (!selectingRange) {
+                updateBreadcrumb((Caret) e.getSource());
+            }
         } else {
-            System.out.println("StateChanged from " + e.getSource().getClass().getName());
             // a reparse will fire changes on the parse thread
             // if rules have been added
             Mutex.EVENT.readAccess(this::updateColoringsList);

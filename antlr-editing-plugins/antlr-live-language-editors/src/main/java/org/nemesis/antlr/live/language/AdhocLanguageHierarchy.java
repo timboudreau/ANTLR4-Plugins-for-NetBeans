@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -25,6 +26,7 @@ import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.netbeans.api.lexer.InputAttributes;
+import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.LanguagePath;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -40,42 +42,34 @@ import org.openide.filesystems.FileUtil;
  *
  * @author Tim Boudreau
  */
-final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Runnable, Supplier<TokensInfo> {
+final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Supplier<TokensInfo> {
 
     public static final String DUMMY_TOKEN_ID = "__dummyToken__";
     private final String mimeType;
-//    private final EmbeddedAntlrParser parser;
-//    private final AtomicReference<TokensInfo> info = new AtomicReference<>(TokensInfo.EMPTY);
     private static final Logger LOG = Logger.getLogger(AdhocLanguageHierarchy.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private final HierarchyInfo hinfo;
+    static AtomicInteger CREATED = new AtomicInteger();
+    private int id = CREATED.incrementAndGet();
 
     AdhocLanguageHierarchy(String mimeType) {
         this.mimeType = mimeType;
         LOG.log(Level.FINE, "Create lang hier for {0}", mimeType);
         hinfo = hierarchyInfo(mimeType);
-//        parser = EmbeddedAntlrParsers.forGrammar(
-//                FileUtil.toFileObject(
-//                        FileUtil.normalizeFile(
-//                                AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
-//                                        .toFile())));
+    }
+
+    int id() {
+        return id;
+    }
+
+    static int hierarchiesCreated() { // Used to know when a Language instance may be stale
+        return CREATED.get();
     }
 
     @Override
     public String toString() {
         return "AdhocLanguageHierarchy(" + Integer.toString(System.identityHashCode(this), 36)
                 + ")";
-    }
-
-    @Override
-    public void run() {
-//        LOG.log(Level.FINE, "Hier for {0} notified of grammar change from {1}",
-//                new Object[]{AdhocMimeTypes.loggableMimeType(mimeType)});
-//        languageUpdated();
     }
 
     @Override
@@ -203,6 +197,32 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         }
     }
 
+    Language<AdhocTokenId> languageUnsafe;
+
+    Language<AdhocTokenId> languageUnsafe() {
+        // XXX Evil deadlock work around
+        if (languageUnsafe != null) {
+            return languageUnsafe;
+        }
+        Field f = languageField();
+        if (f != null) {
+            try {
+                languageUnsafe = (Language<AdhocTokenId>) f.get(this);
+                if (languageUnsafe != null) {
+                    return languageUnsafe;
+                }
+            } catch (IllegalArgumentException | IllegalAccessException ex) {
+                LOG.log(Level.INFO, null, ex);
+            }
+        }
+        return languageUnsafe = language();
+    }
+
+    /**
+     * Either we nuke the language field, or we have to reinitialize the entire
+     * language infrastructure, which is too expensive to be practical a lot of
+     * the time.
+     */
     void wipeLanguage() {
         Field f = languageField();
         if (f != null) {
@@ -212,6 +232,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                     synchronized (this) {
                         if (f.get(this) == o) {
                             f.set(this, null);
+                            languageUnsafe = null;
                         }
                     }
                 }
@@ -238,6 +259,17 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         return info;
     }
 
+    static EmbeddedAntlrParser parserFor(String mime) {
+        // XXX need to track the lifecycle of the parser and dispose?
+        HierarchyInfo info = hierarchyInfo(mime);
+        return info.parser();
+    }
+
+    /**
+     * It is possible to have multiple live AdhocLanguageHierarchy instances for
+     * the same mime type (language being updated while lexing is running), so
+     * we centralize the shared information.
+     */
     static final class HierarchyInfo {
 
         private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(false);
@@ -283,7 +315,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         }
 
         private void includeDummyToken(List<AdhocTokenId> ids) {
-            AdhocTokenId nue = new AdhocTokenId(DUMMY_TOKEN_ID, AdhocMimeTypes.grammarFilePathForMimeType(mimeType), ids.size());
+            // subtract one because ordinal() will add it
+            AdhocTokenId nue = new AdhocTokenId(DUMMY_TOKEN_ID, ids.size() - 1);
             ids.add(nue);
         }
 
@@ -320,7 +353,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
             List<ProxyTokenType> allTypes = prox.tokenTypes();
             Set<String> names = new HashSet<>(allTypes.size());
             for (ProxyTokenType ptt : allTypes) {
-                AdhocTokenId id = new AdhocTokenId(prox, ptt, names);
+                AdhocTokenId id = new AdhocTokenId(ptt, names);
                 newIds.add(id);
                 cats.get(id.primaryCategory()).add(id);
             }

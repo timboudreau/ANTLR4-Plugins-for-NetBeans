@@ -2,12 +2,14 @@ package org.nemesis.antlr.live.language;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.JEditorPane;
+import javax.swing.JLabel;
 import javax.swing.JToolBar;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
@@ -23,6 +25,7 @@ import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.openide.awt.Mnemonics;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
@@ -203,16 +206,84 @@ public class AdhocEditorKit extends ExtKit {
     static final class Doc extends NbEditorDocument {
 
         private JToolBar bar;
+        private final String mimeType;
 
         @SuppressWarnings("LeakingThisInConstructor")
         Doc(String mimeType) {
             super(mimeType);
+            this.mimeType = mimeType;
             putProperty("mimeType", mimeType);
-            InputAttributes attrs = new InputAttributes();
-            putProperty(InputAttributes.class, attrs);
-            Language<?> lang = Language.find(mimeType);
-            if (lang != null) {
-                attrs.setValue(lang, "doc", this, false);
+            putProperty(InputAttributes.class, new LangPropertyEvaluator(this));
+//            InputAttributes attrs = new InputAttributes();
+//            putProperty(InputAttributes.class, attrs);
+//            Language<?> lang = Language.find(mimeType);
+//            if (lang != null) {
+//                attrs.setValue(lang, "doc", this, false);
+//            }
+        }
+
+/*
+        @Override
+        protected Dictionary createDocumentProperties(Dictionary origDocumentProperties) {
+            // Looking up the language during Document creation can deadlock
+            // by reentering LanguageHierarchy.language(), so initialize that
+            // on demand
+            return new LazyLanguageMap(origDocumentProperties, this);
+        }
+        */
+
+        static final class LangPropertyEvaluator implements PropertyEvaluator {
+            // Looking up the language during Document creation can deadlock
+            // by reentering LanguageHierarchy.language(), so initialize that
+            // on demand
+
+            private final InputAttributes attrs = new InputAttributes();
+            private final Doc doc;
+            private volatile int createdAtLastCall = -1;
+
+            public LangPropertyEvaluator(Doc doc) {
+                this.doc = doc;
+            }
+
+            @Override
+            public Object getValue() {
+                // XXX could keep the hiearchy atomicInt count
+                // as of the last call to get value, and only update
+                // on change
+                int created = AdhocLanguageHierarchy.hierarchiesCreated();
+                if (created > createdAtLastCall) {
+                    Language<?> lang = Language.find(doc.mimeType);
+                    if (lang != null) {
+                        attrs.setValue(lang, "doc", doc, false);
+                    }
+                    createdAtLastCall = created;
+                }
+                return attrs;
+            }
+
+        }
+
+        static final class LazyLanguageMap extends LazyPropertyMap {
+
+            private final Doc doc;
+
+            public LazyLanguageMap(Dictionary dict, Doc doc) {
+                super(dict);
+                this.doc = doc;
+            }
+
+            @Override
+            public Object get(Object key) {
+                if (InputAttributes.class.equals(key)) {
+                    InputAttributes attrs = new InputAttributes();
+                    Language<?> lang = Language.find(doc.mimeType);
+                    if (lang != null) {
+                        attrs.setValue(lang, "doc", doc, false);
+                    }
+                    return attrs;
+                }
+                Object result = super.get(key);
+                return result;
             }
         }
 
@@ -255,9 +326,9 @@ public class AdhocEditorKit extends ExtKit {
         @Messages("STARTING_RULE=Parse Text &Using")
         private JToolBar createBar() {
             JToolBar bar = new JToolBar();
-//            JLabel lbl = new JLabel();
-//            Mnemonics.setLocalizedText(lbl, Bundle.STARTING_RULE());
-//            bar.add(lbl);
+            JLabel lbl = new JLabel();
+            Mnemonics.setLocalizedText(lbl, Bundle.STARTING_RULE());
+            bar.add(lbl);
 //            JComboBox<String> box = new JComboBox<>(rulesModel);
 //            lbl.setLabelFor(box);
 //            box.setPrototypeDisplayValue("compilation_unit_body");

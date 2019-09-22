@@ -62,6 +62,25 @@ public class JFSFileModificationsTest {
     private Document doc;
 
     @Test
+    public void testRewritesThatDoNotChangeContentResultInUnmodifiedStatus() throws IOException, BadLocationException {
+        JFSFileModifications mods = jfs.status(StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT);
+        for (int i=0; i < VIRTUAL_PATHS.length; i++) {
+            JFSFileObject fo = jfs.get(StandardLocation.SOURCE_PATH, VIRTUAL_PATHS[i]);
+            assertNotNull(fo);
+            CharSequence seq = fo.getCharContent(true);
+            assertNotNull(seq);
+            fo.setTextContent(seq.toString());
+            FileChanges ch = mods.changes();
+            assertNotNull(ch);
+            assertTrue("Modification detected after change of " + fo.getName() + " in " + ch, ch.isUpToDate());
+        }
+        doc.remove(0, doc.getLength());
+        assertFalse(mods.changes().isUpToDate());
+        doc.insertString(0, DOC_TEXT, null);
+        assertTrue(mods.changes().isUpToDate());
+    }
+
+    @Test
     public void testTouchOneVirtualFileAndReset() throws IOException, InterruptedException {
         for (int i = 0; i < ALL_PATHS.length; i++) {
             StandardLocation loc = i < VIRTUAL_PATHS.length ? StandardLocation.SOURCE_PATH
@@ -173,12 +192,12 @@ public class JFSFileModificationsTest {
         assertNotNull(allState);
         assertNotNull(outState);
         assertNotNull(srcState);
-        assertTrue(allState.initialState().containsKey(StandardLocation.SOURCE_OUTPUT));
-        assertTrue(allState.initialState().containsKey(StandardLocation.SOURCE_PATH));
-        assertTrue(outState.initialState().containsKey(StandardLocation.SOURCE_OUTPUT));
-        assertFalse(outState.initialState().containsKey(StandardLocation.SOURCE_PATH));
-        assertFalse(srcState.initialState().containsKey(StandardLocation.SOURCE_OUTPUT));
-        assertTrue(srcState.initialState().containsKey(StandardLocation.SOURCE_PATH));
+        assertTrue(allState.initialState().timestamps.containsKey(StandardLocation.SOURCE_OUTPUT));
+        assertTrue(allState.initialState().timestamps.containsKey(StandardLocation.SOURCE_PATH));
+        assertTrue(outState.initialState().timestamps.containsKey(StandardLocation.SOURCE_OUTPUT));
+        assertFalse(outState.initialState().timestamps.containsKey(StandardLocation.SOURCE_PATH));
+        assertFalse(srcState.initialState().timestamps.containsKey(StandardLocation.SOURCE_OUTPUT));
+        assertTrue(srcState.initialState().timestamps.containsKey(StandardLocation.SOURCE_PATH));
         for (int i = 0; i < ALL_PATHS.length; i++) {
             String text = ALL_TEXT[i];
             Path path = ALL_PATHS[i];

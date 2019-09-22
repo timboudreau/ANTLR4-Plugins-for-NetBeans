@@ -8,7 +8,10 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.BitSet;
 import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.IntStream;
+import static org.antlr.v4.runtime.IntStream.UNKNOWN_SOURCE_NAME;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
@@ -54,12 +57,12 @@ public class ParserExtractor {
         return extract(text, index); //parser
     } //parser
 
-    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(String text) {
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text) {
         return extract(text, 0);
     }
 
     @SuppressWarnings("deprecation")
-    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(String text, int ruleIndex) {
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text, int ruleIndex) {
         org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies
                 = new org.nemesis.antlr.live.parsing.extract.AntlrProxies(GRAMMAR_NAME, GRAMMAR_PATH, text);
         try {
@@ -82,17 +85,18 @@ public class ParserExtractor {
                 // Use deprecated ANTLRInputStream rather than 4.7's CharStreams,
                 // since we may be running against an older version of Antlr where
                 // that call would fail
-                DummyLanguageLexer lex = new DummyLanguageLexer(new org.antlr.v4.runtime.ANTLRInputStream(
-                        text.toCharArray(), text.length()));
+//                DummyLanguageLexer lex = new DummyLanguageLexer(new org.antlr.v4.runtime.ANTLRInputStream(
+//                        text.toCharArray(), text.length()));
+                DummyLanguageLexer lex = new DummyLanguageLexer(new CharSequenceCharStream(text));
                 lex.removeErrorListeners();
                 // Collect all of the tokens
                 ErrL errorListener = new ErrL(proxies);
                 lex.addErrorListener(errorListener);
                 Token tok;
                 int tokenIndex = 0;
-                if ("ignoreme.placeholder.DummyLanguageLexer".equals(lex.getClass().getName())) {
-                    throw new IllegalStateException("Lexer name not replaced correctly: " + lex.getClass().getName());
-                }
+//                if ("ignoreme.placeholder.DummyLanguageLexer".equals(lex.getClass().getName())) {
+//                    throw new IllegalStateException("Lexer name not replaced correctly: " + lex.getClass().getName());
+//                }
                 do {
                     tok = lex.nextToken();
                     int type = tok.getType();
@@ -131,6 +135,7 @@ public class ParserExtractor {
                 bldr.build(); //parser
             }
         } catch (Exception | Error ex) {
+            ex.printStackTrace();
             proxies.onThrown(ex);
         }
         return proxies.result();
@@ -174,6 +179,7 @@ public class ParserExtractor {
 
         private final org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder; //parser
         private int currentDepth; //parser
+
         public RuleTreeVisitor(org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder) { //parser
             this.builder = builder; //parser
         } //parser
@@ -213,4 +219,117 @@ public class ParserExtractor {
             return null; //parser
         } //parser
     } //parser
+
+    public static final class CharSequenceCharStream implements CharStream {
+
+        private CharSequence data;
+        private int n;
+        private int p;
+
+        public CharSequenceCharStream(String input) {
+            this.data = input;
+            this.n = input.length();
+        }
+
+        public CharSequenceCharStream(CharSequence seq) {
+            this.data = seq;
+            this.n = seq.length();
+        }
+
+        int data(int ix) {
+            return data.charAt(ix);
+        }
+
+        public void reset() {
+            p = 0;
+        }
+
+        @Override
+        public void consume() {
+            if (p >= n) {
+                assert LA(1) == IntStream.EOF;
+                throw new IllegalStateException("cannot consume EOF");
+            }
+            if (p < n) {
+                p++;
+            }
+        }
+
+        @Override
+        public int LA(int i) {
+            if (i == 0) {
+                return 0;
+            }
+            if (i < 0) {
+                i++;
+                if ((p + i - 1) < 0) {
+                    return IntStream.EOF;
+                }
+            }
+
+            if ((p + i - 1) >= n) {
+                return IntStream.EOF;
+            }
+            return data(p + i - 1);
+        }
+
+        public int LT(int i) {
+            return LA(i);
+        }
+
+        @Override
+        public int index() {
+            return p;
+        }
+
+        @Override
+        public int size() {
+            return n;
+        }
+
+        @Override
+        public int mark() {
+            return -1;
+        }
+
+        @Override
+        public void release(int marker) {
+        }
+
+        @Override
+        public void seek(int index) {
+            if (index <= p) {
+                p = index;
+                return;
+            }
+            index = Math.min(index, n);
+            while (p < index) {
+                consume();
+            }
+        }
+
+        @Override
+        public String getText(Interval interval) {
+            int start = interval.a;
+            int stop = interval.b;
+            if (stop >= n) {
+                stop = n - 1;
+            }
+            int count = stop - start + 1;
+            if (start >= n) {
+                return "";
+            }
+            return data.subSequence(start, start + count).toString();
+        }
+
+        @Override
+        public String getSourceName() {
+            return UNKNOWN_SOURCE_NAME;
+        }
+
+        @Override
+        public String toString() {
+            return data.toString();
+        }
+    }
 }

@@ -5,8 +5,6 @@ import java.util.Optional;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.misc.Interval;
 import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.api.RelativeResolver;
@@ -94,9 +92,10 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
 
     @Override
     public CharStream stream() throws IOException {
-//        return new CharSequenceCharStream(snapshot.getText(), name());
+        return new CharSequenceCharStream(name(), snapshot.getText(), this);
 //        System.out.println("IS A STRING? " + snapshot.getText().getClass().getName());
-        return CharStreams.fromString(snapshot.getText().toString(), name());
+//        return CharStreams.fromString(snapshot.getText().toString(), name());
+//        return CharStreams.fromString(snapshot.getText().toString(), name());
     }
 
     @Override
@@ -153,69 +152,6 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
         @Override
         public GrammarSourceImplementation<Snapshot> create(Snapshot doc, RelativeResolver<Snapshot> resolver) {
             return new SnapshotGrammarSource(doc, resolver);
-        }
-    }
-
-    static class CharSequenceCharStream implements CharStream {
-
-        private final CharSequence seq;
-
-        public CharSequenceCharStream(CharSequence seq, String name) {
-            this.seq = seq;
-            this.name = name;
-        }
-
-        private final String name;
-        private int index = 0;
-
-        @Override
-        public void consume() {
-            index++;
-        }
-
-        @Override
-        public int LA(int i) {
-            if (i == 0) {
-                return 0; // undefined
-            }
-            i--;
-            return i < seq.length() ? seq.charAt(i) : CharStream.EOF;
-        }
-
-        @Override
-        public int mark() {
-            return 0;
-        }
-
-        @Override
-        public void release(int marker) {
-            // do nothing
-        }
-
-        @Override
-        public int index() {
-            return index + 1;
-        }
-
-        @Override
-        public void seek(int i) {
-            this.index = i;
-        }
-
-        @Override
-        public int size() {
-            return seq.length() + 1;
-        }
-
-        @Override
-        public String getSourceName() {
-            return name == null ? UNKNOWN_SOURCE_NAME : name;
-        }
-
-        @Override
-        public String getText(Interval intrvl) {
-            CharSequence cs = seq.subSequence(intrvl.a, intrvl.b + 1);
-            return cs.toString();
         }
     }
 }

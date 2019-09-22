@@ -10,14 +10,16 @@ import org.netbeans.api.queries.FileEncodingQuery;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.util.WeakListeners;
 import org.openide.util.WeakSet;
 import org.openide.util.lookup.ServiceProvider;
+
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service=JFSUtilities.class)
+@ServiceProvider(service = JFSUtilities.class)
 public class NbJFSUtilities extends JFSUtilities {
 
     @Override
@@ -40,4 +42,22 @@ public class NbJFSUtilities extends JFSUtilities {
     protected <T> Set<T> createWeakSet() {
         return new WeakSet<>();
     }
+
+    @Override
+    protected <T> T convert(JFSFileObject file, Class<T> type, Object obj) {
+        if (type == FileObject.class) {
+            FileObject fo = null;
+            if (obj instanceof Path) {
+                fo = FileUtil.toFileObject(FileUtil.normalizeFile(((Path) obj).toFile()));
+                return fo == null ? null : type.cast(fo);
+            } else if (obj instanceof Document) {
+                fo = NbEditorUtilities.getFileObject((Document) obj);
+            }
+            if (fo != null) {
+                return type.cast(fo);
+            }
+        }
+        return super.convert(file, type, obj);
+    }
+
 }

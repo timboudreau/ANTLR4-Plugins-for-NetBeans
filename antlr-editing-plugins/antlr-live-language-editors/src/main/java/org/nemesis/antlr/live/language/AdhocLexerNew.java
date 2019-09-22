@@ -31,7 +31,6 @@ package org.nemesis.antlr.live.language;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.nio.file.Paths;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -62,12 +61,18 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
     private final EmbeddedAntlrParser parser;
     private final String mimeType;
     private final Supplier<? extends TokensInfo> supp;
+    private List<ProxyToken> tokens;
+    private int cursor;
 
     AdhocLexerNew(String mimeType, LexerRestartInfo<AdhocTokenId> info, EmbeddedAntlrParser antlrParser, Supplier<? extends TokensInfo> supp) {
         this.mimeType = mimeType;
         this.info = info;
         this.parser = antlrParser;
         this.supp = supp;
+        if (info.state() instanceof Integer) {
+            System.out.println("Create lexer with state " + info.state());
+            cursor = (Integer) info.state();
+        }
     }
 
     List<AdhocTokenId> ids() {
@@ -80,7 +85,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                 + Integer.toString(System.identityHashCode(this), 36)
                 + AdhocMimeTypes.loggableMimeType(mimeType)
                 + " over " + currentLexedName()
-                + " has iter " + (iter != null)
+                + " has iter " + (tokens != null)
                 + ")";
     }
 
@@ -106,7 +111,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         while (in.read() != -1) {
             count++;
         }
-        String text = in.readText().toString();
+        CharSequence text = in.readText();
         in.backup(count);
         try {
             return Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
@@ -119,7 +124,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                             AdhocReparseListeners.reparsed(mimeType, doc, gbrg, result);
                         }
                         if (result.isUnparsed()) {
-                            Debug.failure("unparsed", result::text);
+                            Debug.failure("unparsed", () -> result.text().toString());
                             LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
                         }
                         return result;
@@ -131,13 +136,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         }
     }
 
-    private Iterator<ProxyToken> iter;
-
-    private Iterator<ProxyToken> iterator() {
-        if (iter != null) {
-            return iter;
+    private List<ProxyToken> iterator() {
+        if (tokens != null) {
+            return tokens;
         }
-        return iter = proxy().tokens().iterator();
+        return tokens = proxy().tokens();
     }
 
     private AdhocTokenId idFor(ProxyToken tok) {
@@ -153,11 +156,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
     @SuppressWarnings("empty-statement")
     public Token<AdhocTokenId> nextToken() {
         LexerInput in = info.input();
-        Iterator<ProxyToken> it = iterator();
-        if (!it.hasNext()) {
+        List<ProxyToken> tokenList = iterator();
+        if (cursor >= tokenList.size()) {
             return trailingJunkToken(in);
         }
-        ProxyToken tok = it.next();
+        ProxyToken tok = tokenList.get(cursor++);
         if (tok.isEOF()) {
             return trailingJunkToken(in);
         }
@@ -210,6 +213,9 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
     private Token<AdhocTokenId> token(AdhocTokenId targetId, int length) {
         boolean broken = false;
         try {
+            if (targetId.canBeFlyweight()) {
+                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
+            }
             return info.tokenFactory().createToken(targetId, length);
         } catch (ArrayIndexOutOfBoundsException ex) {
             List<AdhocTokenId> ids = ids();
@@ -241,11 +247,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
 
     @Override
     public Object state() {
-        return null;
+        return cursor;
     }
 
     @Override
     public void release() {
-        iter = null;
+        tokens = null;
     }
 }

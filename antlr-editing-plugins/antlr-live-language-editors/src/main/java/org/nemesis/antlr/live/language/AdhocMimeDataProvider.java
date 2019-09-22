@@ -16,7 +16,6 @@ import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.lexer.Language;
-import org.netbeans.modules.parsing.spi.TaskFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.mimelookup.MimeDataProvider;
 import org.openide.filesystems.FileUtil;
@@ -35,12 +34,9 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     static final Logger LOG = Logger.getLogger(AdhocMimeDataProvider.class.getName());
     private final LanguageIC lang = new LanguageIC();
     private final FontColorsIC fcic = new FontColorsIC();
+    private final ReparseIC reparseIc = new ReparseIC();
     private final Map<String, MimeEntry> lookups = new ConcurrentHashMap<>();
     private final Hook hook = new Hook();
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     void clear() { // tests
         lookups.clear();
@@ -178,7 +174,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     }
 
     void addMimeType(String mimeType) {
-        MimeEntry en = new MimeEntry(mimeType, lang, fcic);
+        MimeEntry en = new MimeEntry(mimeType, lang, fcic, reparseIc);
         LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(en.mimeType));
         lookups.put(en.mimeType, en);
         Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
@@ -246,10 +242,10 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         private final String mimeType;
         private final AdhocParserFactory pf;
         private final FontColorsIC fcic;
-        private final TaskFactory errorHighlighter;
-        private final AdhocReparseListeners listeners;
+//        private final TaskFactory errorHighlighter;
+//        private final ReparseIC reparseIc;
 
-        MimeEntry(String mimeType, LanguageIC cvt, FontColorsIC fcic) {
+        MimeEntry(String mimeType, LanguageIC cvt, FontColorsIC fcic, ReparseIC reparseIc) {
             this.cvt = cvt;
             this.fcic = fcic;
             this.mimeType = mimeType;
@@ -258,8 +254,9 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.add(mimeType, cvt);
             content.add(pf = new AdhocParserFactory(mimeType));
             content.add(mimeType, layers = new HighlightsIC());
-            content.add(errorHighlighter = AdhocErrorsHighlighter.create());
-            content.add(listeners = new AdhocReparseListeners());
+//            content.add(errorHighlighter = AdhocErrorsHighlighter.create());
+//            content.add(mimeType, this.reparseIc = reparseIc);
+            content.add(new AdhocReparseListeners(mimeType));
 //            this.lookup = new DebugLookup(new AbstractLookup(content), mimeType);
             this.lookup = new AbstractLookup(content);
         }
@@ -287,7 +284,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.remove(mimeType, fcic);
             content.remove(layers);
             content.remove(pf);
-            content.remove(errorHighlighter);
+//            content.remove(errorHighlighter);
         }
     }
 
@@ -360,6 +357,29 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         @Override
         public String displayName(String t) {
             return t;
+        }
+    }
+
+    static final class ReparseIC implements InstanceContent.Convertor<String, AdhocReparseListeners> {
+
+        @Override
+        public AdhocReparseListeners convert(String obj) {
+            return new AdhocReparseListeners(obj);
+        }
+
+        @Override
+        public Class<? extends AdhocReparseListeners> type(String obj) {
+            return AdhocReparseListeners.class;
+        }
+
+        @Override
+        public String id(String obj) {
+            return AdhocReparseListeners.class.getName() + "-" + obj;
+        }
+
+        @Override
+        public String displayName(String obj) {
+            return id(obj);
         }
     }
 }

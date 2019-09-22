@@ -5,6 +5,7 @@ import java.awt.Color;
 import java.awt.Toolkit;
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
@@ -221,7 +222,8 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
             }
             if (tok != null) {
                 AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
-                AntlrProxies.ParseTreeElement rule = tok.referencedBy().isEmpty() ? null : tok.referencedBy().get(0);
+                List<AntlrProxies.ParseTreeElement> refs = prx.referencedBy(tok);
+                AntlrProxies.ParseTreeElement rule = refs.isEmpty() ? null : refs.get(0);
                 print(Bundle.type(type.names()), IOColors.OutputType.LOG_DEBUG);
                 if (rule != null) {
                     StringBuilder sb = new StringBuilder();

@@ -4,7 +4,6 @@ import com.mastfrog.function.TriConsumer;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -37,7 +36,6 @@ public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, 
     public AbstractAntlrHighlighter(Document doc) {
         bag = new OffsetsBag(doc);
         weakDoc = new WeakReference<>(doc);
-        LOG.setLevel(Level.ALL);
         AdhocReparseListeners.listen(NbEditorUtilities.getMimeType(doc), doc, this);
         refreshTask = threadPool.create(this::doRefresh);
     }

@@ -32,8 +32,6 @@ import java.awt.BorderLayout;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -46,16 +44,21 @@ import javax.swing.JPanel;
 import javax.swing.JToolBar;
 import javax.swing.SwingConstants;
 import static javax.swing.text.Document.StreamDescriptionProperty;
+import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
+import org.nemesis.antlr.live.language.AdhocColorings;
+import org.nemesis.antlr.live.language.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.language.DiscardChangesCookie;
 import org.nemesis.antlr.live.language.DynamicLanguages;
 import org.nemesis.antlr.live.language.SampleFiles;
 import org.nemesis.antlr.live.language.UndoRedoProvider;
 import org.nemesis.antlr.live.preview.PreviewPanel;
 import org.nemesis.antlr.project.Folders;
+import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
@@ -162,44 +165,17 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         "REGISTERING_DYNAMIC=Compiling {0} and registering syntax highlighting",
         "# {0} - grammar file path",
         "REGISTERING_COMPLETE=Language registration complete: {0}",
-        "WRONG_FOLDER=Preview only available for grammars under the main Antlr source folder of the project"
+        "WRONG_FOLDER=Preview only available for grammars under the main Antlr source folder of the project",
+        "DETECTING_FOLDERS=Checking Antlr Configuration",
+        "REGISTER_LANGUAGE=Registering dynamic language config",
+        "OPENING_EDITOR=Registering dynamic language config"
     })
-    private void lazyInit() {
-        LOG.log(Level.FINER, "Lazy init for {0}", obj.getPrimaryFile().getPath());
-        if (initTask != null) {
-            LOG.log(Level.WARNING, "Init for {0} called twice", obj.getPrimaryFile().getPath());
-            return;
-        }
-        if (obj.isValid()) {
-            Folders flds = Folders.ownerOf(obj.getPrimaryFile());
-            switch (flds) {
-                case ANTLR_TEST_GRAMMAR_SOURCES:
-                case ANTLR_GRAMMAR_SOURCES:
-                    File file = FileUtil.toFile(obj.getPrimaryFile());
-                    if (file != null) {
-                        StatusDisplayer.getDefault().setStatusText(
-                                Bundle.REGISTERING_DYNAMIC(obj.getPrimaryFile().getNameExt()));
-                        initTask = INIT.create(() -> {
-                            _lazyInit(file.toPath());
-                        });
-                        initTask.schedule(5);
-                    } else {
-                        loadingLabel.setText(Bundle.NOT_REGULAR_FILE(obj.getPrimaryFile().getPath()));
-                    }
-                    break;
-                default:
-                    loadingLabel.setText(Bundle.WRONG_FOLDER());
-            }
-        } else {
-            loadingLabel.setText(Bundle.NOT_A_FILE(obj.getPrimaryFile().getPath()));
-        }
-    }
-
     void veryLazyInit(Consumer<JComponent> onEqWhenDone) {
         long then = System.currentTimeMillis();
         Thread.currentThread().setName("G4VisualElement-init-" + obj.getName());
         if (obj.isValid()) {
             Folders flds = Folders.ownerOf(obj.getPrimaryFile());
+            superLazy.status(Bundle.DETECTING_FOLDERS());
             switch (flds) {
                 case ANTLR_TEST_GRAMMAR_SOURCES:
                 case ANTLR_GRAMMAR_SOURCES:
@@ -211,27 +187,42 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                         loadingLabel.setText(Bundle.NOT_REGULAR_FILE(obj.getPrimaryFile().getPath()));
                     }
                     String mime = AdhocMimeTypes.mimeTypeForPath(file.toPath());
+
+                    superLazy.status(Bundle.REGISTER_LANGUAGE());
                     if (DynamicLanguages.ensureRegistered(mime)) {
+
                         try {
                             // XXX we are racing here with the file change listener that
                             // detects newly installed languages - really we need
                             // something to listen on that will fire a change when the
                             // language is fully registered - otherwise we'll wind up
                             // with a text/plain component
-                            Thread.sleep(100);
+                            Thread.sleep(120);
                         } catch (InterruptedException ex) {
                             LOG.log(Level.INFO, null, ex);
                         }
+                        // Warm some things up that will be needed soon
+                        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mime));
+                    }
+                    // Force init of lookup contents ahead of time
+                    EditorKit kit = lkp.lookup(EditorKit.class);
+                    Object o;
+                    for (Object ob : lkp.lookupAll(Object.class)) {
+                        o = ob; // ensure the compiler doesn't optimize this away
                     }
                     // Find or create a sample file to work with
                     DataObject sampleFileDataObject = SampleFiles.sampleFile(mime);
+                    // Get the colorings for this grammar's pseudo-mime-type, creating
+                    // them if necessary
+                    AdhocColorings colorings = AdhocColoringsRegistry.getDefault().get(mime);
+
                     try {
                         EditorCookie ck = sampleFileDataObject.getLookup().lookup(EditorCookie.class);
                         // Open the document and set it on the editor pane
                         StyledDocument doc = ck.openDocument();
                         doc.putProperty("mimeType", mime);
                         doc.putProperty(StreamDescriptionProperty, sampleFileDataObject);
-
+                        superLazy.status(Bundle.OPENING_EDITOR());
                         EventQueue.invokeLater(() -> {
                             StatusDisplayer.getDefault()
                                     .setStatusText(
@@ -239,7 +230,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.FINEST,
                                     "Lazy load completed in {0} ms", new Object[]{
                                         System.currentTimeMillis() - then});
-                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc);
+                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc, colorings);
                             UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
                             if (prov != null) {
                                 this.undoRedo = prov.get();
@@ -258,6 +249,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                         });
                     }
                     break;
+
                 default:
                     EventQueue.invokeLater(() -> {
                         loadingLabel.setText(Bundle.WRONG_FOLDER());
@@ -273,66 +265,6 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     }
 
     private PreviewPanel panel;
-
-    private void _lazyInit(Path path) {
-        assert !EventQueue.isDispatchThread();
-        // XXX theoretically the file can be deleted between lazyInit() and
-        // this being run on a background thread
-        String mime = AdhocMimeTypes.mimeTypeForPath(path);
-        if (DynamicLanguages.ensureRegistered(mime)) {
-            try {
-                // XXX we are racing here with the file change listener that
-                // detects newly installed languages - really we need
-                // something to listen on that will fire a change when the
-                // language is fully registered - otherwise we'll wind up
-                // with a text/plain component
-                Thread.sleep(100);
-            } catch (InterruptedException ex) {
-                LOG.log(Level.INFO, null, ex);
-            }
-        }
-        LOG.log(Level.FINER, "Background lanugage registration of {0}"
-                + " as pseudo-mime-type {1}", new Object[]{obj.getPrimaryFile().getPath(), mime});
-        long then = System.currentTimeMillis();
-        // Find or create a sample file to work with
-        DataObject sampleFileDataObject = SampleFiles.sampleFile(mime);
-
-        try {
-            EditorCookie ck = sampleFileDataObject.getLookup().lookup(EditorCookie.class);
-            // Open the document and set it on the editor pane
-            StyledDocument doc = ck.openDocument();
-            doc.putProperty("mimeType", mime);
-            doc.putProperty(StreamDescriptionProperty, sampleFileDataObject);
-            EventQueue.invokeLater(() -> {
-                StatusDisplayer.getDefault()
-                        .setStatusText(
-                                Bundle.REGISTERING_COMPLETE(obj.getPrimaryFile().getNameExt()));
-                LOG.log(Level.FINEST,
-                        "Lazy load completed in {0} ms", new Object[]{
-                            System.currentTimeMillis() - then});
-
-                PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc);
-                UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
-                if (prov != null) {
-                    this.undoRedo = prov.get();
-                    super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
-                }
-                this.lkp.setAdditional(pnl.getLookup());
-                saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
-                saveCookieResult.addLookupListener(this);
-                remove(loadingLabel);
-//            toolbar.add(new FindCulpritAction(pnl.getLookup()));
-                add(pnl, BorderLayout.CENTER);
-                pnl.notifyShowing();
-            });
-        } catch (IOException ex) {
-            LOG.log(Level.SEVERE, "Exception opening " + sampleFileDataObject.getPrimaryFile().getPath(), ex);
-            EventQueue.invokeLater(() -> {
-                loadingLabel.setText(ex.toString());
-
-            });
-        }
-    }
 
     @Override
     public void componentOpened() {

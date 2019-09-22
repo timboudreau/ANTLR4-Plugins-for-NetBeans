@@ -47,9 +47,9 @@ import org.openide.filesystems.FileUtil;
  * the parser manager's lock until whatever work is being done completes, no
  * matter how long it takes. This is generally deadlock-prone, so this class
  * returns the parsing result or whatever is derived from it, outside the scope
- * of the UserTask.  Also provides convenience methods for Path to file to
- * FileObject to Source to Collection-of-Source conversion, since that is
- * simply annoying.
+ * of the UserTask. Also provides convenience methods for Path to file to
+ * FileObject to Source to Collection-of-Source conversion, since that is simply
+ * annoying.
  *
  * @author Tim Boudreau
  */
@@ -93,6 +93,10 @@ public final class ParsingUtils {
 
     public static <T> T parse(FileObject src, ThrowingFunction<Parser.Result, T> func) throws Exception {
         return parse(Source.create(src), func);
+    }
+
+    public static void parse(Document src) throws Exception {
+        parse(src, NO_CONVERT);
     }
 
     public static <T> T parse(Document src, ThrowingFunction<Parser.Result, T> func) throws Exception {

@@ -81,24 +81,6 @@ public class AntlrDocumentRelativeResolverImplementation extends RelativeResolve
                     }
                 }
             }
-//            Optional<FileObject> neighbor = new AntlrFileObjectRelativeResolver().resolve(fo, name);
-//            if (neighbor.isPresent()) {
-//                try {
-//                    DataObject dob = DataObject.find(neighbor.get());
-//                    EditorCookie ck = dob.getCookie(EditorCookie.class);
-//                    if (ck != null) {
-//                        Document d = ck.getDocument();
-//                        if (d == null) {
-//                            d = ck.openDocument();
-//                        }
-//                        if (d != null) {
-//                            return Optional.of(d);
-//                        }
-//                    }
-//                } catch (IOException ex) {
-//                    Logger.getLogger(AntlrDocumentRelativeResolverImplementation.class.getName()).log(Level.SEVERE, "Exception resolving " + name, ex);
-//                }
-//            }
         }
         return Optional.empty();
     }

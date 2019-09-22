@@ -35,11 +35,11 @@ final class AdhocParser extends Parser {
 
     AdhocParserResult last = null;
     private final String mimeType;
-    private final EmbeddedAntlrParser parser;
+    private int parses;
 
-    AdhocParser(String mimeType, EmbeddedAntlrParser parser) {
+    AdhocParser(String mimeType) {
         this.mimeType = mimeType;
-        this.parser = parser;
+        LIVE_PARSERS.add(this);
     }
 
     static void forceInvalidate(FileObject fo) {
@@ -49,7 +49,7 @@ final class AdhocParser extends Parser {
         for (Map.Entry<Task, AdhocParserResult> e : RESULT_FOR_TASK.entrySet()) {
             AdhocParserResult res = e.getValue();
             if (res != null) {
-                if (fo.equals(res.getSnapshot().getSource().getFileObject()))  {
+                if (fo.equals(res.getSnapshot().getSource().getFileObject())) {
                     res.invalidate();
                     all.add(e.getKey());
                 }
@@ -71,34 +71,63 @@ final class AdhocParser extends Parser {
 
     @Override
     public String toString() {
-        return "AdhocParser(" + mimeType + " " + parser + ")";
+        return "AdhocParser(" + mimeType + ")";
     }
 
     boolean isMimeType(String type) {
         return mimeType.equals(type);
     }
 
+    private int parsesAtLastFire = -1;
+
     void updated() {
         LOG.log(Level.FINE, "Fire parser change from {0}", this);
 //        last = null;
 //        RESULT_FOR_TASK.clear();
-        System.out.println("PARSER FIRE CHANGE");
-        supp.fireChange();
+        if (parsesAtLastFire != parses) {
+            System.out.println("PARSER FIRE CHANGE " + AdhocMimeTypes.loggableMimeType(mimeType));
+            Thread.dumpStack();
+            parsesAtLastFire = parses;
+            supp.fireChange();
+        }
     }
 
     @Override
     public void parse(Snapshot snapshot, Task task, SourceModificationEvent event) throws ParseException {
+        if (!snapshot.getMimeType().equals(mimeType)) {
+            String msg = "AdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
+                    + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
+                    + task + "\nEvent source:" + event.getModifiedSource();
+            LOG.log(Level.SEVERE, msg, new Exception(msg));
+        }
+        if (!snapshot.getSource().getMimeType().equals(mimeType)) {
+            String msg = "Snapshot mime type and snapshot source mime type do not match: "
+                    + "\nSnp  mime type: " + snapshot.getMimeType()
+                    + "\nSrc  mime type: " + snapshot.getSource().getMimeType()
+                    + "\nThis mime type: " + mimeType
+                    + "\nAdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
+                    + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
+                    + task + "\nEvent source:" + event.getModifiedSource();
+            LOG.log(Level.SEVERE, msg, new Exception(msg));
+        }
+
+        parses++;
         try {
             Debug.runThrowing(this, "adhoc-parser " + AdhocMimeTypes.loggableMimeType(snapshot.getMimeType()), () -> {
                 return snapshot.getSource().getDocument(false) + "\n\nTEXT:\n"
                         + snapshot.getText() + "\n\n"
                         + snapshot.getSource().getFileObject();
             }, () -> {
-                System.out.println("AdhocParser parse " + task);
-                AntlrProxies.ParseTreeProxy res = parser.parse(snapshot.getText().toString());
+                EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+                AntlrProxies.ParseTreeProxy res = parser.parse(snapshot.getText());
+                if (!res.mimeType().equals(mimeType)) {
+                    String msg = "Bad ParseTreeProxy mime type from EmbeddedAntlrParser\n"
+                            + "Exp: " + mimeType + "\nGot: " + res.mimeType() + "\n"
+                            + "From: " + parser;
+                    LOG.log(Level.SEVERE, msg, new Exception(msg));
+                }
                 GrammarRunResult<?> gbrg = parser.lastResult();
                 AdhocParserResult result = new AdhocParserResult(snapshot, res, inv);
-                System.out.println("CREATE PARSER RESULT FOR " + task + " result");
                 last = result;
                 RESULT_FOR_TASK.put(task, result);
                 AdhocReparseListeners.reparsed(mimeType, snapshot.getSource(), gbrg, res);
@@ -114,12 +143,7 @@ final class AdhocParser extends Parser {
 
         @Override
         public void accept(AdhocParserResult t) {
-//            if (true) {
-//                return;
-//            }
-            System.out.println("INV accept " + t + " last " + last);
             if (last == t) {
-                System.out.println("clear last");
                 last = null;
             }
             Set<Task> toRemove = new HashSet<>();

@@ -63,20 +63,37 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         return grammarGenerationResult.exitCode();
     }
 
+    public void refreshFileStatusForReuse() {
+        if (grammarGenerationResult != null) {
+            grammarGenerationResult.filesStatus.refresh();
+        }
+        if (compilationResult != null) {
+            compilationResult.refreshFilesStatus();
+        }
+        touched.refresh();
+    }
+
     @Override
     public UpToDateness currentStatus() {
         if (grammarGenerationResult == null || compilationResult == null) {
+            System.out.println("null gen or compile results: " + grammarGenerationResult + " / " + compilationResult);
             return UpToDateness.UNKNOWN;
         }
         UpToDateness result = grammarGenerationResult.currentStatus();
         if (result.mayRequireRebuild()) {
+            System.out.println("grammar generation may require rebuild: " + grammarGenerationResult.filesStatus.changes());
             return result;
         }
         result = compilationResult.currentStatus();
         if (result.mayRequireRebuild()) {
+            System.out.println("compilation may require rebuild: " + compilationResult.filesState().changes());
             return result;
         }
-        return touched.changes().status();
+        result = touched.changes().status();
+        if (!result.isUpToDate()) {
+            System.out.println("Touched may require rebuild: " + touched.changes());
+        }
+        return result;
     }
 
     @Override

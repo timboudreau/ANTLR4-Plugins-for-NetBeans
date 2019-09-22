@@ -1,6 +1,5 @@
 package org.nemesis.antlr.live.language;
 
-import java.nio.file.Path;
 import java.util.Set;
 import static org.nemesis.antlr.live.language.AdhocLanguageHierarchy.DUMMY_TOKEN_ID;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -22,10 +21,9 @@ import org.netbeans.api.lexer.TokenId;
 public class AdhocTokenId implements TokenId, Comparable<TokenId> {
 
     private final AntlrProxies.ProxyTokenType type;
-    private final Path grammarPath;
     private final String name;
 
-    public AdhocTokenId(AntlrProxies.ParseTreeProxy proxy, AntlrProxies.ProxyTokenType type, Set<String> usedNames) {
+    public AdhocTokenId(AntlrProxies.ProxyTokenType type, Set<String> usedNames) {
         this.type = type;
         String nm = type.programmaticName();
         String test = nm;
@@ -37,12 +35,10 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
         }
         usedNames.add(test);
         this.name = test;
-        this.grammarPath = proxy.grammarPath();
     }
 
-    public AdhocTokenId(String name, Path grammarPath, int type) {
+    public AdhocTokenId(String name, int type) {
         this.type = new ProxyTokenType(type, DUMMY_TOKEN_ID, null, DUMMY_TOKEN_ID);
-        this.grammarPath = grammarPath;
         this.name = name;
     }
 
@@ -54,6 +50,14 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
     @Override
     public int ordinal() {
         return type.type + 1;
+    }
+
+    String literalName() {
+        return type.literalName;
+    }
+
+    boolean canBeFlyweight() {
+        return type.literalName != null && !type.literalName.isEmpty();
     }
 
     /**
@@ -111,8 +115,7 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof AdhocTokenId && ((AdhocTokenId) o).ordinal() == ordinal()
-                && ((AdhocTokenId) o).grammarPath.equals(grammarPath);
+        return o instanceof AdhocTokenId && ((AdhocTokenId) o).ordinal() == ordinal();
     }
 
     @Override
@@ -122,7 +125,7 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
 
     @Override
     public String toString() {
-        return name() + "(" + ordinal() + " in " + grammarPath.getFileName() + ")";
+        return name() + "(" + ordinal() + ")";
     }
 
     @Override

@@ -457,7 +457,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
             c = Color.BLACK;
         }
 
-        StringBuffer sb = new StringBuffer(7);
+        StringBuilder sb = new StringBuilder(7);
         sb.append('#');
         sb.append(hexString(c.getRed()));
         sb.append(hexString(c.getGreen()));

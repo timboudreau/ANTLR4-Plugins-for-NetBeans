@@ -10,9 +10,11 @@ import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -51,6 +53,7 @@ import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
+import org.openide.util.WeakSet;
 
 /**
  * Allows callers to pass a callback which will be triggered whenever a new
@@ -532,9 +535,31 @@ public final class RebuildSubscriptions {
                 return AntlrLoggers.getDefault().forPath(p);
             }
 
+            private String lastHash;
+            private Object lastLock = new Object();
+            private Set<Subscriber> subscribersAtLastParse;
+
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
                 LOG.log(Level.FINER, "onReparse {0}", extraction.source());
+                List<Subscriber> targets = subscribers;
+                synchronized(lastLock) {
+                    // avoid notifying for "casual" reparses where the
+                    // content has not changed
+                    // XXX this will block updates when an imported grammar
+                    // changes
+                    String hash = extraction.tokensHash();
+                    if (Objects.equals(lastHash, hash)) {
+                        targets = new ArrayList<>(targets);
+                        targets.removeAll(subscribersAtLastParse);
+                        if (targets.isEmpty()) {
+                            return;
+                        }
+                    } else {
+                        lastHash = hash;
+                        subscribersAtLastParse = new WeakSet<>(subscribers);
+                    }
+                }
                 AntlrGenerator gen = gen(extraction);
                 try {
                     // The parsing plumbing interrupts the parse thread in the event

@@ -600,7 +600,7 @@ public final class JFS implements JavaFileManager {
         return result;
     }
 
-    int list(Location location, BiConsumer<Location, JFSFileObject> consumer) {
+    public int list(Location location, BiConsumer<Location, JFSFileObject> consumer) {
         JFSStorage stor = storageForLocation.get(location);
         if (stor == null) {
             return 0;

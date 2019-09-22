@@ -2,8 +2,10 @@ package org.nemesis.antlr.live.preview;
 
 import java.awt.Color;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 
 /**
  *
@@ -29,11 +31,15 @@ public class RulePathStringifierImpl implements RulePathStringifier {
             }
             into.append(TOKEN_DELIM);
         }
-        int count = tok.referencedBy().size() - 1;
+        int count = prx.referencesCount(tok) - 1; //tok.referencedBy().size() - 1;
+        if (count <= 0) {
+            return;
+        }
         maxDist = count + 1;
         distances.clear();
+        List<ParseTreeElement> els = prx.referencedBy(tok);
         for (int i = count; i >= 0; i--) { // zeroth will be the token
-            AntlrProxies.ParseTreeElement el = tok.referencedBy().get(i);
+            AntlrProxies.ParseTreeElement el = els.get(i);
             if (el instanceof AntlrProxies.RuleNodeTreeElement) {
                 boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
                 if (i != count) {

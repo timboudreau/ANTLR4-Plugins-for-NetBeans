@@ -22,6 +22,7 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
 import org.openide.awt.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
+import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
@@ -201,6 +202,11 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
     private void moveTo(EditorCookie cookie, NamedSemanticRegion<K> el) {
         try {
             cookie.openDocument();
+            JEditorPane pane = NbDocument.findRecentEditorPane(cookie);
+            if (pane != null) {
+                moveTo(pane, el);
+                return;
+            }
             JEditorPane[] panes = cookie.getOpenedPanes();
             if (panes.length > 0) {
                 moveTo(panes[0], el);

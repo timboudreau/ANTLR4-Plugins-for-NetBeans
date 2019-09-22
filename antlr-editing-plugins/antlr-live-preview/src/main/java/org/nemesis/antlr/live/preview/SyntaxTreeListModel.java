@@ -29,6 +29,7 @@ OF SUCH DAMAGE.
 package org.nemesis.antlr.live.preview;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.Graphics;
@@ -37,10 +38,12 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListSelectionModel;
+import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
@@ -79,6 +82,17 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         return selectionModel;
     }
 
+    public int select(ParseTreeElement el) {
+        for (int i = 0; i < entries.size(); i++) {
+            ModelEntry me = entries.get(i);
+            if (el.equals(me.el)) {
+                selectionModel.setSelectionInterval(i, i);
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public JList<ModelEntry> createList() {
         JList<ModelEntry> list = new ParentCheckList(this);
         list.setSelectionModel(selectionModel);
@@ -87,22 +101,28 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         return list;
     }
 
-    public void listenForClicks(JList<ModelEntry> list, Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer) {
-        list.addMouseListener(new ME(supp, consumer));
+    public void listenForClicks(JList<ModelEntry> list, Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer, BooleanSupplier disabled) {
+        list.addMouseListener(new ME(supp, consumer, disabled));
     }
 
     final class ME extends MouseAdapter {
+
         private final Supplier<List<ProxyToken>> supp;
         private final Consumer<int[]> consumer;
+        private final BooleanSupplier disabled;
 
-        public ME(Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer) {
+        public ME(Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer, BooleanSupplier disabled) {
             this.supp = supp;
             this.consumer = consumer;
+            this.disabled = disabled;
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public void mouseClicked(MouseEvent e) {
+            if (disabled.getAsBoolean()) {
+                return;
+            }
             List<ProxyToken> toks = supp.get();
             if (toks.isEmpty()) {
                 return;
@@ -124,7 +144,6 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             list.repaint(list.getCellBounds(oldSel < 0 ? index : oldSel, index));
         }
     }
-
 
     static class ParentCheckList extends JList<ModelEntry> {
 
@@ -162,18 +181,55 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 ren.setHtml(true);
                 ren.setText(value.toString());
             }
-            ren.setSelected(isSelected);
-            if (isSelected) {
-                ren.setBackground(list.getSelectionBackground());
-            } else {
-                ren.setBackground(list.getBackground());
-            }
             ren.setForeground(list.getForeground());
             ren.setIndent(5 * value.depth());
             if (list instanceof ParentCheckList) {
                 ren.setParentFocused(((ParentCheckList) list).parentFocused);
             }
             ren.setToolTipText(value.el.stringify());
+            ren.setSelected(isSelected);
+            ren.setLeadSelection(isSelected);
+            if (isSelected) {
+                ren.setCellBackground(list.getSelectionBackground());
+            } else {
+                ModelEntry sel = list.getSelectedValue();
+                int dist = -1;
+                if (sel != null) {
+                    dist = sel.distanceFrom(value);
+                }
+                if (dist == -1) {
+                    ren.setCellBackground(list.getBackground());
+                } else {
+                    ren.setCellBackground(backgroundFor(dist, list, sel.depth()));
+                }
+            }
+            ((JComponent) result).setOpaque(true);
+            return result;
+        }
+
+        private Color backgroundFor(int dist, JList<?> list, int totalDepth) {
+            Color selBg = list.getSelectionBackground();
+            Color bg = list.getBackground();
+            float[] selBgHsb = new float[3];
+            Color.RGBtoHSB(selBg.getRed(), selBg.getGreen(), selBg.getBlue(), selBgHsb);
+            float[] bgHsb = new float[3];
+            Color.RGBtoHSB(bg.getRed(), bg.getGreen(), bg.getBlue(), bgHsb);
+            float[] changed = diff(selBgHsb, bgHsb, dist, totalDepth);
+            return new Color(Color.HSBtoRGB(changed[0], changed[1], changed[2]));
+        }
+
+        private float[] diff(float[] a, float[] b, float dist, float of) {
+            if (of == 0) {
+                return a;
+            }
+            float frac = dist / of;
+            float[] result = new float[a.length];
+            for (int i=0; i < a.length; i++) {
+                float av = a[i];
+                float bv = b[i];
+                float diff = (bv-av) * frac;
+                result[i] = a[i] + diff;
+            }
             return result;
         }
     }
@@ -319,19 +375,33 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 if (startToken >= 0 && startToken < tokens.size() && endToken >= 0 && endToken < tokens.size()) {
                     ProxyToken start = tokens.get(startToken);
                     ProxyToken end = tokens.get(endToken);
-                    int[] result = new int[] {start.getStartIndex(), end.getEndIndex()};
+                    int[] result = new int[]{start.getStartIndex(), end.getEndIndex()};
                     if (result[0] < 0 || result[1] < 0 || result[1] < result[0]) {
-                        System.out.println("Insane start/end " + result[0] + " / " + result[1] + " for " + el);
                         return new int[0];
                     }
                     return result;
-                } else {
-                    System.out.println("Weird start end " + startToken + " / " + endToken + " for " + el);
                 }
-            } else {
-                System.out.println("Not token associated: " + el);
             }
             return new int[0];
+        }
+
+        int distanceFrom(ModelEntry other) {
+            if (other == this) {
+                return 0;
+            }
+            AntlrProxies.ParseTreeElement o = other.el;
+            int result = -1;
+            AntlrProxies.ParseTreeElement curr = el;
+            int dist = 0;
+            while (curr != null) {
+                if (curr == o) {
+                    result = dist;
+                    break;
+                }
+                curr = curr.parent();
+                dist++;
+            }
+            return result;
         }
 
         public int depth() {

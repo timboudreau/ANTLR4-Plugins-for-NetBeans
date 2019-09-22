@@ -58,10 +58,6 @@ public class EmbeddedAntlrParsers {
                 return Collections.synchronizedSet(CollectionUtils.weakSet());
             });
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static final Supplier<EmbeddedAntlrParsers> INSTANCE_SUPPLIER
             = CachingSupplier.of(EmbeddedAntlrParsers::new);
 

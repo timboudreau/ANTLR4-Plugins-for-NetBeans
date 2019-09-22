@@ -41,6 +41,10 @@ public class CompileResult implements ProcessingResult {
         return new Builder(sourceRoot);
     }
 
+    public void refreshFilesStatus() {
+        filesState.refresh();
+    }
+
     @Override
     public String toString() {
         return "CompileResult(completed " + callResult + " thrown " + thrown

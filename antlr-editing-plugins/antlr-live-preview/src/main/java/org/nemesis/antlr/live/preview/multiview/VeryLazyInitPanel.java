@@ -29,6 +29,7 @@ OF SUCH DAMAGE.
 package org.nemesis.antlr.live.preview.multiview;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
@@ -37,9 +38,13 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import org.nemesis.antlr.live.preview.PreviewPanel;
 import org.nemesis.antlr.live.preview.Spinner;
+import org.openide.util.Mutex;
+import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -50,16 +55,27 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
 
     private final RequestProcessor threadPool;
     private final Consumer<Consumer<JComponent>> innerComponentFactory;
-    private final JComponent loadingLabel = new Spinner();
+    private final JComponent spinner = new Spinner();
     private volatile Future<?> fut;
     private Reference<JComponent> oldInner;
     private boolean showing;
+    private final JLabel status = new JLabel();
 
     public VeryLazyInitPanel(Consumer<Consumer<JComponent>> innerComponentFactory, RequestProcessor threadPool) {
         super(new BorderLayout());
         this.innerComponentFactory = innerComponentFactory;
         this.threadPool = threadPool;
-//        loadingLabel.setEnabled(false);
+        status.setEnabled(false);
+        status.setMinimumSize(new Dimension(100, 40));
+        status.setHorizontalTextPosition(SwingConstants.CENTER);
+        add(spinner, BorderLayout.CENTER);
+        add(status, BorderLayout.SOUTH);
+    }
+
+    void status(String status) {
+        Mutex.EVENT.readAccess(() -> {
+            this.status.setText(status);
+        });
     }
 
     @Override
@@ -74,34 +90,28 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
         repaint();
     }
 
+    @Messages("initializing=Initializing Language Support...")
     void showing() {
-        System.out.println("showing");
         if (showing) {
-            System.out.println(" already showing");
             return;
         }
         showing = true;
         JComponent inner = oldInner == null ? null : oldInner.get();
         if (inner != null) {
-            System.out.println("   have old component");
             if (inner.getParent() != this) {
                 removeAll();
                 add(inner, BorderLayout.CENTER);
-                System.out.println("      add it");
                 danceLikeSomebodysLooking();
-            } else {
-                System.out.println("      already a child");
             }
         } else {
             if (getComponentCount() == 0) {
-                System.out.println("  add the loading label");
-                add(loadingLabel, BorderLayout.CENTER);
+                add(spinner, BorderLayout.CENTER);
+                add(status, BorderLayout.SOUTH);
                 danceLikeSomebodysLooking();
             }
-            System.out.println("   start background init");
+            status.setText(Bundle.initializing());
             fut = threadPool.submit(() -> {
                 try {
-                    System.out.println("     background init running");
                     innerComponentFactory.accept(this);
                 } catch (Exception | Error e) {
                     Logger.getLogger(VeryLazyInitPanel.class.getName()).log(
@@ -112,9 +122,7 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     }
 
     void hidden() {
-        System.out.println("hidden");
         if (!showing) {
-            System.out.println(" already hidden");
             return;
         }
         showing = false;
@@ -138,12 +146,14 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     ) {
         System.out.println("Received component from background: " + t);
         assert EventQueue.isDispatchThread();
+        status.setText(" ");
         fut = null;
         if (isDisplayable()) {
             oldInner = new WeakReference<>(t);
             if (t == null) {
                 removeAll();
-                add(loadingLabel, BorderLayout.CENTER);
+                add(spinner, BorderLayout.CENTER);
+                add(status, BorderLayout.SOUTH);
             } else {
                 removeAll();
                 add(t, BorderLayout.CENTER);

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -47,6 +48,7 @@ final class ProgrammaticParseResultHookRegistry {
             ProgrammaticParseResultHookRegistry.class.getName());
 
     static Set<ResultHookReference<?>> set() {
+        // XXX should be WeakHashSet?
         return Collections.synchronizedSet(new HashSet<>(5));
     }
 
@@ -224,8 +226,13 @@ final class ProgrammaticParseResultHookRegistry {
 
         protected abstract void onDestroyed();
 
+        protected void beforeReparse(ParseResultHook<T> hook, String mimeType, Extraction ext) {
+
+        }
+
         final void onBeforeReparse(ParseResultHook<T> hook, String mimeType, Extraction extraction) {
             assert hook != null;
+            beforeReparse(hook, mimeType, extraction);
             if (LOG.isLoggable(Level.FINER)) {
                 LOG.log(Level.FINER, "Begin programmatic hook reparse of {0} by {1} ({2}) for {3} in {4} registered on {5}",
                         new Object[]{extraction.source(), hook, hook.getClass().getName(), mimeType, getClass().getName(), targetString()});
@@ -235,7 +242,7 @@ final class ProgrammaticParseResultHookRegistry {
         final void onAfterReparse(ParseResultHook<T> hook, String mimeType, Extraction extraction, long elapsedMs) {
             assert hook != null;
             if (LOG.isLoggable(Level.FINER)) {
-                LOG.log(Level.FINER, "Begin programmatic hook reparse of {0} by {1} ({2}) for {3} in {4} registered on {5} took {6}",
+                LOG.log(Level.FINER, "Programmatic hook reparse of {0} by {1} ({2}) for {3} in {4} registered on {5} took {6}",
                         new Object[]{extraction.source(), hook, hook.getClass().getName(), mimeType, getClass().getName(), targetString(), elapsedMs});
             }
         }
@@ -277,6 +284,19 @@ final class ProgrammaticParseResultHookRegistry {
             stringVal = referent.toString();
             this.fo = fo;
             fo.addFileChangeListener(l);
+        }
+
+        @Override
+        protected void beforeReparse(ParseResultHook<T> hook, String mimeType, Extraction ext) {
+            Optional<FileObject> optActual = ext.source().lookup(FileObject.class);
+            if (optActual.isPresent()) {
+                if (!fo.equals(optActual.get())) {
+                    throw new IllegalStateException("Hook is being passed an extraction of "
+                            + "the wrong file."
+                            + "\nExpect:  " + fo.getPath()
+                            + "\nBut got: " + optActual.get().getPath());
+                }
+            }
         }
 
         @Override

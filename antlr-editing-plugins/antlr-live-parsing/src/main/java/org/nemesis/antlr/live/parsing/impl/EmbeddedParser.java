@@ -36,13 +36,13 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
  */
 public interface EmbeddedParser {
 
-    default AntlrProxies.ParseTreeProxy parse(String logName, String body) throws Exception {
+    default AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body) throws Exception {
         return parse(logName, body, 0);
     }
 
-    AntlrProxies.ParseTreeProxy parse(String logName, String body, int ruleNo) throws Exception;
+    AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, int ruleNo) throws Exception;
 
-    AntlrProxies.ParseTreeProxy parse(String logName, String body, String ruleName) throws Exception;
+    AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, String ruleName) throws Exception;
 
     void onDiscard();
 

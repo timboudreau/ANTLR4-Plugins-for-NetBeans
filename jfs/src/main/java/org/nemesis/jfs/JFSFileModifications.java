@@ -2,15 +2,21 @@ package org.nemesis.jfs;
 
 import com.mastfrog.predicates.Predicates;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -30,7 +36,7 @@ public class JFSFileModifications {
     private Predicate<Path> filter;
     private final Set<? extends Location> locations;
     private static final Logger LOG = Logger.getLogger(JFSFileModifications.class.getName());
-    private Map<? extends Location, Map<Path, Long>> info;
+    private FilesInfo info;
     private static final Predicate<Path> ALL = Predicates.alwaysTrue();
 
     JFSFileModifications() {
@@ -39,7 +45,7 @@ public class JFSFileModifications {
         this.jfs = null;
         this.filter = Predicates.alwaysFalse();
         this.locations = Collections.emptySet();
-        this.info = Collections.emptyMap();
+        this.info = new FilesInfo(Collections.emptyMap(), new byte[0]);
     }
 
     JFSFileModifications(JFS jfs, Location location, Location... moreLocations) {
@@ -75,7 +81,7 @@ public class JFSFileModifications {
         return new JFSFileModifications();
     }
 
-    Map<? extends Location, Map<Path, Long>> initialState() {
+    FilesInfo initialState() {
         return info;
     }
 
@@ -101,7 +107,7 @@ public class JFSFileModifications {
         return this;
     }
 
-    void setInfo(Map<? extends Location, Map<Path, Long>> m) {
+    void setInfo(FilesInfo m) {
         info = m;
     }
 
@@ -141,13 +147,16 @@ public class JFSFileModifications {
         }
 
         static FileChanges create(JFSFileModifications status) {
-            Map<? extends Location, Map<Path, Long>> initial;
-            Map<? extends Location, Map<Path, Long>> current;
+            FilesInfo initial;
+            FilesInfo current;
             synchronized (status) {
                 initial = status.initialState();
                 current = status.currentInfo();
             }
-            if (initial.equals(current)) {
+            if (initial.timestamps.equals(current.timestamps)) {
+                return EMPTY;
+            }
+            if (Arrays.equals(initial.hash, current.hash)) {
                 return EMPTY;
             }
             return new Modifications(initial, current, status.filter);
@@ -158,6 +167,7 @@ public class JFSFileModifications {
         public abstract UpToDateness status();
 
         private static final class EmptyFileChanges extends FileChanges {
+
             private final boolean unknown;
 
             public EmptyFileChanges(boolean unknown) {
@@ -223,7 +233,7 @@ public class JFSFileModifications {
                 this.filter = filter;
             }
 
-            Modifications(Map<? extends Location, Map<Path, Long>> orig, Map<? extends Location, Map<Path, Long>> nue, Predicate<Path> filter) {
+            Modifications(FilesInfo orig, FilesInfo nue, Predicate<Path> filter) {
                 this.filter = filter;
                 modified = new HashSet<>(7);
                 deleted = new HashSet<>(7);
@@ -231,10 +241,10 @@ public class JFSFileModifications {
                 // Technically if the same file exists in two locations,
                 // we could record it twice, but we will still have accurate
                 // enough information to make a go/rebuild decision
-                for (Map.Entry<? extends Location, Map<Path, Long>> e : orig.entrySet()) {
+                for (Map.Entry<? extends Location, Map<Path, Long>> e : orig.timestamps.entrySet()) {
                     Location loc = e.getKey();
-                    Map<Path, Long> origs = orig.get(loc);
-                    Map<Path, Long> updates = nue.get(loc);
+                    Map<Path, Long> origs = orig.timestamps.get(loc);
+                    Map<Path, Long> updates = nue.timestamps.get(loc);
                     for (Map.Entry<Path, Long> ee : origs.entrySet()) {
                         if (!filter.test(ee.getKey())) {
                             continue;
@@ -308,36 +318,51 @@ public class JFSFileModifications {
         }
     }
 
-    private Map<? extends Location, Map<Path, Long>> currentInfo() {
-        Map<? extends Location, Map<Path, Long>> items = locationMap();
+    private FilesInfo currentInfo() {
+        Map<? extends Location, Map<Path, Long>> timestamps = locationMap();
+        List<JFSFileObject> files = new ArrayList<>();
         for (Location loc : locations) {
-            Map<Path, Long> itemsForLocation = items.get(loc);
+            Map<Path, Long> itemsForLocation = timestamps.get(loc);
             jfs.list(loc, (location, fo) -> {
                 try {
                     Path path = Paths.get(fo.getName());
                     if (filter.test(path)) {
                         itemsForLocation.put(path, fo.getLastModified());
+                        files.add(fo);
                     }
                 } catch (Exception ex) {
                     LOG.log(Level.SEVERE, "Exception indexing " + jfs + " on " + fo, ex);
                 }
             });
         }
-        return items;
+        files.sort((a, b) -> {
+            return a.getName().compareTo(b.getName());
+        });
+        byte[] hash;
+        try {
+            MessageDigest dig = MessageDigest.getInstance("SHA-1");
+            for (JFSFileObject fo : files) {
+                fo.hash(dig);
+            }
+            hash = dig.digest();
+        } catch (NoSuchAlgorithmException | IOException ex) {
+            return Exceptions.chuck(ex);
+        }
+        return new FilesInfo(timestamps, hash);
     }
 
-    private Map<? extends Location, Map<Path, Long>> locationMap() {
+    private <R> Map<? extends Location, Map<Path, R>> locationMap() {
         // Comparing a hash lookup to a bitwise operation in an
         // EnumSet or EnumMap, this optimization is worth it
         if (locations instanceof EnumSet<?>) {
-            Map<StandardLocation, Map<Path, Long>> result = new EnumMap<>(StandardLocation.class);
+            Map<StandardLocation, Map<Path, R>> result = new EnumMap<>(StandardLocation.class);
             for (Location l : locations) {
-                Map<Path, Long> m = new HashMap<>(20);
+                Map<Path, R> m = new HashMap<>(20);
                 result.put((StandardLocation) l, m);
             }
             return result;
         }
-        Map<Location, Map<Path, Long>> result = new HashMap<>();
+        Map<Location, Map<Path, R>> result = new HashMap<>();
         for (Location l : locations) {
             result.put(l, new HashMap<>(20));
         }
@@ -364,5 +389,17 @@ public class JFSFileModifications {
         result.add(notNull("first", first));
         result.addAll(Arrays.asList(more));
         return result;
+    }
+
+    static final class FilesInfo {
+
+        final Map<? extends Location, Map<Path, Long>> timestamps;
+        final byte[] hash;
+
+        public FilesInfo(Map<? extends Location, Map<Path, Long>> timestamps, byte[] hash) {
+            this.timestamps = timestamps;
+            this.hash = hash;
+        }
+
     }
 }
