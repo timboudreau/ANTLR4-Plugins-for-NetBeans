@@ -153,16 +153,6 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         supp().removePropertyChangeListener(propertyName, listener);
     }
 
-    public Map<String, AdhocColoring> activeColorings() {
-        Map<String, AdhocColoring> result = new HashMap<>();
-        colorings.entrySet().stream().filter(e -> {
-            return e.getValue().isActive();
-        }).forEach(e -> {
-            result.put(e.getKey(), e.getValue());
-        });
-        return result;
-    }
-
     public void store(OutputStream out) throws IOException {
         byte[] eq = "=".getBytes(UTF_8);
         for (String key : colorings.keySet()) {

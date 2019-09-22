@@ -26,6 +26,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 
@@ -121,8 +123,8 @@ public class AntlrProxies {
             text = "(sample code here)\n";
         }
         ProxyTokenType textType = new ProxyTokenType(0, "text", "text", "text");
-        ProxyToken all = new ProxyToken(text, 0, 0, 0, 0, 0, 0, text.length() - 1);
-        ProxyToken eof = new ProxyToken("", -1, 0, 0, 0, 1, text.length(), text.length());
+        ProxyToken all = new ProxyToken(0, 0, 0, 0, 0, 0, text.length() - 1);
+        ProxyToken eof = new ProxyToken(-1, 0, 0, 0, 1, text.length(), text.length());
         ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
         ParseTreeElement child = new RuleNodeTreeElement("unparsed", 0, 0, 1, 1);
         ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
@@ -187,6 +189,32 @@ public class AntlrProxies {
             this.text = text;
             this.thrown = thrown;
             this.ruleReferencesForToken = ruleReferencesForToken;
+        }
+
+        public CharSequence textOf(ProxyToken tok) {
+            int start = tok.getStartIndex();
+            int end = tok.getEndIndex();
+            if (end <= start) {
+                return "";
+            }
+            int tp = tok.getType();
+            if (tp == -1) {
+                return "";
+            }
+            ProxyTokenType type = tokenTypes.get(tp + 1);
+            if (type.literalName != null) {
+                return type.literalName;
+            }
+            try {
+                return text.subSequence(start, end);
+            } catch (Exception ex) {
+                // If the char sequence is a snapshot, it may have bit the dust
+                Logger.getLogger(ParseTreeProxy.class.getName())
+                        .log(Level.INFO, "Cannot get text - defunct snapshot?", ex);
+                char[] c = new char[end - start];
+                Arrays.fill(c, '-');
+                return new String(c);
+            }
         }
 
         public int referencesCount(ProxyToken tok) {
@@ -336,7 +364,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          */
         public ParseTreeProxy toEmptyParseTreeProxy(String whitespace) {
             whitespace = whitespace == null ? "" : whitespace;
-            List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(whitespace, -1, 1, 0, 0, 0, 0, whitespace.length()));
+            List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(-1, 1, 0, 0, 0, 0, whitespace.length() - 1));
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
@@ -631,15 +659,15 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     private final byte[] hashScratch = new byte[4];
 
-    public AntlrProxies onToken(String text, int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
+    public AntlrProxies onToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim) {
         ByteBuffer.wrap(hashScratch).putInt(type);
         hash.update(hashScratch);
-        if (text != null && !text.trim().isEmpty()) {
-            ByteBuffer.wrap(hashScratch).putInt(text.hashCode());
-            hash.update(hashScratch);
-        }
-        ProxyToken token = new ProxyToken(text, type, line,
-                charPositionInLine, channel, tokenIndex, startIndex, stopIndex);
+//        if (text != null && !text.trim().isEmpty()) {
+//            ByteBuffer.wrap(hashScratch).putInt(text.hashCode());
+//            hash.update(hashScratch);
+//        }
+        ProxyToken token = new ProxyToken(type, line,
+                charPositionInLine, channel, tokenIndex, startIndex, stopIndex, trim);
         if (startIndex > stopIndex && type != -1) {
             throw new IllegalArgumentException("Token ends before it starts: '"
                     + text + "' type=" + type + " startIndex=" + startIndex
@@ -652,7 +680,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 throw new IllegalArgumentException("Token type index "
                         + typeIndex + " is > total token type count "
                         + tokenTypes.size() + " in " + tokenTypes
-                        + " for '" + text + "' type " + type + " line "
+                        /* + " for '" + text */ + "' type " + type + " line "
                         + line + " charPos " + charPositionInLine
                         + " startIndex " + startIndex + " stopIndex " + stopIndex
                 );
@@ -891,8 +919,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             } else if (o instanceof ProxyTokenType) {
                 ProxyTokenType ptt = (ProxyTokenType) o;
-                return ptt.type == type && Objects.equals(ptt.symbolicName, symbolicName)
-                        && Objects.equals(ptt.literalName, literalName);
+                return ptt.type == type;
             }
             return false;
         }
@@ -1047,46 +1074,48 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     public static final class ProxyToken implements Comparable<ProxyToken>, Serializable {
 
-        private final CharSequence text;
-        private final int type;
+        // We are making a few pretty safe assumptions here to minimize memory
+        // footprint
+        private final short type;
         private final int line;
-        private final int charPositionInLine;
-        private final int channel;
+        private final short charPositionInLine;
+        private final byte channel;
+        private final byte trim;
         private final int tokenIndex;
         private final int startIndex;
-        private final int stopIndex;
-//        private List<ParseTreeElement> referencedBy;
+        private final short length;
 
-        ProxyToken(CharSequence text, int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
-            this.text = text;
-            this.type = type;
-            this.line = line;
-            this.charPositionInLine = charPositionInLine;
-            this.channel = channel;
-            this.tokenIndex = tokenIndex;
-            this.startIndex = startIndex;
-            this.stopIndex = stopIndex;
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
+            this(type, line, charPositionInLine, channel, tokenIndex, startIndex, stopIndex, 0);
         }
 
-//        public List<ParseTreeElement> referencedBy() {
-//            return referencedBy == null ? Collections.emptyList() : referencedBy;
-//        }
-//        void addRuleReference(ParseTreeElement el) {
-//            if (referencedBy == null) {
-//                referencedBy = new ArrayList<>(8);
-//            }
-//            referencedBy.add(el);
-//        }
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim) {
+            this.type = (short) type;
+            this.line = line;
+            this.charPositionInLine = (short) charPositionInLine;
+            this.channel = (byte) channel;
+            this.tokenIndex = tokenIndex;
+            this.startIndex = startIndex;
+            this.length = (short) Math.max(0, (stopIndex - startIndex) + 1);
+            assert trim <= length : "Trim " + trim + " < length " + length;
+            this.trim = 0;
+        }
+
+        public int trimmedLength() {
+            return length - trim;
+        }
+
+        public int stopIndex() {
+            return startIndex + length - 1;
+        }
+
         public boolean startsAfter(int line, int position) {
             if (this.line > line) {
                 return true;
             } else if (this.line < line) {
                 return false;
             }
-            if (this.charPositionInLine > position) {
-                return true;
-            }
-            return false;
+            return this.charPositionInLine > position;
         }
 
         public boolean endsBefore(int line, int position) {
@@ -1095,17 +1124,14 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             } else if (this.line > line) {
                 return false;
             }
-            if (this.charPositionInLine + length() <= position) {
-                return true;
-            }
-            return false;
+            return this.charPositionInLine + length <= position;
         }
 
         public boolean contains(int line, int charOffset) {
             if (line != this.line) {
                 return false;
             }
-            if (charOffset >= charPositionInLine && charOffset < charPositionInLine + length()) {
+            if (charOffset >= charPositionInLine && charOffset < charPositionInLine + length) {
                 return true;
             }
             return false;
@@ -1113,11 +1139,11 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public boolean contains(int position) {
             int start = startIndex;
-            int stop = stopIndex;
+            int stop = stopIndex();
             if (type == -1) {
                 // EOF will have an end before its start
-                start = Math.min(startIndex, stopIndex);
-                stop = Math.max(startIndex, stopIndex);
+                start = Math.min(startIndex, stop);
+                stop = Math.max(startIndex, stop);
             }
             return position >= start && position <= stop;
         }
@@ -1130,30 +1156,22 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             int ix = startIndex;
             if (type == -1) {
                 // EOF will have an end before its start
-                ix = Math.min(stopIndex, startIndex);
+                ix = Math.min(stopIndex(), startIndex);
             }
             return ix > position;
         }
 
         public boolean endsBefore(int position) {
-            int ix = stopIndex;
+            int ix = stopIndex();
             if (type == -1) {
                 // EOF will have an end before its start
-                ix = Math.max(stopIndex, startIndex);
+                ix = Math.max(stopIndex(), startIndex);
             }
             return ix < position;
         }
 
         public int length() {
-            return (stopIndex + 1) - startIndex;
-        }
-
-        public String getText() {
-            return text.toString();
-        }
-
-        public CharSequence text() {
-            return text;
+            return length;
         }
 
         public int getType() {
@@ -1181,7 +1199,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         public int getStopIndex() {
-            return stopIndex;
+            return stopIndex();
         }
 
         /**
@@ -1191,12 +1209,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          * @return The stop index.
          */
         public int getEndIndex() {
-            return stopIndex + 1;
+            return startIndex + length;
         }
 
         public String toString() {
-            return "'" + text + "'@" + startIndex + ":"
-                    + stopIndex + "=" + tokenIndex + " line "
+            return "ProxyToken@" + startIndex + ":"
+                    + stopIndex() + "=" + tokenIndex + " line "
                     + line + " offset " + charPositionInLine
                     + " length " + length();
         }
@@ -1244,7 +1262,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         private ParseTreeElement element;
         private final AntlrProxies proxies;
-        private int index;
 
         ParseTreeBuilder(ParseTreeElement root, AntlrProxies proxies) {
             element = root;
@@ -1256,7 +1273,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             ParseTreeElement old = element;
             try {
                 element = new RuleNodeTreeElement(ruleName, alternative, sourceIntervalStart, sourceIntervalEnd, depth);
-                element.index = index++;
                 proxies.addElement(element);
                 old.add(element);
                 run.run();
@@ -1268,7 +1284,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public ParseTreeBuilder addTerminalNode(int tokenIndex, String tokenText, int currentDepth) {
             TerminalNodeTreeElement nue = new TerminalNodeTreeElement(tokenIndex, tokenText, currentDepth);
-            nue.index = index++;
             proxies.addElement(nue);
             element.add(nue);
             return this;
@@ -1276,7 +1291,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public ParseTreeBuilder addErrorNode(int startToken, int endToken, int depth) {
             ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth);
-            err.index = index++;
             proxies.addElement(err);
             element.add(err);
             proxies.hasParseErrors = true;
@@ -1290,10 +1304,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     public static class ParseTreeElement implements Iterable<ParseTreeElement>, Serializable {
 
-        private final List<ParseTreeElement> children = new ArrayList<>(5);
+        private List<ParseTreeElement> children;
         private final ParseTreeElementKind kind;
         private ParseTreeElement parent;
-        int index;
 
         public ParseTreeElement(ParseTreeElementKind kind) {
             this.kind = kind;
@@ -1301,10 +1314,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public int depth() {
             return 0;
-        }
-
-        public int index() {
-            return index;
         }
 
         public String name() {
@@ -1345,12 +1354,16 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         void add(ParseTreeElement child) {
             child.parent = this;
+            if (children == null) {
+                children = new ArrayList<>(5);
+            }
             children.add(child);
         }
 
         @Override
         public Iterator<ParseTreeElement> iterator() {
-            return children.iterator();
+            return children == null ? Collections.emptyIterator()
+                    : children.iterator();
         }
 
         @Override
@@ -1364,17 +1377,18 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public StringBuilder toString(String indent, StringBuilder into) {
             into.append('\n').append(indent).append(stringify());
-            for (ParseTreeElement kid : children) {
-                kid.toString(indent + "  ", into);
+            if (children != null) {
+                for (ParseTreeElement kid : children) {
+                    kid.toString(indent + "  ", into);
+                }
             }
             return into;
         }
 
         @Override
         public int hashCode() {
-            int hash = 5;
+            int hash = kind.ordinal() * 67;
             hash = 67 * hash + Objects.hashCode(this.children);
-            hash = 67 * hash + Objects.hashCode(this.kind);
             return hash;
         }
 
@@ -1390,13 +1404,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             }
             final ParseTreeElement other = (ParseTreeElement) obj;
-            if (!Objects.equals(this.children, other.children)) {
-                return false;
-            }
             if (this.kind != other.kind) {
                 return false;
             }
-            return true;
+            return Objects.equals(this.children, other.children);
         }
     }
 
@@ -1429,10 +1440,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.depth = (short) depth;
         }
 
+        @Override
         public int depth() {
             return depth;
         }
 
+        @Override
         public String name() {
             return ruleName;
         }
@@ -1441,14 +1454,17 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return alternative;
         }
 
+        @Override
         public int startTokenIndex() {
             return startTokenIndex;
         }
 
+        @Override
         public int stopTokenIndex() {
             return endTokenIndex;
         }
 
+        @Override
         public String stringify() {
             return ruleName + "(" + startTokenIndex + ":" + endTokenIndex + ")";
         }

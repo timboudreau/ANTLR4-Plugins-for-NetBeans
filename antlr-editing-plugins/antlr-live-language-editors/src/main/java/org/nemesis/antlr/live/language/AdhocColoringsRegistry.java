@@ -198,7 +198,6 @@ public final class AdhocColoringsRegistry {
 
     private void doUpdate(String mimeType, Extraction ext) throws IOException {
         AdhocColorings existing = loadOrCreate(mimeType);
-        List<String> rules = new ArrayList<>();
         ColorUtils colors = new ColorUtils();
         Supplier<Color> backgrounds = colors.backgroundColorSupplier();
 

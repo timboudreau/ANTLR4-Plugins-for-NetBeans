@@ -230,7 +230,7 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
                     stringifier.tokenRulePathString(prx, tok, sb, false);
                     print(Bundle.rules(sb), IOColors.OutputType.LOG_DEBUG);
                 }
-                print(Bundle.text(tok.getText()), IOColors.OutputType.OUTPUT);
+                print(Bundle.text(prx.textOf(tok)), IOColors.OutputType.OUTPUT);
             }
         }
 

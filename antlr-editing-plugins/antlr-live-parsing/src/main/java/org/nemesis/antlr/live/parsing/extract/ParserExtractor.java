@@ -102,23 +102,27 @@ public class ParserExtractor {
                     int type = tok.getType();
                     int start = tok.getStartIndex();
                     int stop = tok.getStopIndex();
-                    String txt = tok.getText();
+                    int trim = 0;
+//                    String txt = tok.getText();
                     if (type == -1) {
                         // EOF has peculiar behavior in Antlr - the start
                         // offset is less than the end offset
                         start = Math.max(start, stop);
                         stop = start;
-                        // And the text may be "<EOF>" which we don't want
-                        // to accidentally return as a netbeans token
-                        txt = "";
                         // We may be better off not returning EOF,but it
                         // will require fixes elsewhere
 //                        break;
+                    } else {
+                        for (int i = stop; i >= start; i--) {
+                            if (Character.isWhitespace(text.charAt(i))) {
+                                trim++;
+                            }
+                        }
                     }
-                    proxies.onToken(txt, type,
+                    proxies.onToken(type,
                             tok.getLine(), tok.getCharPositionInLine(),
                             tok.getChannel(), tokenIndex++,
-                            start, stop);
+                            start, stop, trim);
                 } while (tok.getType() != DummyLanguageLexer.EOF);
                 lex.reset();
                 // Now lex again to run the parser

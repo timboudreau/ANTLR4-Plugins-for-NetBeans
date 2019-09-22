@@ -109,8 +109,7 @@ final class AdhocColoringMerged implements AttributeSet {
     public AdhocColoringMerged add(AdhocColoringMerged other) {
         if (!other.isActive()) {
             return this;
-        }
-        if (!isActive()) {
+        } else if (!isActive()) {
             return other;
         }
         int newFlags = flags | other.flags;

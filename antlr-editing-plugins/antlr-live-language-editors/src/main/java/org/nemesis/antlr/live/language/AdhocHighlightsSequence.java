@@ -39,9 +39,13 @@ import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 
 /**
+ * An extremely lightweight highlights sequence, taking advantage
+ * of the merge-api's ability to do complex coalescing of overlapping
+ * ranges efficiently.
  *
  * @author Tim Boudreau
  */
@@ -55,6 +59,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         List<DataIntRange<AttributeSet, ? extends DataIntRange<AttributeSet, ?>>> ranges = new ArrayList<>(semantics.tokenCount());
         int allRuleCount = 0;
         int ruleCount = 0;
+        List<ProxyToken> tokens = semantics.tokens();
         for (AntlrProxies.ParseTreeElement el : semantics.allTreeElements()) {
             if (el.kind() == AntlrProxies.ParseTreeElementKind.RULE) {
                 AntlrProxies.RuleNodeTreeElement rn = (AntlrProxies.RuleNodeTreeElement) el;
@@ -69,11 +74,11 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
 //                        start = 0;
 //                        end = Math.min(20, length);
                     } else {
-                        AntlrProxies.ProxyToken startToken = semantics.tokens().get(start);
-                        AntlrProxies.ProxyToken endToken = end >= semantics.tokens().size()
-                                ? semantics.tokens().get(semantics.tokens().size() - 1) : semantics.tokens().get(end);
+                        AntlrProxies.ProxyToken startToken = tokens.get(start);
+                        AntlrProxies.ProxyToken endToken = end >= tokens.size()
+                                ? tokens.get(tokens.size() - 1) : tokens.get(end);
                         start = startToken.getStartIndex();
-                        end = Math.min(length - 1, endToken.getStopIndex() + 1);
+                        end = Math.min(length - 1, endToken.getStartIndex() + endToken.trimmedLength());
                     }
                     if (start > length || end > length) {
                         continue;
@@ -86,14 +91,25 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                 }
             }
         }
-        for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
+        for (AntlrProxies.ProxyToken tok : tokens) {
             int tp = tok.getType();
+            if (tp == -1) {
+                break;
+            }
             AntlrProxies.ProxyTokenType type = semantics.tokenTypeForInt(tp);
-            AdhocColoring a = colorings.get(AdhocTokenId.categorize(type));
             // We can be highlighting a stale text
             if (tok.getStartIndex() > length || tok.getStopIndex() > length) {
                 break;
             }
+            String category = AdhocTokenId.categorize(type);
+            if ("default".equals(category)) {
+                if (type.symbolicName != null && colorings.contains(type.symbolicName)) {
+                    category = type.symbolicName;
+                } else if (type.displayName != null && colorings.contains(type.displayName)) {
+                    category = type.displayName;
+                }
+            }
+            AdhocColoring a = colorings.get(category);
             if (a != null && a.isActive()) {
                 int start = tok.getStartIndex();
                 int end = tok.getEndIndex();
@@ -103,17 +119,15 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                 if (end <= start) {
                     continue;
                 }
-                CharSequence txt = tok.text();
-                int last = (end - start) - 1;
-                while (last > 0) {
-                    if (Character.isWhitespace(txt.charAt(last))) {
-                        end--;
-                        last--;
-                    } else {
-                        break;
-                    }
+                // Trim highlighting of tokens which have trailing whitespace
+                // so that we don't highlight all the way up to the next token
+                int len = tok.trimmedLength();
+                if (len == 0 && tok.length() > 0) {
+                    // The token simply is whitespace, so we must actually need
+                    // to highlight it
+                    len = tok.length();
                 }
-                DataIntRange<AttributeSet, ? extends DataIntRange<AttributeSet, ?>> range = Range.of(start, end - start, a);
+                DataIntRange<AttributeSet, ? extends DataIntRange<AttributeSet, ?>> range = Range.of(start, len, a);
                 ranges.add(range);
             }
         }
@@ -121,6 +135,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         iter = ranges.iterator();
         LOG.log(Level.FINER, "rules highlighted: {0} of {1}", new Object[]{ruleCount, allRuleCount});
     }
+
 
     @Override
     public boolean moveNext() {
@@ -160,8 +175,9 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
             if (ca.isEqual(cb)) {
                 return a.newRange(start, size);
             }
-            AttributeSet nue = a.isContainedBy(b) ? AdhocColoring.concatenate(cb, ca)
-                    : AdhocColoring.concatenate(ca, cb);
+//            AttributeSet nue = a.isContainedBy(b) ? AdhocColoring.merge(cb, ca)
+//                    : AdhocColoring.merge(ca, cb);
+            AttributeSet nue = AdhocColoring.merge(ca, cb);
             return Range.of(start, size, nue);
         }
     }

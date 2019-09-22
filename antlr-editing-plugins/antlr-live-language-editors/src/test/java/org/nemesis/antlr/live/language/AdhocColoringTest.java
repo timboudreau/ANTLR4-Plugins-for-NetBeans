@@ -70,7 +70,7 @@ public class AdhocColoringTest {
                 toSet(s.getAttributeNames()));
         testConsistency(s);
 
-        s = AdhocColoring.concatenate(a, b);
+        s = AdhocColoring.merge(a, b);
         assertEquals(Color.GREEN, s.getAttribute(StyleConstants.Background));
         assertEquals(Color.BLUE, s.getAttribute(StyleConstants.Foreground));
         assertEquals(Boolean.TRUE, s.getAttribute(StyleConstants.Bold));

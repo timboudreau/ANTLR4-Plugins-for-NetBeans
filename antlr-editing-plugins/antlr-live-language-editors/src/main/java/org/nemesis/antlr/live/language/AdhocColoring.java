@@ -15,7 +15,8 @@ import javax.swing.text.StyleConstants;
 import org.openide.util.Parameters;
 
 /**
- * A very lightweight AttributeSet used for ad-hoc token colorings.
+ * A very lightweight AttributeSet used for ad-hoc token colorings, optimized to
+ * minimize memory footprint.
  */
 public class AdhocColoring implements AttributeSet, Serializable {
 
@@ -62,6 +63,11 @@ public class AdhocColoring implements AttributeSet, Serializable {
     }
 
     AttributeSet combine(AdhocColoring other) {
+        if (!other.isActive()) {
+            return this;
+        } else if (!isActive()) {
+            return other;
+        }
         if (isColor() && other.isColor()) {
             if (!isSameColorAttribute(other)) {
                 return new AdhocColoringMerged(this, other);
@@ -73,11 +79,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
 
     public static AttributeSet combine(AdhocColoring a, AdhocColoring b) {
         AttributeSet result = a.combine(b);
-        if (result == null) {
-
-//            return AttributesUtilities.createImmutable(b, a);
-//            return new Combined(new AttributeSet[]{b, a});
-        }
         return result;
     }
 
@@ -325,12 +326,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
 
     @Override
     public boolean containsAttribute(Object name, Object value) {
-        /*
-    static final byte[] STYLE_FLAGS = {MASK_BACKGROUND, MASK_FOREGROUND, MASK_BOLD, MASK_ITALIC};
-    static final Object[] STYLE_CONSTS = {StyleConstants.Background,
-        StyleConstants.Foreground, StyleConstants.Bold, StyleConstants.Italic};
-
-         */
         if (!isActive()) {
             return false;
         }
@@ -344,8 +339,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
             return (flags & MASK_ITALIC) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value) ? true : false;
         }
         return false;
-//        Object val = getAttribute(name);
-//        return val != null && val.equals(value);
     }
 
     @Override
@@ -395,7 +388,16 @@ public class AdhocColoring implements AttributeSet, Serializable {
         return false;
     }
 
-    static AttributeSet concatenate(AttributeSet a, AttributeSet b) {
+    static AttributeSet merge(AttributeSet a, AttributeSet b) {
+        if (a instanceof AdhocColoring && !((AdhocColoring) a).isActive()) {
+            return b;
+        } else if (a instanceof AdhocColoringMerged && !((AdhocColoringMerged) a).isActive()) {
+            return b;
+        } else if (b instanceof AdhocColoring && !((AdhocColoring) b).isActive()) {
+            return a;
+        } else if (b instanceof AdhocColoringMerged && !((AdhocColoringMerged) b).isActive()) {
+            return a;
+        }
         AttributeSet result;
         if (a instanceof AdhocColoring && b instanceof AdhocColoring) {
             result = ((AdhocColoring) a).combine((AdhocColoring) b);
@@ -410,7 +412,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
         } else {
             result = new Combined(new AttributeSet[]{a, b});
         }
-        System.out.println("Combine to " + result);
         return result;
     }
 
