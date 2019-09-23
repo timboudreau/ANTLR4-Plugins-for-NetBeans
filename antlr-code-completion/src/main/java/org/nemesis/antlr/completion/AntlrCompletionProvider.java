@@ -48,7 +48,26 @@ public final class AntlrCompletionProvider implements CompletionProvider {
         if (queryType == COMPLETION_QUERY_TYPE) {
             return new AsyncCompletionTask(new CP(), component);
         }
-        return null;
+        return new DummyTask();
+    }
+
+    static final class DummyTask implements CompletionTask {
+
+        @Override
+        public void query(CompletionResultSet resultSet) {
+            // do nothing
+        }
+
+        @Override
+        public void refresh(CompletionResultSet resultSet) {
+            // do nothing
+        }
+
+        @Override
+        public void cancel() {
+            // do nothing
+        }
+
     }
 
     @Override

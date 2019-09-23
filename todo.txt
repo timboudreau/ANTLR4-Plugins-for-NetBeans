@@ -1,43 +1,38 @@
+
+ANTLR EDITING PLUGINS:
+
+ - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, and it's not really used
+
+ - Use same token ProxyToken for things with literal names?
+
+ - AttrType is not coalescing background and foreground properly.
+
+ - Make coalescing use evil continue-as-goto instead of recursion?
+
+ - UI for ATN prediction at cursor
+
+ - Sort out the range generics puzzle with coalescing
+
+ - Put back formatting code from old module
+
+ - Generic tracking code for things that should be garbage collected - JFS, JFSClassLoader
+
+ - Get .tokens file contents / related grammar tokens into extraction / preview
+
+ - The pattern matching stuff in antlr-formatters is exactly what is needed for code completion - extract and generify it
+
 !!! Font color entries not written to layer unless the annotation processor
 is called multiple times (e.g. there is another highlighting entry on a
 highlighter registration annotation on a key).
 
-
 fix coalescer to support longs
 
-split out functions package
-
-split out annotation-utils and friends (class generation "java-vogon"?)
-
-move Hashable to misc utils?
-
-adhoc language highlighting should use DataRange / coalesce support
-
-arrayutil sort methods should support Range, not IndexAddressableItem, and probably move to the range package
-  - replace endSupplier with IntUnaryOperator?
-
-move generally useful stuff out of here into mastfrog-util
- - bits
- - longarray
- - graph
- - range
-
-consolidate various predicate code
- - is the ml media sniffer code a copy of BytePredicate stuff?
-
-split out predicates
 
 -------
 
 Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
-
-Supply an alternate reference key for region names, not just have types
-
-Add arbitrary scoping using other elements.
-
-Get the antlr module working
 
 Maybe generic scoping - parser rule based what can reference what?
 
@@ -58,22 +53,12 @@ FORMATTING:
  - UI support and choosable formatting actions
 
 
-ANNOTATION PROCESSORS:
-
- - Split AnnotationUtils and validators into separate project
- - Split java code generation into separate project
- - Split annotation processing into phases, so ALL validation for a processor runs before ANY code is generated
- - ClassBuilder and friends need an easy and intuitive way to do "new" rather than bundling it into the type name
-
-
 ACTIONS:
 
  - Most likely just need to use shared action names now that they're in the editor kit
    - Well, that's a big fat NOPE.
 
-
-CODE COMPLETION:
- - Use https://raw.githubusercontent.com/mike-lischke/antlr4-c3/master/ports/java/src/main/java/com/vmware/antlr4c3/CodeCompletionCore.java
- - 
+OTHER:
+ - Generic indexing support
 
 

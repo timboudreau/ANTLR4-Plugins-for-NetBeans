@@ -724,7 +724,8 @@ public class CodeCompletionCore {
                 List<Integer> symbols = (transition.label() != null) ? transition.label().toList() : new LinkedList<>();
                 if (symbols.size() > 2) {
                     // Only print start and end symbols to avoid large lists in debug output.
-                    labels.append(this.vocabulary.getDisplayName(symbols.get(0)) + " .. " + this.vocabulary.getDisplayName(symbols.get(symbols.size() - 1)));
+                    labels.append(this.vocabulary.getDisplayName(symbols.get(0))).append(" .. ")
+                            .append(this.vocabulary.getDisplayName(symbols.get(symbols.size() - 1)));
                 } else {
                     for (Integer symbol : symbols) {
                         if (labels.length() > 0) {
@@ -754,7 +755,7 @@ public class CodeCompletionCore {
             } else {
                 output.append("<").append(this.tokenStartIndex + tokenIndex).append("> ");
             }
-            logger.finer(output + "Current state: " + baseDescription + transitionDescription);
+            logger.log(Level.FINER, "{0}Current state: {1}{2}", new Object[]{output, baseDescription, transitionDescription});
         }
     }
 

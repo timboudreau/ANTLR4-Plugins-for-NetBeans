@@ -85,7 +85,6 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
         if (mostRecent == null || mostRecent.isEmpty()) {
             return HighlightsSequence.EMPTY;
         }
-        System.out.println("  have " + mostRecent.size() + " highlights");
         if (startOffset <= 0 && endOffset == Integer.MAX_VALUE) {
             return new AdhocHighlightsSequence(mostRecent.iterator());
         }
