@@ -57,6 +57,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ErrorNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
@@ -186,7 +187,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             if (list instanceof ParentCheckList) {
                 ren.setParentFocused(((ParentCheckList) list).parentFocused);
             }
-            ren.setToolTipText(value.el.stringify());
+            ren.setToolTipText(value.tooltip());
             ren.setSelected(isSelected);
             ren.setLeadSelection(isSelected);
             if (isSelected) {
@@ -224,10 +225,10 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             }
             float frac = dist / of;
             float[] result = new float[a.length];
-            for (int i=0; i < a.length; i++) {
+            for (int i = 0; i < a.length; i++) {
                 float av = a[i];
                 float bv = b[i];
-                float diff = (bv-av) * frac;
+                float diff = (bv - av) * frac;
                 result[i] = a[i] + diff;
             }
             return result;
@@ -257,7 +258,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         List<ParseTreeElement> els = proxy.allTreeElements();
         List<ModelEntry> newEntries = new ArrayList<>(els.size());
         for (ParseTreeElement el : proxy.parseTreeRoots()) {
-            process(el, 0, newEntries);
+            process(proxy, el, 0, newEntries);
         }
         int newSelected = -1;
         if (selected != null) {
@@ -292,10 +293,10 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         }
     }
 
-    void process(ParseTreeElement el, int depth, List<ModelEntry> entries) {
-        entries.add(new ModelEntry(el, depth));
+    void process(ParseTreeProxy proxy, ParseTreeElement el, int depth, List<ModelEntry> entries) {
+        entries.add(new ModelEntry(el, depth, proxy));
         for (ParseTreeElement p : el) {
-            process(p, depth + 1, entries);
+            process(proxy, p, depth + 1, entries);
         }
     }
 
@@ -361,10 +362,16 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
 
         private final AntlrProxies.ParseTreeElement el;
         private final int depth;
+        private String tooltip;
 
-        public ModelEntry(AntlrProxies.ParseTreeElement el, int depth) {
+        public ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
             this.el = el;
             this.depth = depth;
+            tooltip = tooltip(proxy.tokens(), proxy.tokenTypes());
+        }
+
+        public String tooltip() {
+            return tooltip;
         }
 
         public int[] bounds(List<ProxyToken> tokens) {
@@ -414,6 +421,16 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
 
         public boolean isParserRule() {
             return el instanceof RuleNodeTreeElement;
+        }
+
+        String tooltip(List<ProxyToken> tokens, List<ProxyTokenType> types) {
+            if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
+                TerminalNodeTreeElement t = (TerminalNodeTreeElement) el;
+                ProxyToken tok = tokens.get(t.startTokenIndex());
+                int type = tok.getType();
+                return types.get(type + 1).name() + " - " + el.depth();
+            }
+            return el.stringify() + " - " + depth;
         }
 
         @Override

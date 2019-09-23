@@ -26,7 +26,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
 import com.mastfrog.util.collections.CollectionUtils;
 import java.awt.Color;
@@ -34,7 +34,7 @@ import java.util.Enumeration;
 import java.util.Objects;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.StyleConstants;
-import static org.nemesis.antlr.live.language.AdhocColoring.*;
+import static org.nemesis.antlr.live.language.coloring.AdhocColoring.*;
 
 /**
  * Attribute sets are created in sufficient volume and need a small enough
@@ -42,13 +42,19 @@ import static org.nemesis.antlr.live.language.AdhocColoring.*;
  *
  * @author Tim Boudreau
  */
-final class AdhocColoringMerged implements AttributeSet {
+final class AdhocColoringMerged implements AdhocAttributeSet {
 
     private byte flags;
-    private Color background;
-    private Color foreground;
+    Color background;
+    Color foreground;
 
     public AdhocColoringMerged(int flags, Color bg, Color fg) {
+        if (bg == null) {
+            flags = flags ^ MASK_BACKGROUND;
+        }
+        if (fg == null) {
+            flags = flags ^ MASK_FOREGROUND;
+        }
         this.flags = (byte) flags;
         this.background = bg;
         this.foreground = fg;
@@ -106,6 +112,11 @@ final class AdhocColoringMerged implements AttributeSet {
 
     }
 
+    @Override
+    public int intFlags() {
+        return flags;
+    }
+
     public AdhocColoringMerged add(AdhocColoringMerged other) {
         if (!other.isActive()) {
             return this;
@@ -140,56 +151,21 @@ final class AdhocColoringMerged implements AttributeSet {
         return new AdhocColoringMerged(newFlags, bg, fg);
     }
 
-    boolean isActive() {
-        return (flags & MASK_ACTIVE) != 0;
-    }
-
-    boolean isBackgroundColor() {
-        return (flags & MASK_BACKGROUND) != 0;
-    }
-
-    boolean isForegroundColor() {
-        return (flags & MASK_FOREGROUND) != 0;
-    }
-
-    boolean isBold() {
-        return (flags & MASK_BOLD) != 0;
-    }
-
-    boolean isItalic() {
-        return (flags & MASK_ITALIC) != 0;
+    @Override
+    public boolean isBackgroundColor() {
+        return AdhocAttributeSet.super.isBackgroundColor() && background != null;
     }
 
     @Override
-    public int getAttributeCount() {
-        if (!isActive()) {
-            return 0;
-        }
-        int result = 0;
-        for (byte b : STYLE_FLAGS) {
-            if ((flags & b) != 0) {
-                result++;
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public boolean isDefined(Object attrName) {
-        if (StyleConstants.Bold == attrName) {
-            return (flags & MASK_BACKGROUND) != 0;
-        } else if (StyleConstants.Italic == attrName) {
-            return (flags & MASK_FOREGROUND) != 0;
-        } else if (StyleConstants.Foreground == attrName && (flags & MASK_FOREGROUND) != 0) {
-            return true;
-        } else if (StyleConstants.Background == attrName && (flags & MASK_BACKGROUND) != 0) {
-            return true;
-        }
-        return false;
+    public boolean isForegroundColor() {
+        return AdhocAttributeSet.super.isForegroundColor() && foreground != null;
     }
 
     @Override
     public boolean isEqual(AttributeSet attr) {
+        if (attr == null) {
+            return false;
+        }
         if (attr instanceof AdhocColoringMerged) {
             AdhocColoringMerged c = (AdhocColoringMerged) attr;
             return c.flags == flags && Objects.equals(c.foreground, foreground)
@@ -231,11 +207,6 @@ final class AdhocColoringMerged implements AttributeSet {
     }
 
     @Override
-    public Enumeration<?> getAttributeNames() {
-        return new AdhocColoring.AttrNameEnum(flags);
-    }
-
-    @Override
     public boolean containsAttribute(Object name, Object value) {
         if (!isActive()) {
             return false;
@@ -245,41 +216,16 @@ final class AdhocColoringMerged implements AttributeSet {
         } else if (name == StyleConstants.Foreground) {
             return (flags & MASK_FOREGROUND) != 0 && Objects.equals(foreground, value);
         } else if (name == StyleConstants.Bold) {
-            return (flags & MASK_BOLD) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value) ? true : false;
+            return (flags & MASK_BOLD) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value);
         } else if (name == StyleConstants.Italic) {
-            return (flags & MASK_ITALIC) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value) ? true : false;
+            return (flags & MASK_ITALIC) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value);
         }
         return false;
     }
 
     @Override
-    public boolean containsAttributes(AttributeSet attributes) {
-        if (attributes instanceof AdhocColoring) {
-            AdhocColoring c = (AdhocColoring) attributes;
-            return c.flags == flags;
-        }
-        Enumeration<?> en = attributes.getAttributeNames();
-        while (en.hasMoreElements()) {
-            Object name = en.nextElement();
-            if (!containsAttribute(name, attributes.getAttribute(name))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public AttributeSet getResolveParent() {
         return null;
-    }
-
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 59 * hash + this.flags;
-        hash = 59 * hash + Objects.hashCode(this.background);
-        hash = 59 * hash + Objects.hashCode(this.foreground);
-        return hash;
     }
 
     @Override
@@ -297,20 +243,56 @@ final class AdhocColoringMerged implements AttributeSet {
             }
             return Objects.equals(this.background, other.background)
                     && Objects.equals(this.foreground, other.foreground);
-        }
-        if (obj instanceof AttributeSet) {
+        } else if (obj instanceof AdhocColoring) {
+            AdhocColoring other = (AdhocColoring) obj;
+            int cc = colorCount();
+            if (cc > 1) {
+                return false;
+            }
+            int occ = other.colorCount();
+            if (cc != occ || intFlags() != other.intFlags()) {
+                return false;
+            } else if (cc == 0) {
+                return true;
+            } else if (isBackgroundColor() && other.isBackgroundColor()) {
+                return Objects.equals(background, other.color);
+            } else if (isForegroundColor() && other.isForegroundColor()) {
+                return Objects.equals(foreground, other.color);
+            } else {
+                return true;
+            }
+        } else if (obj instanceof DepthAttributeSet) {
+            return equals(((DepthAttributeSet) obj).delegate());
+        } else if (obj instanceof AttributeSet) {
             return isEqual((AttributeSet) obj);
         }
         return false;
     }
 
     @Override
+    public Enumeration<?> getAttributeNames() {
+        int flags = this.flags;
+        if (background == null && (flags & MASK_BACKGROUND) != 0) {
+            flags ^= MASK_BACKGROUND;
+        }
+        if (foreground == null && (flags & MASK_FOREGROUND) != 0) {
+            flags ^= MASK_FOREGROUND;
+        }
+        return new AttrNameEnum((byte) flags);
+    }
+
+    @Override
     public String toString() {
-        return "AdhocColoringMerged(bold=" + isBold()
+        return "AdhocColoringMerged(active=" + isActive() + " bold=" + isBold()
                 + "  italic=" + isItalic()
                 + (isForegroundColor() ? " fg=" + foreground : "")
                 + (isBackgroundColor() ? " bg=" + background : "")
                 + ")";
     }
 
+    @Override
+    public int hashCode() {
+        return AdhocColoring.hashCode(flags, isBackgroundColor()
+                ? background : null, isForegroundColor() ? foreground : null);
+    }
 }

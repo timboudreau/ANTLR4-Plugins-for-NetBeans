@@ -12,7 +12,7 @@ import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.debug.api.Debug;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
@@ -24,7 +24,6 @@ import org.openide.util.RequestProcessor;
  */
 public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy> {
 
-    protected final OffsetsBag bag;
     protected final WeakReference<Document> weakDoc;
     protected static final RequestProcessor threadPool = new RequestProcessor("antlr-highlighting", 5, true);
     protected final static int REFRESH_DELAY = 100;
@@ -34,7 +33,6 @@ public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, 
     private final AtomicReference<HighlightingInfo> lastParseInfo = new AtomicReference<>();
 
     public AbstractAntlrHighlighter(Document doc) {
-        bag = new OffsetsBag(doc);
         weakDoc = new WeakReference<>(doc);
         AdhocReparseListeners.listen(NbEditorUtilities.getMimeType(doc), doc, this);
         refreshTask = threadPool.create(this::doRefresh);
@@ -64,13 +62,11 @@ public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, 
         return Optional.ofNullable(weakDoc.get());
     }
 
-    public final OffsetsBag getHighlightsBag() {
-        return bag;
-    }
-
     void clearLastParseInfo() {
         lastParseInfo.set(null);
     }
+
+    public abstract HighlightsContainer getHighlightsBag();
 
     @Override
     public final void apply(Document a, GrammarRunResult<?> b, AntlrProxies.ParseTreeProxy s) {

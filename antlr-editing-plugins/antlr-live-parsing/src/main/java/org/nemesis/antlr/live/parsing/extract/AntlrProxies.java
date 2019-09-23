@@ -1101,6 +1101,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.trim = 0;
         }
 
+        public boolean isWhitespace() {
+            return trimmedLength() == 0;
+        }
+
         public int trimmedLength() {
             return length - trim;
         }

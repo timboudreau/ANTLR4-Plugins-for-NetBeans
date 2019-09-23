@@ -11,6 +11,8 @@ import javax.swing.text.StyleConstants;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
+import org.netbeans.spi.editor.highlighting.HighlightsContainer;
+import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
  *
@@ -18,8 +20,16 @@ import org.netbeans.api.editor.document.LineDocumentUtils;
  */
 public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
 
+    protected final OffsetsBag bag;
+
     public AdhocErrorHighlighter(Document doc) {
         super(doc);
+        bag = new OffsetsBag(doc);
+    }
+
+    @Override
+    public HighlightsContainer getHighlightsBag() {
+        return bag;
     }
 
     static AttributeSet errorColoring;

@@ -18,6 +18,7 @@ import javax.swing.text.JTextComponent;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.language.coloring.AdhocHighlightsContainer;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.debug.api.Debug;
@@ -25,6 +26,7 @@ import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.Parser;
+import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -45,10 +47,12 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
     private volatile boolean showing;
     private ComponentListener cl;
     private final Task updateTask;
+    private final AdhocHighlightsContainer bag;
 
     @SuppressWarnings("LeakingThisInConstructor")
     public AdhocRuleHighlighter(Context ctx, String mimeType) {
         super(ctx.getDocument());
+        bag = new AdhocHighlightsContainer();
         this.mimeType = mimeType;
         colorings = AdhocColoringsRegistry.getDefault().get(mimeType);
         parser = EmbeddedAntlrParsers.forGrammar("rule-higlighter "
@@ -143,11 +147,16 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter impleme
         if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
             return;
         }
-        AdhocHighlightsSequence seq = new AdhocHighlightsSequence(colorings,
-                info.semantics, info.doc.getLength());
+//        AdhocHighlightsSequence seq = new AdhocHighlightsSequence(colorings,
+//                info.semantics, info.doc.getLength());
         onEq(() -> {
-            bag.setHighlights(seq);
+//            bag.setHighlights(seq);
+            bag.update(colorings, info.semantics, info.semantics.text().length());
         });
+    }
+
+    public final HighlightsContainer getHighlightsBag() {
+        return bag;
     }
 
     private void onEq(Runnable run) {

@@ -67,7 +67,7 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
      * @param type The proxy token
      * @return A category
      */
-    static String categorize(ProxyTokenType type) {
+    public static String categorize(ProxyTokenType type) {
         if (type.isDelimiterLike()) {
             return "delimiters";
         }

@@ -1,5 +1,7 @@
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.coloring.AttrTypes;
+import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import java.awt.Color;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;

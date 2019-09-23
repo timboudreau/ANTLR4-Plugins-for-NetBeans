@@ -38,7 +38,12 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * out of the isolating classloader, so all objects (including exception types)
  * representing the grammar and parse are copied into proxy objects defined in
  * AntlrProxies, which is loaded via the module's, not the isolation
- * environment's classloader.
+ * environment's classloader.  Must not reference any non-JDK, non-ANTLR
+ * classes, and any lines which could reference a parser that does not exist for
+ * lexer-only grammars should be postfixed with a comment so they can be
+ * automatically removed during generation.  Classes from the same package
+ * as this class must be referenced by FQN or they will not be resolvable when
+ * repackaged during generation.
  *
  * @author Tim Boudreau
  */
@@ -116,6 +121,8 @@ public class ParserExtractor {
                         for (int i = stop; i >= start; i--) {
                             if (Character.isWhitespace(text.charAt(i))) {
                                 trim++;
+                            } else {
+                                break;
                             }
                         }
                     }
@@ -190,9 +197,7 @@ public class ParserExtractor {
 
         @Override //parser
         public Void visit(ParseTree tree) { //parser
-            currentDepth++; //parser
             tree.accept(this); //parser
-            currentDepth--; //parser
             return null; //parser
         } //parser
 
@@ -205,7 +210,9 @@ public class ParserExtractor {
                 int n = node.getChildCount(); //parser
                 for (int i = 0; i < n; i++) { //parser
                     ParseTree c = node.getChild(i); //parser
+                    currentDepth++; //parser
                     c.accept(this); //parser
+                    currentDepth--; //parser
                 } //parser
             }); //parser
             return null; //parser

@@ -1,13 +1,8 @@
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
-import com.mastfrog.util.collections.ArrayUtils;
 import com.mastfrog.util.collections.CollectionUtils;
 import java.awt.Color;
-import java.io.Serializable;
-import java.util.EnumSet;
 import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import javax.swing.text.AttributeSet;
@@ -18,7 +13,7 @@ import org.openide.util.Parameters;
  * A very lightweight AttributeSet used for ad-hoc token colorings, optimized to
  * minimize memory footprint.
  */
-public class AdhocColoring implements AttributeSet, Serializable {
+public class AdhocColoring implements AdhocAttributeSet {
 
     private static final long serialVersionUID = 1;
     static final byte MASK_ACTIVE = 1;
@@ -29,17 +24,20 @@ public class AdhocColoring implements AttributeSet, Serializable {
     static final byte[] STYLE_FLAGS = {MASK_BACKGROUND, MASK_FOREGROUND, MASK_BOLD, MASK_ITALIC};
     static final Object[] STYLE_CONSTS = {StyleConstants.Background,
         StyleConstants.Foreground, StyleConstants.Bold, StyleConstants.Italic};
+    static AttrTypes[] TYPES = {AttrTypes.BACKGROUND, AttrTypes.FOREGROUND, AttrTypes.BOLD, AttrTypes.ITALIC};
     byte flags;
     Color color;
 
     public AdhocColoring(Color color, boolean active, boolean background, boolean foreground, boolean bold, boolean italic) {
         this.color = color;
         boolean[] vals = {background, foreground, bold, italic};
-        byte fl = active ? MASK_ACTIVE : 0;
-        for (int i = 0; i < STYLE_FLAGS.length; i++) {
-            if (vals[i]) {
-                fl = (byte) (fl | STYLE_FLAGS[i]);
-            }
+        byte fl = (byte) ((active ? MASK_ACTIVE : 0)
+                | (background ? MASK_BACKGROUND : 0)
+                | (foreground ? MASK_FOREGROUND : 0)
+                | (bold ? MASK_BOLD : 0)
+                | (italic ? MASK_ITALIC : 0));
+        if (background && foreground) {
+            throw new IllegalArgumentException("Background and foreground cannot both be set");
         }
         this.flags = fl;
     }
@@ -51,6 +49,7 @@ public class AdhocColoring implements AttributeSet, Serializable {
     public AdhocColoring(byte flags, Color color) {
         this.flags = flags;
         this.color = color;
+        sanityCheck();
     }
 
     private AdhocColoring(AdhocColoring orig) {
@@ -58,11 +57,17 @@ public class AdhocColoring implements AttributeSet, Serializable {
         this.color = orig.color;
     }
 
+    private void sanityCheck() {
+        if (isForegroundColor() && isBackgroundColor()) {
+            throw new IllegalArgumentException("Cannot be both foreground and background: " + this);
+        }
+    }
+
     public Color color() {
         return color;
     }
 
-    AttributeSet combine(AdhocColoring other) {
+    AdhocAttributeSet combine(AdhocColoring other) {
         if (!other.isActive()) {
             return this;
         } else if (!isActive()) {
@@ -72,6 +77,9 @@ public class AdhocColoring implements AttributeSet, Serializable {
             if (!isSameColorAttribute(other)) {
                 return new AdhocColoringMerged(this, other);
             }
+        }
+        if (true) {
+            return new AdhocColoringMerged(this, other);
         }
         Color c = color == null ? other.color : color;
         return new AdhocColoring(flags | other.flags, c);
@@ -93,58 +101,68 @@ public class AdhocColoring implements AttributeSet, Serializable {
 
     public boolean addFlag(AttrTypes flag) {
         boolean result = !containsFlag(flag);
-        this.flags |= (byte) flag.maskValue();
+        if (result) {
+            this.flags |= (byte) flag.maskValue();
+            switch (flag) {
+                case BACKGROUND:
+                    if ((this.flags & MASK_FOREGROUND) != 0) {
+                        this.flags ^= MASK_FOREGROUND;
+                    }
+                    break;
+                case FOREGROUND:
+                    if ((this.flags & MASK_BACKGROUND) != 0) {
+                        this.flags ^= MASK_BACKGROUND;
+                    }
+                    break;
+            }
+        }
         return result;
     }
 
     public boolean removeFlag(AttrTypes flag) {
         boolean result = containsFlag(flag);
-        this.flags ^= (byte) flag.maskValue();
+        if (result) {
+            this.flags ^= (byte) flag.maskValue();
+        }
         return result;
-    }
-
-    public boolean containsFlag(AttrTypes flag) {
-        return (flags & flag.maskValue()) != 0;
     }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append('{');
-        sb.append("r=").append(color.getRed()).append(" g=").append(color.getGreen()).append(" b=").append(color.getBlue()).append(", flags:");
+        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append('(');
+        sb.append(isActive() ? "active" : "inactive");
+        sb.append(" r=").append(color.getRed()).append(" g=").append(color.getGreen()).append(" b=").append(color.getBlue()).append(", flags:");
         for (AttrTypes t : flags()) {
             sb.append(t.name()).append(" ");
         }
-        return sb.append('}').toString();
+        return sb.append(')').toString();
     }
 
     public void setFlags(Set<AttrTypes> flags) {
         int newFlags = 0;
+        if (flags.contains(AttrTypes.BACKGROUND) && flags.contains(AttrTypes.FOREGROUND)) {
+            throw new IllegalArgumentException("Cannot set background *and* foreground: "
+                    + flags);
+        }
         for (AttrTypes t : flags) {
             newFlags |= t.maskValue();
         }
         this.flags = (byte) newFlags;
     }
 
-    public Set<AttrTypes> flags() {
-        Set<AttrTypes> result = EnumSet.noneOf(AttrTypes.class);
-        AttrTypes[] types = AttrTypes.values();
-        for (int i = 0; i < STYLE_FLAGS.length; i++) {
-            if ((flags & STYLE_FLAGS[i]) != 0) {
-                result.add(types[i]);
-            }
-        }
-        return result;
-    }
-
-    static AdhocColoring parse(String toParse) {
+    public static AdhocColoring parse(String toParse) {
         // Parses the format written by toLine()
         String[] s = toParse.trim().split(";");
         if (s.length != 2) {
             return new AdhocColoring(0, Color.BLACK);
         }
-        byte flags = (byte) Integer.parseInt(s[0], 16);
+        int flags = Integer.parseInt(s[0], 16);
+        if ((flags & MASK_FOREGROUND) != 0 && (flags & MASK_BACKGROUND) != 0) {
+            flags ^= MASK_BACKGROUND;
+            System.err.println("Removed simultaneous background and foreground flags from " + toParse + " - removed background flag");
+        }
         int color = Integer.parseInt(s[1], 16);
-        return new AdhocColoring(flags, new Color(color));
+        return new AdhocColoring((byte) flags, new Color(color));
     }
 
     void addToFlags(int maskValue) {
@@ -152,7 +170,9 @@ public class AdhocColoring implements AttributeSet, Serializable {
     }
 
     void removeFromFlags(int maskValue) {
-        flags = (byte) (flags ^ maskValue);
+        if ((flags & maskValue) != 0) {
+            flags = (byte) (flags ^ maskValue);
+        }
     }
 
     public String toLine() {
@@ -170,11 +190,23 @@ public class AdhocColoring implements AttributeSet, Serializable {
         }
     }
 
+    public void setActive(boolean active) {
+        if (active) {
+            flags = (byte) (flags | MASK_ACTIVE);
+        } else {
+            if ((flags & MASK_ACTIVE) != 0) {
+                flags = (byte) (flags ^ MASK_ACTIVE);
+            }
+        }
+    }
+
     public void setBold(boolean bold) {
         if (bold) {
             flags = (byte) (flags | MASK_BOLD);
         } else {
-            flags = (byte) (flags ^ MASK_BOLD);
+            if ((flags & MASK_BOLD) != 0) {
+                flags = (byte) (flags ^ MASK_BOLD);
+            }
         }
     }
 
@@ -182,7 +214,9 @@ public class AdhocColoring implements AttributeSet, Serializable {
         if (italic) {
             flags = (byte) (flags | MASK_ITALIC);
         } else {
-            flags = (byte) (flags ^ MASK_ITALIC);
+            if ((flags & MASK_ITALIC) != 0) {
+                flags = (byte) (flags ^ MASK_ITALIC);
+            }
         }
     }
 
@@ -193,59 +227,25 @@ public class AdhocColoring implements AttributeSet, Serializable {
         return result;
     }
 
-    public boolean isActive() {
-        return (flags & MASK_ACTIVE) != 0;
-    }
-
-    public boolean isBackgroundColor() {
-        return (flags & MASK_BACKGROUND) != 0;
-    }
-
-    public boolean isForegroundColor() {
-        return (flags & MASK_FOREGROUND) != 0;
-    }
-
-    public boolean isBold() {
-        return (flags & MASK_BOLD) != 0;
-    }
-
-    public boolean isItalic() {
-        return (flags & MASK_ITALIC) != 0;
-    }
-
     @Override
-    public int getAttributeCount() {
-        if (!isActive()) {
-            return 0;
-        }
-        int result = 0;
-        for (byte b : STYLE_FLAGS) {
-            if ((flags & b) != 0) {
-                result++;
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public boolean isDefined(Object attrName) {
-        if (StyleConstants.Bold == attrName) {
-            return isBold();
-        } else if (StyleConstants.Italic == attrName) {
-            return isItalic();
-        } else if (StyleConstants.Foreground == attrName && (flags & MASK_FOREGROUND) != 0) {
-            return true;
-        } else if (StyleConstants.Background == attrName && (flags & MASK_BACKGROUND) != 0) {
-            return true;
-        }
-        return false;
+    public int colorCount() {
+        return color != null && (isBackgroundColor() || isForegroundColor()) ? 1 : 0;
     }
 
     @Override
     public boolean isEqual(AttributeSet attr) {
+        if (attr == null) {
+            return false;
+        }
         if (attr instanceof AdhocColoring) {
             AdhocColoring c = (AdhocColoring) attr;
-            return c.flags == flags && c.color.equals(color);
+            return c.flags == flags && Objects.equals(color, c.color);
+        }
+        if (attr instanceof AdhocColoringMerged) {
+            AdhocColoringMerged c = (AdhocColoringMerged) attr;
+            if (c.intFlags() == intFlags() && c.colorCount() == colorCount()) {
+                return Objects.equals(c.colorAttribute(), this.colorAttribute());
+            }
         }
         int ct = attr.getAttributeCount();
         if (ct != getAttributeCount()) {
@@ -261,6 +261,18 @@ public class AdhocColoring implements AttributeSet, Serializable {
     }
 
     @Override
+    public Enumeration<?> getAttributeNames() {
+        int workingFlags = this.flags;
+        if (color == null && (workingFlags & MASK_BACKGROUND) != 0) {
+            workingFlags ^= MASK_BACKGROUND;
+        }
+        if (color == null && (workingFlags & MASK_FOREGROUND) != 0) {
+            workingFlags ^= MASK_FOREGROUND;
+        }
+        return new AttrNameEnum((byte) workingFlags);
+    }
+
+    @Override
     public AdhocColoring copyAttributes() {
         return new AdhocColoring(this);
     }
@@ -270,9 +282,9 @@ public class AdhocColoring implements AttributeSet, Serializable {
         if (!isActive()) {
             return null;
         }
-        if (key == StyleConstants.Background && (flags & MASK_BACKGROUND) != 0) {
+        if (key == StyleConstants.Background && color != null && (flags & MASK_BACKGROUND) != 0) {
             return color;
-        } else if (key == StyleConstants.Foreground && (flags & MASK_FOREGROUND) != 0) {
+        } else if (key == StyleConstants.Foreground && color != null && (flags & MASK_FOREGROUND) != 0) {
             return color;
         } else if (key == StyleConstants.Italic && (flags & MASK_ITALIC) != 0) {
             return true;
@@ -280,48 +292,6 @@ public class AdhocColoring implements AttributeSet, Serializable {
             return true;
         }
         return null;
-    }
-
-    @Override
-    public Enumeration<?> getAttributeNames() {
-        return new AttrNameEnum(flags);
-    }
-
-    static class AttrNameEnum implements Enumeration<Object> {
-
-        private final byte flags;
-        private int ix = -1;
-        private Object next;
-
-        AttrNameEnum(byte flags) {
-            this.flags = flags;
-            next = findNext();
-        }
-
-        private Object findNext() {
-            while (++ix < STYLE_CONSTS.length) {
-                if ((flags & STYLE_FLAGS[ix]) != 0) {
-                    return STYLE_CONSTS[ix];
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public boolean hasMoreElements() {
-            return next != null;
-        }
-
-        @Override
-        public Object nextElement() {
-            Object result = next;
-            if (result == null) {
-                throw new NoSuchElementException();
-            }
-            next = findNext();
-            return result;
-        }
-
     }
 
     @Override
@@ -334,9 +304,9 @@ public class AdhocColoring implements AttributeSet, Serializable {
         } else if (name == StyleConstants.Foreground) {
             return (flags & MASK_FOREGROUND) != 0 && Objects.equals(color, value);
         } else if (name == StyleConstants.Bold) {
-            return (flags & MASK_BOLD) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value) ? true : false;
+            return (flags & MASK_BOLD) != 0 ? Boolean.TRUE.equals(value) : value == null || Boolean.FALSE.equals(value);
         } else if (name == StyleConstants.Italic) {
-            return (flags & MASK_ITALIC) != 0 ? Boolean.TRUE.equals(value) : Boolean.FALSE.equals(value) ? true : false;
+            return (flags & MASK_ITALIC) != 0 ? Boolean.TRUE.equals(value) : value == null || Boolean.FALSE.equals(value);
         }
         return false;
     }
@@ -364,10 +334,7 @@ public class AdhocColoring implements AttributeSet, Serializable {
 
     @Override
     public int hashCode() {
-        int hash = 3;
-        hash = 59 * hash + this.flags;
-        hash = 59 * hash + Objects.hashCode(this.color);
-        return hash;
+        return hashCode(flags, isBackgroundColor() ? color : null, isForegroundColor() ? color : null);
     }
 
     @Override
@@ -382,23 +349,52 @@ public class AdhocColoring implements AttributeSet, Serializable {
                 return false;
             }
             return Objects.equals(this.color, other.color);
+        } else if (obj instanceof AdhocColoringMerged) {
+            AdhocColoringMerged other = (AdhocColoringMerged) obj;
+            int occ = other.colorCount();
+            if (occ > 1 || other.intFlags() != intFlags()) {
+                return false;
+            }
+            int cc = colorCount();
+            if (cc != occ) {
+                return false;
+            } else if (isBackgroundColor()) {
+                return Objects.equals(other.background, color);
+            } else if (isForegroundColor()) {
+                return Objects.equals(other.foreground, color);
+            } else {
+                return true;
+            }
+        } else if (obj instanceof DepthAttributeSet) {
+            return equals(((DepthAttributeSet) obj).delegate());
         } else if (obj instanceof AttributeSet) {
             return isEqual((AttributeSet) obj);
         }
         return false;
     }
 
-    static AttributeSet merge(AttributeSet a, AttributeSet b) {
-        if (a instanceof AdhocColoring && !((AdhocColoring) a).isActive()) {
+    @Override
+    public int intFlags() {
+        return flags;
+    }
+
+    static AdhocAttributeSet merge(AdhocAttributeSet a, AdhocAttributeSet b) {
+        if (!a.isActive()) {
             return b;
-        } else if (a instanceof AdhocColoringMerged && !((AdhocColoringMerged) a).isActive()) {
-            return b;
-        } else if (b instanceof AdhocColoring && !((AdhocColoring) b).isActive()) {
-            return a;
-        } else if (b instanceof AdhocColoringMerged && !((AdhocColoringMerged) b).isActive()) {
+        } else if (!b.isActive()) {
             return a;
         }
-        AttributeSet result;
+        int depth = a instanceof DepthAttributeSet || b instanceof DepthAttributeSet
+                ? 0 : Integer.MAX_VALUE;
+        if (a instanceof DepthAttributeSet) {
+            depth = a.depth();
+            a = ((DepthAttributeSet) a).delegate();
+        }
+        if (b instanceof DepthAttributeSet) {
+            depth = Math.max(depth, b.depth());
+            b = ((DepthAttributeSet) b).delegate();
+        }
+        AdhocAttributeSet result;
         if (a instanceof AdhocColoring && b instanceof AdhocColoring) {
             result = ((AdhocColoring) a).combine((AdhocColoring) b);
         } else if (a instanceof AdhocColoringMerged && b instanceof AdhocColoring) {
@@ -410,106 +406,25 @@ public class AdhocColoring implements AttributeSet, Serializable {
         } else if (a instanceof AdhocColoringMerged && b instanceof AdhocColoringMerged) {
             result = new AdhocColoringMerged((AdhocColoringMerged) a, (AdhocColoringMerged) b);
         } else {
-            result = new Combined(new AttributeSet[]{a, b});
+            result = new Combined(new AdhocAttributeSet[]{a, b});
+        }
+        if (depth != Integer.MAX_VALUE) {
+            result = new DepthAttributeSet(result, depth);
         }
         return result;
     }
 
-    static class Combined implements AttributeSet {
-
-        private final AttributeSet[] colorings;
-
-        public Combined(AttributeSet[] colorings) {
-            this.colorings = colorings;
+    static int hashCode(byte flags, Color bg, Color fg) {
+        if (flags == 0) {
+            return 0;
         }
-
-        public Combined combine(AttributeSet s) {
-            if (s == this) {
-                return this;
-            }
-            if (s instanceof Combined) {
-                Combined c = (Combined) s;
-                AttributeSet[] all = ArrayUtils.concatenate(colorings, c.colorings);
-                return new Combined(all);
-            } else {
-                AttributeSet[] nue = new AttributeSet[colorings.length + 1];
-                System.arraycopy(colorings, 0, nue, 0, colorings.length);
-                nue[nue.length - 1] = s;
-                return new Combined(nue);
-            }
+        int result = 53 * flags;
+        if (bg != null && (flags & MASK_BACKGROUND) != 0) {
+            result += 71 * bg.getRGB();
         }
-
-        private Set<Object> allAttributeNames() {
-            Set<Object> all = new HashSet<>();
-            for (AttributeSet c : colorings) {
-                Enumeration<?> e = c.getAttributeNames();
-                while (e.hasMoreElements()) {
-                    all.add(e.nextElement());
-                }
-            }
-            return all;
+        if (fg != null && (flags & MASK_FOREGROUND) != 0) {
+            result += 39 * fg.getRGB();
         }
-
-        @Override
-        public int getAttributeCount() {
-            return allAttributeNames().size();
-        }
-
-        @Override
-        public boolean isDefined(Object attrName) {
-            return allAttributeNames().contains(attrName);
-        }
-
-        @Override
-        public boolean isEqual(AttributeSet attr) {
-            Set<Object> s = allAttributeNames();
-            for (Object o : s) {
-                if (!Objects.equals(getAttribute(o), attr.getAttribute(o))) {
-                    return false;
-                }
-            }
-            return attr.getAttributeCount() == s.size();
-        }
-
-        @Override
-        public AttributeSet copyAttributes() {
-            return new Combined(this.colorings);
-        }
-
-        @Override
-        public Object getAttribute(Object key) {
-            for (AttributeSet c : colorings) {
-                Object result = c.getAttribute(key);
-                if (result != null) {
-                    return result;
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Enumeration<?> getAttributeNames() {
-            return CollectionUtils.toEnumeration(allAttributeNames());
-        }
-
-        @Override
-        public boolean containsAttribute(Object name, Object value) {
-            return Objects.equals(getAttribute(name), value);
-        }
-
-        @Override
-        public boolean containsAttributes(AttributeSet attributes) {
-            for (Object o : CollectionUtils.toIterable(attributes.getAttributeNames())) {
-                if (!Objects.equals(getAttribute(o), attributes.getAttribute(o))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        @Override
-        public AttributeSet getResolveParent() {
-            return null;
-        }
+        return result;
     }
 }

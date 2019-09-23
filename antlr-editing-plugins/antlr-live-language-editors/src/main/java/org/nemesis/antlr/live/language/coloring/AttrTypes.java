@@ -1,4 +1,4 @@
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
 import org.openide.util.NbBundle;
 
@@ -24,7 +24,7 @@ public enum AttrTypes {
         return NbBundle.getMessage(AttrTypes.class, name());
     }
 
-    int maskValue() {
+    public int maskValue() {
         return maskValue;
     }
 

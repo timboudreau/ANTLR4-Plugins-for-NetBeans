@@ -38,7 +38,7 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
         return result == null ? null : type.cast(result);
     }
 
-    public AbstractAntlrHighlighter getRulesHighlighter(Context doc) {
+    public AdhocRuleHighlighter getRulesHighlighter(Context doc) {
         return highlighter(doc.getDocument(), AdhocRuleHighlighter.class, () -> new AdhocRuleHighlighter(doc, mimeType));
     }
 
@@ -49,7 +49,7 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
     public static final class Trigger implements Runnable {
 
         private final Context context;
-        private final AbstractAntlrHighlighter [] highlighters;
+        private final AbstractAntlrHighlighter[] highlighters;
         private final RequestProcessor.Task task = RequestProcessor.getDefault().create(this);
 
         public Trigger(Context context, AbstractAntlrHighlighter... highlighters) {
@@ -68,7 +68,7 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
                 }
             } else {
                 LOG.log(Level.FINER, "Run highlighters from trigger");
-                for (AbstractAntlrHighlighter  h : highlighters) {
+                for (AbstractAntlrHighlighter h : highlighters) {
                     System.out.println("TRIGGER RUN " + h);
                     h.scheduleRefresh();
                 }
@@ -78,22 +78,21 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
 
     @Override
     public HighlightsLayer[] createLayers(Context context) {
-
-        AbstractAntlrHighlighter ruleHighlighter = getRulesHighlighter(context);
+        AdhocRuleHighlighter ruleHighlighter = getRulesHighlighter(context);
         HighlightsLayer rules = HighlightsLayer.create(AdhocRuleHighlighter.class.getName(),
                 ZOrder.SYNTAX_RACK.forPosition(2000),
                 true,
                 ruleHighlighter.getHighlightsBag());
 
-//        AbstractAntlrHighlighter<?, ?, ?> errorHighlighter
-//                = getErrorHighlighter(context.getDocument());
-//        HighlightsLayer errors = HighlightsLayer.create(AdhocErrorHighlighter.class.getName(),
-//                ZOrder.BOTTOM_RACK.forPosition(2001),
-//                true,
-//                errorHighlighter.getHighlightsBag());
+        AbstractAntlrHighlighter errorHighlighter
+                = getErrorHighlighter(context.getDocument());
+        HighlightsLayer errors = HighlightsLayer.create(AdhocErrorHighlighter.class.getName(),
+                ZOrder.BOTTOM_RACK.forPosition(2001),
+                true,
+                errorHighlighter.getHighlightsBag());
         context.getComponent().putClientProperty("trigger", new Trigger(context, ruleHighlighter));
 
         LOG.log(Level.FINE, "Instantiated highlight layers for {0}", mimeType);
-        return new HighlightsLayer[]{rules};
+        return new HighlightsLayer[]{rules, errors};
     }
 }
