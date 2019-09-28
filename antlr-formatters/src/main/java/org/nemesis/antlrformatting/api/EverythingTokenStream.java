@@ -38,6 +38,11 @@ final class EverythingTokenStream implements TokenStream {
         }
     }
 
+    void close() {
+        tokens.clear();
+        cursor = 0;
+    }
+
     public void rewind() {
         cursor = 0;
     }

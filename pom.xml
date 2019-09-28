@@ -701,6 +701,11 @@
                 <artifactId>org-netbeans-spi-editor-hints</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-options-editor</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

@@ -4,10 +4,13 @@ import java.util.Arrays;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
+import org.nemesis.antlrformatting.api.Criteria.ArrayCriterion;
+import org.nemesis.antlrformatting.api.Criteria.FixedCriterion;
+import org.nemesis.antlrformatting.api.Criteria.LogicalCriterion;
+import org.nemesis.antlrformatting.api.Criteria.NegatingCriterion;
+import org.nemesis.antlrformatting.api.Criteria.SingleCriterion;
 
 /**
  * One test a rule can use to determine if it matches one or more token types.
@@ -24,136 +27,32 @@ public interface Criterion extends IntPredicate {
     // FormattingRules$FormattingAction$$Lambda$1/1007603019@5383967b
     // doesn't say much
     static Criterion matching(Vocabulary vocab, int val) {
-        return new Criterion() {
-            private boolean logged;
-
-            @Override
-            public boolean test(int value) {
-                return value == val;
-            }
-
-            @Override
-            public String toString() {
-                try {
-                    return "match(" + vocab.getSymbolicName(val) + ")";
-                } catch (Exception ex) {
-                    if (!logged) {
-                        Logger.getLogger(Criterion.class.getName()).log(
-                                Level.WARNING,
-                                "Vocabulary does not contain a symbolic name for "
-                                + val, ex);
-                        logged = true;
-                    }
-                    return "match(" + val + ")";
-                }
-            }
-        };
+        return new SingleCriterion(val, vocab, false);
     }
 
     static Criterion notMatching(Vocabulary vocab, int val) {
-        return new Criterion() {
-            private boolean logged;
-
-            @Override
-            public boolean test(int value) {
-                return value != val;
-            }
-
-            @Override
-            public String toString() {
-                try {
-                    return "not(" + vocab.getSymbolicName(val) + ")";
-                } catch (Exception ex) {
-                    if (!logged) {
-                        Logger.getLogger(Criterion.class.getName()).log(
-                                Level.WARNING,
-                                "Vocabulary does not contain a symbolic name for "
-                                + val, ex);
-                        logged = true;
-                    }
-                    return "not(" + val + ")";
-                }
-            }
-        };
+        return new SingleCriterion(val, vocab, true);
     }
 
-    public static Criterion NEVER = new Criterion() {
-        @Override
-        public boolean test(int value) {
-            return false;
-        }
-
-        @Override
-        public String toString() {
-            return "never-match-anything";
-        }
-    };
+    public static Criterion NEVER = new FixedCriterion(false);
 
     static Criterion anyOf(Vocabulary vocab, int... ints) {
         if (ints.length == 0) {
             return NEVER;
         }
-//        assert ints.length > 0 : "Empty array";
+        if (ints.length == 1) {
+            return Criterion.matching(vocab, ints[0]);
+        }
         Arrays.sort(ints);
-        return new Criterion() {
-            private boolean logged;
-
-            @Override
-            public boolean test(int value) {
-                return Arrays.binarySearch(ints, value) >= 0;
-            }
-
-            @Override
-            public String toString() {
-                StringBuilder sb = new StringBuilder("any(");
-                for (int i = 0; i < ints.length; i++) {
-                    if (sb.length() > 4) {
-                        sb.append(',');
-                    }
-                    try {
-                        sb.append(vocab.getSymbolicName(ints[i]));
-                    } catch (Exception ex) {
-                        if (!logged) {
-                            Logger.getLogger(Criterion.class.getName()).log(
-                                    Level.WARNING,
-                                    "Vocabulary does not contain a symbolic name for "
-                                    + ints[i], ex);
-                            logged = true;
-                        }
-                        sb.append(ints[i]);
-                    }
-                }
-                return sb.append(')').toString();
-            }
-        };
+        return new ArrayCriterion(ints, vocab, false);
     }
 
     default Criterion or(Criterion other) {
-        return new Criterion() {
-            @Override
-            public boolean test(int value) {
-                return Criterion.this.test(value) || other.test(value);
-            }
-
-            @Override
-            public String toString() {
-                return Criterion.this.toString() + " | " + other;
-            }
-        };
+        return new LogicalCriterion(this, other, true);
     }
 
     default Criterion and(Criterion other) {
-        return new Criterion() {
-            @Override
-            public boolean test(int value) {
-                return Criterion.this.test(value) && other.test(value);
-            }
-
-            @Override
-            public String toString() {
-                return Criterion.this.toString() + " & " + other;
-            }
-        };
+        return new LogicalCriterion(this, other, false);
     }
 
     default <R> Predicate<R> convertedBy(ToIntFunction<R> func) {
@@ -190,64 +89,21 @@ public interface Criterion extends IntPredicate {
     }
 
     public static Criterion noneOf(Vocabulary vocab, int... ints) {
-//        return anyOf(ints).negate();
+        if (ints.length == 0) {
+            return ALWAYS;
+        } else if (ints.length == 1) {
+            return new SingleCriterion(ints[0], vocab, true);
+        }
         Arrays.sort(ints);
-        return new Criterion() {
-            private boolean logged;
-
-            @Override
-            public boolean test(int value) {
-                return Arrays.binarySearch(ints, value) < 0;
-            }
-
-            public String toString() {
-                StringBuilder sb = new StringBuilder("none(");
-                for (int i = 0; i < ints.length; i++) {
-                    if (sb.length() > 5) {
-                        sb.append(',');
-                    }
-                    try {
-                        sb.append(vocab.getSymbolicName(ints[i]));
-                    } catch (Exception ex) {
-                        if (!logged) {
-                            Logger.getLogger(Criterion.class.getName()).log(
-                                    Level.WARNING,
-                                    "Vocabulary does not contain a symbolic name for "
-                                    + ints[i], ex);
-                            sb.append(ints[i]);
-                            logged = true;
-                        }
-                    }
-                }
-                return sb.append(')').toString();
-            }
-        };
+        return new ArrayCriterion(ints, vocab, true);
     }
 
     @Override
     default Criterion negate() {
-        return new Criterion() {
-            public boolean test(int val) {
-                return !Criterion.this.test(val);
-            }
-
-            public String toString() {
-                return "not(" + Criterion.this.toString() + ")";
-            }
-        };
+        return new NegatingCriterion(this);
     }
 
-    public static final Criterion ALWAYS = new Criterion() {
-        @Override
-        public boolean test(int val) {
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "<always>";
-        }
-    };
+    public static final Criterion ALWAYS = new FixedCriterion(true);
 
     public static Criterion greaterThan(int expected) {
         return new Criterion() {
@@ -278,47 +134,20 @@ public interface Criterion extends IntPredicate {
     }
 
     static Criterion equalTo(int expected) {
-        return new Criterion() {
-            @Override
-            public boolean test(int value) {
-                return value == expected;
-            }
-
-            @Override
-            public String toString() {
-                return "==" + expected;
-            }
-        };
+        return new SingleCriterion(expected, null, false);
     }
 
     @Override
     default Criterion or(IntPredicate other) {
-        return new Criterion() {
-            @Override
-            public boolean test(int value) {
-                return Criterion.this.test(value) || other.test(value);
-            }
-
-            @Override
-            public String toString() {
-                return Criterion.this.toString() + " || " + other.toString();
-            }
-        };
+        return new LogicalCriterion(this, other, true);
     }
 
     @Override
     default Criterion and(IntPredicate other) {
-        return new Criterion() {
-            @Override
-            public boolean test(int value) {
-                return Criterion.this.test(value) && other.test(value);
-            }
-
-            @Override
-            public String toString() {
-                return Criterion.this.toString() + " & " + other.toString();
-            }
-        };
+        if (other == this) {
+            return this;
+        }
+        return new LogicalCriterion(this, other, false);
     }
 
     default Criterion firstNMatches(int n) {

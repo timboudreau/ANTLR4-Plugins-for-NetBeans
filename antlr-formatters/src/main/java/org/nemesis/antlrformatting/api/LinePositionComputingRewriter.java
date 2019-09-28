@@ -1,8 +1,12 @@
 package org.nemesis.antlrformatting.api;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
@@ -28,9 +32,21 @@ final class LinePositionComputingRewriter extends TokenStreamRewriter {
     private int lastRequestRev;
     private final StringBuilder scratch = new StringBuilder(120);
     private int lastTokenModifiedWithNewline;
+    private String lastFilteredRewritesKey = "-";
+    private List<RewriteOperation> lastFilteredRewrites;
+    private int rewriteCountAtLastCache = -1;
+    private TreeMap<Integer, RewriteOperation> cachedRewrites;
 
     LinePositionComputingRewriter(TokenStream tokens) {
         super(tokens);
+    }
+
+    void close() {
+        // discard caches
+        rewriteCountAtLastCache = -1;
+        lastFilteredRewritesKey = "-";
+        cachedRewrites = null;
+        lastFilteredRewrites = null;
     }
 
     private void maybeUpdateNewlineTokenIndex(int token, Object text) {
@@ -39,13 +55,36 @@ final class LinePositionComputingRewriter extends TokenStreamRewriter {
         }
     }
 
+    static Set<Class<?>> INSERT_OR_REPLACE = new HashSet<>();
+    static Set<Class<?>> NOT_INSERT_OR_REPLACE = new HashSet<>();
+
+    private boolean isInsertOrReplace(RewriteOperation o) {
+        // Believe it or not, this pays for itself - in profiling,
+        // looking up the binary name of the class shows up quite a bit
+        if (INSERT_OR_REPLACE.contains(o.getClass())) {
+            return true;
+        } else if (NOT_INSERT_OR_REPLACE.contains(o.getClass())) {
+            return false;
+        }
+        String name = o.getClass().getSimpleName();
+        boolean isMatch = "InsertBeforeOp".equals(name) || "ReplaceOp".equals(name);
+        if (isMatch) {
+            INSERT_OR_REPLACE.add(o.getClass());
+            return true;
+        } else {
+            NOT_INSERT_OR_REPLACE.add(o.getClass());
+            return false;
+        }
+    }
+
     int index(RewriteOperation rew) {
         // An awkward way to get the value of the internal index
-        // field of a rewrite operation
+        // field of a rewrite operation, but the subclasses are
+        // package private
         int result = rew.execute(scratch);
         scratch.setLength(0);
-        String name = rew.getClass().getSimpleName();
-        if ("InsertBeforeOp".equals(name) || "ReplaceOp".equals(name)) {
+//        if ("InsertBeforeOp".equals(name) || "ReplaceOp".equals(name)) {
+        if (isInsertOrReplace(rew)) {
             result--;
         }
         return result;
@@ -78,6 +117,12 @@ final class LinePositionComputingRewriter extends TokenStreamRewriter {
 
     private List<RewriteOperation> filteredRewrites(int start, int end) {
         List<RewriteOperation> rewrites = programs.get(DEFAULT_PROGRAM_NAME);
+        if (lastFilteredRewrites != null) {
+            String k = start + ":" + end + ":" + rewrites.size();
+            if (lastFilteredRewritesKey.equals(k)) {
+                return lastFilteredRewrites;
+            }
+        }
         if (rewrites == null) {
             return null;
         }
@@ -99,6 +144,8 @@ final class LinePositionComputingRewriter extends TokenStreamRewriter {
                 result.add(null);
             }
         }
+        lastFilteredRewrites = result;
+        lastFilteredRewritesKey = start + ":" + end + ":" + rewrites.size();
         return result;
     }
 
@@ -127,8 +174,62 @@ final class LinePositionComputingRewriter extends TokenStreamRewriter {
         return lastRequestedNlPosResult = _lastNewlineDistance(tokenIndex);
     }
 
-    private int _lastNewlineDistance(int tokenIndex) {
+    @Override
+    protected Map<Integer, RewriteOperation> reduceToSingleOperationPerIndex(List<RewriteOperation> rewrites) {
+        // This operation is THE most expensive operation in all of formatting.
+        // It is called whenever something checks the current character position
+        // in the reformatted text.  SO... cache the result, and only process the
+        // tail of the list which has not been seen before or overlaps with the
+        // previous result
+        if (cachedRewrites != null && rewrites.size() == rewriteCountAtLastCache) {
+            return cachedRewrites;
+        }
+        if (cachedRewrites != null && cachedRewrites.size() > 1) {
+            int maxKey = cachedRewrites.lastKey();
+            List<RewriteOperation> toReprocess = new LinkedList<>();
+            int mx = rewrites.size() - 1;
+            for (int i = mx; i >= 0; i--) {
+                RewriteOperation op = rewrites.get(i);
+                if (op != null) {
+                    int ix = index(op);
+                    if (ix >= maxKey + 1) {
+                        toReprocess.add(0, op);
+                    } else {
+                        break;
+                    }
+                }
+            }
+            cachedRewrites.putAll(super.reduceToSingleOperationPerIndex(toReprocess));
+            /*
+            boolean asserts = false;
+            assert asserts = true;
+            if (asserts) {
+                Map<Integer, RewriteOperation> orig = super.reduceToSingleOperationPerIndex(rewrites);
+                Map<Integer, String> a = new HashMap<>();
+                Map<Integer, String> b = new HashMap<>();
+                for (Map.Entry<Integer, RewriteOperation> e : cachedRewrites.entrySet()) {
+                    if (e.getKey() < maxKey) {
+                        a.put(e.getKey(), Strings.escape(e.getValue().toString(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+                    }
+                }
+                for (Map.Entry<Integer, RewriteOperation> e : orig.entrySet()) {
+                    if (e.getKey() < maxKey) {
+                        b.put(e.getKey(), Strings.escape(e.getValue().toString(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+                    }
+                }
+                assert a.equals(b) :
+                        "Rewrites diverge: " + cachedRewrites + " vs " + orig;
+            }
+             */
+        } else {
+            cachedRewrites = new TreeMap<>(super.reduceToSingleOperationPerIndex(rewrites));
+        }
+        rewriteCountAtLastCache = rewrites.size();
+        return cachedRewrites;
+    }
 
+    private int _lastNewlineDistance(int tokenIndex) {
+        System.out.println("compute last newline dist " + tokenIndex);
         int start = lastTokenModifiedWithNewline;
         int stop = tokenIndex;
 

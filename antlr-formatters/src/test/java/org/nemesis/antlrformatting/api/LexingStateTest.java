@@ -1,4 +1,4 @@
-package org.nemesis.antlrformatting.api;
+    package org.nemesis.antlrformatting.api;
 
 import java.io.IOException;
 import java.util.function.Predicate;

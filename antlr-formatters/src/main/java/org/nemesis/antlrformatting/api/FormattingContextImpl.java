@@ -78,6 +78,8 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
         boolean[] caretUpdated = new boolean[1];
 
+        int prevMode = -1;
+
         for (int i = 0; i < size; i++) {
             ModalToken tok = tokens.get(i);
             // If we have passed the index of the last token we want to
@@ -116,8 +118,9 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                             && immediatelyNext.getText().indexOf('\n') >= 0;
                 }
                 // Process the token
-                if (res = onOneToken(tok, prevType, nextType, tokens, hasFollowingNewline)) {
+                if (res = onOneToken(tok, prevType, prevMode, nextType, tokens, hasFollowingNewline)) {
                     prevType = tok.getType();
+                    prevMode = tok.mode();
                 }
             } finally {
                 if (res) {
@@ -133,6 +136,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                             if (!whitespace.test(tok.getType())) {
                                 int offset = caretPos.start() - tok.getStartIndex();
 
+                                // UGH, this is brutal, and it is our performance problem right here.
                                 String rewrittenThusFar = rew.getText(new Interval(0, tok.getTokenIndex()));
                                 int docPosition = (rewrittenThusFar.length()
                                         - tok.getText().length());
@@ -163,47 +167,83 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 updateWithCaretPositionAndLength.updateLength(res.text().length());
             }
         }
-        return getFormattingResult();
+        // Discard cached info
+        rew.close();
+        try {
+            return getFormattingResult();
+        } finally {
+            tokens.close();
+        }
     }
+
+    static boolean useCache = !Boolean.getBoolean("FormattingContextImpl.noCache");
+    TokenCountCache cache;
 
     @Override
     public int tokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType) {
+        if (useCache) {
+            if (cache == null) {
+                cache = new TokenCountCache();
+            }
+            return cache.tokenCountToNext(stream, whitespace, ignoreWhitespace, targetType);
+        }
+        return defaultTokenCountToNext(ignoreWhitespace, targetType);
+    }
+
+    int defaultTokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType) {
         int count = 0;
         for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
             Token t = stream.get(ix);
             if (targetType.test(t.getType())) {
-                break;
+                return count;
             }
-            boolean isWhitespace = whitespace.test(t.getType());
-            if (isWhitespace && ignoreWhitespace) {
+            if (ignoreWhitespace && whitespace.test(t.getType())) {
                 continue;
             }
             count++;
         }
-        return count;
+        return -1;
     }
 
     @Override
     public int tokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType) {
-        // XXX we could just keep counts and increment them on non matching
-        // token types, which would be less expensive
+        if (useCache) {
+            if (cache == null) {
+                cache = new TokenCountCache();
+            }
+            return cache.tokenCountToPreceding(stream, whitespace, ignoreWhitespace, targetType);
+        }
+        return defaultTokenCountToPreceding(ignoreWhitespace, targetType);
+    }
+
+    int defaultTokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType) {
         int count = 0;
         for (int ix = stream.cursor - 1; ix >= 0; ix--) {
             Token t = stream.get(ix);
             if (targetType.test(t.getType())) {
-                break;
+                return count;
             }
-            boolean isWhitespace = whitespace.test(t.getType());
-            if (isWhitespace && ignoreWhitespace) {
+            if (ignoreWhitespace && whitespace.test(t.getType())) {
                 continue;
             }
             count++;
         }
-        return count;
+        return -1;
     }
 
     @Override
     public int countForwardOccurrencesUntilNext(IntPredicate toCount, IntPredicate stopType) {
+        if (useCache) {
+            if (cache == null) {
+                cache = new TokenCountCache();
+            }
+            return cache.countForwardOccurrencesUntilNext(stream, toCount, stopType);
+        }
+        return defaultCountForwardOccurrencesUntilNext(toCount, stopType);
+    }
+
+    int defaultCountForwardOccurrencesUntilNext(IntPredicate toCount, IntPredicate stopType) {
+        // Keep this implementation for tests
         int count = 0;
         for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
             Token t = stream.get(ix);
@@ -218,6 +258,17 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
     @Override
     public int countBackwardOccurrencesUntilPrevious(IntPredicate toCount, IntPredicate stopType) {
+        if (useCache) {
+            if (cache == null) {
+                cache = new TokenCountCache();
+            }
+            return cache.countBackwardOccurrencesUntilPrevious(stream, toCount, stopType);
+        }
+        return defaultCountBackwardOccurrencesUntilPrevious(toCount, stopType);
+    }
+
+    int defaultCountBackwardOccurrencesUntilPrevious(IntPredicate toCount, IntPredicate stopType) {
+        // Keep this implementation for tests
         int count = 0;
         for (int ix = stream.cursor - 1; ix >= 0; ix--) {
             Token t = stream.get(ix);
@@ -249,7 +300,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         return new FormattingResult(start, end, text);
     }
 
-    boolean onOneToken(ModalToken tok, int prevType, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline) {
+    boolean onOneToken(ModalToken tok, int prevType, int prevMode, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline) {
         int tokenType = tok.getType();
         if (whitespace.test(tok.getType()) || tok.getText().trim().length() == 0) {
             // We don't pass whitespace tokens on; but we do need to update
@@ -284,7 +335,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             // Update the last token
             lastTokenInRange = tok.getTokenIndex();
             // Really process the token
-            onToken(tok, prevType, tokenType, nextType, lastContainedNewline, hasFollowingNewline);
+            onToken(tok, prevType, prevMode, tokenType, nextType, lastContainedNewline, hasFollowingNewline);
         }
         return true;
     }
@@ -430,7 +481,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         lineState.prepend().indent();
     }
 
-    private void onToken(ModalToken token, int prevType, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline) {
+    private void onToken(ModalToken token, int prevType, int prevMode, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline) {
         boolean log = debugLogging.test(token);
         if (log) {
             System.out.println("\nPROC '"
@@ -444,7 +495,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                     + " state " + state
             );
         }
-        rules.apply(token, prevType, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder);
+        rules.apply(token, prevType, prevMode, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder);
     }
 
     public int computedTokenPosition() {

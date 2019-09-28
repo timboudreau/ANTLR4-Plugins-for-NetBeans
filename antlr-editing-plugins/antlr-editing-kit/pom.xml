@@ -53,5 +53,14 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live-language-editors</artifactId>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-formatting</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-formatting-ui</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 </project>

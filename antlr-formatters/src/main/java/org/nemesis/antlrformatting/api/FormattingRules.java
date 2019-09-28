@@ -135,8 +135,8 @@ public final class FormattingRules {
 
     /**
      * Apply a bunch of rules to this FormattingRules inside the passed Consumer
- and all of them will have the criterion that subsequent token type must
- match the passed anyOf.
+     * and all of them will have the criterion that subsequent token type must
+     * match the passed anyOf.
      *
      * @param type A token type anyOf
      * @param rules A consumer which can add some rules
@@ -151,8 +151,8 @@ public final class FormattingRules {
 
     /**
      * Apply a bunch of rules to this FormattingRules inside the passed Consumer
- and all of them will have the criterion that preceding token type must
- match the passed anyOf.
+     * and all of them will have the criterion that preceding token type must
+     * match the passed anyOf.
      *
      * @param type A token type anyOf
      * @param rules A consumer which can add some rules
@@ -272,14 +272,14 @@ public final class FormattingRules {
                 }
                 collected.add(token);
             } else if (!collected.isEmpty()) {
-                finishPendingRewrites(rewriter);
+                return finishPendingRewrites(rewriter);
             }
             return matches;
         }
 
-        public void finishPendingRewrites(TokenStreamRewriter rewriter) {
+        public boolean finishPendingRewrites(TokenStreamRewriter rewriter) {
             if (collected.isEmpty()) {
-                return;
+                return false;
             }
             String replacement = replacer.apply(collected, stateAtStartOfLastCollection);
             try {
@@ -288,11 +288,13 @@ public final class FormattingRules {
                     for (ModalToken other : collected) {
                         rewriter.delete(other);
                     }
+                    return true;
                 }
             } finally {
                 collected.clear();
                 stateAtStartOfLastCollection = null;
             }
+            return false;
         }
     }
 
@@ -394,6 +396,21 @@ public final class FormattingRules {
         return result;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (!sorted) {
+            Collections.sort(rules);
+            sorted = true;
+        }
+        int ix = 0;
+        for (FormattingRule r : rules) {
+            sb.append(++ix).append(". ");
+            sb.append(r).append('\n');
+        }
+        return sb.toString();
+    }
+
     /**
      * Apply all rules to one token.
      *
@@ -406,7 +423,7 @@ public final class FormattingRules {
      * formatting
      * @param debug If true, matches and reasons for non-matching will be logged
      */
-    void apply(ModalToken token, int prevToken, int nextToken,
+    void apply(ModalToken token, int prevToken, int prevMode, int nextToken,
             boolean precededByNewline, FormattingContext ctx, boolean debug,
             LexingState state, boolean followedByNewline, TokenStreamRewriter rewriter,
             IntFunction<Set<Integer>> parserRuleFinder) {
@@ -422,7 +439,7 @@ public final class FormattingRules {
             }
         }
         for (FormattingRule rule : rules) {
-            if (rule.matches(token.getType(), prevToken, nextToken, precededByNewline, token.mode(), debug, state, followedByNewline, token.getStartIndex(), token.getStopIndex(), parserRuleFinder)) {
+            if (rule.matches(token.getType(), prevToken, prevMode, nextToken, precededByNewline, token.mode(), debug, state, followedByNewline, token.getStartIndex(), token.getStopIndex(), parserRuleFinder)) {
                 if (rule.hasAction()) {
                     if (debug) {
                         System.out.println("'" + token.getText() + "' " + vocabulary
@@ -494,6 +511,13 @@ public final class FormattingRules {
     public FormattingRules whenInMode(Consumer<FormattingRules> cons, String mode, String... more) {
         assert mode != null : "mode null";
         IntPredicate modePredicate = FormattingRule.mode(StringPredicates.combine(mode, more));
+        applyRuleProcessor(rule -> {
+            rule.whereMode(modePredicate);
+        }, cons);
+        return this;
+    }
+
+    public FormattingRules whenInMode(IntPredicate modePredicate, Consumer<FormattingRules> cons) {
         applyRuleProcessor(rule -> {
             rule.whereMode(modePredicate);
         }, cons);

@@ -66,7 +66,11 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
             int min = Math.max(old.size(), mostRecent.size()) - max;
             int diffEnd = -1;
             for (int i = 0; i < min; i++) {
-                DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> oldItem = old.get(old.size() - (i + 1));
+                int ix = old.size() - (i + 1);
+                if (ix < 0) {
+                    break;
+                }
+                DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> oldItem = old.get(ix);
                 DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> newItem = mostRecent.get(mostRecent.size() - (i + 1));
                 if (!oldItem.equals(newItem)) {
                     diffEnd = Math.max(oldItem.end(), newItem.end());

@@ -204,10 +204,10 @@ public interface FormattingAction {
             @Override
             public void accept(Token token, FormattingContext ctx, LexingState state) {
                 if (ctx.currentCharPositionInLine() + token.getText().length() > limit) {
-                    System.out.println("WRAP '" + token.getText() + "' for line pos "
-                        + ctx.currentCharPositionInLine() + " with " + wrapAction);
+//                    System.out.println("WRAP '" + token.getText() + "' for line pos "
+//                        + ctx.currentCharPositionInLine() + " with " + wrapAction);
                     wrapAction.accept(token, ctx, state);
-                    System.out.println("after wrap, line position is " + ctx.currentCharPositionInLine());
+//                    System.out.println("after wrap, line position is " + ctx.currentCharPositionInLine());
                 } else {
                     FormattingAction.this.accept(token, ctx, state);
                 }

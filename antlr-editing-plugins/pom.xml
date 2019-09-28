@@ -56,6 +56,8 @@ Copyright (C) 2012-2019 Tim Boudreau
         <module>debug-ui</module>
         <module>mavenproject1/antlr-language-code-completion</module>
         <module>antlr-language-code-completion</module>
+        <module>antlr-language-formatting</module>
+        <module>antlr-language-formatting-ui</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -93,7 +95,7 @@ Copyright (C) 2012-2019 Tim Boudreau
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-language-code-completion</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>adhoc-mime-types</artifactId>
@@ -112,6 +114,16 @@ Copyright (C) 2012-2019 Tim Boudreau
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-in-memory-execution</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-language-formatting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-language-formatting-ui</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -212,6 +224,16 @@ Copyright (C) 2012-2019 Tim Boudreau
                 <version>${netbeans.version}</version>
                 <scope>test</scope>
             </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-indent</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-lib</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>            
         </dependencies>
     </dependencyManagement>
 </project>

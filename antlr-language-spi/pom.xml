@@ -24,6 +24,7 @@
                         <publicPackage>org.nemesis.antlr.spi.language.fix</publicPackage>
                         <publicPackage>org.nemesis.antlr.spi.language.highlighting</publicPackage>
                         <publicPackage>org.nemesis.antlr.spi.language.highlighting.semantic</publicPackage>
+                        <publicPackage>org.nemesis.antlr.spi.language.keybindings</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

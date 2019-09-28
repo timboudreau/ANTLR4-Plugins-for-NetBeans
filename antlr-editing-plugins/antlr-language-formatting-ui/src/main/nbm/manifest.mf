@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+OpenIDE-Module-Install: org/nemesis/antlr/language/formatting/ui/install/Installer.class
+OpenIDE-Module-Localizing-Bundle: org/nemesis/antlr/language/formatting/ui/Bundle.properties
+

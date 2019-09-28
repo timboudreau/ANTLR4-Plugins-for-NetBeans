@@ -1,5 +1,6 @@
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.function.IntBiPredicate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -83,6 +84,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     private String name; // for debugging
     private List<Predicate<LexingState>> stateCriteria;
     private Predicate<Set<Integer>> parserRuleMatch;
+    private IntBiPredicate modeTransition;
 
     FormattingRule(IntPredicate tokenType, FormattingRules rules) {
         this.tokenType = tokenType;
@@ -415,6 +417,52 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    public FormattingRule whereModeTransition(IntBiPredicate pred) {
+        if (this.modeTransition == null) {
+            this.modeTransition = pred;
+        } else {
+            this.modeTransition = this.modeTransition.or(pred);
+        }
+        return this;
+    }
+
+    public FormattingRule whereModeTransition(int previousMode, int currentMode) {
+        if (this.modeTransition == null) {
+            this.modeTransition = (a, b) -> {
+                return a == previousMode && b == currentMode;
+            };
+        } else {
+            this.modeTransition = this.modeTransition.or((a, b) -> {
+                return a == previousMode && b == currentMode;
+            });
+        }
+        return this;
+    }
+
+    public FormattingRule whenEnteringMode(int mode) {
+        return whereModeTransition((prevMode, currMode) -> {
+            return prevMode != currMode && mode == currMode;
+        });
+    }
+
+    public FormattingRule whenLeavingMode(int mode) {
+        return whereModeTransition((prevMode, currMode) -> {
+            return prevMode != currMode && prevMode == mode;
+        });
+    }
+
+    public FormattingRule whenModeChanging() {
+        return whereModeTransition((prevMode, currMode) -> {
+            return prevMode != currMode;
+        });
+    }
+
+    public FormattingRule whenModeNotChanging() {
+        return whereModeTransition((prevMode, currMode) -> {
+            return prevMode == currMode;
+        });
+    }
+
     /**
      * Make this rule match if the type of the token preceding the current one
      * matches the passed value.
@@ -519,7 +567,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
 
     /**
      * Make this rule match if the type of the token after the current one
- matches the passed anyOf.
+     * matches the passed anyOf.
      *
      * @param criterion Matching criterion
      * @return this
@@ -636,7 +684,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
-    boolean matches(int tokenType, int prevTokenType, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline, int start, int stop, IntFunction<Set<Integer>> parserRuleFinder) {
+    boolean matches(int tokenType, int prevTokenType, int prevTokenMode, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline, int start, int stop, IntFunction<Set<Integer>> parserRuleFinder) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
             System.out.println("MATCH " + this);
@@ -665,6 +713,13 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             result = this.mode.test(mode);
             if (log && !result) {
                 System.out.println("  MODE MISMATCH " + this.mode + " but mode is " + mode);
+            }
+        }
+        if (result && this.modeTransition != null) {
+            result = this.modeTransition.test(prevTokenMode, mode);
+            if (log && !result) {
+                System.out.println("  PREV/CURR mode mismatch "
+                        + prevTokenMode + " -> " + mode + " - " + modeTransition);
             }
         }
         if (result && this.stateCriteria != null) {
@@ -787,6 +842,12 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             }
             sb.append("mode ").append(mode);
         }
+        if (modeTransition != null) {
+            if (sb.length() > 5) {
+                sb.append(' ');
+            }
+            sb.append("onModeTransition " + modeTransition);
+        }
         if (requiresPrecedingNewline != null) {
             if (sb.length() > 5) {
                 sb.append(' ');
@@ -810,6 +871,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (name != null) {
             sb.append(":").append(name);
         }
+        sb.append(" specificity ").append(this.specificityScore());
         return sb.append('}').toString();
     }
 
@@ -911,4 +973,120 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             return sb.append(")").toString();
         }
     }
+/*
+    static class ModeTransitionPredicate implements IntBiPredicate {
+
+        private final int expectA;
+        private final TestKinds aKind;
+        private final int expectB;
+        private final TestKinds bKind;
+        private final String[] modeNames;
+
+        ModeTransitionPredicate(int expectA, TestKinds aKind, int expectB, TestKinds bKind, String[] modeNames) {
+            this.expectA = expectA;
+            this.aKind = aKind;
+            this.expectB = expectB;
+            this.bKind = bKind;
+            this.modeNames = modeNames;
+        }
+
+        @Override
+        public boolean test(int a, int b) {
+            boolean result = true;
+            if (aKind != null) {
+                result = aKind.test(expectA, expectB, a, b);
+            }
+            if (result && bKind != null) {
+                result = bKind.test(expectA, expectB, a, b);
+            }
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            if (aKind != null) {
+                sb.append(aKind.stringify(expectA, expectB, modeNames));
+            }
+            if (bKind != null) {
+                sb.append(" and ").append(bKind.stringify(expectA, expectB, modeNames));
+            }
+            return sb.toString();
+        }
+
+        interface SingleTest {
+            boolean test(int expA, int expB, int gotA, int gotB);
+
+            default String name() {
+                return getClass().getSimpleName();
+            }
+
+            default String stringify(int a, int b, String[] modeNames) {
+                return name() + " " + a + "," + b;
+            }
+        }
+
+        enum TestKinds implements SingleTest {
+            EXACTLY_EQUAL,
+            DOES_NOT_EQUAL,
+            A_EQUALITY,
+            B_EQUALITY,
+            A_INEQUALITY,
+            B_INEQUALITY,
+            SAME,
+            NOT_SAME
+            ;
+
+            @Override
+            public String stringify(int a, int b, String[] modeNames) {
+                String nameA = a >= 0 && a < modeNames.length ? modeNames[a] : Integer.toString(a);
+                String nameB = a >= 0 && a < modeNames.length ? modeNames[a] : Integer.toString(a);
+                switch(this) {
+                    case EXACTLY_EQUAL :
+                        return "prev mode " + nameA + " and new mode " + nameB;
+                    case DOES_NOT_EQUAL :
+                        return "prev mode not " + nameA + " and new mode not " + nameB;
+                    case A_EQUALITY :
+                        return "prev mode " + nameA;
+                    case B_EQUALITY :
+                        return "curr mode " + nameB;
+                    case A_INEQUALITY :
+                        return "prev mode not " + nameA;
+                    case B_INEQUALITY :
+                        return "curr mode not " + nameB;
+                    case SAME :
+                        return "mode-unchanged";
+                    case NOT_SAME :
+                        return "any-mode-transition";
+                    default :
+                        throw new AssertionError(this);
+                }
+            }
+
+            @Override
+            public boolean test(int expA, int expB, int gotA, int gotB) {
+                switch(this) {
+                    case EXACTLY_EQUAL :
+                        return expA == gotA && expB == gotB;
+                    case DOES_NOT_EQUAL :
+                        return expA != gotA && expB != gotB;
+                    case A_EQUALITY :
+                        return expA == gotA;
+                    case B_EQUALITY :
+                        return expB == gotB;
+                    case A_INEQUALITY :
+                        return expA != gotA;
+                    case B_INEQUALITY :
+                        return expB != gotB;
+                    case SAME :
+                        return gotA == gotB;
+                    case NOT_SAME :
+                        return gotA != gotB;
+                    default :
+                        throw new AssertionError(this);
+                }
+            }
+        }
+    }
+*/
 }

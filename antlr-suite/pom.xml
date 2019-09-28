@@ -20,13 +20,13 @@
         <netbeans.run.parms>--laf javax.swing.plaf.metal.MetalLookAndFeel</netbeans.run.parms>
     </properties>
     <dependencies>
-<!--
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>debug-ui</artifactId>
-            <version>${project.version}</version>
-        </dependency>
--->
+        <!--
+                <dependency>
+                    <groupId>${project.groupId}</groupId>
+                    <artifactId>debug-ui</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+        -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>debug-api</artifactId>
@@ -148,6 +148,16 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-file-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-formatting</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-formatting-ui</artifactId>
             <version>${project.version}</version>
         </dependency>
 

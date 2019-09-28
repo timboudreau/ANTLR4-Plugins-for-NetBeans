@@ -288,12 +288,35 @@ public enum SimpleFormattingAction implements FormattingAction {
         return new KeyAction<>(amountKey, more, this, true);
     }
 
+    /**
+     * For constants that support indenting, specify the number of <i>spaces</i>
+     * to indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed. This method
+     * lets you check multiple keys, using the first one that's not unset.
+     *
+     * @param <T> The enum type
+     * @param adjustment an amount to add to the number of spaces
+     * @param amountKey The key to use to look up the number of spaces to indent
+     * @param more Additional keys
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
+    @SafeVarargs
+    public final <T extends Enum<T>> FormattingAction bySpaces(int adjustment, T amountKey, T... more) {
+        if (!KeyAction.SUPPORTED.contains(this)) {
+            throw new IllegalArgumentException("Not supported for keys: " + this);
+        }
+        return new KeyAction<>(amountKey, more, this, true, adjustment);
+    }
+
     static final class KeyAction<T extends Enum<T>> implements FormattingAction {
 
         private final T key;
         private T[] more;
         private final SimpleFormattingAction action;
         private final boolean spacesNotStops;
+        private int adjustment;
 
         private static final Set<SimpleFormattingAction> SUPPORTED
                 = EnumSet.of(PREPEND_SPACE, INDENT, PREPEND_NEWLINE_AND_INDENT,
@@ -312,6 +335,13 @@ public enum SimpleFormattingAction implements FormattingAction {
             this.spacesNotStops = spacesNotStops;
         }
 
+        KeyAction(T key, SimpleFormattingAction action, boolean spacesNotStops, int adjustment) {
+            this.key = key;
+            this.action = action;
+            this.spacesNotStops = spacesNotStops;
+            this.adjustment = adjustment;
+        }
+
         KeyAction(T key, T[] more, SimpleFormattingAction action) {
             this.key = key;
             this.more = more;
@@ -324,6 +354,14 @@ public enum SimpleFormattingAction implements FormattingAction {
             this.more = more;
             this.action = action;
             this.spacesNotStops = spacesNotStops;
+        }
+
+        KeyAction(T key, T[] more, SimpleFormattingAction action, boolean spacesNotStops, int adjustment) {
+            this.key = key;
+            this.more = more;
+            this.action = action;
+            this.spacesNotStops = spacesNotStops;
+            this.adjustment = adjustment;
         }
 
         @Override
@@ -369,7 +407,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                     if (amt > 0) {
                         if (spacesNotStops) {
                             ctx.prependNewline();
-                            ctx.indentBySpaces(amt);
+                            ctx.indentBySpaces(amt + adjustment);
                         } else {
                             ctx.prependNewlineAndIndentBy(amt);
                         }
@@ -381,7 +419,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                     if (amt > 0) {
                         if (spacesNotStops) {
                             ctx.prependDoubleNewline();
-                            ctx.indentBySpaces(amt);
+                            ctx.indentBySpaces(amt + adjustment);
                         } else {
                             ctx.prependDoubleNewlineAndIndentBy(amt);
                         }
@@ -393,7 +431,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                     if (amt > 0) {
                         if (spacesNotStops) {
                             ctx.prependNewline();
-                            ctx.indentBySpaces(amt + ctx.indentSize());
+                            ctx.indentBySpaces(amt + ctx.indentSize() + adjustment);
                         } else {
                             ctx.prependNewlineAndIndentBy(amt + ctx.indentSize());
                         }
@@ -405,7 +443,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                     if (amt > 0) {
                         if (spacesNotStops) {
                             ctx.appendNewline();
-                            ctx.indentBySpaces(amt);
+                            ctx.indentBySpaces(amt + adjustment);
                         } else {
                             ctx.appendNewlineAndIndentBy(amt);
                         }
@@ -417,10 +455,10 @@ public enum SimpleFormattingAction implements FormattingAction {
                     if (amt > 0) {
                         if (spacesNotStops) {
                             ctx.appendNewline();
-                            ctx.indentBySpaces(ctx.indentSize() + amt);
+                            ctx.indentBySpaces(ctx.indentSize() + amt + adjustment);
                         } else {
                             ctx.appendNewline();
-                            ctx.indentBy(amt + 1);
+                            ctx.indentBy(amt + 1 + adjustment);
                         }
                     } else {
                         ctx.appendDoubleNewline();;
