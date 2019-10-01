@@ -1,6 +1,7 @@
 package org.nemesis.antlrformatting.api;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.CommonToken;
@@ -18,7 +19,7 @@ import org.antlr.v4.runtime.misc.Interval;
  *
  * @author Tim Boudreau
  */
-final class EverythingTokenStream implements TokenStream {
+final class EverythingTokenStream implements TokenStream, Iterable<ModalToken> {
 
     private final List<ModalToken> tokens = new ArrayList<>();
     int cursor = 0;
@@ -36,6 +37,10 @@ final class EverythingTokenStream implements TokenStream {
                 break;
             }
         }
+    }
+
+    public Iterator<ModalToken> iterator() {
+        return tokens.iterator();
     }
 
     void close() {

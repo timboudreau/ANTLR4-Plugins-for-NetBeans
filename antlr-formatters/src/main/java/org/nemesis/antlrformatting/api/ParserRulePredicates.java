@@ -14,7 +14,7 @@ class ParserRulePredicates {
 
     private final String[] ruleNames;
 
-    public ParserRulePredicates(String[] ruleNames) {
+    ParserRulePredicates(String[] ruleNames) {
         this.ruleNames = ruleNames;
     }
 

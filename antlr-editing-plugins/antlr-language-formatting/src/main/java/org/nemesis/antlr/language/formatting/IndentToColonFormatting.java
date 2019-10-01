@@ -28,8 +28,6 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.language.formatting;
 
-import java.util.function.IntPredicate;
-import org.antlr.v4.runtime.Token;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.COLON_POSITION;
@@ -38,9 +36,7 @@ import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlr.language.formatting.config.ColonHandling;
 import org.nemesis.antlrformatting.api.Criterion;
 import org.nemesis.antlrformatting.api.FormattingAction;
-import org.nemesis.antlrformatting.api.FormattingContext;
 import org.nemesis.antlrformatting.api.FormattingRules;
-import org.nemesis.antlrformatting.api.LexingState;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_DOUBLE_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
 
@@ -69,7 +65,6 @@ final class IndentToColonFormatting extends AbstractFormatter {
     @Override
     protected void rules(FormattingRules rules) {
         rules.whenInMode(grammarRuleModes, rls -> {
-
             if (standaloneColon()) {
                 rls.onTokenType(COLON)
                         .priority(100)
@@ -146,14 +141,19 @@ final class IndentToColonFormatting extends AbstractFormatter {
                     .then()
                     .format(spaceOrWrap);
 
-            rules.whenPreviousTokenType(SEMI, rl -> {
+            rls.whenPreviousTokenType(SEMI, rl -> {
                 rl.onTokenType(keywordsOrIds)
                         .format(PREPEND_DOUBLE_NEWLINE);
             });
 
-            rules.onTokenType(OR).wherePrevTokenType(STAR, PLUS)
+            rls.onTokenType(OR).wherePrevTokenType(STAR, PLUS)
                     .format(spaceOrWrap);
-//            rls.onTokenType(SEMI).priority(3).format(APPEND_DOUBLE_NEWLINE);
+
+            if (config.isSemicolonOnNewline()) {
+                rls.onTokenType(SEMI)
+                        .priority(180)
+                        .format(prependNewlineAndIndent);
+            }
         });
 //        rules.onTokenType(ID, TOKEN_ID, PARDEC_ID, TOKDEC_ID, FRAGDEC_ID, PARSER_RULE_ID, TOK_ID, TOKEN_OR_PARSER_RULE_ID)
 //        rules.onTokenType(PARSER_RULE_ID, TOKEN_OR_PARSER_RULE_ID, TOKEN_ID, PARDEC_ID, TOK_ID, ID, TOKDEC_ID, FRAGDEC_ID, PARDEC_BEGIN_ARGUMENT)
@@ -161,42 +161,5 @@ final class IndentToColonFormatting extends AbstractFormatter {
 //                .format(FormattingAction.rewriteTokenText(
 //                        (int charsPerIndent, String text, int currLinePosition, LexingState state) -> " Goober-" + text));
 
-    }
-
-    static class LogFmt implements FormattingAction {
-
-        private final FormattingAction orig;
-
-        public LogFmt(FormattingAction orig) {
-            this.orig = orig;
-        }
-
-        @Override
-        public void accept(Token token, FormattingContext ctx, LexingState state) {
-            System.out.println("ACCEPT " + token.getText() + " " + ANTLRv4Lexer.VOCABULARY.getSymbolicName(token.getType())
-                    + " cpos: " + state.get(COLON_POSITION));
-            System.out.println("APPLY " + orig);
-            orig.accept(token, ctx, state);
-        }
-    }
-
-    static FormattingAction wrap(FormattingAction a) {
-        return new LogFmt(a);
-    }
-
-    static class WrapModePred implements IntPredicate {
-
-        private final IntPredicate delegate;
-
-        WrapModePred(String... names) {
-            this.delegate = AntlrCriteria.mode(names);
-            System.out.println("DEL: " + delegate);
-        }
-
-        @Override
-        public boolean test(int value) {
-            System.out.println("CURRENT MODE " + value + " - " + modeNames[value]);
-            return delegate.test(value);
-        }
     }
 }

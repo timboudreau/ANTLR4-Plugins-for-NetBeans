@@ -127,10 +127,10 @@ abstract class AbstractFormatter {
                 MODE_FRAGMENT_DECLARATION
         );
         prependNewlineAndIndent = config.isFloatingIndent()
-                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(-1, COLON_POSITION)
+                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(1, COLON_POSITION)
                 : PREPEND_NEWLINE_AND_INDENT;
         prependNewlineAndDoubleIndent = config.isFloatingIndent()
-                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent() - 1, COLON_POSITION)
+                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent(), COLON_POSITION)
                 : PREPEND_NEWLINE_AND_INDENT;
     }
 

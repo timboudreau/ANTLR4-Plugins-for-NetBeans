@@ -1,22 +1,15 @@
 package org.nemesis.antlrformatting.api;
 
 import java.io.IOException;
-import java.util.function.BiConsumer;
-import java.util.prefs.Preferences;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.Vocabulary;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
-import static org.nemesis.antlrformatting.api.LexingStateTest.SLState.BRACE_DEPTH;
-import static org.nemesis.antlrformatting.api.LexingStateTest.SimpleTF.LIMIT;
-import static org.nemesis.antlrformatting.api.LexingStateTest.keywords;
+import static org.nemesis.antlrformatting.api.FormattingHarness.keywords;
+import static org.nemesis.antlrformatting.api.LexingStateTest.LIMIT;
+import static org.nemesis.antlrformatting.api.SLState.BRACE_DEPTH;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.*;
-import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
 import org.nemesis.simple.SampleFiles;
-import org.nemesis.simple.language.SimpleLanguageLexer;
 import static org.nemesis.simple.language.SimpleLanguageLexer.COMMENT;
 import static org.nemesis.simple.language.SimpleLanguageLexer.DESCRIPTION;
 import static org.nemesis.simple.language.SimpleLanguageLexer.ID;
@@ -29,8 +22,6 @@ import static org.nemesis.simple.language.SimpleLanguageLexer.S_CLOSE_BRACE;
 import static org.nemesis.simple.language.SimpleLanguageLexer.S_COLON;
 import static org.nemesis.simple.language.SimpleLanguageLexer.S_OPEN_BRACE;
 import static org.nemesis.simple.language.SimpleLanguageLexer.S_SEMICOLON;
-import static org.nemesis.simple.language.SimpleLanguageLexer.S_WHITESPACE;
-import org.netbeans.modules.editor.indent.spi.Context;
 
 /**
  *
@@ -40,25 +31,28 @@ public class LinePositionTest {
 
     @Test
     public void testLinePositionWithFullFile() throws IOException {
+        if (true) {
+            return;
+        }
         SampleFiles f = SampleFiles.BASIC;
-        String formatted = new NewlineMadness(LinePositionTest::checkingFormat)
+        String formatted = new GenericConfig(LinePositionTest::checkingFormat)
                 .reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED\n" + formatted);
     }
 
-//    @Test
+    @Test
     public void testPositionAfterAppendNewline() throws IOException {
         SampleFiles f = SampleFiles.MINIMAL_MULTILINE;
-        String formatted = new NewlineMadness((stateBuilder, rules) -> {
+        String formatted = new GenericConfig((stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(APPEND_NEWLINE.trimmingWhitespace().and(new LinePositionChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
     }
 
-//    @Test
+    @Test
     public void testPositionAfterPrependNewline() throws IOException {
         SampleFiles f = SampleFiles.MINIMAL;
-        String formatted = new NewlineMadness((stateBuilder, rules) -> {
+        String formatted = new GenericConfig((stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(PREPEND_NEWLINE.and(new LinePositionChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
@@ -67,13 +61,13 @@ public class LinePositionTest {
 //    @Test
     public void testPositionAfterAppendSpace() throws IOException {
         SampleFiles f = SampleFiles.ABSURDLY_MINIMAL;
-        String formatted = new NewlineMadness((stateBuilder, rules) -> {
+        String formatted = new GenericConfig((stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(APPEND_SPACE.trimmingWhitespace().and(new SpaceChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
     }
 
-    static void checkingFormat(LexingStateBuilder<LexingStateTest.SLState, ?> stateBuilder, FormattingRules rules) {
+    static void checkingFormat(LexingStateBuilder<SLState, ?> stateBuilder, FormattingRules rules) {
         stateBuilder.increment(BRACE_DEPTH)
                 .onTokenType(S_OPEN_BRACE)
                 .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
@@ -149,45 +143,6 @@ public class LinePositionTest {
                 .format(indentCurrent);
     }
 
-    static final class NewlineMadness extends AntlrFormatterProvider<Preferences, LexingStateTest.SLState> {
-
-        private final BiConsumer<LexingStateBuilder<LexingStateTest.SLState, ?>, FormattingRules> configurer;
-
-        NewlineMadness(BiConsumer<LexingStateBuilder<LexingStateTest.SLState, ?>, FormattingRules> configurer) {
-            super(LexingStateTest.SLState.class);
-            this.configurer = configurer;
-        }
-
-        @Override
-        protected Preferences configuration(Context ctx) {
-            return null;
-        }
-
-        @Override
-        protected Lexer createLexer(CharStream stream) {
-            return new SimpleLanguageLexer(stream);
-        }
-
-        @Override
-        protected Vocabulary vocabulary() {
-            return SimpleLanguageLexer.VOCABULARY;
-        }
-
-        @Override
-        protected String[] modeNames() {
-            return SimpleLanguageLexer.modeNames;
-        }
-
-        @Override
-        protected Criterion whitespace() {
-            return Criterion.matching(vocabulary(), S_WHITESPACE);
-        }
-
-        @Override
-        protected void configure(LexingStateBuilder<LexingStateTest.SLState, ?> stateBuilder, FormattingRules rules, Preferences config) {
-            configurer.accept(stateBuilder, rules);
-        }
-    }
 
     private static final class SpaceChecker implements FormattingAction {
 
@@ -232,7 +187,11 @@ public class LinePositionTest {
                 if (nowSync) {
                     System.out.println("POSITIONS BACK IN SYNC: " + tokInfo);
                 } else {
-                    fail("POSITIONS OUT OF SYNC: " + tokInfo);
+                    String msg = "POSITIONS OUT OF SYNC: " + tokInfo + " brute force char position in line "
+                            + pos + " computed char position in line (indirectly) "
+                            + "from rewriter " + compPos;
+                    fail(msg);
+                    System.out.println(msg);
                 }
                 sync = nowSync;
             }

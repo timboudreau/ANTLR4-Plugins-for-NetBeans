@@ -74,20 +74,26 @@ public class BasicFormatting extends AbstractFormatter {
 //        });
         if (!config.isReflowLineComments()) {
             rules.onTokenType(LINE_COMMENT).wherePrevTokenType(LINE_COMMENT)
+                    .named("newline-before-and-after-line-comment-preceded-by-line-comment")
                     .format(PREPEND_NEWLINE_AND_INDENT.bySpaces(LINE_COMMENT_INDENT).and(APPEND_NEWLINE));
 
             rules.onTokenType(PARSER_RULE_ID, TOKEN_ID, FRAGMENT)
+                    .named("prepend-newline-to-token-after-line-comment")
                     .wherePreviousTokenType(lineComments())
                     .format(PREPEND_NEWLINE);
         }
 
-        rules.onTokenType(RARROW).format(spaceOrWrap.and(APPEND_SPACE));
+        rules.onTokenType(RARROW)
+                .named("spaces-channel-arrow")
+                .format(spaceOrWrap.and(APPEND_SPACE));
 
         rules.onTokenType(GRAMMAR, LEXER, PARSER)
+                .named("spaces-in-grammar-decl")
                 .wherePreviousTokenType(-1)
                 .format(APPEND_SPACE);
 
         rules.onTokenType(lineComments().negate())
+                .named("ensure-newline-after-line-comment")
                 .wherePreviousTokenType(lineComments())
                 .format(PREPEND_NEWLINE);
 
@@ -97,6 +103,7 @@ public class BasicFormatting extends AbstractFormatter {
         rules.onTokenType(lineComments())
                 .ifPrecededByNewline(true)
                 .wherePrevTokenTypeNot(lineComments())
+                .named("double-newline-before-first-line-comment-when-starting-line")
                 .format(PREPEND_DOUBLE_NEWLINE);
 
         // Newline after block comments
@@ -106,31 +113,52 @@ public class BasicFormatting extends AbstractFormatter {
 
         // Every token should be preceded by a space
         rules.whenInMode(grammarRuleModes, rls -> {
-            rls.onTokenType(LPAREN).wherePreviousTokenType(ruleOpeners).format(PREPEND_SPACE);
-            rls.onTokenType(RPAREN).wherePrevTokenType(OR).format(PREPEND_SPACE);
+            rls.onTokenType(LPAREN)
+                    .named("space-before-open-paren")
+                    .wherePreviousTokenType(ruleOpeners.or(criteria.anyOf(OR, COLON))).format(PREPEND_SPACE);
+
+            rls.onTokenType(RPAREN)
+                    .named("space-before-close-paren-when-preceded-by-|")
+                    .wherePrevTokenType(OR).format(PREPEND_SPACE);
+
+            rls.onTokenType(SHARP)
+                    .priority(20)
+                    .format(PREPEND_SPACE);
+
         });
 
         rules.onTokenType(lineComments()).wherePreviousTokenType(
-                criteria.anyOf(ALL_BLOCK_COMMENTS)).format(PREPEND_DOUBLE_NEWLINE);
+                criteria.anyOf(ALL_BLOCK_COMMENTS))
+                .named("double-newline-before-line-comment-preceded-by-block-comment")
+                .format(PREPEND_DOUBLE_NEWLINE);
 
         rules.onTokenType(criteria.anyOf(ALL_BLOCK_COMMENTS))
                 .wherePreviousTokenType(lineComments())
+                .named("block-comment-after-line-comment-on-new-line")
                 .format(PREPEND_NEWLINE);
 
-        rules.onTokenType(criteria.anyOf(ALL_BLOCK_COMMENTS)).format(PREPEND_NEWLINE);
+        rules.onTokenType(criteria.anyOf(ALL_BLOCK_COMMENTS))
+                .named("newline-before-block-comments")
+                .format(PREPEND_NEWLINE);
 
-        rules.onTokenType(lineComments()).wherePrevTokenType(RBRACE, RPAREN, END_ACTION)
+        rules.onTokenType(lineComments())
+                .wherePrevTokenType(RBRACE, RPAREN, END_ACTION)
+                .named("offset-line-comments-by-one-space-when-inline")
                 .ifPrecededByNewline(false).format(PREPEND_SPACE);
 
-        rules.onTokenType(STRING_LITERAL).wherePrevTokenType(STAR, QUESTION, PLUS, DOT)
+        rules.onTokenType(STRING_LITERAL)
+                .named("space-or-wrap-on-string-literal-after-ebnf")
+                .wherePrevTokenType(STAR, QUESTION, PLUS, DOT)
                 .format(spaceOrWrap);
 
         rules.onTokenType(ID).whereMode(grammarRuleModes)
                 .wherePrevTokenType(SHARP)
+                .named("no-space-between-#-and-label")
                 .priority(120)
                 .format(FormattingAction.EMPTY);
 
         rules.onTokenType(SHARP)
+                .named("space-before-#label")
                 .whereNextTokenType(ID)
                 .priority(120)
                 .format(PREPEND_SPACE);
@@ -150,7 +178,7 @@ public class BasicFormatting extends AbstractFormatter {
                     .clearingOnTokenType(-1);
         } else {
             bldr.recordPosition(COLON_POSITION)
-                    .beforeProcessingToken()
+//                    .beforeProcessingToken()
                     .onTokenType(COLON)
                     .clearingOnTokenType(-1);
         }

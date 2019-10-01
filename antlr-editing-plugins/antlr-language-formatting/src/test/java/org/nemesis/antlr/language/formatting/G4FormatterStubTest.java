@@ -96,19 +96,18 @@ public class G4FormatterStubTest {
 
     @Test
     public void testDev() {
-        if (true) {
-            return;
-        }
 //        System.setProperty("FormattingContextImpl.noCache", "true");
         String toTest = rustGrammar;
         MockPreferences p = new MockPreferences();
         p.putBoolean(AntlrFormatterConfig.KEY_FLOATING_INDENT, true);
         p.putInt(AntlrFormatterConfig.KEY_INDENT, 4);
-        p.putBoolean(AntlrFormatterConfig.KEY_WRAP, true);
+        p.putInt(AntlrFormatterConfig.KEY_MAX_LINE, 40);
+        p.putBoolean(AntlrFormatterConfig.KEY_WRAP, false);
         p.putBoolean(AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, true);
         p.putBoolean(AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true);
         p.putBoolean(AntlrFormatterConfig.KEY_REFLOW_LINE_COMMENTS, true);
-        p.putInt(AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_AFTER.ordinal());
+        p.putBoolean(AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, true);
+        p.putInt(AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE.ordinal());
         testOne(toTest, true, p);
     }
 
@@ -135,7 +134,7 @@ public class G4FormatterStubTest {
                             counts.put(ste, ct);
                         }
                     }
-                    Thread.sleep(5);
+                    Thread.sleep(1);
                 }
                 System.out.println("Sampled " + samples + " times");
                 List<StackTraceElement> sorted = new ArrayList<>(counts.keySet());
@@ -155,7 +154,7 @@ public class G4FormatterStubTest {
         return t;
     }
 
-    boolean profile = true;
+    boolean profile = false;
 
     @Test
     public void testAllPossibleSettingsCombinationsResultInValidGrammars() throws InterruptedException {
@@ -191,13 +190,13 @@ public class G4FormatterStubTest {
         LexingAndParsingResult nue = lex(reformatted, true);
 
         String tokDiff = base.isSameTokenSequence(nue);
-        System.out.println("TOK DIFF " + tokDiff);
-
-        System.out.println("ORIG ERRS " + base.errors);
-        System.out.println("ORIG PARSE ERRS " + base.parseErrors);
-
-        System.out.println("FMT ERRS " + nue.errors);
-        System.out.println("FMT PARSE ERRS " + nue.parseErrors);
+//        System.out.println("TOK DIFF " + tokDiff);
+//
+//        System.out.println("ORIG ERRS " + base.errors);
+//        System.out.println("ORIG PARSE ERRS " + base.parseErrors);
+//
+//        System.out.println("FMT ERRS " + nue.errors);
+//        System.out.println("FMT PARSE ERRS " + nue.parseErrors);
 
         assertFalse(nue.hasErrors());
         assertNull(tokDiff, "Token seq differs: " + tokDiff);
@@ -214,17 +213,17 @@ public class G4FormatterStubTest {
             long then = System.currentTimeMillis();
             Preferences prefs = new MockPreferences();
             cfig.accept(prefs);
-            if (count % 4 != 0) {
-                count++;
-                if (count > 4 * 4) {
-                    break;
-                }
-                System.out.println("skip " + prefs);
-                continue;
-            }
-            if (count > 4 * 4) {
-                break;
-            }
+//            if (count % 4 != 0) {
+//                count++;
+//                if (count > 4 * 4) {
+//                    break;
+//                }
+//                System.out.println("skip " + prefs);
+//                continue;
+//            }
+//            if (count > 4 * 4) {
+//                break;
+//            }
 //            System.out.println("TEST " + name + " with " + prefs);
             AntlrFormatterProvider formatter = stub.toFormatterProvider("text/x-g4", AntlrCounters.class,
                     VOCABULARY, modeNames, G4FormatterStubTest::lexerFor,
@@ -234,13 +233,16 @@ public class G4FormatterStubTest {
             String txt = res.text();
             LexingAndParsingResult nue = lex(txt.toCharArray(), parse);
             if (nue.hasErrors() || base.isSameTokenSequence(nue) != null) {
+                System.out.println("  bad " + name + " " + prefs + " elapsed ms " + (System.currentTimeMillis() - then));
                 failures.add(new ResultEntry(prefs, nue, txt));
+                System.out.println(txt);
             } else {
                 System.out.println("  ok " + name + " " + prefs + " elapsed ms " + (System.currentTimeMillis() - then));
             }
             count++;
+//            System.gc();
         }
-        System.out.println("cfig done " + count);
+//        System.out.println("cfig done " + count);
         assertNotEquals(0, count, "No iterations");
         assertTrue(count > 1, "" + count);
         StringBuilder msg = new StringBuilder();
@@ -347,38 +349,14 @@ public class G4FormatterStubTest {
         return all;
     }
 
-    /*
-    @Test
-    public void testListCom() {
-        ListPairCombinatorics c = new ListPairCombinatorics(adjusters(true), adjusters(false));
-        int ix = 0;
-        while (c.loopAroundCount() < 2) {
-            int old = c.loopAroundCount();
-            System.out.println(++ix + ". " + c.get());
-            if (c.loopAroundCount != old) {
-                System.out.println("\n-------------");
-            }
-        }
-    }
-
-    @Test
-    public void testCc() {
-        CombinatoricConfigurer cfig = cfig();
-        int ix = 1;
-        MockPreferences p = new MockPreferences();
-        int ct = 0;
-        while (!cfig.done()) {
-            cfig.accept(p);
-            ct++;
-            System.out.println(ix++ + ". " + p);
-        }
-        assertNotEquals(0, ct);
-    }
-     */
     CombinatoricConfigurer cfig() {
         return new CombinatoricConfigurer(adjusters(true), adjusters(false), colonHandlingAdjusters());
     }
 
+    /**
+     * Iterably provides a Preferences for every possible combination of
+     * settings in AntlrFormatterConfig.
+     */
     static class CombinatoricConfigurer implements Consumer<Preferences> {
 
         private final List<Consumer<Preferences>> colonHandling;
@@ -643,6 +621,5 @@ public class G4FormatterStubTest {
             errors.add("Error Node: " + node.toString());
             return super.visitErrorNode(node);
         }
-
     }
 }

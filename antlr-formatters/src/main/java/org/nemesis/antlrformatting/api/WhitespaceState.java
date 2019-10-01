@@ -407,6 +407,7 @@ final class WhitespaceState {
         private final int depth;
         private final boolean isTabStops;
         private final WhitespaceStringCache cache;
+        static boolean warned;
 
         IndentBy(int depth, WhitespaceStringCache cache) {
             this(depth, true, cache);
@@ -416,6 +417,14 @@ final class WhitespaceState {
             this.depth = depth;
             this.isTabStops = tabStops;
             this.cache = cache;
+            if (!warned && depth > 4096) {
+                warned = true;
+                new IllegalStateException("Disturbingly large string "
+                        + "of spaces requested: " + depth
+                        + " tabStops? " + tabStops
+                        + ". Something is probably horribly wrong. "
+                        + "OutOfMemoryError in 3...2...1...").printStackTrace();
+            }
         }
 
         boolean isSpace() {

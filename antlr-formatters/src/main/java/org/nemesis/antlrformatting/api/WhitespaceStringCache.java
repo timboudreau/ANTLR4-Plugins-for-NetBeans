@@ -21,6 +21,10 @@ final class WhitespaceStringCache {
     }
 
     private String newSpacesString(int count) {
+        if (count > 1024 * 10) {
+            throw new IllegalArgumentException("Insane number of spaces. "
+                    + "Something has run amok: " + count);
+        }
         char[] c = new char[count];
         Arrays.fill(c, ' ');
         return new String(c);
@@ -33,6 +37,9 @@ final class WhitespaceStringCache {
     }
 
     public String spaces(int spaceCount) {
+        if (spaceCount > 80) {
+            return newSpacesString(spaceCount);
+        }
         if (spaceCount > spaces.length - 1) {
             spaces = Arrays.copyOf(spaces, nearestGreaterMultiple(spaceCount));
         }
@@ -45,6 +52,9 @@ final class WhitespaceStringCache {
     }
 
     public String newlines(int newlinesCount) {
+        if (newlinesCount > 20) {
+            return newNewlinesString(newlinesCount);
+        }
         if (newlinesCount > newlines.length) {
             newlines = Arrays.copyOf(newlines, nearestGreaterMultiple(newlinesCount));
         }

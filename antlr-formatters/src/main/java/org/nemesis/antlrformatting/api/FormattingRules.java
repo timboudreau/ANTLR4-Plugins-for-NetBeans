@@ -1,22 +1,23 @@
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.Vocabulary;
 import static org.nemesis.antlrformatting.api.Criterion.anyOf;
 import static org.nemesis.antlrformatting.api.Criterion.matching;
 import static org.nemesis.antlrformatting.api.Criterion.noneOf;
 import static org.nemesis.antlrformatting.api.Criterion.notMatching;
 import static org.nemesis.antlrformatting.api.FormattingRule.notMode;
-import com.mastfrog.predicates.integer.IntPredicates;
-import com.mastfrog.predicates.string.StringPredicates;
 
 /**
  * A builder for the set of formatting rules which can be appled to reformat a
@@ -47,6 +48,23 @@ public final class FormattingRules {
         this.vocabulary = vocabulary;
         this.modeNames = modeNames;
         this.rulePredicates = new ParserRulePredicates(parserRuleNames);
+    }
+
+    private FormattingRules(Vocabulary vocabulary, String[] modeNames, ParserRulePredicates rulePredicates) {
+        this.vocabulary = vocabulary;
+        this.modeNames = modeNames;
+        this.rulePredicates = rulePredicates;
+    }
+
+    // for debugging - see FormattingHarness in the tests
+    FormattingRules wrapAllRules(Function<FormattingAction, FormattingAction> wrapRule) {
+        List<FormattingRule> old = new ArrayList<>(this.rules);
+        this.rules.clear();
+        for (FormattingRule r : old) {
+            FormattingRule nue = r.wrapAction(this, wrapRule);
+            this.rules.add(nue);
+        }
+        return this;
     }
 
     ParserRulePredicates parserRulePredicates() {
@@ -263,7 +281,7 @@ public final class FormattingRules {
             this.replacer = replacer;
         }
 
-        public boolean onToken(ModalToken token, TokenStreamRewriter rewriter, LexingState state) {
+        public boolean onToken(ModalToken token, StreamRewriterFacade rewriter, LexingState state) {
             boolean matches = tokenTest.test(token.getType());
             if (matches) {
                 if (collected.isEmpty()) {
@@ -277,7 +295,7 @@ public final class FormattingRules {
             return matches;
         }
 
-        public boolean finishPendingRewrites(TokenStreamRewriter rewriter) {
+        public boolean finishPendingRewrites(StreamRewriterFacade rewriter) {
             if (collected.isEmpty()) {
                 return false;
             }
@@ -425,7 +443,7 @@ public final class FormattingRules {
      */
     void apply(ModalToken token, int prevToken, int prevMode, int nextToken,
             boolean precededByNewline, FormattingContext ctx, boolean debug,
-            LexingState state, boolean followedByNewline, TokenStreamRewriter rewriter,
+            LexingState state, boolean followedByNewline, StreamRewriterFacade rewriter,
             IntFunction<Set<Integer>> parserRuleFinder) {
         if (!sorted) {
             Collections.sort(rules);
@@ -459,7 +477,7 @@ public final class FormattingRules {
         }
     }
 
-    void finish(TokenStreamRewriter rew) {
+    void finish(StreamRewriterFacade rew) {
         if (replacers != null) {
             for (Replacer r : replacers) {
                 r.finishPendingRewrites(rew);

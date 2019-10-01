@@ -28,6 +28,8 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.language.formatting;
 
+import static org.nemesis.antlr.ANTLRv4Lexer.COLON;
+import static org.nemesis.antlr.ANTLRv4Lexer.ID;
 import static org.nemesis.antlr.ANTLRv4Lexer.LPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
@@ -53,6 +55,11 @@ final class ParenthesesSpacing extends AbstractFormatter {
                 .whereNextTokenTypeNot(LPAREN)
                 .priority(100)
                 .format(APPEND_SPACE);
+        rules.onTokenType(LPAREN).wherePrevTokenType(COLON).format(PREPEND_SPACE);
+        rules.onTokenType(ID)
+                .wherePrevTokenType(COLON)
+                .priority(100)
+                .format(PREPEND_SPACE);
         rules.onTokenType(ruleOpeners).wherePrevTokenType(LPAREN)
                 .priority(100)
                 .format(PREPEND_SPACE);

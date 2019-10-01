@@ -1,12 +1,12 @@
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
 import java.util.Arrays;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Token;
-import com.mastfrog.predicates.integer.IntPredicates;
-import com.mastfrog.predicates.string.StringPredicates;
 /**
  *
  * @author Tim Boudreau

@@ -81,7 +81,7 @@ public final class Criteria {
         private final boolean negated;
         private boolean logged;
 
-        public SingleCriterion(int value, Vocabulary vocab, boolean negated) {
+        SingleCriterion(int value, Vocabulary vocab, boolean negated) {
             this.value = value;
             this.vocab = vocab;
             this.negated = negated;
@@ -160,7 +160,7 @@ public final class Criteria {
         private boolean logged;
         private final boolean negated;
 
-        public ArrayCriterion(int[] ints, Vocabulary vocab, boolean negated) {
+        ArrayCriterion(int[] ints, Vocabulary vocab, boolean negated) {
             this.ints = ints;
             this.vocab = vocab;
             this.negated = negated;
@@ -226,7 +226,7 @@ public final class Criteria {
 
         private final Criterion orig;
 
-        public NegatingCriterion(Criterion orig) {
+        NegatingCriterion(Criterion orig) {
             this.orig = orig;
         }
 
@@ -303,7 +303,7 @@ public final class Criteria {
         private final IntPredicate b;
         private final boolean or;
 
-        public LogicalCriterion(Criterion a, IntPredicate b, boolean or) {
+        LogicalCriterion(Criterion a, IntPredicate b, boolean or) {
             this.a = a;
             this.b = b;
             this.or = or;

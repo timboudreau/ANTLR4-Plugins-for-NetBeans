@@ -16,6 +16,20 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
 
     }
 
+    public static CaretFixer none() {
+        return new CaretFixer() {
+            @Override
+            public void updateStart(int start) {
+
+            }
+
+            @Override
+            public CaretInfo get() {
+                return CaretInfo.NONE;
+            }
+        };
+    }
+
     public static CaretFixer forContext(Context ctx) {
         Document doc = ctx.document();
         int start = ctx.startOffset();

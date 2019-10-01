@@ -317,6 +317,7 @@ public enum SimpleFormattingAction implements FormattingAction {
         private final SimpleFormattingAction action;
         private final boolean spacesNotStops;
         private int adjustment;
+        private boolean warned;
 
         private static final Set<SimpleFormattingAction> SUPPORTED
                 = EnumSet.of(PREPEND_SPACE, INDENT, PREPEND_NEWLINE_AND_INDENT,
@@ -372,6 +373,9 @@ public enum SimpleFormattingAction implements FormattingAction {
                 result += "-" + StringUtils.join("-", (Object[]) more);
             }
             result += spacesNotStops ? "-spaces" : "-tab-stops";
+            if (adjustment != 0) {
+                result += (adjustment > 0 ? "+" + adjustment : adjustment);
+            }
             return result;
         }
 
@@ -391,6 +395,14 @@ public enum SimpleFormattingAction implements FormattingAction {
                         }
                     }
                 }
+            }
+            if (amt > 4096 && !warned) {
+                warned = true;
+                new IllegalArgumentException("Distressingly large number of "
+                        + "spaces specified by key " + key + ".  Something "
+                        + "is probably about to go very wrong. Token: "
+                        + token + "\nFormattingContext: " + ctx + "\nLexingState: " + state)
+                        .printStackTrace();
             }
             switch (action) {
                 case PREPEND_SPACE:

@@ -348,7 +348,7 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
                 if (original) {
                     stacks[ord].push(u.origCharPositionInLine());
                 } else {
-                    stacks[ord].push(u.currentCharPositionInLine());
+                    stacks[ord].push(u.currentCharPositionInLine() + 1);
                 }
             }
             if (popper.test(type)) {
@@ -1163,9 +1163,10 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         public LexingStateBuilder<T, R> clearingOnTokenType(int type) {
             return clearingOnTokenType(matching(type));
         }
+
         /**
-         * Don't ever clear the value, but update it when a new matching
-         * token is found.
+         * Don't ever clear the value, but update it when a new matching token
+         * is found.
          *
          * @param type A token type
          * @return The parent builder

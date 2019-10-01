@@ -21,6 +21,8 @@ public enum SampleFiles {
     MINIMAL("minimal.sim"),
     ABSURDLY_MINIMAL("absurdly-minimal.sim"),
     MUCH_NESTING("much-nesting.sim"),
+    MUCH_NESTING_WITH_EXTRA_NEWLINES("much-nesting-extra-newlines.sim"),
+    MUCH_NESTING_UNFORMATTED("much-nesting-unformatted.sim"),
     MINIMAL_MULTILINE("minimal-with-multiline-comments.sim")
     ;
 

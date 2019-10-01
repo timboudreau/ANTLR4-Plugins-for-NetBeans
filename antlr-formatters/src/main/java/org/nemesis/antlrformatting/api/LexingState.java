@@ -320,8 +320,8 @@ public final class LexingState {
                 lexer.reset();
             }
 
-//            TokenStreamRewriter rew = new TokenStreamRewriter(tokens);
-            LinePositionComputingRewriter rew = new LinePositionComputingRewriter(tokens);
+            StreamRewriterFacade rew = new FastStreamRewriter(tokens);
+//            StreamRewriterFacade rew = new LinePositionComputingRewriter(tokens);
             return new FormattingContextImpl(rew, start, end, indentSize,
                     rules, state, whitespace, debug, ruleFetcher)
                     .go(tokens, caretPos, updateWithCaretPosition);

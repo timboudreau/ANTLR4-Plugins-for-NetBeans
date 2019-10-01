@@ -1,6 +1,8 @@
 package org.nemesis.antlrformatting.api;
 
 import com.mastfrog.function.IntBiPredicate;
+import com.mastfrog.predicates.integer.IntPredicates;
+import com.mastfrog.predicates.string.StringPredicates;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,11 +10,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-import com.mastfrog.predicates.integer.IntPredicates;
-import com.mastfrog.predicates.string.StringPredicates;
 
 /**
  * A formatting rule; consists of several matching criteria and a
@@ -89,6 +90,25 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     FormattingRule(IntPredicate tokenType, FormattingRules rules) {
         this.tokenType = tokenType;
         this.rules = rules;
+    }
+
+    FormattingRule wrapAction(FormattingRules owner, Function<FormattingAction, FormattingAction> wrap) {
+        FormattingRule result = new FormattingRule(tokenType, owner);
+        result.action = wrap.apply(action);
+        result.prevTokenType = prevTokenType;
+        result.nextTokenType = nextTokenType;
+        result.mode = mode;
+        result.requiresPrecedingNewline = requiresPrecedingNewline;
+        result.requiresFollowingNewline = requiresFollowingNewline;
+        result.active = active;
+        result.temporarilyInactive = temporarilyInactive;
+        result.temporarilyActive = temporarilyActive;
+        result.priority = priority;
+        result.name = name;
+        result.stateCriteria = stateCriteria == null ? null : new ArrayList<>(stateCriteria);
+        result.parserRuleMatch = parserRuleMatch;
+        result.modeTransition= modeTransition;
+        return result;
     }
 
     public FormattingRule whenParserRule(Predicate<Set<Integer>> predicate) {
@@ -263,7 +283,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      */
     public FormattingRule format(FormattingAction action) {
         if (this.action != null) {
-            this.action = this.action.andThen(action);
+            this.action = this.action.and(action);
         } else {
             this.action = action;
         }
@@ -846,7 +866,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             if (sb.length() > 5) {
                 sb.append(' ');
             }
-            sb.append("onModeTransition " + modeTransition);
+            sb.append("onModeTransition ").append(modeTransition);
         }
         if (requiresPrecedingNewline != null) {
             if (sb.length() > 5) {

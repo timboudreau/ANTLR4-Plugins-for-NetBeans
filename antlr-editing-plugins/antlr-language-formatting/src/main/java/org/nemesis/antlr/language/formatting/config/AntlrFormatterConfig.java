@@ -62,17 +62,19 @@ public class AntlrFormatterConfig {
     public static final String KEY_BLANK_LINE_BEFORE_RULES = "blankLineBeforeRules";
     public static final String KEY_REFLOW_LINE_COMMENTS = "reflowLineComments";
     public static final String KEY_SPACES_INSIDE_PARENS = "spacesInsideParens";
+    public static final String KEY_SEMICOLON_ON_NEW_LINE = "semicolonOnNewline";
     public static final int DEFAULT_MAX_LINE = 60;
     public static final boolean DEFAULT_WRAP = false;
     public static final boolean DEFAULT_REFLOW_LINE_COMMENTS = false;
     public static final boolean DEFAULT_SPACES_INSIDE_PARENS = false;
     public static final boolean DEFAULT_FLOATING_INDENT = false;
+    public static final boolean DEFAULT_SEMICOLON_ON_NEWLINE = false;
     public static final int DEFAULT_INDENT = 4;
     public static final ColonHandling DEFAULT_COLON_HANDLING
             = ColonHandling.INLINE;
     public static final boolean DEFAULT_BLANK_LINE_BEFORE_RULES = false;
 
-    public static String[] BOOLEAN_KEYS = new String[] {
+    public static String[] BOOLEAN_KEYS = new String[]{
         KEY_WRAP,
         KEY_FLOATING_INDENT,
         KEY_REFLOW_LINE_COMMENTS,
@@ -118,6 +120,16 @@ public class AntlrFormatterConfig {
     public void setSpacesInsideParens(boolean val) {
         if (val != isSpacesInsideParens()) {
             config.putBoolean(KEY_SPACES_INSIDE_PARENS, val);
+        }
+    }
+
+    public boolean isSemicolonOnNewline() {
+        return config.getBoolean(KEY_SEMICOLON_ON_NEW_LINE, DEFAULT_SEMICOLON_ON_NEWLINE);
+    }
+
+    public void setSemicolonOnNewline(boolean val) {
+        if (val != isSemicolonOnNewline()) {
+            config.putBoolean(KEY_SEMICOLON_ON_NEW_LINE, val);
         }
     }
 
@@ -173,6 +185,7 @@ public class AntlrFormatterConfig {
         }
     }
 
+    @Override
     public String toString() {
         return getClass().getSimpleName() + "("
                 + " colonHandling=" + getColonHandling()

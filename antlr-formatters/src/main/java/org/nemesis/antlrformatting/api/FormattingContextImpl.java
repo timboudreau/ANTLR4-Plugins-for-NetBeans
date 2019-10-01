@@ -16,7 +16,7 @@ import org.nemesis.antlrformatting.impl.CaretInfo;
  */
 class FormattingContextImpl extends FormattingContext implements LexerScanner {
 
-    private final LinePositionComputingRewriter rew;
+    final StreamRewriterFacade rew;
     private final int startPosition;
     private final int endPosition;
     private final int indentSize;
@@ -25,7 +25,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     private int posInOriginalLine;
     private String replacement;
     private EverythingTokenStream stream;
-    private final LexingState state;
+    final LexingState state;
     private final Criterion notWhitespace;
     private final LineState lineState;
     private final Criterion whitespace;
@@ -34,7 +34,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     private int lastTokenInRange = -1;
     private final IntFunction<Set<Integer>> ruleFinder;
 
-    FormattingContextImpl(LinePositionComputingRewriter rew, int start, int end,
+    FormattingContextImpl(StreamRewriterFacade rew, int start, int end,
             int indentSize, FormattingRules rules, LexingState state,
             Criterion whitespace, Predicate<Token> debugLogging, IntFunction<Set<Integer>> ruleFinder) {
         this.rew = rew;
@@ -48,6 +48,22 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         this.debugLogging = debugLogging;
         lineState = new LineState(indentSize);
         this.ruleFinder = ensureRuleFinder(ruleFinder);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("FormattingContextImpl(");
+        sb.append("  indentSize: ").append(indentSize).append('\n');
+        sb.append("  whitespace: ").append(whitespace).append('\n');
+        if (stream != null) {
+            sb.append("  stream with ").append(stream.size()).append(" tokens, cursor: ").append(stream.cursor).append('\n');
+            sb.append("  firstTokenInRange: ").append(firstTokenInRange).append(" last: ").append(lastTokenInRange).append('\n');
+        } else {
+            sb.append("  stream: none").append('\n');
+        }
+        sb.append("  rewriter: ").append(rew).append('\n');
+        sb.append("  rules: ").append(rules);
+        return sb.append("\n)").toString();
     }
 
     static IntFunction<Set<Integer>> ensureRuleFinder(IntFunction<Set<Integer>> finder) {
@@ -168,12 +184,16 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             }
         }
         // Discard cached info
-        rew.close();
         try {
             return getFormattingResult();
         } finally {
-            tokens.close();
+            close(stream);
         }
+    }
+
+    protected void close(EverythingTokenStream str) { // overridden by FormattingHarness for tests
+        rew.close();
+        str.close();
     }
 
     static boolean useCache = !Boolean.getBoolean("FormattingContextImpl.noCache");
@@ -279,13 +299,6 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             }
         }
         return count;
-    }
-
-    public String getModifiedText() {
-        if (firstTokenInRange == -1) {
-            return "";
-        }
-        return rew.getText(new Interval(firstTokenInRange, lastTokenInRange));
     }
 
     public FormattingResult getFormattingResult() {
@@ -689,6 +702,9 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 return 0;
             }
             int result = rew.lastNewlineDistance(lineState.lastTokenIndex());
+//            System.out.println("GOT " + result + " for " + lineState.lastTokenIndex()
+//                    + " - " + lineState.lastToken);
+
             result = lineState.whitespace.linePositionWithPrepend(result);
             return result;
         }

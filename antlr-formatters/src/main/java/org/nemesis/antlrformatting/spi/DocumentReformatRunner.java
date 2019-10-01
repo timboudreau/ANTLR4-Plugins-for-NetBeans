@@ -65,7 +65,6 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         // the offset of the original caret position in the new document
         CaretFixer caretFixer = CaretFixer.forContext(cntxt);
         EditorScrollPositionManager scrollHandler = new EditorScrollPositionManager(comp, caretFixer);
-        System.out.println("INITIAL INVOCATION ON " + Thread.currentThread());
         try {
             scrollHandler.invokeWithEditorDisabled((currentCursorPos) -> {
                 withDocumentLockedandInputDisabledAndReformatLock(document, () -> {
@@ -77,7 +76,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
                         }
                         lexer.removeErrorListeners();
                         FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer, ruleNode);
-                        System.out.println("GOT RESULT " + reformatted);
+//                        System.out.println("GOT RESULT " + reformatted);
                         boolean updated = replaceTextInDocument(document, reformatted);
                         if (updated) {
                             scrollHandler.addCaretPositionUndoableEdit();
@@ -149,11 +148,11 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         Parameters.notNull("result", result);
 
         String replacement = result.text();
-        System.out.println("\n\nFORMAT RESULT TEXT LENGTH " + replacement.length());
-        System.out.println("START " + result.startOffset());
-        System.out.println("END " + result.endOffset());
+//        System.out.println("\n\nFORMAT RESULT TEXT LENGTH " + replacement.length());
+//        System.out.println("START " + result.startOffset());
+//        System.out.println("END " + result.endOffset());
         if (result.isEmpty()) {
-            System.out.println("result is empty, give up");
+//            System.out.println("result is empty, give up");
             return false;
         }
 
@@ -163,16 +162,16 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         int start = result.startOffset();
         int end = result.endOffset();
 
-        System.out.println("DOCSTART " + docStart + " DOCEND " + docEnd + " reformat " + start
-                + ":" + end);
+//        System.out.println("DOCSTART " + docStart + " DOCEND " + docEnd + " reformat " + start
+//                + ":" + end);
 
         if (start > docStart || end < docEnd - 1) {
             // Working over a selection
             String text = doc.getText(start, end - start);
-            System.out.println("\n\nREPLACE TEXT");
-            System.out.println(text);
-            System.out.println("\nWITH");
-            System.out.println(replacement);
+//            System.out.println("\n\nREPLACE TEXT");
+//            System.out.println(text);
+//            System.out.println("\nWITH");
+//            System.out.println(replacement);
             if (!replacement.equals(text)) {
                 if (doc instanceof BaseDocument) {
                     ((BaseDocument) doc).replace(start, end - start, replacement, null);

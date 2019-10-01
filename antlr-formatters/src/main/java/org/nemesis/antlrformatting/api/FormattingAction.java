@@ -32,7 +32,7 @@ import org.antlr.v4.runtime.Token;
  * instruction, if both newline and indent instructions are present, using
  * whichever from each results in the greater number of newlines or spaces, with
  * the following caveat: When encountering both newlines and an instruction to
- * indent <i>exactly one space</i>, and no longer indent instruction is present,
+ * indent <i>exactly one space</i>, and no deeper indent instruction is present,
  * ignore the space instruction (otherwise rules to prepend a space before a
  * keyword would combine with rules to put a newline after a semicolon to
  * constantly create one-space-indented lines, which is pretty much never what
@@ -50,7 +50,8 @@ import org.antlr.v4.runtime.Token;
 public interface FormattingAction {
 
     /**
-     * Manipulate the FormattingContext to prepend or append whitespace.
+     * Manipulate the FormattingContext to prepend or append whitespace or
+     * otherwise manipulate the token text.
      *
      * @param token The token
      * @param ctx The formatting context, whose methods allow you to prepend or
@@ -60,21 +61,12 @@ public interface FormattingAction {
      */
     void accept(Token token, FormattingContext ctx, LexingState state);
 
-    default FormattingAction andThen(FormattingAction other) {
-        return new FormattingAction() {
-            @Override
-            public void accept(Token token, FormattingContext ctx, LexingState state) {
-                FormattingAction.this.accept(token, ctx, state);
-                other.accept(token, ctx, state);
-            }
-
-            @Override
-            public String toString() {
-                return FormattingAction.this + " then " + other;
-            }
-        };
-    }
-
+    /**
+     * Apply this action and also trim any whitespace which is part of the
+     * original action.
+     *
+     * @return A formatting action
+     */
     default FormattingAction trimmingWhitespace() {
         return new FormattingAction() {
             @Override
@@ -154,7 +146,16 @@ public interface FormattingAction {
         };
     }
 
+    /**
+     * Combine this and another action.
+     *
+     * @param other Another action
+     * @return A formatting action
+     */
     default FormattingAction and(FormattingAction other) {
+        if (other == this) {
+            throw new IllegalArgumentException("Combining with self");
+        }
         return new FormattingAction() {
             @Override
             public void accept(Token tok, FormattingContext t, LexingState state) {
@@ -168,10 +169,23 @@ public interface FormattingAction {
         };
     }
 
+    /**
+     * Creates a formatting action which will use the passed rewriter to rewrite
+     * token text.
+     *
+     * @param rewriter A rewriter
+     * @return A formatting action
+     */
     static FormattingAction rewriteTokenText(TokenRewriter rewriter) {
         return FormattingAction.EMPTY.rewritingTokenTextWith(rewriter);
     }
 
+    /**
+     * Rewrite the token text with the passed token rewriter.
+     *
+     * @param rewriter A rewriter
+     * @return A formatting action
+     */
     default FormattingAction rewritingTokenTextWith(TokenRewriter rewriter) {
         return new FormattingAction() {
             @Override
@@ -221,6 +235,15 @@ public interface FormattingAction {
         };
     }
 
+    /**
+     * Wrap lines, using the value of the passed key (in spaces) from the lexing
+     * context.
+     *
+     * @param <T> The type
+     * @param wrapPointKey The key
+     * @param limit The wrap point
+     * @return A formatting action
+     */
     default <T extends Enum<T>> FormattingAction wrappingLines(T wrapPointKey, int limit) {
         return wrappingLines(limit, SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT
                 .bySpaces(wrapPointKey));
@@ -232,7 +255,7 @@ public interface FormattingAction {
      * SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT)</code>
      *
      * @param limit
-     * @return
+     * @return An action which will wrap lines as described
      */
     default FormattingAction wrappingLines(int limit) {
         return wrappingLines(limit,
@@ -243,7 +266,7 @@ public interface FormattingAction {
      * For debugging purposes, wrapper an action so it logs a string.
      *
      * @param s
-     * @return
+     * @return A wrapper action
      */
     default FormattingAction log(String s) {
         return new FormattingAction() {
