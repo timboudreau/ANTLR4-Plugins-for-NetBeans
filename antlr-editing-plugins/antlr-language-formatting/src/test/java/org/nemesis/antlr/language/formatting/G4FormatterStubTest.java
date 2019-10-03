@@ -72,6 +72,8 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.VOCABULARY;
 import static org.nemesis.antlr.ANTLRv4Lexer.modeNames;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.language.formatting.G4FormatterStubTest.CombinatoricConfigurer.BooleanSetter;
+import org.nemesis.antlr.language.formatting.G4FormatterStubTest.CombinatoricConfigurer.IntSetter;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlr.language.formatting.config.ColonHandling;
 import org.nemesis.antlrformatting.api.Criterion;
@@ -96,18 +98,17 @@ public class G4FormatterStubTest {
 
     @Test
     public void testDev() {
-//        System.setProperty("FormattingContextImpl.noCache", "true");
         String toTest = rustGrammar;
         MockPreferences p = new MockPreferences();
         p.putBoolean(AntlrFormatterConfig.KEY_FLOATING_INDENT, true);
         p.putInt(AntlrFormatterConfig.KEY_INDENT, 4);
-        p.putInt(AntlrFormatterConfig.KEY_MAX_LINE, 40);
-        p.putBoolean(AntlrFormatterConfig.KEY_WRAP, false);
-        p.putBoolean(AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, true);
+        p.putInt(AntlrFormatterConfig.KEY_MAX_LINE, 80);
+        p.putBoolean(AntlrFormatterConfig.KEY_WRAP, true);
+        p.putBoolean(AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false);
         p.putBoolean(AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true);
-        p.putBoolean(AntlrFormatterConfig.KEY_REFLOW_LINE_COMMENTS, true);
-        p.putBoolean(AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, true);
-        p.putInt(AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE.ordinal());
+        p.putBoolean(AntlrFormatterConfig.KEY_REFLOW_LINE_COMMENTS, false);
+        p.putBoolean(AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false);
+        p.putInt(AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_AFTER.ordinal());
         testOne(toTest, true, p);
     }
 
@@ -158,7 +159,7 @@ public class G4FormatterStubTest {
 
     @Test
     public void testAllPossibleSettingsCombinationsResultInValidGrammars() throws InterruptedException {
-        if (false) {
+        if (true) {
             // This test formats several files with all 125 possible combinations
             // of settings and tests the results, so it is slooooowww
             return;
@@ -213,18 +214,6 @@ public class G4FormatterStubTest {
             long then = System.currentTimeMillis();
             Preferences prefs = new MockPreferences();
             cfig.accept(prefs);
-//            if (count % 4 != 0) {
-//                count++;
-//                if (count > 4 * 4) {
-//                    break;
-//                }
-//                System.out.println("skip " + prefs);
-//                continue;
-//            }
-//            if (count > 4 * 4) {
-//                break;
-//            }
-//            System.out.println("TEST " + name + " with " + prefs);
             AntlrFormatterProvider formatter = stub.toFormatterProvider("text/x-g4", AntlrCounters.class,
                     VOCABULARY, modeNames, G4FormatterStubTest::lexerFor,
                     AntlrCriteria.ALL_WHITESPACE, ANTLRv4Parser.ruleNames, G4FormatterStubTest::rn);
@@ -240,9 +229,8 @@ public class G4FormatterStubTest {
                 System.out.println("  ok " + name + " " + prefs + " elapsed ms " + (System.currentTimeMillis() - then));
             }
             count++;
-//            System.gc();
         }
-//        System.out.println("cfig done " + count);
+        System.out.println("cfig done " + count);
         assertNotEquals(0, count, "No iterations");
         assertTrue(count > 1, "" + count);
         StringBuilder msg = new StringBuilder();
@@ -344,8 +332,8 @@ public class G4FormatterStubTest {
 
     public List<Consumer<Preferences>> indentAdjusters() {
         List<Consumer<Preferences>> all = new ArrayList<>(AntlrFormatterConfig.BOOLEAN_KEYS.length);
-        all.add(new IntSetter(AntlrFormatterConfig.KEY_INDENT, 2));
-        all.add(new IntSetter(AntlrFormatterConfig.KEY_INDENT, 8));
+//        all.add(new IntSetter(AntlrFormatterConfig.KEY_INDENT, 2));
+        all.add(new IntSetter(AntlrFormatterConfig.KEY_INDENT, 4));
         return all;
     }
 
@@ -387,92 +375,92 @@ public class G4FormatterStubTest {
             }
             runs++;
         }
-    }
 
-    static class ListPairCombinatorics implements Supplier<List<Consumer<Preferences>>> {
+        static class ListPairCombinatorics implements Supplier<List<Consumer<Preferences>>> {
 
-        private final List<Consumer<Preferences>> booleanSetters;
-        private final List<Consumer<Preferences>> booleanClearers;
-        private final int sz;
-        private int index;
-        private int loopAroundCount;
+            private final List<Consumer<Preferences>> booleanSetters;
+            private final List<Consumer<Preferences>> booleanClearers;
+            private final int sz;
+            private int index;
+            private int loopAroundCount;
 
-        public ListPairCombinatorics(List<Consumer<Preferences>> booleanSetters, List<Consumer<Preferences>> booleanClearers) {
-            this.booleanSetters = booleanSetters;
-            this.booleanClearers = booleanClearers;
-            assert booleanClearers.size() == booleanSetters.size();
-            sz = booleanSetters.size();
-        }
-
-        int total() {
-            return (sz * sz);
-        }
-
-        public int loopAroundCount() {
-            return loopAroundCount;
-        }
-
-        @Override
-        public List<Consumer<Preferences>> get() {
-            int oldIndex = index;
-            if (index >= sz * sz) {
-                loopAroundCount++;
-                index = 0;
+            public ListPairCombinatorics(List<Consumer<Preferences>> booleanSetters, List<Consumer<Preferences>> booleanClearers) {
+                this.booleanSetters = booleanSetters;
+                this.booleanClearers = booleanClearers;
+                assert booleanClearers.size() == booleanSetters.size();
+                sz = booleanSetters.size();
             }
-            if (oldIndex > 0 && oldIndex % (sz * sz) == 0) {
-                index++;
-                return new ArrayList<>(booleanSetters);
+
+            int total() {
+                return (sz * sz);
             }
-            List<Consumer<Preferences>> result = new ArrayList<>(booleanClearers);
-            for (int i = 0; i <= sz; i++) {
-                if ((index & (1 << i)) != 0) {
-                    result.set(i, booleanSetters.get(i));
+
+            public int loopAroundCount() {
+                return loopAroundCount;
+            }
+
+            @Override
+            public List<Consumer<Preferences>> get() {
+                int oldIndex = index;
+                if (index >= sz * sz) {
+                    loopAroundCount++;
+                    index = 0;
                 }
+                if (oldIndex > 0 && oldIndex % (sz * sz) == 0) {
+                    index++;
+                    return new ArrayList<>(booleanSetters);
+                }
+                List<Consumer<Preferences>> result = new ArrayList<>(booleanClearers);
+                for (int i = 0; i <= sz; i++) {
+                    if ((index & (1 << i)) != 0) {
+                        result.set(i, booleanSetters.get(i));
+                    }
+                }
+                index++;
+                return result;
             }
-            index++;
-            return result;
-        }
-    }
-
-    static class BooleanSetter implements Consumer<Preferences> {
-
-        private final boolean value;
-        private final String key;
-
-        public BooleanSetter(boolean value, String key) {
-            this.value = value;
-            this.key = key;
         }
 
-        @Override
-        public void accept(Preferences t) {
-            t.putBoolean(key, value);
+        static class BooleanSetter implements Consumer<Preferences> {
+
+            private final boolean value;
+            private final String key;
+
+            public BooleanSetter(boolean value, String key) {
+                this.value = value;
+                this.key = key;
+            }
+
+            @Override
+            public void accept(Preferences t) {
+                t.putBoolean(key, value);
+            }
+
+            @Override
+            public String toString() {
+                return value ? key : "!" + key;
+            }
         }
 
-        @Override
-        public String toString() {
-            return value ? key : "!" + key;
-        }
-    }
+        static class IntSetter implements Consumer<Preferences> {
 
-    static class IntSetter implements Consumer<Preferences> {
+            private final String key;
+            private final int value;
 
-        private final String key;
-        private final int value;
+            public IntSetter(String key, int value) {
+                this.key = key;
+                this.value = value;
+            }
 
-        public IntSetter(String key, int value) {
-            this.key = key;
-            this.value = value;
-        }
+            @Override
+            public void accept(Preferences t) {
+                t.putInt(key, value);
+            }
 
-        @Override
-        public void accept(Preferences t) {
-            t.putInt(key, value);
-        }
-
-        @Override
-        public String toString() {
-            return key + "=" + value;
+            @Override
+            public String toString() {
+                return key + "=" + value;
+            }
         }
     }
 
@@ -558,7 +546,6 @@ public class G4FormatterStubTest {
             }
             return null;
         }
-
     }
 
     static List<String> tokenInfo(ANTLRv4Lexer lexer, List<String> tokenText) {

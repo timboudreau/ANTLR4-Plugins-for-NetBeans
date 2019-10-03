@@ -1,11 +1,7 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlrformatting.api;
 
 import com.mastfrog.function.throwing.io.IOSupplier;
+import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
@@ -13,6 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -22,10 +19,11 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.RuleNode;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
-import org.nemesis.simple.SampleFiles;
+import org.nemesis.simple.SampleFile;
 import org.nemesis.simple.language.SimpleLanguageLexer;
 import static org.nemesis.simple.language.SimpleLanguageLexer.K_BOOLEAN;
 import static org.nemesis.simple.language.SimpleLanguageLexer.K_DEFAULT;
@@ -37,14 +35,18 @@ import static org.nemesis.simple.language.SimpleLanguageLexer.L_BOOLEAN;
 import static org.nemesis.simple.language.SimpleLanguageLexer.L_STRING;
 
 /**
+ * A generic test harness that exposes some of the internal state of the
+ * reformatting process so that tests can incrementally check if they are doing
+ * the right thing.
  *
  * @author Tim Boudreau
  */
-public class FormattingHarness {
+public class FormattingHarness<E extends Enum<E>> {
 
-    private final SampleFiles file;
-    private BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> ruleConfigurer;
-    private final FA fa = new FA(this);
+    final SampleFile file;
+    final Class<E> stateType;
+    private BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> ruleConfigurer;
+    final FA fa = new FA(this);
     private Consumer<ModalToken> beforeEachToken;
     private Consumer<ModalToken> afterEachToken;
     private Predicate<Token> debugEnabled;
@@ -54,17 +56,45 @@ public class FormattingHarness {
     public static final Criterion keywords = criteria.anyOf(K_BOOLEAN, K_DEFAULT, L_BOOLEAN, K_OBJECT, K_STRING, K_FLOAT,
             K_REFERENCE, L_STRING);
 
-    FormattingHarness(SampleFiles file, BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> ruleConfigurer) {
+    FormattingHarness(SampleFile file, Class<E> stateType, BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> ruleConfigurer) {
         this.file = file;
+        this.stateType = stateType;
         this.ruleConfigurer = ruleConfigurer;
     }
 
-    FormattingHarness withRuleConfigurer(BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> ruleConfigurer) {
+    public static <E extends Enum<E> & SampleFile> BiFunction<E, BiConsumer<LexingStateBuilder<E, ?>, FormattingRules>, FormattingHarness<E>> factory(Class<E> type) {
+        return (file, configurer) -> {
+            return new FormattingHarness<>(file, type, configurer);
+        };
+    }
+
+    /**
+     * Add an additional rule configurer to the one being used.
+     *
+     * @param ruleConfigurer A rule configurer
+     * @return this
+     */
+    FormattingHarness<E> withRuleConfigurer(BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> ruleConfigurer) {
         this.ruleConfigurer = this.ruleConfigurer.andThen(ruleConfigurer);
         return this;
     }
 
-    public FormattingHarness onBeforeEachToken(Consumer<ModalToken> before) {
+    /**
+     * The file this harness will reformat.
+     *
+     * @return A sample file
+     */
+    public SampleFile file() {
+        return file;
+    }
+
+    /**
+     * Run a consumer that performs some tests before each token is processed.
+     *
+     * @param before a consumer
+     * @return this
+     */
+    public FormattingHarness<E> onBeforeEachToken(Consumer<ModalToken> before) {
         if (beforeEachToken != null) {
             beforeEachToken = beforeEachToken.andThen(before);
         } else {
@@ -73,7 +103,13 @@ public class FormattingHarness {
         return this;
     }
 
-    public FormattingHarness onAfterEachToken(Consumer<ModalToken> after) {
+    /**
+     * Run a consumer that performs some tests after each token is processed.
+     *
+     * @param after a consumer
+     * @return this
+     */
+    public FormattingHarness<E> onAfterEachToken(Consumer<ModalToken> after) {
         if (afterEachToken != null) {
             afterEachToken = afterEachToken.andThen(after);
         } else {
@@ -82,7 +118,14 @@ public class FormattingHarness {
         return this;
     }
 
-    public FormattingHarness withDebugPredicate(Predicate<Token> debug) {
+    /**
+     * Turn on verbose FormattingRule processing debugging for tokens where this
+     * predicate returns true.
+     *
+     * @param debug
+     * @return
+     */
+    public FormattingHarness<E> withDebugPredicate(Predicate<Token> debug) {
         if (this.debugEnabled != null) {
             this.debugEnabled = debugEnabled.or(debug);
         } else {
@@ -91,7 +134,15 @@ public class FormattingHarness {
         return this;
     }
 
-    public FormattingHarness wrapFormattingActions(Function<FormattingAction, FormattingAction> wrapRule) {
+    /**
+     * Wrap every formatting action in the rules using the passed function
+     * (usually to log that the rule is being applied).
+     *
+     * @param wrapRule A function which takes a formatting action and returns
+     * another which likely wraps the original and performs some testing logic
+     * @return this
+     */
+    public FormattingHarness<E> wrapFormattingActions(Function<FormattingAction, FormattingAction> wrapRule) {
         if (this.wrapRules != null) {
             this.wrapRules = this.wrapRules.andThen(wrapRule);
         } else {
@@ -100,11 +151,22 @@ public class FormattingHarness {
         return this;
     }
 
-    public FormattingHarness logFormattingActions() {
+    /**
+     * Log all formatting actions as they are applied.
+     *
+     * @return this
+     */
+    public FormattingHarness<E> logFormattingActions() {
         return wrapFormattingActions(new RuleLoggingFactory());
     }
 
-    public FormattingHarness setDebug(boolean val) {
+    /**
+     * Turn on formatting rule debug logging.
+     *
+     * @param val On or off
+     * @return this
+     */
+    public FormattingHarness<E> setDebug(boolean val) {
         this.debug = val;
         return this;
     }
@@ -120,7 +182,14 @@ public class FormattingHarness {
         return debugFieldPredicate;
     }
 
-    public FormattingHarness debugLogOn(Predicate<Token> pred) {
+    /**
+     * Turn verbose rule debugging on for any tokens that pass this predicate's
+     * test. If this has called previously, it will be or'd with that one.
+     *
+     * @param pred A predicate
+     * @return this
+     */
+    public FormattingHarness<E> debugLogOn(Predicate<Token> pred) {
         if (this.debugEnabled != null) {
             this.debugEnabled = this.debugEnabled.or(pred);
         } else {
@@ -129,14 +198,26 @@ public class FormattingHarness {
         return this;
     }
 
-    public FormattingHarness debugLogOn(int... toks) {
+    /**
+     * Turn on debug logging only for a specific list of token indices.
+     *
+     * @param toks a list of token indices in the stream
+     * @return this
+     */
+    public FormattingHarness<E> debugLogOn(int... toks) {
         Criterion c = criteria.anyOf(toks);
         return debugLogOn(c.toTokenPredicate());
     }
 
-    public String reformat() throws IOException {
+    /**
+     * This is the main entry point, which will perform reformatting.
+     *
+     * @return The reformatted text
+     * @throws IOException if something goes wrong
+     */
+    String reformat() throws IOException {
         return withHarnessSet(fa, () -> {
-            return new GenericConfig(this.ruleConfigurer, tok -> {
+            return new GenericConfig<E>(stateType, this.ruleConfigurer, tok -> {
                 // use another lambda here so the debug predicate can
                 // be added to while running and take effect
                 return debugPredicate().test(tok);
@@ -156,7 +237,14 @@ public class FormattingHarness {
         }
     }
 
-    static FastStreamRewriter rewriter() {
+    /**
+     * Get the current stream rewriter. This uses ThreadLocals to allow
+     * concurrent tests, but when not in the closure of reformat(), returns the
+     * last one created.
+     *
+     * @return A rewriter
+     */
+    public static FastStreamRewriter rewriter() {
         LoggableStreamRewriter rew = rewriterContext.get();
         if (rew == null) {
             rew = lastRewriter;
@@ -167,6 +255,60 @@ public class FormattingHarness {
         return null;
     }
 
+    /**
+     * Get the distance to the nearest newline to the passed token index, taking
+     * into account any insertions or modifications during reformatting thus
+     * far.
+     *
+     * @param tokenIndex The token index
+     * @return The number of characters from the start of this token back to the
+     * nearest newline; 0 means the current token starts with a newline.
+     */
+    public static int lastNewlineDistance(int tokenIndex) {
+        FastStreamRewriter rew = rewriter();
+        assertNotNull(rew, "No rewriter currently in use");
+        return rew.lastNewlineDistance(tokenIndex);
+    }
+
+    /**
+     * Get a snapshot of the character positions in the document of the start
+     * (in characters) of each character in the current document at the time
+     * this method is called during reformatting. Useful to verify that things
+     * are where they are supposed to be.
+     *
+     * @return A list of integers
+     */
+    public static IntList rewrittenTokenStartPositionsSnapshot() {
+        FastStreamRewriter rew = rewriter();
+        assertNotNull(rew, "No rewriter currently in use");
+        return rew.startPositions.copy();
+    }
+
+    /**
+     * Get a snapshot of the newline positions in the document of each newline
+     * in the current document at the time this method is called during
+     * reformatting. Useful to verify that things are where they are supposed to
+     * be.
+     *
+     * @return A list of integers
+     */
+    public static IntList rewrittenNewlinePositionsInDocumentSnapshot() {
+        FastStreamRewriter rew = rewriter();
+        assertNotNull(rew, "No rewriter currently in use");
+        return rew.newlinePositions.copy();
+    }
+
+    /**
+     * Get the rewritten document text (can be called on a format in-progress).
+     *
+     * @return The rewritten text
+     */
+    public static String rewrittenText() {
+        FastStreamRewriter rew = rewriter();
+        assertNotNull(rew, "No rewriter currently in use");
+        return rew.getText();
+    }
+
     static FCImpl lastContext;
     static ThreadLocal<FCImpl> context = new ThreadLocal<>();
     static EverythingTokenStream lastStream;
@@ -174,6 +316,12 @@ public class FormattingHarness {
     static LoggableStreamRewriter lastRewriter;
     static ThreadLocal<LoggableStreamRewriter> rewriterContext = new ThreadLocal<>();
 
+    /**
+     * Print the list of token modification operations in the current format to
+     * the console, most recent first.
+     *
+     * @param limit The maximum number of operations to list
+     */
     public void logRecentOps(int limit) {
         LoggableStreamRewriter rew = rewriterContext.get();
         if (rew == null) {
@@ -184,15 +332,43 @@ public class FormattingHarness {
         }
     }
 
-    public FCImpl context() {
+    /**
+     * Get the current formatting context. This uses ThreadLocals to allow
+     * concurrent tests, but when not in the closure of reformat(), returns the
+     * last one created.
+     *
+     * @return A rewriter
+     */
+    public static FormattingContext context() {
+        return _context();
+    }
+
+    static FCImpl _context() {
         FCImpl result = context.get();
         if (result == null) {
             result = lastContext;
         }
+        assertNotNull(result, "No current context");
         return result;
     }
 
-    public EverythingTokenStream stream() {
+    /**
+     * Get the LexingState for the in-progress reformat.
+     *
+     * @return The lexing state
+     */
+    public static LexingState currentLexingState() {
+        FCImpl result = _context();
+        assertNotNull(result, "No current context");
+        return result.state;
+    }
+
+    /**
+     * Get the stream currently being processed.
+     *
+     * @return The stream
+     */
+    public static EnhancedTokenStream stream() {
         EverythingTokenStream result = streamContext.get();
         if (result == null) {
             result = lastStream;
@@ -200,15 +376,11 @@ public class FormattingHarness {
         return result;
     }
 
-    public LexingState state() {
-        return context().state;
-    }
+    static final class FA<E extends Enum<E>> extends FormattingAccessor {
 
-    static final class FA extends FormattingAccessor {
+        private final FormattingHarness<E> harn;
 
-        private final FormattingHarness harn;
-
-        public FA(FormattingHarness harn) {
+        public FA(FormattingHarness<E> harn) {
             this.harn = harn;
         }
 
@@ -252,7 +424,7 @@ public class FormattingHarness {
             streamContext.set(tokens);
             lastStream = tokens;
             rewriterContext.set(rew);
-
+            lastRewriter = rew;
             try {
                 return result.go(tokens, caretPos, updateWithCaretPosition);
             } finally {

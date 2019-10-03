@@ -21,6 +21,11 @@ final class WhitespaceLineState {
         append = new WhitespaceState(indentChars, cache);
     }
 
+    @Override
+    public String toString() {
+        return "(prepend=" + prepend + ", append=" + append + ")";
+    }
+
     public WhitespaceState prepend() {
         return prepend;
     }

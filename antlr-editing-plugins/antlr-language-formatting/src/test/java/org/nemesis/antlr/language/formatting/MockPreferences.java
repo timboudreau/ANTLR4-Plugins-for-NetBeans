@@ -25,7 +25,7 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
-*/
+ */
 package org.nemesis.antlr.language.formatting;
 
 import java.io.IOException;
@@ -33,9 +33,11 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.NodeChangeListener;
 import java.util.prefs.PreferenceChangeEvent;
@@ -49,6 +51,30 @@ import java.util.prefs.Preferences;
 final class MockPreferences extends Preferences {
 
     private final Map<String, String> map = new HashMap<>();
+
+    public static MockPreferences of(Object... pairs) {
+        MockPreferences result = new MockPreferences();
+        for (int i = 0; i < pairs.length; i += 2) {
+            if (pairs[i + 1] instanceof Enum<?>) {
+                result.map.put(pairs[i].toString(), ((Enum<?>) pairs[i + 1]).ordinal() + "");
+            } else {
+                result.map.put(pairs[i].toString(), pairs[i + 1].toString());
+            }
+        }
+        return result;
+    }
+
+    public String filename(String base, String ext) {
+        StringBuilder sb = new StringBuilder(base);
+        for (Iterator<String> it =new TreeSet<>(map.keySet()).iterator(); it.hasNext();) {
+            String key = it.next();
+            sb.append(key).append('-').append(map.get(key));
+            if (it.hasNext()) {
+                sb.append('_');
+            }
+        }
+        return sb.append('.').append(ext).toString();
+    }
 
     @Override
     public void put(String key, String value) {
@@ -73,7 +99,7 @@ final class MockPreferences extends Preferences {
 
     @Override
     public void clear() throws BackingStoreException {
-        Map<String,String> old = new HashMap<>(map);
+        Map<String, String> old = new HashMap<>(map);
         map.clear();
         for (Map.Entry<String, String> e : old.entrySet()) {
             PreferenceChangeEvent evt = new PreferenceChangeEvent(this, e.getKey(), null);
@@ -206,6 +232,7 @@ final class MockPreferences extends Preferences {
     @Override
     public void sync() throws BackingStoreException {
     }
+
     private void doPut(String key, String val) {
         String old = map.put(key, val);
         if (!Objects.equals(old, val)) {

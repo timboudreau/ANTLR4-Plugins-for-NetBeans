@@ -19,7 +19,7 @@ import org.antlr.v4.runtime.misc.Interval;
  *
  * @author Tim Boudreau
  */
-final class EverythingTokenStream implements TokenStream, Iterable<ModalToken> {
+final class EverythingTokenStream implements EnhancedTokenStream {
 
     private final List<ModalToken> tokens = new ArrayList<>();
     int cursor = 0;

@@ -35,7 +35,7 @@ public class LinePositionTest {
             return;
         }
         SampleFiles f = SampleFiles.BASIC;
-        String formatted = new GenericConfig(LinePositionTest::checkingFormat)
+        String formatted = new GenericConfig<>(SLState.class, LinePositionTest::checkingFormat)
                 .reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED\n" + formatted);
     }
@@ -43,7 +43,7 @@ public class LinePositionTest {
     @Test
     public void testPositionAfterAppendNewline() throws IOException {
         SampleFiles f = SampleFiles.MINIMAL_MULTILINE;
-        String formatted = new GenericConfig((stateBuilder, rules) -> {
+        String formatted = new GenericConfig<>(SLState.class, (stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(APPEND_NEWLINE.trimmingWhitespace().and(new LinePositionChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
@@ -52,7 +52,7 @@ public class LinePositionTest {
     @Test
     public void testPositionAfterPrependNewline() throws IOException {
         SampleFiles f = SampleFiles.MINIMAL;
-        String formatted = new GenericConfig((stateBuilder, rules) -> {
+        String formatted = new GenericConfig<>(SLState.class, (stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(PREPEND_NEWLINE.and(new LinePositionChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
@@ -61,7 +61,7 @@ public class LinePositionTest {
 //    @Test
     public void testPositionAfterAppendSpace() throws IOException {
         SampleFiles f = SampleFiles.ABSURDLY_MINIMAL;
-        String formatted = new GenericConfig((stateBuilder, rules) -> {
+        String formatted = new GenericConfig<>(SLState.class, (stateBuilder, rules) -> {
             rules.onTokenType(Criterion.ALWAYS).format(APPEND_SPACE.trimmingWhitespace().and(new SpaceChecker().and(new ComputedAndRealPositionChecker())));
         }).reformattedString(f.text(), 0, f.length(), null);
         System.out.println("FORMATTED:\n" + formatted);
@@ -99,7 +99,7 @@ public class LinePositionTest {
                 .format(indentCurrent.and(indentSubseqeuent).trimmingWhitespace());
 
         rules.onTokenType(ID, QUALIFIED_ID)
-                .wherePrevTokenType(K_IMPORT, K_NAMESPACE, K_TYPE)
+                .wherePreviousTokenType(K_IMPORT, K_NAMESPACE, K_TYPE)
                 .format(PREPEND_SPACE.and(checker));
 
         rules.onTokenType(ID)
@@ -142,7 +142,6 @@ public class LinePositionTest {
                 .rewritingTokenTextWith(TokenRewriter.simpleReflow(LIMIT))
                 .format(indentCurrent);
     }
-
 
     private static final class SpaceChecker implements FormattingAction {
 

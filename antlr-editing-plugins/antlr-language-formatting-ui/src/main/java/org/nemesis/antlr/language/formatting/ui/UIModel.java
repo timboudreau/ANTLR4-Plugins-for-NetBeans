@@ -33,20 +33,11 @@ import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.prefs.BackingStoreException;
-import java.util.prefs.NodeChangeListener;
-import java.util.prefs.PreferenceChangeEvent;
-import java.util.prefs.PreferenceChangeListener;
-import java.util.prefs.Preferences;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
@@ -63,14 +54,10 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeListener;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
-import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES;
-import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.KEY_REFLOW_LINE_COMMENTS;
-import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS;
-import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.KEY_WRAP;
+import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.*;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle;
 import org.openide.util.Utilities;
-import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.KEY_FLOATING_INDENT;
 
 /**
  *
@@ -108,6 +95,10 @@ class UIModel {
         return new ConfigCheckboxModel(config, KEY_SPACES_INSIDE_PARENS, config::isSpacesInsideParens, config::setSpacesInsideParens);
     }
 
+    public ButtonModel semicolonOnNewLineModel() {
+        return new ConfigCheckboxModel(config, KEY_SEMICOLON_ON_NEW_LINE, config::isSemicolonOnNewline, config::setSemicolonOnNewline);
+    }
+
     public ButtonModel reflowLineCommentsModel() {
         return new ConfigCheckboxModel(config, KEY_REFLOW_LINE_COMMENTS, config::isReflowLineComments, config::setReflowLineComments);
     }
@@ -133,10 +124,12 @@ class UIModel {
         "maxLength=Ma&x Line Length",
         "colon=Colon &Handling",
         "floatingIndent=&Floating Indent",
+        "tip_floatingIndent=Aligns outermost below the colon for that rule",
         "indent=Indent &Depth",
         "blankLineBeforeRules=Empty Line &Before Each Rule",
         "spacesInParens=Spaces Inside Innermost &Parentheses",
-        "reflowLineComments=&Reflow Line Comments"
+        "reflowLineComments=&Reflow Line Comments",
+        "semicolonOnNewline=&Semicolon On New Line"
     })
     public JPanel createFormattingPanel() {
 
@@ -185,6 +178,7 @@ class UIModel {
         gbc.gridy++;
         JCheckBox floatingIndentCheckbox = new JCheckBox();
         floatingIndentCheckbox.setModel(floatingIndentModel());
+        floatingIndentCheckbox.setToolTipText(Bundle.tip_floatingIndent());
         Mnemonics.setLocalizedText(floatingIndentCheckbox, Bundle.floatingIndent());
         pnl.add(floatingIndentCheckbox, gbc);
 
@@ -223,6 +217,7 @@ class UIModel {
 
         ButtonGroup grp = new ButtonGroup();
         ColonHandling[] all = ColonHandling.values();
+        List<JRadioButton> colonHandlingButtons = new ArrayList<>(ColonHandling.values().length);
         for (int i = 0; i < all.length; i++) {
             ColonHandling h = all[i];
             if (i == all.length - 1) {
@@ -230,6 +225,7 @@ class UIModel {
             }
             ButtonModel mdl = colonHandlingButtonModel(h);
             JRadioButton button = new JRadioButton();
+            colonHandlingButtons.add(button);
             button.setModel(mdl);
             grp.add(button);
             Mnemonics.setLocalizedText(button, h.displayName());
@@ -248,11 +244,36 @@ class UIModel {
         pnl.add(spacesInParensCheckbox, gbc);
 
         gbc.gridy++;
+        JCheckBox semiOnNewLineCheckbox = new JCheckBox();
+        semiOnNewLineCheckbox.setModel(semicolonOnNewLineModel());
+        Mnemonics.setLocalizedText(semiOnNewLineCheckbox, Bundle.semicolonOnNewline());
+        pnl.add(semiOnNewLineCheckbox, gbc);
+
+        gbc.gridy++;
         JCheckBox reflowLineComments = new JCheckBox();
         reflowLineComments.setModel(reflowLineCommentsModel());
         Mnemonics.setLocalizedText(reflowLineComments, Bundle.reflowLineComments());
         pnl.add(reflowLineComments, gbc);
 
+        class AL implements ActionListener, Runnable {
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // get out of the way of updates
+                EventQueue.invokeLater(this);
+            }
+
+            @Override
+            public void run() {
+                floatingIndentCheckbox.setEnabled(config.canEnableFloatingIndent());
+                semiOnNewLineCheckbox.setEnabled(config.canEnableSemicolonOnNewLine());
+            }
+        }
+        AL al = new AL();
+        al.run();
+        for (JRadioButton b : colonHandlingButtons) {
+            b.addActionListener(al);
+        }
         return pnl;
     }
 
@@ -269,6 +290,5 @@ class UIModel {
             jf.setVisible(true);
         });
     }
-
 
 }

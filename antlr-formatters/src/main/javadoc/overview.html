@@ -147,8 +147,23 @@ rules.onTokenType( S_CLOSE_BRACE )
             predefines constants for common operations prepending or appending to
             the current token indenting or newlines.  The <code>FormattingAction</code>
             interface has default methods for combining instances with common
-            operations such as trimming whitespace, reflowing text.
+            operations such as trimming whitespace, reflowing text, and using LexingState
+            values to determine the amount to indent.  For example, when configuring
+            the lexing state:
         </p>
+        <pre>
+            stateBuilder.pushPosition(MyEnum.BRACE_POSITION)
+                .onTokenType(MyLexer.OPEN_BRACE)
+                .poppingOnTokenType(MyLexer.CLOSE_BRACE);
+        </pre>
+        and then using that value:
+        <pre>
+            FormattingAction indentToLastColonPosition =
+                SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT.bySpaces(MyEnum.BRACE_POSITION);
+
+            rules.onTokenType(ID).wherePreviousTokenType(SEMICOLON)
+                .format(indentToLastColonPosition);
+        </pre>
 
         <h2>LexingState &mdash; Automatically Indenting To The Right Depth and More</h2>
         <p>
@@ -286,7 +301,7 @@ protected void configure(LexingStateBuilder&lt;SLState, ?&gt; stateBuilder,
             Java token "import" would want the same handling), and your
             formatting code will be simpler if you don't handle these on
             a parser-rule-by-parser-rule basis.  Also, for use in an IDE, the
-            <i>the normal state of sources in an editor is <b>broken</b></i> - 
+            <i>the normal state of sources in an editor is <b>broken</b></i> -
             meaning if an <code>ErrorNode</code> is where the rule you
             expected is, whatever more general rules you have will be applied
             instead, which will probably do the wrong thing or introduce line
@@ -397,6 +412,97 @@ default FormattingAction wrappingLines(int limit, FormattingAction wrapAction) {
             particular ordered sequence of values.  Just remember to recreate
             such predicates on every re-format so they don't retain state
             from a previous run.
+        </p>
+        <h2>Common Pitfalls</h2>
+        <p>
+            The order rules are processed in is critically important.  Rules are
+            processed starting with the most specific, proceeding to the least
+            specific, in the order they are added (calling toString() on a
+            <code>FormattingRules</code> will show you the sequence they
+            will be tested in).  Most problems outside of the obvious (the rule
+            doesn't match what you think it does) fall into one of two categories:
+        </p>
+        <ul>
+            <li>A more specific rule is capturing the thing you want processed by
+                a less specific rule, and you need to:
+                <ul>
+                    <li>
+                        Make the rule you want to capture the token 
+                        more specific - this is always preferable - 
+                        is there a lexer mode the lexer is always in when you want this
+                        rule to apply?  Anything else?
+                    </li>
+                    <li>
+                        Further constrain the more specific rule to avoid that
+                        particular situation
+                    </li>
+                    <li>As a last resort, goose the rule that should capture this
+                        with, say, <code>priority(30)</code>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                You want to turn <i>off</i> processing of a token in one very specific
+                situation.   You could either
+                <ul>
+                    <li>
+                        Make the rules in question more specific, or
+                    </li>
+                    <li>
+                        Disable processing entirely (resulting in adjacent tokens
+                        with no intervening whitespace) by creating a high-priority
+                        rule that applies <code>FormattingAction.EMPTY</code>,
+                        e.g.
+                        <pre>
+                            rules.onTokenType(ID).whereMode(someModePredicate)
+                                .wherePreviousTokenType(SHARP).priority(100).
+                                .format(FormattingAction.EMPTY)
+                        </pre>
+                    </li>
+                </ul>
+            </li>
+            <li>You are depending on a value from <code>LexingState</code> which
+                processing of the immediately previous token changed to something
+                unexpected.  For example, Antlr language formatting offers a
+                "floating indent" option that aligns rules under the colon of an
+                Antlr rule - but of course, if a rule that puts that colon indented on a
+                new line is present, nothing is going to "float" because the colon
+                is always in the same place.
+            </li>
+            <li>
+                You have a lot of rules and it is getting confusing.
+                <ul>
+                    <li>
+                        Fewer rules is always easier to understand and debug.
+                        Go back through the rules you've got, and see how
+                        they can be generalized.  What are the <i>specific</i>
+                        special cases?
+                    </li>
+                </ul>
+            </li>
+            <li>
+                You have a rule which indents some token directly under another
+                token on the previous line, and it <i>always</i> looks off-by-one,
+                but when you print it to the command-line in a test, it works
+                fine:
+                <ul>
+                    <li>You are using a monospaced font in the editor, right?
+                        Are there any <i>boldface</i> tokens before the one
+                        you want to align with in the preceding line?
+                        Many fonts are "monospaced" but bold characters are
+                        wider than plain characters.  Be sure this is not
+                        happened, or switch to a font that does not have this
+                        behavior, such as Courier, when testing.
+                    </li>
+                </ul>
+            </li>
+        </ul>
+        <h1>Getting Started</h1>
+        
+        <h3>Formatting </h3>
+        <h2>Writing Tests for Formatters</h2>
+        <p>
+            xxx pending
         </p>
     </body>
 </html>

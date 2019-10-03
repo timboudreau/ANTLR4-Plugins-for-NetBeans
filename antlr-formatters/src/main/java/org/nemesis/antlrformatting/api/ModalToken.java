@@ -2,13 +2,13 @@ package org.nemesis.antlrformatting.api;
 
 import com.mastfrog.util.collections.IntList;
 import java.util.Arrays;
-import java.util.Objects;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.Token;
 
 /**
  * A token implementation which retains the lexer mode at the time of its
- * creation.
+ * creation, and precomputes some information which is used repeatedly
+ * when formatting.
  *
  * @author Tim Boudreau
  */
@@ -18,6 +18,7 @@ public final class ModalToken extends CommonToken {
     private final String modeName;
     private static final int[] EMPTY = new int[0];
     private int[] newlinePositions = EMPTY;
+    private boolean isWhitespace;
 
     public ModalToken(Token oldToken, int mode, String modeName) {
         super(oldToken);
@@ -30,6 +31,14 @@ public final class ModalToken extends CommonToken {
         ModalToken result = new ModalToken(this, mode, modeName);
         result.setText(text);
         return result;
+    }
+
+    public int newlineCount() {
+        return newlinePositions.length;
+    }
+
+    public boolean isWhitespace() {
+        return isWhitespace;
     }
 
     public int mode() {
@@ -49,20 +58,34 @@ public final class ModalToken extends CommonToken {
         return getStartIndex() <= getStopIndex();
     }
 
+    public int length() {
+        return text == null ? 0 : text.length();
+    }
+
     private void updateNewlinePositions(String text) {
         if (text != null) {
+            boolean allWhitespace = true;
             IntList il = IntList.create(7);
             int max = text.length();
             for (int i = 0; i < max; i++) {
-                if (text.charAt(i) == '\n') {
+                char c = text.charAt(i);
+                allWhitespace &= Character.isWhitespace(c);
+                if (c == '\n') {
                     il.add(i);
                 }
             }
             newlinePositions = il.isEmpty() ? EMPTY
                     : il.toIntArray();
+            isWhitespace = allWhitespace;
         } else {
             newlinePositions = EMPTY;
+            isWhitespace = true;
         }
+    }
+
+    int lastNewlinePosition() {
+        return newlinePositions == EMPTY || newlinePositions.length == 0
+                ? -1 : newlinePositions[newlinePositions.length-1];
     }
 
     @Override
@@ -72,23 +95,7 @@ public final class ModalToken extends CommonToken {
     }
 
     public int[] newlinePositions() {
-        return newlinePositions.length == 0 ? EMPTY 
+        return newlinePositions.length == 0 ? EMPTY
                 : Arrays.copyOf(newlinePositions, newlinePositions.length);
-    }
-
-    public boolean isProbablySame(ModalToken other, int fuzz) {
-        if (other.equals(this)) {
-            return true;
-        }
-        if (other.mode() == mode && Objects.equals(getText(), other.getText())) {
-            if (other.getTokenIndex() == getTokenIndex()) {
-                return true;
-            }
-            int offset = Math.abs(getTokenIndex() - other.getTokenIndex());
-            if (offset <= fuzz) {
-                return true;
-            }
-        }
-        return false;
     }
 }

@@ -3,6 +3,8 @@ package org.nemesis.antlrformatting.api;
 import java.util.Arrays;
 
 /**
+ * Keeps a cache of space-strings so, for example, we don't allocate a new
+ * four-character string for every one stop indent.
  *
  * @author Tim Boudreau
  */

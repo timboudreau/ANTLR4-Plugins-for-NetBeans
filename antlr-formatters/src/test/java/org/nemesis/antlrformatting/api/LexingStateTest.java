@@ -1,16 +1,20 @@
 package org.nemesis.antlrformatting.api;
 
+import com.github.difflib.algorithm.DiffException;
 import com.mastfrog.util.collections.IntList;
 import java.io.IOException;
 import org.antlr.v4.runtime.Token;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
-import static org.nemesis.antlrformatting.api.FormattingHarness.criteria;
 import static org.nemesis.antlrformatting.api.FormattingHarness.keywords;
+import static org.nemesis.antlrformatting.api.GoldenFiles.diff;
 
 import static org.nemesis.simple.language.SimpleLanguageLexer.*;
 import static org.nemesis.antlrformatting.api.SLState.*;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.*;
 import org.nemesis.simple.SampleFiles;
+import org.nemesis.simple.language.SimpleLanguageLexer;
 
 /**
  *
@@ -21,24 +25,58 @@ public class LexingStateTest {
     static final String MAX_LINE_LENGTH = "maxLine";
     static final int LIMIT = 40;
 
+    static final String EXP = "types Stuff;\nperson : object {\n"
+            + "                place : object {\n"
+            + "                               thing : object {\n"
+            + "                                              otherThing : object {\n"
+            + "                                                                  ratio : float default 23.42;\n"
+            + "                                                                  }\n"
+            + "                                              }\n"
+            + "                               }\n"
+            + "                }";
+
     @Test
     public void testSomeMethod() throws IOException {
-//        SampleFiles f = SampleFiles.MUCH_NESTING_WITH_EXTRA_NEWLINES;
+        FormattingHarness<SLState> harn = new FormattingHarness<>(SampleFiles.LONG_ITEMS,
+                SLState.class, LexingStateTest::configure);
+        // 38, 39
+        // 72, 73
 
-        FormattingHarness harn = new FormattingHarness(SampleFiles.MUCH_NESTING_UNFORMATTED, LexingStateTest::configure);
+        harn.debugLogOn(tok -> {
+            switch(tok.getTokenIndex()) {
+                case 5 :
+                case 6 :
+                case 7 :
+                case 8 :
+                case 38 :
+//                case 70 :
+                    System.out.println("NLPS: " + FormattingHarness.rewrittenNewlinePositionsInDocumentSnapshot());
+                    System.out.println("STARTS: " + FormattingHarness.rewrittenTokenStartPositionsSnapshot());
+//                case 40 :
+//                case 72 :
+                    System.out.println("\n****************************\n");
+                    return true;
+            }
+            return false;
+        });
 
-//        harn.onBeforeEachToken(mtok -> {
-//            if (true) {
-//                System.out.println("\n\n*******************************");
-//                System.out.println(mtok.getTokenIndex() + ". " + mtok.getText() + " DNL " + harn.context().rew.lastNewlineDistance(16));
-//                harn.logRecentOps(5);
-//                System.out.println("\n\n*******************************");
+        String txt = harn.reformat();
+
+//        for (ModalToken mt : FormattingHarness.stream()) {
+//            if (mt.getType() == L_INT) {
+//                System.out.println("L_INT " + mt.getTokenIndex() + " '" + mt.getText() + "'");
 //            }
-//        });
-//        harn.onAfterEachToken(mtok -> {
-////            System.out.println("B-TOKEN: " + mtok);
-//        });
-        ChangeChecker check = new ChangeChecker(16, harn);
+//        }
+
+        System.out.println("FORMATTED:\n" + txt);
+    }
+
+    @Test
+    public void testLinePositions() throws IOException, DiffException {
+        FormattingHarness<SLState> harn = new FormattingHarness<>(SampleFiles.MUCH_NESTING_UNFORMATTED,
+                SLState.class, LexingStateTest::configure);
+
+        ChangeChecker check = new ChangeChecker(16, harn, 3);
         harn.onBeforeEachToken(check::before);
         harn.onAfterEachToken(check::after);
 
@@ -47,8 +85,8 @@ public class LexingStateTest {
 
         String formatted = harn.reformat();
 
-        harn.context().rew.getText();
         System.out.println("FORMATTED:\n" + formatted);
+        assertEquals(EXP, formatted, diff(EXP, formatted));
     }
 
     static class ChangeChecker {
@@ -58,32 +96,36 @@ public class LexingStateTest {
         private IntList lastStarts;
         private IntList lastNewlinePositions;
         private int lastDistanceToNewline;
+        private final int limit;
 
-        ChangeChecker(int target, FormattingHarness harn) {
+        ChangeChecker(int target, FormattingHarness harn, int limit) {
             this.target = target;
             this.harn = harn;
+            this.limit = limit;
         }
 
         void before(ModalToken tok) {
             long newDistance = harn.rewriter().lastNewlineDistance(target);
-            if (lastDistanceToNewline > 3 && newDistance <= 3) {
+            if (lastDistanceToNewline > limit && newDistance <= limit) {
                 System.out.println("AFTER " + tok.getTokenIndex() + " " + newDistance + " <- " + lastDistanceToNewline);
                 System.out.println("\n\n*****************UNEXPECTED INDENT CHANGE**********************");
                 System.out.println(" DISTANCE TO NEWLINE FOR " + target + " WENT FROM " + lastDistanceToNewline + " TO " + newDistance);
                 System.out.println("    prev starts: " + lastStarts);
-                System.out.println("    curr starts: " + harn.rewriter().startPositions);
+                System.out.println("    curr starts: " + FormattingHarness.rewrittenTokenStartPositionsSnapshot());
                 System.out.println("    prev newlines: " + lastNewlinePositions);
-                System.out.println("    curr newlines: " + harn.rewriter().newlinePositions);
+//                System.out.println("    curr newlines: " + harn.rewriter().newlinePositions);
+                System.out.println("    curr newlines: " + FormattingHarness.rewrittenNewlinePositionsInDocumentSnapshot());
                 System.out.println(" OPS:");
                 harn.logRecentOps(5);
                 System.out.println("\n\n***************************************\n");
+                fail("Distance changed inappropriately");
             }
 
             lastDistanceToNewline = harn.rewriter().lastNewlineDistance(target);
             lastStarts = harn.rewriter().startPositions.copy();
             lastNewlinePositions = harn.rewriter().newlinePositions.copy();
             System.out.println("BEFORE " + tok.getTokenIndex() + " " + lastDistanceToNewline);
-                System.out.println("    curr newlines: " + harn.rewriter().newlinePositions);
+            System.out.println("    curr newlines: " + harn.rewriter().newlinePositions);
         }
 
         void after(ModalToken tok) {
@@ -103,6 +145,21 @@ public class LexingStateTest {
         }
     }
 
+    static int maxLineLength = 180;
+    static FormattingAction doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
+            .bySpaces(4, BRACE_POSITION);
+
+    static FormattingAction indentCurrent = PREPEND_NEWLINE_AND_INDENT
+            .bySpaces(BRACE_POSITION)
+            .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+
+    static FormattingAction doubleNewlineAndIndentIt
+            = PREPEND_NEWLINE_AND_INDENT.bySpaces(4, BRACE_POSITION);
+//                        .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+
+    static FormattingAction spaceOrWrap
+            = PREPEND_SPACE.wrappingLines(40, PREPEND_NEWLINE_AND_INDENT.bySpaces(4, BRACE_POSITION));
+
     static void configure(LexingStateBuilder<SLState, ?> stateBuilder, FormattingRules rules) {
         stateBuilder.increment(BRACE_DEPTH)
                 .onTokenType(S_OPEN_BRACE)
@@ -112,40 +169,33 @@ public class LexingStateTest {
                 .onTokenType(S_OPEN_BRACE)
                 .poppingOnTokenType(S_CLOSE_BRACE);
 
-        int maxLineLength = 180;
+        stateBuilder.increment(ARRAY_ITEM_COUNT).
+                onTokenType(L_INT)
+                .clearingWhenTokenEncountered(S_CLOSE_BRACE);
 
-        FormattingAction doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
-                .bySpaces(4, BRACE_POSITION);
+        rules.onTokenType(SimpleLanguageLexer.OP)
+                .format(spaceOrWrap);
 
-        FormattingAction indentCurrent = PREPEND_NEWLINE_AND_INDENT
-                .bySpaces(BRACE_POSITION)
-                .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+        rules.onTokenType(L_INT)
+                .when(ARRAY_ITEM_COUNT).isGreaterThan(1)
+                .wherePreviousTokenTypeNot(S_OPEN_BRACE)
+                .format(spaceOrWrap);
 
-//        FormattingAction indentSubseqeuent = APPEND_NEWLINE_AND_INDENT
-//                .bySpaces(BRACE_POSITION)
-//                .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
-//
-        FormattingAction doubleNewlineAndIndentIt
-                = PREPEND_NEWLINE_AND_INDENT.bySpaces(4, BRACE_POSITION);
-//                        .wrappingLines(maxLineLength, doubleIndentForWrappedLines);
+//        rules.onTokenType(K_TYPE)
+//                .named("double-newline-between-top-level-entries")
+//                .wherePreviousTokenTypeNot(DESCRIPTION)
+//                .whereNotFirstTokenInSource()
+//                .format(PREPEND_DOUBLE_NEWLINE);
 
-        rules.onTokenType(K_TYPE)
-                .named("double-newline-between-top-level-entries")
-                .whereNotFirstTokenInSource()
-                .format(PREPEND_DOUBLE_NEWLINE);
-
-        rules.onTokenType(LINE_COMMENT)
+        rules.onTokenType(LINE_COMMENT, DESCRIPTION, S_CLOSE_BRACE)
                 .named("indent-line-comments")
                 .format(indentCurrent);
 
         rules.onTokenType(Criterion.ALWAYS)
-                .wherePrevTokenType(LINE_COMMENT)
+                .named("indent-after-line-comment-or-brace")
+                .wherePreviousTokenType(LINE_COMMENT, S_OPEN_BRACE)
                 .format(indentCurrent);
 
-//        rules.onTokenType(ID, QUALIFIED_ID)
-//                .named("prepend-space-to-ids")
-//                .wherePrevTokenType(K_IMPORT, K_NAMESPACE, K_TYPE)
-//                .format(PREPEND_SPACE);
         rules.onTokenType(ID)
                 .named("indent-before-id-followed-by-colon")
                 .whereNextTokenType(S_COLON)
@@ -158,9 +208,9 @@ public class LexingStateTest {
                 .whereNextTokenTypeNot(S_SEMICOLON, S_COLON, S_OPEN_BRACE)
                 .format(PREPEND_SPACE);
 
-        rules.onTokenType(criteria.noneOf(S_OPEN_BRACE))
-                .wherePrevTokenType(S_SEMICOLON)
-                .format(indentCurrent);
+//        rules.onTokenType(criteria.noneOf(S_OPEN_BRACE))
+//                .wherePreviousTokenType(S_SEMICOLON, S_OPEN_BRACE)
+//                .format(indentCurrent);
 
         rules.onTokenType(S_OPEN_BRACE).format(PREPEND_SPACE);
 
@@ -169,48 +219,20 @@ public class LexingStateTest {
                 .whereNextTokenTypeNot(S_SEMICOLON)
                 .format(PREPEND_SPACE.and(APPEND_SPACE));
 
+        rules.onTokenType(L_FLOAT, L_BOOLEAN, L_INT, L_STRING)
+                .format(PREPEND_SPACE);
+
+//        rules.onTokenType(K_TYPE)
+//                .format(APPEND_SPACE);
+
+        rules.onTokenType(ID)
+                .wherePreviousTokenType(K_TYPE)
+                .format(PREPEND_SPACE);
+
         rules.onTokenType(keywords)
                 .named("bracket-keywords-with-spaces")
                 .whereNextTokenTypeNot(S_SEMICOLON)
                 .format(PREPEND_SPACE);
-
-//        rules.onTokenType(keywords)
-//                .whereNextTokenType(S_SEMICOLON)
-//                .named("keyword-spaces-if-semi-next")
-//                .format(PREPEND_SPACE);
-        rules.onTokenType(DESCRIPTION)
-                .format(indentCurrent);
-
-//        rules.onTokenType(S_SEMICOLON)
-//                .whereNextTokenTypeNot(S_CLOSE_BRACE)
-//                .format(indentSubseqeuent).named("semicolonIfNotCloseBrace");
-//
-//        rules.onTokenType(DESCRIPTION)
-//                .wherePreviousTokenTypeNot(DESCRIPTION)
-//                .named("newline-for-description-outside-braces")
-//                .when(BRACE_DEPTH).isUnset()
-//                .format(doubleNewlineAndIndentIt.trimmingWhitespace().and(indentSubseqeuent));
-//
-//        rules.onTokenType(DESCRIPTION)
-//                .named("indent-descriptions-with-described")
-//                .wherePreviousTokenTypeNot(DESCRIPTION)
-//                .format(indentCurrent.trimmingWhitespace().and(indentSubseqeuent));
-//
-//        rules.onTokenType(DESCRIPTION)
-//                .named("indent-subsequent-descriptions")
-//                .wherePreviousTokenType(DESCRIPTION)
-//                .format(indentCurrent.trimmingWhitespace().and(indentSubseqeuent));
-//        rules.onTokenType(S_OPEN_BRACE)
-//                .named("indent-after-open-brace")
-//                .format(indentSubseqeuent);
-        rules.onTokenType(S_CLOSE_BRACE)
-                .named("indent-close-brace")
-                .format(indentCurrent);
-
-        rules.onTokenType(Criterion.ALWAYS)
-                .wherePrevTokenType(S_CLOSE_BRACE)
-                .priority(20)
-                .format(indentCurrent);
 
         rules.onTokenType(COMMENT)
                 .named("reflow-comments")

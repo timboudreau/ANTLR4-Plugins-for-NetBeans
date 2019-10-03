@@ -143,7 +143,5 @@ final class LexingStateCriteriaBuilderImpl<T extends Enum<T>, R> extends LexingS
 
             };
         }
-
     }
-
 }

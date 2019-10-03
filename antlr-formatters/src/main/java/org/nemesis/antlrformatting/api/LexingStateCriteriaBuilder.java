@@ -4,6 +4,7 @@ package org.nemesis.antlrformatting.api;
  * Builder for criteria that activate a rule only if a value extracted into the
  * lexing state matches a desired value.
  *
+ * @see org.nemesis.antlrformatting.api.FormattingRule
  * @author Tim Boudreau
  */
 public abstract class LexingStateCriteriaBuilder<T extends Enum<T>, R> {

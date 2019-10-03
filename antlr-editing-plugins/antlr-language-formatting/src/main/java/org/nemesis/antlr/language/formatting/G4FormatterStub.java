@@ -134,35 +134,4 @@ public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv
         }
         return l;
     }
-
-    /*
-    @Override
-    public Predicate<Token> debugTokens() {
-        return new Predicate<Token>() {
-            int dist = 100000;
-            @Override
-            public boolean test(Token t) {
-//                if (t.getType() == ANTLRv4Lexer.PARDEC_ID ) {
-//                    if ("array_literal".equals(t.getText())) {
-                    if ("items".equals(t.getText())) {
-                        dist = 0;
-                    }
-//                }
-                return dist++ < 5;
-            }
-        };
-    }
-*/
-//    @Override
-//    public Predicate<Token> debugTokens() {
-//        boolean[] lastMatch = new boolean[1];
-//        return tok -> {
-//            if (lastMatch[0]) {
-//                lastMatch[0] = false;
-//                return true;
-//            }
-//            return lastMatch[0] = tok.getText().contains("times by the analyzerDirectiveSpec");
-//        };
-//    }
-
 }

@@ -1,5 +1,7 @@
 package org.nemesis.antlrformatting.api;
 
+import org.antlr.v4.runtime.Token;
+
 /**
  * Formatting context passed into the lambda that performs formatting operations
  * for a matched token.
@@ -28,6 +30,8 @@ public abstract class FormattingContext {
      * @return
      */
     public abstract int currentCharPositionInLine();
+
+    public abstract int charPositionInLine(Token token);
 
     /**
      * Prepend a space before this token.

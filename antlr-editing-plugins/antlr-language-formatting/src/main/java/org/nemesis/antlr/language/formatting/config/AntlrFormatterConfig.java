@@ -28,6 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.language.formatting.config;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.prefs.BackingStoreException;
@@ -46,9 +47,11 @@ import org.nemesis.antlr.language.formatting.AntlrCounters;
 import org.nemesis.antlr.language.formatting.AntlrCriteria;
 import org.nemesis.antlr.language.formatting.G4FormatterStub;
 import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
+import static org.nemesis.antlrformatting.spi.AntlrFormatterStub.PREFS_KEY_INDENT_BY;
 import org.openide.util.Exceptions;
 
 /**
+ * Configuration for Antlr formatting.
  *
  * @author Tim Boudreau
  */
@@ -57,13 +60,13 @@ public class AntlrFormatterConfig {
     public static final String KEY_COLON_HANDLING = "colonHandling";
     public static final String KEY_FLOATING_INDENT = "floatingIndent";
     public static final String KEY_MAX_LINE = "maxLineLength";
-    public static final String KEY_INDENT = "indent";
+    public static final String KEY_INDENT = PREFS_KEY_INDENT_BY;
     public static final String KEY_WRAP = "wrap";
     public static final String KEY_BLANK_LINE_BEFORE_RULES = "blankLineBeforeRules";
     public static final String KEY_REFLOW_LINE_COMMENTS = "reflowLineComments";
     public static final String KEY_SPACES_INSIDE_PARENS = "spacesInsideParens";
     public static final String KEY_SEMICOLON_ON_NEW_LINE = "semicolonOnNewline";
-    public static final int DEFAULT_MAX_LINE = 60;
+    public static final int DEFAULT_MAX_LINE = 80;
     public static final boolean DEFAULT_WRAP = false;
     public static final boolean DEFAULT_REFLOW_LINE_COMMENTS = false;
     public static final boolean DEFAULT_SPACES_INSIDE_PARENS = false;
@@ -79,14 +82,15 @@ public class AntlrFormatterConfig {
         KEY_FLOATING_INDENT,
         KEY_REFLOW_LINE_COMMENTS,
         KEY_BLANK_LINE_BEFORE_RULES,
-        KEY_SPACES_INSIDE_PARENS
+        KEY_SPACES_INSIDE_PARENS,
+        KEY_SEMICOLON_ON_NEW_LINE
     };
     private final L l = new L();
     private final Preferences config;
     private PropertyChangeSupport supp;
 
     public AntlrFormatterConfig(Preferences config) {
-        this.config = config;
+        this.config = notNull("config", config);
     }
 
     public Preferences preferences() {
@@ -197,6 +201,36 @@ public class AntlrFormatterConfig {
                 + " indent=" + getIndent()
                 + " maxLineLength=" + getMaxLineLength()
                 + ")";
+    }
+
+    public boolean canEnableFloatingIndent() {
+        switch (getColonHandling()) {
+            case INLINE:
+            case NEWLINE_AFTER:
+                return true;
+            case STANDALONE:
+            case NEWLINE_BEFORE:
+                return false;
+            default :
+                throw new AssertionError(getColonHandling());
+        }
+    }
+
+    public boolean isFloatingIndentReallyEnabled() {
+        return isFloatingIndent() && canEnableFloatingIndent();
+    }
+
+    public boolean canEnableSemicolonOnNewLine() {
+        switch(getColonHandling()) {
+            case INLINE :
+                return false;
+            default :
+                return true;
+        }
+    }
+
+    public boolean isSemicolonOnNewLineReallyEnabled() {
+        return isSemicolonOnNewline() && canEnableSemicolonOnNewLine();
     }
 
     class L implements PreferenceChangeListener {

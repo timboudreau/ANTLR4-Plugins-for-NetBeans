@@ -10,6 +10,7 @@ compilation_unit :
 typeDeclaration : 
       (desc=description? name=typeName S_COLON kind=K_FLOAT (K_DEFAULT numericExpression)? S_SEMICOLON) #floatType
     | (desc=description? name=typeName S_COLON kind=K_INT (K_DEFAULT intExpression)?  S_SEMICOLON) #integerType
+    | (desc=description? name=typeName S_COLON kind=K_INT_ARRAY (K_DEFAULT intArray)?  S_SEMICOLON) #integerArray
     | (desc=description? name=typeName S_COLON kind=K_STRING (K_DEFAULT L_STRING)? S_SEMICOLON) #stringType
     | (desc=description? name=typeName S_COLON kind=K_BOOLEAN (K_DEFAULT L_BOOLEAN)? S_SEMICOLON) #booleanType
     | (desc=description? name=typeName S_COLON kind=K_OBJECT S_OPEN_BRACE typeDeclaration+ S_CLOSE_BRACE) #objectType
@@ -33,12 +34,16 @@ numericExpression : (L_INT | L_FLOAT) #singleFloat
     | (S_OPEN_PARENS numericExpression S_CLOSE_PARENS) #parentheticFloat;
 
 
+intArray :
+    S_OPEN_BRACKET L_INT* S_CLOSE_BRACKET;
+
 OP : S_PLUS | S_MINUS | S_SLASH | S_ASTERISK | S_PERCENT;
 QUALIFIED_ID : ID (S_DOT ID)+;
 
 K_IMPORT : 'import';
 K_NAMESPACE : 'namespace';
 K_INT : 'int';
+K_INT_ARRAY : 'intArray';
 K_OBJECT : 'object';
 K_STRING : 'string';
 K_FLOAT : 'float';

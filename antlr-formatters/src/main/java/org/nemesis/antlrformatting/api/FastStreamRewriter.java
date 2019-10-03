@@ -19,8 +19,11 @@ import org.antlr.v4.runtime.misc.Interval;
  */
 final class FastStreamRewriter implements StreamRewriterFacade {
 
-    final EverythingTokenStream stream;
-    final IntMap<RewriteInfo> rewritesForToken;
+    final EverythingTokenStream stream; // the stream
+    final IntMap<RewriteInfo> rewritesForToken; // per-token rewrite info
+    // caches so we don't have to iterate back to the top of the document
+    // to figure out the nearest newline or the start position of a
+    // token that has modifications
     final IntList newlinePositions; // pkg private for tests
     final IntList startPositions; // pkg private for tests
     private int cachedNewlineDistance;
@@ -66,6 +69,7 @@ final class FastStreamRewriter implements StreamRewriterFacade {
         newlinePositions = IntList.create(stream.size() + stream.size() / 2);
         startPositions = IntList.create(stream.size());
         int pos = 0;
+        // Initialize the start positions
         for (int i = 0; i < stream.size(); i++) {
             ModalToken tok = stream.get(i);
             startPositions.add(tok.getStartIndex());
@@ -118,7 +122,6 @@ final class FastStreamRewriter implements StreamRewriterFacade {
     public String getText(Interval interval) {
         int start = interval.a;
         int stop = interval.b;
-
         // ensure start/end are in range
         if (stop > stream.size() - 1) {
             stop = stream.size() - 1;
@@ -149,24 +152,30 @@ final class FastStreamRewriter implements StreamRewriterFacade {
 
     @Override
     public void delete(int tokenIndex) {
+        // Drop the cached value for this
         cachedLastRequestedNewlineDistance = -1;
         RewriteInfo info = rewritesForToken.get(tokenIndex);
+        // If it's already deleted, don't double-delete
         if (info.deleted) {
             return;
         }
+        // Get the old positions of things before altering anything
         int oldLength = info.length(stream.get(tokenIndex));
         int[] newlinesRemoved = info.newlinePositions(stream.get(tokenIndex));
 
         info.delete();
+        // Get the new positions
         int start = startPositions.get(tokenIndex);
         if (newlinesRemoved.length > 0) {
             for (int i = 0; i < newlinesRemoved.length; i++) {
-                int ix = newlinePositions.nearestIndexToPresumingSorted(newlinesRemoved[i], Bias.NONE);
+                // Get the exact index of that entry in the array
+                int ix = newlinePositions.nearestIndexToPresumingSorted(start + newlinesRemoved[i], Bias.NONE);
                 if (ix >= 0) {
                     newlinePositions.remove(ix);
                 }
             }
         }
+        // shift subsequent ones backwards
         int nlix = newlinePositions.nearestIndexToPresumingSorted(start, Bias.FORWARD);
         if (nlix >= 0) {
             newlinePositions.adjustValues(nlix, -oldLength);
@@ -205,6 +214,7 @@ final class FastStreamRewriter implements StreamRewriterFacade {
     }
 
     public void newlinesMayBeChanged(RewriteInfo info, int index, int[] oldNewlines, int oldLength, int newLength) {
+        // Discard the cached answer to nearest newline pos
         cachedLastRequestedNewlineDistance = -1;
         int[] newNewlines = info.newlinePositions(stream.get(index));
         int lengthDiff = newLength - oldLength;
@@ -239,7 +249,9 @@ final class FastStreamRewriter implements StreamRewriterFacade {
                 if (oldEnd < 0) {
                     throw new IllegalStateException("Huh? " + oldEnd);
                 }
-                int shiftSubequentNewlinesStartingAt = newlinePositions.nearestIndexToPresumingSorted(oldEnd, Bias.FORWARD);
+                int shiftSubequentNewlinesStartingAt
+                        = newlinePositions.nearestIndexToPresumingSorted(
+                                oldEnd, Bias.FORWARD);
                 if (shiftSubequentNewlinesStartingAt >= 0) {
                     newlinePositions.adjustValues(shiftSubequentNewlinesStartingAt, lengthDiff);
                 }

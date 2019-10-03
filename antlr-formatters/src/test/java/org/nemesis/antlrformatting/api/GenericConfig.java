@@ -15,19 +15,19 @@ import org.netbeans.modules.editor.indent.spi.Context;
  *
  * @author Tim Boudreau
  */
-final class GenericConfig extends AntlrFormatterProvider<Preferences, SLState> {
+final class GenericConfig<E extends Enum<E>> extends AntlrFormatterProvider<Preferences, E> {
 
-    private final BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> configurer;
+    private final BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> configurer;
     private Predicate<Token> debugLog;
 
-    GenericConfig(BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> configurer, Predicate<Token> debugLog) {
-        super(SLState.class);
+    GenericConfig(Class<E> stateType, BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> configurer, Predicate<Token> debugLog) {
+        super(stateType);
         this.configurer = configurer;
         this.debugLog = debugLog;
     }
 
-    GenericConfig(BiConsumer<LexingStateBuilder<SLState, ?>, FormattingRules> configurer) {
-        super(SLState.class);
+    GenericConfig(Class<E> stateType, BiConsumer<LexingStateBuilder<E, ?>, FormattingRules> configurer) {
+        super(stateType);
         this.configurer = configurer;
     }
 
@@ -57,7 +57,7 @@ final class GenericConfig extends AntlrFormatterProvider<Preferences, SLState> {
     }
 
     @Override
-    protected void configure(LexingStateBuilder<SLState, ?> stateBuilder, FormattingRules rules, Preferences config) {
+    protected void configure(LexingStateBuilder<E, ?> stateBuilder, FormattingRules rules, Preferences config) {
         configurer.accept(stateBuilder, rules);
     }
 

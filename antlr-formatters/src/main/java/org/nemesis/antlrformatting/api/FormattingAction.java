@@ -192,7 +192,7 @@ public interface FormattingAction {
             @SuppressWarnings("StringEquality")
             public void accept(Token token, FormattingContext ctx, LexingState state) {
                 String origText = token.getText();
-                String revisedText = rewriter.rewrite(ctx.indentSize(), origText, ctx.currentCharPositionInLine(), state);
+                String revisedText = rewriter.rewrite(ctx.indentSize(), origText, ctx.charPositionInLine(token), state);
                 if (revisedText != null && origText != revisedText && !origText.equals(revisedText)) {
                     ctx.replace(revisedText);
                 }
@@ -217,11 +217,8 @@ public interface FormattingAction {
         return new FormattingAction() {
             @Override
             public void accept(Token token, FormattingContext ctx, LexingState state) {
-                if (ctx.currentCharPositionInLine() + token.getText().length() > limit) {
-//                    System.out.println("WRAP '" + token.getText() + "' for line pos "
-//                        + ctx.currentCharPositionInLine() + " with " + wrapAction);
+                if (ctx.charPositionInLine(token) + token.getText().length() > limit) {
                     wrapAction.accept(token, ctx, state);
-//                    System.out.println("after wrap, line position is " + ctx.currentCharPositionInLine());
                 } else {
                     FormattingAction.this.accept(token, ctx, state);
                 }

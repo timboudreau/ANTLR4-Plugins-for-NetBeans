@@ -121,7 +121,7 @@ public final class LexingState {
 //            }
             if (kinds[t.ordinal()] != null) {
                 if (sb.length() != initialLength) {
-                    sb.append(", ");
+                    sb.append(",");
                 }
                 switch (kinds[t.ordinal()]) {
                     case BOOLEAN:

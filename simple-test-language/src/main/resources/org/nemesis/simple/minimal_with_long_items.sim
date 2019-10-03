@@ -1,0 +1,14 @@
+types Stuff;
+
+** This is just one thing
+oneThing : string default "one thing";
+
+/*
+    And this is a multiline
+    comment that could be reflowed
+*/
+person : object {
+    meaning : intArray default [42 23 51 83 71 26 18 19 15 13 12 10 9 8 7 6 5 4 3 52 70 80 90 100 101 102 103 104 1000 23 17];
+    otherThing : string default "booga";
+    bigExp : int default 1 + 2 + 3 + 4 + 3 + 5 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20 + 21 + 22;
+}

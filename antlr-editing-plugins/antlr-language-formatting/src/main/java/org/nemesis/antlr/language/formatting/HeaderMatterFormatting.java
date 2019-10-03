@@ -77,7 +77,7 @@ class HeaderMatterFormatting extends AbstractFormatter {
                     .anyOf(AntlrCriteria.ALL_BLOCK_COMMENTS)).format(APPEND_NEWLINE);
         });
 
-        rules.onTokenType(ID).wherePrevTokenType(GRAMMAR, IMPORT)
+        rules.onTokenType(ID).wherePreviousTokenType(GRAMMAR, IMPORT)
                 .format(PREPEND_SPACE);
 
         rules.onTokenType(SEMI)
@@ -85,7 +85,7 @@ class HeaderMatterFormatting extends AbstractFormatter {
                         AntlrCriteria.mode(MODE_DEFAULT)))
                 .format(APPEND_DOUBLE_NEWLINE);
 
-//        rules.onTokenType(SEMI).wherePrevTokenType(ID).format(prependNewlineAndDoubleIndent);
+//        rules.onTokenType(SEMI).wherePreviousTokenType(ID).format(prependNewlineAndDoubleIndent);
 //        rules.onTokenType(ID).whenEnteringMode(Arrays.asList(modeNames).indexOf(MODE_IDENTIFIER))
 //                .format(PREPEND_SPACE);
         rules.whenInMode(AntlrCriteria.mode(MODE_ACTION), rls -> {
@@ -95,7 +95,7 @@ class HeaderMatterFormatting extends AbstractFormatter {
                     .format(PREPEND_SPACE.and(APPEND_NEWLINE));
         });
         rules.whenInMode(grammarRuleModes, rls -> {
-            rls.onTokenType(keywordsOrIds).wherePrevTokenType(END_ACTION)
+            rls.onTokenType(keywordsOrIds).wherePreviousTokenType(END_ACTION)
                     .priority(100)
                     .format(PREPEND_DOUBLE_NEWLINE);
         });

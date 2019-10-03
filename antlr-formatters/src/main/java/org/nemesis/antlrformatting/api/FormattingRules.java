@@ -86,6 +86,23 @@ public final class FormattingRules {
         rules.add(rule);
     }
 
+    /**
+     * Convenience method for bulk-adding rules which all have one constraint in
+     * common - in this case, only apply this rule when it occurs within a
+     * particular <b>parser</b> (not <i>lexer</i>) rule.
+     * <p>
+     * Bear in mind that <i>the normal state of source files in an editor is
+     * broken</i> - it is always preferable to match a pattern of tokens to
+     * using a parser rule test, since the source is not necessarily parsable.
+     * </p><p>
+     * Apply the rule test passed to all rules added within the closure of the
+     * passed consumer.
+     * </p>
+     *
+     * @param rule A <b>parser</b> type
+     * @param c A consumer
+     * @return this
+     */
     public FormattingRules whenInParserRule(int rule, Consumer<FormattingRules> c) {
         return applyRuleProcessor(r -> {
             r.whenInParserRule(rule);
@@ -254,6 +271,20 @@ public final class FormattingRules {
      * with an edited version of all of them - for the case where your grammar
      * splits tokens that are logically a contiguous thing in less-than-useful
      * ways, and you need to concatenate and handle them as one. Use sparingly.
+     * <p>
+     * Note that processing tokens this way <i>bypasses normal rule
+     * processing</i>, so do not expect formatting rules you have set up to
+     * process tokens which are captured here - you will need to simulate that
+     * in the output. This is generally for cases such as taking a series of
+     * line comments some of which run past the line limit, extracting their
+     * text less the initial "//\s*", collating and reflowing them into a new
+     * set of lines that fit within the limit and replacing them en-masse.
+     * </p>
+     * <p>
+     * If the passed biFunction returns null, the tokens will be processed
+     * normally. See if you can use FormattingAction.wrap() before reaching for
+     * this.
+     * </p>
      *
      * @param tokenType The token type you are targeting
      * @param replacer A function which can return replacement text for the
@@ -457,11 +488,13 @@ public final class FormattingRules {
             }
         }
         for (FormattingRule rule : rules) {
-            if (rule.matches(token.getType(), prevToken, prevMode, nextToken, precededByNewline, token.mode(), debug, state, followedByNewline, token.getStartIndex(), token.getStopIndex(), parserRuleFinder)) {
+            if (rule.matches(token.getType(), prevToken, prevMode, nextToken, precededByNewline,
+                    token.mode(), debug, state, followedByNewline, token.getStartIndex(),
+                    token.getStopIndex(), parserRuleFinder)) {
                 if (rule.hasAction()) {
                     if (debug) {
-                        System.out.println("'" + token.getText() + "' " + vocabulary
-                                .getSymbolicName(token.getType()) + " matched by " + rule);
+                        System.out.println("  MATCHED: '" + token.getText() + "' " + vocabulary
+                                .getSymbolicName(token.getType()) + " matched by " + rule + "\n");
                     }
 //                    if (ctx instanceof FormattingContextImpl) {
 //                        ((FormattingContextImpl) ctx).setCurrentRule(rule);

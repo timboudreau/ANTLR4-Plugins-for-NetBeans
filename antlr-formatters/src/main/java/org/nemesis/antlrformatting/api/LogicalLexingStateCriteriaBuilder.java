@@ -7,9 +7,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * Builder for criteria that logically combine multiple queries of the lexing
- * state.
+ * Builder for FormattingRule test conditions that logically combine multiple
+ * queries of the lexing state, to condition a rule's enablement on
+ * particular combination of states configured in the StateBuilder
+ * passed when configuring formatting.
  *
+ * @see org.nemesis.antlrformatting.api.FormattingRule.whenCombinationOf
+ * @see org.nemesis.antlrformatting.api.LexingStateBuilder
  * @author Tim Boudreau
  */
 public final class LogicalLexingStateCriteriaBuilder<R> {

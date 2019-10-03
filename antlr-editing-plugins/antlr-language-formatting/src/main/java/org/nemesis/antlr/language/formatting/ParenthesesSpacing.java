@@ -51,19 +51,19 @@ final class ParenthesesSpacing extends AbstractFormatter {
 
     @Override
     protected void rules(FormattingRules rules) {
-        rules.onTokenType(LPAREN).wherePrevTokenTypeNot(lineComments().or(criteria.matching(LPAREN)))
+        rules.onTokenType(LPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.matching(LPAREN)))
                 .whereNextTokenTypeNot(LPAREN)
                 .priority(100)
                 .format(APPEND_SPACE);
-        rules.onTokenType(LPAREN).wherePrevTokenType(COLON).format(PREPEND_SPACE);
+        rules.onTokenType(LPAREN).wherePreviousTokenType(COLON).format(PREPEND_SPACE);
         rules.onTokenType(ID)
-                .wherePrevTokenType(COLON)
+                .wherePreviousTokenType(COLON)
                 .priority(100)
                 .format(PREPEND_SPACE);
-        rules.onTokenType(ruleOpeners).wherePrevTokenType(LPAREN)
+        rules.onTokenType(ruleOpeners).wherePreviousTokenType(LPAREN)
                 .priority(100)
                 .format(PREPEND_SPACE);
-        rules.onTokenType(RPAREN).wherePrevTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
+        rules.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
                 .priority(100)
                 .format(PREPEND_SPACE);
     }

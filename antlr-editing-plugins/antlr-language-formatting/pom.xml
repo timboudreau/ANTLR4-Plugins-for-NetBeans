@@ -39,15 +39,15 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
-        </dependency>   
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
-        </dependency>   
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-grammar</artifactId>
-        </dependency>   
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-formatters</artifactId>
@@ -65,7 +65,20 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>test-fixtures-support</artifactId>
             <scope>test</scope>
-        </dependency>        
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-formatters</artifactId>
+            <scope>test</scope>
+            <type>test-jar</type>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>simple-test-language</artifactId>
+            <scope>test</scope>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -74,6 +87,12 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.wumpz</groupId>
+            <artifactId>diffutils</artifactId>
+            <version>3.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>

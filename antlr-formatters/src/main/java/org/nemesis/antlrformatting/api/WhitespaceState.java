@@ -16,7 +16,8 @@ import java.util.function.Supplier;
  * the next / previous token; in particular, allows for prepend rules to set up
  * one set of modifications, and append rules to set up another, and then to
  * coalesce these into a single modification which subsumes both, choosing the
- * larger number of indents and newlines from each.
+ * larger number of indents and newlines from each as documented in the Javadoc
+ * of FormattingRule.
  *
  * @author Tim Boudreau
  */
@@ -322,9 +323,19 @@ final class WhitespaceState {
             nue.addAll(other.modifications);
             Modification.sort(indentChars, nue);
             Set<Class<?>> types = new HashSet<>();
+            boolean nonSpaceIndentBySeen = false;
             for (Iterator<Modification> it = nue.iterator(); it.hasNext();) {
                 Modification m = it.next();
-                if (newlines && m instanceof IndentBy && ((IndentBy) m).isSpace()) {
+                boolean isSpace = m instanceof IndentBy && ((IndentBy) m).isSpace();
+                if (nonSpaceIndentBySeen && isSpace) {
+                    // If we are already indenting by tab stops, remove this indent
+                    IndentBy ib = (IndentBy) m;
+                    if (ib.depth == 1) {
+                        it.remove();
+                    }
+                    continue;
+                }
+                if (newlines && isSpace) {
                     continue;
                 }
                 if (types.contains(m.getClass())) {
@@ -332,6 +343,7 @@ final class WhitespaceState {
                 } else {
                     types.add(m.getClass());
                 }
+                nonSpaceIndentBySeen |= m instanceof IndentBy && !((IndentBy) m).isSpace();
             }
             MetaModification result = new MetaModification(nue, newlines);
             return result;
@@ -351,9 +363,7 @@ final class WhitespaceState {
         @Override
         public void apply(StringBuilder sb, int indentChars, int[] lineOffsetDest) {
             modifications.forEach((mod) -> {
-//                int old = lineOffsetDest[0];
                 mod.apply(sb, indentChars, lineOffsetDest);
-//                System.out.println("APPLY " + mod + " oldDest " + old + " newDest " + lineOffsetDest[0]);
             });
         }
 

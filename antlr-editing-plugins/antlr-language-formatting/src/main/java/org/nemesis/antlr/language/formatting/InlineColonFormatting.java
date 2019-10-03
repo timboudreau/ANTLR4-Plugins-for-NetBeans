@@ -56,28 +56,40 @@ class InlineColonFormatting extends AbstractFormatter {
                 .priority(100)
                 .format(PREPEND_NEWLINE);
 
-
         rules.whenInMode(grammarRuleModes, rls -> {
 
-            rules.onTokenType(ruleOpeners).
-                    wherePrevTokenType(COLON)
+            rules.onTokenType(ruleOpeners).wherePreviousTokenType(COLON)
                     .format(PREPEND_SPACE);
 
             rules.onTokenType(LPAREN)
-                    .wherePrevTokenType(COLON, STAR, QUESTION, PLUS)
+                    .wherePreviousTokenType(COLON, STAR, QUESTION, PLUS)
                     .format(PREPEND_SPACE);
 
-            rules.onTokenType(OR)
-//                    .when(AntlrCounters.PARENS_DEPTH).isGreaterThanOrEqualTo(1)
-                    .format(PREPEND_SPACE.and(APPEND_SPACE));
+            if (config.isWrap()) {
+                rules.onTokenType(OR)
+                        .wherePreviousTokenTypeNot(RPAREN)
+                        .format(spaceOrWrap.and(APPEND_SPACE));
 
-            rls.onTokenType(COLON).format(spaceOrWrap);
+                rules.onTokenType(ID, STRING_LITERAL, TOKEN_ID, PARSER_RULE_ID)
+                        .wherePreviousTokenTypeNot(RANGE, SEMI, ASSIGN, RPAREN, DOT)
+                        .format(spaceOrWrap);
+            } else {
+                rules.onTokenType(OR)
+                        .format(PREPEND_SPACE.and(APPEND_SPACE));
+
+                rules.onTokenType(ID, STRING_LITERAL, TOKEN_ID, PARSER_RULE_ID)
+                        .wherePreviousTokenTypeNot(RANGE, SEMI, ASSIGN, RPAREN, DOT)
+                        .format(PREPEND_SPACE);
+            }
+
+            rls.onTokenType(COLON).format(PREPEND_SPACE);
+            rls.onTokenType(LPAREN).priority(100).wherePreviousTokenType(COLON).format(PREPEND_SPACE);
 
             rls.onTokenType(allIds)
-                    .wherePrevTokenTypeNot(criteria.anyOf(RPAREN, SEMI, ASSIGN, LPAREN))
+                    .wherePreviousTokenTypeNot(criteria.anyOf(RPAREN, SEMI, ASSIGN, LPAREN))
                     .format(spaceOrWrap);
 
-            rls.onTokenType(allIds).wherePrevTokenType(RPAREN)
+            rls.onTokenType(allIds).wherePreviousTokenType(RPAREN)
                     .format(spaceOrWrap);
 
 //            rls.onTokenType(LPAREN).wherePreviousTokenType(ruleEnders.or(criteria.matching(COLON)))

@@ -561,7 +561,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
                 .format(FormattingAction.EMPTY);
 
         rules.onTokenType(BEGIN_ACTION).whereMode(MODE_ACTION)
-                .wherePrevTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
+                .wherePreviousTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
                 .priority(6)
                 .named("action.spaces.a")
                 .whereNextTokenType(ACTION_CONTENT)
@@ -572,7 +572,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         rules.onTokenType(BEGIN_ACTION).whereMode(MODE_ACTION)
                 .priority(6)
                 .named("action.spaces.b")
-                .wherePrevTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
+                .wherePreviousTokenType(ID, TOKEN_ID, FRAGDEC_ID, PARSER_RULE_ID)
                 .whereNextTokenType(ACTION_CONTENT)
                 .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
                 .when(AntlrCounters.LEFT_BRACES_PASSED).isLessThanOrEqualTo(1)
@@ -601,7 +601,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
             rules.onTokenType(cv.noneOf(RBRACE, END_ACTION)).whereMode(MODE_OPTIONS, MODE_DEFAULT,
                     MODE_HEADER_PRELUDE, MODE_HEADER_ACTION, MODE_ACTION, MODE_PARSER_RULE_DECLARATION, MODE_TOKENS)
                     .named("indent.header.brace.content.a")
-                    .wherePrevTokenType(LBRACE, BEGIN_ACTION)
+                    .wherePreviousTokenType(LBRACE, BEGIN_ACTION)
                     .whenCombinationOf(AntlrCounters.LEFT_BRACES_PASSED).isSet()
                     .and(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1).then()
                     //                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
@@ -610,7 +610,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         } else {
             rules.onTokenType(cv.noneOf(RBRACE, END_ACTION)).whereMode(MODE_OPTIONS, MODE_DEFAULT,
                     MODE_HEADER_PRELUDE, MODE_HEADER_ACTION, MODE_ACTION, MODE_PARSER_RULE_DECLARATION, MODE_TOKENS)
-                    .wherePrevTokenType(LBRACE, BEGIN_ACTION)
+                    .wherePreviousTokenType(LBRACE, BEGIN_ACTION)
                     .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
                     .when(AntlrCounters.LEFT_BRACES_PASSED).isGreaterThanOrEqualTo(1)
                     .named("indent.header.brace.content.b")
@@ -619,7 +619,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
 
         rules.onTokenType(TOKENS)
                 .format(APPEND_SPACE)
-                .and().wherePrevTokenType(RBRACE, END_ACTION)
+                .and().wherePreviousTokenType(RBRACE, END_ACTION)
                 .priority(8)
                 .format(PREPEND_NEWLINE.and(APPEND_SPACE));
 
@@ -653,7 +653,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
                 .format(PREPEND_SPACE.and(APPEND_SPACE));
         rules.onTokenType(ID)
                 .whereMode(MODE_HEADER_PRELUDE, MODE_HEADER_ACTION, MODE_ACTION, MODE_OPTIONS)
-                .wherePrevTokenType(LPAREN, ASSIGN, DOT)
+                .wherePreviousTokenType(LPAREN, ASSIGN, DOT)
                 .priority(4)
                 .named("no.whitespace.after.parens.and.dots")
                 .format(FormattingAction.EMPTY);
@@ -784,7 +784,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
 
         rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
                 .whereModeNot(MODE_HEADER_IMPORT, MODE_HEADER_ACTION, MODE_HEADER_PRELUDE, MODE_ACTION, MODE_OPTIONS)
-                .wherePrevTokenType(DOC_COMMENT)
+                .wherePreviousTokenType(DOC_COMMENT)
                 .priority(6)
                 .format(PREPEND_NEWLINE);
 
@@ -819,7 +819,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
 
         rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
                 .whereModeNot(MODE_HEADER_IMPORT, MODE_HEADER_ACTION, MODE_HEADER_PRELUDE, MODE_ACTION, MODE_TOKENS)
-                .wherePrevTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
+                .wherePreviousTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID, ID)
                 .wherePreviousTokenTypeNot(SEMI, ASSIGN, SHARP)
                 .ifPrecededByNewline(false)
                 .format(wrapIfNeeded(PREPEND_SPACE, config, AntlrCounters.COLON_POSITION)).named("Precede id with space");
@@ -842,7 +842,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         if (config.isSpacesInsideParentheses()) {
             rules.onTokenType(TOKEN_ID, PARSER_RULE_ID, FRAGDEC_ID)
                     .priority(2)
-                    .wherePrevTokenType(LPAREN)
+                    .wherePreviousTokenType(LPAREN)
                     .format(PREPEND_SPACE);
         }
 
@@ -858,7 +858,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
                 .format(PREPEND_NEWLINE.and(APPEND_SPACE));
 
         rules.onTokenType(IMPORT)
-                .wherePrevTokenType(RBRACE, END_ACTION)
+                .wherePreviousTokenType(RBRACE, END_ACTION)
                 .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
 
         rules.onTokenType(ANTLRv4Lexer.BEGIN_ACTION)
@@ -1023,7 +1023,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         rules.onTokenType(HDR_IMPRT_LINE_COMMENT).format(APPEND_NEWLINE);
 
         rules.onTokenType(lineComments)
-                .wherePrevTokenType(ID, TOKEN_ID, DOT, STRING_LITERAL, PARSER_RULE_ID, FRAGDEC_ID, LPAREN, RPAREN, SEMI)
+                .wherePreviousTokenType(ID, TOKEN_ID, DOT, STRING_LITERAL, PARSER_RULE_ID, FRAGDEC_ID, LPAREN, RPAREN, SEMI)
                 .ifPrecededByNewline(false)
                 .format(PREPEND_SPACE);
 
@@ -1065,7 +1065,7 @@ public class AntlrGrammarLanguageFormatter extends AntlrFormatterProvider<AntlrF
         // insert extra newlines and a newline is always inserted
         // after the last, so we don't inadvertently comment out stuff
         rules.onTokenType(lineComments).ifPrecededByNewline(true)
-                .wherePrevTokenTypeNot(lineComments)
+                .wherePreviousTokenTypeNot(lineComments)
                 .whereNextTokenType(lineComments)
                 .format((tok, ctx, st) -> {
 //                    ctx.set("lc", ctx.origCharPositionInLine());

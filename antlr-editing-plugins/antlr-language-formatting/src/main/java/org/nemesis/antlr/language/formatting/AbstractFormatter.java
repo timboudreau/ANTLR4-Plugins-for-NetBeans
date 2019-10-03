@@ -37,8 +37,6 @@ import org.nemesis.antlrformatting.api.Criterion;
 import org.nemesis.antlrformatting.api.FormattingAction;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
-import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT;
-import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
 
@@ -85,26 +83,61 @@ abstract class AbstractFormatter {
     protected final FormattingAction prependNewlineAndDoubleIndent;
     protected final Criterion ruleEnders;
 
+    boolean isFloatingIndent() {
+        if (config.isFloatingIndent()) {
+            switch (config.getColonHandling()) {
+                case INLINE:
+                case NEWLINE_AFTER:
+                    return true;
+                case STANDALONE:
+                case NEWLINE_BEFORE:
+                    return false;
+            }
+        }
+        return false;
+    }
+
     public AbstractFormatter(AntlrFormatterConfig config) {
         this.config = config;
-        doubleIndentForWrappedLines = APPEND_NEWLINE_AND_DOUBLE_INDENT
-                .by(config.getIndent());
+        if (config.isFloatingIndentReallyEnabled()) {
+            prependNewlineAndIndent = PREPEND_NEWLINE_AND_INDENT.bySpaces(1, COLON_POSITION);
+            prependNewlineAndDoubleIndent
+                    = PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent() + 1, COLON_POSITION);
 
-        indentToColonPosition = APPEND_NEWLINE_AND_INDENT
-                .bySpaces(config.getIndent() - 1, COLON_POSITION);
-
-        if (config.isWrap()) {
-            indentCurrent = PREPEND_NEWLINE_AND_INDENT
-                    .by(config.getIndent())
-                    .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
-
-            spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
-                    PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent() - 1, COLON_POSITION));
+            doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
+                    .bySpaces(config.getIndent() + 1, COLON_POSITION);
+            if (config.isWrap()) {
+                indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                        .bySpaces(1, COLON_POSITION)
+                        .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
+                spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
+                        doubleIndentForWrappedLines);
+            } else {
+                spaceOrWrap = PREPEND_SPACE;
+                indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                        .bySpaces(config.getIndent());
+            }
         } else {
-            indentCurrent = PREPEND_NEWLINE_AND_INDENT
-                    .by(config.getIndent());
-            spaceOrWrap = PREPEND_SPACE;
+            prependNewlineAndIndent = PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent());
+            prependNewlineAndDoubleIndent
+                    = PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent() * 2);
+            doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
+                    .bySpaces(config.getIndent() * 2);
+            if (config.isWrap()) {
+                indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                        .bySpaces(config.getIndent())
+                        .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
+                spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
+                        doubleIndentForWrappedLines);
+            } else {
+                spaceOrWrap = PREPEND_SPACE;
+                indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                        .bySpaces(config.getIndent());
+            }
         }
+
+        indentToColonPosition = PREPEND_NEWLINE_AND_INDENT
+                .bySpaces(config.getIndent(), COLON_POSITION);
 
         allIds = criteria.anyOf(PARSER_RULE_ID, TOKEN_OR_PARSER_RULE_ID,
                 TOKEN_ID, PARDEC_ID, TOK_ID, ID, TOKDEC_ID, FRAGDEC_ID);
@@ -126,12 +159,6 @@ abstract class AbstractFormatter {
                 MODE_TOKEN_DECLARATION,
                 MODE_FRAGMENT_DECLARATION
         );
-        prependNewlineAndIndent = config.isFloatingIndent()
-                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(1, COLON_POSITION)
-                : PREPEND_NEWLINE_AND_INDENT;
-        prependNewlineAndDoubleIndent = config.isFloatingIndent()
-                ? PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent(), COLON_POSITION)
-                : PREPEND_NEWLINE_AND_INDENT;
     }
 
     public final void configure(LexingStateBuilder<AntlrCounters, ?> stateBuilder, FormattingRules rules) {

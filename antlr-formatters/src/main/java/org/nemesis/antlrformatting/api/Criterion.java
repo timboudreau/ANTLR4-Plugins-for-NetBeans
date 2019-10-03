@@ -16,7 +16,9 @@ import org.nemesis.antlrformatting.api.Criteria.SingleCriterion;
  * One test a rule can use to determine if it matches one or more token types.
  * This class does not add anything to IntPredicate, but ensures that instances
  * created via logical operations are meaningfully loggable, which lambdas do
- * not.
+ * not.  Implementations for matching, non-matching individual values and
+ * arrays also implement their equality and hashCode contract correctly,
+ * allowing them to be used as map keys.
  *
  * @author Tim Boudreau
  */

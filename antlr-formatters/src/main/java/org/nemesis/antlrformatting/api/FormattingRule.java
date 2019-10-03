@@ -107,7 +107,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         result.name = name;
         result.stateCriteria = stateCriteria == null ? null : new ArrayList<>(stateCriteria);
         result.parserRuleMatch = parserRuleMatch;
-        result.modeTransition= modeTransition;
+        result.modeTransition = modeTransition;
         return result;
     }
 
@@ -437,6 +437,15 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    /**
+     * Match this rule in the case that the previous token was in one lexer mode
+     * (first argument to the passed BiPredicate) and the current token is in
+     * another.
+     *
+     * @param pred A predicate which is passed the preceding token's mode and
+     * this one's
+     * @return this
+     */
     public FormattingRule whereModeTransition(IntBiPredicate pred) {
         if (this.modeTransition == null) {
             this.modeTransition = pred;
@@ -446,6 +455,14 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    /**
+     * Match this rule in the case that the previous token was in the first
+     * passed lexer mode the current token is the second argument.
+     *
+     * @param pred A predicate which is passed the preceding token's mode and
+     * this one's
+     * @return this
+     */
     public FormattingRule whereModeTransition(int previousMode, int currentMode) {
         if (this.modeTransition == null) {
             this.modeTransition = (a, b) -> {
@@ -459,24 +476,50 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    /**
+     * Match this rule only when the lexer mode for the preceding token is not
+     * the same as the passed one and the passed one is the current token's
+     * lexer mode.
+     *
+     * @param mode A lexer mode index
+     * @return this
+     */
     public FormattingRule whenEnteringMode(int mode) {
         return whereModeTransition((prevMode, currMode) -> {
             return prevMode != currMode && mode == currMode;
         });
     }
 
+    /**
+     * Match this rule only when the lexer mode for the preceding token is the
+     * same as the passed one and the current token's lexer mode is not.
+     *
+     * @param mode A lexer mode index
+     * @return this
+     */
     public FormattingRule whenLeavingMode(int mode) {
         return whereModeTransition((prevMode, currMode) -> {
             return prevMode != currMode && prevMode == mode;
         });
     }
 
+    /**
+     * Match this rule at any mode transition.
+     *
+     * @return this
+     */
     public FormattingRule whenModeChanging() {
         return whereModeTransition((prevMode, currMode) -> {
             return prevMode != currMode;
         });
     }
 
+    /**
+     * Match this rule only when the previous and current token's lexer mode are
+     * the same.
+     *
+     * @return this
+     */
     public FormattingRule whenModeNotChanging() {
         return whereModeTransition((prevMode, currMode) -> {
             return prevMode == currMode;
@@ -491,7 +534,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @return this
      */
     public FormattingRule wherePreviousTokenType(int item) {
-        return wherePreviousTokenType(Criterion.matching(rules.vocabulary(), item));
+        return FormattingRule.this.wherePreviousTokenType(Criterion.matching(rules.vocabulary(), item));
     }
 
     /**
@@ -502,7 +545,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @return this
      */
     public FormattingRule wherePreviousTokenTypeNot(int item) {
-        return wherePreviousTokenType(Criterion.notMatching(rules.vocabulary(), item));
+        return FormattingRule.this.wherePreviousTokenType(Criterion.notMatching(rules.vocabulary(), item));
     }
 
     /**
@@ -512,7 +555,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @return this
      */
     public FormattingRule whereNotFirstTokenInSource() {
-        return wherePreviousTokenTypeNot(-1);
+        return FormattingRule.this.wherePreviousTokenTypeNot(-1);
     }
 
     /**
@@ -554,8 +597,8 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @param criterion Matching criterion
      * @return this
      */
-    public FormattingRule wherePrevTokenTypeNot(Criterion criterion) {
-        return wherePreviousTokenType(criterion.negate());
+    public FormattingRule wherePreviousTokenTypeNot(Criterion criterion) {
+        return FormattingRule.this.wherePreviousTokenType(criterion.negate());
     }
 
     /**
@@ -639,11 +682,11 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @param more additional types
      * @return this
      */
-    public FormattingRule wherePrevTokenType(int item, int... more) {
+    public FormattingRule wherePreviousTokenType(int item, int... more) {
         if (more.length == 0) {
-            return wherePreviousTokenType(item);
+            return FormattingRule.this.wherePreviousTokenType(item);
         }
-        return wherePreviousTokenType(Criterion.anyOf(rules.vocabulary(), IntPredicates.combine(item, more)));
+        return FormattingRule.this.wherePreviousTokenType(Criterion.anyOf(rules.vocabulary(), IntPredicates.combine(item, more)));
     }
 
     /**
@@ -656,12 +699,12 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      */
     public FormattingRule wherePreviousTokenTypeNot(int item, int... more) {
         if (more.length == 0) {
-            return wherePreviousTokenTypeNot(item);
+            return FormattingRule.this.wherePreviousTokenTypeNot(item);
         }
         int[] vals = new int[more.length + 1];
         vals[0] = item;
         System.arraycopy(more, 0, vals, 1, more.length);
-        return wherePreviousTokenType(Criterion.noneOf(rules.vocabulary(), vals));
+        return FormattingRule.this.wherePreviousTokenType(Criterion.noneOf(rules.vocabulary(), vals));
     }
 
     /**
@@ -689,7 +732,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     /**
      * Make this rule match only if the passed token was preceded by a newline
      * (with or without trailing whitespace - it is the first non-whitespace
-     * token on its line).
+     * token on its line) <i>in the original, unformatted source</i>.
      *
      * @param val Whether a newline must be present or must not be present
      * @return this
@@ -699,25 +742,58 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    /**
+     * Make this rule match only if the passed token was followed by a newline
+     * (with or without trailing whitespace - it is the first non-whitespace
+     * token on its line) <i>in the original, unformatted source</i>.
+     *
+     * @param val Whether a newline must be present or must not be present
+     * @return this
+     */
     public FormattingRule ifFollowedByNewline(boolean val) {
         this.requiresFollowingNewline = val;
         return this;
     }
 
-    boolean matches(int tokenType, int prevTokenType, int prevTokenMode, int nextTokenType, boolean precededByNewline, int mode, boolean debug, LexingState state, boolean followedByNewline, int start, int stop, IntFunction<Set<Integer>> parserRuleFinder) {
+    /**
+     * The main method which tests the incoming token against all predicates set
+     * up for this rule and determines if it matches.
+     *
+     * @param tokenType The current token's type
+     * @param prevTokenType The preceding token's type
+     * @param prevTokenMode The preceding token's mode
+     * @param nextTokenType The next current token's type (if any)
+     * @param precededByNewline Does the preceding token to this one in the
+     * original source end with a newline or newline followed by whitespace
+     * @param mode The current mode number
+     * @param debug If true, log the process of matching and reasons for any
+     * non-match
+     * @param state The lexing state
+     * @param followedByNewline If true, a newline or whitespace followed by a
+     * newline was subsequent to this token in the original source
+     * @param start The start offset
+     * @param stop The stop offset
+     * @param parserRuleFinder function which can detect the parser rules that
+     * apply to this token, if any
+     * @return true if this rule matches
+     */
+    boolean matches(int tokenType, int prevTokenType, int prevTokenMode,
+            int nextTokenType, boolean precededByNewline, int mode, boolean debug,
+            LexingState state, boolean followedByNewline, int start, int stop,
+            IntFunction<Set<Integer>> parserRuleFinder) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
-            System.out.println("MATCH " + this);
+            System.out.println(" try-match-rule " + this);
         }
         if (!active) {
             if (log) {
-                System.out.println("  NOT ACTIVE: " + this);
+                System.out.println("  fail-inactive: " + this);
             }
             return false;
         }
         if (temporarilyInactive) {
             if (log) {
-                System.out.println("  TEMP INACTIVE: " + this);
+                System.out.println("  fail-temp-inactive: " + this);
             }
             temporarilyInactive = false;
             return false;
@@ -726,20 +802,28 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (this.tokenType != null) {
             result = this.tokenType.test(tokenType);
             if (log && !result) {
-                System.out.println("  TOKEN TYPE NON MATCH " + this.tokenType);
+                System.out.println("  fail-type-non-match" + this.tokenType);
             }
         }
         if (result && this.mode != null) {
             result = this.mode.test(mode);
             if (log && !result) {
-                System.out.println("  MODE MISMATCH " + this.mode + " but mode is " + mode);
+                String modeName = mode >= 0 && mode < rules.modeNames().length ? rules.modeNames()[mode]
+                        : "unknown";
+                System.out.println("  fail-mode-mismatch-on-" + this.mode + "-with-mode-"
+                        + modeName);
             }
         }
         if (result && this.modeTransition != null) {
             result = this.modeTransition.test(prevTokenMode, mode);
             if (log && !result) {
-                System.out.println("  PREV/CURR mode mismatch "
-                        + prevTokenMode + " -> " + mode + " - " + modeTransition);
+                String modeName = mode >= 0 && mode < rules.modeNames().length ? rules.modeNames()[mode]
+                        : "unknown";
+                String prevModeName = prevTokenMode >= 0 && prevTokenMode < rules.modeNames().length ? rules.modeNames()[prevTokenMode]
+                        : "unknown";
+
+                System.out.println("  fail-mode-transition-mismatch("
+                        + prevModeName + "," + modeName + " -for- " + modeTransition);
             }
         }
         if (result && this.stateCriteria != null) {
@@ -747,7 +831,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 result = c.test(state);
                 if (!result) {
                     if (log) {
-                        System.out.println("  MISMATCH STATE: " + c + " with " + state);
+                        System.out.println("  fail-lexing-state-mismatch" + c + "-with-state-" + state);
                     }
                     break;
                 }
@@ -756,25 +840,25 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (result && this.prevTokenType != null) {
             result = this.prevTokenType.test(prevTokenType);
             if (log && !result) {
-                System.out.println("  PREV TYPE NON-MATCH " + this.prevTokenType);
+                System.out.println("  fail-prev-token-type-mismatch-" + this.prevTokenType + "-with-" + prevTokenType);
             }
         }
         if (result && this.nextTokenType != null) {
             result = this.nextTokenType.test(nextTokenType);
             if (log && !result) {
-                System.out.println("  NEXT TYPE NON-MATCH " + this.nextTokenType);
+                System.out.println("  fail-next-token-mismatch-" + this.nextTokenType + "-with-" + nextTokenType);
             }
         }
         if (result && this.requiresPrecedingNewline != null) {
             result = this.requiresPrecedingNewline == precededByNewline;
             if (log && !result) {
-                System.out.println("  PRECEDED NEWLINE NON-MATCH" + this.requiresPrecedingNewline);
+                System.out.println("  fail-preceding-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
             }
         }
         if (result && this.requiresFollowingNewline != null) {
             result = this.requiresFollowingNewline == followedByNewline;
             if (log && !result) {
-                System.out.println("  FOLLOWING NEWLINE NON-MATCH" + this.requiresPrecedingNewline);
+                System.out.println("  fail-subsequent-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
             }
         }
         if (result && parserRuleMatch != null) {
@@ -782,16 +866,17 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             if (rulesAtPoint == null) {
                 rulesAtPoint = Collections.emptySet();
             }
-            if (!rulesAtPoint.isEmpty()) {
-                System.out.println("RULES AT " + start + ": " + ruleNames(rulesAtPoint) + ": " + rulesAtPoint);
-            } else {
-                System.out.println("NO RULES AT " + start);
-            }
             result = this.parserRuleMatch.test(rulesAtPoint);
+            if (log && !result) {
+                System.out.println("  fail-parser-rule-match-" + this.parserRuleMatch + "-with-" + ruleNames(rulesAtPoint));
+            }
         }
         if (temporarilyActive) {
             temporarilyActive = false;
             active = false;
+        }
+        if (log && result) {
+            System.out.println("  MATCHED " + this);
         }
         return result;
     }
@@ -800,12 +885,22 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return rules.parserRulePredicates().names(ints);
     }
 
+    /**
+     * Score how specific this rule is, for use when determining the order in
+     * which it is used to test incoming tokens. Can be effected by calls to
+     * priority().
+     *
+     * @return The number of specific tests that this rule applies * 10.
+     */
     private int specificityScore() {
         int result = 0;
         for (IntPredicate val : new IntPredicate[]{tokenType, prevTokenType, nextTokenType, mode}) {
             if (val != null) {
                 result++;
             }
+        }
+        if (modeTransition != null) {
+            result++;
         }
         if (requiresPrecedingNewline != null) {
             result++;
@@ -824,6 +919,13 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return result;
     }
 
+    /**
+     * Reverse-compares the specificity score of this and another rule such that
+     * higher scores sort lower.
+     *
+     * @param o Another rule
+     * @return Their relationship according to the contract of Comparable
+     */
     @Override
     public int compareTo(FormattingRule o) {
         int mc = specificityScore();
@@ -993,7 +1095,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             return sb.append(")").toString();
         }
     }
-/*
+    /*
     static class ModeTransitionPredicate implements IntBiPredicate {
 
         private final int expectA;
@@ -1108,5 +1210,5 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             }
         }
     }
-*/
+     */
 }

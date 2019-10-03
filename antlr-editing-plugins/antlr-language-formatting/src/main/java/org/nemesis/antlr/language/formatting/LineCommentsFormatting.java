@@ -67,7 +67,7 @@ public class LineCommentsFormatting extends AbstractFormatter {
 
     @Override
     protected void rules(FormattingRules rules) {
-        rules.onTokenType(LINE_COMMENT).wherePrevTokenType(LINE_COMMENT)
+        rules.onTokenType(LINE_COMMENT).wherePreviousTokenType(LINE_COMMENT)
                 .format(PREPEND_NEWLINE_AND_INDENT.bySpaces(LINE_COMMENT_INDENT).and(APPEND_NEWLINE));
 
         rules.onTokenType(PARSER_RULE_ID, TOKEN_ID, FRAGMENT)
@@ -77,7 +77,7 @@ public class LineCommentsFormatting extends AbstractFormatter {
 //        rules.replaceAdjacentTokens(new SemiAfterLineComment(), new RewriteOddlyOrderedLineComments());
 
         rules.onTokenType(lc).ifPrecededByNewline(true)
-                .wherePrevTokenTypeNot(lc)
+                .wherePreviousTokenTypeNot(lc)
                 .whereNextTokenType(lc)
                 .format(PREPEND_NEWLINE_AND_INDENT.bySpaces(LINE_COMMENT_INDENT));
         rules.onTokenType(lc)

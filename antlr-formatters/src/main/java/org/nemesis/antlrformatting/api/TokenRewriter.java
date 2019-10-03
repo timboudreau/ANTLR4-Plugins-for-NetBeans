@@ -37,7 +37,7 @@ public interface TokenRewriter {
      *
      * @return A list of words, as determined by the predicate
      */
-    static List<String> collate(String text, IntPredicate wordBreakTest) {
+    public static List<String> collate(String text, IntPredicate wordBreakTest) {
         return new SimpleCollator(text, wordBreakTest).toList();
     }
 

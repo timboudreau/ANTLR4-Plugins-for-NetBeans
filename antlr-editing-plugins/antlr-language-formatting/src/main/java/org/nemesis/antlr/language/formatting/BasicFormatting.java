@@ -73,7 +73,7 @@ public class BasicFormatting extends AbstractFormatter {
 //            return null;
 //        });
         if (!config.isReflowLineComments()) {
-            rules.onTokenType(LINE_COMMENT).wherePrevTokenType(LINE_COMMENT)
+            rules.onTokenType(LINE_COMMENT).wherePreviousTokenType(LINE_COMMENT)
                     .named("newline-before-and-after-line-comment-preceded-by-line-comment")
                     .format(PREPEND_NEWLINE_AND_INDENT.bySpaces(LINE_COMMENT_INDENT).and(APPEND_NEWLINE));
 
@@ -82,6 +82,19 @@ public class BasicFormatting extends AbstractFormatter {
                     .wherePreviousTokenType(lineComments())
                     .format(PREPEND_NEWLINE);
         }
+
+        rules.whenInMode(AntlrCriteria.mode(MODE_HEADER_IMPORT), rls -> {
+            rls.onTokenType(ID)
+                    .named("header-import-spaces")
+                    .wherePreviousTokenType(HEADER_IMPORT)
+                    .format(PREPEND_SPACE);
+        });
+
+        rules.whenInMode(AntlrCriteria.mode(MODE_HEADER_ACTION), rls -> {
+            rls.onTokenType(BEGIN_ACTION)
+                    .named("spaces-around-header-action-braces")
+                    .format(PREPEND_SPACE.and(APPEND_SPACE));
+        });
 
         rules.onTokenType(RARROW)
                 .named("spaces-channel-arrow")
@@ -97,12 +110,19 @@ public class BasicFormatting extends AbstractFormatter {
                 .wherePreviousTokenType(lineComments())
                 .format(PREPEND_NEWLINE);
 
+        rules.onTokenType(criteria.anyOf(ALL_BLOCK_COMMENTS))
+                .named("block-comments-on-newline")
+                .wherePreviousTokenType(SEMI)
+                .priority(100)
+                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_NEWLINE))
+                ;
+
         // Put a blank line before a line comment if it starts the line
         // in the original source, and if it was not preceded by another
         // line comment
         rules.onTokenType(lineComments())
                 .ifPrecededByNewline(true)
-                .wherePrevTokenTypeNot(lineComments())
+                .wherePreviousTokenTypeNot(lineComments())
                 .named("double-newline-before-first-line-comment-when-starting-line")
                 .format(PREPEND_DOUBLE_NEWLINE);
 
@@ -119,9 +139,10 @@ public class BasicFormatting extends AbstractFormatter {
 
             rls.onTokenType(RPAREN)
                     .named("space-before-close-paren-when-preceded-by-|")
-                    .wherePrevTokenType(OR).format(PREPEND_SPACE);
+                    .wherePreviousTokenType(OR).format(PREPEND_SPACE);
 
             rls.onTokenType(SHARP)
+                    .named("space-before-labels")
                     .priority(20)
                     .format(PREPEND_SPACE);
 
@@ -142,17 +163,17 @@ public class BasicFormatting extends AbstractFormatter {
                 .format(PREPEND_NEWLINE);
 
         rules.onTokenType(lineComments())
-                .wherePrevTokenType(RBRACE, RPAREN, END_ACTION)
+                .wherePreviousTokenType(RBRACE, RPAREN, END_ACTION)
                 .named("offset-line-comments-by-one-space-when-inline")
                 .ifPrecededByNewline(false).format(PREPEND_SPACE);
 
         rules.onTokenType(STRING_LITERAL)
                 .named("space-or-wrap-on-string-literal-after-ebnf")
-                .wherePrevTokenType(STAR, QUESTION, PLUS, DOT)
+                .wherePreviousTokenType(STAR, QUESTION, PLUS, DOT)
                 .format(spaceOrWrap);
 
         rules.onTokenType(ID).whereMode(grammarRuleModes)
-                .wherePrevTokenType(SHARP)
+                .wherePreviousTokenType(SHARP)
                 .named("no-space-between-#-and-label")
                 .priority(120)
                 .format(FormattingAction.EMPTY);
@@ -178,7 +199,7 @@ public class BasicFormatting extends AbstractFormatter {
                     .clearingOnTokenType(-1);
         } else {
             bldr.recordPosition(COLON_POSITION)
-//                    .beforeProcessingToken()
+                    //                    .beforeProcessingToken()
                     .onTokenType(COLON)
                     .clearingOnTokenType(-1);
         }
