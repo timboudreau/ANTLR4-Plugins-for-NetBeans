@@ -78,7 +78,7 @@ public class GoldenFilesTest {
 
     private void testOne(AntlrSampleFiles f, MockPreferences prefs) throws IOException, DiffException {
         String fileName = prefs.filename(f.name().toLowerCase(), "g4");
-        gf.go(f, prefs, fileName, false);
+        gf.test(f, prefs, fileName, false);
     }
 
     @BeforeAll

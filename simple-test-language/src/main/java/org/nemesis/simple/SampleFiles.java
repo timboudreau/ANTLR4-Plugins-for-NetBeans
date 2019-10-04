@@ -24,7 +24,8 @@ public enum SampleFiles implements SampleFile<SimpleLanguageLexer, SimpleLanguag
     MUCH_NESTING_WITH_EXTRA_NEWLINES("much-nesting-extra-newlines.sim"),
     MUCH_NESTING_UNFORMATTED("much-nesting-unformatted.sim"),
     MINIMAL_MULTILINE("minimal-with-multiline-comments.sim"),
-    LONG_ITEMS("minimal_with_long_items.sim")
+    LONG_ITEMS("minimal_with_long_items.sim"),
+    FORMATTING_TUTORIAL("formatting-tutorial.sim")
     ;
 
     private final String name;

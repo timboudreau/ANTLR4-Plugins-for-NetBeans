@@ -95,7 +95,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         boolean[] caretUpdated = new boolean[1];
 
         int prevMode = -1;
-
+        int tokensFormatted = 0;
         for (int i = 0; i < size; i++) {
             ModalToken tok = tokens.get(i);
             // If we have passed the index of the last token we want to
@@ -136,9 +136,10 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                 }
 
                 // Process the token
-                if (res = onOneToken(tok, prevType, prevMode, nextType, tokens, hasFollowingNewline)) {
+                if (res = onOneToken(tok, prevType, prevMode, nextType, tokens, hasFollowingNewline, tokensFormatted)) {
                     prevType = tok.getType();
                     prevMode = tok.mode();
+                    tokensFormatted++;
                 }
             } finally {
                 if (res) {
@@ -336,7 +337,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
      * @return true if the token was non-whitespace and was processed by the
      * rules
      */
-    boolean onOneToken(ModalToken tok, int prevType, int prevMode, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline) {
+    boolean onOneToken(ModalToken tok, int prevType, int prevMode, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline, int tokensFormatted) {
         int tokenType = tok.getType();
         if (whitespace.test(tok.getType()) || tok.isWhitespace()) {
             // We don't pass whitespace tokens on; but we do need to update
@@ -375,7 +376,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
             lastTokenInRange = tok.getTokenIndex();
             // Really process the token
 //            lineState.lastToken = tok;
-            onToken(tok, prevType, prevMode, tokenType, nextType, lastContainedNewline, hasFollowingNewline);
+            onToken(tok, prevType, prevMode, tokenType, nextType, lastContainedNewline, hasFollowingNewline, tokensFormatted);
         }
         return true;
     }
@@ -533,7 +534,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
         lineState.prepend().indent();
     }
 
-    private void onToken(ModalToken token, int prevType, int prevMode, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline) {
+    private void onToken(ModalToken token, int prevType, int prevMode, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline, int tokensFormattedThusFar) {
         boolean log = debugLogging.test(token);
         if (log) {
             System.out.println("\n\nProcess token " + token.getTokenIndex() + " '"
@@ -547,7 +548,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
                     + " state " + state
             );
         }
-        rules.apply(token, prevType, prevMode, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder);
+        rules.apply(token, prevType, prevMode, nextType, hasPrecedingNewline, this, log, state, hasFollowingNewline, rew, ruleFinder, tokensFormattedThusFar == 0);
     }
 
     public int computedTokenPosition() {

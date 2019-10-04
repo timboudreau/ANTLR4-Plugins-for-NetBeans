@@ -58,6 +58,12 @@ import org.netbeans.modules.editor.indent.spi.ReformatTask;
  * sources using Antlr lexers. The critial methods are configure() and
  * whitespace() - these allow you to configure the operation of formatting.
  * Implementations should be entirely stateless.
+ * <p>
+ * Note:  While you can implement this and register it directly, and that
+ * is sometimes necessary for tests, it is much simpler to implement
+ * {@link AntlrFormatterStub} and let the annotation processor take care
+ * of providing the implementation of everyting except the configure method.
+ * </p>
  *
  * @author Tim Boudreau
  */

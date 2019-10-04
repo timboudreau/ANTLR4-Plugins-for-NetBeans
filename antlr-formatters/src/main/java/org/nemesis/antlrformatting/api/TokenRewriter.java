@@ -59,8 +59,27 @@ public interface TokenRewriter {
      * @return A token rewriter
      */
     public static TokenRewriter simpleReflow(int lineLimit) {
+        return simpleReflow(lineLimit, null);
+    }
+
+    /**
+     * Create a very simple token text rewriter which collates on whitespace and
+     * simply splits text onto a new line if it goes above a line length limit.
+     *
+     * @param lineLimit The maximum line length
+     * @param stateKey If non-null, the line position to align to will be taken
+     * from this state key's value instead of the current line position
+     * @return A token rewriter
+     */
+    public static <T extends Enum<T>> TokenRewriter simpleReflow(int lineLimit, T stateKey) {
         assert lineLimit > 0 : "Absurd line limit " + lineLimit;
         return (int charsPerIndent, String text, int currLinePosition, LexingState state) -> {
+            if (stateKey != null) {
+                int val = state.get(stateKey);
+                if (val > 0) {
+                    currLinePosition = val;
+                }
+            }
             StringBuilder sb = new StringBuilder(text.length());
             int pos = currLinePosition;
             for (Iterator<String> it = TokenRewriter.collate(text).iterator(); it.hasNext();) {

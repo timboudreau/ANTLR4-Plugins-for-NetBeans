@@ -74,9 +74,24 @@ public interface FormattingAction {
             public void accept(Token token, FormattingContext ctx, LexingState state) {
                 FormattingAction.this.accept(token, ctx, state);
                 String txt = token.getText();
-                String trimmed = txt.trim();
+                String trimmed = trim(txt);
                 if (txt != trimmed && !txt.equals(trimmed)) {
                     ctx.replace(trimmed);
+                }
+            }
+
+            String trim(String s) {
+                int len = s.length();
+                switch (len) {
+                    case 0:
+                        return s;
+                    case 1:
+                        return Character.isWhitespace(s.charAt(0)) ? "" : s;
+                    default:
+                        if (Character.isWhitespace(s.charAt(0)) || Character.isWhitespace(s.charAt(s.length() - 1))) {
+                            return s.trim();
+                        }
+                        return s;
                 }
             }
 
@@ -191,8 +206,13 @@ public interface FormattingAction {
             @Override
             @SuppressWarnings("StringEquality")
             public void accept(Token token, FormattingContext ctx, LexingState state) {
+                FormattingAction.this.accept(token, ctx, state);
                 String origText = token.getText();
-                String revisedText = rewriter.rewrite(ctx.indentSize(), origText, ctx.charPositionInLine(token), state);
+//                int pos = ctx.charPositionInLine(token);
+                int pos = ctx.currentCharPositionInLine();
+                System.out.println("POS " + pos);
+                String revisedText = rewriter.rewrite(ctx.indentSize(),
+                        origText, pos, state);
                 if (revisedText != null && origText != revisedText && !origText.equals(revisedText)) {
                     ctx.replace(revisedText);
                 }

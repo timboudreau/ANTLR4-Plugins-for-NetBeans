@@ -449,11 +449,12 @@ public class FormattingHarness<E extends Enum<E>> {
             super(rew, start, end, indentSize, rules, state, whitespace, debugLogging, ruleFinder);
         }
 
-        boolean onOneToken(ModalToken tok, int prevType, int prevMode, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline) {
+        @Override
+        boolean onOneToken(ModalToken tok, int prevType, int prevMode, int nextType, EverythingTokenStream tokens, boolean hasFollowingNewline, int tokensFormatted) {
             if (onBefore != null) {
                 onBefore.accept(tok);
             }
-            boolean result = super.onOneToken(tok, prevType, prevMode, nextType, tokens, hasFollowingNewline);
+            boolean result = super.onOneToken(tok, prevType, prevMode, nextType, tokens, hasFollowingNewline, tokensFormatted);
             if (onAfter != null) {
                 onAfter.accept(tok);
             }

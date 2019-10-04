@@ -8,10 +8,13 @@ import com.github.difflib.patch.Patch;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
+import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,6 +49,19 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
         this.whitespaceTokens = whitespaceTokens;
     }
 
+    public GoldenFiles(Class<?> testClass, Class<T> stubClass, int... whitespaceTokens) throws URISyntaxException {
+        this(projectBaseDir(testClass).resolve("src/test/resources/"
+                + testClass.getPackage().getName().replace('.', File.separatorChar)),
+                stubClass, whitespaceTokens);
+    }
+
+    private static Path projectBaseDir(Class<?> testClass) throws URISyntaxException {
+        Path baseDir = Paths.get(testClass
+                .getProtectionDomain().getCodeSource()
+                .getLocation().toURI()).getParent().getParent();
+        return baseDir;
+    }
+
     AntlrFormattingHarness<C, E> harness(SampleFile<L, ?> file) {
         try {
             return new AntlrFormattingHarness<>(file, stubClass, whitespaceTokens);
@@ -56,10 +72,11 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
         }
     }
 
-    List<SyntaxError> testLex(String reformatted, Lexer lexer) {
+    List<SyntaxError> checkReformattedTextForLexingErrors(String reformatted, Lexer lexer) {
         ErrL errors = new ErrL();
         lexer.addErrorListener(errors);
-        for (Token tok = lexer.nextToken(); tok.getType() != -1; tok = lexer.nextToken());
+        for (Token tok = lexer.nextToken(); tok.getType() != -1;
+                tok = lexer.nextToken());
         return errors.errors;
     }
 
@@ -72,28 +89,33 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
         }
     }
 
-    public void go(SampleFile<L, ?> file, C config, String name, boolean update) throws IOException, DiffException {
+    public String test(SampleFile<L, ?> file, C config, String name,
+            boolean update) throws IOException, DiffException {
+        System.out.println("TEST " + file);
         Path goldenFile = goldenFilesDir.resolve(name);
         AntlrFormattingHarness<C, E> harn = harness(file);
         String reformatted = harn.reformat(config);
         Lexer lexer = harn.lex(reformatted);
-        List<SyntaxError> errors = testLex(reformatted, lexer);
+        List<SyntaxError> errors = checkReformattedTextForLexingErrors(reformatted, lexer);
         if (Files.exists(goldenFile) && !update) {
             String expectedText = FileUtils.readUTF8String(goldenFile);
             if (!expectedText.equals(reformatted)) {
                 String diff = diff(expectedText, reformatted);
                 if (diff != null) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Reformatted text for ").append(name).append(" does not match golden file.  Diff: \n").append(diff);
+                    sb.append("Reformatted text for ")
+                            .append(name)
+                            .append(" does not match golden file.  Diff: \n")
+                            .append(diff);
                     syntaxErrors(errors, sb);
                     fail(sb.toString());
-                    return;
+                    return null;
                 }
             } else if (!errors.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
                 syntaxErrors(errors, sb);
                 fail(sb.toString());
-                return;
+                return null;
             }
         } else {
             if (errors.isEmpty()) {
@@ -102,13 +124,16 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
                     Files.createDirectories(dir);
                 }
                 Files.write(goldenFile, reformatted.getBytes(UTF_8),
-                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);
             } else {
-                System.err.println("Reformatted text for " + name + " lexed with errors."
+                System.err.println("Reformatted text for "
+                        + name + " lexed with errors."
                         + " Will not update golden file.");
             }
         }
+        return reformatted;
     }
 
     static class SyntaxError {

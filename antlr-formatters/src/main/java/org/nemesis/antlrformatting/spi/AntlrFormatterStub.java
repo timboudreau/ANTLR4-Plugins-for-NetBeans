@@ -20,8 +20,19 @@ import org.nemesis.antlrformatting.api.LexingStateBuilder;
  */
 public interface AntlrFormatterStub<StateEnum extends Enum<StateEnum>, L extends Lexer> {
 
+    /**
+     * Constant for looking up the indent amount in the passed preferences.
+     */
     public static final String PREFS_KEY_INDENT_BY = "indentBy";
 
+    /**
+     * Configures the state and rules to be used when reformatting.
+     *
+     * @param stateBuilder The state builder, to be programmed with what to
+     * capture during parsing
+     * @param rules The set of rules to add to
+     * @param config The configuration to use
+     */
     void configure(LexingStateBuilder<StateEnum, ?> stateBuilder, FormattingRules rules, Preferences config);
 
     /**

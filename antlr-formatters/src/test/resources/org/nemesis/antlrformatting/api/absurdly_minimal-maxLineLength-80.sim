@@ -1,0 +1,2 @@
+types Hoo;
+oneThing : string default "one thing";

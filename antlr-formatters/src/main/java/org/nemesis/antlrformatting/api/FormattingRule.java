@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  * <code>whereModeNot("foo")</code> adds a condition to the rule, increase the
  * rule's specificity score and causes it to be tried earlier)</li>
  * <li>There is one exception to "each condition adds one to the score" - rules
- * which specify a <i>parser rule</i> get 1000 added to their score - i.e.
+ * which specify a <i>parser rule</i> get 10000 added to their score - i.e.
  * parser-rule specific rules get tried before anything else and will always
  * override more general rules that might also match the same token.
  * </li>
@@ -76,6 +76,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     private IntPredicate mode;
     private Boolean requiresPrecedingNewline;
     private Boolean requiresFollowingNewline;
+    private Boolean firstTokenInSource;
     private FormattingAction action;
     private boolean active = true;
     private boolean temporarilyActive = false;
@@ -108,6 +109,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         result.stateCriteria = stateCriteria == null ? null : new ArrayList<>(stateCriteria);
         result.parserRuleMatch = parserRuleMatch;
         result.modeTransition = modeTransition;
+        result.firstTokenInSource = firstTokenInSource;
         return result;
     }
 
@@ -555,7 +557,18 @@ public final class FormattingRule implements Comparable<FormattingRule> {
      * @return this
      */
     public FormattingRule whereNotFirstTokenInSource() {
-        return FormattingRule.this.wherePreviousTokenTypeNot(-1);
+        this.firstTokenInSource = Boolean.FALSE;
+        return this;
+    }
+
+    /**
+     * Apply this only to the first token in the source.
+     *
+     * @return this
+     */
+    public FormattingRule whereFirstTokenInSource() {
+        this.firstTokenInSource = Boolean.TRUE;
+        return this;
     }
 
     /**
@@ -780,7 +793,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     boolean matches(int tokenType, int prevTokenType, int prevTokenMode,
             int nextTokenType, boolean precededByNewline, int mode, boolean debug,
             LexingState state, boolean followedByNewline, int start, int stop,
-            IntFunction<Set<Integer>> parserRuleFinder) {
+            IntFunction<Set<Integer>> parserRuleFinder, boolean isFirstProcessedTokenInSource) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
             System.out.println(" try-match-rule " + this);
@@ -803,6 +816,13 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             result = this.tokenType.test(tokenType);
             if (log && !result) {
                 System.out.println("  fail-type-non-match" + this.tokenType);
+            }
+        }
+        if (result && this.firstTokenInSource != null) {
+            result = isFirstProcessedTokenInSource == firstTokenInSource.booleanValue();
+            if (log && !result) {
+                System.out.println("  fail-first-token-in-source-mismatch-"
+                        + firstTokenInSource + "-vs-" + isFirstProcessedTokenInSource);
             }
         }
         if (result && this.mode != null) {
@@ -899,6 +919,9 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 result++;
             }
         }
+        if (firstTokenInSource != null) {
+            result++;
+        }
         if (modeTransition != null) {
             result++;
         }
@@ -914,7 +937,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         result *= 10;
         result += priority;
         if (this.parserRuleMatch != null) {
-            result += 1000;
+            result += 10000;
         }
         return result;
     }
@@ -986,6 +1009,16 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             }
             sb.append('}');
         }
+        if (firstTokenInSource != null) {
+            if (sb.length() > 5) {
+                sb.append(' ');
+            }
+            if (firstTokenInSource.booleanValue()) {
+                sb.append("onlyWhenFirstTokenInSource");
+            } else {
+                sb.append("whenNotFirstTokenInSource");
+            }
+        }
         if (sb.length() > 5) {
             sb.append(' ');
         }
@@ -995,6 +1028,10 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         }
         sb.append(" specificity ").append(this.specificityScore());
         return sb.append('}').toString();
+    }
+
+    void addPriority(int layerIncrease) {
+        this.priority += layerIncrease;
     }
 
     private static class StateCriterion<T extends Enum<T>> implements Predicate<LexingState> {

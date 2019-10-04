@@ -33,6 +33,7 @@ public final class FormattingRules {
     private final Vocabulary vocabulary;
     private final String[] modeNames;
     private final ParserRulePredicates rulePredicates;
+    private int layers;
 
     /**
      * Create a new formatting rule set.
@@ -84,6 +85,13 @@ public final class FormattingRules {
             ruleProcessor.accept(rule);
         }
         rules.add(rule);
+    }
+
+    public FormattingRules layer(Consumer<FormattingRules> c) {
+        int layerIncrease = ++layers;
+        return applyRuleProcessor(rule -> {
+            rule.addPriority(layerIncrease * 1000);
+        }, c);
     }
 
     /**
@@ -475,7 +483,7 @@ public final class FormattingRules {
     void apply(ModalToken token, int prevToken, int prevMode, int nextToken,
             boolean precededByNewline, FormattingContext ctx, boolean debug,
             LexingState state, boolean followedByNewline, StreamRewriterFacade rewriter,
-            IntFunction<Set<Integer>> parserRuleFinder) {
+            IntFunction<Set<Integer>> parserRuleFinder, boolean isFirstProcessedTokenInSource) {
         if (!sorted) {
             Collections.sort(rules);
             sorted = true;
@@ -490,7 +498,7 @@ public final class FormattingRules {
         for (FormattingRule rule : rules) {
             if (rule.matches(token.getType(), prevToken, prevMode, nextToken, precededByNewline,
                     token.mode(), debug, state, followedByNewline, token.getStartIndex(),
-                    token.getStopIndex(), parserRuleFinder)) {
+                    token.getStopIndex(), parserRuleFinder, isFirstProcessedTokenInSource)) {
                 if (rule.hasAction()) {
                     if (debug) {
                         System.out.println("  MATCHED: '" + token.getText() + "' " + vocabulary

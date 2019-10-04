@@ -1,0 +1,15 @@
+types Stuff;person:object{
+**This item has a description
+place:object{thing:object{
+// A line comment here
+** a multi line
+** description
+ratio :float default 23.42;
+name : string default "Formatting is fun";
+math : int default 3 + 2 + 7 + 8 * 26 - (5 + 3 * 18);
+/* We support block comments as well, and the formatting engine supports
+reflowing their content or rewriting it.
+*/
+array : intArray default [ 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 ];
+} }
+}

@@ -69,30 +69,33 @@ public class TestFormatting {
         )));
     }
 
-    private boolean seen;
-    private boolean justSeen;
-
     private boolean block(Token tok) {
         return "HEX".equals(tok.getText());
     }
 
-    /*
-    @Test
-    public void test2() throws IOException {
-        ANTLRv4Lexer lexer = AntlrSampleFiles.RUST_PARSER.lexer();
-        for (int i = 0;; i++) {
-            CommonToken tok = (CommonToken) lexer.nextToken();
-            if (tok.getType() == -1) {
-                break;
-            }
-            int mode = lexer._mode;
-            String modeName = ANTLRv4Lexer.modeNames[mode];
-            String typeName = ANTLRv4Lexer.VOCABULARY.getSymbolicName(tok.getType());
-            System.out.println(i + ". " + modeName + ": " + typeName + ": '"
-                    + Strings.escape(tok.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE) + "'");
-        }
-    }
-    */
+//    @Test
+//    public void test2() throws IOException {
+//        ANTLRv4Lexer lexer = AntlrSampleFiles.RUST_PARSER.lexer();
+//        boolean lastWasIt = false;
+//        for (int i = 0;; i++) {
+//            CommonToken tok = (CommonToken) lexer.nextToken();
+//            if (tok.getType() == -1) {
+//                break;
+//            }
+//            if (tok.getType() == ID_WS) {
+//                continue;
+//            }
+//            int mode = lexer._mode;
+//            String modeName = ANTLRv4Lexer.modeNames[mode];
+//            String typeName = ANTLRv4Lexer.VOCABULARY.getSymbolicName(tok.getType());
+//            boolean isSharp = "#".equals(tok.getText());
+//            if (isSharp || lastWasIt || i == 2475 || i == 2476 || i == 2474 || i == 2325 || i == 2326) {
+//                System.out.println(i + ". " + modeName + ": " + typeName + ": '"
+//                        + Strings.escape(tok.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE) + "'");
+//                lastWasIt = isSharp;
+//            }
+//        }
+//    }
 
     static AntlrFormattingHarness<Preferences, AntlrCounters> harness(AntlrSampleFiles file) throws Exception {
         return new AntlrFormattingHarness<>(file, G4FormatterStub.class, AntlrCriteria.ALL_WHITESPACE);

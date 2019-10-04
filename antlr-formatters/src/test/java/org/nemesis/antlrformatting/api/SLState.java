@@ -7,5 +7,6 @@ package org.nemesis.antlrformatting.api;
 enum SLState {
     BRACE_DEPTH,
     BRACE_POSITION,
-    ARRAY_ITEM_COUNT
+    ARRAY_ITEM_COUNT,
+    COLON_POSITION
 }

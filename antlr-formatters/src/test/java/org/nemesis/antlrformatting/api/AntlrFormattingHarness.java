@@ -87,7 +87,8 @@ public class AntlrFormattingHarness<C, E extends Enum<E>> extends FormattingHarn
         bce.currentConfig.set(notNull("config", config));
         try {
             return withHarnessSet(fa, () -> {
-                return bce.provider.reformattedString(file.text(), 0, file.length(), config);
+                return bce.provider.reformattedString(
+                        file.text(), 0, file.length(), config);
             });
         } finally {
             bce.currentConfig.set(old);

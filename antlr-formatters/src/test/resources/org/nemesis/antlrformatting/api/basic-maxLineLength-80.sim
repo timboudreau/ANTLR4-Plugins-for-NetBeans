@@ -1,0 +1,28 @@
+namespace org.nemesis.simple; import foo.bar.baz; types Stuff;
+
+** This defines a person
+person : object {
+       firstName : string default "Joe";
+       // It's good to have a last name
+       lastName : string default "Blow";
+       birthYear : int default 1 * 3 + 2;
+       birthMonth : int;
+       birthDay : int;
+       female : boolean default true;
+       ratio : float default 5.2;
+
+       ** Well, there might be more than
+       ** one, so what do we do about that?
+       spouse : reference Stuff.person;
+       address : object {
+               street : string;
+               town : string;
+               state : string default "MA";
+               previous : object {
+                        /* A comment is in here. Why is it multiple lines? */
+                        street : string;
+                        town : string;
+                        state : string;
+                        }
+               }
+       }

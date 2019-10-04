@@ -328,7 +328,8 @@ protected void configure(LexingStateBuilder&lt;SLState, ?&gt; stateBuilder,
                 newline and the indentation</li>
             <li>Single spaces get special handling &mdash; if one appends a newline
                 and the other prepends a <i>single</i> space, the space is
-                ignored</li>
+                ignored; if indenting (&gt; 1 space append) is combined with
+                a request for a multi-space indent, the single space is ignored.</li>
             <li>If both append contradictory numbers of spaces or newlines
                 or both, you get the larger number of newlines and larger number
                 of spaces from each</li>
@@ -427,8 +428,8 @@ default FormattingAction wrappingLines(int limit, FormattingAction wrapAction) {
                 a less specific rule, and you need to:
                 <ul>
                     <li>
-                        Make the rule you want to capture the token 
-                        more specific - this is always preferable - 
+                        Make the rule you want to capture the token
+                        more specific - this is always preferable -
                         is there a lexer mode the lexer is always in when you want this
                         rule to apply?  Anything else?
                     </li>
@@ -497,12 +498,496 @@ default FormattingAction wrappingLines(int limit, FormattingAction wrapAction) {
                 </ul>
             </li>
         </ul>
+        <hr>
         <h1>Getting Started</h1>
-        
-        <h3>Formatting </h3>
+        In source next to the antlr-formatters project is a project called
+        simple-test-language, which includes an Antlr grammar for a trivial
+        language that lets you define nested schemas for objects with a
+        few simple types, sort of like what you might find in a JSON object.
+        We will use that for this tutorial.
+        <p>
+            The first thing you will need is a NetBeans plugin project,
+            with a dependency on <code>antlr-formatters</code> and some of
+            its dependencies (if you use Maven, the first time you build,
+            you will find out the missing dependencies).
+        </p>
+        <p>
+            The <code>LexingState</code> is a sort of live database of
+            things you define and can use for formatting (such as how
+            deeply nested in braces a token is, or how many semicolons
+            until the next closing brace, or the position of some preceding
+            token).  So the first thing we will need is to define an
+            <code>enum</code> to parameterize our implementation on - this enables formatting
+            code to be easily human-readable, and the enum constants are the
+            keys you will use to look things up in it.
+        </p>
+        <pre>
+enum SLState {
+    BRACE_DEPTH,
+    BRACE_POSITION
+}</pre>
+        <p>
+            The second step is to implement the interface <code>AntlrFormatterStub</code>,
+            and annotate it so that layer.xml entries are generated.  It has one
+            method you need to implement, <code>configure()</code> which is
+            where you configure the formatting engine to do what you want.
+            We will start with a single formatting rule which simply puts a
+            space between all tokens in the source, with a few exceptions.
+            This is our fallback rule which will capture any token none of the
+            other rules we'll define catch.
+        </p>
+        <pre>
+&#064;AntlrFormatterRegistration(mimeType=&quot;text/x-simple&quot;)
+class SimpleFormatterStub implements AntlrFormatterStub&lt;SLState,SimpleLanguageLexer&gt; {
+    public void configure(LexingStateBuilder&lt;SLState, ?> stateBuilder, FormattingRules rules, Preferences config) {
+        // token types are constants Antlr generated as fields on your
+        // lexer
+        rules.onTokenTypeNot(S_SEMICOLON, S_CLOSE_BRACE, COMMENT, S_COMMA, S_CLOSE_PARENS)
+                .whereNotFirstTokenInSource()
+                .format(PREPEND_SPACE);
+    }
+}
+        </pre>
+        <p>
+            This is enough to give us very minimal formatting - a few spaces
+            and newlines.  We repeatedly call <code>rules.onTokenType</code>,
+            which adds a new rule to the rule set;  we can then add constraints
+            to when the rule is active;  finally we set the formatting action
+            to call if this rule is matched.  So a parsing rule is a collection
+            of tests to apply to tokens, with an associated action to modify the
+            source if the tests pass.
+        </p>
+        <p>
+            To test out what this does, we can create a unit test, and take
+            advantage of antlr-formatting's test-jar library which makes it
+            easy to write tests of formatters.  For now we'll use it as a
+            way to develop our formatter and see its output;  later it can
+            become the basis for tests of the results.
+        </p>
+        <p>
+            Right click the file for your <code>SimpleFormatterStub</code>
+            class, and choose <b>Tools | Create/Update Tests</b>, and
+            accept the default options to create a test.
+        </p>
+        <p>
+            Now we'll add a dependency on the test support JAR to make
+            testing our formatter easy.  In you <code>pom.xml</code> file,
+            add to the dependencies:
+        </p>
+        <pre>
+&lt;dependency&gt;
+    &lt;groupId&gt;${project.groupId}&lt;/groupId&gt;
+    &lt;artifactId&gt;antlr-formatters&lt;/artifactId&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+    &lt;type&gt;test-jar&lt;/type&gt;
+    &lt;version&gt;${project.version}&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;com.github.wumpz&lt;/groupId&gt;
+    &lt;artifactId&gt;diffutils&lt;/artifactId&gt;
+    &lt;version&gt;3.0&lt;/version&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;
+        </pre>
+        <p>
+            Now add a test method to your class:
+        </p>
+        <pre>
+    &#064;Test
+    public void testSomeMethod() throws Exception {
+        AntlrFormattingHarness&lt;Preferences, SLState&gt; harn
+                = new AntlrFormattingHarness&lt;&gt;(SampleFiles.FORMATTING_TUTORIAL,
+                        SimpleFormatterStub.class, SimpleLanguageLexer.S_WHITESPACE);
+        String txt = harn.reformat();
+        System.out.println("FORMATTED:\n" + txt);
+    }
+        </pre>
+        <p>
+            That is enough to format a file.  We are using the SampleFiles
+            enum from the simple language project, which provides a set of
+            test files to format, and implements the <code>SampleFile</code>
+            interface - you can implement a similar enum of sample files for
+            testing any language formatter.  We create an
+            <code>AntlrFormattingHarness</code>, which takes care of setting
+            up formatting infrastructure, providing it with three things:
+        </p>
+        <ol>
+            <li>The sample file to format</li>
+            <li>The enum class</li>
+            <li>One or more tokens that signify whitespace - the formatting
+                engine will skip over these, deleting them as we rewrite
+                whitespace in the document</li>
+        </ol>
+        <p>
+            If we run our test, the output isn't pretty, but it shows
+            our rule in action:
+        </p>
+        <pre>
+types Stuff; person : object { **This item has a description
+ place : object { thing : object { // A line comment here
+ otherThing : object { ** a multi line
+ ** description
+ ratio : float default 23.42; name : string default &quot;Formatting is fun&quot;; math :
+                                int default 3 + 2 + 7 + 8 * 26 - ( 5 + 3 * 18) /
+                                12;/* We support block comments as well, and the formatting engine supports
+reflowing their content or rewriting it.
+*/ array : intArray default [ 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65,
+                                70, 75, 80, 85, 90, 95, 100 ];}}}}
+        </pre>
+        <p>
+            Now, this file format has a nested structure, so we will want the
+            ability to indent based on how nested a token starting a line is.
+            For that, we need to program our <code>LexingState</code> to
+            collect some information about nesting for us.  Add the following
+            to the <code>configure()</code> method:
+        </p>
+        <pre>
+            stateBuilder.increment(BRACE_DEPTH)
+                    .onTokenType(S_OPEN_BRACE)
+                    .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
+        </pre>
+        <p>
+            This will increment a counter every time we pass an <code>{</code>
+            character and decrement it on every <code>}</code>.  With one
+            more rule, we can put that to work, indenting our code.  Since we
+            want this rule and all the others to be matched in preference
+            to the fallback rule, we will define a separate layer this next
+            rule and all the others will live in, which ensures they are
+            tested first:
+        </p>
+        <pre>
+    rules.layer(rls -&gt; {
+        rls.onTokenType(ID, LINE_COMMENT, DESCRIPTION, COMMENT)
+                .wherePreviousTokenType(S_SEMICOLON, S_OPEN_BRACE, 
+                        S_CLOSE_BRACE, LINE_COMMENT, COMMENT, DESCRIPTION)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(BRACE_DEPTH));
+    });
+        </pre>
+        <p>
+            Running the test again, now our output looks more like something
+            intentionally formatted:
+        </p>
+        <pre>
+types Stuff;
+person : object {
+    **This item has a description
+
+    place : object {
+        thing : object {
+            // A line comment here
+
+            otherThing : object {
+                ** a multi line
+
+                ** description
+
+                ratio : float default 23.42;
+                name : string default &quot;Formatting is fun&quot;;
+                math : int default 3 + 2 + 7 + 8 * 26 - ( 5 + 3 * 18) / 12;
+                /* We support block comments as well, and the formatting engine supports
+reflowing their content or rewriting it.
+*/
+                array : intArray default [ 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100 ];}}}}
+        </pre>
+        <p>
+            You'll notice something odd has happened:  Some things are separated
+            by blank lines.  This is because two rules, <code>DESCRIPTION</code>
+            and <code>LINE_COMMENT</code> are both Antlr rules which capture
+            everything up to the end of the line, so they wind up including the
+            newline that terminates the line - that will happen with any such
+            Antlr rule.  So we need to modify our formatting rule slightly,
+            adding a call to <code>.trimmingWhitespace()</code> to the
+            formatting action:
+        </p>
+        <pre>
+        rls.onTokenType(ID, LINE_COMMENT, DESCRIPTION, COMMENT)
+                .wherePreviousTokenType(S_SEMICOLON, S_OPEN_BRACE, S_CLOSE_BRACE, 
+                    LINE_COMMENT, COMMENT, DESCRIPTION)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(BRACE_DEPTH)
+                    .trimmingWhitespace();
+        </pre>
+        <p>
+            That will eliminate the spurious newlines, and give us full control
+            over the placement of line breaks.  While we're changing things,
+            let's take care of line-wrapping while we're at it, by having our
+            fallback rule's <code>FormattingAction</code> delegate to another
+            one if the line length goes above a certain length:
+        </p>
+        <pre>
+    rules.onTokenTypeNot(S_SEMICOLON, S_CLOSE_BRACE, COMMENT, S_COMMA, S_CLOSE_PARENS)
+            .whereNotFirstTokenInSource()
+            .format(PREPEND_SPACE.wrappingLines(80, 
+                    PREPEND_NEWLINE_AND_DOUBLE_INDENT.by(BRACE_DEPTH)));
+        </pre>
+        <p>
+            Once we have a UI for configuring formatting, we can get the
+            wrap point from the <code>Preferences</code> passed into this
+            method, instead of hard-coding it to <code>80</code>.
+        </p>
+        <p>
+            The last time we ran the formatter, all of the closing <code>}</code>
+            characters were piled up at the end of the last line, so let's add
+            a rule to take care of that now:
+        </p>
+        <pre>
+        rls.onTokenType(S_CLOSE_BRACE)
+                .format(PREPEND_NEWLINE_AND_INDENT.by(BRACE_DEPTH));
+        </pre>
+        <p>
+            That get's us output that is starting to look pretty good:
+        </p>
+        <pre>
+types Stuff;
+person : object {
+    **This item has a description
+    place : object {
+        thing : object {
+            // A line comment here
+            otherThing : object {
+                ** a multi line
+                ** description
+                ratio : float default 23.42;
+                name : string default &quot;Formatting is fun&quot;;
+                math : int default 3 + 2 + 7 + 8 * 26 - ( 5 + 3 * 18) / 12;
+                /* We support block comments as well, and the formatting engine supports
+reflowing their content or rewriting it.
+*/
+                array : intArray default [ 5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
+                                55, 60, 65, 70, 75, 80, 85, 90, 95, 100 ];
+            }
+        }
+    }
+}</pre>
+        <p>
+            There are a couple of things we could do to improve things - the
+            block comment is still formatted oddly, and it would be nice to
+            call out items with a description by placing a blank line before
+            them:
+        </p>
+        <pre>
+        rls.onTokenType(DESCRIPTION)
+                .priority(100)
+                .wherePreviousTokenTypeNot(DESCRIPTION)
+                .format(PREPEND_DOUBLE_NEWLINE_AND_INDENT.by(BRACE_DEPTH).trimmingWhitespace());
+
+        rls.onTokenType(COMMENT)
+                .priority(100)
+                .format(PREPEND_NEWLINE_AND_INDENT
+                        .by(BRACE_DEPTH)
+                        .rewritingTokenTextWith(
+                                TokenRewriter.simpleReflow(80)));
+        </pre>
+        <p>
+            At this point, we have pretty nice looking output:
+        </p>
+        <pre>
+types Stuff;
+person : object {
+
+    **This item has a description
+    place : object {
+        thing : object {
+            // A line comment here
+            otherThing : object {
+
+                ** a multi line
+                ** description
+                ratio : float default 23.42;
+                name : string default &quot;Formatting is fun&quot;;
+                math : int default 3 + 2 + 7 + 8 * 26 - ( 5 + 3 * 18) / 12;
+                /* We support block comments as well, and the formatting engine
+                supports reflowing their content or rewriting it. */
+                array : intArray default [ 5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
+                                55, 60, 65, 70, 75, 80, 85, 90, 95, 100 ];
+            }
+        }
+    }
+}</pre>
+        <p>
+            But we also have the flexibility, thinks to <code>LexingState</code>'s
+            ability to capture token positions, the ability to do more advanced,
+            and sometimes more aesthetically pleasing things.  Say we want to 
+            indent everything related to some token underneath its exact
+            character position (one of the options for the Antlr grammar language
+            formatter is to align everything under the <code>:</code> character,
+            and uses this option).  Let's change things around to capture the 
+            position of the most recent <code>{</code> character.  We will use
+            another of our enum constants:
+        </p>
+        <pre>
+            stateBuilder.pushPosition(BRACE_POSITION)
+                    .onTokenType(S_OPEN_BRACE)
+                    .poppingOnTokenType(S_CLOSE_BRACE);
+        </pre>
+        <p>
+            We will modify our formatting actions, as follows:  Where 
+            before we were calling <code>.by(BRACE_DEPTH)</code>, which
+            was prepending four spaces for each step of depth, now we need
+            to indent by spaces: <code>.bySpaces(BRACE_POSITION)</code>.
+        </p>
+        <p>
+            Since we perform the same formatting operations in several places,
+            this is a good time to define these each as a variable, so that,
+            if we wanted to make this kind of formatting an option, we could
+            simply set them up differently depending on a the settings in the
+            <code>Preferences</code> passed in to the <code>configure()</code>
+            method.  So here is the entire rewritten method:
+        </p>
+        <pre>
+        &#064;Override
+        public void configure(LexingStateBuilder&lt;SLState, ?&gt; stateBuilder,
+                FormattingRules rules, Preferences config) {
+
+            stateBuilder.increment(BRACE_DEPTH)
+                    .onTokenType(S_OPEN_BRACE)
+                    .decrementingWhenTokenEncountered(S_CLOSE_BRACE);
+
+            stateBuilder.pushPosition(BRACE_POSITION)
+                    .onTokenType(S_OPEN_BRACE)
+                    .poppingOnTokenType(S_CLOSE_BRACE);
+
+            FormattingAction onNextLine
+                    = PREPEND_NEWLINE_AND_INDENT
+                            .bySpaces(BRACE_POSITION);
+
+            FormattingAction onNextLineTrimmed
+                    = PREPEND_NEWLINE_AND_INDENT
+                            .bySpaces(BRACE_POSITION)
+                            .trimmingWhitespace();
+
+            FormattingAction doubleNewline
+                    = PREPEND_DOUBLE_NEWLINE_AND_INDENT
+                            .bySpaces(BRACE_POSITION)
+                            .trimmingWhitespace();
+
+            FormattingAction doubleIndent = PREPEND_NEWLINE_AND_INDENT
+                    .bySpaces(4, BRACE_POSITION);
+
+            FormattingAction spaceOrWrap
+                    = PREPEND_SPACE.wrappingLines(80, doubleIndent);
+
+            rules.onTokenTypeNot(S_SEMICOLON, S_CLOSE_BRACE, COMMENT,
+                    S_COMMA, S_CLOSE_PARENS)
+                    .whereNotFirstTokenInSource()
+                    .format(spaceOrWrap);
+
+            rules.layer(rls -&gt; {
+                rls.onTokenType(ID, LINE_COMMENT, DESCRIPTION, COMMENT)
+                        .wherePreviousTokenType(S_SEMICOLON, S_OPEN_BRACE,
+                                S_CLOSE_BRACE, LINE_COMMENT, COMMENT,
+                                DESCRIPTION)
+                        .format(onNextLineTrimmed);
+
+                rls.onTokenType(S_CLOSE_BRACE).format(onNextLine);
+
+                rls.onTokenType(DESCRIPTION)
+                        .wherePreviousTokenTypeNot(DESCRIPTION)
+                        .format(doubleNewline);
+
+                rls.onTokenType(COMMENT)
+                        .priority(100)
+                        .format(onNextLine
+                                .rewritingTokenTextWith(
+                                        TokenRewriter.simpleReflow(80)));
+            });
+        }
+    }</pre>
+        <p>
+            Whether the output is aesthetically pleasing or not is an exercise
+            for the reader, but the results certainly point out the flexibility
+            of this model:
+        </p>
+        <pre>
+types Stuff;
+person : object {
+
+                **This item has a description
+                place : object {
+                               thing : object {
+                                              // A line comment here
+
+                                              ** a multi line
+                                              ** description
+                                              ratio : float default 23.42;
+                                              name : string default
+                                                  &quot;Formatting is fun&quot;;
+                                              math : int default 3 + 2 + 7 + 8 *
+                                                  26 - ( 5 + 3 * 18) / 12;
+                                              /* We support block comments as
+                                              well, and the formatting engine
+                                              supports reflowing their content or
+                                              rewriting it. */
+                                              array : intArray default [ 5, 10,
+                                                  15, 20, 25, 30, 35, 40, 45, 50,
+                                                  55, 60, 65, 70, 75, 80, 85, 90,
+                                                  95, 100 ];
+                                              }
+                               }
+                }           
+        </pre>
         <h2>Writing Tests for Formatters</h2>
         <p>
-            xxx pending
+            Above, we used a unit test as the skeleton for developing our
+            formatter.  Now let's turn that into a real unit test.
+        </p>
+        <p>
+            The key thing to test in formatters is whether the formatter output
+            has changed in unexpected way - it is easy to add a new rule to add some
+            nuance to the formatting, and discover only later that in certain
+            cases, it will alter the formatting of things you didn't expect.
+        </p>
+        <p>
+            <code>GoldenFiles</code> in the <code>test-jar</code> artfiact of
+            <code>antlr-formatters</code> makes it trivial to create such
+            tests.  Since we are using an <code>enum</code> which implements
+            <code>SampleFile</code>, it is trivial to write a test which will
+            format each file in the enum, and either save it into the project's
+            test resources directory, or load an existing file and compare the
+            output:
+        </p>
+        <pre>
+    private static GoldenFiles&lt;?, ?, SimpleLanguageLexer, Preferences&gt; goldenFiles;
+
+    &#064;EnumSource(SampleFiles.class)
+    &#064;ParameterizedTest(name = &quot;test-[{arguments}]&quot;)
+    public void testSomeMethod(SampleFiles file) throws Exception {
+        MockPreferences prefs = MockPreferences.of(MAX_LINE_LENGTH, 80);
+        String filename = prefs.filename(file.name().toLowerCase() + &quot;-&quot;, &quot;sim&quot;);
+        goldenFiles.test(file, prefs, filename, false);
+    }
+
+    &#064;BeforeAll
+    public static void setup() throws URISyntaxException {
+        goldenFiles = new GoldenFiles&lt;&gt;(DemoDev.class, SimpleFormatterStub.class,
+                S_WHITESPACE);
+    }</pre>
+        <p>
+            This test will:
+        </p>
+        <ul>
+            <li>Iterate over every enum entry in <code>SampleFiles</code> and
+                <ul>
+                    <li>Format the file using our formatter</li>
+                    <li>Re-lex the output and fail if syntax errors are encountered</li>
+                    <li>Look for a file with the passed name, and
+                        <ul>
+                            <li>If it does <i>not</i> exist, create it</li>
+                            <li>If it <i>does</i> exist, compare the output 
+                                character-for-character with the that file,
+                                and print a nice, readable diff of what changed
+                                if something did
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+        <p>
+            The <code>GoldenFiles</code> constructor that takes a 
+            <code>Class&lt;?&gt;</code> for the first argument will put
+            golden files in the Maven test resource directory for the
+            corresponding package.  If you want to put them somewhere else,
+            simply use the constructor which takes a Path instead.
         </p>
     </body>
 </html>

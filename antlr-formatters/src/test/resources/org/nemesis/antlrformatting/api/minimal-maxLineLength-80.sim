@@ -1,0 +1,6 @@
+types Stuff;
+
+** This is just one thing
+oneThing : string default "one thing";
+/* And this is a multiline comment that could be reflowed */
+meaning : int default 42;

@@ -142,12 +142,9 @@ final class IndentToColonFormatting extends AbstractFormatter {
 
             rules.onTokenType(allIds)
                     .named("space-after-ebnfs")
-                    .wherePreviousTokenType(keywordsOrIds.or(criteria.anyOf(STAR, PLUS, QUESTION, END_ARGUMENT/*, LPAREN*/)))
+                    .wherePreviousTokenType(keywordsOrIds.or(criteria.anyOf(STAR, PLUS, QUESTION, END_ARGUMENT)))
                     .format(PREPEND_SPACE);
 
-//            rls.onTokenType(Criterion.ALWAYS)
-//                    .wherePreviousTokenType(COLON)
-//                    .format(wrap(prependNewlineAndIndent));
             rls.onTokenType(ANTLRv4Lexer.OR)
                     .named("outer-or-clauses-on-new-lines")
                     .whenCombinationOf(PARENS_DEPTH).isLessThan(1).and(COLON_POSITION).isSet().then()
@@ -166,11 +163,17 @@ final class IndentToColonFormatting extends AbstractFormatter {
                         .format(PREPEND_DOUBLE_NEWLINE);
             });
 
-            rls.onTokenType(OR).wherePreviousTokenType(STAR, PLUS, QUESTION, LEXER_CHAR_SET, STRING_LITERAL, RPAREN)
+            rls.onTokenType(OR)
+                    .wherePreviousTokenType(STAR, PLUS, QUESTION, LEXER_CHAR_SET, STRING_LITERAL, RPAREN)
                     .named("space-on-or-after-ebnf-and-similar")
                     .format(spaceOrWrap);
-
         });
+        rules.onTokenType(SHARP)
+                .named("space-before-label")
+                .whereNextTokenType(ID)
+                .wherePreviousTokenType(RPAREN)
+                .format(PREPEND_SPACE);
+
         if (config.isSemicolonOnNewLineReallyEnabled()) {
             rules.onTokenType(SEMI)
                     .named("semicolon-on-new-line")
