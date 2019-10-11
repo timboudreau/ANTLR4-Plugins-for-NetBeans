@@ -37,8 +37,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
-import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
@@ -116,12 +116,13 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         try {
             return Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
                     + currentLexedName(), "", () -> {
-                        ParseTreeProxy result = parser.parse(text);
+                        EmbeddedAntlrParserResult pres = parser.parse(text);
+                        ParseTreeProxy result = pres.proxy();
+                        LOG.log(Level.FINE, "Lexer gets new mime {0}", result.loggingInfo());
                         Document doc = AdhocLanguageHierarchy.document(info);
                         if (doc != null) {
                             Debug.message("document", doc::toString);
-                            GrammarRunResult<?> gbrg = parser.lastResult();
-                            AdhocReparseListeners.reparsed(mimeType, doc, gbrg, result);
+                            AdhocReparseListeners.reparsed(mimeType, doc, pres);
                         }
                         if (result.isUnparsed()) {
                             Debug.failure("unparsed", () -> result.text().toString());

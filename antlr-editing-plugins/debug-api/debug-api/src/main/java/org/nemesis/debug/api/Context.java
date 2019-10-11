@@ -46,6 +46,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
+ * A macro-level stack frame for providing a UI which shows what is happening.
  *
  * @author Tim Boudreau
  */
@@ -68,6 +69,7 @@ public abstract class Context {
     }
 
     static class Info {
+
         final String ownerType;
         final String ownerTypeSimple;
         final String ownerString;

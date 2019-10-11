@@ -65,6 +65,10 @@ public class AntlrGeneratorAndCompiler {
             AntlrGenerationResult run = null;
             try {
                 if (opts.contains(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES) || (lastGenerationResult == null || !lastGenerationResult.isUsable())) {
+                    Debug.message("Rerun " + generator + " - regenerate passed or last unusable.", () -> {
+                        return "Opts: " + opts + "\nLG: " + lastGenerationResult;
+                    });
+
                     run = (lastGenerationResult = generator.run(grammarFileName, logStream, true));
                 }
             } catch (Exception ex) {

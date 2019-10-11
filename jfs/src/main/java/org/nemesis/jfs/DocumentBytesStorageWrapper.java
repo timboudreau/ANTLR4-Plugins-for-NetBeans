@@ -24,14 +24,14 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
 
     private final JFSStorage storage;
     private final Document doc;
-    private volatile long lastModified;
     private final Segment segment = new Segment();
 
     DocumentBytesStorageWrapper(JFSStorage storage, Document doc) {
         this.storage = storage;
         this.doc = doc;
         JFSUtilities.attachWeakListener(doc, this);
-        lastModified = JFSUtilities.lastModifiedFor(doc);
+        // Ensure initialization of the PriorityTimestamp in NbJFSUtilities
+        lastModified();
     }
 
     @Override
@@ -88,7 +88,7 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
 
     @Override
     public long lastModified() {
-        return Math.max(lastModified, JFSUtilities.lastModifiedFor(doc));
+        return JFSUtilities.lastModifiedFor(doc);
     }
 
     @Override
@@ -130,7 +130,6 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
     }
 
     void touch() {
-        lastModified = System.currentTimeMillis();
     }
 
     @Override

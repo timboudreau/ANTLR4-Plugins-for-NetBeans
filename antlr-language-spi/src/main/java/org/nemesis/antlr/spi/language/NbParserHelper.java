@@ -32,6 +32,7 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
     private final Logger LOG = Logger.getLogger(getClass().getName());
 
     protected NbParserHelper() {
+        LOG.setLevel(Level.ALL);
     }
 
     /**
@@ -134,17 +135,29 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         assert tree != null : "tree null";
         assert cancelled != null : "cancelled null";
         boolean wasCancelled = cancelled.getAsBoolean();
+        LOG.log(Level.FINE, "Parse of {0} completed - cancelled? {1}",
+                new Object[]{extraction.source(), wasCancelled});
         if (!wasCancelled) {
             // Ensure the tree gets fully walked and the parse fully run, so
             // all errors are collected
-            new ParseTreeWalker().walk(new ErrorNodeCollector(populate), tree);
-
-            List<? extends SyntaxError> errors = errorSupplier.get();
-            LOG.log(Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{errors.size(), errorSupplier});
-            populate.setSyntaxErrors(errors, this);
-            Fixes fixes = populate.fixes();
-            ParseResultHook.runForMimeType(mimeType, tree, extraction, populate, fixes);
-            onParseCompleted(tree, extraction, populate, fixes, cancelled);
+            try {
+                new ParseTreeWalker().walk(new ErrorNodeCollector(populate), tree);
+                List<? extends SyntaxError> errors = errorSupplier.get();
+                LOG.log(Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{errors.size(), errorSupplier});
+                populate.setSyntaxErrors(errors, this);
+                Fixes fixes = populate.fixes();
+                ParseResultHook.runForMimeType(mimeType, tree, extraction, populate, fixes);
+                onParseCompleted(tree, extraction, populate, fixes, cancelled);
+                LOG.log(Level.FINEST, "Post-processing complete with {0} "
+                        + "syntax errors, fixes {1}", new Object[] {
+                            errors.size(), fixes
+                        } );
+            } catch (Exception | Error err) {
+                LOG.log(Level.SEVERE, "Error post-processing parse", err);
+                if (err instanceof Error) {
+                    throw (Error) err;
+                }
+            }
         } else {
             LOG.log(Level.FINEST, "Not using parse result {0} due to cancellation", populate);
         }

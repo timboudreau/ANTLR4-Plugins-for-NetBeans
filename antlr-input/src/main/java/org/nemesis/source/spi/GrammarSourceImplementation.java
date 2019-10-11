@@ -147,7 +147,12 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
         } else if (o == this) {
             return true;
         } else if (o instanceof GrammarSourceImplementation<?>) {
+            Object a = source();
             GrammarSourceImplementation<?> impl = (GrammarSourceImplementation<?>) o;
+            Object b = impl.source();
+            if (a == this) { // GrammarSource.NONE
+                return b == this;
+            }
             return Objects.equals(source(), impl.source());
         }
         return false;
@@ -160,6 +165,10 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
      */
     @Override
     public final int hashCode() {
+        T o = source();
+        if (o == this) { // GrammarSource.NONE
+            return 1;
+        }
         return Objects.hashCode(source());
     }
 

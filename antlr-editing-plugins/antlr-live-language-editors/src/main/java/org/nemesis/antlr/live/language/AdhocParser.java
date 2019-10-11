@@ -9,8 +9,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.ChangeListener;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
-import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.debug.api.Debug;
 import org.netbeans.modules.parsing.api.Snapshot;
@@ -119,18 +119,18 @@ final class AdhocParser extends Parser {
                         + snapshot.getSource().getFileObject();
             }, () -> {
                 EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-                AntlrProxies.ParseTreeProxy res = parser.parse(snapshot.getText());
+                EmbeddedAntlrParserResult rp = parser.parse(snapshot.getText());
+                AntlrProxies.ParseTreeProxy res = rp.proxy();
                 if (!res.mimeType().equals(mimeType)) {
                     String msg = "Bad ParseTreeProxy mime type from EmbeddedAntlrParser\n"
                             + "Exp: " + mimeType + "\nGot: " + res.mimeType() + "\n"
                             + "From: " + parser;
                     LOG.log(Level.SEVERE, msg, new Exception(msg));
                 }
-                GrammarRunResult<?> gbrg = parser.lastResult();
-                AdhocParserResult result = new AdhocParserResult(snapshot, res, inv);
+                AdhocParserResult result = new AdhocParserResult(snapshot, rp, inv);
                 last = result;
                 RESULT_FOR_TASK.put(task, result);
-                AdhocReparseListeners.reparsed(mimeType, snapshot.getSource(), gbrg, res);
+                AdhocReparseListeners.reparsed(mimeType, snapshot.getSource(), rp);
             });
         } catch (Exception ex) {
             throw new ParseException("Exception parsing " + snapshot, ex);

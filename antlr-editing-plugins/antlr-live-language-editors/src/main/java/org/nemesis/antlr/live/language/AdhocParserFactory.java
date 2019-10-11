@@ -1,23 +1,24 @@
 package org.nemesis.antlr.live.language;
 
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.debug.api.Trackables;
+import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.ParserFactory;
-import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
 import org.openide.util.WeakSet;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class AdhocParserFactory extends ParserFactory implements Runnable {
+final class AdhocParserFactory extends ParserFactory implements BiConsumer<Extraction, GrammarRunResult<?>> {
 
     private final Set<AdhocParser> liveParsers = new WeakSet<>();
     private static final Logger LOG = Logger.getLogger(AdhocParserFactory.class.getName());
@@ -27,8 +28,8 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
     @SuppressWarnings("LeakingThisInConstructor")
     public AdhocParserFactory(String mimeType) {
         this.mimeType = mimeType;
-        Path grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
-        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.toFile()));
+//        Path grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+//        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarFilePath.toFile()));
 //        embeddedParser = EmbeddedAntlrParsers.forGrammar("parser-factory:" + AdhocMimeTypes.loggableMimeType(mimeType), fo);
 //        embeddedParser.listen(this);
         AdhocLanguageHierarchy.parserFor(mimeType).listen(this);
@@ -66,6 +67,9 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
             }
         }
         AdhocParser parser = new AdhocParser(mimeType);
+        Trackables.track(AdhocParser.class, parser, () -> {
+            return "Parser-" + AdhocMimeTypes.loggableMimeType(mimeType);
+        });
         liveParsers.add(parser);
         LOG.log(Level.FINER, "Created a parser {0} over {1} grammar {2}",
                 new Object[]{parser, clctn, mimeType});
@@ -73,7 +77,7 @@ final class AdhocParserFactory extends ParserFactory implements Runnable {
     }
 
     @Override
-    public void run() {
+    public void accept(Extraction ext, GrammarRunResult<?> res) {
         updated();
     }
 }

@@ -260,7 +260,7 @@ public final class Extractor<T extends ParserRuleContext> {
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
         ParseTreeVisitor<?> v = info.createVisitor((k, bounds) -> {
-            if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0)) {
+            if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0) && (bounds[0] != bounds[1] /* empty file */)) {
                 bldr.add(k, bounds[0], bounds[1]);
             }
         }, cancelled);

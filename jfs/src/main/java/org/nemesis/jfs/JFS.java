@@ -835,8 +835,11 @@ public final class JFS implements JavaFileManager {
                 if (e.getValue().close()) {
                     toRemove.add(e.getKey());
                 } else {
-                    LOG.log(Level.FINE, "JFS.close(): Will not close {0} in {1} - a live classloader over it exists",
+                    LOG.log(Level.FINE, "JFS.close(): Will not close {0} in "
+                            + "{1} - a live classloader over it exists",
                             new Object[]{e.getKey(), fsid});
+                    System.out.println("Classloader still exists over " + e.getKey() + " - "
+                            + e.getValue());
                 }
             }
             for (Location loc : toRemove) {
@@ -844,10 +847,15 @@ public final class JFS implements JavaFileManager {
                 storageForLocation.remove(loc);
             }
             if (storageForLocation.isEmpty()) {
-                LOG.log(Level.FINER, "JFS.close(): empty and no live classloaders - unregistering {0}", fsid);
+                LOG.log(Level.FINER, "JFS.close(): empty and no live "
+                        + "classloaders - unregistering {0}", fsid);
                 JFSUrlStreamHandlerFactory.unregister(this);
                 delegate.close();
                 allocator.destroy();
+            } else {
+                LOG.log(Level.FINER, "JFS.close(): a classloader may still exist "
+                        + "- not unregistering {0} until last classloader "
+                        + "is closed", fsid);
             }
         } finally {
             inClose.set(false);

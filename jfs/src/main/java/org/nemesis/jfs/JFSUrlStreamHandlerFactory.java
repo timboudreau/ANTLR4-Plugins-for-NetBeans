@@ -6,9 +6,11 @@ import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import org.nemesis.jfs.spi.JFSLifecycleHook;
 import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
@@ -16,6 +18,8 @@ import org.nemesis.jfs.spi.JFSUtilities;
  *
  * @author Tim Boudreau
  */
+// Registration is handled via the META-INF/services file in src/main/resources
+// so as to have no NetBeans dependencies in this library
 //@ServiceProvider(service = URLStreamHandlerFactory.class)
 public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory {
 
@@ -25,6 +29,7 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
     private final Throwable backtrace;
     public static final Pattern URL_PATTERN = Pattern.compile(
             "^jfs\\:\\/\\/([^/]+?)\\/([^/]+?)\\/(.*)$");
+    private final JFSLifecycleHook hook;
 
     /**
      * Do not instantiate directly, use
@@ -44,6 +49,7 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
         }
         INSTANCE = this;
         backtrace = allocationBacktrace();
+        hook = lookupSomehow(JFSLifecycleHook.class, () -> null);
     }
 
     @SuppressWarnings("AssertWithSideEffects")
@@ -56,19 +62,23 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
         return null;
     }
 
-    private static JFSUrlStreamHandlerFactory getDefault() {
+    private static synchronized JFSUrlStreamHandlerFactory getDefault() {
         if (INSTANCE != null) {
             return INSTANCE;
         }
-        JFSUrlStreamHandlerFactory result = getViaLookupReflectively(JFSUrlStreamHandlerFactory.class);
+        return INSTANCE = lookupSomehow(JFSUrlStreamHandlerFactory.class, JFSUrlStreamHandlerFactory::new);
+    }
+
+    private static <T> T lookupSomehow(Class<T> type, Supplier<T> supp) {
+        T result = getViaLookupReflectively(type);
         if (result != null) {
             return result;
         }
-        ServiceLoader<JFSUrlStreamHandlerFactory> ldr = ServiceLoader.load(JFSUrlStreamHandlerFactory.class);
+        ServiceLoader<T> ldr = ServiceLoader.load(type);
         if (ldr.iterator().hasNext()) {
             return ldr.iterator().next();
         }
-        return INSTANCE = new JFSUrlStreamHandlerFactory();
+        return supp.get();
     }
 
     static <T> T getViaLookupReflectively(Class<T> type) {
@@ -117,12 +127,17 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
 
     private void _register(JFS filesystem) {
         filesystems.add(filesystem);
+        if (hook != null) {
+            hook.jfsCreated(filesystem);
+        }
     }
 
     private void _unregister(JFS filesystem) {
         if (filesystems != null) {
             filesystems.remove(filesystem);
         }
+        if (hook != null && filesystem != null) {
+            hook.jfsClosed(filesystem);
+        }
     }
-
 }

@@ -191,6 +191,15 @@ public class AntlrProxies {
             this.ruleReferencesForToken = ruleReferencesForToken;
         }
 
+        public String loggingInfo() {
+            return (isUnparsed() ? "UNPARSED" : "PTP-") + id() 
+                    + " errs " + syntaxErrors.size()
+                    + " tokens " + tokens.size() 
+                    + " textLength " + (text == null ? -1 : text.length())
+                    + " for " + grammarName
+                    ;
+        }
+
         public CharSequence textOf(ProxyToken tok) {
             int start = tok.getStartIndex();
             int end = tok.getEndIndex();

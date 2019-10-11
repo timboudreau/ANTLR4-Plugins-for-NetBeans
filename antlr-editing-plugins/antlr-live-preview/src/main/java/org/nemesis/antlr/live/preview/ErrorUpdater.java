@@ -1,19 +1,21 @@
 package org.nemesis.antlr.live.preview;
 
-import com.mastfrog.function.TriConsumer;
 import java.awt.Color;
 import java.awt.Toolkit;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
 import org.nemesis.antlr.common.AntlrConstants;
 import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.netbeans.editor.BaseDocument;
 import org.openide.util.Exceptions;
@@ -47,9 +49,9 @@ import org.openide.windows.TopComponent;
     "compileFailed=\tFailed to compile generated parser/lexer/extractor",
     "exception=\tException thrown:",})
 // TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy>>
-final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy>, Runnable {
+final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResult>, Runnable {
 
-    private AtomicReference<ParseInfo> info = new AtomicReference<>();
+    private AtomicReference<EmbeddedAntlrParserResult> info = new AtomicReference<>();
     private boolean writingFirstOutputWindowOutput = true;
     private final JEditorPane editorPane;
     private final RulePathStringifier stringifier;
@@ -59,13 +61,14 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
         this.stringifier = stringifier;
     }
 
-    void update(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy) {
+    void update(EmbeddedAntlrParserResult res) {
         // Ensure both are updated atomically by wrapping the update of the
         // second in an update of the first
-        info.set(new ParseInfo(res, proxy));
+        info.set(res);
     }
 
     static final class ParseInfo {
+
         public final GrammarRunResult<?> res;
         public final AntlrProxies.ParseTreeProxy proxy;
 
@@ -76,25 +79,26 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
     }
 
     public void run() {
-        ParseInfo ifo = info.get();
+        EmbeddedAntlrParserResult ifo = info.get();
         if (ifo != null) {
             updateErrorsInOutputWindow(ifo);
         }
     }
 
-    private void updateErrorsInOutputWindow(ParseInfo info) {
-        if (info == null || info.proxy == null) {
+    private void updateErrorsInOutputWindow(EmbeddedAntlrParserResult info) {
+        if (info == null || info.proxy() == null) {
             return;
         }
         if (Thread.interrupted()) {
             return;
         }
-        InputOutput io = IOProvider.getDefault().getIO(Bundle.io_tab(info.proxy.grammarName()), false);
+        InputOutput io = IOProvider.getDefault().getIO(Bundle.io_tab(info.proxy().grammarName()), false);
         if (IOTab.isSupported(io)) {
             IOTab.setToolTipText(io, Bundle.tip());
             IOTab.setIcon(io, AntlrConstants.parserIcon());
         }
-        boolean failure = info.proxy.isUnparsed() || !info.proxy.syntaxErrors().isEmpty();
+        ParseTreeProxy proxy = info.proxy();
+        boolean failure = info.proxy().isUnparsed() || !info.proxy().syntaxErrors().isEmpty();
         boolean folds = IOFolding.isSupported(io);
         if (writingFirstOutputWindowOutput && failure) {
             if (IOSelect.isSupported(io)) {
@@ -107,10 +111,10 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
         }
         try (final OutputWriter writer = io.getOut()) {
             writer.reset();
-            if (info.proxy.isUnparsed()) {
+            if (proxy.isUnparsed()) {
                 // XXX get the full result and print compiler diagnostics?
                 ioPrint(io, Bundle.unparsed(), IOColors.OutputType.ERROR);
-                GrammarRunResult<?> buildResult = info.res;
+                GrammarRunResult<?> buildResult = info.runResult();
                 if (buildResult != null) {
                     boolean wasGenerate = !buildResult.genResult().isUsable();
                     if (wasGenerate) {
@@ -134,15 +138,15 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
                         buildResult.thrown().get().printStackTrace(writer);
                     }
                 }
-            } else if (info.proxy.syntaxErrors().isEmpty()) {
+            } else if (proxy.syntaxErrors().isEmpty()) {
                 ioPrint(io, Bundle.success(), IOColors.OutputType.LOG_SUCCESS);
             } else {
                 FoldHandle fold = null;
                 if (folds) {
                     fold = IOFolding.startFold(io, true);
                 }
-                for (AntlrProxies.ProxySyntaxError e : info.proxy.syntaxErrors()) {
-                    ErrOutputListener listener = listenerForError(io, info.proxy, e);
+                for (AntlrProxies.ProxySyntaxError e : proxy.syntaxErrors()) {
+                    ErrOutputListener listener = listenerForError(io, proxy, e);
                     assert listener != null;
                     ioPrint(io, e.message(), IOColors.OutputType.HYPERLINK_IMPORTANT, listener);
                     FoldHandle innerFold = null;
@@ -185,8 +189,8 @@ final class ErrorUpdater implements TriConsumer<Document, GrammarRunResult<?>, A
     }
 
     @Override
-    public void apply(Document a, GrammarRunResult<?> b, AntlrProxies.ParseTreeProxy s) {
-        updateErrorsInOutputWindow(new ParseInfo(b, s));
+    public void accept(Document a, EmbeddedAntlrParserResult res) {
+        updateErrorsInOutputWindow(res);
     }
 
     final class ErrOutputListener implements OutputListener {

@@ -15,16 +15,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.extraction.Extraction;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.LanguagePath;
@@ -37,6 +40,8 @@ import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerRestartInfo;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
+import org.openide.util.WeakSet;
 
 /**
  *
@@ -265,12 +270,19 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         return info.parser();
     }
 
+    public static void onNewEnvironment(String mime, BiConsumer<Extraction, GrammarRunResult<?>> run) {
+        HierarchyInfo info = hierarchyInfo(mime);
+        info.onReplace(run);
+        // ensure init
+        info.parser();
+    }
+
     /**
      * It is possible to have multiple live AdhocLanguageHierarchy instances for
      * the same mime type (language being updated while lexing is running), so
      * we centralize the shared information.
      */
-    static final class HierarchyInfo {
+    static final class HierarchyInfo implements BiConsumer<Extraction, GrammarRunResult<?>> {
 
         private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(false);
         private TokensInfo info = TokensInfo.EMPTY;
@@ -281,12 +293,17 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         private final Path grammarFilePath;
         private long expectedGrammarLastModified = Long.MIN_VALUE;
         private volatile boolean initialized;
+        private final Set<BiConsumer<Extraction, GrammarRunResult<?>>> onReplaces = new WeakSet<>();
 
         public HierarchyInfo(String mimeType) {
             this.mimeType = mimeType;
             readLock = lock.readLock();
             writeLock = lock.writeLock();
             grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+        }
+
+        void onReplace(BiConsumer<Extraction, GrammarRunResult<?>> r) {
+            onReplaces.add(r);
         }
 
         boolean initialized() {
@@ -300,7 +317,6 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 return RebuildSubscriptions.mostRecentGrammarLastModifiedInProjectOf(fo);
             }
             return -1;
-//            return Files.getLastModifiedTime(grammarFilePath).toMillis();
         }
 
         long isGrammarInfoUpToDate() throws IOException {
@@ -320,6 +336,18 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
             ids.add(nue);
         }
 
+        public void accept(Extraction ext, GrammarRunResult<?> res) {
+            LOG.log(Level.FINE, "{0} notified new env - notifying {1} listeners {2}",
+                    new Object[]{this, onReplaces.size(), onReplaces});
+            for (BiConsumer<Extraction, GrammarRunResult<?>> r : onReplaces) {
+                try {
+                    r.accept(ext, res);
+                } catch (Exception ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
+        }
+
         private EmbeddedAntlrParser parser() {
             if (parser == null) {
                 parser = EmbeddedAntlrParsers.forGrammar(
@@ -328,6 +356,12 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                                 FileUtil.normalizeFile(
                                         AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
                                                 .toFile())));
+                parser.listen(this);
+            } else {
+                if (parser.isDisposed()) {
+                    Exception ex = new Exception("Parser was unexpectedly disposed");
+                    LOG.log(Level.SEVERE, "Disposed " + this, ex);
+                }
             }
             return parser;
         }
@@ -336,7 +370,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
             try {
                 assert writeLock.isHeldByCurrentThread();
                 EmbeddedAntlrParser p = parser();
-                ParseTreeProxy proxy = p.parse(null);
+                ParseTreeProxy proxy = p.parse(null).proxy();
                 TokensInfo result = buildTokensInfo(proxy);
                 expectedGrammarLastModified = grammarLastModified();
                 return result;

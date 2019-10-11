@@ -25,6 +25,9 @@ public class ParseResultHook<T extends ParserRuleContext> {
 
     private final Class<T> type;
     private static final Logger LOG = Logger.getLogger(ParseResultHook.class.getName());
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     protected ParseResultHook(Class<T> type) {
         Parameters.notNull("type", type);
@@ -129,6 +132,7 @@ public class ParseResultHook<T extends ParserRuleContext> {
     }
 
     void reparsed(T tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) {
+        LOG.log(Level.FINE, "Got reparse of {0} for {1}", new Object[] { extraction.source(), mimeType});
         try {
             onReparse(tree, mimeType, extraction, populate, fixes);
         } catch (Exception ex) {
@@ -159,6 +163,7 @@ public class ParseResultHook<T extends ParserRuleContext> {
             }
         } finally {
             if (ProgrammaticParseResultHookRegistry.active()) {
+                LOG.log(Level.FINEST, "Have programmatically registered hooks to run");
                 ProgrammaticParseResultHookRegistry.onReparse(ctx, mimeType, extraction, populate, fixes);
             }
         }

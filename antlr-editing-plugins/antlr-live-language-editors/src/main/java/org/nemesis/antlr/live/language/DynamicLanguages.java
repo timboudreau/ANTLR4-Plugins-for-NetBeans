@@ -30,6 +30,7 @@ package org.nemesis.antlr.live.language;
 
 import java.util.Collections;
 import java.util.Set;
+import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.util.Lookup;
 
@@ -52,16 +53,28 @@ public class DynamicLanguages {
         return AdhocColoringsRegistry.getDefault().mimeTypes();
     }
 
+    public static boolean isRegistered(String mimeType) {
+        return AdhocColoringsRegistry.getDefault().isRegistered(mimeType)
+                && AdhocMimeDataProvider.getDefault().isRegistered(mimeType);
+    }
+
     public static boolean ensureRegistered(String mimeType) {
         boolean result = false;
+        int regs = 0;
         if (!AdhocColoringsRegistry.getDefault().isRegistered(mimeType)) {
+            regs++;
             AdhocColoringsRegistry.getDefault().get(mimeType);
             result = true;
         }
         if (!AdhocMimeDataProvider.getDefault().isRegistered(mimeType)) {
             AdhocMimeDataProvider.getDefault().addMimeType(mimeType);
+            regs++;
             result = true;
         }
+//        if (regs < 2) {
+        Language<?> lang = Language.find(mimeType);
+        System.out.println("FOUND LAN " + lang);
+//        }
         return result;
     }
 

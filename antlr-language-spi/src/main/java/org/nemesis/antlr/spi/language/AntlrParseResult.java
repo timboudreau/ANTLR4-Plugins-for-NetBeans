@@ -32,6 +32,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     private final long id = IDS++;
     private final NbLexerAdapter<?,?> adapter;
     private NbParserHelper helper;
+    private volatile boolean wasInvalidated;
 
     AntlrParseResult(NbLexerAdapter<?,?> adapter, Snapshot _snapshot, Extraction extraction, Consumer<ParseResultContents> inputConsumer) {
         super(_snapshot);
@@ -94,7 +95,8 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         sb.append("pairs=").append(pairs.size()).append(", snapshot=")
                 .append(getSnapshot()).append(", ")
                 .append("extraction=").append(extraction.logString())
-                .append(", errors=").append(syntaxErrors);
+                .append(", errors=").append(syntaxErrors)
+                .append(", wasInvalidated=").append(wasInvalidated);
         return sb.append('}').toString();
     }
 
@@ -103,8 +105,23 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         return extraction;
     }
 
+    /**
+     * Determine if this parse result is being used within the closure
+     * of the call to ParserManager that created it.  This is needed,
+     * for example, for the Antlr live editor to determine if it is going
+     * to be passed a new parser result via ParserResultHook, or if it needs to
+     * call itself with the result, since it depends on triggering a
+     * reparse to update subscribers.
+     *
+     * @return True if invalidate() was called by the parsing infrastructure
+     */
+    public boolean wasInvalidated() {
+        return wasInvalidated;
+    }
+
     @Override
     protected void invalidate() {
+        wasInvalidated = true;
 //        syntaxErrors.clear();
 //        pairs.clear();
 //        extraction.dispose();
@@ -169,8 +186,9 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
             syntaxErrors.add(err);
         }
 
+        @Override
         Fixes fixes() {
-            return new Fixes(extraction, this);
+            return Fixes.create(extraction, this);
         }
     }
 

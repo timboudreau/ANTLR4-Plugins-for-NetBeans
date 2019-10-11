@@ -34,6 +34,8 @@ import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -78,7 +80,7 @@ public class EmbeddedAntlrParsersTest {
                 + "registered.");
 
         EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test", gen.file("NestedMaps.g4"));
-        AntlrProxies.ParseTreeProxy ptp = p.parse(TEXT_1);
+        AntlrProxies.ParseTreeProxy ptp = p.parse(TEXT_1).proxy();
         assertNotNull(ptp);
         ptp.rethrow();
         assertTrue(p.isUpToDate());
@@ -87,18 +89,19 @@ public class EmbeddedAntlrParsersTest {
         assertEquals(gen.get("NestedMaps.g4"), ptp.grammarPath());
         assertEquals("NestedMaps", ptp.grammarName());
 
-        AntlrProxies.ParseTreeProxy ptp1 = p.parse(TEXT_1);
+        AntlrProxies.ParseTreeProxy ptp1 = p.parse(TEXT_1).proxy();
         // XXX disabled caching for now
-//        assertSame(ptp, ptp1);
-//        assertNotSame(ptp, p.parse(TEXT_1 + "  "));
+        assertSame(ptp, ptp1);
         assertEquals(ptp, ptp1);
         assertEquals(1, p.rev());
+        assertSame(ptp, p.parse(null).proxy());
+        assertNotSame(ptp, p.parse(TEXT_1 + "  ").proxy());
 
         assertTrue(p.isUpToDate());
         gen.replaceString("NestedMaps.g4", "numberValue", "poozleHoozle");
         assertFalse(p.isUpToDate());
 
-        AntlrProxies.ParseTreeProxy ptp3 = p.parse(TEXT_1);
+        AntlrProxies.ParseTreeProxy ptp3 = p.parse(TEXT_1).proxy();
 
         assertNotNull(ptp3);
         assertFalse(ptp3.isUnparsed());

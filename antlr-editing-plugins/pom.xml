@@ -54,10 +54,10 @@ Copyright (C) 2012-2019 Tim Boudreau
         <module>antlr-live-preview</module>
         <module>debug-api/debug-api</module>
         <module>debug-ui</module>
-        <module>mavenproject1/antlr-language-code-completion</module>
         <module>antlr-language-code-completion</module>
         <module>antlr-language-formatting</module>
         <module>antlr-language-formatting-ui</module>
+        <module>parse-recorder</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -169,6 +169,11 @@ Copyright (C) 2012-2019 Tim Boudreau
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>debug-ui</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>parse-recorder</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

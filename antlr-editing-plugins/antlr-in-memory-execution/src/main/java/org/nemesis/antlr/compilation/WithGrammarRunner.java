@@ -5,12 +5,16 @@ import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.debug.api.Trackables;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSClassLoader;
 
@@ -72,7 +76,12 @@ public final class WithGrammarRunner {
     private JFSClassLoader createClassLoader() throws IOException {
         JFS jfs = compiler.jfs();
         Debug.message("create-classloader", jfs::currentClasspath);
-        return jfs.getClassLoader(true, classLoaderSupplier.get(), StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
+        JFSClassLoader result = jfs.getClassLoader(true, classLoaderSupplier.get(), StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
+        String nm = jfs.id() + "-" + grammarFileName;
+        Trackables.track(JFSClassLoader.class, result, () -> {
+            return "JFSClassLoader-" + nm;
+        });
+        return result;
     }
 
     public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner, A arg, Set<GrammarProcessingOptions> options) {
@@ -103,29 +112,52 @@ public final class WithGrammarRunner {
                 Debug.message("regenerate-and-compile");
                 res = generateAndCompile(grammarFileName, options);
             } else {
+                Debug.message("use-last-generation-result");
                 res = lastGenerationResult;
             }
             if (!res.genAndCompileResult.isUsable()) {
-                lastGenerationResult = null;
+                if (lastGenerationResult != null && !lastGenerationResult.isUsable()) {
+                    lastGenerationResult = null;
+                }
                 Debug.failure("unusable-result", res::toString);
                 return new GrammarRunResult<>(null, null, res, lastGood(key));
             }
             lastGenerationResult = res;
             ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
+            GrammarRunResult<T> grr = null;
             try {
                 try (JFSClassLoader nue = createClassLoader()) {
                     Thread.currentThread().setContextClassLoader(nue);
                     T result = reflectiveRunner.get();
-                    GrammarRunResult<T> grr = new GrammarRunResult(result, null, res, null);
+                    grr = new GrammarRunResult(result, null, res, null);
                     if (grr.isUsable()) {
                         lastGoodResults.put(key, grr);
                     }
                     return grr;
                 }
-            } catch (Exception ex) {
+            } catch (Exception | Error ex) {
+                Thread.currentThread().setContextClassLoader(oldLoader);
+                Debug.failure(ex.toString(), () -> {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    PrintStream ps = new PrintStream(out, true, UTF_8);
+                    ex.printStackTrace(ps);
+                    return new String(out.toByteArray(), UTF_8);
+                });
+                if (ex instanceof Error) {
+                    Logger.getLogger(WithGrammarRunner.class.getName())
+                            .log(Level.SEVERE, "Failed in " + reflectiveRunner, ex);
+                    throw (Error) ex;
+                } else {
+                    Logger.getLogger(WithGrammarRunner.class.getName())
+                            .log(Level.INFO, "Failed in " + reflectiveRunner, ex);
+                }
                 return new GrammarRunResult(null, ex, res, lastGood(key));
             } finally {
                 Thread.currentThread().setContextClassLoader(oldLoader);
+                Object o = grr;
+                Debug.success("new-grammar-run-result", () -> {
+                    return o == null ? "null" : o.toString();
+                });
             }
         });
     }

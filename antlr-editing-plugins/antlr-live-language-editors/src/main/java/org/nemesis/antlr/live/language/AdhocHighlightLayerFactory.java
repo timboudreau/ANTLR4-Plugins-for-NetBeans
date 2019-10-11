@@ -1,13 +1,10 @@
 package org.nemesis.antlr.live.language;
 
-import java.awt.EventQueue;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -18,81 +15,47 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
 
     private final String mimeType;
     static final Logger LOG = Logger.getLogger(AdhocHighlightLayerFactory.class.getName());
+    private static final String DOC_PROP_HIGHLIGHTS_LAYERS = "adhoc-highlight-layers";
 
     public AdhocHighlightLayerFactory(String mimeType) {
         this.mimeType = mimeType;
         LOG.log(Level.INFO, "Create highlight layer factory for {0}", mimeType);
     }
 
-    public static <T extends AbstractAntlrHighlighter> T highlighter(Document doc, Class<T> type, Supplier<T> ifNone) {
-        T highlighter = existingHighlighter(doc, type);
-        if (highlighter == null) {
-            highlighter = ifNone.get();
-            doc.putProperty(type, highlighter);
-        }
-        return highlighter;
-    }
-
-    public static <T extends AbstractAntlrHighlighter> T existingHighlighter(Document doc, Class<T> type) {
-        Object result = doc.getProperty(type);
-        return result == null ? null : type.cast(result);
-    }
-
-    public AdhocRuleHighlighter getRulesHighlighter(Context doc) {
-        return highlighter(doc.getDocument(), AdhocRuleHighlighter.class, () -> new AdhocRuleHighlighter(doc, mimeType));
-    }
-
-    public AbstractAntlrHighlighter getErrorHighlighter(Document doc) {
-        return highlighter(doc, AdhocErrorHighlighter.class, () -> new AdhocErrorHighlighter(doc));
-    }
-
     public static final class Trigger implements Runnable {
 
-        private final Context context;
-        private final AbstractAntlrHighlighter[] highlighters;
+        private final AdhocHighlighterManager mgr;
         private final RequestProcessor.Task task = RequestProcessor.getDefault().create(this);
 
-        public Trigger(Context context, AbstractAntlrHighlighter... highlighters) {
-            this.context = context;
-            this.highlighters = highlighters;
+        public Trigger(AdhocHighlighterManager mgr) {
+            this.mgr = mgr;
         }
 
         @Override
         public void run() {
-            if (EventQueue.isDispatchThread()) {
-                if (context.getComponent().isShowing()) {
-                    task.schedule(250);
-                } else {
-                    LOG.log(Level.FINE, "Trigger called, but context component "
-                            + "not showing - will not update highlights");
-                }
-            } else {
-                LOG.log(Level.FINER, "Run highlighters from trigger");
-                for (AbstractAntlrHighlighter h : highlighters) {
-                    System.out.println("TRIGGER RUN " + h);
-                    h.scheduleRefresh();
-                }
-            }
+            LOG.log(Level.FINER, "Run highlighters from trigger for {0}", mgr.document());
+            mgr.scheduleReparse();
         }
     }
 
     @Override
     public HighlightsLayer[] createLayers(Context context) {
-        AdhocRuleHighlighter ruleHighlighter = getRulesHighlighter(context);
-        HighlightsLayer rules = HighlightsLayer.create(AdhocRuleHighlighter.class.getName(),
-                ZOrder.SYNTAX_RACK.forPosition(2000),
-                true,
-                ruleHighlighter.getHighlightsBag());
-
-        AbstractAntlrHighlighter errorHighlighter
-                = getErrorHighlighter(context.getDocument());
-        HighlightsLayer errors = HighlightsLayer.create(AdhocErrorHighlighter.class.getName(),
-                ZOrder.BOTTOM_RACK.forPosition(2001),
-                true,
-                errorHighlighter.getHighlightsBag());
-        context.getComponent().putClientProperty("trigger", new Trigger(context, ruleHighlighter));
-
-        LOG.log(Level.FINE, "Instantiated highlight layers for {0}", mimeType);
-        return new HighlightsLayer[]{rules, errors};
+        Document doc = context.getDocument();
+        HighlightsLayer[] result = (HighlightsLayer[]) doc.getProperty(DOC_PROP_HIGHLIGHTS_LAYERS);
+        if (result == null) {
+            AdhocHighlighterManager mgr = new AdhocHighlighterManager(mimeType, context);
+            AbstractAntlrHighlighter[] hls = mgr.highlighters();
+            result = new HighlightsLayer[hls.length];
+            for (int i = 0; i < hls.length; i++) {
+                result[i] = HighlightsLayer.create(hls[i].getClass().getName(),
+                        hls[i].zorder(), true, hls[i].getHighlightsBag());
+            }
+            LOG.log(Level.FINE, "Instantiated highlight layers for {0}", mimeType);
+            doc.putProperty(DOC_PROP_HIGHLIGHTS_LAYERS, result);
+            // Allow the preview component to proactively trigger re-highlighting
+            // if something relevant to highlighting is changed interactively
+            context.getComponent().putClientProperty("trigger", new Trigger(mgr));
+        }
+        return result;
     }
 }

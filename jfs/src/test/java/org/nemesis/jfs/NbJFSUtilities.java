@@ -30,7 +30,11 @@ public class NbJFSUtilities extends JFSUtilities {
 
     @Override
     protected long getLastModifiedFor(Document document) {
-        return DocumentUtilities.getDocumentTimestamp(document);
+        long result = super.getLastModifiedFor(document);
+        if (result == 0) {
+            result = DocumentUtilities.getDocumentTimestamp(document);
+        }
+        return result;
     }
 
     @Override
@@ -59,5 +63,4 @@ public class NbJFSUtilities extends JFSUtilities {
         }
         return super.convert(file, type, obj);
     }
-
 }

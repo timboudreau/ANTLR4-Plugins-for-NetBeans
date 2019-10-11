@@ -98,11 +98,20 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
     }
 
     private static final Consumer<FileObject> INV = SourceInvalidator.create();
+
+    /**
+     * If the grammar providing the language for this DataObject changes, we
+     * need to force invalidation of all Source objects that may be cached for
+     * it, or we will keep getting old parser results from the previous revision
+     * of the grammar. This allows us to track down all data objects of a
+     * particular adhoc mime type and nuke their Source objects (via a
+     * reflective hack).
+     *
+     * @param mimeType The MIME type
+     */
     static void invalidateSources(String mimeType) {
-        System.out.println("INVALIDATE SOURCESF RO " + AdhocMimeTypes.loggableMimeType(mimeType));
         for (FileObject fo : KNOWN) {
             if (mimeType.equals(fo.getMIMEType())) {
-                System.out.println("INVALIDATE SOURCE OBJECTS FOR " + fo);
                 INV.accept(fo);
             }
         }
@@ -149,7 +158,6 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         }
     }
 
-
     static final class DES extends DataEditorSupport implements OpenCookie,
             EditorCookie, EditorCookie.Observable,
             CloseCookie, PrintCookie,
@@ -168,12 +176,9 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         @Override
         public void open() {
             if (AdhocMimeTypes.isMimeTypeWithExistingGrammar(mimeType)) {
-//                try {
-//                    DynamicLanguageSupport.registerGrammar(mimeType,
-//                            getDataObject().getPrimaryFile().asText(), OPEN_DATA_OBJECT);
-//                } catch (IOException ex) {
-//                    Exceptions.printStackTrace(ex);
-//                }
+                // XXX need to block until registration is definitely
+                // complete?
+                DynamicLanguages.ensureRegistered(mimeType);
             }
             super.open();
         }

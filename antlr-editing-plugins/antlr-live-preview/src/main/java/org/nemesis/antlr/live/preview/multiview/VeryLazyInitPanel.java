@@ -37,6 +37,7 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -68,6 +69,8 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
         status.setEnabled(false);
         status.setMinimumSize(new Dimension(100, 40));
         status.setHorizontalTextPosition(SwingConstants.CENTER);
+        status.setHorizontalAlignment(SwingConstants.CENTER);
+        status.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
         add(spinner, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
     }

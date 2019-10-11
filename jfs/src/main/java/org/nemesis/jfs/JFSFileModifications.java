@@ -70,15 +70,31 @@ public class JFSFileModifications {
         info = currentInfo();
     }
 
-    JFSFileModifications(JFSFileModifications old) {
+    JFSFileModifications(JFSFileModifications old, boolean copy) {
         notNull("old", old);
         this.jfs = old.jfs;
         locations = old.locations;
-        info = currentInfo();
+        info = copy ? old.info : currentInfo();
+    }
+
+    JFSFileModifications(JFSFileModifications old) {
+        this(old, false);
+    }
+
+    public JFSFileModifications snapshot() {
+        return new JFSFileModifications(this, true);
     }
 
     public static JFSFileModifications empty() {
         return new JFSFileModifications();
+    }
+
+    public boolean isEmpty() {
+        if (jfs == null) {
+            return true; // empty instance
+        }
+        FilesInfo ifo = info;
+        return ifo == null ? true : ifo.timestamps.isEmpty();
     }
 
     FilesInfo initialState() {
@@ -246,7 +262,7 @@ public class JFSFileModifications {
                     Map<Path, Long> origs = orig.timestamps.get(loc);
                     Map<Path, Long> updates = nue.timestamps.get(loc);
                     for (Map.Entry<Path, Long> ee : origs.entrySet()) {
-                        if (!filter.test(ee.getKey())) {
+                        if (filter != null && !filter.test(ee.getKey())) {
                             continue;
                         }
                         Long newModified = updates.get(ee.getKey());
@@ -326,7 +342,7 @@ public class JFSFileModifications {
             jfs.list(loc, (location, fo) -> {
                 try {
                     Path path = Paths.get(fo.getName());
-                    if (filter.test(path)) {
+                    if (filter == null || filter.test(path)) {
                         itemsForLocation.put(path, fo.getLastModified());
                         files.add(fo);
                     }

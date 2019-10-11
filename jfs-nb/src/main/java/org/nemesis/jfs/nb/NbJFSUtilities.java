@@ -11,6 +11,7 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.spi.JFSUtilities;
 import org.netbeans.api.queries.FileEncodingQuery;
+import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
@@ -38,12 +39,13 @@ public class NbJFSUtilities extends JFSUtilities {
 
     @Override
     protected long getLastModifiedFor(Document document) {
-        return DocumentUtilities.getDocumentTimestamp(document);
+        return PriorityTimestamp.getTimestamp(document);
     }
 
     @Override
     protected void weakListen(Document document, DocumentListener listener) {
-        document.addDocumentListener(WeakListeners.document(listener, document));
+        DocumentUtilities.addPriorityDocumentListener(document,
+                WeakListeners.document(listener, document), DocumentListenerPriority.FIRST);
     }
 
     @Override

@@ -214,23 +214,7 @@ public class AdhocEditorKit extends ExtKit {
             this.mimeType = mimeType;
             putProperty("mimeType", mimeType);
             putProperty(InputAttributes.class, new LangPropertyEvaluator(this));
-//            InputAttributes attrs = new InputAttributes();
-//            putProperty(InputAttributes.class, attrs);
-//            Language<?> lang = Language.find(mimeType);
-//            if (lang != null) {
-//                attrs.setValue(lang, "doc", this, false);
-//            }
         }
-
-/*
-        @Override
-        protected Dictionary createDocumentProperties(Dictionary origDocumentProperties) {
-            // Looking up the language during Document creation can deadlock
-            // by reentering LanguageHierarchy.language(), so initialize that
-            // on demand
-            return new LazyLanguageMap(origDocumentProperties, this);
-        }
-        */
 
         static final class LangPropertyEvaluator implements PropertyEvaluator {
             // Looking up the language during Document creation can deadlock

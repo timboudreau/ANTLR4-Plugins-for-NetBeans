@@ -5,10 +5,12 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -18,7 +20,6 @@ import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.mimelookup.MimeDataProvider;
-import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
@@ -55,7 +56,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         });
     }
 
-    class Hook extends ParseResultHook<ParserRuleContext> {
+    class Hook extends ParseResultHook<ParserRuleContext> implements BiConsumer<Extraction, GrammarRunResult<?>> {
 
         private final Map<String, String> lastExtractionHashForMimeType
                 = new ConcurrentHashMap<>();
@@ -135,8 +136,8 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                             } else {
                                 Debug.failure("not a real update", () -> {
                                     return realMime + " " + mimeType + "\n"
-                                            + extraction.tokensHash() +
-                                            " " + lm
+                                            + extraction.tokensHash()
+                                            + " " + lm
                                             + "\n"
                                             + lastExtractionHashForMimeType.get(realMime)
                                             + " " + lastModificationDateForMimeType.get(realMime);
@@ -144,6 +145,29 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                             }
                         });
             }
+        }
+
+        @Override
+        public void accept(Extraction extraction, GrammarRunResult<?> runResult) {
+            Debug.run(this, "AMDP-Hook-" + extraction.tokensHash(), extraction::toString, () -> {
+                Optional<Path> sourcePathOpt = extraction.source().lookup(Path.class);
+                if (sourcePathOpt.isPresent()) {
+                    Path sourcePath = sourcePathOpt.get();
+                    String realMime = AdhocMimeTypes.mimeTypeForPath(sourcePath);
+                    Debug.message("Updating mime " + AdhocMimeTypes.loggableMimeType(realMime), runResult::toString);
+                    if (isRealUpdate(realMime, extraction)) {
+                        LOG.log(Level.FINE, "Update of {0} tok hash {1} from {2}",
+                                new Object[]{AdhocMimeTypes.loggableMimeType(realMime), extraction.tokensHash(), sourcePath});
+                        System.out.println("REAL UPDATE ");
+                        AdhocDataObject.invalidateSources(realMime);
+                        updateMimeType(realMime);
+                        Debug.success("Updated mime type", sourcePath::toString);
+//                    gooseLanguage(realMime);
+                    } else {
+                        Debug.failure("Not a real update", extraction::toString);
+                    }
+                }
+            });
         }
     }
 
@@ -177,8 +201,9 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         MimeEntry en = new MimeEntry(mimeType, lang, fcic, reparseIc);
         LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(en.mimeType));
         lookups.put(en.mimeType, en);
-        Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
-        ParseResultHook.register(FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile())), hook);
+//        Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+//        ParseResultHook.register(FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile())), hook);
+        AdhocLanguageHierarchy.onNewEnvironment(mimeType, hook);
     }
 
     void updateMimeType(String mime) {
@@ -198,6 +223,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                 if (hier != null) {
                     if (!isReentry) {
                         hier.languageUpdated();
+                        gooseLanguage(mime);
                     }
                 } else {
                     Debug.failure("no hierarchy", me::toString);

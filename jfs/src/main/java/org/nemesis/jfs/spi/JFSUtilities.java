@@ -10,6 +10,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -154,7 +155,9 @@ public abstract class JFSUtilities {
      */
     protected abstract Charset getEncodingFor(Path file);
 
-    protected abstract long getLastModifiedFor(Document document);
+    protected long getLastModifiedFor(Document document) {
+        return DummyJFSUtilities.DummyTimestamps.getTimestamp(document);
+    }
 
     /**
      * Attach the passed listener to the document without creating a strong
@@ -228,8 +231,6 @@ public abstract class JFSUtilities {
 
     private static final class DummyJFSUtilities extends JFSUtilities {
 
-        private static final long DUMMY_TIMESTAMP = System.currentTimeMillis();
-
         @Override
         protected Charset getEncodingFor(Path file) {
             return Charset.defaultCharset();
@@ -237,7 +238,66 @@ public abstract class JFSUtilities {
 
         @Override
         protected long getLastModifiedFor(Document document) {
-            return DUMMY_TIMESTAMP;
+            // The NbJFSUtilities implementation uses priority
+            // document listeners to ensure we are notified first
+            return DummyTimestamps.getTimestamp(document);
+        }
+
+        static final class DummyTimestamps implements DocumentListener {
+
+            private final AtomicLong timestamp;
+
+            DummyTimestamps(long initialValue) {
+                timestamp = new AtomicLong(initialValue);
+            }
+
+            static long getTimestamp(Document doc) {
+                return get(doc).get();
+            }
+
+            static DummyTimestamps get(Document doc) {
+                DummyTimestamps result
+                        = (DummyTimestamps) doc.getProperty(DummyTimestamps.class);
+                if (result == null) {
+                    long initial = 0;
+                    Object o = doc.getProperty("last-modification-timestamp");
+                    if (o instanceof AtomicLong) {
+                        initial = ((AtomicLong) o).get();
+                    }
+                    result = new DummyTimestamps(initial == 0
+                            ? System.currentTimeMillis()
+                            : initial);
+                    // Object is self-contained, not a leak
+                    doc.putProperty(DummyTimestamps.class, result);
+                    doc.addDocumentListener(result);
+                }
+                return result;
+            }
+
+            long get() {
+                return timestamp.get();
+            }
+
+            private void touch() {
+                timestamp.getAndUpdate((old) -> {
+                    return System.currentTimeMillis();
+                });
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                touch();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                touch();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                touch();
+            }
         }
     }
 }

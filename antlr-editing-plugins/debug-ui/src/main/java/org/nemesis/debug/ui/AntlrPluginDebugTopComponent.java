@@ -32,6 +32,8 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Rectangle;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -74,16 +76,19 @@ import org.openide.util.NbBundle.Messages;
         preferredID = "AntlrPluginDebugTopComponent"
 )
 @Messages({
-    "CTL_AntlrPluginDebugAction=AntlrPluginDebug",
-    "CTL_AntlrPluginDebugTopComponent=AntlrPluginDebug Window",
-    "HINT_AntlrPluginDebugTopComponent=This is a AntlrPluginDebug window"
+    "CTL_AntlrPluginDebugAction=Antlr Debug",
+    "CTL_AntlrPluginDebugTopComponent=Antlr Debug",
+    "HINT_AntlrPluginDebugTopComponent=Shows trees of invocations of parsing activities"
 })
 public final class AntlrPluginDebugTopComponent extends TopComponent implements ListSelectionListener {
 
     private final DefaultListModel<EmittedItem> mdl = new DefaultListModel<>();
     private final Ren ren = new Ren();
 
+    public static Reference<DefaultListModel<?>> MODEL_REF;
+
     public AntlrPluginDebugTopComponent() {
+        MODEL_REF = new WeakReference<>(mdl); // to avoid reference checks finding it
         System.setProperty("swing.aatext", "true");
         initComponents();
         setName(Bundle.CTL_AntlrPluginDebugTopComponent());
@@ -94,6 +99,10 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
         itemsList.setFont(itemsList.getFont().deriveFont(Font.PLAIN));
 //        itemsList.addMouseListener(listClicks);
         threadsPanel.setLayout(new MultiRowFlowLayout());
+    }
+
+    public static DefaultListModel<?> model() {
+        return MODEL_REF == null ? null : MODEL_REF.get();
     }
 
 //    MouseListener listClicks = new MouseAdapter() {

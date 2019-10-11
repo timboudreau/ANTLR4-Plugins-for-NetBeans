@@ -29,7 +29,6 @@ OF SUCH DAMAGE.
 package org.nemesis.antlr.live.language;
 
 import static com.google.common.base.Charsets.UTF_8;
-import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
@@ -51,6 +50,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
@@ -69,10 +69,10 @@ import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
-import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
@@ -287,20 +287,21 @@ public class DynamicLanguagesTest {
         assertNotNull(doc);
 
         // these listeners must remain referenced or they will be gc'd
-        TriConsumer<Document, GrammarRunResult<?>, ParseTreeProxy> ref1;
-        TriConsumer<FileObject, GrammarRunResult<?>, ParseTreeProxy> ref2;
+        BiConsumer<Document, EmbeddedAntlrParserResult> ref1;
+        BiConsumer<FileObject, EmbeddedAntlrParserResult> ref2;
         ParseTreeProxy[] lastProxy = new ParseTreeProxy[2];
 
-        AdhocReparseListeners.listen(mime, doc, ref1 = (d, gbrg, prx) -> {
+        AdhocReparseListeners.listen(mime, doc, ref1 = (Document d, EmbeddedAntlrParserResult rs) -> {
             assertSame(doc, d, "called with some other document");
             assertNull(lastProxy[0], "called twice");
-            lastProxy[0] = prx;
+            lastProxy[0] = rs.proxy();
         });
-        AdhocReparseListeners.listen(mime, dob.getPrimaryFile(), ref2 = (lfo, gbrg, prx) -> {
+        AdhocReparseListeners.listen(mime, dob.getPrimaryFile(), ref2 = (lfo, rs) -> {
             assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
             assertNull(lastProxy[1], "called twice");
-            lastProxy[1] = prx;
+            lastProxy[1] = rs.proxy();
         });
+        Thread.sleep(2000);
 
         AdhocParserResult p1 = parse(testit);
         assertNotNull(p1);
@@ -376,6 +377,7 @@ public class DynamicLanguagesTest {
             assertEquals(TEXT_1.length() + 1, length);
         });
         assertNull(AdhocEditorKit.currentFileObject());
+        Thread.sleep(2000);
         assertNotNull(lastProxy[1], "File reparse listener was not called");
         assertNotNull(lastProxy[0], "Document reparse listener was not called");
         assertSame(lastProxy[0], lastProxy[1], "Listeners passed different objects");
@@ -408,16 +410,24 @@ public class DynamicLanguagesTest {
         ParserManager.parse(Collections.singleton(src), ut);
         assertNotNull(ut.res, "No parser result");
         assertTrue(ut.res instanceof AdhocParserResult);
-        return (AdhocParserResult) ut.res;
+
+        AdhocParserResult ah = (AdhocParserResult) ut.res;
+        assertFalse(ah.parseTree().isUnparsed());
+        return ah;
     }
 
     static final class UT extends UserTask {
 
-        private Parser.Result res;
+        private AdhocParserResult res;
 
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
-            res = resultIterator.getParserResult();
+            Parser.Result result = resultIterator.getParserResult();
+            assertNotNull(result);
+            assertTrue(result instanceof AdhocParserResult);
+            res = (AdhocParserResult) result;
+            System.out.println("P_RES " + res.grammarHash() + " - " + res.parseTree());
+            assertFalse(res.parseTree().isUnparsed());
         }
     }
 

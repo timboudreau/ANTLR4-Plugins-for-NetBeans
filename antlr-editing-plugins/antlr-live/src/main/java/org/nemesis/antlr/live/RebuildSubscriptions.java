@@ -32,6 +32,7 @@ import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.project.Folders;
 import static org.nemesis.antlr.project.Folders.ANTLR_GRAMMAR_SOURCES;
 import static org.nemesis.antlr.project.Folders.ANTLR_IMPORTS;
+import org.nemesis.antlr.spi.language.AntlrParseResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -73,6 +74,10 @@ public final class RebuildSubscriptions {
 
     static Supplier<RebuildSubscriptions> INSTANCE_SUPPLIER
             = CachingSupplier.of(RebuildSubscriptions::new);
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     JFS jfsFor(Project project) { // for tests
         return mapping.getIfPresent(project);
@@ -332,7 +337,6 @@ public final class RebuildSubscriptions {
                 this.fo = fo;
                 this.obs = obs;
                 this.targetPath = targetPath;
-//                if (obs != null && obs.getOpenedPanes().length > 0) {
                 if (obs != null && obs.getDocument() != null) {
                     setMappingMode(MappingMode.MAP_DOCUMENT);
                 } else {
@@ -351,7 +355,24 @@ public final class RebuildSubscriptions {
                 return fo.isValid() && "text/x-g4".equals(fo.getMIMEType());
             }
 
+            @Override
+            public void fileChanged(FileEvent fe) {
+                recheckMapping();
+            }
+
+            void recheckMapping() {
+                switch(mode) {
+                    case MAP_FILE :
+                        if (obs !=null && obs.getDocument() != null) {
+                            setMappingMode(MappingMode.MAP_DOCUMENT);
+                        }
+                }
+            }
+
             public long lastModified(JFS jfs) {
+                // It seems we sometimes don't get notifications about the document
+                // being opened - may be a race with adding the listener on startup
+                recheckMapping();
                 JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, targetPath);
                 if (jfo == null) {
                     return fo.lastModified().getTime();
@@ -463,13 +484,29 @@ public final class RebuildSubscriptions {
                 LOG.log(Level.FINEST, "RebuildHook subscribe {0} to {1} count {2}",
                         new Object[]{subscribe, to.getPath(), subscribers.size()});
                 // Trigger a parse immediately
-                if (subscribers.size() == 1) {
+                if (true || subscribers.size() == 1) {
                     LOG.log(Level.FINE, "Force parse of {0} for initial subscriber in "
                             + "Generator {1} for {2}",
                             new Object[]{to.getName(), id, subscribe});
                     Runnable doParse = () -> {
                         try {
-                            ParsingUtils.parse(to);
+                            ParsingUtils.parse(to, res -> {
+                                LOG.log(Level.FINER, "Parse of {0} completed with {1}",
+                                        new Object[]{to.getName(), res});
+                                if (res instanceof AntlrParseResult) {
+                                    AntlrParseResult r = (AntlrParseResult) res;
+                                    if (r.wasInvalidated()) {
+                                        LOG.log(Level.FINEST, "Got old parser "
+                                                + "result, passing to onReparse: {0}", r);
+                                        Debug.message("Used-parse-result", r::toString);
+                                        onReparse(null, r.getSnapshot().getMimeType(),
+                                                r.extraction(), ParseResultContents.empty(), Fixes.empty());
+                                    }
+                                } else {
+                                    LOG.log(Level.WARNING, "Not an AntlrParseResult: {0}", res);
+                                }
+                                return null;
+                            });
                         } catch (Exception ex) {
                             LOG.log(Level.INFO, "Exception parsing " + to.getPath(), ex);
                         } catch (Error e) {
@@ -479,12 +516,18 @@ public final class RebuildSubscriptions {
                     };
                     // Try to keep this stuff off the event dispatch thread
                     if (EventQueue.isDispatchThread()) {
+                        LOG.log(Level.FINER, "Is dispatch thread, enqueue "
+                                + "reparse of {0} in background for {1}",
+                                new Object[]{to.getName(), subscribe});
+                        Debug.message("ON EQ - POSTPONE");
                         RP.post(doParse);
                     } else {
+                        LOG.log(Level.FINER, "Run parse of {0} synchronously", to.getName());
                         doParse.run();
                     }
                 } else {
-                    LOG.log(Level.FINE, "Add subscriber {0} to {1}", new Object[]{subscribe, to.getPath()});
+                    LOG.log(Level.FINE, "Add subscriber {0} to {1} - not first "
+                            + "subscriber, not forcing reparse", new Object[]{subscribe, to.getPath()});
                 }
             }
 
@@ -508,7 +551,9 @@ public final class RebuildSubscriptions {
                 if (gen != null) {
                     if (jfs != gen.jfs()) {
                         gen = null;
-                        LOG.log(Level.FINE, "Got a different JFS, reinit mappings for generator {0}", id);
+                        LOG.log(Level.FINE, "Got a different JFS, reinit "
+                                + "mappings for generator {0} for {1} in {2}",
+                                new Object[]{id, ext.source(), project.getProjectDirectory()});
                         initMappings(jfs);
                     } else {
                         return gen;
@@ -524,6 +569,8 @@ public final class RebuildSubscriptions {
                 AntlrGeneratorBuilder<AntlrGenerator> agb = AntlrGenerator.builder(jfs);
                 if (relPath.getParent() != null) {
                     String pkg = relPath.getParent().toString().replace('/', '.');
+                    LOG.log(Level.FINEST, "Using package {0} for {1}",
+                            new Object[]{pkg, fo.getName()});
                     agb.generateIntoJavaPackage(pkg);
                 }
                 return gen = agb
@@ -536,88 +583,99 @@ public final class RebuildSubscriptions {
             }
 
             private String lastHash;
-            private Object lastLock = new Object();
+            private final Object lastLock = new Object();
             private Set<Subscriber> subscribersAtLastParse;
 
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
-                LOG.log(Level.FINER, "onReparse {0}", extraction.source());
-                List<Subscriber> targets = subscribers;
-                synchronized(lastLock) {
-                    // avoid notifying for "casual" reparses where the
-                    // content has not changed
-                    // XXX this will block updates when an imported grammar
-                    // changes
-                    String hash = extraction.tokensHash();
-                    if (Objects.equals(lastHash, hash)) {
-                        targets = new ArrayList<>(targets);
-                        targets.removeAll(subscribersAtLastParse);
-                        if (targets.isEmpty()) {
+                Debug.runThrowing(this, "RebuildSubscriptions.onReparse-" + extraction.tokensHash(), extraction::toString, () -> {
+                    System.out.println("onReparse called for " + extraction.source());
+                    LOG.log(Level.FINER, "onReparse {0}", extraction.source());
+                    List<Subscriber> targets = subscribers;
+                    synchronized (lastLock) {
+                        // avoid notifying for "casual" reparses where the
+                        // content has not changed
+                        // XXX this will block updates when an imported grammar
+                        // changes
+                        String hash = extraction.tokensHash();
+                        Debug.message("tokens-hash: " + hash);
+                        if (Objects.equals(lastHash, hash)) {
+                            targets = new ArrayList<>(targets);
+//                            targets.removeAll(subscribersAtLastParse);
+                            if (targets.isEmpty()) {
+                                Debug.failure("No remaining subscribers", this::toString);
+                                return;
+                            }
+                        } else {
+                            lastHash = hash;
+                            subscribersAtLastParse = new WeakSet<>(subscribers);
+                        }
+                    }
+                    AntlrGenerator gen = gen(extraction);
+                    try {
+                        // The parsing plumbing interrupts the parse thread in the event
+                        // of cancellation (e.g. user typed a character).  This can wreak
+                        // unholy havoc with I/O since it may cause a failure at any
+                        // point that manifests as an IOException or some other failure,
+                        // so try to detect the situation and bail out
+                        if (Thread.interrupted()) {
+                            LOG.log(Level.FINER, "Rebuild of {0} cancelled by interrupt",
+                                    extraction.source());
+                            Debug.failure("Interrupted", this::toString);
                             return;
                         }
-                    } else {
-                        lastHash = hash;
-                        subscribersAtLastParse = new WeakSet<>(subscribers);
+                        runGeneration(extraction, mimeType, gen, tree, populate, fixes);
+                    } catch (Error ex) {
+                        // This will otherwise be swallowed
+                        handleEiiE(ex, gen.jfs());
+                        throw ex;
+                    } catch (Exception ex) {
+                        LOG.log(Level.SEVERE, "Exception thrown running generator "
+                                + "for " + extraction.source(), ex);
                     }
-                }
-                AntlrGenerator gen = gen(extraction);
-                try {
-                    // The parsing plumbing interrupts the parse thread in the event
-                    // of cancellation (e.g. user typed a character).  This can wreak
-                    // unholy havoc with I/O since it may cause a failure at any
-                    // point that manifests as an IOException or some other failure,
-                    // so try to detect the situation and bail out
-                    if (Thread.interrupted()) {
-                        return;
-                    }
-                    PrintStream output = outputFor(extraction);
-                    // Build the message here so the UI doesn't hold a reference to the extraction
-                    // indefinitiely
-                    String msg = "Regenerate Antlr Grammar " + mimeType + " for " + extraction.source().lookup(Path.class);
-                    AntlrGenerationResult result = Debug.runObjectThrowing(this, "generate " + extraction.source(), () -> {
-                        return msg;
-                    }, () -> {
-                        return mapping.whileLocked(gen.jfs(), () -> {
-                            try {
-                                return gen.run(extraction.source().name(), output, true);
-                            } catch (Error eiie) {
-                                handleEiiE(eiie, gen.jfs());
-                                throw eiie;
-                            }
-                        });
-                    });
-                    if (Thread.interrupted()) {
-                        return;
-                    }
+                });
+            }
 
-                    LOG.log(Level.FINER, "Reparse received by generator {0} for "
-                            + "{1} placeholder {2} result usable {3} run result "
-                            + "{4} send to {5} subscribers",
-                            new Object[]{id, extraction.source().name(),
-                                extraction.isPlaceholder(), result.isUsable(), result, subscribers.size()});
-
-                    subscribers.forEach((s) -> {
+            public boolean runGeneration(Extraction extraction, String mimeType, AntlrGenerator gen1, GrammarFileContext tree, ParseResultContents populate, Fixes fixes) throws Exception {
+                PrintStream output = outputFor(extraction);
+                // Build the message here so the UI doesn't hold a reference to the extraction
+                // indefinitiely
+                String msg = "Regenerate Antlr Grammar " + mimeType + " for " + extraction.source().lookup(Path.class);
+                AntlrGenerationResult result = Debug.runObjectThrowing(this, "generate " + extraction.source(), () -> {
+                    return msg;
+                }, () -> {
+                    return mapping.whileLocked(gen1.jfs(), () -> {
                         try {
-                            LOG.log(Level.FINEST, "Call onRebuild() on {0} for {1}",
-                                    new Object[]{s, extraction.source()});
-                            s.onRebuilt(tree, mimeType, extraction, result, populate, fixes);
-                        } catch (Exception e) {
-                            LOG.log(Level.SEVERE,
-                                    "Exception processing parse result of "
-                                    + extraction.source(), e);
-                        } catch (Error e) {
-                            handleEiiE(e, gen.jfs());
-                            throw e;
+                            return gen1.run(extraction.source().name(), output, true);
+                        } catch (Error eiie) {
+                            handleEiiE(eiie, gen1.jfs());
+                            throw eiie;
                         }
                     });
-                } catch (Error ex) {
-                    // This will otherwise be swallowed
-                    handleEiiE(ex, gen.jfs());
-                    throw ex;
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, "Exception thrown running generator "
-                            + "for " + extraction.source(), ex);
+                });
+                if (Thread.interrupted()) {
+                    return true;
                 }
+                LOG.log(Level.FINER, "Reparse received by generator {0} for "
+                        + "{1} placeholder {2} result usable {3} run result "
+                        + "{4} send to {5} subscribers",
+                        new Object[]{id, extraction.source().name(),
+                            extraction.isPlaceholder(), result.isUsable(), result, subscribers.size()});
+                subscribers.forEach((s) -> {
+                    try {
+                        LOG.log(Level.FINEST, "Call onRebuild() on {0} for {1}",
+                                new Object[]{s, extraction.source()});
+                        s.onRebuilt(tree, mimeType, extraction, result, populate, fixes);
+                    } catch (Exception e) {
+                        LOG.log(Level.SEVERE,
+                                "Exception processing parse result of "
+                                + extraction.source(), e);
+                    } catch (Error e) {
+                        handleEiiE(e, gen1.jfs());
+                        throw e;
+                    }
+                });
+                return false;
             }
         }
     }

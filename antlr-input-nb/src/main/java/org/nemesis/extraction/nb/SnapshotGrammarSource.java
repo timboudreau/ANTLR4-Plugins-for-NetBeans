@@ -92,6 +92,7 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
 
     @Override
     public CharStream stream() throws IOException {
+        System.out.println("SNAPSHOT SOURCE:\n" + snapshot.getText().toString());
         return new CharSequenceCharStream(name(), snapshot.getText(), this);
 //        System.out.println("IS A STRING? " + snapshot.getText().getClass().getName());
 //        return CharStreams.fromString(snapshot.getText().toString(), name());

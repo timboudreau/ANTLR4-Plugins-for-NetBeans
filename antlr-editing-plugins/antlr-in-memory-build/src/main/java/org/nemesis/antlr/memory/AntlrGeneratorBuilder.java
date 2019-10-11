@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.nemesis.antlr.memory;
 
 import java.nio.charset.Charset;
@@ -48,22 +43,14 @@ public final class AntlrGeneratorBuilder<T> {
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromGenerator(AntlrGenerator res) {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs(), new Function<AntlrGeneratorBuilder<AntlrGenerationResult>, AntlrGenerationResult>() {
-            @Override
-            public AntlrGenerationResult apply(AntlrGeneratorBuilder<AntlrGenerationResult> bldr) {
-                return bldr.building(res.sourcePath(), res.importDir());
-            }
-        });
+        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs(),
+                (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourcePath(), res.importDir()));
         return result;
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromResult(AntlrGenerationResult res) {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs, new Function<AntlrGeneratorBuilder<AntlrGenerationResult>, AntlrGenerationResult>() {
-            @Override
-            public AntlrGenerationResult apply(AntlrGeneratorBuilder<AntlrGenerationResult> bldr) {
-                return bldr.building(res.sourceDir(), res.importDir());
-            }
-        });
+        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
+                (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourceDir(), res.importDir()));
         return result;
     }
 

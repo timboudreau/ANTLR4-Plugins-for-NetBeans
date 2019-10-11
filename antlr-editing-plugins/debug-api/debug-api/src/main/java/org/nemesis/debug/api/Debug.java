@@ -56,6 +56,16 @@ import org.nemesis.debug.spi.Emitter;
 import org.openide.util.Lookup;
 
 /**
+ * Allows for running of code in nested "contexts" - basically macro-level
+ * stack-frames which can have messages associated with them. Near-zero overhead
+ * if no module installs a ContextFactory to provide a UI to see what's going
+ * on, but useful for debugging sequences of events, since these modules rely on
+ * lots of nested calls to parse things that trigger calls to reparse other
+ * things and so on. Simply call one of the run* methods to open a context, and
+ * the message methods to attach messages. Note that objects referenced from the
+ * lambdas passed for creating string descriptions may live much longer than
+ * they otherwise would, since a UI will hold onto them for display until
+ * cleared.
  *
  * @author Tim Boudreau
  */
@@ -349,6 +359,22 @@ public final class Debug {
                 }
             }
         };
+    }
+
+    /**
+     * Determine if any ContextFactory is installed, for example, before calling
+     * toString() on something that could produce a large amount of output that
+     * should not be done unless it is likely to be used. Needed for lexer
+     * CharSequences, which throw exceptions when touched outside of the scope
+     * where they were created - yet we want to show the text from them.
+     *
+     * @return True if there is something installed which will display things.
+     */
+    public static boolean isActive() {
+        if (factory == null) {
+            return factory() == NoOpFactory.INSTANCE;
+        }
+        return !isDefault;
     }
 
     private static ContextFactory findFactory() {

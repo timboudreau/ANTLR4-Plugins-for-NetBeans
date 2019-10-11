@@ -15,39 +15,42 @@ modification, are permitted provided that the following conditions are met:
 * The name of its author may not be used to endorse or promote products
   derived from this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED 
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
-SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
 EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
 OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.language;
 
-import com.mastfrog.function.TriConsumer;
 import com.mastfrog.util.collections.CollectionUtils;
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
-import org.nemesis.antlr.compilation.GrammarRunResult;
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.debug.api.Debug;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.Source;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Lookup;
@@ -63,11 +66,15 @@ import org.openide.util.WeakSet;
 public final class AdhocReparseListeners {
 
     private static final Logger LOG = Logger.getLogger(AdhocReparseListeners.class.getName());
-    private final Map<Document, Set<TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy>>> documentListeners
+    private final Map<Document, Set<BiConsumer<? super Document, ? super EmbeddedAntlrParserResult>>> documentListeners
             = CollectionUtils.weakSupplierMap(WeakSet::new);
-    private final Map<FileObject, Set<TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy>>> fileListeners
+    private final Map<FileObject, Set<BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult>>> fileListeners
             = CollectionUtils.weakSupplierMap(WeakSet::new);
     private final String mimeType;
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     public AdhocReparseListeners(String mimeType) {
         this.mimeType = mimeType;
@@ -81,7 +88,7 @@ public final class AdhocReparseListeners {
      * @param doc A document of that type
      * @param listener A listener callback
      */
-    public static void listen(String mimeType, Document doc, TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
+    public static void listen(String mimeType, Document doc, BiConsumer<? super Document, ? super EmbeddedAntlrParserResult> listener) {
         String actualMimeType = NbEditorUtilities.getMimeType(doc);
         if (!mimeType.equals(actualMimeType)) {
             IllegalArgumentException iae = new IllegalArgumentException("Attempting to listen for reparses "
@@ -100,9 +107,9 @@ public final class AdhocReparseListeners {
         }
     }
 
-    public static void unlisten(String mimeType, FileObject fo, TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
+    public static void unlisten(String mimeType, FileObject fo, BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult> listener) {
         withListeners(mimeType, false, arl -> {
-            Set<TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy>> set
+            Set<BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult>> set
                     = arl.fileListeners.get(fo);
             set.remove(listener);
             if (set.isEmpty()) {
@@ -111,13 +118,13 @@ public final class AdhocReparseListeners {
         });
     }
 
-    public static void unlisten(String mimeType, Document doc, TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
+    public static void unlisten(String mimeType, Document doc, BiConsumer<? super Document, ? super EmbeddedAntlrParserResult> listener) {
         DynamicLanguages.ensureRegistered(mimeType);
         String realMimeType = NbEditorUtilities.getMimeType(doc);
         if (!realMimeType.equals(mimeType)) {
             FileObject fo = NbEditorUtilities.getFileObject(doc);
             StringBuilder sb = new StringBuilder()
-                    .append("Subscribing to reparses of ")
+                    .append("Unsubscribing from reparses of ")
                     .append(fo.getNameExt())
                     .append(" which is of mime type ")
                     .append(fo.getMIMEType())
@@ -131,7 +138,7 @@ public final class AdhocReparseListeners {
         }
 
         withListeners(mimeType, false, arl -> {
-            Set<TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy>> set
+            Set<BiConsumer<? super Document, ? super EmbeddedAntlrParserResult>> set
                     = arl.documentListeners.get(doc);
             set.remove(listener);
             if (set.isEmpty()) {
@@ -147,27 +154,59 @@ public final class AdhocReparseListeners {
      * @param fo A file object of that type
      * @param listener A listener callback
      */
-    public static void listen(String mimeType, FileObject fo, TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener) {
-        DynamicLanguages.ensureRegistered(mimeType);
-        if (!fo.getMIMEType().equals(mimeType)) {
-            StringBuilder sb = new StringBuilder(512)
-                    .append("Subscribing to reparses of ")
-                    .append(fo.getNameExt())
-                    .append(" which is  of mime type ")
-                    .append(fo.getMIMEType())
-                    .append(" as the mime type ")
-                    .append(mimeType)
-                    .append("(").append(AdhocMimeTypes.loggableMimeType(mimeType))
-                    .append(") is surely a bug.  Callback is: ")
-                    .append(listener);
-            LOG.log(Level.SEVERE, sb.toString(), new Exception(sb.toString()));
+    public static boolean listen(String mimeType, FileObject fo, BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult> listener) {
+        boolean wasRegistered = DynamicLanguages.ensureRegistered(mimeType);
+        if (!wasRegistered) {
+            Language l = Language.find(mimeType);
+            System.out.println("looked up " + l);
         }
-        boolean found = withListeners(mimeType, true, arl -> {
-            arl.fileListeners.get(fo).add(listener);
-        });
-        if (!found) {
-            LOG.log(Level.WARNING, "Dynamic language not registered for mime type " + mimeType, new Exception());
+        final File file = FileUtil.toFile(fo);
+
+        Runnable r = new Runnable() {
+            int runCount;
+
+            @Override
+            public void run() {
+                FileObject theFileObject = FileUtil.toFileObject(file);
+                System.out.println("RUN " + runCount + " " + mimeType);
+                if (!theFileObject.getMIMEType().equals(mimeType)) {
+                    if (runCount++ < 6) {
+                        System.out.println("not yet, reschedule");
+                        PROC.schedule(this, 1, TimeUnit.SECONDS);
+                        return;
+                    }
+                }
+                if (!theFileObject.getMIMEType().equals(mimeType)) {
+                    StringBuilder sb = new StringBuilder(512)
+                            .append("Subscribing to reparses of ")
+                            .append(theFileObject.getNameExt())
+                            .append(" which is  of mime type ")
+                            .append(theFileObject.getMIMEType())
+                            .append(" as the mime type ")
+                            .append(mimeType)
+                            .append("(").append(AdhocMimeTypes.loggableMimeType(mimeType))
+                            .append(") is surely a bug.  Callback is: ")
+                            .append(listener);
+                    LOG.log(Level.SEVERE, sb.toString(), new Exception(sb.toString()));
+                }
+                boolean found = withListeners(mimeType, true, arl -> {
+                    arl.fileListeners.get(theFileObject).add(listener);
+                });
+                if (!found) {
+                    LOG.log(Level.WARNING, "Dynamic language not registered for mime type " + mimeType,
+                            new Exception("Dynamic language not registered for mime type " + mimeType));
+                }
+            }
+        };
+        if (wasRegistered) {
+            System.out.println("was registered - run immediate");
+            r.run();
+        } else {
+            System.out.println("not registered - async run");
+//            PROC.schedule(r, 500, TimeUnit.MILLISECONDS);
+            r.run();
         }
+        return wasRegistered;
     }
 
     static Document documentFor(Source src) {
@@ -209,51 +248,68 @@ public final class AdhocReparseListeners {
         return result;
     }
 
-    void onReparse(Source src, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
-        Debug.run(this, "on-reparse " + AdhocMimeTypes.loggableMimeType(src.getMimeType()) + " " + AdhocMimeTypes.loggableMimeType(proxy.mimeType()), () -> {
+    void onReparse(Source src, EmbeddedAntlrParserResult res) {
+        System.out.println("ON REPARSE " + src.getFileObject());
+        Debug.run(this, "on-reparse " + AdhocMimeTypes.loggableMimeType(src.getMimeType()) + " " + AdhocMimeTypes.loggableMimeType(res.proxy().mimeType()), () -> {
             StringBuilder sb = new StringBuilder("Source mime type: ").append(src.getMimeType()).append('\n');
             sb.append("Source: ").append(src.getFileObject()).append('\n');
-            sb.append("Proxy mime type: ").append(proxy.mimeType()).append('\n');
-            sb.append("Proxy grammar file: ").append(proxy.grammarPath()).append('\n');
-            sb.append("\nPROXY:\n").append(proxy);
-            sb.append("\nTEXT:\n").append(proxy.text());
+            sb.append("Proxy mime type: ").append(res.proxy().mimeType()).append('\n');
+            sb.append("Proxy grammar file: ").append(res.proxy().grammarPath()).append('\n');
+            sb.append("\nPROXY:\n").append(res.proxy());
+            sb.append("\nTEXT:\n").append(res.proxy().text());
             return sb.toString();
         }, () -> {
             FileObject fo = fileObjectFor(src);
             if (fo != null && fileListeners.containsKey(fo)) {
-                for (TriConsumer<? super FileObject, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : fileListeners.get(fo)) {
+                Set<BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult>> listeners = fileListeners.get(fo);
+                LOG.log(Level.FINER, "Call {0} file listeners for {1}: {2}",
+                        new Object[]{listeners.size(), fo, listeners});
+                Debug.message(listeners.size() + " file listeners", listeners::toString);
+                for (BiConsumer<? super FileObject, ? super EmbeddedAntlrParserResult> listener : listeners) {
                     try {
                         Debug.message("Call " + listener);
-                        listener.apply(fo, gbrg, proxy);
+                        listener.accept(fo, res);
                     } catch (Exception ex) {
                         LOG.log(Level.SEVERE, "Notifying " + fo, ex);
                     }
                 }
+            } else {
+                LOG.log(Level.FINEST, "No file listeners for {0}", fo);
             }
             Document doc = documentFor(src);
             if (doc != null && documentListeners.containsKey(doc)) {
-                for (TriConsumer<? super Document, ? super GrammarRunResult<?>, ? super ParseTreeProxy> listener : documentListeners.get(doc)) {
+                Set<BiConsumer<? super Document, ? super EmbeddedAntlrParserResult>> listeners = documentListeners.get(doc);
+                LOG.log(Level.FINER, "Call {0} document listeners for {1}: {2}",
+                        new Object[]{listeners.size(), doc, listeners});
+                Debug.message(listeners.size() + " doc listeners", listeners::toString);
+                for (BiConsumer<? super Document, ? super EmbeddedAntlrParserResult> listener : listeners) {
                     try {
                         Debug.message("Call " + listener);
-                        listener.apply(doc, gbrg, proxy);
+                        listener.accept(doc, res);
                     } catch (Exception ex) {
                         LOG.log(Level.SEVERE, "Notifying " + doc, ex);
                     }
                 }
+            } else {
+                LOG.log(Level.FINEST, "No doc listeners for {0}", doc);
             }
         });
     }
 
-    void onReparse(Document doc, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
-        onReparse(Source.create(doc), gbrg, proxy);
+    void onReparse(Document doc, EmbeddedAntlrParserResult res) {
+        onReparse(Source.create(doc), res);
     }
 
-    static boolean reparsed(String mimeType, Source src, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
-//        return withListeners(mimeType, false, arl -> {
-//            arl.onReparse(src, gbrg, proxy);
-//        });
+    static boolean reparsed(String mimeType, Source src, EmbeddedAntlrParserResult res) {
+        System.out.println("REPARSED " + src.getFileObject());
+        if (true) {
+            return withListeners(mimeType, false, arl -> {
+                arl.onReparse(src, res);
+            });
+        }
+
         String foundMime = src.getMimeType();
-        String proxyMime = proxy.mimeType();
+        String proxyMime = res.proxy().mimeType();
         if (!foundMime.equals(mimeType) || !foundMime.equals(proxyMime)) {
             FileObject fo = fileObjectFor(src);
             StringBuilder sb = new StringBuilder(512)
@@ -273,15 +329,15 @@ public final class AdhocReparseListeners {
             LOG.log(Level.SEVERE, sb.toString(), new Exception(sb.toString()));
         }
         // Coalesce reparses since there are frequently many after a rebuild
-        return withListeners(mimeType, false, arl -> {
+        boolean result = withListeners(mimeType, false, arl -> {
+            System.out.println("In with Listeners");
             synchronized (PENDING) {
-                SourceKey k = new SourceKey(mimeType, src, gbrg, proxy);
+                SourceKey k = new SourceKey(mimeType, src, res);
                 SourceKey real = PENDING.get(k);
                 if (real == null) {
-                    PENDING.put(k, k);
-                    real = k;
+                    k.touch();
                 } else if (real != k) {
-                    if (real.maybeUpdate(gbrg, proxy)) {
+                    if (real.maybeUpdate(res)) {
                         real.touch();
                     } else {
                         PENDING.put(k, k);
@@ -291,11 +347,16 @@ public final class AdhocReparseListeners {
                 }
             }
         });
+        return result;
     }
 
-    static boolean reparsed(String mimeType, Document src, GrammarRunResult<?> gbrg, ParseTreeProxy proxy) {
+    public static boolean reparsed(String mimeType, Document src, EmbeddedAntlrParserResult embp) {
         return withListeners(mimeType, false, arl -> {
-            arl.onReparse(src, gbrg, proxy);
+            FileObject fo = NbEditorUtilities.getFileObject(src);
+            if (fo != null) {
+                System.out.println("  not calling on reparse on " + arl.fileListeners.get(fo));
+            }
+            arl.onReparse(src, embp);
         });
     }
 
@@ -320,14 +381,20 @@ public final class AdhocReparseListeners {
         private volatile boolean running;
         private final RequestProcessor.Task task = PROC.create(this, false);
 
-        public SourceKey(String mimeType, Source src, GrammarRunResult<?> res, ParseTreeProxy proxy) {
+        public SourceKey(String mimeType, Source src, EmbeddedAntlrParserResult res) {
             this.mimeType = mimeType;
             this.src = src;
-            ref.set(new KeyInfo(res, proxy));
+            ref.set(new KeyInfo(res));
         }
 
         Source src() {
             return src;
+        }
+
+        @Override
+        public String toString() {
+            return "SourceKey(" + src + ", " + ref.get() + " running "
+                    + running + ")";
         }
 
         SourceKey touch() {
@@ -338,40 +405,39 @@ public final class AdhocReparseListeners {
             return this;
         }
 
-        public boolean maybeUpdate(GrammarRunResult<?> res, ParseTreeProxy prox) {
+        public boolean maybeUpdate(EmbeddedAntlrParserResult res) {
             if (running) {
+                LOG.log(Level.FINEST, "Update parser result while running {0}", res);
                 return false;
             }
-            ref.set(new KeyInfo(res, prox));
+            ref.set(new KeyInfo(res));
             return true;
         }
 
         @Override
         public void run() {
             running = true;
-            synchronized (PENDING) {
-                PENDING.remove(this);
-            }
-            KeyInfo info = ref.get();
-            withListeners(mimeType, false, arl -> {
-                arl.onReparse(src, info.res, info.proxy);
+            Debug.run(this, this.toString(), () -> {
+                synchronized (PENDING) {
+                    PENDING.remove(this);
+                }
+                KeyInfo info = ref.get();
+                boolean res = withListeners(mimeType, false, arl -> {
+                    arl.onReparse(src, info.res);
+                });
+                Debug.message("WithListeners returned " + res);
+                LOG.log(Level.FINEST, "WithListeners result {0} for {1}",
+                        new Object[]{res, this});
             });
         }
 
         static class KeyInfo {
 
-            private final GrammarRunResult<?> res;
-            private final ParseTreeProxy proxy;
+            private final EmbeddedAntlrParserResult res;
 
-            public KeyInfo(GrammarRunResult<?> res, ParseTreeProxy proxy) {
+            public KeyInfo(EmbeddedAntlrParserResult res) {
                 this.res = res;
-                this.proxy = proxy;
             }
-        }
-
-        @Override
-        public String toString() {
-            return src + " / " + mimeType;
         }
 
         @Override

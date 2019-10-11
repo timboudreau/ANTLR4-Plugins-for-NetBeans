@@ -1,20 +1,12 @@
 package org.nemesis.antlr.live.language;
 
-import com.mastfrog.function.TriConsumer;
-import java.lang.ref.WeakReference;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
+import java.awt.EventQueue;
+import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.nemesis.antlr.compilation.GrammarRunResult;
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
-import org.nemesis.debug.api.Debug;
-import org.netbeans.modules.editor.NbEditorUtilities;
+import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
-import org.openide.util.Exceptions;
-import org.openide.util.RequestProcessor;
+import org.netbeans.spi.editor.highlighting.ZOrder;
 
 /**
  * Base class for highlighters that takes care of most of the boilerplate of
@@ -22,34 +14,43 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy> {
+public abstract class AbstractAntlrHighlighter {
 
-    protected final WeakReference<Document> weakDoc;
-    protected static final RequestProcessor threadPool = new RequestProcessor("antlr-highlighting", 5, true);
-    protected final static int REFRESH_DELAY = 100;
-    private RequestProcessor.Task refreshTask;
-    protected JTextComponent comp;
     protected final Logger LOG = Logger.getLogger(getClass().getName());
-    private final AtomicReference<HighlightingInfo> lastParseInfo = new AtomicReference<>();
+    protected final AdhocHighlighterManager mgr;
+    private final ZOrder zorder;
 
-    public AbstractAntlrHighlighter(Document doc) {
-        weakDoc = new WeakReference<>(doc);
-        AdhocReparseListeners.listen(NbEditorUtilities.getMimeType(doc), doc, this);
-        refreshTask = threadPool.create(this::doRefresh);
+    public AbstractAntlrHighlighter(AdhocHighlighterManager mgr, ZOrder zorder) {
+        this.mgr = mgr;
+        this.zorder = zorder;
+        LOG.setLevel(Level.ALL);
     }
 
-    protected HighlightingInfo lastInfo() {
-        return lastParseInfo.get();
+    final ZOrder zorder() {
+        return zorder;
     }
 
-    protected final void scheduleRefresh() {
-        refreshTask.schedule(REFRESH_DELAY);
+    protected void addNotify(JTextComponent comp) {
+
     }
 
-    private void doRefresh() {
-        HighlightingInfo info = lastParseInfo.get();
-        if (info != null) {
-            refresh(info);
+    protected void removeNotify(JTextComponent comp) {
+
+    }
+
+    protected void onColoringsChanged() {
+
+    }
+
+    protected void onNewHighlightingInfo() {
+
+    }
+
+    protected void onEq(Runnable run) {
+        if (EventQueue.isDispatchThread()) {
+            run.run();
+        } else {
+            EventQueue.invokeLater(run);
         }
     }
 
@@ -58,49 +59,8 @@ public abstract class AbstractAntlrHighlighter implements TriConsumer<Document, 
         return getClass().getSimpleName();
     }
 
-    protected final Optional<Document> document() {
-        return Optional.ofNullable(weakDoc.get());
-    }
-
-    void clearLastParseInfo() {
-        lastParseInfo.set(null);
-    }
-
     public abstract HighlightsContainer getHighlightsBag();
-
-    @Override
-    public final void apply(Document a, GrammarRunResult<?> b, AntlrProxies.ParseTreeProxy s) {
-        if (s.text() == null) {
-            return;
-        }
-        Debug.run(this, getClass().getSimpleName() + "-notified-reparse", s::toString, () -> {
-            Debug.message(NbEditorUtilities.getFileObject(a) + " (fileobject)", () -> {
-                try {
-                    return "PROXY TEXT:\n" + s.toString() + "\n\nDOC TEXT:\n"
-                            + a.getText(0, a.getLength());
-                } catch (BadLocationException ex) {
-                    Exceptions.printStackTrace(ex);
-                    return ex.toString();
-                }
-            });
-            HighlightingInfo info = new HighlightingInfo(a, b, s);
-            lastParseInfo.set(info);
-            scheduleRefresh();
-        });
-    }
 
     protected abstract void refresh(HighlightingInfo info);
 
-    protected static final class HighlightingInfo {
-
-        final Document doc;
-        final GrammarRunResult<?> runResult;
-        final AntlrProxies.ParseTreeProxy semantics;
-
-        public HighlightingInfo(Document doc, GrammarRunResult<?> runResult, AntlrProxies.ParseTreeProxy semantics) {
-            this.doc = doc;
-            this.runResult = runResult;
-            this.semantics = semantics;
-        }
-    }
 }

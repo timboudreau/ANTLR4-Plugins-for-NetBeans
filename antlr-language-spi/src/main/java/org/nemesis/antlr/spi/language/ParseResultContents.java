@@ -66,4 +66,50 @@ public abstract class ParseResultContents {
 
     abstract Fixes fixes();
 
+    /**
+     * For use with ParserResultHooks that are run against an already
+     * used AntlrParseResult, to provide a way for the hook to be
+     * fooled into thinking it's running against a fresh parse.
+     *
+     * @return A ParseResultContents that throws away anything added to it
+     */
+    public static ParseResultContents empty() {
+        return Empty.INSTANCE;
+    }
+
+    static class Empty extends ParseResultContents {
+
+        static Empty INSTANCE = new Empty();
+
+        @Override
+        public ParseResultContents addErrorDescription(ErrorDescription err) {
+            return this;
+        }
+
+        @Override
+        void setSyntaxErrors(List<? extends SyntaxError> errors, NbParserHelper helper) {
+            // do nothing
+        }
+
+        @Override
+        void addSyntaxError(SyntaxError err) {
+            // do nothing
+        }
+
+        @Override
+        <T> Optional<T> _get(AntlrParseResult.Key<T> key) {
+            return Optional.empty();
+        }
+
+        @Override
+        <T> void _put(AntlrParseResult.Key<T> key, T obj) {
+            // do nothing
+        }
+
+        @Override
+        Fixes fixes() {
+            return Fixes.empty();
+        }
+
+    }
 }

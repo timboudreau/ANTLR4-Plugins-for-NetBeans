@@ -32,6 +32,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.function.Consumer;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.netbeans.modules.parsing.api.Source;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
@@ -40,8 +41,8 @@ import org.openide.util.Lookup;
  * Cannot seem to find a way to reparse a modified file and have the
  * infrastructure actually notice that it has been modified and not return a
  * stale parse result. May be because tests are missing native file listener? At
- * any rate this hack should do it for now.  Basically, we need to invalidate
- * the parsing plumbing's cached Source instances for all files belonging to the
+ * any rate this hack should do it for now. Basically, we need to invalidate the
+ * parsing plumbing's cached Source instances for all files belonging to the
  * mime type of some grammar file whenever the grammar file changes.
  *
  * @author Tim Boudreau
@@ -51,20 +52,24 @@ public final class SourceInvalidator implements Consumer<FileObject> {
     private Class<?> sourceAccessorClass;
     private Object instance;
     private Method invalidateMethod;
+    private static boolean reflectionFailed;
+    private static final Logger LOG = Logger.getLogger(SourceInvalidator.class.getName());
 
     SourceInvalidator() {
     }
 
     public static Consumer<FileObject> create() {
-        SourceInvalidator invalidator = new SourceInvalidator();
-        try {
-            invalidator.invalidateMethod();
-            return invalidator;
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            EmbeddedAntlrParser.LOG.log(Level.INFO, null, ex);
-            return (ignored) -> {
-            };
+        if (!reflectionFailed) {
+            SourceInvalidator invalidator = new SourceInvalidator();
+            try {
+                invalidator.invalidateMethod();
+                return invalidator;
+            } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+                LOG.log(Level.INFO, null, ex);
+            }
         }
+        return (ignored) -> {
+        };
     }
 
     Class<?> getSourceAccessorClass(ClassLoader ldr) throws ClassNotFoundException {
@@ -109,15 +114,22 @@ public final class SourceInvalidator implements Consumer<FileObject> {
         try {
             Method m = invalidateMethod();
             Source src = Source.create(file);
-            System.out.println("INVALDIATE " + file);
+            LOG.log(Level.FINEST, "Invalidate Source instance {0} for {1}",
+                    new Object[]{src, file});
             m.invoke(instance(), src, true);
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            EmbeddedAntlrParser.LOG.log(Level.SEVERE, null, ex);
+        } catch (ClassNotFoundException | NoSuchMethodException
+                | IllegalAccessException | IllegalArgumentException
+                | InvocationTargetException ex) {
+            reflectionFailed = true;
+            LOG.log(Level.WARNING, null, ex);
         }
     }
 
     @Override
     public void accept(FileObject t) {
+        if (reflectionFailed) {
+            return;
+        }
         ClassLoader old = Thread.currentThread().getContextClassLoader();
         try {
             ClassLoader nue = Lookup.getDefault().lookup(ClassLoader.class);
@@ -127,5 +139,4 @@ public final class SourceInvalidator implements Consumer<FileObject> {
             Thread.currentThread().setContextClassLoader(old);
         }
     }
-
 }

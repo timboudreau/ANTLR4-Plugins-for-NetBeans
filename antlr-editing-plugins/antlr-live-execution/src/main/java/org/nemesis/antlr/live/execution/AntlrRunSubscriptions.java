@@ -36,6 +36,7 @@ import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileModifications;
@@ -365,65 +366,78 @@ public class AntlrRunSubscriptions {
                 AntlrGenerationResult res, ParseResultContents populate,
                 Fixes fixes) {
             if (!res.isUsable()) {
+                LOG.log(Level.FINE, "Unusable generation result {0}", res);
                 return;
             }
             try {
-                // Try to reuse existing stuff - we can be called in the event
-                // thread during a re-lex because of an insert or delete,
-                // and recompiling and rebuilding will cause a noticable pause
-                WithGrammarRunner rb;
-                CompileResult cr;
-                A arg;
-                JFSFileModifications grammarStatus;
-                long lastModified = Long.MIN_VALUE;
-                boolean created = false;
-                byte[] newHash = hash(res.jfs());
-                CachedResults<A> cache = cachedResults(extraction);
-                rb = cache.maybeReuse(extraction, newHash);
-                if (rb == null) {
-                    created = true;
-                    JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
-                    CSC csc = new CSC();
-                    arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
+                Debug.runThrowing(this,
+                        "AntlrRunSubscriptions.onRebuilt " + extraction.tokensHash() + "",
+                        extraction::toString, () -> {
+                            // Try to reuse existing stuff - we can be called in the event
+                            // thread during a re-lex because of an insert or delete,
+                            // and recompiling and rebuilding will cause a noticable pause
+                            WithGrammarRunner rb;
+                            CompileResult cr;
+                            A arg;
+                            JFSFileModifications grammarStatus;
+                            long lastModified = Long.MIN_VALUE;
+                            boolean created = false;
+                            byte[] newHash = hash(res.jfs());
+                            CachedResults<A> cache = cachedResults(extraction);
+                            rb = cache.maybeReuse(extraction, newHash);
+                            if (rb == null) {
+                                Debug.message("New compileBuilder for " + extraction.tokensHash());
+                                LOG.log(Level.FINEST, "Need a new compile builder for {0}", extraction.source());
+                                created = true;
+                                JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
+                                CSC csc = new CSC();
+                                arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
 
-                    bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
-                    cr = bldr.compile();
+                                bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+                                cr = bldr.compile();
 
-                    if (!cr.isUsable()) {
-                        LOG.log(Level.FINE, "Unusable compile result {0}", cr);
-                        return;
-                    }
+                                if (!cr.isUsable()) {
+                                    LOG.log(Level.FINE, "Unusable compile result {0}", cr);
+                                    return;
+                                }
 
-                    AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
+                                AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
 
-                    AntlrRunBuilder runBuilder = AntlrRunBuilder
-                            .fromGenerationPhase(compiler).isolated();
+                                AntlrRunBuilder runBuilder = AntlrRunBuilder
+                                        .fromGenerationPhase(compiler).isolated();
 
-                    if (csc.t != null) {
-                        runBuilder.withParentClassLoader(csc.t);
-                    }
+                                if (csc.t != null) {
+                                    runBuilder.withParentClassLoader(csc.t);
+                                }
 
-                    rb = runBuilder
-                            .build(extraction.source().name());
+                                rb = runBuilder
+                                        .build(extraction.source().name());
 
-                } else {
-                    System.out.println("USE CACHED");
-                    arg = cache.lastArg;
-                    cr = cache.lastCompileResult;
-                }
-                GrammarRunResult<T> rr = rb.run(arg, runner, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE));
-                if (rr.isUsable()) {
-                    if (created) {
-                        grammarStatus = res.filesStatus;
-                        cache.update(cr, rb, arg, grammarStatus, lastModified, newHash);
-                    }
-                    run(extraction, rr);
-                    if (!created) {
-                        cache.lastRunner.resetFileModificationStatusForReuse();
-                    }
-                }
+                            } else {
+                                System.out.println("USE CACHED");
+                                arg = cache.lastArg;
+                                cr = cache.lastCompileResult;
+                                LOG.log(Level.FINEST, "Reuse cached {0} and {1}",
+                                        new Object[] { arg, cr});
+                            }
+                            GrammarRunResult<T> rr = rb.run(arg, runner, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE, GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES, GrammarProcessingOptions.REBUILD_JAVA_SOURCES));
+                            if (rr.isUsable()) {
+                                if (created) {
+                                    grammarStatus = res.filesStatus;
+                                    cache.update(cr, rb, arg, grammarStatus, lastModified, newHash);
+                                }
+                                run(extraction, rr);
+                                if (!created) {
+                                    cache.lastRunner.resetFileModificationStatusForReuse();
+                                }
+                            }
+                        });
             } catch (IOException ex) {
                 Logger.getLogger(Entry.class.getName()).log(Level.WARNING,
+                        "Exception configuring compiler to parse "
+                        + extraction.source(), ex);
+            } catch (Exception ex) {
+                Logger.getLogger(Entry.class.getName()).log(Level.SEVERE,
                         "Exception configuring compiler to parse "
                         + extraction.source(), ex);
             } catch (Error err) {

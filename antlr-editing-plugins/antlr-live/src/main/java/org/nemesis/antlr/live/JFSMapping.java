@@ -11,6 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.debug.api.Trackables;
 import org.nemesis.jfs.JFS;
 import org.netbeans.api.project.Project;
 import org.openide.util.Utilities;
@@ -29,7 +30,12 @@ class JFSMapping {
     synchronized JFS forProject(Project project) throws IOException {
         ProjectReference ref = refs.get(project);
         if (ref == null) {
-            ref = new ProjectReference(createJFS(), project);
+            JFS jfs = createJFS();
+            ref = new ProjectReference(jfs, project);
+            String id = jfs.id();
+            Trackables.track(JFS.class, jfs, () -> {
+                return "JFS-" + id + project.getProjectDirectory().getName();
+            });
             refs.put(project, ref);
         }
         return ref.jfs;
@@ -124,6 +130,7 @@ class JFSMapping {
             try {
                 LOG.log(Level.FINER, "Project disappeared - close {0}", jfs);
                 jfs.close();
+                Trackables.discarded(JFS.class, jfs);
             } catch (IOException ex) {
                 LOG.log(Level.WARNING, "Closing jfs", ex);
             }

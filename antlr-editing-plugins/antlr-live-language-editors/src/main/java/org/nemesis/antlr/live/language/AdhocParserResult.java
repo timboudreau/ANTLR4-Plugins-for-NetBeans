@@ -1,6 +1,7 @@
 package org.nemesis.antlr.live.language;
 
 import java.util.function.Consumer;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser;
@@ -11,23 +12,29 @@ import org.netbeans.modules.parsing.spi.Parser;
  */
 public final class AdhocParserResult extends Parser.Result {
 
-    private AntlrProxies.ParseTreeProxy proxy;
+    private EmbeddedAntlrParserResult embeddedResult;
     private final Consumer<AdhocParserResult> invalidator;
 
-    public AdhocParserResult(Snapshot sn, AntlrProxies.ParseTreeProxy proxy, Consumer<AdhocParserResult> invalidator) {
+    public AdhocParserResult(Snapshot sn, EmbeddedAntlrParserResult embeddedResult, Consumer<AdhocParserResult> invalidator) {
         super(sn);
-        this.proxy = proxy;
+        this.embeddedResult = embeddedResult;
         this.invalidator = invalidator;
     }
 
+    public EmbeddedAntlrParserResult result() {
+        return embeddedResult;
+    }
+
     public AntlrProxies.ParseTreeProxy parseTree() {
-        return proxy;
+        return embeddedResult.proxy();
+    }
+
+    public String grammarHash() {
+        return embeddedResult.grammarTokensHash();
     }
 
     @Override
     protected void invalidate() {
-//        new Exception("Invalidate " + proxy.grammarName()).printStackTrace();
         invalidator.accept(this);
     }
-
 }

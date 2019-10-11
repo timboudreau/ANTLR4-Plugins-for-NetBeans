@@ -47,6 +47,10 @@ final class ProgrammaticParseResultHookRegistry {
     private static final Logger LOG = Logger.getLogger(
             ProgrammaticParseResultHookRegistry.class.getName());
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     static Set<ResultHookReference<?>> set() {
         // XXX should be WeakHashSet?
         return Collections.synchronizedSet(new HashSet<>(5));
@@ -77,6 +81,11 @@ final class ProgrammaticParseResultHookRegistry {
     }
 
     private void _shutdown() {
+        LOG.log(Level.FINE, "ProgrammaticParseResultHookRegistry.shutdown "
+                + " clearing {0} and {1}", new Object[]{
+                    byMimeType.keySet(),
+                    byFile.keySet()
+                });
         try {
             byMimeType.entrySet().forEach((e) -> {
                 e.getValue().forEach((r) -> {
@@ -98,6 +107,7 @@ final class ProgrammaticParseResultHookRegistry {
     }
 
     public static void deregisterAllOfType(String mimeType) {
+        LOG.log(Level.FINER, "Deregister all hooks for {0}", mimeType);
         instance()._deregisterAllOfType(mimeType);
     }
 
@@ -149,6 +159,7 @@ final class ProgrammaticParseResultHookRegistry {
 
     private static boolean removeFromSet(Set<ResultHookReference<?>> s, ParseResultHook<?> hook) {
         boolean result = false;
+        LOG.log(Level.FINEST, "Remove programmatic ParseResultHook {0}", hook);
         for (Iterator<ResultHookReference<?>> it = s.iterator(); it.hasNext();) {
             ResultHookReference<?> r = it.next();
             if (hook == r.get()) {
@@ -192,10 +203,11 @@ final class ProgrammaticParseResultHookRegistry {
         extraction.source().lookup(FileObject.class, file -> {
             allHooks.addAll(byFile.get(file));
         });
-        LOG.log(Level.FINEST, "Run {0} programmatically registered hooks for reparse of {1}",
+        LOG.log(Level.FINER, "Run {0} programmatically registered hooks for reparse of {1}",
                 new Object[]{allHooks.size(), extraction.source()});
         allHooks.forEach((hook) -> {
             try {
+                LOG.log(Level.FINEST, "Run {0} for {1}", new Object[] {hook, extraction.source()});
                 hook.onReparse(tree, mimeType, extraction, populate, fixes);
             } catch (Exception ex) {
                 LOG.log(Level.WARNING, "Exception in " + hook + " for "
@@ -208,9 +220,11 @@ final class ProgrammaticParseResultHookRegistry {
 
         volatile boolean destroyed;
         private final Set<String> warned = new HashSet<>(2);
+        private final String stringValue;
 
         public ResultHookReference(ParseResultHook<T> referent) {
             super(referent, Utilities.activeReferenceQueue());
+            stringValue = referent.toString();
         }
 
         protected abstract String targetString();
@@ -220,6 +234,8 @@ final class ProgrammaticParseResultHookRegistry {
             if (destroyed) {
                 return;
             }
+            LOG.log(Level.FINE, "Programmatic parse result hook {0} was gc'd "
+                    + "or explicitly removed", stringValue);
             destroyed = true;
             onDestroyed();
         }
@@ -268,6 +284,8 @@ final class ProgrammaticParseResultHookRegistry {
                     }
                 }
             } else {
+                LOG.log(Level.FINER, "Hook discovered to have been "
+                        + "gc'd on attempt to run: {0}", stringValue);
                 run();
             }
         }
@@ -301,7 +319,7 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         protected String targetString() {
-            return fo.getNameExt();
+            return fo.getNameExt() + " with " + get() + " for " + stringVal;
         }
 
         @Override
@@ -316,6 +334,8 @@ final class ProgrammaticParseResultHookRegistry {
 
             @Override
             public void fileDeleted(FileEvent fe) {
+                LOG.log(Level.FINE, "Remove programmatic file hook for {0} "
+                        + "due to deletion", fe.getFile());
                 run();
             }
         }

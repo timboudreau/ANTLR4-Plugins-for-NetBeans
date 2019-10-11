@@ -1,21 +1,25 @@
 
-ANTLR EDITING PLUGINS:
+# Antlr Editing Plugins To-Dos
 
- - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, and it's not really used
+ - Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
+   - Could use general support for sets of ranges in the range library
 
- - Use same token ProxyToken for things with literal names?
+ - Clone the EDITOR for the grammar not just its kit in PreviewPanel
+
+ - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, 
+   and it's not really used except for update check - could just keep the JFSFileModifications snapshot
+   and that is enough; those things that actually need the output should get them via the as yet
+   unused antlr output api.
 
  - Make coalescing use evil continue-as-goto instead of recursion?
 
- - UI for ATN prediction at cursor
+ - UI for ATN prediction at cursor - started in parser-recorder
 
  - Sort out the range generics puzzle with coalescing
 
- - Fix handling of SHARP in formatter, e.g. "# label" should not contain a space
-
- - Generic tracking code for things that should be garbage collected - JFS, JFSClassLoader
-
  - Get .tokens file contents / related grammar tokens into extraction / preview
+
+ - Need a version of ExtractionParseResult which is resolved?
 
  - The pattern matching stuff in antlr-formatters is exactly what is needed for code completion - extract and generify it
 
@@ -25,14 +29,16 @@ highlighter registration annotation on a key).
 
 fix coalescer to support longs
 
-
 -------
+
+# General Antlr Plugin Support To-Dos
 
 Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
 
 Maybe generic scoping - parser rule based what can reference what?
+
 
 CODE COMPLETION:
  - Annotation + processor for registering it - OR ADD TO AntlrLanguageRegistration so it can access parser / lexer
@@ -48,8 +54,6 @@ FORMATTING:
  - REINDENT SUPPORT
  - Wrapping lines action is not getting the correct line position and going insane
  - Should preserve whitespace if no action taken
- - UI support and choosable formatting actions
-
 
 ACTIONS:
 
@@ -58,5 +62,6 @@ ACTIONS:
 
 OTHER:
  - Generic indexing support
+   - Annotation?
 
 

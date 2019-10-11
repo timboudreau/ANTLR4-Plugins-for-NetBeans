@@ -75,8 +75,14 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
+    @SuppressWarnings("LeakingThisInConstructor")
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);
+        LOG.log(Level.FINE, "Created {0}", this);
     }
 
     @Override
@@ -106,8 +112,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
     @Override
     public EmbeddedParser apply(GenerationResult res) throws Exception {
-        System.out.println("APPLY " + res + " - " + res.res);
-        System.out.println("RES SUCCESS " + res.res.isSuccess() + " - " + res.res.file());
         if (!res.res.isSuccess()) {
             LOG.log(Level.WARNING, "Failed to generate extractor: {0}", res);
             return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
@@ -139,7 +143,14 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         public EnvRef(PreservedInvocationEnvironment referent) {
             super(referent, Utilities.activeReferenceQueue());
+            // Run method will be called by activeReferenceQueue once garbage
+            // collected
             this.ldr = referent.ldr;
+        }
+
+        public String toString() {
+            return "EnvRef(" + ldr.getClass().getSimpleName() + "@"
+                    + System.identityHashCode(ldr) + " discarded " + discarded + ")";
         }
 
         @Override
@@ -178,9 +189,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 .loadingFromParent(AntlrProxies.ProxySyntaxError.class)
                 .loadingFromParent(AntlrProxies.ProxyToken.class)
                 .loadingFromParent(AntlrProxies.ProxyTokenType.class)
-//                .loadingFromParent(CharSequenceCharStream.class)
-//                .loadingFromParent(CharStream.class)
-//                .loadingFromParent(Interval.class)
+                // XXX, we should move the mime type guesswork to something
+                // with a smaller footprint and omit this
                 .loadingFromParent(AdhocMimeTypes.class);
 
         @Override
@@ -189,6 +199,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
     }
 
+    /**
+     * This is really just a holder for the classloader created over the JFS,
+     * which is set before calling into generated classes.
+     */
     private static final class PreservedInvocationEnvironment implements EmbeddedParser {
 
         private final ClassLoader ldr;
@@ -203,12 +217,12 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public String toString() {
-            return super.toString() + "(" + ldr + ")";
+            return super.toString() + "(" + ref + ")";
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
-            return Debug.runObjectThrowing(this, "enter-embedded-parser " + typeName, () -> {
-                return ldr.toString().replace(',', '\n');
+            return Debug.runObjectThrowing(this, "enter-embedded-parser " + typeName + " " + ref, () -> {
+                return ref.toString(); // ldr.toString().replace(',', '\n');
             }, () -> {
                 ClassLoader old = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(ldr);
@@ -276,32 +290,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         @Override
         public synchronized void onDiscard() {
             ref.run();
-        }
-    }
-
-    static class DeadEmbeddedParser implements EmbeddedParser {
-
-        private final Path grammarPath;
-        private final String grammarName;
-
-        public DeadEmbeddedParser(Path path, String grammarName) {
-            this.grammarPath = path;
-            this.grammarName = grammarName;
-        }
-
-        @Override
-        public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, int ruleNo) throws Exception {
-            return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
-        }
-
-        @Override
-        public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, String ruleName) throws Exception {
-            return AntlrProxies.forUnparsed(grammarPath, grammarName, body);
-        }
-
-        @Override
-        public void onDiscard() {
-            // do nothing
         }
     }
 }

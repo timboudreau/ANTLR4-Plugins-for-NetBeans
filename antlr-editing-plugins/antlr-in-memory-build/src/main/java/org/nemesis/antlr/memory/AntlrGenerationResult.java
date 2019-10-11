@@ -167,13 +167,6 @@ public final class AntlrGenerationResult implements ProcessingResult {
 
     @Override
     public UpToDateness currentStatus() {
-//        if (grammarFile == null || modifiedFiles.isEmpty()) {
-//            return UpToDateness.UNKNOWN;
-//        }
-//        if (grammarFile.getLastModified() > grammarFileLastModified) {
-//            return UpToDateness.staleStatus().add(Paths.get(grammarFile.getName())).build();
-//        }
-//        return UpToDateness.fromFileTimes(modifiedFiles);
         return filesStatus.changes().status();
     }
 

@@ -50,10 +50,10 @@ import org.openide.filesystems.FileUtil;
  *
  * @author Tim Boudreau
  */
-public class EmbeddedAntlrParsers {
+public final class EmbeddedAntlrParsers {
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParsers.class.getName());
-    private final Map<FileObject, Set<EmbeddedAntlrParser>> liveParsersForFile
+    private final Map<FileObject, Set<EmbeddedAntlrParserImpl>> liveParsersForFile
             = CollectionUtils.concurrentSupplierMap(() -> {
                 return Collections.synchronizedSet(CollectionUtils.weakSet());
             });
@@ -95,8 +95,8 @@ public class EmbeddedAntlrParsers {
         ReparseListeners.unlisten(path, listener);
     }
 
-    private EmbeddedAntlrParser find(Set<EmbeddedAntlrParser> parsers) {
-        for (EmbeddedAntlrParser e : parsers) {
+    private EmbeddedAntlrParser find(Set<EmbeddedAntlrParserImpl> parsers) {
+        for (EmbeddedAntlrParserImpl e : parsers) {
             if (e != null && !e.isDisposed()) {
                 return e;
             }
@@ -105,25 +105,27 @@ public class EmbeddedAntlrParsers {
     }
 
     private EmbeddedAntlrParser _subscribe(String logName, FileObject grammar) {
-        Set<EmbeddedAntlrParser> set = liveParsersForFile.get(grammar);
-
-        EmbeddedAntlrParser p;
+        Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(grammar);
+        System.out.println("SUBSCRIBE " + logName + " to " + grammar.getNameExt());
+        EmbeddedAntlrParserImpl p;
 //        EmbeddedAntlrParser p = find(set);
 //        if (p != null) {
 //            return p;
 //        }
 
         Path path = FileUtil.toFile(grammar).toPath();
-        p = new EmbeddedAntlrParser(logName, path, grammar.getName());
+        p = new EmbeddedAntlrParserImpl(logName, path, grammar.getName());
 
         LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
                 + " {1} subscribers",
                 new Object[]{grammar.getPath(), set.size()});
-        Runnable unsubscriber = AntlrRunSubscriptions
+        Runnable unsubscriber = lastUn = AntlrRunSubscriptions
                 .forType(EmbeddedParser.class)
-                .subscribe(grammar, p.subscriber);
-        p.unsubscriber = unsubscriber;
+                .subscribe(grammar, p);
+        p.setUnsubscriber(unsubscriber);
         set.add(p);
         return p;
     }
+
+    Runnable lastUn;
 }
