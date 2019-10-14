@@ -40,6 +40,13 @@
             <artifactId>antlr-input</artifactId>
         </dependency>
         <dependency>
+            <!-- XXX this dep is for the implementation of Extractors,
+                which should perhaps be in its own module.
+            -->
+            <groupId>${project.groupId}</groupId>
+            <artifactId>extraction</artifactId>
+        </dependency>        
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
         </dependency>

@@ -19,6 +19,20 @@ public final class Attributions<R, I extends IndexAddressable.NamedIndexAddressa
         this.unresolved = unresolved;
     }
 
+    public boolean hasResolved() {
+        return resolved != null && !resolved.isEmpty();
+    }
+
+    public boolean hasUnresolved() {
+        return unresolved != null && unresolved.isEmpty();
+    }
+
+    @Override
+    public String toString() {
+        return "Attributions(resolved=" + resolved + ", unresolved="
+                + unresolved + ")";
+    }
+
     /**
      * Get the set of all regions which were successfully attributed (they were
      * references to names defined in other files which have been identified and

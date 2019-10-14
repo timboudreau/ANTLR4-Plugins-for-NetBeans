@@ -1,6 +1,7 @@
 package org.nemesis.antlr.live.parsing.extract;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -162,7 +163,7 @@ public class ExtractionCodeGenerator {
             return result;
         }
         String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix);
-        Path extractorPath = Paths.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
+        UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
         return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
 

@@ -217,9 +217,9 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                             lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
                                                     .body(lbb -> {
                                                         lbb.ifNotNull("thrown", cbb -> {
-                                                                    cbb.log("Thrown in extracting", Level.FINER)
-                                                                            .statement("Exceptions.printStackTrace(thrown)")
-                                                                            .statement("return");
+                                                            cbb.log("Thrown in extracting", Level.FINER)
+                                                                    .statement("Exceptions.printStackTrace(thrown)")
+                                                                    .statement("return");
                                                         });
 //                                                        lbb.ifCondition().variable("thrown").notEquals().literal("null")
 //                                                                .endCondition(cbb -> {
@@ -248,11 +248,11 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
 
                                                                     loopBody.ifNotNull("set")
                                                                             .log(Level.FINER)
-                                                                                        .argument("set")
-                                                                                        .argument("set.referencing()")
-                                                                                        .argument("set.referencing().start()")
-                                                                                        .logging("Found ref {0} navigating to {1} at {2}")
-                                                                                .statement("result[0] = set.referencing().start()");
+                                                                            .argument("set")
+                                                                            .argument("set.referencing()")
+                                                                            .argument("set.referencing().start()")
+                                                                            .logging("Found ref {0} navigating to {1} at {2}")
+                                                                            .statement("result[0] = set.referencing().start()");
 
 //                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
 //                                                                            .endCondition(doNav -> {
@@ -275,25 +275,24 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
 
                             });
                 }).override("token", mb -> {
-                    mb.withModifier(PUBLIC).returning("boolean")
-                            .addArgument(simpleName(EDITOR_TOKEN_ID_TYPE), "tokenId")
-                            .addArgument(simpleName(TOKEN_CONTEXT_PATH_TYPE), "path")
-                            .addArgument("int", "tokenBufferOffset")
-                            .addArgument("int", "tokenLength")
-                            .body().returning("true").endBlock();
-                            ;
+            mb.withModifier(PUBLIC).returning("boolean")
+                    .addArgument(simpleName(EDITOR_TOKEN_ID_TYPE), "tokenId")
+                    .addArgument(simpleName(TOKEN_CONTEXT_PATH_TYPE), "path")
+                    .addArgument("int", "tokenBufferOffset")
+                    .addArgument("int", "tokenLength")
+                    .body().returning("true").endBlock();
+            ;
 
-                }).override("nextBuffer", mb -> {
-                    mb.withModifier(PUBLIC)
-                            .addArgument("char[]", "buffer")
-                            .addArgument("int", "offset")
-                            .addArgument("int", "length")
-                            .addArgument("int", "startPos")
-                            .addArgument("int", "preScan")
-                            .addArgument("boolean", "lastBuffer")
-                            .emptyBody()
-                            ;
-                }).override("eot").withModifier(PUBLIC)
+        }).override("nextBuffer", mb -> {
+            mb.withModifier(PUBLIC)
+                    .addArgument("char[]", "buffer")
+                    .addArgument("int", "offset")
+                    .addArgument("int", "length")
+                    .addArgument("int", "startPos")
+                    .addArgument("int", "preScan")
+                    .addArgument("boolean", "lastBuffer")
+                    .emptyBody();
+        }).override("eot").withModifier(PUBLIC)
                 .addArgument("int", "offset").returning("int").body().returning(0).endBlock();
         return cb;
     }
@@ -305,172 +304,32 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
         ClassBuilder<String> cb = ClassBuilder.forPackage(dataObjectPackageForMimeType(mimeType))
                 .named(gotoDeclarationActionClassName)
                 .withModifier(PUBLIC, FINAL)
-                .importing(ABSTRACT_EDITOR_ACTION_TYPE, "org.netbeans.api.editor.EditorActionNames",
-                        "java.awt.event.ActionEvent", "javax.swing.text.JTextComponent", REF_SET_KEY_TYPE,
-                        "java.awt.EventQueue",
-                        "javax.swing.text.Caret", EXCEPTIONS_TYPE,
-                        EXTRACTION_TYPE, NAMED_REGION_REFERENCE_SETS_TYPE, NB_ANTLR_UTILS_TYPE,
+                .importing(ABSTRACT_EDITOR_ACTION_TYPE,
+                        REF_SET_KEY_TYPE,
                         NAMED_REFERENCE_SEMANTIC_REGION_REFERENCE_TYPE,
-                        "org.openide.util.NbBundle", "org.netbeans.editor.ext.ExtKit",
-                        "org.netbeans.editor.BaseAction", "org.netbeans.editor.BaseKit"
+                        NAMED_REGION_REFERENCE_SETS_TYPE,
+                        NB_ANTLR_UTILS_TYPE
                 )
-                .extending(simpleName(ABSTRACT_EDITOR_ACTION_TYPE))
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
                             .initializedAsArrayLiteral(simpleName(REF_SET_KEY_TYPE) + "<?>", ab -> {
                                 value.forEach(ab::add);
                                 ab.closeArrayLiteral();
                             });
-                }).constructor(con -> {
-            con.setModifier(PUBLIC)
-                    .body(bb -> {
-                        bb.log("Create a new " + gotoDeclarationActionClassName, Level.FINE);
-                        bb.invoke("putValue")
-                                .withArgument("ASYNCHRONOUS_KEY")
-                                .withArgument("true")
-                                .inScope();
-                        bb.invoke("putValue")
-                                .withArgument("NAME")
-                                .withArgument("EditorActionNames.gotoDeclaration")
-                                .inScope();
-                        bb.declare("trimmed")
-                                .initializedWith("NbBundle.getBundle(BaseKit.class).getString(\"goto-declaration-trimmed\")")
-                                .as("String");
-                        bb.invoke("putValue")
-                                .withArgument("ExtKit.TRIMMED_TEXT")
-                                .withArgument("trimmed").inScope();
-                        bb.invoke("putValue")
-                                .withArgument("BaseAction.POPUP_MENU_TEXT")
-                                .withArgument("trimmed").inScope();
-                        bb.endBlock();
-                    });
-
-        }).override("actionPerformed", mb -> {
-            mb.withModifier(PUBLIC)
-                    .addArgument("ActionEvent", "evt").addArgument("JTextComponent", "component")
-                    .body(bb -> {
-                        bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
-//                        bb.ifCondition().variable("caret").equals().literal("null").endCondition()
-//                                .statement("return").endBlock().endIf();
-
-                        bb.ifNull("caret").statement("return").endIf();
-
-                        bb.declare("position").initializedByInvoking("getDot").on("caret").as("int");
-                        bb.log(Level.FINER).argument("position").stringLiteral(gotoDeclarationActionClassName)
-                                .logging("Invoke {0} at {1}");
-                        bb.invoke("parseImmediately").withArgument("component.getDocument()")
-                                .withLambdaArgument(lb -> {
-                                    lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
-                                            .body(lbb -> {
-//                                                lbb.ifCondition().variable("thrown").notEquals().literal("null")
-//                                                        .endCondition(cbb -> {
-//                                                            cbb.log("Thrown in extracting", Level.FINER)
-//                                                                    .statement("Exceptions.printStackTrace(thrown)")
-//                                                                    .statement("return")
-//                                                                    .endBlock();
-//                                                        });
-
-                                                lbb.ifNotNull("thrown")
-                                                        .log("Thrown in extracting", Level.FINER)
-                                                                    .statement("Exceptions.printStackTrace(thrown)")
-                                                                    .statement("return")
-                                                                    .endIf();
-
-                                                lbb.invoke("invokeLater")
-                                                        .withLambdaArgument(invokeLater -> {
-                                                            invokeLater.body()
-                                                                    .invoke("navigateTo")
-                                                                    .withArgument("evt")
-                                                                    .withArgument("component")
-                                                                    .withArgument("extraction")
-                                                                    .withArgument("position")
-                                                                    .inScope().endBlock();
-
-                                                        })
-                                                        .on("EventQueue").endBlock();
-
-                                            });
-                                })
-                                .on("NbAntlrUtils").endBlock();
-                    });
-        }).method("navigateTo", navToBuilder -> {
-            navToBuilder.addArgument("ActionEvent", "evt")
-                    .addArgument("JTextComponent", "component")
-                    .addArgument("Extraction", "extraction")
-                    .addArgument("int", "position")
-                    .withModifier(PRIVATE)
-                    .body(bb -> {
-                        bb.log(Level.FINER).argument("position").argument("extraction.logString()")
-                                .logging("Find ref at {0} in {1}");
-                        bb.simpleLoop(simpleName(REF_SET_KEY_TYPE), "key")
-                                .over("KEYS", loopBody -> {
-
-                                    loopBody.declare("regions").initializedByInvoking("references")
-                                            .withArgument("key")
-                                            .on("extraction").as("NamedRegionReferenceSets<?>");
-
-                                    // NamedSemanticRegionReference<?> set = x.at( startPos );
-                                    loopBody.declare("set").initializedByInvoking("at")
-                                            .withArgument("position")
-                                            .on("regions").as("NamedSemanticRegionReference<?>");
-
-                                    loopBody.ifNotNull("set", doNav -> {
-                                                doNav.log(Level.FINER)
-                                                        .argument("set")
-                                                        .argument("set.referencing()")
-                                                        .argument("set.referencing().start()")
-                                                        .logging("Found ref {0} navigating to {1} at {2}");
-                                                doNav.invoke("navigateTo").withArgument("component")
-                                                        .withArgument("set.referencing().start()").inScope();
-                                                doNav.statement("return");
-                                    });
-
-//                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
-//                                            .endCondition(doNav -> {
-//                                                doNav.log(Level.FINER)
-//                                                        .argument("set")
-//                                                        .argument("set.referencing()")
-//                                                        .argument("set.referencing().start()")
-//                                                        .logging("Found ref {0} navigating to {1} at {2}");
-//                                                doNav.overInvocationOf("navigateTo").withArgument("component")
-//                                                        .withArgument("set.referencing().start()").inScope();
-//                                                doNav.statement("return").endBlock();
-//                                            });
-                                }).endBlock();
-                    });
-        }).method("navigateTo", nav -> {
-            nav.addArgument("JTextComponent", "component")
-                    .addArgument("int", "position")
-                    .withModifier(PRIVATE)
-                    .body(bb -> {
-                        bb.declare("caret").initializedByInvoking("getCaret").on("component").as("Caret");
-                        bb.ifNotNull("caret", then -> {
-                                    then.log(Level.FINER)
-                                            .argument("position")
-                                            .argument("component")
-                                            .logging("Setting caret to {0} in {1}");
-                                    then.invoke("resetCaretMagicPosition").withArgument("component").inScope();
-                                    then.invoke("setDot").withArgument("position").on("caret");
-                        });
-
-//                        bb.ifCondition().variable("caret").notEquals().literal("null")
-//                                .endCondition(then -> {
-//                                    then.log(Level.FINER)
-//                                            .argument("position")
-//                                            .argument("component")
-//                                            .logging("Setting caret to {0} in {1}");
-//                                    then.overInvocationOf("resetCaretMagicPosition").withArgument("component").inScope();
-//                                    then.overInvocationOf("setDot").withArgument("position").on("caret").endBlock();
-//                                });
-                    });
-        });
+                }).field("ACTION", fb -> {
+            fb.withModifier(PUBLIC, STATIC, FINAL)
+                    .initializedFromInvocationOf("createGotoDeclarationAction", ib -> {
+                        ib.withArgument("KEYS").on("NbAntlrUtils");
+                    }).ofType(ABSTRACT_EDITOR_ACTION_TYPE);
+        }).method("action").withModifier(PUBLIC, STATIC).returning(simpleName(ABSTRACT_EDITOR_ACTION_TYPE))
+                .body().returning("ACTION").endBlock();
 
         Element[] els = setsFor(value).toArray(new Element[0]);
         LayerBuilder layer = layer(els);
         String layerPath = "Editors/" + mimeType + "/Actions/"
-                + "goto-declaration"  /* cb.fqn().replace('.', '-') */ + ".instance";
+                + "goto-declaration" /* cb.fqn().replace('.', '-') */ + ".instance";
         layer.file(layerPath)
-                .stringvalue("instanceClass", cb.fqn())
+                .stringvalue("instanceCreate", cb.fqn() + ".action")
                 .stringvalue("instanceOf", "javax.swing.Action")
                 .intvalue("position", 1)
                 .write();

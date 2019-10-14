@@ -1,6 +1,7 @@
 package org.nemesis.jfs;
 
 import com.mastfrog.function.throwing.ThrowingConsumer;
+import com.mastfrog.util.path.UnixPath;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,7 +12,6 @@ import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -41,8 +41,8 @@ public class TestReadsAreConsistent {
     }
 
     private void _testReads(JFS jfs) throws Exception {
-        Path a = Paths.get("com/foo/some-text.txt");
-        Path b = Paths.get("com/foo/some-more-text.txt");
+        UnixPath a = UnixPath.get("com/foo/some-text.txt");
+        UnixPath b = UnixPath.get("com/foo/some-more-text.txt");
         String txt = text(30);
         String txt2 = text(120);
         JFSFileObject fo = jfs.create(a, StandardLocation.SOURCE_OUTPUT, txt);

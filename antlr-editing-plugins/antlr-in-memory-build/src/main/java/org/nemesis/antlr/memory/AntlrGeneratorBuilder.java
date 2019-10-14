@@ -1,8 +1,8 @@
 package org.nemesis.antlr.memory;
 
+import com.mastfrog.util.path.UnixPath;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.function.Function;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileManager.Location;
@@ -29,8 +29,8 @@ public final class AntlrGeneratorBuilder<T> {
     JFS jfs;
     JavaFileManager.Location grammarSourceInputLocation = StandardLocation.SOURCE_PATH;
     JavaFileManager.Location javaSourceOutputLocation = StandardLocation.SOURCE_OUTPUT;
-    Path sourcePath;
-    Path importDir;
+    UnixPath sourcePath;
+    UnixPath importDir;
     private final Function<? super AntlrGeneratorBuilder<T>, T> convert;
 
     AntlrGeneratorBuilder(JFS jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
@@ -109,11 +109,11 @@ public final class AntlrGeneratorBuilder<T> {
         return this;
     }
 
-    public T building(Path virtualSourcePath) {
+    public T building(UnixPath virtualSourcePath) {
         return building(virtualSourcePath, null);
     }
 
-    public T building(Path virtualSourcePath, Path importDir) {
+    public T building(UnixPath virtualSourcePath, UnixPath importDir) {
         this.sourcePath = virtualSourcePath;
         this.importDir = importDir;
         return convert.apply(this);

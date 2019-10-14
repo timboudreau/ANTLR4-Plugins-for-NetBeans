@@ -1,7 +1,6 @@
 package org.nemesis.jfs;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import com.mastfrog.util.path.UnixPath;
 import java.util.logging.Level;
 import javax.tools.JavaFileObject;
 
@@ -15,19 +14,20 @@ import javax.tools.JavaFileObject;
  */
 final class Name {
 
-    private final Path prefix;
+    private final UnixPath prefix;
     private final String name;
     private final String extension;
 
-    Name(Path prefix, String name, String ext) {
-        this.prefix = prefix == null ? Paths.get("") : prefix;
+    Name(UnixPath prefix, String name, String ext) {
+        this.prefix = prefix == null ? UnixPath.empty() : prefix;
         this.name = name;
         this.extension = ext;
     }
 
     static Name forFileName(String pkg, String fileName) {
-        String[] nameExt = nameExt(Paths.get(fileName));
-        return new Name(packageToPath(pkg), nameExt[0], nameExt[1]);
+        UnixPath pkgPth = packageToPath(pkg);
+        UnixPath fn = UnixPath.get(fileName);
+        return new Name(pkgPth, fn.rawName(), fn.extension());
     }
 
     static Name forClassName(String className, JavaFileObject.Kind kind) {
@@ -37,7 +37,7 @@ final class Name {
             pkg = className.substring(0, ix);
             className = className.substring(ix + 1, className.length());
         }
-        Path prefix = packageToPath(pkg);
+        UnixPath prefix = packageToPath(pkg);
         String ext = kind.extension;
         if (ext.length() > 0 && ext.charAt(0) == '.') {
             ext = ext.substring(1);
@@ -45,12 +45,12 @@ final class Name {
         return new Name(prefix, className, ext);
     }
 
-    static Path packageToPath(String packageName) {
-        Path result;
+    static UnixPath packageToPath(String packageName) {
+        UnixPath result;
         if (packageName != null && !packageName.isEmpty()) {
-            result = Paths.get(packageName.replace('.', '/'));
+            result = UnixPath.get(packageName.replace('.', '/'));
         } else {
-            return Paths.get("");
+            return UnixPath.empty();
         }
         return result;
     }
@@ -62,40 +62,28 @@ final class Name {
         if (name.charAt(0) == '/') {
             name = name.substring(1);
         }
-        Path asPath = Paths.get(name);
-        String[] nameExt = nameExt(asPath);
-        return new Name(asPath.getParent(), nameExt[0], nameExt[1]);
+        UnixPath asPath = UnixPath.get(name).normalize();
+        return new Name(asPath.getParent(), asPath.rawName(), asPath.extension());
     }
 
-    static Name forPath(Path path) {
+    static Name forPath(UnixPath path) {
         if (path.isAbsolute()) {
             JFS.LOG.log(Level.WARNING, "Absolute path passed to "
                     + "Name.forPath(): {0}. Converting to relative path",
                     path);
-            path = Paths.get("/").relativize(path);
+            path = path.toRelativePath();
         }
-        String[] nameExt = nameExt(path);
-        return new Name(path.getParent(), nameExt[0], nameExt[1]);
+        path = path.normalize();
+        return new Name(path.getParent(), path.rawName(), path.extension());
     }
 
-    static Name forPath(Path path, Path relativeTo) {
-        Path realPath = relativeTo.relativize(path);
-        String[] nameExt = nameExt(realPath);
-        return new Name(realPath.getParent(), nameExt[0], nameExt[1]);
-    }
-
-    static String[] nameExt(Path path) {
-        String fileName = path.getFileName().toString();
-        String ext = "";
-        int extIx = fileName.lastIndexOf('.');
-        if (extIx > 0 && extIx < fileName.length() - 1) {
-            ext = fileName.substring(extIx + 1);
-            fileName = fileName.substring(0, extIx);
-        }
-        return new String[]{fileName, ext};
+    static Name forPath(UnixPath path, UnixPath relativeTo) {
+        UnixPath realPath = relativeTo.normalize().relativize(path.normalize());
+        return new Name(realPath.getParent(), realPath.rawName(), realPath.extension());
     }
 
     private JavaFileObject.Kind cachedKind;
+
     JavaFileObject.Kind kind() {
         if (cachedKind != null) {
             return cachedKind;
@@ -128,7 +116,7 @@ final class Name {
         return packageName().equals(pkg);
     }
 
-    boolean isPackage(Path pkgPath, boolean orSubpackage) {
+    boolean isPackage(UnixPath pkgPath, boolean orSubpackage) {
         if (pkgPath == null || pkgPath.toString().isEmpty()) {
             boolean result = orSubpackage || prefix.toString().isEmpty();
             return result;
@@ -154,19 +142,11 @@ final class Name {
     }
 
     String packageName() {
-        StringBuilder sb = new StringBuilder();
-        int ct = prefix.getNameCount();
-        for (int i = 0; i < ct; i++) {
-            sb.append(prefix.getName(i));
-            if (i != ct - 1) {
-                sb.append('.');
-            }
-        }
-        return sb.toString();
+        return prefix.toString('.');
     }
 
-    public Path toPath() {
-        return Paths.get(toString());
+    public UnixPath toPath() {
+        return UnixPath.get(toString());
     }
 
     @Override

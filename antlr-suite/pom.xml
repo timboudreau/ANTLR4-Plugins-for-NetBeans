@@ -127,6 +127,11 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-grammar-file-resolver</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>adhoc-mime-types</artifactId>
             <version>${project.version}</version>
         </dependency>

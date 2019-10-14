@@ -1,5 +1,6 @@
 package org.nemesis.jfs;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -202,11 +203,11 @@ final class JFSStorage {
         return files.remove(name) != null;
     }
 
-    JFSFileObjectImpl addRealFile(Path localName, Path realFile) {
+    JFSFileObjectImpl addRealFile(UnixPath localName, Path realFile) {
         return addRealFile(localName, realFile, alloc.encoding());
     }
 
-    JFSFileObjectImpl addRealFile(Path localName, Path realFile, Charset encoding) {
+    JFSFileObjectImpl addRealFile(UnixPath localName, Path realFile, Charset encoding) {
         Name name = Name.forPath(localName);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this,
@@ -221,7 +222,7 @@ final class JFSStorage {
         return fo;
     }
 
-    JFSFileObject addDocument(Path asPath, Document doc) {
+    JFSFileObject addDocument(UnixPath asPath, Document doc) {
         Name name = Name.forPath(asPath);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         DocumentBytesStorageWrapper wrapper = new DocumentBytesStorageWrapper(this, doc);
@@ -288,7 +289,7 @@ final class JFSStorage {
     }
 
     Iterable<JavaFileObject> list(String packageName, Set<JavaFileObject.Kind> kinds, boolean recurse) {
-        Path path = Name.packageToPath(packageName);
+        UnixPath path = Name.packageToPath(packageName);
         List<JavaFileObject> result = new ArrayList<>(files.size());
         for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
             if (e.getKey().isPackage(path, recurse)) {

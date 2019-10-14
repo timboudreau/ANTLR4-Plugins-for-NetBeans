@@ -1,6 +1,7 @@
 package org.nemesis.antlr.live;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.path.UnixPath;
 import java.awt.EventQueue;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -316,10 +317,10 @@ public final class RebuildSubscriptions {
             try {
                 DataObject dob = DataObject.find(fo);
                 EditorCookie.Observable obs = dob.getLookup().lookup(EditorCookie.Observable.class);
-                return new Mapping(fo, obs, relativePath);
+                return new Mapping(fo, obs, UnixPath.get(relativePath));
             } catch (DataObjectNotFoundException ex) {
                 LOG.log(Level.SEVERE, "No data object for " + fo.getPath(), ex);
-                return new Mapping(fo, null, relativePath);
+                return new Mapping(fo, null, UnixPath.get(relativePath));
             } finally {
                 ParseResultHook.register(fo, hook);
             }
@@ -327,13 +328,13 @@ public final class RebuildSubscriptions {
 
         final class Mapping extends FileChangeAdapter implements PropertyChangeListener {
 
-            private final Path targetPath;
+            private final UnixPath targetPath;
             private EditorCookie.Observable obs;
             private final FileObject fo;
             private MappingMode mode;
 
             @SuppressWarnings("LeakingThisInConstructor")
-            Mapping(FileObject fo, EditorCookie.Observable obs, Path targetPath) {
+            Mapping(FileObject fo, EditorCookie.Observable obs, UnixPath targetPath) {
                 this.fo = fo;
                 this.obs = obs;
                 this.targetPath = targetPath;
@@ -361,9 +362,9 @@ public final class RebuildSubscriptions {
             }
 
             void recheckMapping() {
-                switch(mode) {
-                    case MAP_FILE :
-                        if (obs !=null && obs.getDocument() != null) {
+                switch (mode) {
+                    case MAP_FILE:
+                        if (obs != null && obs.getDocument() != null) {
                             setMappingMode(MappingMode.MAP_DOCUMENT);
                         }
                 }
@@ -564,8 +565,8 @@ public final class RebuildSubscriptions {
 
                 Folders owner = Folders.ownerOf(fo);
                 LOG.log(Level.FINER, "Create JFS for {0} owned by {1} in generator ", new Object[]{fo.getName(), owner, id});
-                Path relPath = owner == ANTLR_IMPORTS ? Paths.get("imports/" + fo.getNameExt())
-                        : Folders.ownerRelativePath(fo);
+                UnixPath relPath = UnixPath.get(owner == ANTLR_IMPORTS ? Paths.get("imports/" + fo.getNameExt())
+                        : Folders.ownerRelativePath(fo));
                 AntlrGeneratorBuilder<AntlrGenerator> agb = AntlrGenerator.builder(jfs);
                 if (relPath.getParent() != null) {
                     String pkg = relPath.getParent().toString().replace('/', '.');
@@ -574,7 +575,7 @@ public final class RebuildSubscriptions {
                     agb.generateIntoJavaPackage(pkg);
                 }
                 return gen = agb
-                        .building(relPath.getParent() == null ? Paths.get("") : relPath.getParent(), Paths.get("imports"));
+                        .building(relPath.getParent() == null ? UnixPath.empty() : relPath.getParent(), UnixPath.get("imports"));
             }
 
             private PrintStream outputFor(Extraction ext) {

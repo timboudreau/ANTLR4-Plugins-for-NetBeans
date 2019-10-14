@@ -1,5 +1,6 @@
 package org.nemesis.antlr.memory.tool;
 
+import com.mastfrog.util.path.UnixPath;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import java.io.File;
 import java.io.IOException;
@@ -78,11 +79,11 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public static MemoryTool create(Path dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
+    public static MemoryTool create(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
         return ToolContext.create(dir, jfs, inputLocation, outputLocation, logStream, args);
     }
 
-    private Path dir() {
+    private UnixPath dir() {
         return ToolContext.get(this).dir;
     }
 
@@ -159,7 +160,7 @@ public final class MemoryTool extends Tool {
 
     private List<String> lines(Path path) {
         Set<LoadAttempt> attempts = new HashSet<>();
-        JFSFileObject fo = getFO(inputLocation(), path, attempts, ToolContext.get(this));
+        JFSFileObject fo = getFO(inputLocation(), UnixPath.get(path), attempts, ToolContext.get(this));
         if (fo != null) {
             try {
                 CharSequence content = fo.getCharContent(true);
@@ -205,7 +206,7 @@ public final class MemoryTool extends Tool {
                 : new File(fileNameWithPath);
     }
 
-    Path resolveRelativePath(Path rel) {
+    UnixPath resolveRelativePath(UnixPath rel) {
         return dir().resolve(rel);
     }
 
@@ -262,7 +263,7 @@ public final class MemoryTool extends Tool {
 
     public Grammar loadGrammar(String fileName, Consumer<JFSFileObject> c) {
         ToolContext ctx = ToolContext.get(this);
-        JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, Paths.get(fileName));
+        JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, UnixPath.get(fileName));
         Set<LoadAttempt> attemptedPaths = new HashSet<>(3);
         if (fo == null) {
             fo = getFO(ctx.inputLocation, dir().resolve(fileName), attemptedPaths, ctx);
@@ -390,25 +391,25 @@ public final class MemoryTool extends Tool {
     private JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName, Location loc, Set<? super LoadAttempt> failures, ToolContext ctx) {
         JFSFileObject fo = ctx.jfs.get(loc, ctx.dir.resolve(fileName));
         if (fo == null) {
-            Path nxt = Paths.get(fileName);
+            UnixPath nxt = UnixPath.get(fileName);
             fo = ctx.jfs.get(loc, nxt);
             if (fo == null && nxt.getParent() != null) {
                 fo = getFO(loc, nxt.getParent().resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("import").resolve(fileName), failures, ctx);
+                fo = getFO(loc, UnixPath.get("import").resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("imports").resolve(fileName), failures, ctx);
+                fo = getFO(loc, UnixPath.get("imports").resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("import").resolve(g.fileName), failures, ctx);
+                fo = getFO(loc, UnixPath.get("import").resolve(g.fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, Paths.get("imports").resolve(g.fileName), failures, ctx);
+                fo = getFO(loc, UnixPath.get("imports").resolve(g.fileName), failures, ctx);
             }
             if (fo == null && libDirectory != null) {
-                fo = getFO(loc, Paths.get(libDirectory).resolve(g.fileName), failures, ctx);
+                fo = getFO(loc, UnixPath.get(libDirectory).resolve(g.fileName), failures, ctx);
             }
         }
         if (fo != null) {
@@ -417,7 +418,7 @@ public final class MemoryTool extends Tool {
         return fo;
     }
 
-    JFSFileObject getFO(Location loc, Path path, Set<? super LoadAttempt> attempted, ToolContext ctx) {
+    JFSFileObject getFO(Location loc, UnixPath path, Set<? super LoadAttempt> attempted, ToolContext ctx) {
         JFSFileObject fo = ctx.jfs.get(loc, path);
         if (fo == null) {
             attempted.add(new LoadAttempt(path, loc));

@@ -19,13 +19,15 @@ public class ExtractorBuilder<T extends ParserRuleContext> {
     private final Set<RegionExtractionStrategies<?>> regionsInfo2 = new HashSet<>();
     private final Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors = new HashSet<>();
     private final Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles = new HashMap<>();
+    private final String mimeType;
 
-    ExtractorBuilder(Class<T> entryPoint) {
+    ExtractorBuilder(Class<T> entryPoint, String mimeType) {
         this.documentRootType = entryPoint;
+        this.mimeType = mimeType;
     }
 
     public Extractor<T> build() {
-        return new Extractor<>(documentRootType, nameExtractors, regionsInfo2, singles);
+        return new Extractor<>(documentRootType, nameExtractors, regionsInfo2, singles, mimeType);
     }
 
     /**

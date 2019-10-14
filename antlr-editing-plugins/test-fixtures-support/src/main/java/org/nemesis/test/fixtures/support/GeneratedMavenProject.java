@@ -37,6 +37,7 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.text.StyledDocument;
@@ -79,6 +80,10 @@ public final class GeneratedMavenProject {
 
     public Project project() throws IOException {
         return ProjectTestHelper.findProject(dir);
+    }
+
+    public Map<String,Path> allFiles() {
+        return Collections.unmodifiableMap(map);
     }
 
     public GeneratedMavenProject setText(String filename, String newText) throws IOException {

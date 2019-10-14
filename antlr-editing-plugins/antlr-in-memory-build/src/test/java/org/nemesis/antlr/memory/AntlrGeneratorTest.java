@@ -1,5 +1,6 @@
 package org.nemesis.antlr.memory;
 
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
@@ -7,8 +8,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -47,8 +46,8 @@ public class AntlrGeneratorTest {
     private static final String GRAMMAR_NAME = "NestedMapGrammar";
     private static final String GRAMMAR_FILE_NAME = GRAMMAR_NAME + G4_EXT;
     private String pkg;
-    private Path packagePath;
-    private Path sourceFile;
+    private UnixPath packagePath;
+    private UnixPath sourceFile;
     private AntlrGeneratorBuilder<AntlrGenerator> bldr;
     private ByteArrayOutputStream out;
     private final Set<String> createdPaths = new HashSet<>();
@@ -74,7 +73,7 @@ public class AntlrGeneratorTest {
         assertNotNull(result.grammarFile);
         assertEquals(pkg, result.packageName);
         assertTrue(result.grammarFile.getName().endsWith("/" + GRAMMAR_FILE_NAME));
-        assertEquals(Paths.get(result.grammarFile.getName()).getParent(), packagePath);
+        assertEquals(UnixPath.get(result.grammarFile.getName()).getParent(), packagePath);
 
         List<JavaFileObject> all = new ArrayList<>();
         jfs.list(SOURCE_DEST, "", EnumSet.of(CLASS), true).forEach(all::add);
@@ -90,7 +89,7 @@ public class AntlrGeneratorTest {
         assertTrue(newLastModified > oldLastModified);
         assertFalse(result.currentStatus().isUpToDate());
 
-        AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, AntlrLoggers.getDefault().forPath(Paths.get(GRAMMAR_FILE_NAME)), true);
+        AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, AntlrLoggers.getDefault().forPath(UnixPath.get(GRAMMAR_FILE_NAME)), true);
         assertFalse(newResult.isUsable());
 //        assertTrue(newResult.thrown().isPresent());
 //        assertFalse(newResult.errors().isEmpty());
@@ -154,7 +153,7 @@ public class AntlrGeneratorTest {
         pkg = "com.foo." + getClass().getName().toLowerCase()
                 + ".test" + Long.toString(System.currentTimeMillis());
 
-        packagePath = Paths.get(pkg.replace('.', '/'));
+        packagePath = UnixPath.get(pkg.replace('.', '/'));
         sourceFile = packagePath.resolve(GRAMMAR_FILE_NAME);
 
         String contents = Streams.readResourceAsUTF8(AntlrGeneratorTest.class, GRAMMAR_FILE_NAME);

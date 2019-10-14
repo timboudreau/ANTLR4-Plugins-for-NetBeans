@@ -1,7 +1,7 @@
 package org.nemesis.antlr.memory;
 
+import com.mastfrog.util.path.UnixPath;
 import java.nio.charset.Charset;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.nemesis.jfs.result.UpToDateness;
 import java.util.Collections;
@@ -42,8 +42,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Location javaSourceOutputLocation;
     public final String packageName;
     public final JFSFileObject grammarFile;
-    public final Path sourceDir;
-    public final Path importDir;
+    public final UnixPath sourceDir;
+    public final UnixPath importDir;
     public final boolean generateAll;
     public final Set<AntlrGenerationOption> options;
     public final Charset grammarEncoding;
@@ -55,7 +55,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
             List<String> infoMessages, Set<JFSFileObject> postFiles,
             Map<JFSFileObject, Long> touched, Set<Grammar> allGrammars,
             JFS jfs, Location inputLocation, Location outputLocation,
-            String packageName, Path virtualSourceDir, Path virtualInputDir,
+            String packageName, UnixPath virtualSourceDir, UnixPath virtualInputDir,
             boolean generateAll, Set<AntlrGenerationOption> options,
             Charset grammarEncoding) {
         this.success = success;
@@ -111,11 +111,11 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return result;
     }
 
-    public Path sourceDir() {
+    public UnixPath sourceDir() {
         return sourceDir;
     }
 
-    public Path importDir() {
+    public UnixPath importDir() {
         return importDir;
     }
 

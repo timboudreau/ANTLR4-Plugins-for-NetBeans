@@ -3,6 +3,7 @@ package org.nemesis.jfs.javac;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.file.FileUtils;
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
@@ -10,7 +11,6 @@ import java.lang.reflect.Method;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Set;
@@ -50,8 +50,8 @@ public class JFSCompileBuilderTest {
 
     private JFS jfs;
     private static final String TYPE = "urgle.murb.MurgleWurgle";
-    private static final Path SOURCE_FILE_PATH = Paths.get(TYPE.replace('.', '/') + ".java");
-    private static final Path CLASS_FILE_PATH = Paths.get(TYPE.replace('.', '/') + ".class");
+    private static final UnixPath SOURCE_FILE_PATH = UnixPath.get(TYPE.replace('.', '/') + ".java");
+    private static final UnixPath CLASS_FILE_PATH = UnixPath.get(TYPE.replace('.', '/') + ".class");
     private static int methodInsertPosition;
 
     @Test

@@ -1,11 +1,10 @@
 package org.nemesis.antlr.compilation;
 
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -35,7 +34,7 @@ public class AntlrGeneratorAndCompilerTest {
 
     private JFS jfs;
     public static final String pkg = "com.foo.bar";
-    public static Path sourceFilePath = Paths.get("com/foo/bar/NestedMapGrammar.g4");
+    public static UnixPath sourceFilePath = UnixPath.get("com/foo/bar/NestedMapGrammar.g4");
     private JFSFileObject grammarSourceFO;
     private AntlrGeneratorAndCompiler compiler;
     private final Set<String> generatedClassFiles = new HashSet<>();
@@ -101,14 +100,14 @@ public class AntlrGeneratorAndCompilerTest {
         assertNotNull(compiler);
     }
 
-    static JFSFileObject addToJFS(JFS jfs, Path sourceFilePath, Location location, String content) throws IOException {
+    static JFSFileObject addToJFS(JFS jfs, UnixPath sourceFilePath, Location location, String content) throws IOException {
         JFSFileObject grammarSourceFO = jfs.create(sourceFilePath, StandardLocation.SOURCE_PATH, content);
         assertNotNull(grammarSourceFO);
         assertEquals(content, grammarSourceFO.getCharContent(true).toString());
         return grammarSourceFO;
     }
 
-    static JFSFileObject addGrammarToJFS(JFS jfs, Path sourceFilePath, Location location) throws IOException {
+    static JFSFileObject addGrammarToJFS(JFS jfs, UnixPath sourceFilePath, Location location) throws IOException {
         String content = Streams.readResourceAsUTF8(AntlrGeneratorAndCompilerTest.class, "NestedMapGrammar.g4");
         return addToJFS(jfs, sourceFilePath, location, content);
     }

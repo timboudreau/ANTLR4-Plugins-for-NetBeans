@@ -38,8 +38,9 @@ import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.Extractor;
 import org.nemesis.extraction.ExtractorBuilder;
 import org.nemesis.extraction.NamedRegionData;
+import org.nemesis.extraction.ResolutionConsumer;
 import org.nemesis.extraction.UnknownNameReference;
-import org.nemesis.extraction.UnknownNameReference.UnknownNameReferenceResolver;
+import org.nemesis.extraction.UnknownNameReferenceResolver;
 import org.nemesis.source.api.GrammarSource;
 
 /**
@@ -487,7 +488,7 @@ public final class AntlrExtractor {
     private static class UnknownResolver implements UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> {
 
         @Override
-        public <X> X resolve(Extraction extraction, UnknownNameReference<RuleTypes> ref, UnknownNameReference.ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c) throws IOException {
+        public <X> X resolve(Extraction extraction, UnknownNameReference<RuleTypes> ref, ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c) throws IOException {
             Set<String> imports = extraction.allKeys(AntlrKeys.IMPORTS);
             for (String importedGrammarName : imports) {
                 Extraction impExt = resolveImport(extraction, importedGrammarName);

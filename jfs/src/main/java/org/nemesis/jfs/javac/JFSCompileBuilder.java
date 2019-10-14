@@ -1,5 +1,6 @@
 package org.nemesis.jfs.javac;
 
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.File;
 import java.io.IOException;
@@ -113,7 +114,7 @@ public class JFSCompileBuilder {
         return allFiles;
     }
 
-    public CompileResult compileSingle(Path path) throws IOException {
+    public CompileResult compileSingle(UnixPath path) throws IOException {
         CompileJavaSources compiler = new CompileJavaSources(options);
         jfs.setClasspathTo(classpath());
         return compiler.compile(jfs, path, locationsToCompile.toArray(

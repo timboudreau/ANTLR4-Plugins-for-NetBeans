@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.logging.Level;
 import static org.nemesis.jfs.JFS.LOG;
@@ -84,6 +85,8 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
                         + "interrupted flag.", ex);
                 bytes = Files.readAllBytes(path);
 //                Thread.currentThread().interrupt();
+            } catch (NoSuchFileException ex) {
+                throw new MappedObjectDeletedException(ex);
             }
         }
         return bytes;

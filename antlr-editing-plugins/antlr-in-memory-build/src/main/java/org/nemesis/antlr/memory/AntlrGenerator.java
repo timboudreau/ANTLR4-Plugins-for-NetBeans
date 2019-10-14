@@ -1,5 +1,6 @@
 package org.nemesis.antlr.memory;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.io.PrintStream;
 import org.nemesis.antlr.memory.tool.MemoryTool;
@@ -38,8 +39,8 @@ public final class AntlrGenerator {
     private final String packageName;
     private final JFS jfs;
     private final JavaFileManager.Location grammarSourceLocation;
-    private final Path virtualSourcePath;
-    private final Path virtualImportDir;
+    private final UnixPath virtualSourcePath;
+    private final UnixPath virtualImportDir;
     private final Set<AntlrGenerationOption> opts = EnumSet.noneOf(AntlrGenerationOption.class);
     private final JavaFileManager.Location outputLocation;
 
@@ -63,11 +64,11 @@ public final class AntlrGenerator {
         return grammarEncoding;
     }
 
-    public Path importDir() {
+    public UnixPath importDir() {
         return virtualImportDir();
     }
 
-    public Path sourcePath() {
+    public UnixPath sourcePath() {
         return virtualSourcePath;
     }
 
@@ -152,8 +153,8 @@ public final class AntlrGenerator {
         return jfs;
     }
 
-    public Path packagePath() {
-        return Paths.get(packageName.replace('.', '/'));
+    public UnixPath packagePath() {
+        return UnixPath.get(packageName.replace('.', '/'));
     }
 
     public Path grammarFilePath(String fileName) throws IOException {
@@ -231,14 +232,20 @@ public final class AntlrGenerator {
                 LOG.log(Level.SEVERE, grammarName, ex);
             }
             if (!errors.isEmpty()) {
-                LOG.log(Level.INFO, "Errors generating virtual Antlr sources");
+                LOG.log(Level.FINE, "Errors generating virtual Antlr sources");
                 if (LOG.isLoggable(Level.FINEST)) {
                     for (ParsedAntlrError e : errors) {
                         LOG.log(Level.FINEST, "Antlr error: {0}", e);
                     }
                 }
             }
-            success &= errors.isEmpty();
+            if (success && !errors.isEmpty()) {
+                for (ParsedAntlrError e : errors) {
+                    if (e.isError()) {
+                        success = false;
+                    }
+                }
+            }
             Set<JFSFileObject> postFiles = new HashSet<>();
             Map<JFSFileObject, Long> touchedLastModified = new HashMap<>();
             jfs.listAll().entrySet().stream().filter((e) -> {
@@ -275,8 +282,8 @@ public final class AntlrGenerator {
         return g.name + ":" + g.getTypeString();
     }
 
-    private Path virtualImportDir() {
-        return virtualImportDir == null ? Paths.get("imports") : virtualImportDir;
+    private UnixPath virtualImportDir() {
+        return virtualImportDir == null ? UnixPath.get("imports") : virtualImportDir;
     }
 
     private void generateAllGrammars(MemoryTool tool, Grammar g, Set<String> seen, boolean generate, Set<Grammar> grammars) {
@@ -290,7 +297,7 @@ public final class AntlrGenerator {
             if (g.isCombined()) {
                 String suffix = Grammar.getGrammarTypeToFileNameSuffix(ANTLRParser.LEXER);
                 String lexer = g.name + suffix + ".g4";
-                Path srcPath = packagePath().resolve(lexer);
+                UnixPath srcPath = packagePath().resolve(lexer);
                 JFSFileObject lexerFo = jfs.get(grammarSourceLocation, srcPath);
                 if (lexerFo == null) {
                     lexer = g.name + suffix + ".g";

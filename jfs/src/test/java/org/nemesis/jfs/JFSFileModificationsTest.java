@@ -2,11 +2,11 @@ package org.nemesis.jfs;
 
 import com.mastfrog.function.throwing.io.IOConsumer;
 import com.mastfrog.util.file.FileUtils;
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
@@ -31,16 +31,16 @@ import org.nemesis.jfs.result.UpToDateness;
  */
 public class JFSFileModificationsTest {
 
-    private static final Path PATH_1 = Paths.get("com/foo/Whatever.txt");
-    private static final Path PATH_2 = Paths.get("com/foo/MoreStuff.txt");
-    private static final Path PATH_3 = Paths.get("com/foo/somewhere/else/Stuff.txt");
-    private static final Path PATH_4 = Paths.get("RootStuff.txt");
-    private static final Path MAPPED_PATH = Paths.get("foo/bar/SomethingElse.txt");
-    private static final Path DOC_PATH = Paths.get("foo/bar/Whee.txt");
+    private static final UnixPath PATH_1 = UnixPath.get("com/foo/Whatever.txt");
+    private static final UnixPath PATH_2 = UnixPath.get("com/foo/MoreStuff.txt");
+    private static final UnixPath PATH_3 = UnixPath.get("com/foo/somewhere/else/Stuff.txt");
+    private static final UnixPath PATH_4 = UnixPath.get("RootStuff.txt");
+    private static final UnixPath MAPPED_PATH = UnixPath.get("foo/bar/SomethingElse.txt");
+    private static final UnixPath DOC_PATH = UnixPath.get("foo/bar/Whee.txt");
     private static final String FILE_TEXT = "This is a bunch of text here.";
     private static final String DOC_TEXT = "DocText goes here.\n  How about that?\n";
 
-    private static final Path[] VIRTUAL_PATHS = new Path[]{PATH_1, PATH_2, PATH_3, PATH_4};
+    private static final UnixPath[] VIRTUAL_PATHS = new UnixPath[]{PATH_1, PATH_2, PATH_3, PATH_4};
     private static final String[] VIRTUAL_INITIAL_TEXT = new String[]{
         "This is some text",
         "Some more text and why we would want to write it.  Why would we, anyway?",
@@ -48,7 +48,7 @@ public class JFSFileModificationsTest {
         "It is still a bunch of stuff."
     };
 
-    private static final Path[] ALL_PATHS = new Path[]{PATH_1, PATH_2, PATH_3, PATH_4, MAPPED_PATH, DOC_PATH};
+    private static final UnixPath[] ALL_PATHS = new UnixPath[]{PATH_1, PATH_2, PATH_3, PATH_4, MAPPED_PATH, DOC_PATH};
     private static final String[] ALL_TEXT = new String[VIRTUAL_INITIAL_TEXT.length + 2];
 
     static {
@@ -92,22 +92,22 @@ public class JFSFileModificationsTest {
     @Test
     public void testAddsDetected() throws Throwable {
         JFSFileModifications state = jfs.status(StandardLocation.SOURCE_PATH);
-        JFSFileObject fo = jfs.create(Paths.get("foo/bar/goo/baz.txt"), StandardLocation.SOURCE_PATH, "Hello world");
+        JFSFileObject fo = jfs.create(UnixPath.get("foo/bar/goo/baz.txt"), StandardLocation.SOURCE_PATH, "Hello world");
         FileChanges changes = state.changes();
         assertFalse(changes.added().isEmpty());
-        assertEquals(Paths.get("foo/bar/goo/baz.txt"), changes.added().iterator().next());
+        assertEquals(UnixPath.get("foo/bar/goo/baz.txt"), changes.added().iterator().next());
         state.refresh();
         fo.delete();
         changes = state.changes();
         assertFalse(changes.deleted().isEmpty());
         assertTrue(changes.modified().isEmpty());
         assertTrue(changes.added().isEmpty());
-        assertEquals(Paths.get("foo/bar/goo/baz.txt"), changes.deleted().iterator().next());
+        assertEquals(UnixPath.get("foo/bar/goo/baz.txt"), changes.deleted().iterator().next());
     }
 
-    private void testTextChange(String newText, Path toChange, Location loc) throws IOException, InterruptedException {
+    private void testTextChange(String newText, UnixPath toChange, Location loc) throws IOException, InterruptedException {
         testOneChange(fo -> {
-            assertEquals(toChange, Paths.get(fo.getName()));
+            assertEquals(toChange, UnixPath.get(fo.getName()));
             switch (fo.storageKind()) {
                 case DISCARDED:
                     throw new AssertionError("Unexpected kind");
@@ -129,7 +129,7 @@ public class JFSFileModificationsTest {
         }, toChange, loc);
     }
 
-    private void testOneChange(IOConsumer<JFSFileObject> changer, Path toChange, Location loc) throws IOException, InterruptedException {
+    private void testOneChange(IOConsumer<JFSFileObject> changer, UnixPath toChange, Location loc) throws IOException, InterruptedException {
         JFSFileModifications allState = jfs.status(StandardLocation.SOURCE_OUTPUT, StandardLocation.SOURCE_PATH);
         JFSFileModifications outState = jfs.status(StandardLocation.SOURCE_OUTPUT);
         JFSFileModifications srcState = jfs.status(StandardLocation.SOURCE_PATH);
@@ -200,7 +200,7 @@ public class JFSFileModificationsTest {
         assertTrue(srcState.initialState().timestamps.containsKey(StandardLocation.SOURCE_PATH));
         for (int i = 0; i < ALL_PATHS.length; i++) {
             String text = ALL_TEXT[i];
-            Path path = ALL_PATHS[i];
+            UnixPath path = ALL_PATHS[i];
             StandardLocation loc = i < VIRTUAL_PATHS.length ? StandardLocation.SOURCE_PATH
                     : StandardLocation.SOURCE_OUTPUT;
 
@@ -249,5 +249,4 @@ public class JFSFileModificationsTest {
             jfs.close();
         }
     }
-
 }

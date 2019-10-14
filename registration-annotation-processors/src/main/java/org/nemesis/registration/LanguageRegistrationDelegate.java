@@ -777,6 +777,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String syntaxName = generateSyntaxSupport(mimeType, type, dataObjectPackage, registrationAnno, prefix, lexer);
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage)
                 .named(editorKitName)
+                .docComment("This is the Swing editor kit that will be used for ", prefix, " files.",
+                        " It adds some custom actions invokable by keyboard.")
                 .withModifier(FINAL)
                 .importing("javax.annotation.processing.Generated",
                         NB_EDITOR_KIT_TYPE,
@@ -806,13 +808,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (lineComment != null) {
             actionTypes.add("ToggleCommentAction");
         }
-        if (gotos.containsKey(mimeType)) {
-//            actionTypes.add("org.netbeans.modules.editor.actions.GotoAction");
-//            actionTypes.add("GotoDeclarationAction");
-            String gotoDeclarationActionClassName = capitalize(stripMimeType(mimeType)) + "GotoDeclarationAction";
-            actionTypes.add(gotoDeclarationActionClassName);
-        }
-
         if (!actionTypes.isEmpty()) {
             cl.importing("javax.swing.Action", "javax.swing.text.TextAction");
             for (String actionType : actionTypes) {
@@ -828,6 +823,24 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .logging("Return actions enhanced with ToggleCommentAction for ''{0}''");
 
                         bb.declare("additionalActions").initializedAsNewArray("Action", alb -> {
+                            if (gotos.containsKey(mimeType)) {
+                                Set<VariableElement> all = gotos.get(mimeType);
+                                if (!all.isEmpty()) {
+                                    cl.importing("org.nemesis.antlr.spi.language.NbAntlrUtils");
+                                    alb.invoke("createGotoDeclarationAction", ib -> {
+                                        for (VariableElement el : all) {
+                                            Element enc = el.getEnclosingElement();
+                                            if (enc instanceof TypeElement) {
+                                                TypeElement te = (TypeElement) enc;
+                                                String exp = te.getQualifiedName() + "."
+                                                        + el.getSimpleName();
+                                                ib.withArgument(exp);
+                                            }
+                                        }
+                                        ib.on("NbAntlrUtils");
+                                    });
+                                }
+                            }
                             for (String tp : actionTypes) {
                                 if ("ToggleCommentAction".equals(tp)) {
                                     alb.add("new " + simpleName(tp) + "(" + LinesBuilder.stringLiteral(lineComment) + ")");

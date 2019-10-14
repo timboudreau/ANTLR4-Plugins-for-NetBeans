@@ -208,7 +208,11 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                                 }
                             } else {
                                 T kind = referenceOffsets instanceof NamedRegionData<?> && ((NamedRegionData<?>) referenceOffsets).kind != null ? (T) ((NamedRegionData<?>) referenceOffsets).kind : null;
-                                unknown.add(new UnknownNameReferenceImpl(kind, referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
+                                if (kind != null) {
+                                    unknown.add(new UnknownNameReferenceImpl(kind, referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
+                                } else {
+                                    unknown.add(new UnknownNameReferenceImpl(regions.kindType(), referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
+                                }
                             }
                         }
                     }

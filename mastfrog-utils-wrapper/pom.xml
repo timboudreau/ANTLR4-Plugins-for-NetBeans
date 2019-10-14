@@ -24,6 +24,7 @@
                         <publicPackage>com.mastfrog.bits</publicPackage>
                         <publicPackage>com.mastfrog.bits.collections</publicPackage>
                         <publicPackage>com.mastfrog.bits.large</publicPackage>
+                        <publicPackage>com.mastfrog.converters</publicPackage>
                         <publicPackage>com.mastfrog.function</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing.io</publicPackage>
@@ -40,6 +41,7 @@
                         <publicPackage>com.mastfrog.util.strings</publicPackage>
                         <publicPackage>com.mastfrog.util.file</publicPackage>
                         <publicPackage>com.mastfrog.util.streams</publicPackage>
+                        <publicPackage>com.mastfrog.util.path</publicPackage>
                         <publicPackage>com.mastfrog.util.preconditions</publicPackage>
                     </publicPackages>
                     <author>Tim Boudreau</author>
@@ -65,6 +67,11 @@
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>bits</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>converters</artifactId>
+            <version>${mastfrog.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>

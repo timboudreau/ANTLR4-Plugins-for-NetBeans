@@ -62,5 +62,15 @@
             <artifactId>antlr-language-formatting-ui</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-grammar-file-resolver</artifactId>
+            <version>${project.version}</version>
+        </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-input-nb</artifactId>
+            <version>${project.version}</version>
+        </dependency>        
     </dependencies>
 </project>

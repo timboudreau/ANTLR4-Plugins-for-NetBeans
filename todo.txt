@@ -4,7 +4,24 @@
  - Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
    - Could use general support for sets of ranges in the range library
 
- - Clone the EDITOR for the grammar not just its kit in PreviewPanel
+ - Preview re-highlighting does not happen until a modification, after a text change in the preview
+
+ - Preview panel is not tracking the caret and updating the breadcrumb or tree anymore
+   - Seems like the caret listener is not working except on focus gained
+     - Try selection listener instead?
+     - Or is the fancy scrolling stuff broken?
+
+ - Split out import finder from the resolving stuff?
+
+ - Preview colorings should include items from tokens files, imported grammars.
+
+ - Enhance relative resolvers in the nb specialization project to look up tokens files, etc. from the project's ClassPathProvider
+
+ - Clean up / decomplicate RelativeResolver - should just be a conversion API
+
+ - @ImportNames annotation to auto generate name resolution / goto declaration support
+
+ - Resolve via tokens file into other project on classpath via ClassPathProvider
 
  - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, 
    and it's not really used except for update check - could just keep the JFSFileModifications snapshot
@@ -18,8 +35,6 @@
  - Sort out the range generics puzzle with coalescing
 
  - Get .tokens file contents / related grammar tokens into extraction / preview
-
- - Need a version of ExtractionParseResult which is resolved?
 
  - The pattern matching stuff in antlr-formatters is exactly what is needed for code completion - extract and generify it
 

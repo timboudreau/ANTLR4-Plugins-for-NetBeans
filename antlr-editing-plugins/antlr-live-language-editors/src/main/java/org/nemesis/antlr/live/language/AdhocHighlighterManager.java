@@ -155,6 +155,10 @@ final class AdhocHighlighterManager {
         return ctx.getDocument();
     }
 
+    RequestProcessor threadPool() {
+        return THREAD_POOL;
+    }
+
     @Override
     public String toString() {
         FileObject fo = NbEditorUtilities.getFileObject(ctx.getDocument());

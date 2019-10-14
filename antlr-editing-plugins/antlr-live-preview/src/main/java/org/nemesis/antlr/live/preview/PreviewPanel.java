@@ -72,6 +72,7 @@ import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
+import org.openide.util.WeakListeners;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
 import org.openide.util.lookup.ProxyLookup;
@@ -180,8 +181,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
         // Create our own editor
 
-        // XXX should probably just clone the original editor, right?
-        grammarEditorClone.setEditorKit((EditorKit) grammarFileOriginalEditor.getEditorKit().clone());
+        EditorKit grammarKit = grammarFileOriginalEditor.getEditorKit();
+        // XXX if we could access ExtKit.createUI, we could probably fix the problem
+        // that navigator clicks always switch to the Source tab
+        grammarEditorClone.setEditorKit(grammarKit);
         grammarEditorClone.setDocument(grammarFileOriginalEditor.getDocument());
 
         EditorUI grammarFileEditorUI = Utilities.getEditorUI(grammarEditorClone);
@@ -218,6 +221,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         add(breadcrumbPanel, BorderLayout.SOUTH);
         // listen on the caret to beginScroll the breadcrumb
         syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
+        editorPane.getCaret().addChangeListener(WeakListeners.change(this, editorPane.getCaret()));
     }
 
     List<ProxyToken> proxyTokens() {
@@ -315,28 +319,29 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
             indicator.trigger();
-            Debug.run(this, "preview-update " + mimeType, () -> {
-                StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
-                sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
-                sb.append("Proxy grammar file: ").append(newProxy.grammarPath());
-                sb.append("Proxy grammar name: ").append(newProxy.grammarName());
-                sb.append("Document: ").append(a).append('\n');
-                sb.append("RunResult").append(res.runResult()).append('\n');
-                sb.append("GrammarHash").append(res.grammarTokensHash()).append('\n');
-                sb.append("Text: ").append(newProxy.text()).append('\n');
-                return "";
-            }, () -> {
-                EmbeddedAntlrParserResult old = internalLookup.lookup(EmbeddedAntlrParserResult.class);
-                if (old != null && res != old) {
-                    content.add(res);
-                    content.remove(old);
-                }
-                if (old != null) {
-                    Debug.message("replacing " + old.proxy().loggingInfo()
-                            + " with " + res.proxy().loggingInfo(), old.proxy()::toString);
-                }
-                syntaxModel.update(newProxy);
-            });
+//            Debug.run(this, "preview-update " + mimeType, () -> {
+//                StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
+//                sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
+//                sb.append("Proxy grammar file: ").append(newProxy.grammarPath());
+//                sb.append("Proxy grammar name: ").append(newProxy.grammarName());
+//                sb.append("Document: ").append(a).append('\n');
+//                sb.append("RunResult").append(res.runResult()).append('\n');
+//                sb.append("GrammarHash").append(res.grammarTokensHash()).append('\n');
+//                sb.append("Text: ").append(newProxy.text()).append('\n');
+//                return "";
+//            }, () -> {
+            EmbeddedAntlrParserResult old = internalLookup.lookup(EmbeddedAntlrParserResult.class);
+            if (old != null && res != old) {
+                content.add(res);
+                content.remove(old);
+            }
+            if (old != null) {
+                Debug.message("replacing " + old.proxy().loggingInfo()
+                        + " with " + res.proxy().loggingInfo(), old.proxy()::toString);
+            }
+            syntaxModel.update(newProxy);
+            updateBreadcrumb(editorPane.getCaret(), newProxy);
+//            });
         });
         enqueueRehighlighting();
     }
@@ -382,7 +387,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
         updateSplitPosition();
         AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
-        editorPane.getCaret().addChangeListener(this);
         stateChanged(new ChangeEvent(editorPane.getCaret()));
         editorPane.requestFocusInWindow();
         editorPane.getDocument().addDocumentListener(this);
@@ -393,7 +397,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
         asyncUpdateOutputWindowPool.post(() -> {
             try {
-                ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), new UserTask(){
+                ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), new UserTask() {
                     @Override
                     public void run(ResultIterator resultIterator) throws Exception {
                         Parser.Result res = resultIterator.getParserResult();
@@ -406,7 +410,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             } catch (ParseException ex) {
                 Exceptions.printStackTrace(ex);
             }
-
         });
     }
 
@@ -414,12 +417,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     void reallyReparse() {
         try {
-            String txt = grammarEditorClone.getText();
-            Debug.runThrowing("preview-reparse-grammar", txt, () -> {
-                ParsingUtils.parse(grammarEditorClone.getDocument(), res -> {
-                    Debug.message("parser-result " + res, res::toString);
-                    return null;
-                });
+//            String txt = grammarEditorClone.getText();
+//            Debug.runThrowing("preview-reparse-grammar", txt, () -> {
+            ParsingUtils.parse(grammarEditorClone.getDocument(), res -> {
+                Debug.message("parser-result " + res, res::toString);
+                return null;
+//                });
             });
         } catch (Exception ex) {
             Exceptions.printStackTrace(ex);
@@ -428,7 +431,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     void forceReparse() {
 //        reparseTask.schedule(400);
-
         /*
             if (parser != null) {
             try {
@@ -517,6 +519,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 haveGrammarChange = false;
                 forceReparse();
             }
+            System.out.println("TRIGGER");
             realTrigger.run();
         }
     }

@@ -92,11 +92,7 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
 
     @Override
     public CharStream stream() throws IOException {
-        System.out.println("SNAPSHOT SOURCE:\n" + snapshot.getText().toString());
         return new CharSequenceCharStream(name(), snapshot.getText(), this);
-//        System.out.println("IS A STRING? " + snapshot.getText().getClass().getName());
-//        return CharStreams.fromString(snapshot.getText().toString(), name());
-//        return CharStreams.fromString(snapshot.getText().toString(), name());
     }
 
     @Override
@@ -141,6 +137,15 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
     @Override
     public long lastModified() throws IOException {
         return lastModified;
+    }
+
+    @Override
+    public String computeId() {
+        FileObject fo = snapshot.getSource().getFileObject();
+        if (fo == null) {
+            return Long.toString(System.identityHashCode(snapshot));
+        }
+        return hashString(fo.toURI().toString());
     }
 
     @ServiceProvider(service = GrammarSourceImplementationFactory.class)

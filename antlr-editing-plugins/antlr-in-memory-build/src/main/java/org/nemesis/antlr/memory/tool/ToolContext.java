@@ -28,10 +28,10 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.memory.tool;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -59,14 +59,14 @@ final class ToolContext {
     private static final Map<MemoryTool, ToolContext> CONTEXTS
             = Collections.synchronizedMap(new WeakHashMap<>());
 
-    final Path dir;
+    final UnixPath dir;
     final JFS jfs;
     final Location inputLocation;
     final Location outputLocation;
     final PrintStream logStream;
     static final ThreadLocal<Path> currentFile = new ThreadLocal<>();
 
-    ToolContext(Path dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {
+    ToolContext(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {
         this.dir = dir;
         this.jfs = jfs;
         this.inputLocation = inputLocation;
@@ -83,7 +83,7 @@ final class ToolContext {
         return result;
     }
 
-    static MemoryTool create(Path dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
+    static MemoryTool create(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
         ToolContext ctx = new ToolContext(dir, jfs, inputLocation, outputLocation, logStream);
         MemoryTool result = new MemoryTool(ctx, args);
         CONTEXTS.put(result, ctx);
@@ -91,13 +91,13 @@ final class ToolContext {
         return result;
     }
 
-    Path importedFilePath(Grammar g, MemoryTool tool) {
-        Path result = Paths.get(g.getOptionString("tokenVocab") + CodeGenerator.VOCAB_FILE_EXTENSION);
+    UnixPath importedFilePath(Grammar g, MemoryTool tool) {
+        UnixPath result = UnixPath.get(g.getOptionString("tokenVocab") + CodeGenerator.VOCAB_FILE_EXTENSION);
         if (jfs.get(inputLocation, result) != null) {
             return result;
         }
         if (g.tool.libDirectory != null) {
-            result = Paths.get(g.tool.libDirectory).resolve(result);
+            result = UnixPath.get(g.tool.libDirectory).resolve(result);
             if (jfs.get(inputLocation, result) != null) {
                 return result;
             }
@@ -118,11 +118,11 @@ final class ToolContext {
      * for the command line tool if there was no output directory specified.
      */
     JFSFileObject getImportedVocabFile(Grammar g, MemoryTool tool) throws FileNotFoundException {
-        Path path = importedFilePath(g, tool);
+        UnixPath path = importedFilePath(g, tool);
         Set<LoadAttempt> attempts = new HashSet<>(3);
-        Path fileNameOnly = path.getFileName();
+        UnixPath fileNameOnly = path.getFileName();
         JFSFileObject fo = null;
-        for (Path p : new Path[]{path, fileNameOnly}) {
+        for (UnixPath p : new UnixPath[]{path, fileNameOnly}) {
             ToolContext ctx = ToolContext.get(tool);
             fo = tool.jfs().get(ctx.inputLocation, p);
             if (fo == null) {

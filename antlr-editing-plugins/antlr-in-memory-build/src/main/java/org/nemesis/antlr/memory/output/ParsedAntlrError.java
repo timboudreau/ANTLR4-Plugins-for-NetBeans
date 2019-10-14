@@ -1,5 +1,6 @@
 package org.nemesis.antlr.memory.output;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -171,7 +172,7 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
                 Path path = err.path();
                 List<String> lines = linesForPath.get(path);
                 if (lines == null) {
-                    lines = fileReader.apply(path);
+                    lines = fileReader.apply(UnixPath.get(path));
                     linesForPath.put(path, lines);
                 }
                 for (int currLineNumber = 0; currLineNumber < lines.size(); currLineNumber++) {

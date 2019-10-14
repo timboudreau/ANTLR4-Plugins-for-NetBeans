@@ -31,9 +31,9 @@ package org.nemesis.antlr.live.execution;
 import org.junit.jupiter.api.Test;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.thread.OneThreadLatch;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,8 +99,8 @@ public class AntlrRunSubscriptionsTest {
         JFS jfs = r.jfs();
 
 
-        JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, Paths.get("com/foo/bar/NestedMaps.g4"));
-        jfo = jfs.get(StandardLocation.SOURCE_PATH, Paths.get("imports/NMLexer.g4"));
+        JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/foo/bar/NestedMaps.g4"));
+        jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("imports/NMLexer.g4"));
 
         assertEquals(2, r.diagnostics().size(), () -> r.diagnostics().toString());
         Set<String> dgs = new HashSet<>();

@@ -1,7 +1,9 @@
 package org.nemesis.extraction.key;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.Serializable;
 import org.nemesis.data.Hashable;
+import static org.nemesis.extraction.key.NamedRegionKey.checkName;
 
 /**
  * Key for reference sets.
@@ -14,9 +16,8 @@ public final class NameReferenceSetKey<T extends Enum<T>> implements Serializabl
     private final NamedRegionKey<T> orig;
 
     NameReferenceSetKey(String name, NamedRegionKey<T> orig) {
-        assert name != null : "Name null";
         assert orig != null : "Orig null";
-        this.name = name;
+        this.name = checkName(notNull("name", name));;
         this.orig = orig;
     }
 

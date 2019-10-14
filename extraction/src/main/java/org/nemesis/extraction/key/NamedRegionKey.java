@@ -1,5 +1,6 @@
 package org.nemesis.extraction.key;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.Serializable;
 import java.util.Objects;
 import org.nemesis.data.Hashable;
@@ -16,8 +17,26 @@ public final class NamedRegionKey<T extends Enum<T>> implements Serializable, Ha
     final Class<T> type;
 
     private NamedRegionKey(String name, Class<T> type) {
-        this.name = name;
+        this.name = checkName(notNull("name", name));
         this.type = type;
+    }
+
+    static String checkName(String name) {
+        int max = name.length();
+        for (int i = 0; i < max; i++) {
+            switch(name.charAt(i)) {
+                case '/':
+                case '\\':
+                case '"':
+                case '\'':
+                case ':':
+                case ';':
+                    throw new IllegalArgumentException("Key names may be used "
+                            + "as file paths, and may not contain the characters"
+                            + ": /'\":;");
+            }
+        }
+        return name;
     }
 
     @Override

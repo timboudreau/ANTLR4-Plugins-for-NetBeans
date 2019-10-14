@@ -28,11 +28,11 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.execution;
 
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.streams.Streams;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -109,7 +109,7 @@ public class IR extends InvocationRunner<Map, Void> {
         bldr.addToClasspath(org.antlr.v4.runtime.ANTLRErrorListener.class);
 //        jfs.create(Paths.get("com/foo/bar/NestedMapInfoExtractor.java"), StandardLocation.SOURCE_PATH, infoText());
         jfs.masquerade(doc(grammarPackageName),
-                StandardLocation.SOURCE_PATH, Paths.get(grammarPackageName.replace('.', '/') + "/NestedMapInfoExtractor.java"));
+                StandardLocation.SOURCE_PATH, UnixPath.get(grammarPackageName.replace('.', '/') + "/NestedMapInfoExtractor.java"));
         return null;
     }
 

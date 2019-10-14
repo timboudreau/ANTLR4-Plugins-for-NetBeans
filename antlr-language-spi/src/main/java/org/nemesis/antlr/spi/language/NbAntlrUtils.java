@@ -6,6 +6,7 @@ import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -14,6 +15,7 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.TaskFactory;
+import org.netbeans.spi.editor.AbstractEditorAction;
 import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerInput;
 import org.netbeans.spi.lexer.LexerRestartInfo;
@@ -32,6 +34,10 @@ public final class NbAntlrUtils {
 
     public static <T extends TokenId> Lexer<T> createLexer(LexerRestartInfo<T> info, NbLexerAdapter<T, ?> adapter) {
         return new GenericAntlrLexer<>(info, adapter);
+    }
+
+    public static AbstractEditorAction createGotoDeclarationAction(NameReferenceSetKey<?>... keys) {
+        return new AntlrGotoDeclarationAction(keys);
     }
 
     public static TaskFactory createErrorHighlightingTaskFactory(String mimeType) {

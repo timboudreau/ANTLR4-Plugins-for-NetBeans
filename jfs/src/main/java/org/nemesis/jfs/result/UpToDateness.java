@@ -1,7 +1,7 @@
 package org.nemesis.jfs.result;
 
+import com.mastfrog.util.path.UnixPath;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +106,7 @@ public class UpToDateness {
                 if (ssb == null) {
                     ssb = UpToDateness.staleStatus();
                 }
-                ssb.add(Paths.get(e.getKey().getName()));
+                ssb.add(UnixPath.get(e.getKey().getName()));
             }
         }
         if (ssb != null) {
@@ -119,7 +119,7 @@ public class UpToDateness {
 
         private final Stale stale = new Stale();
 
-        public StaleStatusBuilder add(Path outOfDate) {
+        public StaleStatusBuilder add(UnixPath outOfDate) {
             stale.add(outOfDate);
             return this;
         }
@@ -133,7 +133,7 @@ public class UpToDateness {
             return stale;
         }
 
-        public StaleStatusBuilder addAll(Set<Path> modified) {
+        public StaleStatusBuilder addAll(Set<UnixPath> modified) {
             stale.stalePaths.addAll(modified);
             return this;
         }
@@ -141,14 +141,14 @@ public class UpToDateness {
 
     static class Stale extends UpToDateness {
 
-        private final Set<Path> stalePaths = new HashSet<>(5);
+        private final Set<UnixPath> stalePaths = new HashSet<>(5);
         private final Set<String> reasons = new HashSet<>(5);
 
         Stale() {
             super("STALE");
         }
 
-        public Stale add(Path path) {
+        public Stale add(UnixPath path) {
             stalePaths.add(path);
             return this;
         }

@@ -1,6 +1,7 @@
 package org.nemesis.jfs;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.path.UnixPath;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -225,7 +226,7 @@ public final class JFS implements JavaFileManager {
      * @throws IllegalArgumentException if the set of locations is empty
      * @return A JFSFileModifications
      */
-    public final JFSFileModifications status(Set<Location> locations, Predicate<Path> filter) {
+    public final JFSFileModifications status(Set<Location> locations, Predicate<UnixPath> filter) {
         if (locations.isEmpty()) {
             throw new IllegalArgumentException("No locations");
         }
@@ -257,7 +258,7 @@ public final class JFS implements JavaFileManager {
      * @param more Any additional locations
      * @return A JFSFileModifications
      */
-    public final JFSFileModifications status(Predicate<Path> filter, Location first, Location... more) {
+    public final JFSFileModifications status(Predicate<UnixPath> filter, Location first, Location... more) {
         return new JFSFileModifications(this, filter, first, more);
     }
 
@@ -751,7 +752,7 @@ public final class JFS implements JavaFileManager {
         return obj;
     }
 
-    public JFSFileObject getFileForOutput(Location location, Path filePath) throws IOException {
+    public JFSFileObject getFileForOutput(Location location, UnixPath filePath) throws IOException {
         Name nm = Name.forPath(filePath);
         return getFileForOutput(location, nm.packageName(), nm.getName(), null);
     }
@@ -783,7 +784,7 @@ public final class JFS implements JavaFileManager {
      * @param path The path
      * @return A file object or null
      */
-    public JFSFileObject get(Location location, Path path) {
+    public JFSFileObject get(Location location, UnixPath path) {
         JFSStorage stor = forLocation(location, false);
         return stor == null ? null : stor.find(Name.forPath(path));
     }
@@ -874,7 +875,7 @@ public final class JFS implements JavaFileManager {
         return -1;
     }
 
-    public JFSFileObject masquerade(Path file, Location loc, Path asPath, Charset encoding) {
+    public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath, Charset encoding) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3} with {4}",
                 new Object[]{file, asPath, loc, fsid, encoding.name()});
         return forLocation(loc, true).addRealFile(asPath, file, encoding);
@@ -890,7 +891,7 @@ public final class JFS implements JavaFileManager {
      * @param asPath The path that should be used locally
      * @return A file object
      */
-    public JFSFileObject masquerade(Path file, Location loc, Path asPath) {
+    public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{file, asPath, loc, fsid});
         return forLocation(loc, true).addRealFile(asPath, file);
@@ -906,7 +907,7 @@ public final class JFS implements JavaFileManager {
      * @param asPath The path that should be used locally
      * @return A file object
      */
-    public JFSFileObject masquerade(Document doc, Location loc, Path asPath) {
+    public JFSFileObject masquerade(Document doc, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Document): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{doc, asPath, loc, fsid});
         return forLocation(loc, true).addDocument(asPath, doc);
@@ -933,7 +934,7 @@ public final class JFS implements JavaFileManager {
                     copy(file, dir, StandardLocation.SOURCE_PATH);
                 } else {
                     Path rel = dir.relativize(file);
-                    masquerade(file, StandardLocation.SOURCE_PATH, rel);
+                    masquerade(file, StandardLocation.SOURCE_PATH, UnixPath.get(rel));
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -966,7 +967,7 @@ public final class JFS implements JavaFileManager {
             throw new IOException(file + " is not a child of " + relativeTo);
         }
         long lastModified = Files.getLastModifiedTime(file).toMillis();
-        Name name = Name.forPath(file, relativeTo);
+        Name name = Name.forPath(UnixPath.get(file), UnixPath.get(relativeTo));
         byte[] bytes = convertEncoding(Files.readAllBytes(file), file, name);
 
         LOG.log(Level.FINEST, "JFS.copy(): Copying file {0} as {1} to {2} in {3}",
@@ -985,7 +986,7 @@ public final class JFS implements JavaFileManager {
      * @throws IOException If the path is not relative, the file is not
      * readable, or something else goes wrong
      */
-    public JFSFileObject copy(Path file, Location location, Path as) throws IOException {
+    public JFSFileObject copy(Path file, Location location, UnixPath as) throws IOException {
         long lastModified = Files.getLastModifiedTime(file).toMillis();
         Name name = Name.forPath(as);
         byte[] bytes = convertEncoding(Files.readAllBytes(file), file, name);
@@ -994,7 +995,7 @@ public final class JFS implements JavaFileManager {
         return copyBytes(name, bytes, location, lastModified);
     }
 
-    public JFSFileObject copy(Path file, Charset fileEncoding, Location location, Path as) throws IOException {
+    public JFSFileObject copy(Path file, Charset fileEncoding, Location location, UnixPath as) throws IOException {
         long lastModified = Files.getLastModifiedTime(file).toMillis();
         Name name = Name.forPath(as);
         byte[] bytes = convertEncoding(Files.readAllBytes(file), file, fileEncoding, name);
@@ -1067,7 +1068,7 @@ public final class JFS implements JavaFileManager {
      * @return
      * @throws IOException
      */
-    public JFSFileObject create(Path path, Location location, byte[] bytes) throws IOException {
+    public JFSFileObject create(UnixPath path, Location location, byte[] bytes) throws IOException {
         long lastModified = System.currentTimeMillis();
         Name name = Name.forPath(path);
         LOG.log(Level.FINEST, "JFS.create(): Add {0} with {1} bytes to {2} in {3}",
@@ -1088,7 +1089,7 @@ public final class JFS implements JavaFileManager {
      * @return A fileObject
      * @throws IOException if something goes wrong
      */
-    public JFSFileObject create(Path path, Location location, String string) throws IOException {
+    public JFSFileObject create(UnixPath path, Location location, String string) throws IOException {
         return create(path, location, string.getBytes(allocator.encoding()));
     }
 }

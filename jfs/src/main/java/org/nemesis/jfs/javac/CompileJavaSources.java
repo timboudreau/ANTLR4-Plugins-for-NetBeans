@@ -2,6 +2,7 @@ package org.nemesis.jfs.javac;
 
 import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import com.mastfrog.util.path.UnixPath;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -89,7 +90,7 @@ public class CompileJavaSources {
         return compile(jfs, null, sourceLocations);
     }
 
-    private Iterable<JavaFileObject> singleSource(JFS jfs, Path loc, Location... sourceLocations) {
+    private Iterable<JavaFileObject> singleSource(JFS jfs, UnixPath loc, Location... sourceLocations) {
         JavaFileObject target;
         for (Location l : sourceLocations.length == 0 ? new Location[]{StandardLocation.SOURCE_PATH} : sourceLocations) {
             JFSFileObject o = jfs.get(l, loc);
@@ -104,7 +105,7 @@ public class CompileJavaSources {
         return Collections.emptySet();
     }
 
-    public CompileResult compile(JFS jfs, Path singleSource, Location... sourceLocations) {
+    public CompileResult compile(JFS jfs, UnixPath singleSource, Location... sourceLocations) {
         CompileResult.Builder result = CompileResult.builder(Paths.get(""));
         result.setInitialFileStatus(jfs.status(setOf(sourceLocations)));
         try {

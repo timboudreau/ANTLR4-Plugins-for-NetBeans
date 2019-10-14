@@ -1,5 +1,6 @@
 package org.nemesis.jfs;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -89,7 +90,7 @@ public class JFSTest {
         final int jfsidhc = System.identityHashCode(jfs);
         assertFalse(JFSUrlStreamHandlerFactory.noLongerRegistered(jfsidhc));
 
-        Path path = Paths.get("com/testit/TestIt.java");
+        UnixPath path = UnixPath.get("com/testit/TestIt.java");
         JFSFileObject fo = jfs.create(path, SOURCE_PATH, COMPILE_ME);
         assertNotNull(fo);
 
@@ -274,7 +275,7 @@ public class JFSTest {
     }
 
     static <T> Set<T> toSet(Iterable<T> stuff) {
-        Set<T> result = new HashSet<T>();
+        Set<T> result = new HashSet<>();
         for (T obj : stuff) {
             result.add(obj);
         }
@@ -327,7 +328,7 @@ public class JFSTest {
     @Test
     public void testJFS() throws IOException {
         JFS jfs = new JFS();
-        Path path = Paths.get(EXP1);
+        UnixPath path = UnixPath.get(EXP1);
         JFSFileObject fo = jfs.create(path, SOURCE_PATH, SIMPLE_MAIN);
 
         assertNotNull(fo);
@@ -350,7 +351,7 @@ public class JFSTest {
         try (OutputStream out = jfs.getFileForOutput(CLASS_OUTPUT, "com.foo.bar", "Baz.class", fo).openOutputStream()) {
             out.write(bytes);
         }
-        JFSFileObjectImpl written = (JFSFileObjectImpl) jfs.get(CLASS_OUTPUT, Paths.get(EXP2));
+        JFSFileObjectImpl written = (JFSFileObjectImpl) jfs.get(CLASS_OUTPUT, UnixPath.get(EXP2));
         assertNotNull(written);
         assertEquals(bytes.length, written.length());
         assertArrayEquals(bytes, written.asBytes());
@@ -397,21 +398,21 @@ public class JFSTest {
 
     @Test
     public void testNameExt() {
-        String[] parts = Name.nameExt(Paths.get("Baz.java"));
+        String[] parts = nameExt(UnixPath.get("Baz.java"));
         assertNotNull(parts);
         assertEquals(2, parts.length);
         assertEquals("Baz", parts[0]);
         assertEquals("java", parts[1]);
-        parts = Name.nameExt(Paths.get(".foo"));
+        parts = nameExt(UnixPath.get(".foo"));
         assertEquals(".foo", parts[0]);
         assertEquals("", parts[1]);
-        parts = Name.nameExt(Paths.get("foo"));
+        parts = nameExt(UnixPath.get("foo"));
         assertEquals("foo", parts[0]);
         assertEquals("", parts[1]);
-        parts = Name.nameExt(Paths.get("."));
+        parts = nameExt(UnixPath.get("."));
         assertEquals(".", parts[0]);
         assertEquals("", parts[1]);
-        parts = Name.nameExt(Paths.get(""));
+        parts = nameExt(UnixPath.get(""));
         assertEquals("", parts[0]);
         assertEquals("", parts[1]);
     }
@@ -420,13 +421,18 @@ public class JFSTest {
     public void testName() {
         Name name = Name.forFileName(EXP1);
         testOneName("forFileName.java", EXP1, name);
-        name = Name.forPath(Paths.get(EXP1));
+        name = Name.forPath(UnixPath.get(EXP1));
         testOneName("forPath.java", EXP1, name);
-        Path p1 = Paths.get("/a/b/c");
-        Path p2 = p1.resolve(EXP1);
+        UnixPath p1 = UnixPath.get("/a/b/c");
+        UnixPath p2 = p1.resolve(EXP1);
+
+//    private static final String EXP1 = "com/foo/bar/Baz.java";
+//    private static final String EXP2 = "com/foo/bar/Baz.class";
+//    private static final String EXP3 = "Foo.class";
+//    private static final String EXP4 = ".poof";
         name = Name.forPath(p2, p1);
         testOneName("forPath-relative-absolute-path.java", EXP1, name);
-        p1 = Paths.get("a/b/c");
+        p1 = UnixPath.get("a/b/c");
         p2 = p1.resolve(EXP1);
         name = Name.forPath(p2, p1);
         testOneName("forPath-relative-relative.java", EXP1, name);
@@ -444,15 +450,14 @@ public class JFSTest {
         testOneName("dotFile.forFileName.defaultPackage", EXP4, name);
         name = Name.forFileName("/" + EXP1);
         testOneName("forFileName.absolutePath", EXP1, name);
-        name = Name.forPath(Paths.get("/" + EXP1));
+        name = Name.forPath(UnixPath.get("/" + EXP1));
         testOneName("forPath.absolutePath", EXP1, name);
     }
 
     private void testOneName(String msg, String expect, Name name) {
-        assertNotNull(Paths.get(""));
-        assertEquals(expect, name.toString());
-        Path pth = Paths.get(expect);
-        String[] nameExt = Name.nameExt(pth);
+        assertEquals("Expected '" + expect + "' got '" + name + "'", expect, name.toString());
+        UnixPath pth = UnixPath.get(expect);
+        String[] nameExt = nameExt(pth);
         assertNotNull(nameExt);
         assertEquals(2, nameExt.length);
         assertEquals(nameExt[0], name.getNameBase());
@@ -461,7 +466,7 @@ public class JFSTest {
         assertEquals(derivedNameExt, name.getName());
         assertEquals(nameExt[1], name.extension());
         assertEquals(expect.replace('/', '.').replace(".java", "").replace(".class", ""), name.asClassName());
-        Path parent = pth.getParent() == null ? Paths.get("") : pth.getParent();
+        UnixPath parent = pth.getParent() == null ? UnixPath.empty() : pth.getParent();
         assertEquals(parent.toString().replace('/', '.'), name.packageName());
         assertTrue(msg, name.packageMatches(parent.toString().replace('/', '.')));
         assertTrue(msg, name.isPackage(parent, false));
@@ -487,13 +492,13 @@ public class JFSTest {
         Path tempFile = Paths.get(System.getProperty("java.io.tmpdir"), "map-me.txt");
         try {
             Files.write(tempFile, Arrays.asList("Hello utf 16!"), UTF_16, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-            JFSFileObject fo = jfs.masquerade(tempFile, SOURCE_PATH, Paths.get("foo/bar.utf16"), UTF_16);
+            JFSFileObject fo = jfs.masquerade(tempFile, SOURCE_PATH, UnixPath.get("foo/bar.utf16"), UTF_16);
             assertNotNull(fo);
-            assertSame(fo, jfs.get(SOURCE_PATH, Paths.get("foo/bar.utf16")));
-            
+            assertSame(fo, jfs.get(SOURCE_PATH, UnixPath.get("foo/bar.utf16")));
+
             assertTrue(fo instanceof JFSFileObjectImpl);
             JFSFileObjectImpl foi = (JFSFileObjectImpl) fo;
-            
+
             System.out.println("STORAGE " + foi.storage.getClass().getName());
 
             long lm = fo.getLastModified();
@@ -512,21 +517,21 @@ public class JFSTest {
                 // do nothing
             }
             fo.delete();
-            assertNull("Still present", jfs.get(SOURCE_PATH, Paths.get("foo/bar.utf16")));
+            assertNull("Still present", jfs.get(SOURCE_PATH, UnixPath.get("foo/bar.utf16")));
             assertTrue("Disk file was deleted", Files.exists(tempFile));
             jfs.close();
 
             jfs = new JFS(UTF_16);
-            fo = jfs.copy(tempFile, UTF_16, SOURCE_PATH, Paths.get("poozle/wheez.plee"));
+            fo = jfs.copy(tempFile, UTF_16, SOURCE_PATH, UnixPath.get("poozle/wheez.plee"));
             assertNotNull(fo);
             assertEquals("poozle/wheez.plee", fo.getName());
             assertEquals("Hello again utf 16!\n", fo.getCharContent(true).toString());
-            try (OutputStream str=fo.openOutputStream()) {
+            try (OutputStream str = fo.openOutputStream()) {
                 str.write("Uh oh".getBytes(UTF_16));
             }
             assertEquals("Uh oh", fo.getCharContent(true).toString());
             fo.delete();
-            assertNull(jfs.get(SOURCE_PATH, Paths.get("map-me.txt")));
+            assertNull(jfs.get(SOURCE_PATH, UnixPath.get("map-me.txt")));
         } finally {
             if (Files.exists(tempFile)) {
                 Files.delete(tempFile);
@@ -535,13 +540,14 @@ public class JFSTest {
     }
 
     Document document;
+
     @Test
     public void testMapDocuments() throws Throwable {
         JFS jfs = new JFS(UTF_16);
         document = new DefaultStyledDocument();
         String txt = "This is some text\nWhich shall be given up for you\n";
         document.insertString(0, txt, null);
-        Path pth = Paths.get("/some/docs/Doc.txt");
+        UnixPath pth = UnixPath.get("/some/docs/Doc.txt");
         JFSFileObject fo = jfs.masquerade(document, SOURCE_PATH, pth);
         assertNotNull(fo);
         assertEquals(txt, fo.getCharContent(true).toString());
@@ -582,5 +588,16 @@ public class JFSTest {
             }
             return null;
         }
+    }
+
+    static String[] nameExt(UnixPath path) {
+        String fileName = path.getFileName().toString();
+        String ext = "";
+        int extIx = fileName.lastIndexOf('.');
+        if (extIx > 0 && extIx < fileName.length() - 1) {
+            ext = fileName.substring(extIx + 1);
+            fileName = fileName.substring(0, extIx);
+        }
+        return new String[]{fileName, ext};
     }
 }

@@ -29,19 +29,22 @@ import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
 import org.openide.filesystems.FileObject;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.RequestProcessor;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
+public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements Runnable {
 
     protected final OffsetsBag bag;
     private static AttributeSet errorColoring;
+    private final RequestProcessor.Task refreshErrorsTask;
 
     public AdhocErrorHighlighter(AdhocHighlighterManager mgr) {
         super(mgr, ZOrder.BOTTOM_RACK.forPosition(2001));
         bag = new OffsetsBag(mgr.document());
+        refreshErrorsTask = mgr.threadPool().create(this);
     }
 
     @Override
@@ -99,7 +102,28 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
             }
         }
         this.bag.setHighlights(bag);
-        refreshSourceErrors(info);
+        this.refreshErrorsTask.schedule(100);
+    }
+
+    public void run() {
+        HighlightingInfo info = mgr.lastInfo();
+        if (info != null) {
+            Document doc = info.doc;
+            Runnable doIt = () -> {
+                refreshSourceErrors(info);
+            };
+            // createErrorDescription will lock the document;
+            // so will the call to set the errors - so rather than
+            // risk deadlock, we do this in a background thread and
+            // pre-lock the document so we don't lock/unlock once per
+            // error
+            if (doc instanceof BaseDocument) {
+                BaseDocument bd = (BaseDocument) doc;
+                bd.runAtomicAsUser(doIt);
+            } else {
+                doc.render(doIt);
+            }
+        }
     }
 
     @Messages({"buildFailed=Build Failed"})
@@ -110,7 +134,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
         AntlrProxies.ParseTreeProxy proxy = info.semantics;
 
         LOG.log(Level.FINEST, "Refresh src errs {0} from {1}",
-                new Object[] {this, info});
+                new Object[]{this, info});
 
         System.out.println("refresh source errors " + info.semantics.loggingInfo());
 
@@ -119,7 +143,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter {
             ErrorDescription ed = ErrorDescriptionFactory
                     .createErrorDescription(org.netbeans.spi.editor.hints.Severity.ERROR,
                             msg, d, 0);
-
             setErrors(d, Collections.singleton(ed));
         } else if (!proxy.syntaxErrors().isEmpty()) {
             List<ErrorDescription> ed = new ArrayList<>();

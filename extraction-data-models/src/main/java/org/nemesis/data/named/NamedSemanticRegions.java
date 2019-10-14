@@ -110,6 +110,10 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
     }
 
+    public Class<K> kindType() {
+        return (Class<K>) kinds.getClass().getComponentType();
+    }
+
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         out.writeInt(1); // version

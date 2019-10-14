@@ -1,9 +1,11 @@
 package org.nemesis.extraction.key;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.Serializable;
 import java.util.Objects;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
+import static org.nemesis.extraction.key.NamedRegionKey.checkName;
 
 /**
  * Key used to retrieve SemanticRegions&lt;T&gt; instances from an Extraction.
@@ -16,13 +18,8 @@ public final class RegionsKey<T> implements Serializable, Hashable, ExtractionKe
     final String name;
 
     private RegionsKey(Class<? super T> type, String name) {
-        this.name = name;
-        this.type = type;
-    }
-
-    private RegionsKey(Class<? super T> type) {
-        this.type = type;
-        this.name = null;
+        this.name = checkName(notNull("name", name));;
+        this.type = notNull("type", type);
     }
 
     public static <T> RegionsKey<T> create(Class<? super T> type, String name) {

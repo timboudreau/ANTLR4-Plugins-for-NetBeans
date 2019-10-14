@@ -1,5 +1,6 @@
 package org.nemesis.extraction;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Objects;
 
 /**
@@ -8,11 +9,21 @@ import java.util.Objects;
  */
 final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameReference<T> {
 
+    private final Class<T> type;
     private final T expectedKind;
     private final int start;
     private final int end;
     private final String name;
     private final int index;
+
+    UnknownNameReferenceImpl(Class<T> type, int start, int end, String name, int index) {
+        this.type = type;
+        this.expectedKind = null;
+        this.start = start;
+        this.end = end;
+        this.name = name;
+        this.index = index;
+    }
 
     UnknownNameReferenceImpl(T expectedKind, int start, int end, String name, int index) {
         this.expectedKind = expectedKind;
@@ -20,6 +31,12 @@ final class UnknownNameReferenceImpl<T extends Enum<T>> implements UnknownNameRe
         this.end = end;
         this.name = name;
         this.index = index;
+        this.type = notNull("expectedKind", expectedKind).getDeclaringClass();
+    }
+
+    @Override
+    public Class<T> kindType() {
+        return type;
     }
 
     @Override

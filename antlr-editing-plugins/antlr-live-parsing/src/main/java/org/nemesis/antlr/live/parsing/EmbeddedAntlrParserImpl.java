@@ -158,7 +158,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     public synchronized EmbeddedAntlrParserResult parse(CharSequence textToParse) throws Exception {
         // XXX - this sucks, but lexer / snapshot char sequences explode on
         // contact after a while
-        String toParse = textToParse.toString();
+        String toParse = textToParse == null ? null : textToParse.toString();
         // Return the cached lastParseInfo where possible, ignoring cases where the
         // text is null (in which case, we are being invoked just for the lexer to get
         // the list of token types)

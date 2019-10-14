@@ -57,12 +57,20 @@ public final class Extractor<T extends ParserRuleContext> {
     private String extractorsHash;
     final Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles;
     private static final Logger LOG = Logger.getLogger(Extractor.class.getName());
+    private final String mimeType;
 
-    Extractor(Class<T> documentRootType, Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors, Set<RegionExtractionStrategies<?>> regionsInfo2, Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles) {
+    Extractor(Class<T> documentRootType,
+            Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors, Set<RegionExtractionStrategies<?>> regionsInfo2,
+            Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles, String mimeType) {
         this.documentRootType = documentRootType;
         this.nameExtractors = nameExtractors;
         this.regionsInfo = regionsInfo2;
         this.singles = singles;
+        this.mimeType = mimeType;
+    }
+
+    public String mimeType() {
+        return mimeType;
     }
 
     @Override
@@ -116,19 +124,23 @@ public final class Extractor<T extends ParserRuleContext> {
     }
 
     public static Extractor<ParserRuleContext> empty() {
-        return new Extractor<>(ParserRuleContext.class, emptySet(), emptySet(), emptyMap());
+        return empty(ParserRuleContext.class);
     }
 
     public static <T extends ParserRuleContext> Extractor<T> empty(Class<T> type) {
-        return new Extractor<>(type, emptySet(), emptySet(), emptyMap());
+        return empty(type, "application/unknown");
+    }
+
+    public static <T extends ParserRuleContext> Extractor<T> empty(Class<T> type, String mimeType) {
+        return new Extractor<>(type, emptySet(), emptySet(), emptyMap(), mimeType);
     }
 
     public boolean isEmpty() {
         return nameExtractors.isEmpty() && regionsInfo.isEmpty() && singles.isEmpty();
     }
 
-    public static <T extends ParserRuleContext> ExtractorBuilder<T> builder(Class<T> documentRootType) {
-        return new ExtractorBuilder<>(documentRootType);
+    public static <T extends ParserRuleContext> ExtractorBuilder<T> builder(Class<T> documentRootType, String mimeType) {
+        return new ExtractorBuilder<>(documentRootType, mimeType);
     }
 
     public Class<T> documentRootType() {
@@ -194,7 +206,7 @@ public final class Extractor<T extends ParserRuleContext> {
      */
     public Extraction extract(T ruleNode, GrammarSource<?> source, BooleanSupplier cancelled, Iterable<? extends Token> tokens) {
         String tkHash = hashTokens(tokens);
-        Extraction extraction = new Extraction(extractorsHash(), source, tkHash);
+        Extraction extraction = new Extraction(extractorsHash(), source, tkHash, documentRootType, mimeType);
         long then = System.currentTimeMillis();
         for (RegionExtractionStrategies<?> r : regionsInfo) {
             if (cancelled.getAsBoolean()) {
@@ -320,7 +332,7 @@ public final class Extractor<T extends ParserRuleContext> {
         if (consumer == null) {
             return Extractor.empty(entryPointType);
         }
-        ExtractorBuilder<T> eb = new ExtractorBuilder<>(entryPointType);
+        ExtractorBuilder<T> eb = new ExtractorBuilder<>(entryPointType, mimeType);
         long then = System.currentTimeMillis();
         consumer.accept(eb);
         Extractor result = eb.build();

@@ -33,6 +33,9 @@ import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
 import com.mastfrog.graph.StringGraph;
+import java.util.concurrent.ConcurrentHashMap;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.nemesis.extraction.attribution.ResolverRegistry;
 import org.nemesis.misc.utils.TimedSoftReference;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.annotations.common.NullAllowed;
@@ -44,8 +47,8 @@ import org.netbeans.api.annotations.common.NullAllowed;
  * items found during parsing and extraction. To populate the extraction,
  * register an {@link ExtractionContributor} via {@link ExtractionRegistration}
  * against a particular MIME type and it will be called for all files of that
- * type.  An Extraction will not change once parsing is completed.  In general,
- * as with parse trees, it is preferable to get what you need from it to populate
+ * type. An Extraction will not change once parsing is completed. In general, as
+ * with parse trees, it is preferable to get what you need from it to populate
  * UI elements and not keep references to objects from it.
  */
 public final class Extraction implements Externalizable {
@@ -54,21 +57,48 @@ public final class Extraction implements Externalizable {
     private final Map<NamedRegionKey<?>, NamedSemanticRegions<?>> nameds = new HashMap<>();
     private final Map<NamedRegionKey<?>, Map<String, Set<NamedSemanticRegion<?>>>> duplicates = new HashMap<>();
     private final Map<NameReferenceSetKey<?>, NamedRegionReferenceSets<?>> refs = new HashMap<>();
-    private final Map<NameReferenceSetKey<?>, StringGraph> graphs = new HashMap<>();
+    private final Map<NameReferenceSetKey<?>, StringGraph> graphs = new HashMap<>(5);
     private final Map<NameReferenceSetKey<?>, SemanticRegions<UnknownNameReference<?>>> unknowns = new HashMap<>();
     private final Map<SingletonKey<?>, SingletonEncounters<?>> singles = new HashMap<>(4);
-    private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
+    private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
     private transient Map<Extractor<?>, Map<GrammarSource<?>, TimedSoftReference<Extraction>>> cachedExtractions;
     private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>();
     private String extractorsHash;
     private GrammarSource<?> source;
     private String tokensHash;
+    private Class<? extends ParserRuleContext> documentRootType;
+    private String mimeType;
 
-    Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash) {
+    Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash, Class<? extends ParserRuleContext> documentRootType, String mimeType) {
         this.extractorsHash = extractorsHash;
         this.source = source;
         this.tokensHash = tokensHash;
+        this.documentRootType = documentRootType;
+        this.mimeType = mimeType;
+    }
+
+    public String mimeType() {
+        return mimeType;
+    }
+
+    public Class<? extends ParserRuleContext> documentRootType() {
+        return documentRootType;
+    }
+
+    public Set<NameReferenceSetKey<?>> referenceKeys() {
+        Set<NameReferenceSetKey<?>> result = new HashSet<>();
+        result.addAll(unknowns.keySet());
+        result.addAll(refs.keySet());
+        result.addAll(graphs.keySet());
+        return result;
+    }
+
+    public Set<NamedRegionKey<?>> regionKeys() {
+        Set<NamedRegionKey<?>> result = new HashSet<>();
+        result.addAll(nameds.keySet());
+        result.addAll(duplicates.keySet());
+        return result;
     }
 
     public String tokensHash() {
@@ -106,7 +136,8 @@ public final class Extraction implements Externalizable {
         int count = regions.size() + nameds.size() + duplicates.size() + refs.size()
                 + singles.size();
         StringBuilder sb = new StringBuilder("Extraction{")
-                .append(source).append(", size=").append(count);
+                .append(source).append(", size=").append(count)
+                .append(", tokensHash=").append(tokensHash);
         Set<ExtractionKey<?>> all = new HashSet<>(regions.keySet());
         all.addAll(nameds.keySet());
         all.addAll(refs.keySet());
@@ -379,7 +410,9 @@ public final class Extraction implements Externalizable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("extractor:").append(extractorsHash);
+        StringBuilder sb = new StringBuilder("extractor:").append(extractorsHash)
+                .append("\ntokensHash: ").append(tokensHash)
+                .append("\ndocumentRootType: ").append(documentRootType.getName());
         if (!regions.isEmpty()) {
             sb.append("\n******************* SEMANTIC REGIONS **********************");
             for (Map.Entry<RegionsKey<?>, SemanticRegions<?>> e : regions.entrySet()) {
@@ -500,8 +533,11 @@ public final class Extraction implements Externalizable {
         SerializationContext ctx = SerializationContext.createSerializationContext(allNamed);
         try {
             SerializationContext.withSerializationContext(ctx, () -> {
-                out.writeInt(1);
+                out.writeInt(2);
                 out.writeObject(ctx);
+                out.writeObject(tokensHash);
+                out.writeObject(mimeType);
+                out.writeObject(documentRootType);
                 out.writeUTF(extractorsHash);
                 out.writeObject(regions);
                 out.writeObject(nameds);
@@ -524,11 +560,14 @@ public final class Extraction implements Externalizable {
     @SuppressWarnings(value = "unchecked")
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         int v = in.readInt();
-        if (v != 1) {
+        if (v != 2) {
             throw new IOException("Incompatible version " + v);
         }
         SerializationContext ctx = (SerializationContext) in.readObject();
         SerializationContext.withSerializationContext(ctx, () -> {
+            tokensHash = in.readUTF();
+            mimeType = in.readUTF();
+            documentRootType = (Class<? extends ParserRuleContext>) in.readObject();
             extractorsHash = in.readUTF();
             Map<RegionsKey<?>, SemanticRegions<?>> sregions = (Map<RegionsKey<?>, SemanticRegions<?>>) in.readObject();
             Map<NamedRegionKey<?>, NamedSemanticRegions<?>> snameds = (Map<NamedRegionKey<?>, NamedSemanticRegions<?>>) in.readObject();
@@ -599,10 +638,37 @@ public final class Extraction implements Externalizable {
         resolutionCache = null;
     }
 
+    private transient Map<NameReferenceSetKey<?>, Attributions<?, ?, ?, ?>> attributionCache = new ConcurrentHashMap<>();
+
     @SuppressWarnings("unchecked")
-    public <R, I extends IndexAddressable.NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> Attributions<R, I, N, T> resolveUnknowns(NameReferenceSetKey<T> key, UnknownNameReference.UnknownNameReferenceResolver<R, I, N, T> res) throws IOException {
-        Map<NameReferenceSetKey<?>, Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> rc = this.resolutionCache;
-        Map<UnknownNameReference.UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>> perResolverCache = null;
+    public <K extends Enum<K>> Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> resolveAll(
+            NameReferenceSetKey<K> key) {
+        if (attributionCache == null) {
+            attributionCache = new HashMap<>();
+        }
+        Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> result
+                = (Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>) attributionCache.get(key);
+        if (result == null) {
+            UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> r = ResolverRegistry.forMimeType(mimeType).resolver(this, key.type());
+            if (r != null) {
+                System.out.println("WILL RESOLVE WITH " + r);
+                try {
+                    result = resolveUnknowns(key, r);
+                    attributionCache.put(key, result);
+                } catch (Exception ex) {
+                    Logger.getLogger(Extraction.class.getName()).log(Level.SEVERE,
+                            "resolving " + key, ex);
+                }
+            }
+        }
+        return result;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtype"})
+    public <R, I extends IndexAddressable.NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>> Attributions<R, I, N, T>
+            resolveUnknowns(NameReferenceSetKey<T> key, UnknownNameReferenceResolver<R, I, N, T> res) throws IOException {
+        Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> rc = this.resolutionCache;
+        Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>> perResolverCache = null;
         if (rc != null) {
             perResolverCache = rc.get(key);
             if (perResolverCache != null) {
@@ -623,6 +689,18 @@ public final class Extraction implements Externalizable {
         Class c = AttributedForeignNameReference.class;
         SemanticRegions.SemanticRegionsBuilder<AttributedForeignNameReference<R, I, N, T>> bldr = SemanticRegions.builder(c);
         SemanticRegions.SemanticRegionsBuilder<UnknownNameReference> remaining = SemanticRegions.builder(UnknownNameReference.class);
+        Map<UnknownNameReference<T>, AttributedForeignNameReference<R, I, N, T>> all = res.resolveAll(this, u, (UnknownNameReference<T> unknown, R resolutionSource, I in, N element) -> {
+            return new AttributedForeignNameReference<R,I,N,T>(unknown, resolutionSource, in, element, this);
+        });
+        for (SemanticRegion<UnknownNameReference<T>> reg : u) {
+            AttributedForeignNameReference<R, I, N, T> r = all.get(reg.key());
+            if (r != null) {
+                bldr.add(r, reg.start(), reg.end());
+            } else {
+                remaining.add(reg.key(), reg.start(), reg.end());
+            }
+        }
+        /*
         for (SemanticRegion<UnknownNameReference<T>> reg : u) {
             AttributedForeignNameReference<R, I, N, T> r = reg.key().resolve(this, res);
             if (r != null) {
@@ -631,6 +709,7 @@ public final class Extraction implements Externalizable {
                 remaining.add(reg.key(), reg.start(), reg.end());
             }
         }
+        */
         Attributions<R, I, N, T> result = new Attributions<>(bldr.build(), remaining.build());
         perResolverCache.put(res, result);
         return result;

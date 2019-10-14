@@ -1,12 +1,12 @@
 package org.nemesis.jfs;
 
 import com.mastfrog.predicates.Predicates;
+import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -33,11 +33,11 @@ import org.nemesis.jfs.result.UpToDateness;
 public class JFSFileModifications {
 
     private final JFS jfs;
-    private Predicate<Path> filter;
+    private Predicate<UnixPath> filter;
     private final Set<? extends Location> locations;
     private static final Logger LOG = Logger.getLogger(JFSFileModifications.class.getName());
     private FilesInfo info;
-    private static final Predicate<Path> ALL = Predicates.alwaysTrue();
+    private static final Predicate<UnixPath> ALL = Predicates.alwaysTrue();
 
     JFSFileModifications() {
         // Empty instance, for use when an error was thrown and there
@@ -52,7 +52,7 @@ public class JFSFileModifications {
         this(jfs, ALL, location, moreLocations);
     }
 
-    JFSFileModifications(JFS jfs, Predicate<Path> filter, Location location, Location... moreLocations) {
+    JFSFileModifications(JFS jfs, Predicate<UnixPath> filter, Location location, Location... moreLocations) {
         this.filter = notNull("filter", filter);
         this.jfs = jfs;
         locations = locationSet(location, moreLocations);
@@ -63,7 +63,7 @@ public class JFSFileModifications {
         this(jfs, ALL, locations);
     }
 
-    JFSFileModifications(JFS jfs, Predicate<Path> filter, Set<Location> locations) {
+    JFSFileModifications(JFS jfs, Predicate<UnixPath> filter, Set<Location> locations) {
         this.filter = notNull("filter", filter);
         this.locations = locationSet(notNull("locations", locations));
         this.jfs = notNull("jfs", jfs);
@@ -178,7 +178,7 @@ public class JFSFileModifications {
             return new Modifications(initial, current, status.filter);
         }
 
-        public abstract FileChanges filter(Predicate<Path> filter);
+        public abstract FileChanges filter(Predicate<UnixPath> filter);
 
         public abstract UpToDateness status();
 
@@ -191,17 +191,17 @@ public class JFSFileModifications {
             }
 
             @Override
-            public Set<? extends Path> modified() {
+            public Set<? extends UnixPath> modified() {
                 return Collections.emptySet();
             }
 
             @Override
-            public Set<? extends Path> deleted() {
+            public Set<? extends UnixPath> deleted() {
                 return Collections.emptySet();
             }
 
             @Override
-            public Set<? extends Path> added() {
+            public Set<? extends UnixPath> added() {
                 return Collections.emptySet();
             }
 
@@ -216,16 +216,16 @@ public class JFSFileModifications {
             }
 
             @Override
-            public FileChanges filter(Predicate<Path> filter) {
+            public FileChanges filter(Predicate<UnixPath> filter) {
                 return this;
             }
         }
 
-        public abstract Set<? extends Path> modified();
+        public abstract Set<? extends UnixPath> modified();
 
-        public abstract Set<? extends Path> deleted();
+        public abstract Set<? extends UnixPath> deleted();
 
-        public abstract Set<? extends Path> added();
+        public abstract Set<? extends UnixPath> added();
 
         public boolean isUpToDate() {
             return modified().isEmpty() && deleted().isEmpty();
@@ -233,12 +233,12 @@ public class JFSFileModifications {
 
         static final class Modifications extends FileChanges {
 
-            private final Set<Path> modified;
-            private final Set<Path> deleted;
-            private final Set<Path> added;
-            private final Predicate<Path> filter;
+            private final Set<UnixPath> modified;
+            private final Set<UnixPath> deleted;
+            private final Set<UnixPath> added;
+            private final Predicate<UnixPath> filter;
 
-            Modifications(Set<Path> modified, Set<Path> deleted, Set<Path> added, Predicate<Path> filter) {
+            Modifications(Set<UnixPath> modified, Set<UnixPath> deleted, Set<UnixPath> added, Predicate<UnixPath> filter) {
                 notNull("filter", filter);
                 notNull("modified", modified);
                 notNull("added", added);
@@ -249,7 +249,7 @@ public class JFSFileModifications {
                 this.filter = filter;
             }
 
-            Modifications(FilesInfo orig, FilesInfo nue, Predicate<Path> filter) {
+            Modifications(FilesInfo orig, FilesInfo nue, Predicate<UnixPath> filter) {
                 this.filter = filter;
                 modified = new HashSet<>(7);
                 deleted = new HashSet<>(7);
@@ -257,11 +257,11 @@ public class JFSFileModifications {
                 // Technically if the same file exists in two locations,
                 // we could record it twice, but we will still have accurate
                 // enough information to make a go/rebuild decision
-                for (Map.Entry<? extends Location, Map<Path, Long>> e : orig.timestamps.entrySet()) {
+                for (Map.Entry<? extends Location, Map<UnixPath, Long>> e : orig.timestamps.entrySet()) {
                     Location loc = e.getKey();
-                    Map<Path, Long> origs = orig.timestamps.get(loc);
-                    Map<Path, Long> updates = nue.timestamps.get(loc);
-                    for (Map.Entry<Path, Long> ee : origs.entrySet()) {
+                    Map<UnixPath, Long> origs = orig.timestamps.get(loc);
+                    Map<UnixPath, Long> updates = nue.timestamps.get(loc);
+                    for (Map.Entry<UnixPath, Long> ee : origs.entrySet()) {
                         if (filter != null && !filter.test(ee.getKey())) {
                             continue;
                         }
@@ -289,17 +289,17 @@ public class JFSFileModifications {
             }
 
             @Override
-            public Set<? extends Path> modified() {
+            public Set<? extends UnixPath> modified() {
                 return modified;
             }
 
             @Override
-            public Set<? extends Path> deleted() {
+            public Set<? extends UnixPath> deleted() {
                 return deleted;
             }
 
             @Override
-            public Set<? extends Path> added() {
+            public Set<? extends UnixPath> added() {
                 return added;
             }
 
@@ -319,7 +319,7 @@ public class JFSFileModifications {
             }
 
             @Override
-            public FileChanges filter(Predicate<Path> filter) {
+            public FileChanges filter(Predicate<UnixPath> filter) {
                 Set<Path> newModified = new HashSet<>(7);
                 Set<Path> newDeleted = new HashSet<>(7);
                 Set<Path> newAdded = new HashSet<>(7);
@@ -335,13 +335,13 @@ public class JFSFileModifications {
     }
 
     private FilesInfo currentInfo() {
-        Map<? extends Location, Map<Path, Long>> timestamps = locationMap();
+        Map<? extends Location, Map<UnixPath, Long>> timestamps = locationMap();
         List<JFSFileObject> files = new ArrayList<>();
         for (Location loc : locations) {
-            Map<Path, Long> itemsForLocation = timestamps.get(loc);
+            Map<UnixPath, Long> itemsForLocation = timestamps.get(loc);
             jfs.list(loc, (location, fo) -> {
                 try {
-                    Path path = Paths.get(fo.getName());
+                    UnixPath path = UnixPath.get(fo.getName());
                     if (filter == null || filter.test(path)) {
                         itemsForLocation.put(path, fo.getLastModified());
                         files.add(fo);
@@ -358,7 +358,12 @@ public class JFSFileModifications {
         try {
             MessageDigest dig = MessageDigest.getInstance("SHA-1");
             for (JFSFileObject fo : files) {
-                fo.hash(dig);
+                try {
+                    fo.hash(dig);
+                } catch (MappedObjectDeletedException ex) {
+                    LOG.log(Level.FINE, "Deleted: " + fo, ex);
+                    fo.delete();
+                }
             }
             hash = dig.digest();
         } catch (NoSuchAlgorithmException | IOException ex) {
@@ -367,18 +372,18 @@ public class JFSFileModifications {
         return new FilesInfo(timestamps, hash);
     }
 
-    private <R> Map<? extends Location, Map<Path, R>> locationMap() {
+    private <R> Map<? extends Location, Map<UnixPath, R>> locationMap() {
         // Comparing a hash lookup to a bitwise operation in an
         // EnumSet or EnumMap, this optimization is worth it
         if (locations instanceof EnumSet<?>) {
-            Map<StandardLocation, Map<Path, R>> result = new EnumMap<>(StandardLocation.class);
+            Map<StandardLocation, Map<UnixPath, R>> result = new EnumMap<>(StandardLocation.class);
             for (Location l : locations) {
-                Map<Path, R> m = new HashMap<>(20);
+                Map<UnixPath, R> m = new HashMap<>(20);
                 result.put((StandardLocation) l, m);
             }
             return result;
         }
-        Map<Location, Map<Path, R>> result = new HashMap<>();
+        Map<Location, Map<UnixPath, R>> result = new HashMap<>();
         for (Location l : locations) {
             result.put(l, new HashMap<>(20));
         }
@@ -409,13 +414,12 @@ public class JFSFileModifications {
 
     static final class FilesInfo {
 
-        final Map<? extends Location, Map<Path, Long>> timestamps;
+        final Map<? extends Location, Map<UnixPath, Long>> timestamps;
         final byte[] hash;
 
-        public FilesInfo(Map<? extends Location, Map<Path, Long>> timestamps, byte[] hash) {
+        public FilesInfo(Map<? extends Location, Map<UnixPath, Long>> timestamps, byte[] hash) {
             this.timestamps = timestamps;
             this.hash = hash;
         }
-
     }
 }
