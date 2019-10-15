@@ -34,8 +34,11 @@ import org.nemesis.source.api.RelativeResolver;
 import org.nemesis.source.impl.RRAccessor;
 
 /**
- * SPI for RelativeResolver.  These are registered by MIME type and looked up
- * using Lookups.forPath.
+ * SPI for RelativeResolver. These are registered by MIME type and looked up
+ * using Lookups.forPath, and allow neighbors / imports to be looked up.
+ * Registration path is <code>antlr-languages/relative-resolvers</code> plus the
+ * mime type, e.g. <code>antlr-languages/relative-resolvers/text/x-g4</code>,
+ * using the &#064;ServiceProvider annotation with a path.
  *
  * @author Tim Boudreau
  */
@@ -52,15 +55,16 @@ public abstract class RelativeResolverImplementation<T> implements Serializable 
     }
 
     /**
-     * Resolve an "imported" file - depending on the MIME type this may
-     * have very different behavior, such as looking up a Java file on
-     * the project classpath, or looking up an imported ANTLR grammar
-     * in a parent directory named "imports".
+     * Resolve an "imported" file - depending on the MIME type this may have
+     * very different behavior, such as looking up a Java file on the project
+     * classpath, or looking up an imported ANTLR grammar in a parent directory
+     * named "imports".
      *
      * @param relativeTo The object to look up relative to
      * @param name The name of the file to look up, as it is described in the
      * original document
-     * @return An optional which may contain a reference to the object in question
+     * @return An optional which may contain a reference to the object in
+     * question
      */
     public abstract Optional<T> resolve(T relativeTo, String name);
 

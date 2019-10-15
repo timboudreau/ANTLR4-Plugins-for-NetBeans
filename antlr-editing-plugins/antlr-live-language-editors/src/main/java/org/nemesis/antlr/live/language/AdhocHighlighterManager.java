@@ -28,6 +28,8 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
+import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
@@ -262,7 +264,9 @@ final class AdhocHighlighterManager {
 
         @Override
         public void stateChanged(ChangeEvent e) {
-            scheduleRepaint();
+//            scheduleRepaint();
+            System.out.println("\n\nhighlighters got colorings colorings change");
+            repaintHighlights();
         }
 
         class XC implements BiConsumer<Document, EmbeddedAntlrParserResult> {

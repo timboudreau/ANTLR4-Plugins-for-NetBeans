@@ -56,6 +56,8 @@ import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
 import org.nemesis.antlr.spi.language.Goto;
+import org.nemesis.antlr.spi.language.Imports;
+import org.nemesis.antlr.spi.language.ReferenceableFromImports;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
 import org.nemesis.antlr.spi.language.highlighting.ColoringCategory;
 import org.nemesis.antlr.spi.language.highlighting.TokenCategory;
@@ -191,6 +193,8 @@ public class AntlrKeys {
 //    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "rules", guardedStart = 3,
 //            guardedEnd = 3, displayText = "rules"))
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
+
+    @Imports(mimeType=ANTLR_MIME_TYPE)
     public static final NamedRegionKey<ImportKinds> IMPORTS = NamedRegionKey.create("imports", ImportKinds.class);
 
     @HighlighterKeyRegistration(mimeType = MIME_TYPE, order = 20, positionInZOrder = 900,
@@ -231,6 +235,7 @@ public class AntlrKeys {
     )
     @SimpleNavigatorRegistration(displayName = "Rules", order = 1, mimeType = MIME_TYPE,
             appearance = AntlrNavigatorAppearance.class)
+    @ReferenceableFromImports(mimeType = ANTLR_MIME_TYPE)
     public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
 
     @HighlighterKeyRegistrations({
@@ -288,7 +293,7 @@ public class AntlrKeys {
                 case PARSER:
                     return bold;
                 case NAMED_ALTERNATIVES:
-
+                    return named;
                 default:
                     return none;
             }

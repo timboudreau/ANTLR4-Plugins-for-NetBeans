@@ -1,4 +1,4 @@
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.io.Externalizable;
 import java.io.File;
@@ -9,7 +9,6 @@ import java.util.Optional;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
 import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.api.RelativeResolver;
@@ -37,6 +36,7 @@ final class DocumentGrammarSource extends AbstractFileObjectGrammarSourceImpleme
         this.resolver = resolver;
     }
 
+    @Override
     public long lastModified() {
         return DocumentUtilities.getDocumentTimestamp(doc);
     }
@@ -82,7 +82,9 @@ final class DocumentGrammarSource extends AbstractFileObjectGrammarSourceImpleme
 
     @Override
     public CharStream stream() throws IOException {
-        return CharStreams.fromString(getDocumentText());
+        CharSequence seq = DocumentUtilities.getText(doc);
+        return new CharSequenceCharStream(name(), seq);
+//        return CharStreams.fromString(getDocumentText());
     }
 
     @Override

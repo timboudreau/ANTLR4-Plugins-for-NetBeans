@@ -3,10 +3,15 @@ package org.nemesis.extraction.attribution;
 import com.mastfrog.util.cache.TimedCache;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.data.SemanticRegions;
@@ -16,6 +21,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ResolutionConsumer;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.UnknownNameReferenceResolver;
+import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.source.api.GrammarSource;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
@@ -29,9 +35,9 @@ import org.openide.util.lookup.Lookups;
  */
 public final class ResolverRegistry {
 
-    public static final String BASE_PATH = "antlr/resolvers";
+    public static final String RESOLVER_BASE_PATH = "antlr/resolvers";
     private static final TimedCache<String, ResolverRegistry, RuntimeException> REGISTRIES
-            = TimedCache.create(60000, ResolverRegistry::findResolver);
+            = TimedCache.create(60000, ResolverRegistry::findRegistry);
     private final Lookup lkp;
     private static final Logger LOG = Logger.getLogger(ResolverRegistry.class.getName());
 
@@ -39,13 +45,27 @@ public final class ResolverRegistry {
         this.lkp = lkp;
     }
 
-    static ResolverRegistry findResolver(String mimeType) {
-        Lookup lkp = Lookups.forPath(BASE_PATH + "/" + mimeType);
+    private static ResolverRegistry findRegistry(String mimeType) {
+        Lookup lkp = Lookups.forPath(RESOLVER_BASE_PATH + "/" + mimeType);
         return new ResolverRegistry(lkp);
     }
 
     public static ResolverRegistry forMimeType(String mime) {
         return REGISTRIES.get(mime);
+    }
+
+    static ImportFinder importFinder(String mime) {
+        ResolverRegistry reg = REGISTRIES.get(mime);
+        Collection<? extends ImportFinder> all = reg.lkp.lookupAll(ImportFinder.class);
+        System.out.println("FOUND IMPORT FINDERS " + all + " for " + mime);
+        switch (all.size()) {
+            case 0:
+                return ImportFinder.EMPTY;
+            case 1:
+                return all.iterator().next();
+            default:
+                return new PolyImportFinder(all);
+        }
     }
 
     public <K extends Enum<K>> UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> resolver(Extraction ext, Class<K> type) {
@@ -63,6 +83,36 @@ public final class ResolverRegistry {
             return new PolyResolver<>(type, toTry);
         }
         return null;
+    }
+
+    private static final class PolyImportFinder implements ImportFinder, ImportKeySupplier {
+
+        private final Collection<? extends ImportFinder> finders;
+
+        public PolyImportFinder(Collection<? extends ImportFinder> finders) {
+            this.finders = finders;
+        }
+
+        @Override
+        public Set<GrammarSource<?>> allImports(Extraction importer, Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
+            Set<GrammarSource<?>> result = new HashSet<>();
+            for (ImportFinder f : finders) {
+                result.addAll(f.allImports(importer, notFound));
+            }
+            return result;
+        }
+
+        @Override
+        public NamedRegionKey<?>[] get() {
+            Set<NamedRegionKey<?>> set = new LinkedHashSet<>();
+            for (ImportFinder i : finders) {
+                if (i instanceof ImportKeySupplier) {
+                    NamedRegionKey<?>[] keys = ((ImportKeySupplier) i).get();
+                    set.addAll(Arrays.asList(keys));
+                }
+            }
+            return set.toArray(new NamedRegionKey<?>[set.size()]);
+        }
     }
 
     private static final class PolyResolver<K extends Enum<K>> implements UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> {

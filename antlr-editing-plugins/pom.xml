@@ -59,6 +59,20 @@ Copyright (C) 2012-2019 Tim Boudreau
         <module>antlr-language-formatting-ui</module>
         <module>parse-recorder</module>
     </modules>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.netbeans.utilities</groupId>
+                <artifactId>nbm-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <licenseName>BSD</licenseName>
+                    <licenseFile>${project.parent.relativePath}/../../License.txt</licenseFile>
+                    <finalName>${project.artifactId}</finalName>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <dependencyManagement>
         <dependencies>
             <dependency>

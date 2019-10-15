@@ -162,7 +162,7 @@ public abstract class ParsingBag {
 
     static final class BlackHole extends ParsingBag {
 
-        public BlackHole() {
+        BlackHole() {
             super(GrammarSource.NONE);
         }
 

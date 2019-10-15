@@ -1,6 +1,8 @@
 package org.nemesis.antlr.spi.language;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
@@ -9,6 +11,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JEditorPane;
@@ -28,7 +31,10 @@ import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.UnknownNameReference;
+import org.nemesis.extraction.attribution.ImportFinder;
+import org.nemesis.extraction.attribution.ImportKeySupplier;
 import org.nemesis.extraction.key.NameReferenceSetKey;
+import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.EditorActionNames;
 import org.netbeans.api.editor.EditorRegistry;
@@ -61,8 +67,12 @@ import org.openide.windows.TopComponent;
 final class AntlrGotoDeclarationAction extends AbstractEditorAction {
 
     private static final Logger LOGGER
-            = Logger.getLogger("org.nemesis.antlr.file.file.G4GotoDeclarationAction");
+            = Logger.getLogger(AntlrGotoDeclarationAction.class.getName());
     private final NameReferenceSetKey<?>[] keys;
+
+    static {
+        LOGGER.setLevel(Level.ALL);
+    }
 
     AntlrGotoDeclarationAction(NameReferenceSetKey<?>[] keys) {
         this.keys = notNull("keys", keys);
@@ -82,10 +92,10 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
         }
         int position = caret.getDot();
         LOGGER.log(Level.FINER, "Invoke {0} at {1}", new Object[]{position,
-            "G4GotoDeclarationAction"});
+            "AntlrGotoDeclarationAction"});
 
         try {
-            ParserManager.parse(Collections.singleton(Source.create(component.getDocument())), new UserTask(){
+            ParserManager.parse(Collections.singleton(Source.create(component.getDocument())), new UserTask() {
                 @Override
                 public void run(ResultIterator resultIterator) throws Exception {
                     Parser.Result res = resultIterator.getParserResult();
@@ -95,16 +105,6 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
                     }
                 }
             });
-            /*
-            NbAntlrUtils.parseImmediately(component.getDocument(), (Extraction extraction, Exception thrown) -> {
-            if (thrown != null) {
-            LOGGER.log(Level.FINER, "Thrown in extracting");
-            Exceptions.printStackTrace(thrown);
-            return;
-            }
-            navigateTo(evt, component, extraction, position);
-            });
-            */
         } catch (ParseException ex) {
             LOGGER.log(Level.SEVERE, "Thrown in extracting " + component.getDocument(), ex);
         }
@@ -133,9 +133,70 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
     }
 
     private void navToUnknown(Extraction extraction, int position) throws IOException {
+        LOGGER.log(Level.FINER, "Try nav to unknown @ {0} in {1}",
+                new Object[]{position, extraction.source()});
         for (NameReferenceSetKey<?> k : keys) {
+            LOGGER.log(Level.FINEST, "Check one unknown {0}", k);
             if (checkOneUnknown(extraction, k, position)) {
                 return;
+            }
+        }
+        // Now see if we are on an import name, and try to open the file for that if so
+        ImportFinder finder = ImportFinder.forMimeType(extraction.mimeType());
+        if (finder instanceof ImportKeySupplier) {
+            NamedRegionKey<?>[] ks = ((ImportKeySupplier) finder).get();
+            if (ks.length > 0) {
+                LOGGER.log(Level.FINER, "Try import key supplier with {0}", Arrays.asList(ks));
+                for (NamedRegionKey k : ks) {
+                    NamedSemanticRegions nr = extraction.namedRegions(k);
+                    if (nr == null) {
+                        continue;
+                    }
+                    NamedSemanticRegion reg = nr.at(position);
+                    LOGGER.log(Level.FINEST, "Trying {0} got region {1}", new Object[]{k, nr});
+                    if (reg != null) {
+                        String name = reg.name();
+                        Set<GrammarSource<?>> grammarSources
+                                = finder.allImports(extraction, CollectionUtils.blackHoleSet());
+                        LOGGER.log(Level.FINEST, "Will check {0} GrammarSources: {1}",
+                                new Object[]{grammarSources.size(), grammarSources});
+                        for (GrammarSource<?> gs : finder.allImports(extraction, CollectionUtils.blackHoleSet())) {
+                            LOGGER.log(Level.FINEST, "Try {0} looking for {1} in name of {2}", new Object[]{
+                                gs.name(), name, gs
+                            });
+                            if (name.equals(gs.name()) || gs.name().contains(name)) { // XXX
+                                openFileOf(gs);
+                                return;
+                            }
+                        }
+                        GrammarSource<?> fallback = extraction.source().resolveImport(name);
+                        if (fallback != null) {
+                            openFileOf(fallback);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void openFileOf(GrammarSource<?> gs) {
+        Optional<DataObject> dataObject = gs.lookup(DataObject.class);
+        if (dataObject.isPresent()) {
+            OpenCookie ck = dataObject.get().getLookup().lookup(OpenCookie.class);
+            LOGGER.log(Level.FINE, "Opening {0} with {1}",
+                    new Object[]{dataObject.get(), ck});
+            if (ck != null) {
+                EventQueue.invokeLater(() -> {
+                    ck.open();
+                    for (TopComponent tc : TopComponent.getRegistry().getOpened()) {
+                        if (tc.getLookup().lookup(DataObject.class) == dataObject.get()) {
+                            tc.requestActive();
+                            return;
+                        }
+                    }
+                });
+            } else {
+                LOGGER.log(Level.INFO, "Found a match {0} but no DataObject", gs);
             }
         }
     }

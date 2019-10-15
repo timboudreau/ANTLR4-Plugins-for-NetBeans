@@ -1,4 +1,4 @@
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.util.Optional;
 import javax.swing.text.Document;

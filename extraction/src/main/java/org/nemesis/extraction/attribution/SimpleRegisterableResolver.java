@@ -44,7 +44,7 @@ public interface SimpleRegisterableResolver<K extends Enum<K>, I> extends Regist
                 if (names.contains(name)) {
                     NamedSemanticRegion<K> decl = names.regionFor(name);
                     if (decl != null) {
-                        return c.resolved(ref, ext.source(), names, decl);
+                        return c.resolved(ref, ext.source(), names, decl, ext);
                     }
                 }
             }
@@ -83,7 +83,7 @@ public interface SimpleRegisterableResolver<K extends Enum<K>, I> extends Regist
                 if (names.contains(name)) {
                     NamedSemanticRegion<K> decl = names.regionFor(name);
                     if (decl != null) {
-                        X x = c.resolved(reg.key(), ext.source(), names, decl);
+                        X x = c.resolved(reg.key(), ext.source(), names, decl, ext);
                         if (x != null) {
                             resolved.put(reg.key(), x);
                         }

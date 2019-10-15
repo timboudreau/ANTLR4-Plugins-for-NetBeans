@@ -130,7 +130,7 @@ public class RelativeResolverRegistryTest {
 
     }
 
-    static class FakeRegistry extends RelativeResolverRegistry {
+    static class FakeRegistry extends DocumentAdapterRegistry {
 
         @Override
         protected List<? extends RelativeResolverImplementation<?>> allResolvers(String mimeType) {
@@ -147,7 +147,7 @@ public class RelativeResolverRegistryTest {
         }
 
         @Override
-        protected List<? extends RelativeResolverAdapter<?, ?>> allAdapters() {
+        protected List<? extends DocumentAdapter<?, ?>> allAdapters() {
             FakeAdapter<String, Integer> fake = new FakeAdapter<>(String.class, Integer.class, Integer::parseInt, FakeRegistry::i2s);
             FakeAdapter<String, StringBuilder> fake2 = new FakeAdapter<>(String.class, StringBuilder.class, FakeRegistry::s2sb, FakeRegistry::sb2s);
             return Arrays.asList(fake, fake2);
@@ -181,7 +181,7 @@ public class RelativeResolverRegistryTest {
         }
     }
 
-    static final class FakeAdapter<T, R> extends RelativeResolverAdapter<T, R> {
+    static final class FakeAdapter<T, R> extends DocumentAdapter<T, R> {
 
         private final Function<T, R> fromTo;
         private final Function<R, T> toFrom;

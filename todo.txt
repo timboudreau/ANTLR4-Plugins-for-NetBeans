@@ -1,26 +1,37 @@
 
 # Antlr Editing Plugins To-Dos
 
+ - Use @ConvertAsProperties on preview
+
+ - Java embedding for Antlr, general Antlr embedding support
+
+ - Goto decl should also resolve imports - expose keys
+
+ - Error highlighting should show unresolvable imports
+
+ - Antlr name references are not detected if the format is "foo=someRule"
+
  - Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
    - Could use general support for sets of ranges in the range library
 
- - Preview re-highlighting does not happen until a modification, after a text change in the preview
-
- - Preview panel is not tracking the caret and updating the breadcrumb or tree anymore
-   - Seems like the caret listener is not working except on focus gained
-     - Try selection listener instead?
-     - Or is the fancy scrolling stuff broken?
+ - Formatter settings not being picked up
 
  - Split out import finder from the resolving stuff?
+    - @ImportNames annotation to auto generate name resolution / goto declaration support
+       - Strategy for relative path lookups?
 
- - Preview colorings should include items from tokens files, imported grammars.
+ - Fix AdhocColoringRegistry to use import finder, not actually resolve everything unless needed
 
  - Enhance relative resolvers in the nb specialization project to look up tokens files, etc. from the project's ClassPathProvider
 
- - Clean up / decomplicate RelativeResolver - should just be a conversion API
+ - Keybinding actions still not actually working if not performers for standard netbeans ones
 
- - @ImportNames annotation to auto generate name resolution / goto declaration support
+ - Should keep a cache of resolvable variable names by file, so as not to resolve them
+and parse multiple files and do many graph traversals on every reparse.  Cache should listen
+on target file and dispose on modification.  Can't be in the extraction project due to
+file object type and listening requirement.
 
+ 
  - Resolve via tokens file into other project on classpath via ClassPathProvider
 
  - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, 
@@ -47,8 +58,6 @@ fix coalescer to support longs
 -------
 
 # General Antlr Plugin Support To-Dos
-
-Declarative registraton of resolvers, actual attribution phase
 
 Use new carets api to do inplace rename refactoring
 

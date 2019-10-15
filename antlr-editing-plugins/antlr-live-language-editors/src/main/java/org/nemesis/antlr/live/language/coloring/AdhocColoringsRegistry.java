@@ -1,4 +1,4 @@
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import java.awt.Color;
@@ -30,20 +30,30 @@ import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import com.mastfrog.graph.StringGraph;
 import com.mastfrog.graph.algorithm.Score;
+import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
 import java.util.Collections;
+import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
-import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.nemesis.extraction.attribution.ImportFinder;
+import org.nemesis.source.api.GrammarSource;
+import org.netbeans.modules.parsing.api.ParserManager;
+import org.netbeans.modules.parsing.api.ResultIterator;
+import org.netbeans.modules.parsing.api.Source;
+import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
+import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
@@ -77,7 +87,7 @@ public final class AdhocColoringsRegistry {
         // do nothing
     }
 
-    boolean isRegistered(String mimeType) {
+    public boolean isRegistered(String mimeType) {
         return coloringsForMimeType.containsKey(mimeType);
     }
 
@@ -121,6 +131,41 @@ public final class AdhocColoringsRegistry {
         if (colorings != null) {
             store(colorings, mimeType);
             ParseResultHook.deregister(mimeType, hook);
+        }
+        return colorings;
+    }
+
+    public AdhocColorings reinitialize(String mimeType) {
+        AdhocColorings colorings = coloringsForMimeType.get(mimeType);
+        if (colorings != null) {
+            Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+            if (path != null) {
+                GrammarSource<?> src = GrammarSource.find(path, ANTLR_MIME_TYPE);
+                if (src != null) {
+                    Optional<Source> source = src.lookup(Source.class);
+                    if (source.isPresent()) {
+                        Extraction[] ext = new Extraction[1];
+                        try {
+                            ParserManager.parse(Collections.singleton(source.get()), new UserTask() {
+                                @Override
+                                public void run(ResultIterator resultIterator) throws Exception {
+                                    Parser.Result res = resultIterator.getParserResult();
+                                    if (res instanceof ExtractionParserResult) {
+                                        ext[0] = ((ExtractionParserResult) res).extraction();
+                                    }
+                                }
+                            });
+                            // do this outside the parser manager's lock
+                            if (ext[0] != null) {
+                                colorings.clear();
+                                doUpdate(mimeType, ext[0]);
+                            }
+                        } catch (ParseException | IOException ex) {
+                            LOG.log(Level.SEVERE, src + "", ex);
+                        }
+                    }
+                }
+            }
         }
         return colorings;
     }
@@ -191,14 +236,27 @@ public final class AdhocColoringsRegistry {
             return;
         }
         Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
-        boolean exists = Files.exists(path);
+        if (path == null) {
+            LOG.log(Level.WARNING, "Attempt to update colorings for a mime type "
+                    + "that is not in AdhocMimeTypes: {0} for {1}",
+                    new Object[]{mimeType, extraction.source()});
+        }
+        boolean exists = path != null && Files.exists(path);
         if (exists && isModified(mimeType, path)) {
             doUpdate(mimeType, extraction);
         }
     }
 
     private void doUpdate(String mimeType, Extraction ext) throws IOException {
+        doUpdate(mimeType, ext, new HashSet<>());
+    }
+
+    private void doUpdate(String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
         AdhocColorings existing = loadOrCreate(mimeType);
+        doUpdate(existing, mimeType, ext, seen);
+    }
+
+    private void doUpdate(AdhocColorings colorings, String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
         ColorUtils colors = new ColorUtils();
         Supplier<Color> backgrounds = colors.backgroundColorSupplier();
 
@@ -211,22 +269,22 @@ public final class AdhocColoringsRegistry {
                 : mostConnectedThrough.subList(0, Math.min(mostConnectedThrough.size(), 5));
 
         for (Score<String> score : mostConnectedThrough) {
-            if (!existing.contains(score.node())) {
+            if (!colorings.contains(score.node())) {
                 Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND, AttrTypes.ACTIVE);
-                existing.addIfAbsent(score.node(), backgrounds.get(), attrs);
+                colorings.addIfAbsent(score.node(), backgrounds.get(), attrs);
             }
         }
         for (String lowest : tree.bottomLevelNodes()) {
-            if (!existing.contains(lowest)) {
+            if (!colorings.contains(lowest)) {
                 Set<AttrTypes> attrs = EnumSet.of(AttrTypes.FOREGROUND, AttrTypes.ACTIVE);
-                switch(ThreadLocalRandom.current().nextInt(4)) {
-                    case 1 :
+                switch (ThreadLocalRandom.current().nextInt(4)) {
+                    case 1:
                         attrs.add(AttrTypes.BOLD);
                         break;
-                    case 2 :
+                    case 2:
                         attrs.add(AttrTypes.ITALIC);
                         break;
-                    case 3 :
+                    case 3:
                         attrs.add(AttrTypes.BOLD);
                         attrs.add(AttrTypes.ITALIC);
                         break;
@@ -236,106 +294,80 @@ public final class AdhocColoringsRegistry {
         Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
         NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
         for (String id : nameds.nameArray()) {
-            if (existing.contains(id)) {
+            if (colorings.contains(id)) {
                 continue;
             }
-            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND);
+            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.FOREGROUND);
             if (importantRules.contains(id)) {
                 attrs.add(AttrTypes.ACTIVE);
             } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
                 attrs.add(AttrTypes.ACTIVE);
             }
-            existing.addIfAbsent(id, backgrounds.get(), attrs);
+            colorings.addIfAbsent(id, backgrounds.get(), attrs);
         }
         /*
-        Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
-        importantRules.addAll(tree.bottomLevelNodes());
-
-        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
-        for (NamedSemanticRegion<RuleTypes> decl : nameds) {
-            String id = decl.name();
-            if (existing.contains(id)) {
-                continue;
-            }
-            if (decl.kind() == RuleTypes.PARSER) {
-                rules.add(id);
-            }
-            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND);
-            if (importantRules.contains(id)) {
-                attrs.add(AttrTypes.ACTIVE);
-            } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
-                attrs.add(AttrTypes.ACTIVE);
-            }
-            existing.addIfAbsent(id, backgrounds.get(), attrs);
-        }
-         */
-        existing.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND, AttrTypes.BOLD));
-        existing.addIfAbsent("symbols", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("symbols", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("numbers", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("numbers", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("identifier", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("identifier", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND, AttrTypes.ITALIC));
-        existing.addIfAbsent("delimiters", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("delimiters", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("operators", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("operators", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("string", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("string", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("literals", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("literals", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("field", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("field", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
-        existing.addIfAbsent("comment", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+        colorings.addIfAbsent("comment", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
                 AttrTypes.FOREGROUND));
+        colorings.addIfAbsent("whitespace", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
+                AttrTypes.FOREGROUND));
+         */
+
+        importImportedTokensAndRules(ANTLR_MIME_TYPE, ext, seen, colorings);
     }
 
-    private void xdoUpdate(String mimeType, Extraction ext) throws IOException {
-        AdhocColorings existing = loadOrCreate(mimeType);
-        ColorUtils colors = new ColorUtils();
-        Supplier<Color> backgrounds = colors.backgroundColorSupplier();
-
-        StringGraph tree = ext.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
-
-        Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
-        importantRules.addAll(tree.bottomLevelNodes());
-
-        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
-        for (NamedSemanticRegion<RuleTypes> decl : nameds) {
-            String id = decl.name();
-            if (existing.contains(id)) {
+    private void importImportedTokensAndRules(String mimeType, Extraction ext,
+            Set<GrammarSource<?>> seen, AdhocColorings intoColorings) {
+        ImportFinder finder = ImportFinder.forMimeType(mimeType);
+        System.out.println("\n\nIMPORT TOKENS " + ext.source() + " finder: " + finder);
+        seen.add(ext.source());
+        Set<GrammarSource<?>> imports = finder.allImports(ext, CollectionUtils.blackHoleSet());
+        System.out.println("   IMPORTS: " + imports);
+        for (GrammarSource<?> src : imports) {
+            System.out.println("   check source " + src);
+            if (seen.contains(src)) {
+                System.out.println("  seen it.");
                 continue;
             }
-            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND);
-            if (importantRules.contains(id)) {
-                attrs.add(AttrTypes.ACTIVE);
-            } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
-                attrs.add(AttrTypes.ACTIVE);
-            }
-            existing.addIfAbsent(id, backgrounds.get(), attrs);
+            src.lookup(Source.class, source -> {
+                try {
+                    ParserManager.parse(Collections.singleton(source), new UserTask() {
+                        @Override
+                        public void run(ResultIterator resultIterator) throws Exception {
+                            Parser.Result result = resultIterator.getParserResult();
+                            if (result instanceof ExtractionParserResult) {
+                                Extraction ext = ((ExtractionParserResult) result).extraction();
+                                if (!seen.contains(ext.source())) { // could be indirect import, so check here too
+                                    System.out.println("    recurse for " + ext.source());
+                                    doUpdate(intoColorings, mimeType, ext, seen);
+                                }
+                            } else {
+                                System.out.println("Not an extraction result: " + result);
+                            }
+                        }
+                    });
+                } catch (ParseException ex) {
+                    LOG.log(Level.SEVERE, src + "", ex);
+                }
+            });
         }
-        Supplier<Color> foregrounds = colors.foregroundColorSupplier();
-        existing.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND, AttrTypes.BOLD));
-        existing.addIfAbsent("symbols", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("numbers", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("identifier", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND, AttrTypes.ITALIC));
-        existing.addIfAbsent("delimiters", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("operators", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("string", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("literals", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("field", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        existing.addIfAbsent("comment", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
     }
 
     public AdhocColorings get(String mimeType) {

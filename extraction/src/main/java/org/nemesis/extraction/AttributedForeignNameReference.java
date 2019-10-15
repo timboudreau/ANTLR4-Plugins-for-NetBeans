@@ -16,17 +16,23 @@ public final class AttributedForeignNameReference<R, I extends IndexAddressable.
     private final I in;
     private final N element;
     private final Extraction extraction;
+    private final Extraction target;
 
-    AttributedForeignNameReference(UnknownNameReference<T> unk, R resolutionSource, I in, N element, Extraction extraction) {
+    AttributedForeignNameReference(UnknownNameReference<T> unk, R resolutionSource, I in, N element, Extraction extraction, Extraction target) {
         this.unk = unk;
         this.resolutionSource = resolutionSource;
         this.in = in;
         this.element = element;
         this.extraction = extraction;
+        this.target = target;
     }
 
     public Extraction from() {
         return extraction;
+    }
+
+    public Extraction target() {
+        return target;
     }
 
     public T expectedKind() {

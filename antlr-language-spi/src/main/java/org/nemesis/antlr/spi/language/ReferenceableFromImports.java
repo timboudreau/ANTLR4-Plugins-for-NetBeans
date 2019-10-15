@@ -1,4 +1,4 @@
-package org.nemesis.extraction.attribution;
+package org.nemesis.antlr.spi.language;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.FIELD)
-public @interface ResolverRegistration {
+public @interface ReferenceableFromImports {
 
     String mimeType();
 }

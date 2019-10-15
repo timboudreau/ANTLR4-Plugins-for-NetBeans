@@ -22,8 +22,11 @@ import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.UnknownNameReference;
+import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
@@ -86,7 +89,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     if (err.length() > 0) {
                         bag.addHighlight(err.fileOffset(), err.fileOffset() + err.length(), underlining);
                     } else {
-                        LOG.log(Level.WARNING, "Got {0} length error {1}", new Object[] {err.length(), err});
+                        LOG.log(Level.WARNING, "Got {0} length error {1}", new Object[]{err.length(), err});
                         continue;
                     }
                     if (!handleFix(err, fixes, extraction)) {
@@ -104,6 +107,13 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
         SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = extraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
         if (!unknowns.isEmpty()) {
+
+            Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved
+                    = extraction.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
+
+            SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> attributed
+                    = resolved == null ? SemanticRegions.empty() : resolved.attributed();
+
             Iterator<SemanticRegion<UnknownNameReference<RuleTypes>>> it = unknowns.iterator();
             while (it.hasNext()) {
                 SemanticRegion<UnknownNameReference<RuleTypes>> unk = it.next();
@@ -111,6 +121,11 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 if ("EOF".equals(text)) {
                     continue;
                 }
+
+                if (attributed.at(unk.start()) != null) {
+                    continue;
+                }
+
                 try {
                     String hint = NbBundle.getMessage(AntlrRuntimeErrorsHighlighter.class, "unknown_rule_referenced", text);
                     fixes.addHint(hint, unk, text, fixConsumer -> {
@@ -126,7 +141,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 }
             }
         }
-
     }
 
     boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext) throws BadLocationException {

@@ -32,7 +32,6 @@ import com.mastfrog.range.DataIntRange;
 import java.awt.EventQueue;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import org.nemesis.antlr.live.language.AdhocColorings;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ReleasableHighlightsContainer;
@@ -46,6 +45,7 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
 
     private final AtomicReference<List<DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>>>> mostRecent
             = new AtomicReference<>();
+    private int lastColoringsRev = -1;
 
     public void update(AdhocColorings colorings, AntlrProxies.ParseTreeProxy semantics, int length) {
 
@@ -55,8 +55,9 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
         List<DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>>> old
                 = this.mostRecent.getAndSet(nue);
 
-        nue = AdhocHighlightsSequence.computeRanges(colorings, semantics, length);
-        if (old == null) {
+        int lcr = lastColoringsRev;
+        lastColoringsRev = colorings.rev();
+        if (old == null || lcr != lastColoringsRev) {
             fire(0, length);
         } else {
             int max = Math.min(old.size(), nue.size());

@@ -1,16 +1,17 @@
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
 import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.api.RelativeResolver;
 import org.nemesis.source.spi.GrammarSourceImplementation;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 
 /**
@@ -48,6 +49,14 @@ final class FileObjectGrammarSource extends AbstractFileObjectGrammarSourceImple
     }
 
     @Override
+    protected <R> R lookupImpl(Class<R> type) {
+        if (File.class == type) {
+            return type.cast(FileUtil.toFile(file));
+        }
+        return super.lookupImpl(type);
+    }
+
+    @Override
     public CharStream stream() throws IOException {
         DataObject dob = DataObject.find(file);
         EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
@@ -55,10 +64,12 @@ final class FileObjectGrammarSource extends AbstractFileObjectGrammarSourceImple
             Document doc = ck.getDocument();
             if (doc != null) {
 //                return new DocumentGrammarSource(doc, resolver).stream();
-                return GrammarSource.find(doc, dob.getPrimaryFile().getMIMEType()).stream();
+                GrammarSource docSource
+                        = GrammarSource.find(doc, dob.getPrimaryFile().getMIMEType());
+                return docSource.stream();
             }
         }
-        return CharStreams.fromString(file.asText());
+        return new CharSequenceCharStream(name(), file.asText());
     }
 
     @Override

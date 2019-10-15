@@ -52,7 +52,7 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
+final class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
 
     private final RequestProcessor threadPool;
     private final Consumer<Consumer<JComponent>> innerComponentFactory;
@@ -78,6 +78,8 @@ public class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     void status(String status) {
         Mutex.EVENT.readAccess(() -> {
             this.status.setText(status);
+            this.status.paintImmediately(0, 0, this.status.getWidth(),
+                    this.status.getHeight());
         });
     }
 

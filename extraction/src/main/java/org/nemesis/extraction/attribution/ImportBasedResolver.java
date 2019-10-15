@@ -7,6 +7,9 @@ import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.source.api.GrammarSource;
 
 /**
+ * Specialization of SimpleRegisterableResolver which simply extracts named
+ * region and tries to look them up as source files using
+ * GrammarSource.resolveRelative().
  *
  * @author Tim Boudreau
  */

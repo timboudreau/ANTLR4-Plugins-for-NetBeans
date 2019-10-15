@@ -1002,6 +1002,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public boolean isKeywordLike() {
             if (literalName != null) {
                 boolean result = true;
+                int len = literalName.length();
+                if (len <= 1) {
+                    return false;
+                }
                 for (int i = 0; i < literalName.length(); i++) {
                     result &= Character.isAlphabetic(literalName.charAt(i));
                     if (!result) {

@@ -1,5 +1,6 @@
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import java.awt.Color;

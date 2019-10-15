@@ -1,4 +1,4 @@
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -11,7 +11,7 @@ import org.nemesis.source.api.RelativeResolver;
 import org.nemesis.source.spi.GrammarSourceImplementation;
 import org.nemesis.source.spi.GrammarSourceImplementationFactory;
 import org.nemesis.source.spi.RelativeResolverImplementation;
-import org.nemesis.source.spi.RelativeResolverRegistry;
+import org.nemesis.source.spi.DocumentAdapterRegistry;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -92,7 +92,7 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
 
     @Override
     public CharStream stream() throws IOException {
-        return new CharSequenceCharStream(name(), snapshot.getText(), this);
+        return new CharSequenceCharStream(name(), snapshot.getText());
     }
 
     @Override
@@ -100,7 +100,7 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
         FileObject fo = snapshot.getSource().getFileObject();
         if (fo != null) {
             RelativeResolverImplementation<FileObject> resolver
-                    = RelativeResolverRegistry.getDefault()
+                    = DocumentAdapterRegistry.getDefault()
                             .forDocumentAndMimeType(fo, snapshot.getMimeType());
             if (resolver != null) {
                 Optional<FileObject> sibling = resolver.resolve(fo, name);

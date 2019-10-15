@@ -1,7 +1,7 @@
 /*
 BSD License
 
-Copyright (c) 2016, Frédéric Yvon Vinet
+Copyright (c) 2016-2018, Frédéric Yvon Vinet, Tim Boudreau
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,28 +26,23 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.project.extensions;
 
-import javax.swing.text.Document;
-import org.nemesis.source.api.RelativeResolver;
-import org.nemesis.source.spi.GrammarSourceImplementation;
-import org.nemesis.source.spi.GrammarSourceImplementationFactory;
-import org.openide.util.lookup.ServiceProvider;
+import org.netbeans.spi.project.ui.RecommendedTemplates;
 
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = GrammarSourceImplementationFactory.class)
-public class DocumentGrammarSourceFactory extends GrammarSourceImplementationFactory<Document> {
+public class AntlrRecommendedTemplates implements RecommendedTemplates {
 
-    public DocumentGrammarSourceFactory() {
-        super(Document.class);
-    }
+    private static final String ANTLR_CATEGORY = "antlr";
+    private static final String[] TYPES = new String[]{ANTLR_CATEGORY};
+    static final AntlrRecommendedTemplates INSTANCE
+            = new AntlrRecommendedTemplates();
 
     @Override
-    public GrammarSourceImplementation<Document> create(Document doc, RelativeResolver<Document> resolver) {
-        return new DocumentGrammarSource(doc, resolver);
+    public String[] getRecommendedTypes() {
+        return TYPES;
     }
-
 }

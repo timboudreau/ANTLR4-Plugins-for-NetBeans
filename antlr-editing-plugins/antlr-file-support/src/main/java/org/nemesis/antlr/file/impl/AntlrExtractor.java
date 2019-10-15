@@ -31,16 +31,11 @@ import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
-import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.Extractor;
 import org.nemesis.extraction.ExtractorBuilder;
 import org.nemesis.extraction.NamedRegionData;
-import org.nemesis.extraction.ResolutionConsumer;
-import org.nemesis.extraction.UnknownNameReference;
-import org.nemesis.extraction.UnknownNameReferenceResolver;
 import org.nemesis.source.api.GrammarSource;
 
 /**
@@ -485,51 +480,5 @@ public final class AntlrExtractor {
             result.add(QUESTION);
         }
         return result;
-    }
-
-    private static UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolver;
-
-    public static UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolver() {
-        if (resolver == null) {
-            resolver = new UnknownResolver();
-        }
-        return resolver;
-    }
-
-    private static Extraction resolveImport(Extraction in, String importedGrammarName) {
-        return in.resolveExtraction(AntlrExtractor.getDefault().extractor, importedGrammarName, gs -> {
-            try {
-                return AntlrExtractor.getDefault().extract(gs);
-            } catch (IOException ex) {
-                throw new IllegalStateException(ex);
-            }
-        });
-    }
-
-    private static class UnknownResolver implements UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> {
-
-        @Override
-        public <X> X resolve(Extraction extraction, UnknownNameReference<RuleTypes> ref, ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c) throws IOException {
-            Set<String> imports = extraction.allKeys(AntlrKeys.IMPORTS);
-            for (String importedGrammarName : imports) {
-                Extraction impExt = resolveImport(extraction, importedGrammarName);
-                if (impExt != null) {
-                    String name = ref.name();
-                    NamedSemanticRegions<RuleTypes> names = impExt.namedRegions(AntlrKeys.RULE_NAMES);
-                    if (names.contains(name)) {
-                        NamedSemanticRegion<RuleTypes> decl = names.regionFor(name);
-                        if (decl != null) {
-                            return c.resolved(ref, impExt.source(), names, decl);
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Class<RuleTypes> type() {
-            return RuleTypes.class;
-        }
     }
 }

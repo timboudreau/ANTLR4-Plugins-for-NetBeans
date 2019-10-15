@@ -28,14 +28,18 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.source.spi;
 
+import com.mastfrog.converters.Converters;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ServiceLoader;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.source.api.RelativeResolver;
+import org.nemesis.source.impl.RRAccessor;
+import org.openide.util.Lookup;
 
 /**
  *
@@ -60,7 +64,6 @@ public abstract class GrammarSourceImplementationFactory<T> {
 
     @SuppressWarnings("unchecked")
     <R> GrammarSourceImplementationFactory<R> castThis(R obj) {
-//        System.out.println("TEST " + type().getName() + " is instance " + obj.getClass().getName() + ": " + type().isInstance(obj));
         if (type().isInstance(obj)) {
             return (GrammarSourceImplementationFactory<R>) this;
         }
@@ -71,7 +74,8 @@ public abstract class GrammarSourceImplementationFactory<T> {
 
     public static <T> GrammarSourceImplementationFactory<T> find(T obj) {
         GrammarSourceImplementationFactory<T> result = null;
-        for (GrammarSourceImplementationFactory<?> factory : findAll()) {
+        List<? extends GrammarSourceImplementationFactory<?>> all = findAll();
+        for (GrammarSourceImplementationFactory<?> factory : all) {
 //            System.out.println("CHECK FACTORY " + factory);
             result = factory.castThis(obj);
             if (result != null) {
@@ -79,29 +83,85 @@ public abstract class GrammarSourceImplementationFactory<T> {
             }
         }
         if (result == null) {
-            for (GrammarSourceImplementationFactory<?> factory : findAll()) {
-//                System.out.println("CHECK ADAPT " + factory + " WITH " + RelativeResolverRegistry.getDefault().allAdapters().size() + " adapters" );
-                for (RelativeResolverAdapter<?, ?> adap : RelativeResolverRegistry.getDefault().allAdapters()) {
-//                    System.out.println("CHECK ADAPTER FOR " + factory + " and " + adap);
-                    result = adap.adaptSourceFactoryIfAble(factory, obj);
-                    if (result != null) {
-                        break;
-                    }
+            for (GrammarSourceImplementationFactory<?> factory : all) {
+                result = adapt(obj, factory);
+                if (result != null) {
+                    break;
                 }
             }
         }
         return result;
     }
 
-    static List<? extends GrammarSourceImplementationFactory<?>> findAll() {
-        List<GrammarSourceImplementationFactory<?>> result = findAllReflectively();
-        if (result == null) {
-            result = new ArrayList<>(10);
-            for (GrammarSourceImplementationFactory<?> l : ServiceLoader.load(GrammarSourceImplementationFactory.class)) {
-                result.add(l);
+    private static <F, T> GrammarSourceImplementationFactory<T> adapt(T doc, GrammarSourceImplementationFactory<F> fac) {
+        Converters converters = DocumentAdapterRegistry.getDefault().converters();
+        if (converters.canConvert(doc, fac.type())) {
+            return new Adapted((Class<T>) doc.getClass(), fac);
+        }
+        return null;
+    }
+
+    static class Adapted<F, T> extends GrammarSourceImplementationFactory<T> {
+
+        private final GrammarSourceImplementationFactory<F> orig;
+
+        Adapted(Class<T> type, GrammarSourceImplementationFactory<F> orig) {
+            super(type);
+            this.orig = orig;
+        }
+
+        @Override
+        public GrammarSourceImplementation<T> create(T doc, RelativeResolver<T> resolver) {
+            Converters cvt = DocumentAdapterRegistry.getDefault().converters();
+            F origDoc = cvt.convert(doc, orig.type());
+            RelativeResolverImplementation<T> rrImpl = RRAccessor.getDefault().implementation(resolver);
+            Function<? super T, ? extends F> toF = cvt.converter(type(), orig.type());
+            Function<? super F, ? extends T> toT = cvt.converter(orig.type(), type());
+            RelativeResolverImplementation<F> rra = DocumentAdapter.adapt(rrImpl, orig.type(), toF, toT);
+            RelativeResolver<F> rraApi = RRAccessor.getDefault().newResolver(rra);
+            GrammarSourceImplementation<F> res = orig.create(origDoc, rraApi);
+            return new AdaptedGrammarSourceImplementation<>(toT, res, type());
+        }
+
+        public String toString() {
+            return orig + " -> " + type().getSimpleName();
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 59 * hash + Objects.hashCode(this.orig);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final Adapted<?, ?> other = (Adapted<?, ?>) obj;
+            if (!Objects.equals(this.orig, other.orig) || (type() == other.type())) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private static List<GrammarSourceImplementationFactory<?>> ALL_FACTORIES = new ArrayList<>();
+
+    static synchronized List<? extends GrammarSourceImplementationFactory<?>> findAll() {
+        if (ALL_FACTORIES.isEmpty()) {
+            for (GrammarSourceImplementationFactory f : Lookup.getDefault().lookupAll(GrammarSourceImplementationFactory.class)) {
+                ALL_FACTORIES.add(f);
             }
         }
-        return result;
+        return ALL_FACTORIES;
     }
 
     static Object defaultLookup = null;

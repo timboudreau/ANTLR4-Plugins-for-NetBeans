@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -167,7 +170,7 @@ public final class GrammarSource<T> implements Serializable {
         }
         Optional<File> file = lookup(File.class);
         if (file.isPresent()) {
-            return hashString(file.get().toURI().toString());
+            return hashString(toURI(file.get()).toString());
         }
         try {
             CharStream stream = stream();
@@ -285,5 +288,64 @@ public final class GrammarSource<T> implements Serializable {
         public long lastModified() throws IOException {
             return 0;
         }
+    }
+
+    // Copy of BaseUtilities from NetBeans to avoid dependency
+    private static final Logger LOG = Logger.getLogger(GrammarSource.class.getName());
+    private static Boolean pathURIConsistent;
+    private static boolean pathToURISupported() {
+        Boolean res = pathURIConsistent;
+        if (res == null) {
+            boolean c;
+            try {
+                final File f = new File("küñ"); //NOI18N
+                c = f.toPath().toUri().equals(f.toURI());
+            } catch (InvalidPathException e) {
+                c = false;
+            }
+            if (!c) {
+                LOG.fine("The java.nio.file.Path.toUri is inconsistent with java.io.File.toURI");   //NOI18N
+            }
+            res = pathURIConsistent = c;
+        }
+        return res;
+    }
+
+    /**
+     * Converts a file to a URI while being safe for UNC paths.
+     * Uses {@link File f}.{@link File#toPath() toPath}().{@link java.nio.file.Path#toUri() toUri}()
+     * which results into {@link URI} that works with {@link URI#normalize()}
+     * and {@link URI#resolve(URI)}.
+     * @param f a file
+     * @return a {@code file}-protocol URI which may use the host field
+     * @see java.nio.file.Path.toUri
+     * @since 8.25
+     */
+    public static URI toURI(File f) {
+        URI u;
+        if (pathToURISupported()) {
+            try {
+                u = f.toPath().toUri();
+            } catch (java.nio.file.InvalidPathException ex) {
+                u = f.toURI();
+                LOG.log(Level.FINE, "can't convert " + f + " falling back to " + u, ex);
+            }
+        } else {
+            u = f.toURI();
+        }
+        if (u.toString().startsWith("file:///")) {
+            try {
+                // #214131 workaround
+                return new URI(
+                    /* "file" */u.getScheme(), /* null */u.getUserInfo(),
+                    /* null (!) */u.getHost(), /* -1 */u.getPort(),
+                    /* "/..." */u.getPath(), /* null */u.getQuery(),
+                    /* null */u.getFragment()
+                );
+            } catch (URISyntaxException ex) {
+                LOG.log(Level.FINE, "could not convert " + f + " to URI", ex);
+            }
+        }
+        return u;
     }
 }

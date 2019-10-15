@@ -651,7 +651,6 @@ public final class Extraction implements Externalizable {
         if (result == null) {
             UnknownNameReferenceResolver<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> r = ResolverRegistry.forMimeType(mimeType).resolver(this, key.type());
             if (r != null) {
-                System.out.println("WILL RESOLVE WITH " + r);
                 try {
                     result = resolveUnknowns(key, r);
                     attributionCache.put(key, result);
@@ -689,8 +688,8 @@ public final class Extraction implements Externalizable {
         Class c = AttributedForeignNameReference.class;
         SemanticRegions.SemanticRegionsBuilder<AttributedForeignNameReference<R, I, N, T>> bldr = SemanticRegions.builder(c);
         SemanticRegions.SemanticRegionsBuilder<UnknownNameReference> remaining = SemanticRegions.builder(UnknownNameReference.class);
-        Map<UnknownNameReference<T>, AttributedForeignNameReference<R, I, N, T>> all = res.resolveAll(this, u, (UnknownNameReference<T> unknown, R resolutionSource, I in, N element) -> {
-            return new AttributedForeignNameReference<R,I,N,T>(unknown, resolutionSource, in, element, this);
+        Map<UnknownNameReference<T>, AttributedForeignNameReference<R, I, N, T>> all = res.resolveAll(this, u, (UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction ext) -> {
+            return new AttributedForeignNameReference<R,I,N,T>(unknown, resolutionSource, in, element, this, ext);
         });
         for (SemanticRegion<UnknownNameReference<T>> reg : u) {
             AttributedForeignNameReference<R, I, N, T> r = all.get(reg.key());

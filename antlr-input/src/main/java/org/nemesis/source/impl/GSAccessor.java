@@ -33,10 +33,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.CharStream;
 import org.nemesis.source.api.GrammarSource;
-import org.nemesis.source.spi.GrammarSourceImplementationFactory;
+import org.nemesis.source.spi.DocumentAdapterRegistry;
 import org.nemesis.source.spi.GrammarSourceImplementation;
+import org.nemesis.source.spi.GrammarSourceImplementationFactory;
 import org.nemesis.source.spi.RelativeResolverImplementation;
-import org.nemesis.source.spi.RelativeResolverRegistry;
 
 /**
  * See http://wiki.netbeans.org/API_Design for what this madness is.
@@ -131,7 +131,7 @@ public abstract class GSAccessor {
     public final <T> GrammarSource<T> newGrammarSource(String mime, T doc) {
         assert mime != null : "null mime";
         assert doc != null : "null document";
-        RelativeResolverImplementation<T> resolver = RelativeResolverRegistry.getDefault().forDocumentAndMimeType(doc, mime);
+        RelativeResolverImplementation<T> resolver = DocumentAdapterRegistry.getDefault().forDocumentAndMimeType(doc, mime);
         GrammarSourceImplementationFactory<T> gsFactory = implementationFactoryFor(mime, doc);
         GrammarSourceImplementation<T> impl = gsFactory.create(doc, RRAccessor.getDefault().newResolver(resolver));
         if (impl == null) {

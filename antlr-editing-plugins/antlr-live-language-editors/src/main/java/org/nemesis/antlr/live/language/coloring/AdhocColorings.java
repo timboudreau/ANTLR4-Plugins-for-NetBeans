@@ -1,4 +1,4 @@
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.coloring;
 
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.event.ChangeListener;
 import org.openide.util.ChangeSupport;
 
@@ -25,11 +26,13 @@ import org.openide.util.ChangeSupport;
  *
  * @author Tim Boudreau
  */
-public class AdhocColorings implements Serializable, Iterable<String> {
+public class AdhocColorings implements DynamicColorings {
 
     private static final long serialVersionUID = 1;
     private final Map<String, AdhocColoring> colorings;
     private transient PropertyChangeSupport supp;
+    private AtomicInteger rev = new AtomicInteger();
+    private transient ChangeSupport csupp;
 
     public AdhocColorings() {
         colorings = new TreeMap<>();
@@ -39,6 +42,27 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         this.colorings = new TreeMap<>(all);
     }
 
+    @Override
+    public int rev() {
+        return rev.get();
+    }
+
+    @Override
+    public void deactivateAll() {
+        // XXX this will fire a lot of changes
+        for (String key : colorings.keySet()) {
+            setFlag(key, AttrTypes.ACTIVE, false);
+        }
+    }
+
+    @Override
+    public void clear() {
+        colorings.clear();
+        rev.getAndIncrement();
+        fire();
+    }
+
+    @Override
     public Iterator<String> iterator() {
         return colorings.keySet().iterator();
     }
@@ -47,10 +71,12 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         return colorings.get(key);
     }
 
+    @Override
     public boolean isEmpty() {
         return colorings.isEmpty();
     }
 
+    @Override
     public boolean contains(String key) {
         return colorings.containsKey(key);
     }
@@ -58,7 +84,7 @@ public class AdhocColorings implements Serializable, Iterable<String> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String,AdhocColoring> e : colorings.entrySet()) {
+        for (Map.Entry<String, AdhocColoring> e : colorings.entrySet()) {
             sb.append(e.getKey()).append('=').append(e.getValue()).append('\n');
         }
         return sb.toString();
@@ -88,10 +114,12 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         return c;
     }
 
+    @Override
     public void addChangeListener(ChangeListener l) {
         csupp().addChangeListener(l);
     }
 
+    @Override
     public void removeChangeListener(ChangeListener l) {
         csupp().removeChangeListener(l);
     }
@@ -99,32 +127,27 @@ public class AdhocColorings implements Serializable, Iterable<String> {
     private void addOne(String key, AdhocColoring coloring) {
         if (!colorings.containsKey(key)) {
             colorings.put(key, coloring);
-            fire();
-            if (supp != null) {
-                supp().firePropertyChange(key, coloring, coloring);
-            }
+            firePropertyChange(key, coloring, coloring);
         } else {
             AdhocColoring old = colorings.get(key);
             if (!old.equals(coloring)) {
                 colorings.put(key, coloring);
-                if (supp != null) {
-                    supp().firePropertyChange(key, old, coloring);
-                }
+                firePropertyChange(key, old, coloring);
             }
         }
     }
 
+    @Override
     public Set<String> keys() {
         return Collections.unmodifiableSet(colorings.keySet());
     }
-    
+
     private void fire() {
         if (csupp != null) {
             csupp.fireChange();
         }
     }
 
-    private transient ChangeSupport csupp;
     private ChangeSupport csupp() {
         if (csupp == null) {
             csupp = new ChangeSupport(this);
@@ -139,18 +162,22 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         return supp;
     }
 
+    @Override
     public void addPropertyChangeListener(PropertyChangeListener listener) {
         supp().addPropertyChangeListener(listener);
     }
 
+    @Override
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         supp().removePropertyChangeListener(listener);
     }
 
+    @Override
     public void addPropertyChangeListener(String propertyName, PropertyChangeListener listener) {
         supp().addPropertyChangeListener(propertyName, listener);
     }
 
+    @Override
     public void removePropertyChangeListener(String propertyName, PropertyChangeListener listener) {
         supp().removePropertyChangeListener(propertyName, listener);
     }
@@ -187,19 +214,21 @@ public class AdhocColorings implements Serializable, Iterable<String> {
         }
     }
 
+    @Override
     public boolean setColor(String key, Color value) {
         AdhocColoring coloring = this.colorings.get(key);
         if (coloring != null) {
             AdhocColoring old = coloring.copyAttributes();
             boolean result = coloring.setColor(value);
-            if (result && supp != null) {
-                supp.firePropertyChange(key, old, coloring);
+            if (result) {
+                firePropertyChange(key, old, coloring);
             }
             return result;
         }
         return false;
     }
 
+    @Override
     public boolean setForeground(String key, boolean val) {
         AdhocColoring coloring = this.colorings.get(key);
         if (coloring != null) {
@@ -212,15 +241,15 @@ public class AdhocColorings implements Serializable, Iterable<String> {
                 result = coloring.removeFlag(AttrTypes.FOREGROUND)
                         | coloring.addFlag(AttrTypes.BACKGROUND); // bitwise or intentional
             }
-            if (result && supp != null) {
-                supp.firePropertyChange(key, old, coloring);
+            if (result) {
+                firePropertyChange(key, old, coloring);
             }
             return result;
         }
         return false;
     }
 
-
+    @Override
     public boolean setFlag(String key, AttrTypes flag, boolean val) {
         AdhocColoring coloring = this.colorings.get(key);
         if (coloring != null) {
@@ -231,8 +260,8 @@ public class AdhocColorings implements Serializable, Iterable<String> {
             } else {
                 result = coloring.removeFlag(flag);
             }
-            if (result && supp != null) {
-                supp.firePropertyChange(key, old, coloring);
+            if (result) {
+                firePropertyChange(key, old, coloring);
             }
             return result;
         }
@@ -247,13 +276,16 @@ public class AdhocColorings implements Serializable, Iterable<String> {
             }
             AdhocColoring nue = new AdhocColoring(flags, color);
             colorings.put(key, new AdhocColoring(flags, color));
-            if (supp != null) {
-                supp.firePropertyChange(key, null, nue);
-            }
-            if (csupp != null) {
-                csupp.fireChange();
-            }
+            firePropertyChange(key, null, nue);
         }
+    }
+
+    private <T> void firePropertyChange(String key, T old, T nue) {
+        rev.incrementAndGet();
+        if (supp != null) {
+            supp.firePropertyChange(key, old, nue);
+        }
+        fire();
     }
 
     @Override

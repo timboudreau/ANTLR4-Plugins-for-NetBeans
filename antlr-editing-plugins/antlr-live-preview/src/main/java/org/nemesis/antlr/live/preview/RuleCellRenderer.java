@@ -6,7 +6,7 @@ import java.util.function.Function;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
-import org.nemesis.antlr.live.language.AdhocColorings;
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 
 /**
  *

@@ -1,10 +1,14 @@
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.IntStream;
 import org.antlr.v4.runtime.misc.Interval;
 
 /**
+ * Implementation of Antlr's CharStream which doesn't require a memory-copy of
+ * the original characters into a char[] as all of Antlr's built-in
+ * implementations do (desirable for fast batch processing, not at all desirable
+ * in an IDE where memory is at a premium).
  *
  * @author Tim Boudreau
  */
@@ -14,10 +18,8 @@ public final class CharSequenceCharStream implements CharStream {
     private int n;
     private int p;
     private final String name;
-    private final SnapshotGrammarSource outer;
 
-    public CharSequenceCharStream(String name, CharSequence seq, final SnapshotGrammarSource outer) {
-        this.outer = outer;
+    public CharSequenceCharStream(String name, CharSequence seq) {
         this.data = seq;
         this.n = seq.length();
         this.name = name;

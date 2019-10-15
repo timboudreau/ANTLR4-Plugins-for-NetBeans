@@ -183,9 +183,22 @@
         <dependency>
             <groupId>org.nemesis</groupId>
             <artifactId>antlr-project-helpers-maven</artifactId>
-            <version>2.0</version>
             <scope>test</scope>
             <type>jar</type>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-java-source</artifactId>
+            <scope>test</scope>
+            <type>jar</type>
+            <version>${netbeans.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-java-source-base</artifactId>
+            <scope>test</scope>
+            <type>jar</type>
+            <version>${netbeans.version}</version>
         </dependency>
         <dependency>
             <groupId>org.nemesis</groupId>
@@ -197,21 +210,19 @@
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-projectapi-nb</artifactId>
-            <version>RELEASE120-dev</version>
             <scope>test</scope>
             <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.nemesis</groupId>
             <artifactId>jfs-nb</artifactId>
-            <version>2.0</version>
             <scope>test</scope>
             <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-masterfs-nio2</artifactId>
-            <version>RELEASE120-dev</version>
+            <version>${netbeans.version}</version>
             <scope>test</scope>
             <type>jar</type>
         </dependency>

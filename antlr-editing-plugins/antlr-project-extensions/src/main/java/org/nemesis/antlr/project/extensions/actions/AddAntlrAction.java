@@ -59,9 +59,9 @@ import org.openide.util.Utilities;
         asynchronous = false
 )
 @ActionReferences({
-    @ActionReference(path = "Projects/org-netbeans-modules-maven/Actions", position = 297, separatorBefore = 296),
-    @ActionReference(path = "Projects/org-netbeans-modules-java-j2seproject/Actions", position = 297, separatorBefore = 296),
-    @ActionReference(path = "Projects/org-netbeans-modules-gradle/Actions", position = 297, separatorBefore = 296),})
+    @ActionReference(path = "Projects/org-netbeans-modules-maven/Actions", position = 897, separatorBefore = 896),
+    @ActionReference(path = "Projects/org-netbeans-modules-java-j2seproject/Actions", position = 897, separatorBefore = 896),
+    @ActionReference(path = "Projects/org-netbeans-modules-gradle/Actions", position = 897, separatorBefore = 896),})
 @NbBundle.Messages("CTL_AddAntlrToProject=Add Antlr Support to Project")
 public class AddAntlrAction extends AbstractAction implements ContextAwareAction, LookupListener {
 

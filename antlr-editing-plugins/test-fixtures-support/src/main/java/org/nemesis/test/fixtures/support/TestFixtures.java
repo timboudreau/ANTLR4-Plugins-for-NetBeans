@@ -218,11 +218,18 @@ public class TestFixtures {
             return sb.toString();
         }
 
+        private boolean nbeventsLogged;
+
         @Override
         public String format(LogRecord record) {
             StringBuilder sb = new StringBuilder()
                     .append(pad(record.getSequenceNumber())).append(":");
             String nm = record.getLoggerName();
+            if (!nbeventsLogged && "NbEvents".equals(nm)) {
+                nbeventsLogged = true;
+                new Exception("Got message from " + nm + " - "
+                        + " something is attempting to start the full IDE.").printStackTrace();
+            }
             if (nm.indexOf('.') > 0 && nm.indexOf('.') < nm.length() - 1) {
                 nm = nm.substring(nm.lastIndexOf('.') + 1);
             }

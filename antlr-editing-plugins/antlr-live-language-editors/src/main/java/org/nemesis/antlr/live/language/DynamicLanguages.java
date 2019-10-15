@@ -28,6 +28,7 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.util.Collections;
 import java.util.Set;
 import org.netbeans.api.lexer.Language;

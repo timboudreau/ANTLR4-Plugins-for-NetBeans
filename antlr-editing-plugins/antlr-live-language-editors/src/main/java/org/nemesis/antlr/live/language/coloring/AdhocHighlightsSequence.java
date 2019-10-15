@@ -39,7 +39,6 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
-import org.nemesis.antlr.live.language.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocTokenId;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;

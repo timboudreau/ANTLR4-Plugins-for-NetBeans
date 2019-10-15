@@ -26,14 +26,14 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import org.nemesis.source.spi.RelativeResolverAdapter;
+import org.nemesis.source.spi.DocumentAdapter;
 import org.nemesis.source.spi.RelativeResolverImplementation;
-import org.nemesis.source.spi.RelativeResolverRegistry;
+import org.nemesis.source.spi.DocumentAdapterRegistry;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
 import org.openide.util.lookup.ServiceProvider;
@@ -42,18 +42,21 @@ import org.openide.util.lookup.ServiceProvider;
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = RelativeResolverRegistry.class)
-public class RelativeResolverRegistryImpl extends RelativeResolverRegistry {
+@ServiceProvider(service = DocumentAdapterRegistry.class)
+public class RelativeResolverRegistryImpl extends DocumentAdapterRegistry {
 
     private static final String RESOLVERS_PATH = "antlr-languages/relative-resolvers/";
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    protected List<? extends RelativeResolverImplementation<?>> allResolvers(String mimeType) {
+    protected List<? extends RelativeResolverImplementation<?>>
+            allResolvers(String mimeType) {
         String path = RESOLVERS_PATH + mimeType;
         Lookup lkp = Lookups.forPath(path);
-        Collection<? extends RelativeResolverImplementation> forMimeType = lkp.lookupAll(RelativeResolverImplementation.class);
-        List<RelativeResolverImplementation<?>> result = new ArrayList<>();
+        Collection<? extends RelativeResolverImplementation> forMimeType
+                = lkp.lookupAll(RelativeResolverImplementation.class);
+        List<RelativeResolverImplementation<?>> result = new ArrayList<>(
+                forMimeType.size());
         for (RelativeResolverImplementation<?> r : forMimeType) {
             result.add(r);
         }
@@ -62,10 +65,11 @@ public class RelativeResolverRegistryImpl extends RelativeResolverRegistry {
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    protected List<? extends RelativeResolverAdapter<?, ?>> allAdapters() {
-        List<RelativeResolverAdapter<?, ?>> result = new ArrayList<>();
-        Collection<? extends RelativeResolverAdapter> forMimeType = Lookup.getDefault().lookupAll(RelativeResolverAdapter.class);
-        for (RelativeResolverAdapter r : forMimeType) {
+    protected List<? extends DocumentAdapter<?, ?>> allAdapters() {
+        List<DocumentAdapter<?, ?>> result = new ArrayList<>();
+        Collection<? extends DocumentAdapter> forMimeType
+                = Lookup.getDefault().lookupAll(DocumentAdapter.class);
+        for (DocumentAdapter r : forMimeType) {
             result.add(r);
         }
         return result;

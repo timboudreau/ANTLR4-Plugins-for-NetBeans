@@ -28,6 +28,8 @@ OF SUCH DAMAGE.
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import static com.google.common.base.Charsets.UTF_8;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.file.FileUtils;

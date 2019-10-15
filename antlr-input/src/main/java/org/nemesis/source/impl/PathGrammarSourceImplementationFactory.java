@@ -19,7 +19,8 @@ import org.openide.util.lookup.ServiceProvider;
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service=GrammarSourceImplementationFactory.class)
+// use Integer.MAX_VALUE so ones which check the project's encoding take precedence
+@ServiceProvider(service=GrammarSourceImplementationFactory.class, position = Integer.MAX_VALUE)
 public class PathGrammarSourceImplementationFactory extends GrammarSourceImplementationFactory<Path> {
 
     public PathGrammarSourceImplementationFactory() {
@@ -36,7 +37,7 @@ public class PathGrammarSourceImplementationFactory extends GrammarSourceImpleme
         private final Path source;
         private final RelativeResolver<Path> resolver;
 
-        public PathSourceImpl(Path path, RelativeResolver<Path> resolver) {
+        PathSourceImpl(Path path, RelativeResolver<Path> resolver) {
             super(Path.class);
             this.source = path;
             this.resolver = resolver;
@@ -65,7 +66,5 @@ public class PathGrammarSourceImplementationFactory extends GrammarSourceImpleme
         public Path source() {
             return source;
         }
-
     }
-
 }

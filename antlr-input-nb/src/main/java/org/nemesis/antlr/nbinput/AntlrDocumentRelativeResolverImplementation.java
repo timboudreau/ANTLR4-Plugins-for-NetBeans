@@ -26,7 +26,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -35,7 +35,7 @@ import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.spi.RelativeResolverImplementation;
-import org.nemesis.source.spi.RelativeResolverRegistry;
+import org.nemesis.source.spi.DocumentAdapterRegistry;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
@@ -45,6 +45,8 @@ import org.openide.util.Pair;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
+ * Document relative resolver which simply delegates to a
+ * FileObject relative resolver.
  *
  * @author Tim Boudreau
  */
@@ -68,7 +70,8 @@ public class AntlrDocumentRelativeResolverImplementation extends RelativeResolve
         try {
             FileObject fo = NbEditorUtilities.getFileObject(relativeTo);
             if (fo != null) {
-                Optional<FileObject> found = RelativeResolverRegistry.getDefault().forDocumentAndMimeType(fo, fo.getMIMEType())
+                Optional<FileObject> found = DocumentAdapterRegistry.getDefault()
+                        .forDocumentAndMimeType(fo, fo.getMIMEType())
                         .resolve(fo, name);
                 if (found.isPresent()) {
                     try {
@@ -106,7 +109,9 @@ public class AntlrDocumentRelativeResolverImplementation extends RelativeResolve
                                 }
                             }
                         } catch (IOException ex) {
-                            Logger.getLogger(AntlrDocumentRelativeResolverImplementation.class.getName()).log(Level.SEVERE, "Exception resolving " + name, ex);
+                            Logger.getLogger(
+                                    AntlrDocumentRelativeResolverImplementation.class.getName())
+                                    .log(Level.SEVERE, "Exception resolving " + name, ex);
                         }
                     }
                 }

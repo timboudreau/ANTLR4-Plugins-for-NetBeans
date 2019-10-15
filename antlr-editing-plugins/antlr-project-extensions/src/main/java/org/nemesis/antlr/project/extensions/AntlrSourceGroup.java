@@ -36,6 +36,7 @@ import javax.swing.Icon;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.SourceGroup;
+import org.netbeans.spi.project.ui.PrivilegedTemplates;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
@@ -48,11 +49,15 @@ import org.openide.util.NbBundle.Messages;
 import org.openide.util.WeakSet;
 
 /**
+ * Source group for Antlr packages. Implements PrivilegedTemplates in
+ * anticipation of that patch to expose the SourceGroup in the lookup of the
+ * source group node, which should allow the infrastructure to pick it up and
+ * use it in the New menu.
  *
  * @author Tim Boudreau
  */
 @NbBundle.Messages(value = {"antlr_sources=Antlr Sources", "antlr_imports=Antlr Imports"})
-final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, Comparable<AntlrSourceGroup> {
+final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, Comparable<AntlrSourceGroup>, PrivilegedTemplates {
 
     private final Folders fld;
     private final Project project;
@@ -142,7 +147,7 @@ final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, C
     public Icon getIcon(boolean opened) {
         String iconBase = fld == Folders.ANTLR_GRAMMAR_SOURCES
                 ? "org/nemesis/antlr/project/extensions/antlrMainSources.png"
-                :"org/nemesis/antlr/project/extensions/antlrImports.png";
+                : "org/nemesis/antlr/project/extensions/antlrImports.png";
         return ImageUtilities.loadImageIcon(iconBase, true);
     }
 
@@ -194,5 +199,16 @@ final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, C
     @Override
     public int compareTo(AntlrSourceGroup o) {
         return fld.compareTo(o.fld);
+    }
+
+    // Attempt to sneak privileged templates into the Node's lookup:
+    private static final String[] ANTLR_TEMPLATES = new String[]{
+        "Templates/antlr/lexer-grammar.g4",
+        "Templates/antlr/combined-grammar.g4"
+    };
+
+    @Override
+    public String[] getPrivilegedTemplates() {
+        return ANTLR_TEMPLATES;
     }
 }

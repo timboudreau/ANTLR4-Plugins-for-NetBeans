@@ -21,7 +21,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.plaf.basic.BasicButtonUI;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
-import org.nemesis.antlr.live.language.AdhocColorings;
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import org.nemesis.antlr.live.language.ColorUtils;
 import org.openide.util.NbBundle.Messages;

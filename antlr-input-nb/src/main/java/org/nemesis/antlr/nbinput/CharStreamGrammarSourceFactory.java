@@ -26,7 +26,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
 IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
 OF SUCH DAMAGE.
  */
-package org.nemesis.extraction.nb;
+package org.nemesis.antlr.nbinput;
 
 import java.io.IOException;
 import org.antlr.v4.runtime.CharStream;
@@ -37,6 +37,8 @@ import org.nemesis.source.spi.GrammarSourceImplementationFactory;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
+ * Allows GrammarSource instances to be created over non-file strings and char
+ * streams for in-memory parsing of trivial things.
  *
  * @author Tim Boudreau
  */
@@ -69,7 +71,8 @@ public class CharStreamGrammarSourceFactory extends GrammarSourceImplementationF
 
         @Override
         public String name() {
-            return "<unnamed>";
+            return stream.getSourceName() == null
+                    ? "<unnamed>" : stream.getSourceName();
         }
 
         @Override

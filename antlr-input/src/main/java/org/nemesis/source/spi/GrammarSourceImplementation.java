@@ -30,6 +30,7 @@ package org.nemesis.source.spi;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.util.Objects;
 import org.antlr.v4.runtime.CharStream;
 import org.nemesis.source.impl.GSAccessor;
@@ -108,7 +109,8 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
         if (type.isInstance(src)) {
             return type.cast(src);
         }
-        return null;
+        return DocumentAdapterRegistry.getDefault()
+                .converters().convert(src, type);
     }
 
     /**
@@ -187,12 +189,16 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
     /**
      * Override this method to compute an id which is consistent when two
      * grammar sources represent the same file.
-     * 
+     *
      * @param <T> The type of source
      * @return null by default (the path URL or bytes hash is used)
      */
     public <T> T computeId() {
-        return null;
+        Path op = lookup(Path.class);
+        if (op != null) {
+            return (T) hashString(op.toUri().toString());
+        }
+        return (T) Integer.toString(System.identityHashCode(source()), 36);
     }
 
     protected final String hashString(String string) {

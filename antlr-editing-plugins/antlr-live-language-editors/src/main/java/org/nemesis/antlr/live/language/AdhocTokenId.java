@@ -96,14 +96,21 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
         if (type.nameContains("string")) {
             return "string";
         }
-        if (type.nameContains("number") || type.nameContains("integer") || type.nameContains("float")) {
+        if (type.nameContains("number") 
+                || type.nameContains("integer")
+                || type.nameContains("float")
+                || type.nameContains("int")
+                || type.nameContains("num")) {
             return "numbers";
         }
         if (type.nameContains("field")) {
             return "field";
         }
-        if (type.nameContains("comment")) {
+        if (type.nameContains("comment") || type.nameContains("cmt")) {
             return "comment";
+        }
+        if (type.nameContains("white") || type.nameContains("ws")) {
+            return "whitespace";
         }
         return "default";
     }
