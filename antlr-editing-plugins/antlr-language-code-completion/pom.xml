@@ -22,7 +22,6 @@ limitations under the License.
         <groupId>org.nemesis</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
         <version>2.0</version>
-        <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>antlr-language-code-completion</artifactId>
     <packaging>nbm</packaging>
