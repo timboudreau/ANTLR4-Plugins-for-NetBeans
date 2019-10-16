@@ -17,6 +17,8 @@ package org.nemesis.antlr.live.parsing;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -85,7 +87,13 @@ public class EmbeddedAntlrParsersTest {
         assertNotSame(ptp, p.parse(TEXT_1 + "  ").proxy());
 
         assertTrue(p.isUpToDate());
+        CountDownLatch latch = new CountDownLatch(1);
+        p.listen((ext, l) -> {
+            latch.countDown();
+        });
         gen.replaceString("NestedMaps.g4", "numberValue", "poozleHoozle");
+
+        latch.await(1000, TimeUnit.MILLISECONDS);
         assertFalse(p.isUpToDate());
 
         AntlrProxies.ParseTreeProxy ptp3 = p.parse(TEXT_1).proxy();

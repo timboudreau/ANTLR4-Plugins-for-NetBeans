@@ -26,7 +26,7 @@ limitations under the License.
     <artifactId>antlr-live-language-editors</artifactId>
     <packaging>nbm</packaging>
     <properties>
-        <maven.test.skip>false</maven.test.skip>
+        <maven.test.skip>true</maven.test.skip>
     </properties>
     <build>
         <plugins>

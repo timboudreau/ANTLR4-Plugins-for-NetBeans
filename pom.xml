@@ -494,16 +494,6 @@ limitations under the License.
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>debug-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>debug-ui</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
                 <groupId> org.netbeans.api</groupId>
                 <artifactId>org-netbeans-spi-navigator</artifactId>
                 <version>${netbeans.version}</version>
@@ -724,11 +714,6 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>org.netbeans.api</groupId>
-                <artifactId>org-netbeans-modules-editor-lib2</artifactId>
-                <version>${netbeans.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-editor-mimelookup</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
@@ -805,11 +790,6 @@ limitations under the License.
             <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-queries</artifactId>
-                <version>${netbeans.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.api</groupId>
-                <artifactId>org-netbeans-spi-navigator</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>

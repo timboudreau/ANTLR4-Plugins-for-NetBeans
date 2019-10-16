@@ -47,6 +47,7 @@ import javax.swing.text.StyledDocument;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -263,13 +264,13 @@ public class DynamicLanguagesTest {
             Thread.sleep(20);
         }
         p = ref.get();
-//        assertNull(p, "Old parser result was not garbage collected");
+        assertNull(p, "Old parser result was not garbage collected");
 
         int ic2 = System.identityHashCode(Language.find(mime));
         if (ic2 == ic) {
             findReferenceGraphPathsTo(Language.find(mime), mimeLookup);
         }
-//        assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
+        assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
         EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
         assertNotNull(ck);
         StyledDocument doc = ck.openDocument();

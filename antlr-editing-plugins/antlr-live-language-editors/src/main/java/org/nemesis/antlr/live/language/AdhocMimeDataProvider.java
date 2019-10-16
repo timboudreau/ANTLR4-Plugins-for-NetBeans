@@ -140,12 +140,9 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                             if (extraction.isPlaceholder()) {
                                 Debug.message("placeholder extraction");
                             }
-                            System.out.println("Adhoc mime data provider on reparse");
-                            System.out.println("MIME IS " + AdhocMimeTypes.loggableMimeType(realMime));
                             Debug.message("Mime type for path: " + realMime);
                             long lm = extraction.source().lastModified();
                             if (isRealUpdate(realMime, extraction)) {
-                                System.out.println("REAL UPDATE ");
                                 AdhocDataObject.invalidateSources(realMime);
                                 updateMimeType(realMime);
 //                                gooseLanguage(realMime);
