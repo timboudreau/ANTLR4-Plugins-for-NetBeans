@@ -199,7 +199,8 @@ need to distinguish, and create an `Enum` with a key for each flavor
 be passed a builder which lets you define complex constraints on what parser rules or lexer
 tokens should be captured for this key
 ```
-    @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
+    @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, 
+                            entryPoint = YourEntryPointParserRuleContext.class)
     static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
 		...
 ```
@@ -279,17 +280,14 @@ syntax highlighting to all named regions, or `@SimpleNavigatorRegistration`
 to create a navigator panel that lists the items, and can sort them naturally
 or alphabetically; or annotate it with `@AntlrFoldsRegistration` to implement
 editor code-folding for it.
-
 2.  `NamedReferenceSetKey<Kind extends Enum<Kind>>` + `NamedRegionReferenceSet<Kind>` works
 hand-in-hand with `NamedSemanticRegions` to let you collect references or _usages_ of
 named regions.  For example, the Antlr grammar support module uses this to implement
 Mark-Occurrences highlighting and Go To Source (implementing the latter is as simple
 as annotating the key with `@Goto` with no arguments).
-
 3. `RegionsKey<Kind>` + `SemanticRegions<Kind>` allows you to create a collection of regions of the file
 which _may be nested_ and have any type of data (not just enums) you wish to associate with them
 included in them (but please don't use Antlr trees directly).
-
 4. `SingletonKey<Kind>` handles the special case of information that is expected
 to occur _exactly once_ in a file (such as whether an Antlr grammar is a lexer grammar,
 parser grammar, or combined grammar), which is used to determine what is legal
