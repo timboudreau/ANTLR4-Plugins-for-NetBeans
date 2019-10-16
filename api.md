@@ -190,6 +190,78 @@ which is a high-performance, low-memory-footprint collection of start- and end-o
 names and `RuleTypes`, which can be searched (say, for the item under the caret) or
 iterated.
 
+So, to recap:
+
+ * Figure out what code regions that are useful to you, to implement IDE features
+ * Where those regions come in several flavors you would like to render differently or 
+need to distinguish, and create an `Enum` with a key for each flavor
+ * Create a static method somewhere which will be called to build an `Extractor` - it will
+be passed a builder which lets you define complex constraints on what parser rules or lexer
+tokens should be captured for this key
+```
+    @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
+    static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
+		...
+```
+ * Define as many keys (or register as many extraction building methods if things are getting complex) as you need to
+capture everything you want
+   * For non-nested items that occur multiple times in a file, you want `NamedRegionKey<YourEnum>`, which takes an
+enum key - these are good for capturing things like Java methods or Antlr rules - things that have name and some
+well-defined type information - you can retrieve a `NamedSemanticRegions` collection from the extraction that will
+let you access them, find the item under the cursor, etc., highly efficiently
+      * Any `NamedRegionKey` can be used to create a `NamedReferenceSetKey` which can be used to collect *references* 
+to the names collected under the owning `NamedRegionKey`, and can be scoped using surrounding elements
+   * For nestable or scoped items you can associate arbitrary data with, or cases where an enum is not enough,
+use `RegionsKey<SomeClass>`
+ * You can then either parse a document using NetBeans' `ParserManager` to access the
+extraction for the current state of a document in your language, *or*, for attaching
+error messages, hints and so forth, register a `ParseResultHook` using `@MimeRegistration`
+to be passively called back whenever syntax highlighting or similar triggers a parse,
+to decorate the parser result as you wish
+ * A number of features can be built very simply and the code generated for you:
+    * Annotate a `NamedReferenceSetKey` with `@Goto` and Ctrl-B - Goto Declaration - will work to
+navigate in the editor to the definition of a reference
+    * Annotate a `NamedRegionKey` with `@Imports` to indicate that this key's members are names of
+"imported" files (you will need to implement and register at least one `RelativeResolverImplementation`
+with a strategy for how to resolve a name to an actual file) to generate an `ImportFinder` implementation
+which is used by Goto Declaration to open and move the cursor to the definition of some item in another file,
+and used to attribute names that look like name references but cannot be resolved in this file.
+     * Annotate a `NamedRegionKey` with `@ReferenceableFromImports` to auto-generate the code needed
+to find that name when referenced in another file (you will need an `ImportFinder` (see previous bullet point)
+registered and `RelativeResolverImplementation`)
+     * Annotate a `NamedRegionKey` with `@SimpleNavigatorRegistration` to get a Navigator panel generated
+for the items found by this key (you can have multiple Navigator panels, and provide an implementation of
+`Appearance` to customize how they are rendered)
+     * Annotate a `RegionsKey` with `@AntlrFoldsRegistration` to set up editor code-folding for regions
+associated with that key
+     * Annotate any key with `@HighlighterKeyRegistration` to define an additional syntax coloring of
+regions found for that key (the top level `@AntlrLanguageRegistration` lets you define token-level
+syntax highlighting; this lets you define semantic highlighting)
+ * For complex analysis, such as scoping variables, semantic region and named semantic region collections
+can be combined into a lightweight, `BitSet`-based graph which can be queried
+
+An extraction also contains built-in collections for duplicate names (a `NamedSemanticRegions` is not
+duplicate-tolerant, so duplicates are placed here), and for unknown name references (you can register
+`RegisterableResolver`s for your mime type to resolve these to elements in other files), which can be
+either resolved in other files, or marked as errors;  by default, editor hints are generated which
+use the *levenshtein-distance* algorithm to suggest existing names for those which might be typos
+and cannot be attributed.
+
+This is the heart of the Antlr-based language support infrastructure - the glue-code to map
+NetBeans and Antlr parsers, register file types and the other boilerplate tasks of language support
+are generated for you.  The extraction infrastructure makes as no assumptions as possible about
+what your language looks like - it simply provides ways for you to extract named regions, nested
+structures and the like from a parse, and provides tools to make working with that data simple
+and efficient.  So the flow is:
+
+ 1.  Something such as syntax highlighting triggers a parse
+ 2.  After the Antlr parse, you get a callback and can decorate the parser result, set up fixes
+or anything else you want, including attaching additional data to the parse
+
+One things to note:  As you add annotations that create features for your language, the
+list of required dependencies is likely to grow - there is no safe way for an annotation
+processor to add dependencies to your project, so this must be taken care of manually.
+
 #### Keys and Collections
 
 There are several kinds of key types and collection types obtainable from an
