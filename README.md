@@ -13,6 +13,11 @@ This project contains two sets of Antlr-related NetBeans plugins:
     * Formatting
     * *Live-preview* - syntax highlighting and error checking of code in the language you are developing, which is updated as you edit the grammar, so you can see the effects of your changes instantly
 
+## Building
+
+Projects are built against a source builds of NetBeans using [this project](https://github.com/timboudreau/netbeans-local-maven-repo-populator)
+to populate the local repository.  Set the `netbeans.version` property in the master pom to change it globally.
+
 ## Projects
 
 The following is the project structure.  Many of these plugins define APIs, but typically only generated
