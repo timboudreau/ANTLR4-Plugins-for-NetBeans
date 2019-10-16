@@ -13,9 +13,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 -->
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -46,6 +44,14 @@ limitations under the License.
 -->
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-code-completion</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>debug-api</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -57,15 +63,6 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>mastfrog-utils-wrapper</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>antlr-code-completion</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -231,49 +228,41 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>platform</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>websvccommon</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>webcommon</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>harness</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>nb</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>extide</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>ide</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>java</artifactId>
-            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
 
