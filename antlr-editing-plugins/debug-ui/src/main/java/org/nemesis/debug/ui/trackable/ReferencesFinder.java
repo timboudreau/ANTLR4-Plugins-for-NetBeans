@@ -144,7 +144,7 @@ public class ReferencesFinder {
             strategies.add(new ReferenceDissectionStrategy());
             strategies.add(new AtomicReferenceDissectionStrategy());
             strategies.add(new ThreadLocalDissectionStrategy());
-//            strategies.add(new VarHandleDissectionStrategy());
+//            strategies.add(new VarHandleDissectionStrategy()); // JDK 10
             strategies.add(new MapDissectionStrategy());
             strategies.add(new LookupDissectionStrategy());
             strategies.add(new FieldDissectionStrategy());
