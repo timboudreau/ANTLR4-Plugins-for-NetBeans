@@ -22,6 +22,26 @@ limitations under the License.
         <version>2.0</version>
     </parent>
     <artifactId>protoc-antlr</artifactId>
+    <scm>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+    </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache 2.0 License</name>
+            <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <packaging>nbm</packaging>
     <properties>
         <maven.test.skip>false</maven.test.skip>
@@ -95,63 +115,63 @@ limitations under the License.
     </build>
     <dependencies>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-navigators</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-highlighting</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-folding</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>        
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input-nb</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-formatters</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-spi</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-completion</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>registration-annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -297,3 +317,4 @@ limitations under the License.
         </dependency>
     </dependencies>
 </project>
+

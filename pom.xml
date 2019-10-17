@@ -43,13 +43,22 @@ limitations under the License.
         <license>
             <name>Apache 2.0 License</name>
             <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
     <scm>
-        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
-        <connection>scm:git:https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
-        <developerConnection>git@github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
     </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
     <build>
         <pluginManagement>
             <plugins>
@@ -243,129 +252,23 @@ limitations under the License.
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>jfs</artifactId>
-                <version>${project.version}</version>
+                <groupId> org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-lib2</artifactId>
+                <version>${netbeans.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>util-strings</artifactId>
-                <version>${mastfrog.version}</version>
+                <groupId> org.netbeans.api</groupId>
+                <artifactId>org-netbeans-spi-editor-hints</artifactId>
+                <version>${netbeans.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>predicates</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>annotation-tools</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>java-vogon</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>range</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>bits</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>graph</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>util-preconditions</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>util-collections</artifactId>
-                <version>${mastfrog.version}</version>
+                <groupId> org.netbeans.api</groupId>
+                <artifactId>org-netbeans-spi-navigator</artifactId>
+                <version>${netbeans.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>registration-annotation-processors</artifactId>
-                <version>${project.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>misc-utils</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>mastfrog-utils-wrapper</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-highlighting</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>extraction-data-models</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-input</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-wrapper</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>extraction</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-input-nb</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>jfs-nb</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-formatters</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-common</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-navigators</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-code-folding</artifactId>
+                <artifactId>adhoc-mime-types</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -375,22 +278,22 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-language-spi</artifactId>
+                <artifactId>antlr-code-folding</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-language-grammar</artifactId>
+                <artifactId>antlr-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>tokens-file-grammar</artifactId>
+                <artifactId>antlr-editing-kit</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>java-file-grammar</artifactId>
+                <artifactId>antlr-error-highlighting</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -400,37 +303,47 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-formatters</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-grammar-file-resolve</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-grammar-file-resolver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-highlighting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-in-memory-build</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-live</artifactId>
+                <artifactId>antlr-in-memory-execution</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-input</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-input-nb</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-language-code-completion</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>adhoc-mime-types</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-live-execution</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-project-helpers</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-in-memory-execution</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -445,7 +358,22 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-grammar-file-resolve</artifactId>
+                <artifactId>antlr-language-grammar</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-language-spi</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-live-execution</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -455,17 +383,7 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-project-extensions</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-error-highlighting</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-project-helpers-maven</artifactId>
+                <artifactId>antlr-live-parsing</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -475,7 +393,27 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>antlr-live-parsing</artifactId>
+                <artifactId>antlr-navigators</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-extensions</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-helpers</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-helpers-maven</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-wrapper</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -490,109 +428,78 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>extraction</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>extraction-data-models</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>java-file-grammar</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>jfs</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>jfs-nb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>mastfrog-utils-wrapper</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>misc-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>parse-recorder</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId> org.netbeans.api</groupId>
-                <artifactId>org-netbeans-spi-navigator</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>protoc-antlr</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-modules-editor-fold-nbui</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>registration-annotation-processors</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-modules-editor-actions</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>simple-test-language</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId> org.netbeans.api</groupId>
-                <artifactId>org-netbeans-modules-editor-lib2</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>test-fixtures-support</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId> org.netbeans.api</groupId>
-                <artifactId>org-netbeans-spi-editor-hints</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>tokens-file-grammar</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>platform</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>websvccommon</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>webcommon</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>harness</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>nb</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>extide</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>ide</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.cluster</groupId>
-                <artifactId>java</artifactId>
-                <version>${netbeans.version}</version>
-                <type>pom</type>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.bcel</groupId>
-                <artifactId>bcel</artifactId>
-                <version>6.2</version>
-            </dependency>
-            <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
-                <version>${old.junit.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-api</artifactId>
-                <version>${new.junit.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-params</artifactId>
-                <version>${new.junit.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-engine</artifactId>
-                <version>${new.junit.version}</version>
-                <scope>test</scope>
+                <groupId>com.github.wumpz</groupId>
+                <artifactId>diffutils</artifactId>
+                <version>3.0</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
@@ -601,18 +508,68 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
+                <artifactId>annotation-tools</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>bits</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>converters</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
                 <artifactId>function</artifactId>
                 <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.hamcrest</groupId>
-                <artifactId>hamcrest-core</artifactId>
-                <version>1.3</version>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>graph</artifactId>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.antlr</groupId>
-                <artifactId>antlr4-runtime</artifactId>
-                <version>${antlr.version}</version>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>java-vogon</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>predicates</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>range</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-collections</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-function</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-preconditions</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-strings</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${old.junit.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.antlr</groupId>
@@ -620,27 +577,34 @@ limitations under the License.
                 <version>${antlr.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-bootstrap</artifactId>
-                <version>${netbeans.version}</version>
-                <scope>test</scope>
-                <type>jar</type>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-runtime</artifactId>
+                <version>${antlr.version}</version>
             </dependency>
             <dependency>
-                <!-- currently used only by annotation processor path -->
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>org.apache.bcel</groupId>
+                <artifactId>bcel</artifactId>
+                <version>6.2</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-modules-maven</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest-core</artifactId>
+                <version>1.3</version>
             </dependency>
             <dependency>
-                <groupId>org.netbeans.modules</groupId>
-                <artifactId>org.netbeans.bootstrap</artifactId>
-                <version>${netbeans.version}</version>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>5.3.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>5.3.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-params</artifactId>
+                <version>5.3.1</version>
             </dependency>
             <dependency>
                 <groupId>org.netbeans.api</groupId>
@@ -724,6 +688,11 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-editor-settings-lib</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-editor-util</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
@@ -735,6 +704,16 @@ limitations under the License.
             <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-java-project</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-java-source</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-java-source-base</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
@@ -790,6 +769,16 @@ limitations under the License.
             <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-queries</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-modules-settings</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-spi-editor-hints</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
@@ -863,8 +852,78 @@ limitations under the License.
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>extide</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>harness</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>ide</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>java</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>nb</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>platform</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>webcommon</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.cluster</groupId>
+                <artifactId>websvccommon</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.contrib.yenta</groupId>
+                <artifactId>api</artifactId>
+                <version>1.1</version>
+            </dependency>
+            <dependency>
                 <groupId>org.netbeans.external</groupId>
                 <artifactId>org-netbeans-modules-maven</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-bootstrap</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-editor-actions</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-editor-errorstripe</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-editor-fold-nbui</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-editor-plain</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
@@ -879,7 +938,27 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-masterfs-nio2</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-maven</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
                 <artifactId>org-netbeans-modules-maven-embedder</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-options-editor</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-parsing-nb</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
@@ -894,9 +973,10 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>org.netbeans.modules</groupId>
-                <artifactId>org-netbeans-modules-options-editor</artifactId>
+                <artifactId>org.netbeans.bootstrap</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
 </project>
+

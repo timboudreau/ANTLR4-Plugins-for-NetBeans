@@ -21,21 +21,37 @@ limitations under the License.
         <artifactId>antlr-netbeans-parent</artifactId>
         <version>2.0</version>
     </parent>
-
     <artifactId>antlr-suite</artifactId>
+    <scm>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+    </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache 2.0 License</name>
+            <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <packaging>nbm-application</packaging>
-
     <name>antlr-suite-app</name>
-
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <brandingToken>${netbeans.branding.token}</brandingToken>
         <all.clusters>${project.build.directory}/${brandingToken}</all.clusters>
         <netbeans.verify.integrity>false</netbeans.verify.integrity>
         <netbeans.run.parms>--laf javax.swing.plaf.metal.MetalLookAndFeel</netbeans.run.parms>
     </properties>
     <dependencies>
-<!--
+        <!--
                 <dependency>
                     <groupId>${project.groupId}</groupId>
                     <artifactId>debug-ui</artifactId>
@@ -53,12 +69,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>debug-api</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jfs</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -67,119 +81,95 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-in-memory-build</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-code-completion</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-error-highlighting</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-grammar</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-project-helpers</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-project-helpers-maven</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-project-extensions</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-highlighting</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live-parsing</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live-execution</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live-language-editors</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-live-preview</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-grammar-file-resolver</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>adhoc-mime-types</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-editing-kit</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>tokens-file-grammar</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>java-file-grammar</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-file-support</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-formatting</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-language-formatting-ui</artifactId>
-            <version>${project.version}</version>
         </dependency>
-
         <!--        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>org-nemesis-antlr-v4-netbeans</artifactId>
@@ -188,89 +178,89 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input-nb</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-wrapper</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-formatters</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-common</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-navigators</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-folding</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>protoc-antlr</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>platform</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>websvccommon</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>webcommon</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>harness</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>nb</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>extide</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>ide</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>java</artifactId>
+            <version>${netbeans.version}</version>
             <type>pom</type>
         </dependency>
-
         <!-- NbModuleSuite functional in RELEASE70 or later: -->
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-nbjunit</artifactId>
-            <scope>test</scope> <!-- beyond platform cluster, this often needs to be dropped down to compile/runtime, some other modules in IDE clusters depend on it -->
+            <scope>test</scope>
+            <!-- beyond platform cluster, this often needs to be dropped down to compile/runtime, some other modules in IDE clusters depend on it -->
         </dependency>
         <!--        <dependency>
             <groupId>org.netbeans.modules</groupId>
@@ -324,8 +314,6 @@ limitations under the License.
             <version>${netbeans.version}</version>
             <type>nbm</type>
         </dependency>-->
-
-
         <!-- To use Jelly Tools in your functional tests, add or replace with:
         <dependency>
             <groupId>org.netbeans.api</groupId>
@@ -335,7 +323,6 @@ limitations under the License.
         </dependency>
         -->
     </dependencies>
-
     <build>
         <plugins>
             <plugin>
@@ -360,9 +347,7 @@ limitations under the License.
                     <execution>
                         <id>run-it</id>
                         <phase>deploy</phase>
-                        <configuration>
-
-                        </configuration>
+                        <configuration/>
                         <goals>
                             <goal>run-ide</goal>
                         </goals>
@@ -379,8 +364,7 @@ limitations under the License.
                             <target name="copy-conf-file">
                                 <echo>Copying customized netbeans.conf file</echo>
                                 <mkdir dir="${basedir}/target/${brandingToken}/etc/"/>
-                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true">
-                                </copy>
+                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true"/>
                                 <mkdir dir="${basedir}/target/netbeans_clusters"/>
                                 <copy outputencoding="UTF-8" overwrite="true" todir="${basedir}/target/netbeans_clusters/${brandingToken}">
                                     <fileset dir="${basedir}/target/${brandingToken}/${brandingToken}"/>
@@ -398,8 +382,7 @@ limitations under the License.
                             <target name="copy-conf-file">
                                 <echo>Copying customized netbeans.conf file</echo>
                                 <mkdir dir="${basedir}/target/${brandingToken}/etc/"/>
-                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true">
-                                </copy>
+                                <copy file="${basedir}/src/application/etc/antlr.conf" outputencoding="UTF-8" overwrite="true" tofile="${basedir}/target/${brandingToken}/etc/${brandingToken}.conf" verbose="true"/>
                                 <copy outputencoding="UTF-8" overwrite="true" todir="${basedir}/target/netbeans_clusters/${brandingToken}">
                                     <fileset dir="${basedir}/target/${brandingToken}/${brandingToken}"/>
                                 </copy>
@@ -424,7 +407,6 @@ limitations under the License.
             </plugin>
         </plugins>
     </build>
-
     <profiles>
         <profile>
             <id>deployment</id>
@@ -452,3 +434,4 @@ limitations under the License.
         </profile>
     </profiles>
 </project>
+

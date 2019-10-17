@@ -13,9 +13,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 -->
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -29,11 +27,11 @@ limitations under the License.
     <packaging>nbm</packaging>
     <name>ANTLR 4 Plugin for NetBeans</name>
     <description>ANTLR plugins for NetBeans</description>
-    <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
     <licenses>
         <license>
-            <name>3-Clause BSD License</name>
-            <url>https://opensource.org/licenses/BSD-3-Clause</url>
+            <name>Apache 2.0 License</name>
+            <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
     <developers>
@@ -48,10 +46,18 @@ limitations under the License.
         </developer>
     </developers>
     <scm>
-        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans</url>
-        <connection>scm:git:https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
-        <developerConnection>git@github.com/timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
     </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
     <properties>
         <java.source.level>1.8</java.source.level>
         <maven.test.skip>true</maven.test.skip>
@@ -74,8 +80,7 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-highlighting</artifactId>
-            <version>${project.version}</version>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
@@ -83,27 +88,27 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input-nb</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-formatters</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-folding</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-completion</artifactId>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
@@ -115,7 +120,7 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-common</artifactId>
-        </dependency>         
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>registration-annotation-processors</artifactId>
@@ -124,7 +129,6 @@ limitations under the License.
         <dependency>
             <groupId>com.github.wumpz</groupId>
             <artifactId>diffutils</artifactId>
-            <version>3.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -272,7 +276,6 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-spi-editor-hints</artifactId>
-            <version>${netbeans.version}</version>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
@@ -365,7 +368,7 @@ limitations under the License.
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-navigators</artifactId>
         </dependency>
     </dependencies>
@@ -381,8 +384,7 @@ limitations under the License.
                             <target name="copy-antlr-sources">
                                 <echo>Copying ParserExtractor.java to ParserExtractor.template</echo>
                                 <mkdir dir="${basedir}/src/main/resources/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract"/>
-                                <copy file="${basedir}/src/main/java/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/ParserExtractor.java" outputencoding="UTF-8" tofile="${basedir}/target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/ParserExtractor.template">
-                                </copy>
+                                <copy file="${basedir}/src/main/java/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/ParserExtractor.java" outputencoding="UTF-8" tofile="${basedir}/target/classes/org/nemesis/antlr/v4/netbeans/v8/grammar/file/tool/extract/ParserExtractor.template"/>
                             </target>
                         </configuration>
                         <goals>
@@ -418,7 +420,6 @@ limitations under the License.
                     </dependency>
                 </dependencies>
             </plugin>
-
             <plugin>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-maven-plugin</artifactId>
@@ -725,3 +726,4 @@ limitations under the License.
         </plugins>
     </build>
 </project>
+

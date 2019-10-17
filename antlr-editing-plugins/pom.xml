@@ -22,6 +22,26 @@ limitations under the License.
         <version>2.0</version>
     </parent>
     <artifactId>antlr-editor-plugins-parent</artifactId>
+    <scm>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+    </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache 2.0 License</name>
+            <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <packaging>pom</packaging>
     <name>Antlr IDE Plugins Parent</name>
     <properties>
@@ -133,3 +153,4 @@ limitations under the License.
         </dependencies>
     </dependencyManagement>
 </project>
+

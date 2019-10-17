@@ -22,6 +22,26 @@ limitations under the License.
         <version>2.0</version>
     </parent>
     <artifactId>antlr-live</artifactId>
+    <scm>
+        <url>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</url>
+        <connection>scm:git:https://github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</connection>
+        <developerConnection>git@github.com:timboudreau/ANTLR4-Plugins-for-NetBeans.git</developerConnection>
+    </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans/issues</url>
+    </issueManagement>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache 2.0 License</name>
+            <url>https://opensource.org/licenses/Apache-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <packaging>nbm</packaging>
     <properties>
         <maven.test.skip>false</maven.test.skip>
@@ -143,7 +163,6 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-text</artifactId>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -178,7 +197,6 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>test-fixtures-support</artifactId>
-            <type>jar</type>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -187,7 +205,7 @@ limitations under the License.
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-file-support</artifactId>
             <scope>test</scope>
         </dependency>
@@ -269,35 +287,28 @@ limitations under the License.
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>util-function</artifactId>
-            <version>${mastfrog.version}</version>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>org.nemesis</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-grammar-file-resolver</artifactId>
-            <version>2.0</version>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-parsing-nb</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-lexer-nbbridge</artifactId>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-editor-plain</artifactId>
-            <version>${netbeans.version}</version>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
     </dependencies>
 </project>
+
