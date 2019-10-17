@@ -39,7 +39,6 @@ import static javax.lang.model.element.Modifier.STATIC;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANTIC_HIGHLIGHTING_ANNO;
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
@@ -477,8 +476,11 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
             if (saveClass) {
                 ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(generatedClassName)
+                        .generateDebugLogCode()
                         .staticImport(info.fieldFqns())
-                        .importing("javax.annotation.processing.Generated", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
+                        .importing(
+//                                "javax.annotation.processing.Generated",
+                                "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
                                 "org.netbeans.spi.editor.highlighting.HighlightsLayer", "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
                                 "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
                                 "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
@@ -496,7 +498,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                         //                            .addExpressionArgument("position", 1000)
                         //                            .closeAnnotation();
                         //                })
-                        .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+//                        .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                         .withModifier(PUBLIC).withModifier(FINAL)
                         .implementing("HighlightsLayerFactory")
                         .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");

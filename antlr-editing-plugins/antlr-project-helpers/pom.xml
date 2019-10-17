@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -45,8 +45,24 @@ limitations under the License.
     </licenses>
     <packaging>nbm</packaging>
     <properties>
+        <!-- disabling tests for now - on some JDK + Maven combos,
+            a different version of Maven gets loaded via the NetBeans
+            maven module and results in class incompatibilities inside
+            the surefire plugin
+        -->
         <maven.test.skip>false</maven.test.skip>
     </properties>
+    <profiles>
+        <profile>
+            <id>disable-tests-on-jdk-8</id>
+            <activation>
+                <jdk>8</jdk>
+            </activation>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>
@@ -61,6 +77,37 @@ limitations under the License.
                         <publicPackage>org.nemesis.antlr.project.spi</publicPackage>
                     </publicPackages>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+                <configuration>
+                    <parallel>none</parallel>
+                    <parallelMavenExecution>false</parallelMavenExecution>
+                    <perCoreThreadCount>0</perCoreThreadCount>
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                    <threadCount>0</threadCount>
+                    <forkCount>0</forkCount>
+                    <reuseForks>false</reuseForks>
+                    <trimStackTrace>false</trimStackTrace>
+                    <argline>--illegal-access=permit</argline>
+                    <systemPropertyVariables>
+                        <unit.test>true</unit.test>
+                    </systemPropertyVariables>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.netbeans.api</groupId>
+                        <artifactId>org-netbeans-modules-projectapi</artifactId>
+                        <version>${netbeans.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.netbeans.modules</groupId>
+                        <artifactId>org-netbeans-modules-projectapi-nb</artifactId>
+                        <version>${netbeans.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
@@ -119,11 +166,11 @@ limitations under the License.
             <artifactId>org-netbeans-modules-maven</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
+<!--        <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-maven-embedder</artifactId>
             <scope>test</scope>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-projectapi-nb</artifactId>

@@ -25,7 +25,7 @@ limitations under the License.
     <description>NetBeans ANTLR modules parent POM</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <netbeans.version>RELEASE120-dev</netbeans.version>
+        <netbeans.version>RELEASE111</netbeans.version>
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/License.txt</netbeans.hint.licensePath>
         <antlr.version>4.7.2</antlr.version>
@@ -177,17 +177,6 @@ limitations under the License.
             </plugin>
         </plugins>
     </build>
-    <profiles>
-        <profile>
-            <id>skip-tests</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-                <file>
-                    <missing>${basedir}/tests-should-pass</missing>
-                </file>
-            </activation>
-        </profile>
-    </profiles>
     <modules>
         <!--<module>antlr-plugin</module>-->
         <module>jfs</module>
@@ -775,11 +764,6 @@ limitations under the License.
             <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-settings</artifactId>
-                <version>${netbeans.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.netbeans.api</groupId>
-                <artifactId>org-netbeans-spi-editor-hints</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>

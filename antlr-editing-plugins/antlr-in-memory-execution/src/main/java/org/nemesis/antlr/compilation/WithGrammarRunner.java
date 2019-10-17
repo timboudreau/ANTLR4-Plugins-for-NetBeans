@@ -20,6 +20,7 @@ import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Map;
 import java.util.Set;
@@ -154,7 +155,12 @@ public final class WithGrammarRunner {
                 Thread.currentThread().setContextClassLoader(oldLoader);
                 Debug.failure(ex.toString(), () -> {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    PrintStream ps = new PrintStream(out, true, UTF_8);
+                    PrintStream ps = null; // JDK 9/10 - use Charset constructor
+                    try {
+                        ps = new PrintStream(out, true, "UTF-8");
+                    } catch (UnsupportedEncodingException ex1) {
+                        throw new AssertionError(ex1);
+                    }
                     ex.printStackTrace(ps);
                     return new String(out.toByteArray(), UTF_8);
                 });

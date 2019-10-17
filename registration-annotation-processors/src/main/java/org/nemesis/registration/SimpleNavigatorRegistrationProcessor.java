@@ -38,7 +38,6 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.*;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
@@ -165,10 +164,10 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
 
         ClassBuilder<String> bldr = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .importing(configType,
-                        NAVIGATOR_PANEL_REGISTRATION_ANNOTATION,
-                        "javax.annotation.processing.Generated"
+//                        "javax.annotation.processing.Generated",
+                        NAVIGATOR_PANEL_REGISTRATION_ANNOTATION
                 )
-                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
                 .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock()
                 .method("create", mb -> {

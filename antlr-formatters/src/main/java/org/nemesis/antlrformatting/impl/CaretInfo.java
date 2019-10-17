@@ -81,10 +81,12 @@ public final class CaretInfo {
         if (!isViable()) {
             return new Rectangle(0, 0);
         }
-        Rectangle result = comp.modelToView2D(start).getBounds();
+//        Rectangle result = comp.modelToView2D(start).getBounds(); // JDK 9/10
+        Rectangle result = comp.modelToView(start);
 
         if (isSelection()) {
-            result.add(comp.modelToView2D(end).getBounds());
+//            result.add(comp.modelToView2D(end).getBounds()); // JDK 9/10
+            result.add(comp.modelToView(end));
         }
         return result;
     }

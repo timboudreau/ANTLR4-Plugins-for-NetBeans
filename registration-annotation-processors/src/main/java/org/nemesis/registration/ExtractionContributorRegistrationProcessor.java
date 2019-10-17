@@ -35,7 +35,6 @@ import static javax.lang.model.element.Modifier.STATIC;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
-import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
@@ -107,10 +106,12 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
         String registrationFieldCNB = cb.fqn() + "." + registrationFieldName;
         cb.implementing(EC_NAME + "<" + entrySimple + ">")
                 .withModifier(PUBLIC).withModifier(FINAL)
-                .importing("javax.annotation.processing.Generated", "org.openide.util.lookup.ServiceProvider",
+                .importing(
+//                        "javax.annotation.processing.Generated",
+                        "org.openide.util.lookup.ServiceProvider",
                         EC_TYPE, "org.nemesis.extraction.ExtractorBuilder", entryPointType.toString())
                 .staticImport(registrationFieldCNB)
-                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME)
                 .addExpressionArgument("path", registrationFieldName)
                 //                .addArgument("path", registrationPath(mimeType, entryPointType.toString()))

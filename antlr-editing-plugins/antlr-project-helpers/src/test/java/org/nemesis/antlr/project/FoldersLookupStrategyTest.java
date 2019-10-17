@@ -470,7 +470,6 @@ public class FoldersLookupStrategyTest {
         public void saveProject(Project project) throws IOException, ClassCastException {
             // do nothing
         }
-
     }
 
     static class ProjectWithOwnStrategy implements Project {
@@ -533,7 +532,7 @@ public class FoldersLookupStrategyTest {
 
             @Override
             public Iterable<Path> allFiles(Folders type) {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                throw new UnsupportedOperationException("Not supported yet.");
             }
         }
     }

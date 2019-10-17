@@ -39,7 +39,6 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.tools.JavaFileObject;
 import static com.mastfrog.annotation.AnnotationUtils.enclosingType;
-import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.versionString;
 import com.mastfrog.java.vogon.ClassBuilder;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import com.mastfrog.java.vogon.LinesBuilder;
@@ -159,9 +158,9 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractDeleg
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .makeFinal().makePublic()
                 .importing(NAV_PANEL_TYPE)
-                .importing("javax.annotation.processing.Generated")
-                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString())
-                .closeAnnotation()
+//                .importing("javax.annotation.processing.Generated")
+//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString())
+//                .closeAnnotation()
                 .method("create", mb -> {
                     mb.withModifier(Modifier.PUBLIC).withModifier(Modifier.STATIC)
                             .returning("NavigatorPanel")

@@ -509,7 +509,8 @@ final class EditorScrollPositionManager implements Runnable {
                 try {
                     int pos = newCaretPosition < 0 ? 0 : newCaretPosition;
                     scroll.setCaretPosition(pos);
-                    Rectangle rect = scroll.modelToView2D(pos).getBounds();
+//                    Rectangle rect = scroll.modelToView2D(pos).getBounds(); // JDK 9/10
+                    Rectangle rect = scroll.modelToView(pos);
                     scroll.scrollRectToVisible(rect);
                 } catch (BadLocationException ex) {
                     Exceptions.printStackTrace(ex);

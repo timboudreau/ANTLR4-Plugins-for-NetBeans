@@ -250,13 +250,15 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkgEl.getQualifiedName())
                 .named(genClassName)
-                .importing("javax.annotation.processing.Generated", "org.netbeans.modules.parsing.spi.TaskFactory",
+                .importing(
+//                        "javax.annotation.processing.Generated",
+                        "org.netbeans.modules.parsing.spi.TaskFactory",
                         REGION_TO_FOLD_CONVERTER_TYPE,
                         MIME_REGISTRATION_ANNOT_TYPE, itemType,
                         FOLD_MANAGER_FACTORY_TYPE)
-                .annotatedWith("Generated").addArgument("value", getClass().getName())
-                .addArgument("comments", versionString())
-                .closeAnnotation()
+//                .annotatedWith("Generated").addArgument("value", getClass().getName())
+//                .addArgument("comments", versionString())
+//                .closeAnnotation()
                 .docComment("Generated from field ", field.getSimpleName(), " on ", encType.getQualifiedName(),
                         " annotated with ", mirror.toString().replaceAll("@", "&#064;"))
                 .makePublic().makeFinal()
@@ -353,9 +355,9 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
                 MIME_REGISTRATION_ANNOT_TYPE)
                 .implementing("FoldTypeProvider")
                 .withModifier(PUBLIC).withModifier(FINAL)
-                .annotatedWith("Generated").addArgument("value", getClass().getName())
-                .addArgument("comments", versionString())
-                .closeAnnotation()
+//                .annotatedWith("Generated").addArgument("value", getClass().getName())
+//                .addArgument("comments", versionString())
+//                .closeAnnotation()
                 .annotatedWith("MimeRegistration")
                 .addArgument("mimeType", mimeType)
                 .addClassArgument("service", "FoldTypeProvider")
