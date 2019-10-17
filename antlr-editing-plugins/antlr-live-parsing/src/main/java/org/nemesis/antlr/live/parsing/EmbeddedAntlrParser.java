@@ -16,7 +16,6 @@
 package org.nemesis.antlr.live.parsing;
 
 import java.util.function.BiConsumer;
-import jdk.internal.HotSpotIntrinsicCandidate;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.extraction.Extraction;
@@ -48,7 +47,6 @@ import org.nemesis.extraction.Extraction;
  */
 public abstract class EmbeddedAntlrParser {
 
-    @HotSpotIntrinsicCandidate
     EmbeddedAntlrParser() {
     }
 

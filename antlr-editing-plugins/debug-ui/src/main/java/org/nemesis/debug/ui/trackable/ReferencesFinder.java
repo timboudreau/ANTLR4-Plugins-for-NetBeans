@@ -15,10 +15,8 @@
  */
 package org.nemesis.debug.ui.trackable;
 
-import com.mastfrog.util.preconditions.Exceptions;
 import java.awt.Color;
 import java.lang.invoke.MethodHandle;
-import java.lang.invoke.VarHandle;
 import java.lang.ref.Reference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -146,7 +144,7 @@ public class ReferencesFinder {
             strategies.add(new ReferenceDissectionStrategy());
             strategies.add(new AtomicReferenceDissectionStrategy());
             strategies.add(new ThreadLocalDissectionStrategy());
-            strategies.add(new VarHandleDissectionStrategy());
+//            strategies.add(new VarHandleDissectionStrategy());
             strategies.add(new MapDissectionStrategy());
             strategies.add(new LookupDissectionStrategy());
             strategies.add(new FieldDissectionStrategy());
@@ -333,6 +331,7 @@ public class ReferencesFinder {
         }
     }
 
+    /*
     private static final class VarHandleDissectionStrategy extends AbstractDissectionStrategy<VarHandle> {
 
         VarHandleDissectionStrategy() {
@@ -353,6 +352,7 @@ public class ReferencesFinder {
             }
         }
     }
+    */
 
     private static final class ThreadLocalDissectionStrategy extends AbstractDissectionStrategy<ThreadLocal<?>> {
 

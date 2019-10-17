@@ -657,8 +657,11 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 VariableElement var, String coloringName, String functionClassName,
                 ClassBuilder.InvocationBuilder<?> iv, String mimeType, boolean hasColorFinder, AnnotationUtils utils) {
             iv.withArgument(var.getSimpleName().toString());
-            System.out.println("\n\nTYPE " + var.asType() + "\n\n");
-            if (utils.isAssignable(utils.erasureOf(var.asType()), "org.nemesis.extraction.key.NamedRegionKey") && !hasColorFinder && functionClassName != null) {
+            // Adding some comments here - javac on JDK 8 does not get this right
+            boolean isNamed = utils.isAssignable(utils.erasureOf(var.asType()), "org.nemesis.extraction.key.NamedRegionKey")
+                    || utils.isAssignable(var.asType(), "org.nemesis.extraction.key.NamedRegionKey")
+                    || var.asType().toString().startsWith("org.nemesis.extraction.key.NamedRegionKey");
+            if (isNamed && !hasColorFinder && functionClassName != null) {
                 // Builder uses a different argument order when passing a NamedRegionKey to
                 // avoid an erasure clash
                 iv.withNewInstanceArgument().ofType(functionClassName)
