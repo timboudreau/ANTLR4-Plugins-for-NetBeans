@@ -32,6 +32,12 @@ import org.nemesis.antlr.spi.language.highlighting.ColoringCategory;
  * <code>coloration()</code>. Types returned by colorFinder() or
  * attributeFinder() must have a default public no-arg constructor and be
  * public.
+ * <p>
+ * Note:  For NamedSemanticRegions, if their Enum kind type implements
+ * Supplier&lt;String&gt;, the result of its get() method will be used
+ * as the coloring lookup, with - for fixed*() methods, the default passed
+ * as a fallback.
+ * </p>
  *
  * @author Tim Boudreau
  */

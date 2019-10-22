@@ -203,6 +203,11 @@ public final class AntlrExtractor {
                 // Generate fake definitions for declared tokens so we don't flag them as errors
                 .whereRuleIs(ANTLRv4Parser.TokenListContext.class)
                 .derivingNameFromTerminalNodes(RuleTypes.LEXER, AntlrExtractor::deriveTokenIdFromTokenList)
+
+//                .whereRuleIs(ANTLRv4Parser.ParserRuleLabeledAlternativeContext.class)
+//                //                .derivingNameWith("identifier().ID()", Alternatives.NAMED_ALTERNATIVES)
+//                .derivingNameWith(AntlrExtractor::extractAlternativeLabelInfo)
+
                 // Now collect usages of the rule ids we just collected.  This gets us both
                 // the ability to query for a NamedReferenceSet<RuleTypes> which has the reference
                 // and can resolve the reference, and a bidirectional graph built from arrays of BitSets
@@ -256,13 +261,7 @@ public final class AntlrExtractor {
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.IMPORT)
                 .whenRuleType(ANTLRv4Parser.AnalyzerDirectiveSpecContext.class)
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.DIRECTIVE)
-                .finishRegionExtractor()
-                .extractingRegionsUnder(AntlrKeys.STUFF)
-                .whenRuleIdIn(ANTLRv4Parser.RULE_fragmentRuleDeclaration, ANTLRv4Parser.RULE_labeledParserRuleElement)
-                .extractingKeyWith(rule -> {
-                    String name = ANTLRv4Parser.ruleNames[rule.getRuleIndex()];
-                    return name;
-                }).finishRegionExtractor();
+                .finishRegionExtractor();
         ;
     }
 
@@ -437,8 +436,9 @@ public final class AntlrExtractor {
                 Token labelToken = idTN.getSymbol();
                 if (labelToken != null) {
                     String altnvLabel = labelToken.getText();
-                    return NamedRegionData.create(altnvLabel,
+                    NamedRegionData<RuleTypes> result = NamedRegionData.create(altnvLabel,
                             RuleTypes.NAMED_ALTERNATIVES, ctx.SHARP().getSymbol().getStartIndex(), labelToken.getStopIndex() + 1);
+                    return result;
                 }
             }
         }

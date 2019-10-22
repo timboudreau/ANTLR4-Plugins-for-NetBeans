@@ -1028,6 +1028,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             }
 
             @Override
+            public String toString() {
+                return name();
+            }
+
+            @Override
             @SuppressWarnings("unchecked")
             public boolean isChildType(IndexAddressableItem item) {
                 if (item == null) {

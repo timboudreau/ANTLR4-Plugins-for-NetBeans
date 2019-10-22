@@ -394,10 +394,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "org.openide.filesystems.MIMEResolver", "org.openide.loaders.DataObject",
                         "org.openide.loaders.DataObjectExistsException", "org.openide.loaders.MultiDataObject",
                         "org.openide.loaders.MultiFileLoader", "org.openide.util.Lookup",
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         "org.openide.util.NbBundle.Messages"
                 ).staticImport(dataObjectFqn + ".ACTION_PATH")
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("MultiDataObject")
                 .withModifier(PUBLIC)/* .withModifier(FINAL) */
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
@@ -796,11 +796,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         " It adds some custom actions invokable by keyboard.")
                 .withModifier(FINAL)
                 .importing(
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         NB_EDITOR_KIT_TYPE,
                         EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
                 .extending(simpleName(NB_EDITOR_KIT_TYPE))
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .initializedWith(mimeType)
                 .field("INSTANCE").withModifier(STATIC).withModifier(FINAL)
@@ -1125,7 +1125,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .withModifier(PUBLIC).withModifier(FINAL)
                 .importing("org.netbeans.modules.parsing.api.Snapshot", "org.netbeans.modules.parsing.api.Task",
                         "org.netbeans.modules.parsing.spi.Parser", "org.netbeans.modules.parsing.spi.SourceModificationEvent",
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         "org.nemesis.source.api.GrammarSource",
                         "org.nemesis.source.api.ParsingBag", "org.openide.util.Exceptions", "javax.swing.event.ChangeListener",
                         entryPointType, "org.netbeans.modules.parsing.spi.ParserFactory", "java.util.Collection",
@@ -1137,7 +1137,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "org.nemesis.antlr.spi.language.IterableTokenSource", lexer.lexerClassFqn(),
                         parser.parserClassFqn()
                 )
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("Parser")
                 .docComment("NetBeans parser wrapping ", parser.parserClassSimple(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()."
                         + "  For the most part, you will not use this class directly, but rather register classes that are interested in processing"
@@ -1338,7 +1338,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         cl.importing("org.netbeans.api.editor.mimelookup.MimeRegistration")
                 .innerClass(prefix + "ParserFactory").publicStaticFinal().extending("ParserFactory")
                 .docComment("Registers our parse with the NetBeans parser infrastructure.")
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .annotatedWith("MimeRegistration").addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
                 .addClassArgument("service", "ParserFactory").closeAnnotation()
                 .method("createParser").override().withModifier(PUBLIC).returning("Parser")
@@ -1365,9 +1365,35 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (utils().annotationValue(parserInfo, "generateSyntaxTreeNavigatorPanel", Boolean.class, false)) {
             generateSyntaxTreeNavigatorPanel(type, mirror, parser.parserEntryPoint());
         }
+        if (utils().annotationValue(parserInfo, "generateExtractionDebugNavigatorPanel", Boolean.class, false)) {
+            generateExtractionDebugPanel(type, mirror, parser.parserEntryPoint());
+        }
     }
 
     // Navigator generation
+    private void generateExtractionDebugPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
+        String generatedClassName = type.getSimpleName() + "_ExtractionNavigator_Registration";
+        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
+                .withModifier(PUBLIC, FINAL)
+                .docComment("Provides a generic navigator panel for the current extraction for plugin debugging")
+                .importing("org.netbeans.spi.navigator.NavigatorPanel",
+                        "org.nemesis.antlr.navigator.AbstractAntlrListNavigatorPanel")
+                .method("createExtractorNavigatorPanel", mb -> {
+                    mb.returning("NavigatorPanel")
+                            .annotatedWith("NavigatorPanel.Registration", ab -> {
+                                ab.addArgument("displayName", "Extraction")
+                                        .addArgument("mimeType", mimeType)
+                                        .addArgument("position", 1000);
+                            }).withModifier(PUBLIC, STATIC)
+                            .body().returningInvocationOf("createExtractionDebugPanel")
+                            .on("AbstractAntlrListNavigatorPanel").endBlock();
+                });
+        writeOne(cb);
+
+    }
+
     private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
@@ -1500,8 +1526,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         + "an annotation on ", type.getSimpleName())
                 .makePublic()
                 .importing("org.netbeans.api.lexer.TokenId", proxy.lexerClassFqn())
-//                .importing("javax.annotation.processing.Generated")
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .importing("javax.annotation.processing.Generated")
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(FINAL).withModifier(STATIC).withModifier(PUBLIC).initializedTo(LinesBuilder.stringLiteral(mimeType)).ofType("String")
                 .method("ordinal").override().docComment("Returns the same ordinal as the generated ANTLR grammar uses for this token, e.g. " + proxy.lexerClassSimple() + ".VOCABULARY.someTokenName")
                 .returning("int").closeMethod()
@@ -1555,9 +1581,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .importing("java.util.Arrays", "java.util.HashMap", "java.util.Map", "java.util.Optional",
                         "java.util.List", "java.util.ArrayList", "java.util.Collections",
                         "org.nemesis.antlr.spi.language.highlighting.TokenCategorizer",
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         proxy.lexerClassFqn())
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 // Static categorizer field - fall back toExpression a heuristic categorizer if nothing is specified
                 .field("CATEGORIZER").withModifier(FINAL)/*.withModifier(PRIVATE)*/.withModifier(STATIC)
                 .initializedTo(tokenCatName == null ? "TokenCategorizer.heuristicCategorizer()" : "new " + tokenCatName + "()")
@@ -1719,10 +1745,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 )
                 .docComment("LanguageHierarchy implementation for ", prefix,
                         ". Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), ".")
-//                .importing("javax.annotation.processing.Generated")
+                //                .importing("javax.annotation.processing.Generated")
                 .makePublic().makeFinal()
                 .constructor().setModifier(PUBLIC).body().debugLog("Create a new " + hierName).endBlock()
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("LanguageHierarchy<" + tokenTypeName + ">")
                 .field("LANGUAGE").withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
                 /*.initializedTo("new " + hierName + "().language()").*/.ofType("Language<" + tokenTypeName + ">")

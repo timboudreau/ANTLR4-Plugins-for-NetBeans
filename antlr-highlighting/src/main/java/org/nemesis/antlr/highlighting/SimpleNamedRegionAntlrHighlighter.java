@@ -29,7 +29,6 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
@@ -44,48 +43,73 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
 
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     private static void log(String msg, Object... args) {
-        LOG.log(Level.FINER, msg, args);
+        if (LOG.isLoggable(Level.FINER)) {
+            LOG.log(Level.FINER, msg, args);
+        }
     }
 
     SimpleNamedRegionAntlrHighlighter(NamedRegionKey<T> key, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup) {
         this.key = key;
         this.coloringLookup = coloringLookup;
         cacheSize = key.type().getEnumConstants().length;
+        LOG.log(Level.FINE, "Create SimpleNamedRegionAntlrHighlighter for {0} with {1}",
+                new Object[]{key, coloringLookup});
     }
 
     @Override
     public String toString() {
-        return "SimpleNamedRegionAntlrHighlighter{" + key + '}';
+        return "SimpleNamedRegionAntlrHighlighter{" + key + " with " + coloringLookup + '}';
     }
 
     static <T extends Enum<T>> SimpleNamedRegionAntlrHighlighter<T> fixed(NamedRegionKey<T> key, Supplier<AttributeSet> lookup) {
-        return new SimpleNamedRegionAntlrHighlighter<>(key, t -> {
-            return lookup.get();
-        });
+        return new SimpleNamedRegionAntlrHighlighter<>(key, new FixedLookup<>(lookup));
     }
 
-    static <T extends Enum<T>> SimpleNamedRegionAntlrHighlighter<T> fixed(NamedRegionKey<T> key, String mimeType, String coloring) {
+    static <T extends Enum<T>> SimpleNamedRegionAntlrHighlighter<T> fixed(
+            NamedRegionKey<T> key, String mimeType, String coloring) {
+        if (Supplier.class.isAssignableFrom(key.type())) {
+            return create(key, mimeType, reg -> coloring);
+        }
         return fixed(key, coloringLookup(mimeType, coloring));
+    }
+
+    static <T extends Enum<T>> Function<NamedSemanticRegion<T>, AttributeSet> wrapColoringLookupWithNamedRegionKeyCheck(
+            NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, AttributeSet> xformed) {
+        Function<String, AttributeSet> coloringFinder = coloringForMimeType(mimeType);
+        if (Supplier.class.isAssignableFrom(key.type())) {
+            System.out.println("HAVE A SUPPLIER FOR " + key.type());
+            xformed = new DelegateToColoringNameSupplier(coloringFinder, xformed);
+        }
+        return xformed;
     }
 
     static <T extends Enum<T>> SimpleNamedRegionAntlrHighlighter<T> create(NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, String> coloringNameProvider) {
         Function<String, AttributeSet> coloringFinder = coloringForMimeType(mimeType);
         Function<NamedSemanticRegion<T>, AttributeSet> xformed = coloringNameProvider.andThen(coloringFinder);
+        xformed = wrapColoringLookupWithNamedRegionKeyCheck(key, mimeType, xformed);
         return new SimpleNamedRegionAntlrHighlighter<>(key, xformed);
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer ignored) {
+    public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer ignored) {
         NamedSemanticRegions<T> regions = ext.namedRegions(key);
         log("{0} refresh {1} NamedSemanticRegions for {2}", key, regions.size(), doc);
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
-            for (NamedSemanticRegion<T> region : regions) {
+            for (NamedSemanticRegion<T> region : regions.index()) {
                 T kind = region.kind();
                 AttributeSet coloring = cache.get(kind);
                 if (coloring == null) {
                     coloring = coloringLookup.apply(region);
+                    System.out.println("Coloring lookup " + coloringLookup
+                            + " gives " + coloring + " for kind " + kind);
+                    log("Coloring {0} for {1} from {2}",
+                            new Object[]{coloring, kind, this});
                     if (coloring != null) {
                         cache.put(kind, coloring);
                     } else {
@@ -96,6 +120,71 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
                     bag.addHighlight(region.start(), region.end(), coloring);
                 }
             }
+        }
+    }
+
+    /**
+     * Wraps the default coloring supplier with one which can use a value from
+     * the region's key as a Supplier&lt;Color&gt; if it is one.
+     *
+     * @param <T> The key type
+     */
+    private static class DelegateToColoringNameSupplier<T extends Enum<T>> implements Function<NamedSemanticRegion<T>, AttributeSet> {
+
+        private final Function<String, AttributeSet> coloringFinder;
+        private final Function<NamedSemanticRegion<T>, AttributeSet> oldxformed;
+
+        public DelegateToColoringNameSupplier(Function<String, AttributeSet> coloringFinder, Function<NamedSemanticRegion<T>, AttributeSet> oldxformed) {
+            this.coloringFinder = coloringFinder;
+            this.oldxformed = oldxformed;
+        }
+
+        public String toString() {
+            return "DelegateToColoringNameSupplier(wrapping " + oldxformed + " using " + coloringFinder + ")";
+        }
+
+        @Override
+        public AttributeSet apply(NamedSemanticRegion<T> region) {
+            System.out.println("DelegateToColoringNameSupplier get for " + region.kind()
+                    + " is supplier? " + (region.kind() instanceof Supplier<?>));
+            if (region.kind() instanceof Supplier<?>) {
+                System.out.println("  USE SUPPLIER FOR " + region.kind());
+                Supplier<?> cns = (Supplier<?>) region.kind();
+                if (cns != null && cns.get() != null) {
+                    Object o = cns.get();
+                    System.out.println("   SUPPLIER GAVE " + o + " is a " + (o == null ? "null" : o.getClass().getSimpleName()));
+                    if (o instanceof String) {
+                        AttributeSet result = coloringFinder.apply((String) o);
+                        System.out.println("     colroing res for " + result);
+                        if (result != null) {
+                            System.out.println("         returning " + result);
+                            return result;
+                        }
+                    }
+                }
+            }
+            AttributeSet result = oldxformed.apply(region);
+            System.out.println("  fallthrough to " + oldxformed);
+            return result;
+        }
+    }
+
+    static final class FixedLookup<T extends Enum<T>> implements Function<NamedSemanticRegion<T>, AttributeSet> {
+
+        private final Supplier<AttributeSet> lookup;
+
+        public FixedLookup(Supplier<AttributeSet> lookup) {
+            this.lookup = lookup;
+        }
+
+        @Override
+        public String toString() {
+            return "FixedLookup(" + lookup + ")";
+        }
+
+        @Override
+        public AttributeSet apply(NamedSemanticRegion<T> t) {
+            return lookup.get();
         }
     }
 }

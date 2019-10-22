@@ -46,7 +46,6 @@ import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
-import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
@@ -78,6 +77,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
         this.implementation = implementation;
         key = new HighlighterBagKey(this, implementation);
         OffsetsBag bag = new OffsetsBag(doc, implementation.mergeHighlights());
+        LOG.setLevel(Level.ALL);
         // This avoids us holding a reference from GeneralHighlighter -> OffsetsBag -> Document
         // forever
         doc.putProperty(key, bag);
@@ -99,9 +99,9 @@ abstract class GeneralHighlighter<T> implements Runnable {
         LOG.log(level, msg, args);
     }
 
-    protected final void refresh(Document doc, T argument, Extraction ext, Parser.Result result, OffsetsBag bag) {
+    protected final void refresh(Document doc, T argument, Extraction ext, OffsetsBag bag) {
         Integer caret = argument instanceof Integer ? (Integer) argument : null;
-        implementation.refresh(doc, ext, result, bag, caret);
+        implementation.refresh(doc, ext, bag, caret);
     }
 
     protected void postInit(JTextComponent pane, Document doc) {
@@ -133,8 +133,10 @@ abstract class GeneralHighlighter<T> implements Runnable {
             LOG.log(Level.FINEST, "Skip highlighting for thread interrupt", this);
             return;
         }
-        LOG.log(Level.FINEST, "Run with {0}", doc);
         T argument = getArgument();
+        LOG.log(Level.FINEST, "Invoke a parse with {0} for {1} with {2}",
+                new Object[]{doc, this, argument});
+
         if (!shouldProceed(argument)) {
             LOG.log(Level.FINEST, "Should not proceed for {0}", argument);
             return;
@@ -168,12 +170,17 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         @Override
         public void run(ResultIterator ri) throws Exception {
-            LOG.log(Level.FINEST, "parseWhenScanFinished completed on {0}", Thread.currentThread());
+            LOG.log(Level.FINEST, "parseWhenScanFinished completed on {0} "
+                    + "for {1}", new Object[]{
+                        Thread.currentThread(),
+                        GeneralHighlighter.this
+                    });
+            Extraction ext = findExtraction(ri.getParserResult());
             // Ensure we don't do a bunch of long-running stuff while
             // holding the parser manager's lock
             THREAD_POOL.submit(() -> {
                 try {
-                    withParseResult(doc, ri, getArgument());
+                    withParseResult(doc, ext, getArgument());
                 } catch (Exception e) {
                     LOG.log(Level.WARNING, "Exception rebuilding highlights", e);
                 }
@@ -210,19 +217,13 @@ abstract class GeneralHighlighter<T> implements Runnable {
         return null;
     }
 
-    private void refresh(Document doc, Parser.Result result, T argument) {
-        Extraction semantics = findExtraction(result);
-        if (semantics == null) { // should be fixed now
-            FileObject fo = result.getSnapshot().getSource().getFileObject();
-            Logger.getLogger(GeneralHighlighter.class.getName()).log(Level.WARNING, "Null "
-                    + "extraction for " + fo == null ? "null" : fo.getPath());
-            return;
-        }
-        LOG.log(Level.FINEST, "Call refresh now");
+    private void refresh(Document doc, Extraction semantics, T argument) {
+        LOG.log(Level.FINEST, "{0} update highlights for {1}",
+                new Object[]{doc, this});
         OffsetsBag papasGotA = getHighlightsBag();
         if (papasGotA != null) {
             OffsetsBag brandNewBag = new OffsetsBag(doc);
-            refresh(doc, argument, semantics, result, brandNewBag);
+            refresh(doc, argument, semantics, brandNewBag);
             if (EventQueue.isDispatchThread()) {
                 papasGotA.setHighlights(brandNewBag);
             } else {
@@ -233,15 +234,15 @@ abstract class GeneralHighlighter<T> implements Runnable {
                     papasGotA.setHighlights(brandNewBag);
                 });
             }
+        } else {
+            LOG.log(Level.WARNING, "Got null OffsetsBag for {0} in {1}",
+                    new Object[]{doc, this});
         }
     }
 
-    private void withParseResult(Document doc, ResultIterator ri, T argument) throws Exception {
-        Parser.Result res = ri.getParserResult();
-        LOG.log(Level.FINEST, "Got parse result {0}", res);
-        if (res instanceof ExtractionParserResult) {
-            refresh(doc, res, argument);
-        }
+    private void withParseResult(Document doc, Extraction extraction, T argument) throws Exception {
+        LOG.log(Level.FINEST, "{0} got parse result {0}", new Object[]{this});
+        refresh(doc, extraction, argument);
     }
 
     protected static final <R extends Parser.Result & ExtractionParserResult> Function<R, Extraction> findExtraction() {

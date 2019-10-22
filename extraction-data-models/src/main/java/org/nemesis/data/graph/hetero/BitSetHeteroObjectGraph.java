@@ -23,6 +23,7 @@ import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.IntGraphVisitor;
 import com.mastfrog.abstractions.list.IndexedResolvable;
+import java.util.Arrays;
 
 /**
  * A graph of container and containee, where the types of the two are
@@ -323,12 +324,14 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
             @Override
             public void enterFirst(TI ruleId, int depth) {
                 char[] c = new char[depth * 2];
+                Arrays.fill(c, ' ');
                 sb.append(c).append(ruleId).append('\n');
             }
 
             @Override
             public void enterSecond(RI ruleId, int depth) {
                 char[] c = new char[depth * 2];
+                Arrays.fill(c, ' ');
                 sb.append(c).append(ruleId).append('\n');
             }
         });

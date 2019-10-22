@@ -32,7 +32,6 @@ import org.nemesis.extraction.key.RegionsKey;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
@@ -139,7 +138,7 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer ignored) {
+    public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer ignored) {
         SemanticRegions<T> regions = ext.regions(key);
         log("refresh {0} NamedRegionReferenceSets for {1}", regions.size(), doc);
         if (!regions.isEmpty()) {

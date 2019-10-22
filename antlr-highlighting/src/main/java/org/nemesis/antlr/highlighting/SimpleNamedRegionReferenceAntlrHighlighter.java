@@ -32,7 +32,6 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
@@ -85,7 +84,7 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer caret) {
+    public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer caret) {
         NamedRegionReferenceSets<T> regions = ext.references(key);
         if (regions == null) {
             LOG.log(Level.FINE, "Null regions for {0}.  Parse cancelled?", key);

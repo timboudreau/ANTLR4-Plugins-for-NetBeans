@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.BorderFactory;
+import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
@@ -40,24 +41,24 @@ import org.openide.util.TaskListener;
 import org.openide.windows.TopComponent;
 
 /**
- * Takes care of the general plumbing of managing a navigator panel 
- * *correctly* - specifically solving the problem of the empty panel
- * when rapidly switching between files, due to a cancelled job to
- * populate a panel completing after a new one has been started and
- * completed, and its contents.  Uses an AtomicInteger to ensure only the
- * most current request to populate the panel gets to actually update it.
+ * Takes care of the general plumbing of managing a navigator panel *correctly*
+ * - specifically solving the problem of the empty panel when rapidly switching
+ * between files, due to a cancelled job to populate a panel completing after a
+ * new one has been started and completed, and its contents. Uses an
+ * AtomicInteger to ensure only the most current request to populate the panel
+ * gets to actually update it.
  *
  * @author Tim Boudreau
  */
-abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
+abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIsActiveChecker> implements NavigatorPanel {
 
     private JScrollPane component;
-    protected ActivatedTcPreCheckJList<R> list;
+    protected C list;
     /**
      * current context to work on
      */
-    private Lookup.Result<EditorCookie> editorCookieContext;
-    private Lookup.Result<DataObject> dataObjectContext;
+    protected Lookup.Result<EditorCookie> editorCookieContext;
+    protected Lookup.Result<DataObject> dataObjectContext;
     protected FileListener fileListener;
     /**
      * A sadly common problem in Navigator panel implementations is sometimes
@@ -80,7 +81,7 @@ abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
     protected static final RequestProcessor threadPool = new RequestProcessor("antlr-navigator", 1, false);
     protected static final int DELAY = 500;
 
-    protected abstract ActivatedTcPreCheckJList<R> createList();
+    protected abstract C createComponent();
 
     protected boolean isCurrent(int change) {
         return changeCount.get() == change;
@@ -94,7 +95,7 @@ abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
     public JScrollPane getComponent() {
         if (component == null) {
             onBeforeCreateComponent();
-            list = createList();
+            list = createComponent();
             component = new JScrollPane(list);
             // The usual Swing border-buildup fixes
             Border empty = BorderFactory.createEmptyBorder();
@@ -271,4 +272,15 @@ abstract class AbstractAntlrNavigatorPanel<R> implements NavigatorPanel {
             oldFuture.cancel();
         }
     }
+
+    /**
+     * Create a navigator panel that shows a tree of the extraction contents,
+     * for debugging during plugin development.
+     *
+     * @return A navigator panel
+     */
+    public static NavigatorPanel createExtractionDebugPanel() {
+        return new ExtractionTreeNavigatorPanel();
+    }
 }
+

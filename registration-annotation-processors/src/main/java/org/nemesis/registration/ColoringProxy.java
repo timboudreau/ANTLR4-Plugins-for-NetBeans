@@ -17,19 +17,26 @@ package org.nemesis.registration;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import javax.lang.model.element.AnnotationMirror;
 import com.mastfrog.annotation.AnnotationUtils;
+import java.util.TreeSet;
 
 /**
  *
  * @author Tim Boudreau
  */
 class ColoringProxy implements Iterable<String> {
+
+    private static final String[] DARK_THEMES = {"NetBeans_Solarized_Dark", "BlueTheme", "Darcula", "CityLights"};
+    private static final String[] BRIGHT_THEMES = new String[] {"NetBeans", "NetBeans55", "NetbeansEarth", "Tan", "NetBeans_Solarized_Light"};
+
+    // IMPORTANT:  These mirror constants on Coloration and must exactly match:
+    private static final String CONST_DARK = "dark";
+    private static final String CONST_LIGHT = "light";
+    private static final String CONST_ALL_THEMES = "all";
 
     List<Integer> fg;
     List<Integer> bg;
@@ -52,10 +59,32 @@ class ColoringProxy implements Iterable<String> {
         def = utils.annotationValue(coloration, "derivedFrom", String.class);
         bold = utils.annotationValue(coloration, "bold", Boolean.class, false);
         italic = utils.annotationValue(coloration, "italic", Boolean.class, false);
-        themes = new HashSet<>(utils.annotationValues(coloration, "themes", String.class));
-        if (themes.isEmpty()) {
-            themes = Collections.singleton("NetBeans");
+        themes = deriveThemes(coloration, utils);
+    }
+
+    static Set<String> deriveThemes(AnnotationMirror coloration, AnnotationUtils utils) {
+        List<String> declared = utils.annotationValues(coloration, "themes", String.class);
+        if (declared.isEmpty()) {
+            return new TreeSet<>(Arrays.asList(BRIGHT_THEMES));
         }
+        Set<String> result = new TreeSet<>();
+        for (String decl : declared) {
+            switch(decl) {
+                case CONST_DARK :
+                    result.addAll(Arrays.asList(DARK_THEMES));
+                    break;
+                case CONST_LIGHT :
+                    result.addAll(Arrays.asList(BRIGHT_THEMES));
+                    break;
+                case CONST_ALL_THEMES :
+                    result.addAll(Arrays.asList(BRIGHT_THEMES));
+                    result.addAll(Arrays.asList(DARK_THEMES));
+                    break;
+                default :
+                    result.add(decl);
+            }
+        }
+        return result;
     }
 
     @Override

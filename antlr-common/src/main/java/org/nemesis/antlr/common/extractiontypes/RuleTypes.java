@@ -15,11 +15,13 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import java.util.function.Supplier;
+
 /**
  *
  * @author Tim Boudreau
  */
-public enum RuleTypes {
+public enum RuleTypes implements Supplier<String> {
     FRAGMENT, LEXER, PARSER, NAMED_ALTERNATIVES;
 
     // only used for names, not bounds
@@ -30,5 +32,21 @@ public enum RuleTypes {
 
     public boolean isTopLevelRuleType() {
         return this != NAMED_ALTERNATIVES;
+    }
+
+    @Override
+    public String get() {
+        switch(this) {
+            case FRAGMENT :
+                return "fragment-rule-name";
+            case LEXER :
+                return "lexer-rule-name";
+            case PARSER :
+                return "parser-rule-name";
+            case NAMED_ALTERNATIVES :
+                return "alternatives";
+            default :
+                return "default";
+        }
     }
 }

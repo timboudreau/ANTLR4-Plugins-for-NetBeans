@@ -1,6 +1,27 @@
 
 # Antlr Editing Plugins To-Dos
 
+ - Default colorings are bad and still contain experimental stuff
+
+ - Default formatting settings are not very good
+
+ - Ability to specify a centrality key for Navigator panel annotations - will have to
+    be a Supplier<NamedReferenceSetKey<?>>
+   - If we want additional keys (to do alternatives properly), will need localized names for keys
+
+ - Need a clean way to get from named region enum to coloring name
+   - Interface it can implement?
+
+ - For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
+
+ - Nestable colorations, as in our old ebnf support
+
+ - Sample should be specifiable as a URL / file name
+
+ - Registration processors:  All FQNs should be constants.
+
+ - Need a way to specify additional colorings in the abstract
+
  - Use @ConvertAsProperties on preview
 
  - Java embedding for Antlr, general Antlr embedding support

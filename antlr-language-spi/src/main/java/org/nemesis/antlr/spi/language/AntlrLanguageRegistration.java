@@ -31,8 +31,8 @@ import org.antlr.v4.runtime.Parser;
  *
  * @author Tim Boudreau
  */
-@Retention(RetentionPolicy.SOURCE)
-@Target(value = ElementType.TYPE)
+@Retention( RetentionPolicy.SOURCE )
+@Target( value = ElementType.TYPE )
 public @interface AntlrLanguageRegistration {
 
     /**
@@ -52,7 +52,7 @@ public @interface AntlrLanguageRegistration {
     /**
      * The Antlr lexer class.
      *
-     * @return
+     * @return The class of the generated Antlr lexer
      */
     Class<? extends Lexer> lexer();
 
@@ -74,7 +74,6 @@ public @interface AntlrLanguageRegistration {
      */
     Class<? extends TokenCategorizer> tokenCategorizer() default TokenCategorizer.class;
 
-//    boolean permissiveLexer() default true;
     /**
      * Define categories of tokens which will be used to color those tokens in
      * the editor.
@@ -98,12 +97,24 @@ public @interface AntlrLanguageRegistration {
      *
      * @return A ParserControl
      */
-    ParserControl parser() default @ParserControl(entryPointRule = Integer.MIN_VALUE, type = Parser.class);
+    ParserControl parser() default @ParserControl( entryPointRule = Integer.MIN_VALUE, type = Parser.class );
 
+    /**
+     * Causes an ExtSyntax from the editor api to be generated, which impacts
+     * a few standard editor features (specifies whitespace tokens, etc.)
+     *
+     * @return A syntax info
+     */
     SyntaxInfo syntax() default @SyntaxInfo;
 
+    /**
+     * If the lanugage has a line comment prefix such as //, specifiy
+     * that here and the comment-line action will be implemented for you.
+     *
+     * @return A string
+     */
     String lineCommentPrefix() default "";
-    
+
     CodeCompletion genericCodeCompletion() default @CodeCompletion;
 
     public @interface CodeCompletion {
@@ -179,7 +190,7 @@ public @interface AntlrLanguageRegistration {
          * reparse method when those settings change.
          *
          * @return True if the generated NetBeans parsers should support firing
-         * changes to anything that might be using them
+         *         changes to anything that might be using them
          */
         boolean changeSupport() default false;
 
@@ -193,12 +204,12 @@ public @interface AntlrLanguageRegistration {
          * channel 0, but can be set otherwise here.
          *
          * @return The channel to use when constructing a CommonTokenStream from
-         * the Antlr lexer to pass to the Antlr parser.
+         *         the Antlr lexer to pass to the Antlr parser.
          */
         int parserStreamChannel() default 0;
 
         /**
-         * If true, generate a navigator panel which wil show the syntax tree of
+         * If true, generate a navigator panel which will show the syntax tree of
          * this language. You will need the antlr-navigators project on the
          * classpath for the generated class to compile. Useful when debugging
          * parsers or language support.
@@ -206,6 +217,15 @@ public @interface AntlrLanguageRegistration {
          * @return true if the panel will be generated
          */
         boolean generateSyntaxTreeNavigatorPanel() default false;
+
+        /**
+         * If true, generate a navigator panel which will show the contents
+         * of the Extraction from the last parse of the source - useful for
+         * debugging while developing language support.
+         *
+         * @return If true the panel will be generated
+         */
+        boolean generateExtractionDebugNavigatorPanel() default false;
     }
 
     /**
@@ -216,7 +236,7 @@ public @interface AntlrLanguageRegistration {
      *
      * @return The file type
      */
-    FileType file() default @FileType(extension = ".");
+    FileType file() default @FileType( extension = "." );
 
     public @interface FileType {
 
@@ -230,7 +250,7 @@ public @interface AntlrLanguageRegistration {
         /**
          * A / delimited path in the JAR to the icon to use for your file type.
          *
-         * @return
+         * @return An icon path to an image
          */
         String iconBase() default "";
 
@@ -250,7 +270,7 @@ public @interface AntlrLanguageRegistration {
          * Edit/org.openide.actions.CutAction
          *
          * @return A list of actions to omit from the popup menu for files of
-         * this type
+         *         this type
          */
         String[] excludedActions() default {};
 
@@ -258,7 +278,7 @@ public @interface AntlrLanguageRegistration {
          * If true, allow copying of files of this type.
          *
          * @return True if DataObject.isCopyAllowed() should return true for
-         * your file type.
+         *         your file type.
          */
         boolean copyAllowed() default true;
 
@@ -266,7 +286,7 @@ public @interface AntlrLanguageRegistration {
          * If true, allow deletion of files of this type.
          *
          * @return True if DataObject.isDeleteAllowed() should return true for
-         * your file type.
+         *         your file type.
          */
         boolean deleteAllowed() default true;
 
@@ -274,7 +294,7 @@ public @interface AntlrLanguageRegistration {
          * If true, allow moving of files of this type.
          *
          * @return True if DataObject.isMoveAllowed() should return true for
-         * your file type.
+         *         your file type.
          */
         boolean moveAllowed() default true;
 
@@ -282,13 +302,14 @@ public @interface AntlrLanguageRegistration {
          * If true, allow renaming of files of this type.
          *
          * @return True if DataObject.isRenameAllowed() should return true for
-         * your file type.
+         *         your file type.
          */
         boolean renameAllowed() default true;
 
         /**
          * If you want to hook into lifecycle methods of DataObjects
-         * for your file type, implement this interface and specify
+         * for your file type, add lookup contents, alter its presentation
+         * or be notified on deletion,implement this interface and specify
          * it here.
          *
          * @return A class which implements DataObjectHooks

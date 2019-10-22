@@ -18,21 +18,29 @@ package org.nemesis.antlr.live.preview;
 import java.awt.Color;
 import java.awt.Toolkit;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
+import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.common.AntlrConstants;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.jfs.javac.JavacDiagnostic;
+import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.editor.BaseDocument;
+import org.netbeans.modules.editor.NbEditorUtilities;
+import org.openide.text.Line;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
@@ -134,6 +142,37 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                     boolean wasGenerate = !buildResult.genResult().isUsable();
                     if (wasGenerate) {
                         ioPrint(io, Bundle.generationFailed(), IOColors.OutputType.LOG_DEBUG);
+                        buildResult.genResult().grammarGenerationErrors();
+                        for (ParsedAntlrError err : buildResult.genResult().grammarGenerationErrors()) {
+                            ioPrint(io, err.message(), IOColors.OutputType.ERROR, new OutputListener() {
+                                @Override
+                                public void outputLineSelected(OutputEvent oe) {
+                                    // do nothing
+                                }
+
+                                @Override
+                                public void outputLineAction(OutputEvent oe) {
+                                    Path pth = err.path();
+                                    GrammarSource<?> src = GrammarSource.find(pth, "text/x-g4");
+                                    Optional<Document> doc= src.lookup(Document.class);
+                                    if (doc.isPresent()) {
+                                        Document d = doc.get();
+                                        JTextComponent comp = EditorRegistry.findComponent(d);
+                                        if (comp != null) {
+                                            TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, comp);
+                                            Line ln = NbEditorUtilities.getLine(d, err.fileOffset(), true);
+                                            ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+                                            tc.requestActive();
+                                        }
+                                    }
+                                }
+
+                                @Override
+                                public void outputLineCleared(OutputEvent oe) {
+                                    //do nothing
+                                }
+                            });
+                        }
                     } else {
                         boolean wasCompile = !buildResult.genResult().compileFailed() && !buildResult.genResult().compiledSourceFiles().isEmpty();
                         if (wasCompile) {

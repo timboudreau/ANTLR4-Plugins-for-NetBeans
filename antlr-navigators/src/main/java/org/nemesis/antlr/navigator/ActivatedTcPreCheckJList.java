@@ -16,29 +16,44 @@
 package org.nemesis.antlr.navigator;
 
 import java.awt.Component;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.KeyboardFocusManager;
+import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.SwingUtilities;
 import org.openide.windows.TopComponent;
 
 /**
- * Grabs the top components active state before painting commences, so that
- * we can paint a different selection color if the containing TC is active
- * versus not, as explorer components do.
+ * Grabs the top components active state before painting commences, so that we
+ * can paint a different selection color if the containing TC is active versus
+ * not, as explorer components do.
  *
  * @param <T>
  */
-final class ActivatedTcPreCheckJList<T> extends JList<T> {
+final class ActivatedTcPreCheckJList<T> extends JList<T> implements ComponentIsActiveChecker {
 
     private boolean tcActive;
+    private static final int MIN_CELL_HEIGHT = 16;
+    private static final int MIN_MARGIN = 4;
+    private boolean firstPaint;
 
-    boolean isActive() {
+    @Override
+    public boolean isActive() {
         return tcActive;
     }
 
     @Override
     public void paint(Graphics g) {
+        if (firstPaint) {
+            // Optimization - if validation does not require rendering every
+            // cell to determine preferred height, performance on trees
+            // and lists is much better
+            firstPaint = false;
+            setFixedCellHeight(computeCellHeight((Graphics2D) g, this));
+        }
         // The hierarchy lookups are somewhat expensive, and would be done
         // once for every cell to paint, if we put this logic in isTopComponentActive.
         // Since TopComponent activation changes happen on the event thread, and
@@ -51,4 +66,10 @@ final class ActivatedTcPreCheckJList<T> extends JList<T> {
         super.paint(g);
     }
 
+    static int computeCellHeight(Graphics2D g, JComponent comp) {
+        Font font = comp.getFont();
+        int min = MIN_CELL_HEIGHT + MIN_MARGIN;
+        FontMetrics fm = g.getFontMetrics(font);
+        return Math.max(min, fm.getMaxAscent() + fm.getMaxDescent() + MIN_MARGIN);
+    }
 }

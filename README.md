@@ -13,11 +13,6 @@ This project contains two sets of Antlr-related NetBeans plugins:
     * Formatting
     * *Live-preview* - syntax highlighting and error checking of code in the language you are developing, which is updated as you edit the grammar, so you can see the effects of your changes instantly
 
-## Building
-
-Projects are built against a source builds of NetBeans using [this project](https://github.com/timboudreau/netbeans-local-maven-repo-populator)
-to populate the local repository.  Set the `netbeans.version` property in the master pom to change it globally.
-
 ## Projects
 
 The following is the project structure.  Many of these plugins define APIs, but typically only generated
@@ -127,3 +122,32 @@ maven support is reimplemented
 At some point all of this may get moved to a clean Git repo without history, since the original project contained
 a bunch of binary JARs which, since they're in history, are part of every checkout forever like it or not.
 
+## Development / Build & Run
+
+Projects are built against a source builds of NetBeans using [this project](https://github.com/timboudreau/netbeans-local-maven-repo-populator)
+to populate the local repository.  Set the `netbeans.version` property in the master pom to change it globally.
+
+The projects are currently *buildable* on JDK 8; it is not recommended, but can be done with 
+the following caveats (the only reason this is permitted at all is currently my continuous
+build server is using a hacked, hand-built build of OpenJDK 10 because Oracle stopped publishing JDKs
+for Solaris):
+
+ * You must use `-Dmaven.test.skip=true` - otherwise incompatibilities 
+ * Building against random NetBeans versions may fail in tests with a `NoSuchMethodException` inside the
+Surefire (test runner) Maven plugin, because the boot class path gets polluted with the version of Maven
+that the NetBeans Maven module embeds, which has different class signatures.  Your best bet for development is to build
+your own platform using the link above.  You will need to build the formatters API once with tests enabled so
+that the test-jar artifact exists in your local Maven repository.
+ * Some tests the annotation processors rely on do not give correct results on JDK 8, particularly those testing
+that a generified type's erasure matches a raw class name.  This does not appear to affect the code generated
+for this module, but is likely to be a problem elsewhere.
+
+### Test-Running
+
+The `nbm-maven-plugin` has the serious limitation that, unlike Ant-based module suites, there is
+*no straightforward way* to run the platform with a collection of interdependent modules installed*,
+except to create an `nbm-application` project and rebuild it every time you want to manually test
+something.
+
+Then `antlr-suite` project does that. Simply navigate to that directory and run `./runone` to launch it
+(the user dir will be `~/.antlr/dev` and the binary will be `target/bin/antlr` - ugly but works).

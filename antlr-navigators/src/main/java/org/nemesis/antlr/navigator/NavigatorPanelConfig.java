@@ -16,6 +16,7 @@
 package org.nemesis.antlr.navigator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -23,7 +24,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.swing.DefaultListModel;
 import javax.swing.JPopupMenu;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.extraction.Extraction;
@@ -43,7 +43,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
 
     private final NameReferenceSetKey<K> centralityKey;
     private final Appearance<? super NamedSemanticRegion<K>> appearance;
-    private final ListModelPopulator<K> populator;
+    private final ListModelPopulator<K, NamedSemanticRegion<K>> populator;
     private final Consumer<JPopupMenu> popupMenuPopulator;
     private final BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher;
     private final boolean sortable;
@@ -52,7 +52,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
     private final Function<Extraction, Set<String>> delimitersFinder;
 
     private NavigatorPanelConfig(NameReferenceSetKey<K> centralityKey, Appearance<NamedSemanticRegion<K>> appearance,
-            ListModelPopulator<K> populator, Consumer<JPopupMenu> popupMenuPopulator,
+            ListModelPopulator<K, NamedSemanticRegion<K>> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher,
             String displayName, boolean sortable, String hint, Function<Extraction, Set<String>> delimitersFinder) {
         this.centralityKey = centralityKey;
@@ -84,7 +84,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         private boolean sortable;
         private Consumer<JPopupMenu> popupMenuPopulator;
         private BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher;
-        private ListModelPopulator<K> populator;
+        private ListModelPopulator<K, NamedSemanticRegion<K>> populator;
         private String displayName;
         private String hint;
         private Appearance<NamedSemanticRegion<K>> appearance;
@@ -123,16 +123,16 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
             });
         }
 
-        static final class DefaultPopulator<K extends Enum<K>> implements ListModelPopulator<K> {
+        static final class DefaultPopulator<K extends Enum<K>> implements ListModelPopulator<K, NamedSemanticRegion<K>> {
 
             @Override
-            public int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort) {
+            public int populateListModel(Extraction extraction, List<? extends NamedSemanticRegion<K>> fetched, Collection<? super NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort) {
                 int sel = -1;
                 for (NamedSemanticRegion<K> region : fetched) {
                     if (sel == -1 && oldSelection != null && region.name().equals(oldSelection.name())) {
                         sel = model.size();
                     }
-                    model.addElement(region);
+                    model.add(region);
                 }
                 return sel;
             }
@@ -166,7 +166,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @param populator The populator
          * @return this
          */
-        public Builder<K> withListModelPopulator(ListModelPopulator<K> populator) {
+        public Builder<K> withListModelPopulator(ListModelPopulator<K, NamedSemanticRegion<K>> populator) {
             if (this.populator != null) {
                 throw new IllegalStateException("Populator already set to " + this.populator);
             }
@@ -348,7 +348,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
      *
      * @param <K> The enum type
      */
-    public interface ListModelPopulator<K extends Enum<K>> {
+//    public interface ListModelPopulator<K extends Enum<K>> {
 
         /**
          * Populate the list model with whatever objects this panel should find
@@ -361,10 +361,10 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
          * @return The index of the old selection (if not null) in the new set
          * of model elements, or -1 if not found
          */
-        int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort);
-    }
+//        int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort);
+//    }
 
-    int populateListModel(Extraction extraction, DefaultListModel<NamedSemanticRegion<K>> newListModel, NamedSemanticRegion<K> oldSelection, SortTypes requestedSort) {
+    int populateListModel(Extraction extraction, List<? super NamedSemanticRegion<K>> newListModel, NamedSemanticRegion<K> oldSelection, SortTypes requestedSort) {
         List<NamedSemanticRegion<K>> items = new ArrayList<>(100);
         elementFetcher.accept(extraction, items);
         if (sortable && isSortTypeEnabled(requestedSort)) {

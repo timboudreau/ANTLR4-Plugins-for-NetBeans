@@ -39,13 +39,17 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
     private static final String BASE = HighlighterFactory.class.getName().replace('.', '-');
     private static final Logger LOG = Logger.getLogger(HighlighterFactory.class.getName());
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     HighlighterFactory(String id, ZOrder zorder, boolean fixedSize, int positionInZOrder, Function<Context, GeneralHighlighter<?>> factory) {
         this.zorder = zorder;
         this.fixedSize = fixedSize;
         this.positionInZOrder = positionInZOrder;
         this.factory = factory;
         this.id = new IdKey(id);
-        LOG.log(Level.FINE, "Created a HighlighterFactory {0} fixed {1} z {2} pos {3}", new Object[] {id, fixedSize,
+        LOG.log(Level.FINE, "Created a HighlighterFactory {0} fixed {1} z {2} pos {3}", new Object[]{id, fixedSize,
             zorder, positionInZOrder});
     }
 
@@ -66,16 +70,31 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
         int open = s.indexOf('(');
         int close = s.indexOf(')');
         if (open > 0 && close > 0 && close > open) {
-            return Integer.parseInt(s.substring(open+1, close));
+            return Integer.parseInt(s.substring(open + 1, close));
         }
         return 0;
     }
 
-
     static HighlighterFactory forRefreshTrigger(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
             int positionInZOrder, String id, Supplier<AntlrHighlighter> supp) {
+        return new HighlighterFactory(id, zorder, fixedSize, positionInZOrder,
+                new GeneralHighlighterFetcher(trigger, id, supp));
+    }
 
-        Function<Context, GeneralHighlighter<?>> f = ctx -> {
+    static final class GeneralHighlighterFetcher implements Function<Context, GeneralHighlighter<?>> {
+
+        private final HighlightRefreshTrigger trigger;
+        private final String id;
+        private final Supplier<AntlrHighlighter> supp;
+
+        GeneralHighlighterFetcher(HighlightRefreshTrigger trigger, String id, Supplier<AntlrHighlighter> supp) {
+            this.trigger = trigger;
+            this.id = id;
+            this.supp = supp;
+        }
+
+        @Override
+        public GeneralHighlighter<?> apply(Context ctx) {
             AntlrHighlighter impl = supp.get();
             if (trigger == HighlightRefreshTrigger.CARET_MOVED && impl instanceof SimpleNamedRegionReferenceAntlrHighlighter<?>) {
                 SimpleNamedRegionReferenceAntlrHighlighter<?> s
@@ -83,9 +102,18 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
                 s.highlightReferencesUnderCaret();
             }
             int refreshDelay = trigger.refreshDelay();
-            return createHighlighter(ctx, refreshDelay, impl, trigger);
-        };
-        return new HighlighterFactory(id, zorder, fixedSize, positionInZOrder, f);
+            GeneralHighlighter<?> result = createHighlighter(ctx, refreshDelay, impl, trigger);
+            LOG.log(Level.FINE, "Fetcher of {0} - {1} created "
+                    + "GeneralHighlighter for {2} returning {3}",
+                    new Object[]{id, this, impl, result});
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "GeneralHighlighterFetcher{trigger=" + trigger
+                    + ", id=" + id + ", supp=" + supp + '}';
+        }
     }
 
     static GeneralHighlighter<?> createHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation, HighlightRefreshTrigger trigger) {
@@ -114,23 +142,32 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
         if (result == null) {
             result = factory.apply(ctx);
             LOG.log(Level.FINEST, "Create a GeneralHighlighter for {0}: {1}",
-                    new Object[] { this, result });
+                    new Object[]{this, result});
             if (result != null) {
                 doc.putProperty(id, result);
             }
         } else {
             LOG.log(Level.FINEST, "Use existing GeneralHighlighter for {0}: {1}",
-                    new Object[] { this, result });
+                    new Object[]{this, result});
         }
         return result;
     }
 
     public HighlightsLayer createLayer(Context ctx) {
         GeneralHighlighter<?> highlighter = createHighlighter(ctx);
-        LOG.log(Level.FINER, "Create highlights layer for {0}", highlighter);
-        return highlighter == null ? null
+        HighlightsLayer result = highlighter == null ? null
                 : HighlightsLayer.create(id.toString(), zorder.forPosition(positionInZOrder),
                         fixedSize, highlighter.getHighlightsBag());
+        LOG.log(Level.FINER, "Create highlights layer for {0} returning ",
+                new Object[]{highlighter, result});
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "HighlighterFactory{" + "zorder=" + zorder + ", fixedSize="
+                + fixedSize + ", factory=" + factory + ", positionInZOrder="
+                + positionInZOrder + ", id=" + id + '}';
     }
 
     /**

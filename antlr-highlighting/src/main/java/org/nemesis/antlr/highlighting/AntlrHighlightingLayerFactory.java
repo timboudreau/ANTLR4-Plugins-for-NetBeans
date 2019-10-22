@@ -15,11 +15,15 @@
  */
 package org.nemesis.antlr.highlighting;
 
+import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import org.nemesis.data.SemanticRegion;
@@ -42,24 +46,41 @@ import org.netbeans.spi.editor.highlighting.ZOrder;
 public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFactory {
 
     private final List<? extends HighlighterFactory> all;
+    private static final Logger LOG = Logger.getLogger(
+            AntlrHighlightingLayerFactory.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     AntlrHighlightingLayerFactory(List<HighlighterFactory> all) {
         Collections.sort(all);
         this.all = Collections.unmodifiableList(all);
+        LOG.log(Level.FINE, "Created an AntlrHighlightingLayerFactory with {0}",
+                all);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("AntlrHighlightingLayerFactory(");
+        sb.append(Strings.join(", ", all));
+        return sb.append(')').toString();
     }
 
     @Override
     public HighlightsLayer[] createLayers(Context context) {
         List<HighlightsLayer> layers = new ArrayList<>(this.all.size());
-        all.stream().map((f) -> f.createLayer(context)).filter((layer) -> (layer != null)).forEach((layer) -> {
-            layers.add(layer);
-        });
-//        for (HighlighterFactory f : all) {
-//            HighlightsLayer layer = f.createLayer(context);
-//            if (layer != null) {
-//                layers.add(layer);
-//            }
-//        }
+        for (HighlighterFactory f : all) {
+            HighlightsLayer layer = f.createLayer(context);
+            if (layer != null) {
+                LOG.log(Level.FINEST, "AntlrHighlighterFactory {0} created layer {1} for {2}",
+                        new Object[]{f, layer, context});
+                layers.add(layer);
+            } else {
+                LOG.log(Level.WARNING, "AntlrHighlighterFactory {0} returned null "
+                        + "creating layer for {1}", new Object[]{f, context});
+            }
+        }
         return layers.toArray(new HighlightsLayer[layers.size()]);
     }
 
@@ -70,6 +91,7 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
     public static final class Builder {
 
         private final List<HighlighterFactory> factories = new ArrayList<>(30);
+        private static final AtomicInteger ids = new AtomicInteger();
 
         private Builder() {
         }
@@ -85,71 +107,91 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
             Supplier<AntlrHighlighter> supp = () -> {
                 return AntlrHighlighter.create(mimeType, key, coloringNameProvider);
             };
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
+        }
+
+        public <K extends Enum<K>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
+                int positionInZOrder, NameReferenceSetKey<K> key, String mimeType, Function<NamedSemanticRegionReference<K>, String> coloringFinder) {
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            Supplier<AntlrHighlighter> supp = () -> {
+                return AntlrHighlighter.create(mimeType, key, coloringFinder);
+            };
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString,
+                    supp);
         }
 
         public Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, String mimeType, NameReferenceSetKey<?> key, String coloringName) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(mimeType, key, coloringName);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T extends Enum<T>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, String mimeType, NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, String> coloringNameProvider) {
             Supplier<AntlrHighlighter> supp = ()
                     -> AntlrHighlighter.create(mimeType, key, coloringNameProvider);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NameReferenceSetKey<?> key, String mimeType, String coloringName) {
             Supplier<AntlrHighlighter> supp = ()
                     -> AntlrHighlighter.create(mimeType, key, coloringName);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, RegionsKey<T> key, String mimeType, String coloringName) {
             Supplier<AntlrHighlighter> supp = ()
                     -> AntlrHighlighter.create(mimeType, key, coloringName);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NamedRegionKey<?> key, String mimeType, String coloringName) {
-            Supplier<AntlrHighlighter> supp = ()
-                    -> AntlrHighlighter.create(key, mimeType, coloringName);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString,
+                    new FixedMimeHighlighterSupplier(key, mimeType, coloringName));
         }
 
         public <T extends Enum<T>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NamedRegionKey<T> key, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup, String mimeType) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T extends Enum<T>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, String> coloringNameProvider) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, mimeType, coloringNameProvider);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T extends Enum<T>> Builder create(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T extends Enum<T>> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, AttributeSet> coloringLookup) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public <T> Builder add(HighlightRefreshTrigger trigger, ZOrder zorder, boolean fixedSize,
                 int positionInZOrder, RegionsKey<T> key, Function<SemanticRegion<T>, AttributeSet> coloringLookup) {
             Supplier<AntlrHighlighter> supp = () -> AntlrHighlighter.create(key, coloringLookup);
-            return add(trigger, zorder, fixedSize, positionInZOrder, key.toString(), supp);
+            String keyString = key.toString() + "-" + ids.incrementAndGet();
+            return add(trigger, zorder, fixedSize, positionInZOrder, keyString, supp);
         }
 
         public HighlightsLayerFactory build() {
@@ -161,6 +203,31 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
 
         Impl(List<HighlighterFactory> all) {
             super(all);
+        }
+    }
+
+    // For loggability
+    static final class FixedMimeHighlighterSupplier implements Supplier<AntlrHighlighter> {
+
+        private final NamedRegionKey<?> key;
+        private final String mimeType;
+        private final String defaultColoringName;
+
+        public FixedMimeHighlighterSupplier(NamedRegionKey<?> key, String mimeType, String defaultColoringName) {
+            this.key = key;
+            this.mimeType = mimeType;
+            this.defaultColoringName = defaultColoringName;
+        }
+
+        @Override
+        public AntlrHighlighter get() {
+            return AntlrHighlighter.create(key, mimeType, defaultColoringName);
+        }
+
+        @Override
+        public String toString() {
+            return "FixedMimeHighlighterSupplier(" + key + " for "
+                    + mimeType + " coloring " + defaultColoringName;
         }
     }
 }

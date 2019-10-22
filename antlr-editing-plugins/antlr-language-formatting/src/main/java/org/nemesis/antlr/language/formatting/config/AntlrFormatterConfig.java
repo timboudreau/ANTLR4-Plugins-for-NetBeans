@@ -54,15 +54,15 @@ public class AntlrFormatterConfig {
     public static final String KEY_SPACES_INSIDE_PARENS = "spacesInsideParens";
     public static final String KEY_SEMICOLON_ON_NEW_LINE = "semicolonOnNewline";
     public static final int DEFAULT_MAX_LINE = 80;
-    public static final boolean DEFAULT_WRAP = false;
+    public static final boolean DEFAULT_WRAP = true;
     public static final boolean DEFAULT_REFLOW_LINE_COMMENTS = false;
-    public static final boolean DEFAULT_SPACES_INSIDE_PARENS = false;
+    public static final boolean DEFAULT_SPACES_INSIDE_PARENS = true;
     public static final boolean DEFAULT_FLOATING_INDENT = false;
     public static final boolean DEFAULT_SEMICOLON_ON_NEWLINE = false;
     public static final int DEFAULT_INDENT = 4;
     public static final ColonHandling DEFAULT_COLON_HANDLING
-            = ColonHandling.INLINE;
-    public static final boolean DEFAULT_BLANK_LINE_BEFORE_RULES = false;
+            = ColonHandling.NEWLINE_BEFORE;
+    public static final boolean DEFAULT_BLANK_LINE_BEFORE_RULES = true;
 
     public static String[] BOOLEAN_KEYS = new String[]{
         KEY_WRAP,

@@ -351,7 +351,8 @@ public class FoldRegistrationAnnotationProcessor extends AbstractLayerGenerating
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkgEl.getQualifiedName())
                 .named(regClassName).importing("org.netbeans.spi.editor.fold.FoldTypeProvider",
                 "org.netbeans.api.editor.fold.FoldType", "java.util.Collections", "java.util.Collection",
-                "javax.annotation.processing.Generated", "org.netbeans.api.editor.fold.FoldTemplate",
+//                "javax.annotation.processing.Generated",
+                "org.netbeans.api.editor.fold.FoldTemplate",
                 MIME_REGISTRATION_ANNOT_TYPE)
                 .implementing("FoldTypeProvider")
                 .withModifier(PUBLIC).withModifier(FINAL)

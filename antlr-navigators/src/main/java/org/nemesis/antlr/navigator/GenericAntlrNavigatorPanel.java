@@ -23,6 +23,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.swing.AbstractAction;
@@ -47,9 +49,10 @@ import org.openide.util.NbPreferences;
  *
  * @author Tim Boudreau
  */
-final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrNavigatorPanel<NamedSemanticRegion<K>> {
+final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrListNavigatorPanel<NamedSemanticRegion<K>, ActivatedTcPreCheckJList<NamedSemanticRegion<K>>> {
 
     private static final String PREFERENCES_KEY_NAVIGATOR_SORT = "navigator-sort";
+    static final boolean DUPLICATE_DEBUG = Boolean.getBoolean("antlr.navigator.debug.duplicates");
 
     private SortTypes sort = SortTypes.NATURAL;
     private final String mimeType;
@@ -60,6 +63,10 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
         this.mimeType = mimeType;
         this.config = config;
         this.appearance = appearance;
+    }
+
+    protected JList list() {
+        return list;
     }
 
     @Override
@@ -112,10 +119,14 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
         if (list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
             oldSelection = list.getSelectedValue();
         }
-        EditorAndChangeAwareListModel<NamedSemanticRegion<K>> newModel
-                = new EditorAndChangeAwareListModel<>(ck, forChange, extraction);
+        List<NamedSemanticRegion<K>> newItems = new ArrayList<>(120);
+        List<NamedSemanticRegion<K>> debugItems = DUPLICATE_DEBUG ? new DuplicateCheckingList<>(newItems)
+                : newItems;
 
-        int newSelectedIndex = config.populateListModel(extraction, newModel, oldSelection, sort);
+        EditorAndChangeAwareListModel<NamedSemanticRegion<K>> newModel
+                = new EditorAndChangeAwareListModel<>(newItems, ck, forChange, extraction);
+
+        int newSelectedIndex = config.populateListModel(extraction, debugItems, oldSelection, sort);
         setNewModel(newModel, forChange, newSelectedIndex);
     }
 
@@ -136,7 +147,8 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
     @Messages({
         "the-list-tootip=Click to navigate; right click to show popup"})
     @SuppressWarnings("unchecked")
-    protected ActivatedTcPreCheckJList<NamedSemanticRegion<K>> createList() {
+    @Override
+    protected ActivatedTcPreCheckJList<NamedSemanticRegion<K>> createComponent() {
         final ActivatedTcPreCheckJList<NamedSemanticRegion<K>> result = new ActivatedTcPreCheckJList<>();
         result.setToolTipText(Bundle.the_list_tootip());
         // Listen for clicks, not selection events
@@ -178,7 +190,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrN
                     EditorAndChangeAwareListModel<NamedSemanticRegion<K>> mdl = (EditorAndChangeAwareListModel<NamedSemanticRegion<K>>) list.getModel();
                     int selected = list.getSelectedIndex();
                     if (selected >= 0 && selected < mdl.getSize()) {
-                        moveTo(mdl.cookie, mdl.elementAt(selected));
+                        moveTo(mdl.cookie, mdl.getElementAt(selected));
                     }
                 }
             }

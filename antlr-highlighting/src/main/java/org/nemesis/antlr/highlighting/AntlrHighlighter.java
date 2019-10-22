@@ -25,7 +25,6 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
@@ -34,7 +33,7 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
  */
 interface AntlrHighlighter {
 
-    void refresh(Document doc, Extraction ext, Parser.Result result, OffsetsBag bag, Integer caret);
+    void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer caret);
 
     default boolean mergeHighlights() {
         return false;

@@ -16,11 +16,11 @@
 package org.nemesis.antlr.navigator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import javax.swing.DefaultListModel;
 import javax.swing.JPopupMenu;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.extraction.Extraction;
@@ -37,7 +37,7 @@ import org.openide.awt.HtmlRenderer;
 public final class SemanticRegionPanelConfig<K> {
 
     private final Appearance<? super SemanticRegion<K>> appearance;
-    private final ListModelPopulator<K> populator;
+    private final ListModelPopulator<K, SemanticRegion<K>> populator;
     private final Consumer<JPopupMenu> popupMenuPopulator;
     private final BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher;
     private final boolean sortable;
@@ -45,7 +45,7 @@ public final class SemanticRegionPanelConfig<K> {
     private final String hint;
 
     private SemanticRegionPanelConfig(Appearance<SemanticRegion<K>> appearance,
-            ListModelPopulator<K> populator, Consumer<JPopupMenu> popupMenuPopulator,
+            ListModelPopulator<K, SemanticRegion<K>> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher,
             String displayName, boolean sortable, String hint) {
         this.appearance = appearance == null ? new DefaultAppearance() : appearance;
@@ -71,7 +71,7 @@ public final class SemanticRegionPanelConfig<K> {
         private boolean sortable;
         private Consumer<JPopupMenu> popupMenuPopulator;
         private BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher;
-        private ListModelPopulator<K> populator;
+        private ListModelPopulator<K, SemanticRegion<K>> populator;
         private String displayName;
         private String hint;
         private Appearance<SemanticRegion<K>> appearance;
@@ -91,19 +91,20 @@ public final class SemanticRegionPanelConfig<K> {
                     popupMenuPopulator, elementFetcher, displayName, sortable, hint);
         }
 
-        static final class DefaultPopulator<K> implements ListModelPopulator<K> {
+        static final class DefaultPopulator<K> implements ListModelPopulator<K, SemanticRegion<K>> {
 
             @Override
-            public int populateListModel(Extraction extraction, List<SemanticRegion<K>> fetched, DefaultListModel<SemanticRegion<K>> model, SemanticRegion<K> oldSelection, SortTypes sort) {
+            public int populateListModel(Extraction extraction, List<? extends SemanticRegion<K>> fetched, Collection<? super SemanticRegion<K>> model, SemanticRegion<K> oldSelection, SortTypes sort) {
                 int sel = -1;
                 for (SemanticRegion<K> region : fetched) {
                     if (sel == -1 && oldSelection != null && Objects.equals(region.key(), oldSelection.key())) {
                         sel = model.size();
                     }
-                    model.addElement(region);
+                    model.add(region);
                 }
                 return sel;
             }
+
         }
 
         /**
@@ -114,7 +115,7 @@ public final class SemanticRegionPanelConfig<K> {
          * @param populator The populator
          * @return this
          */
-        public Builder<K> withListModelPopulator(ListModelPopulator<K> populator) {
+        public Builder<K> withListModelPopulator(ListModelPopulator<K, SemanticRegion<K>> populator) {
             if (this.populator != null) {
                 throw new IllegalStateException("Populator already set to " + this.populator);
             }
@@ -279,28 +280,7 @@ public final class SemanticRegionPanelConfig<K> {
         }
     }
 
-    /**
-     * Updates a list model and sorts it.
-     *
-     * @param <K> The enum type
-     */
-    public interface ListModelPopulator<K> {
-
-        /**
-         * Populate the list model with whatever objects this panel should find
-         * in the extraction.
-         *
-         * @param extraction The extraction
-         * @param model A new, empty model
-         * @param oldSelection The selection in the panel at this time
-         * @param requestedSort The sort order that should be used
-         * @return The index of the old selection (if not null) in the new set
-         * of model elements, or -1 if not found
-         */
-        int populateListModel(Extraction extraction, List<SemanticRegion<K>> fetched, DefaultListModel<SemanticRegion<K>> model, SemanticRegion<K> oldSelection, SortTypes sort);
-    }
-
-    int populateListModel(Extraction extraction, DefaultListModel<SemanticRegion<K>> newListModel, SemanticRegion<K> oldSelection, SortTypes requestedSort) {
+    int populateListModel(Extraction extraction, List<? super SemanticRegion<K>> newListModel, SemanticRegion<K> oldSelection, SortTypes requestedSort) {
         List<SemanticRegion<K>> items = new ArrayList<>(100);
         elementFetcher.accept(extraction, items);
         return populator.populateListModel(extraction, items, newListModel, oldSelection, requestedSort);

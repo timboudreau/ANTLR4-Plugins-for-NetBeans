@@ -23,6 +23,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import javax.swing.AbstractAction;
@@ -43,7 +45,7 @@ import org.openide.util.Mutex;
  *
  * @author Tim Boudreau
  */
-final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigatorPanel<SemanticRegion<K>> {
+final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavigatorPanel<SemanticRegion<K>, ActivatedTcPreCheckJList<SemanticRegion<K>>> {
 
     private final SemanticRegionPanelConfig<K> config;
     private final Appearance<? super SemanticRegion<K>> appearance;
@@ -69,15 +71,16 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
         if (list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
             oldSelection = list.getSelectedValue();
         }
+        List<SemanticRegion<K>> nue = new ArrayList<>(120);
         EditorAndChangeAwareListModel<SemanticRegion<K>> newModel
-                = new EditorAndChangeAwareListModel<>(ck, forChange, extraction);
+                = new EditorAndChangeAwareListModel<>(nue, ck, forChange, extraction);
 
-        int newSelectedIndex = config.populateListModel(extraction, newModel, oldSelection, SortTypes.NATURAL);
+        int newSelectedIndex = config.populateListModel(extraction, nue, oldSelection, SortTypes.NATURAL);
         setNewModel(newModel, forChange, newSelectedIndex);
     }
 
     @SuppressWarnings("unchecked")
-    protected ActivatedTcPreCheckJList<SemanticRegion<K>> createList() {
+    protected ActivatedTcPreCheckJList<SemanticRegion<K>> createComponent() {
         final ActivatedTcPreCheckJList<SemanticRegion<K>> result = new ActivatedTcPreCheckJList<>();
         result.setToolTipText(Bundle.the_list_tootip());
         // Listen for clicks, not selection events
@@ -113,7 +116,7 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
                     EditorAndChangeAwareListModel<SemanticRegion<K>> mdl = (EditorAndChangeAwareListModel<SemanticRegion<K>>) list.getModel();
                     int selected = list.getSelectedIndex();
                     if (selected >= 0 && selected < mdl.getSize()) {
-                        moveTo(mdl.cookie, mdl.elementAt(selected));
+                        moveTo(mdl.cookie, mdl.getElementAt(selected));
                     }
                 }
             }
@@ -127,7 +130,7 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrNavigato
 
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         private final HtmlRenderer.Renderer renderer = HtmlRenderer.createRenderer();
-        private final Appearance<? super SemanticRegion<K>>  config;
+        private final Appearance<? super SemanticRegion<K>> config;
         private final Supplier<SortTypes> sortSupplier;
 
         public Ren(Appearance<SemanticRegion<K>> config, Supplier<SortTypes> sortSupplier) {

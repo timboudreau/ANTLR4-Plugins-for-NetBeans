@@ -15,12 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
-        <version>2.0.1</version>
+        <version>2.0.2</version>
     </parent>
     <artifactId>antlr-file-support</artifactId>
     <scm>
@@ -196,6 +196,14 @@ limitations under the License.
             <artifactId>org-openide-awt</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-mimelookup</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-settings</artifactId>
+        </dependency>
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>test-fixtures-support</artifactId>
             <scope>test</scope>
@@ -258,6 +266,7 @@ limitations under the License.
                 <artifactId>nbm-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
+                    <requiresRestart>true</requiresRestart>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.file</publicPackage>

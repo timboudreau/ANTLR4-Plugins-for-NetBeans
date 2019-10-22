@@ -68,17 +68,17 @@ import org.netbeans.api.annotations.common.NullAllowed;
  */
 public final class Extraction implements Externalizable {
 
-    private final Map<RegionsKey<?>, SemanticRegions<?>> regions = new HashMap<>();
+    private final Map<RegionsKey<?>, SemanticRegions<?>> regions = new HashMap<>(7);
     private final Map<NamedRegionKey<?>, NamedSemanticRegions<?>> nameds = new HashMap<>();
-    private final Map<NamedRegionKey<?>, Map<String, Set<NamedSemanticRegion<?>>>> duplicates = new HashMap<>();
-    private final Map<NameReferenceSetKey<?>, NamedRegionReferenceSets<?>> refs = new HashMap<>();
+    private final Map<NamedRegionKey<?>, Map<String, Set<NamedSemanticRegion<?>>>> duplicates = new HashMap<>(5);
+    private final Map<NameReferenceSetKey<?>, NamedRegionReferenceSets<?>> refs = new HashMap<>(7);
     private final Map<NameReferenceSetKey<?>, StringGraph> graphs = new HashMap<>(5);
     private final Map<NameReferenceSetKey<?>, SemanticRegions<UnknownNameReference<?>>> unknowns = new HashMap<>();
     private final Map<SingletonKey<?>, SingletonEncounters<?>> singles = new HashMap<>(4);
     private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
     private transient Map<Extractor<?>, Map<GrammarSource<?>, TimedSoftReference<Extraction>>> cachedExtractions;
-    private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>();
+    private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>(3);
     private String extractorsHash;
     private GrammarSource<?> source;
     private String tokensHash;
@@ -91,6 +91,14 @@ public final class Extraction implements Externalizable {
         this.tokensHash = tokensHash;
         this.documentRootType = documentRootType;
         this.mimeType = mimeType;
+    }
+
+    public Set<RegionsKey<?>> regionsKeys() {
+        return regions.keySet();
+    }
+
+    public Set<SingletonKey<?>> singletonKeys() {
+        return singles.keySet();
     }
 
     public String mimeType() {
