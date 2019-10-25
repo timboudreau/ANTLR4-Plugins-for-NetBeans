@@ -27,6 +27,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -325,6 +326,59 @@ public class TestFixtures {
         }
     }
 
+    static final class LoggingLookup extends Lookup {
+
+        private final Lookup delegate;
+        private final String name;
+
+        public LoggingLookup(Lookup delegate, String name) {
+            this.delegate = delegate;
+            this.name = name;
+        }
+
+        @Override
+        public <T> T lookup(Class<T> clazz) {
+            T result = delegate.lookup(clazz);
+            System.out.println("LOOKUP " + clazz + " on " + name + " has result? " + (result != null));
+            return result;
+        }
+
+        @Override
+        public <T> Result<T> lookup(Template<T> template) {
+            return delegate.lookup(template);
+        }
+
+        @Override
+        public <T> Item<T> lookupItem(Template<T> template) {
+            return delegate.lookupItem(template);
+        }
+
+        @Override
+        public <T> Result<T> lookupResult(Class<T> clazz) {
+            return delegate.lookupResult(clazz);
+        }
+
+        @Override
+        public <T> Collection<? extends T> lookupAll(Class<T> clazz) {
+            return delegate.lookupAll(clazz);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return delegate.equals(obj);
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+    }
+
     public static class MockMimeDataProvider implements MimeDataProvider {
 
         @Override
@@ -333,6 +387,9 @@ public class TestFixtures {
             Lookup result = mimeLookupsByPath.get(path);
             if (result == null) {
                 result = Lookups.fixed(contentsByMimePath.get(path).toArray(new Object[0]));
+                if (Boolean.getBoolean("log.lookups")) {
+                    result = new LoggingLookup(result, "mime:'" + path + "'");
+                }
                 mimeLookupsByPath.put(path, result);
             }
             return result;
@@ -417,9 +474,16 @@ public class TestFixtures {
                     Lookup combineWith = Lookups.metaInfServices(l, "META-INF/namedservices/" + path);
                     namedLookups.put(path, new ProxyLookup(result, combineWith));
                 }
+                if (Boolean.getBoolean("log.lookups")) {
+                    result = new LoggingLookup(result, "named:" + path);
+                }
                 return result;
             }
-            return Lookups.metaInfServices(l, "META-INF/namedservices/" + path);
+            Lookup result = Lookups.metaInfServices(l, "META-INF/namedservices/" + path);
+            if (Boolean.getBoolean("log.lookups")) {
+                result = new LoggingLookup(result, "named:" + path);
+            }
+            return result;
         }
 
         public static Builder builder() {

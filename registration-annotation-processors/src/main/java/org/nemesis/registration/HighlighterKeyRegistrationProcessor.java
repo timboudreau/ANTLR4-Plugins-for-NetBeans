@@ -476,7 +476,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
             if (saveClass) {
                 ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                        .generateDebugLogCode()
+//                        .generateDebugLogCode()
                         .staticImport(info.fieldFqns())
                         .importing(
 //                                "javax.annotation.processing.Generated",
@@ -540,77 +540,6 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
         return false;
     }
 
-    /*
-    private boolean generateForMimeType(String mimeType, HighlightingInfo info, boolean saveLayer, boolean saveClass, int position) throws IOException {
-        log("Generate highlighting for {0} saveLayer {1}, saveClass {2}", mimeType, saveLayer, saveClass);
-        String generatedClassName = info.generatedClassName();
-        String pkg = info.packageName();
-        String fqn = pkg + "." + generatedClassName;
-
-        orderForFqn.put(fqn, position);
-
-        if (saveClass) {
-            ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                    .staticImport(info.fieldFqns())
-                    .importing("javax.annotation.processing.Generated", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
-                            "org.netbeans.spi.editor.highlighting.HighlightsLayer", "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
-                            "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
-                            "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
-                    //                .annotatedWith("MimeRegistrations", mrOuter -> {
-                    //                    mrOuter.addAnnotationArgument("value", "MimeRegistration", mrInner -> {
-                    //                        mrInner.addArgument("mimeType", mimeType)
-                    //                                .addArgument("service", "HighlightsLayerFactory")
-                    //                                .addExpressionArgument("position", 1000)
-                    //                                .closeAnnotation();
-                    //                    }).closeAnnotation();
-                    //                })
-                    //                .annotatedWith("MimeRegistration", mrOuter -> {
-                    //                    mrOuter.addArgument("mimeType", mimeType)
-                    //                            .addArgument("service", "HighlightsLayerFactory")
-                    //                            .addExpressionArgument("position", 1000)
-                    //                            .closeAnnotation();
-                    //                })
-                    .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
-                    .withModifier(PUBLIC).withModifier(FINAL)
-                    .implementing("HighlightsLayerFactory")
-                    .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
-            cl.docComment(info.entries.toArray());
-            cl.constructor(cb -> {
-                cb.setModifier(PUBLIC).body(bb -> {
-                    bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
-                    bb.declare("bldr").initializedByInvoking("builder")
-                            .on("AntlrHighlightingLayerFactory")
-                            .as("AntlrHighlightingLayerFactory.Builder");
-                    info.generateConstructorCode(cl, bb, "bldr");
-                    bb.statement("delegate = bldr.build()");
-                    bb.endBlock();
-                }).endConstructor();
-            })
-                    .override("createLayers").returning("HighlightsLayer[]").addExpressionArgument("HighlightsLayerFactory.Context", "ctx")
-                    .body(mb -> {
-                        mb.debugLog("Create " + info);
-                        mb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));
-                        mb.statement("return delegate.createLayers(ctx)").endBlock();
-                    }).withModifier(PUBLIC).closeMethod();
-
-            writeOne(cl);
-        }
-
-        if (saveLayer && !savedToLayer.contains(fqn)) {
-            log("Saving layer for " + fqn);
-            savedToLayer.add(fqn);
-            String layerFileName = fqn.replace('.', '-');
-            String registrationFile = "Editors/" + info.mimeType + "/" + layerFileName + ".instance";
-            LayerBuilder layer = layer(info.allVars());
-            layer.file(registrationFile)
-                    .stringvalue("instanceClass", fqn)
-                    .stringvalue("instanceOf", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory")
-                    .intvalue("position", position)
-                    .write();
-        }
-        return false;
-    }
-     */
     @Override
     protected boolean validateAnnotationMirror(AnnotationMirror mirror, ElementKind kind, Element element) {
         if (!GROUP_SEMANTIC_HIGHLIGHTING_ANNO.equals(mirror.getAnnotationType().toString())) {

@@ -18,6 +18,8 @@ package org.nemesis.jfs;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +47,8 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
     private final JFSStorage storage;
     private final Map<String, Class<?>> classes = new HashMap<>();
     private volatile Package[] packages;
+    private boolean initialized;
+    private boolean initializing;
 
     JFSClassLoader(JFSStorage storage) throws IOException {
         this(storage, ClassLoader.getSystemClassLoader());
@@ -53,39 +57,108 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
     JFSClassLoader(JFSStorage storage, ClassLoader ldr) throws IOException {
         super(ldr == null ? ClassLoader.getSystemClassLoader() : ldr);
         this.storage = storage;
-        Set<Package> packages = new HashSet<>();
-        String ver = "1." + Long.toString(System.currentTimeMillis());
-        for (String pkg : storage.listPackageNames()) {
-            packages.add(definePackage(pkg, pkg, ver, storage.id(),
-                    "-", ver, "-", null));
-        }
-        this.packages = packages.toArray(new Package[packages.size()]);
-        List<JFSFileObjectImpl> all = new ArrayList<>(storage.scan(JavaFileObject.Kind.CLASS));
-        Set<String> names = new HashSet<>();
-        // Poor man's dependency order - shuffle until it's right
-        for (JFSFileObjectImpl file : all) {
-            String nm = file.getName();
-            // strip .class from the file name
-            names.add(file.getName().substring(0, nm.length() - 6));
-        }
-        while (!all.isEmpty()) {
-            for (Iterator<JFSFileObjectImpl> iter = all.iterator(); iter.hasNext();) {
-                JFSFileObjectImpl clazz = iter.next();
-                try {
-                    Class<?> type = defineClass(null, clazz.asByteBuffer(), null);
-                    classes.put(type.getName(), type);
-                    classes.put(clazz.name().asClassName(), type);
-                    iter.remove();
-                } catch (NoClassDefFoundError err) {
-                    // Change the iteration order randomly
-                    if (!names.contains(err.getMessage()) || all.size() == 1) {
-                        throw err;
+    }
+
+    private synchronized void preloadClassesFromJFS() {
+        if (!initialized) {
+            initialized = true;
+            Set<Package> packages = new HashSet<>();
+            String ver = "1." + Long.toString(System.currentTimeMillis());
+            for (String pkg : storage.listPackageNames()) {
+                packages.add(definePackage(pkg, pkg, ver, storage.id(),
+                        "-", ver, "-", null));
+            }
+            this.packages = packages.toArray(new Package[packages.size()]);
+            List<JFSFileObjectImpl> all = new ArrayList<>(storage.scan(JavaFileObject.Kind.CLASS));
+            Set<String> names = new HashSet<>();
+            // Poor man's dependency order - shuffle until it's right
+            // Since there are usually only a small number of classes involved,
+            // this is actually the cheapest option, and more importantly,
+            // lets this classloader function without a classloader lock
+
+            // Hmm, should maybe move this back into the constructor, and
+            // set the system classloader
+            // to the current context classloader before construction - we
+            // run into linkage errors if we try to load a class that is
+            // also defined in a running module, when editing, say, the
+            // antlr grammar project
+            for (JFSFileObjectImpl file : all) {
+                String nm = file.getName();
+                // strip .class from the file name
+                names.add(file.getName().substring(0, nm.length() - 6));
+            }
+            while (!all.isEmpty()) {
+                for (Iterator<JFSFileObjectImpl> iter = all.iterator(); iter.hasNext();) {
+                    JFSFileObjectImpl clazz = iter.next();
+                    try {
+                        Class<?> type = defineClass(null, clazz.asByteBuffer(), null);
+                        classes.put(type.getName(), type);
+                        classes.put(clazz.name().asClassName(), type);
+                        iter.remove();
+                    } catch (NoClassDefFoundError err) {
+                        // Change the iteration order randomly
+                        if (!names.contains(err.getMessage()) || all.size() == 1) {
+                            throw err;
+                        }
+                        Collections.shuffle(all);
+                        break;
+                    } catch (IOException ex) {
+                        Logger.getLogger(JFSClassLoader.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                    Collections.shuffle(all);
-                    break;
                 }
             }
         }
+    }
+
+    //@Override
+    protected Class<?> findClass(String moduleName, String name) {
+        preloadClassesFromJFS();
+        Class<?> result = superFindClassJDK9(this, moduleName, name);
+        if (result == null) {
+            try {
+                result = findClass(name);
+            } catch (ClassNotFoundException ex) {
+                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.FINE, null, ex);
+            }
+        }
+        return result;
+    }
+
+    static volatile Method findClassWithModuleNameMethod;
+    static volatile boolean findClassWithModuleNameMethodLookupFailed;
+
+    private static synchronized Class<?> superFindClassJDK9(JFSClassLoader ldr, String moduleName, String name) {
+        if (findClassWithModuleNameMethod != null && !findClassWithModuleNameMethodLookupFailed) {
+            try {
+                return (Class<?>) findClassWithModuleNameMethod.invoke(ldr, moduleName, name);
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.INFO, null, ex);
+            }
+        } else if (!findClassWithModuleNameMethodLookupFailed) {
+            try {
+                findClassWithModuleNameMethod = ClassLoader.class.getDeclaredMethod("findClass", String.class, String.class);
+                findClassWithModuleNameMethod.setAccessible(true);
+            } catch (NoSuchMethodException | SecurityException ex) {
+                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.INFO, null, ex);
+                findClassWithModuleNameMethodLookupFailed = true;
+            }
+        }
+        if (findClassWithModuleNameMethod != null) {
+
+        }
+        return null;
+    }
+
+    @Override
+    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+        preloadClassesFromJFS();
+        return super.loadClass(name, resolve); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public Class<?> loadClass(String name) throws ClassNotFoundException {
+        preloadClassesFromJFS();
+        return super.loadClass(name);
     }
 
     @Override
@@ -132,6 +205,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
 
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
+        preloadClassesFromJFS();
         Class<?> type = classes.get(name);
         if (type != null) {
             return type;
@@ -142,6 +216,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
     @Override
     @SuppressWarnings("deprecation")
     protected Package getPackage(String name) {
+        preloadClassesFromJFS();
         Package[] pkgs = packages;
         if (pkgs != null) { // in constructor
             for (Package p : pkgs) {

@@ -92,7 +92,9 @@ final class PropertyResolver {
         Set<DepVer> localDeps = new HashSet<>();
         while (ana != null) {
             if (ana.getParentGroupID() != null && ana.getParentArtifactID() != null && !ana.getParentGroupID().isEmpty() && !ana.getParentArtifactID().isEmpty()) {
-                File pom = poms.resolve(ana.getParentGroupID(), ana.getParentArtifactID(), ana.getParentVersion());
+                File pom = poms == null 
+                    ? null 
+                    : poms.resolve(ana.getParentGroupID(), ana.getParentArtifactID(), ana.getParentVersion());
                 if (pom != null) {
                     ana = new PomFileAnalyzer(pom);
                     if (lastGroupId.equals(ana.getGroupID()) && lastArtifactId.equals(ana.getArtifactId())) {
@@ -244,7 +246,7 @@ final class PropertyResolver {
             throw new IllegalStateException("Could not find any way to resolve " + artifactId + " " + groupId + " " + version);
         }
         version = resolveIfEscaped(version);
-        File result = poms.resolve(groupId, artifactId, version);
+        File result = poms == null ? null : poms.resolve(groupId, artifactId, version);
         return result;
     }
 

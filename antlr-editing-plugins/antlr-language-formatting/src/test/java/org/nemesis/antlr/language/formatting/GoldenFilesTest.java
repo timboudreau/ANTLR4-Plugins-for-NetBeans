@@ -43,6 +43,7 @@ public class GoldenFilesTest {
                 AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_AFTER,
                 AntlrFormatterConfig.KEY_FLOATING_INDENT, true,
                 AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
                 AntlrFormatterConfig.KEY_WRAP, true,
                 AntlrFormatterConfig.KEY_MAX_LINE, 40
         );

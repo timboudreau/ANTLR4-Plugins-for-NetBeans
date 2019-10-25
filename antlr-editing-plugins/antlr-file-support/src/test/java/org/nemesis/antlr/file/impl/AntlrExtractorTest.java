@@ -17,14 +17,23 @@ package org.nemesis.antlr.file.impl;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.prefs.AbstractPreferences;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.EditorKit;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,8 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.file.AntlrHierarchy;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.file.AntlrNbParser;
+import org.nemesis.antlr.file.AntlrNbParser.AntlrParserFactory;
 import org.nemesis.antlr.file.G4ImportFinder_IMPORTS;
 import org.nemesis.antlr.file.G4Resolver_RULE_NAMES;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
@@ -48,6 +59,7 @@ import org.nemesis.antlr.nbinput.DocumentGrammarSourceFactory;
 import org.nemesis.antlr.nbinput.FileObjectGrammarSourceImplementationFactory;
 import org.nemesis.antlr.nbinput.RelativeResolverRegistryImpl;
 import org.nemesis.antlr.nbinput.SnapshotGrammarSource;
+import org.nemesis.antlr.spi.language.AntlrParseResult;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -57,15 +69,21 @@ import org.nemesis.extraction.Extractors;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.source.api.GrammarSource;
+import org.nemesis.source.api.ParsingBag;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.core.NbLoaderPool;
-import org.netbeans.editor.BaseDocument;
+import org.netbeans.modules.editor.NbEditorDocument;
+import org.netbeans.modules.editor.plain.PlainKit;
+import org.netbeans.modules.masterfs.watcher.nio2.NioNotifier;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
+import org.netbeans.modules.parsing.impl.TaskProcessor;
+import org.netbeans.modules.parsing.nb.DataObjectEnvFactory;
 import org.netbeans.spi.editor.document.DocumentFactory;
+import org.netbeans.spi.queries.FileEncodingQueryImplementation;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
@@ -115,31 +133,40 @@ public class AntlrExtractorTest {
     }
 
     @Test
-    public void testAttirbution() throws Throwable {
+    public void testAttribution() throws Throwable {
         if (true) {
-            // WTF - we keep initializing the module system
+            // WTF - we keep initializing the entire module system
+            // and trying to start the whole IDE after one trivial change.
             return;
         }
-        System.out.println("PROJECT: " + project.allFiles());
-
         FileObject fo = project.file("NestedMaps.g4");
         assertNotNull(fo);
+        DataObject dob = DataObject.find(fo);
+        EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+        assertNotNull(ck);
+
+        Document doc = ck.openDocument();
+        assertNotNull(doc);
+        doc.putProperty("Tools-Options->Editor->Formatting->Preview - Preferences", Preferences.userRoot()); // don't ask.
+
         Extraction[] ers = new Extraction[1];
         // if we use parser manager here, we accidentally start
         // trying to load and start the entire IDE.
-        /*
-        Source src = Source.create(fo);
-        ParserManager.parse(Collections.singleton(src), new UserTask() {
-            @Override
-            public void run(ResultIterator resultIterator) throws Exception {
-                Parser.Result res = resultIterator.getParserResult();
-                assertNotNull(res);
-                assertTrue(res instanceof ExtractionParserResult);
-                ers[0] = ((ExtractionParserResult) res).extraction();
-            }
-        });
-         */
-        ers[0] = NbAntlrUtils.parseImmediately(fo);
+//        Source src = Source.create(doc);
+//        ParserManager.parse(Collections.singleton(src), new UserTask() {
+//            @Override
+//            public void run(ResultIterator resultIterator) throws Exception {
+//                Parser.Result res = resultIterator.getParserResult();
+//                assertNotNull(res);
+//                assertTrue(res instanceof ExtractionParserResult);
+//                ers[0] = ((ExtractionParserResult) res).extraction();
+//            }
+//        });
+//        ers[0] = NbAntlrUtils.parseImmediately(fo);
+        AntlrParseResult res = AntlrNbParser.parse(ParsingBag.get(doc, "text/x-g4"), () -> false);
+        assertNotNull(res);
+        ers[0] = res.extraction();
+        assertNotNull(ers[0]);
         Extraction ext = ers[0];
         assertNotNull(ext);
         SemanticRegions<UnknownNameReference<RuleTypes>> unks = ext.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
@@ -173,6 +200,8 @@ public class AntlrExtractorTest {
 
         System.out.println("ATTRIBUTED NAMES: " + attributedNames);
 
+        Thread.sleep(2000);
+
         assertEquals(unknownNames, attributedNames);
     }
 
@@ -182,6 +211,12 @@ public class AntlrExtractorTest {
 
     @BeforeEach
     public void setup() throws Throwable {
+        Class.forName(TaskProcessor.class.getName());
+        Class<?> antlrEditorKit = Class.forName("org.nemesis.antlr.file.file.AntlrEditorKit");
+        Field f = antlrEditorKit.getDeclaredField("INSTANCE");
+        f.setAccessible(true);
+        EditorKit kit = (EditorKit) f.get(null);
+        assertNotNull("Editor kit field not populated");
         TestFixtures fixtures = new TestFixtures();
         onShutdown = fixtures.verboseGlobalLogging()
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
@@ -202,14 +237,22 @@ public class AntlrExtractorTest {
                         CharStreamGrammarSourceFactory.class,
 //                        NbProjectManager.class,
                         NbJFSUtilities.class,
-//                        NioNotifier.class,
+                        NioNotifier.class,
                         NbLoaderPool.class,
-//                        DataObjectEnvFactory.class,
+                        DataObjectEnvFactory.class,
 //                        EditorMimeTypesImpl.class,
-//                        NbExtractors.class
+                        //                        NbExtractors.class,
+                        DF.class,
+                        FQ.class,
                         FakeExtractors.class
                 )
-                .addToMimeLookup("text/x-g4", new DF())
+                .addToMimeLookup("", new DF())
+                .addToMimeLookup("text/x-g4", new DF(), new FakePrefs(""),
+//                        kit,
+                        new PlainKit(),
+                        AntlrParserFactory.class,
+                        AntlrHierarchy.antlrLanguage(), FQ.class)
+                .addToMimeLookup("text/plain", new DF(), new FakePrefs(""))
                 .addToNamedLookup("antlr/resolvers/text/x-g4", G4ImportFinder_IMPORTS.class, G4Resolver_RULE_NAMES.class)
                 .addToNamedLookup("antlr-languages/relative-resolvers/text/x-g4",
                         AntlrDocumentRelativeResolverImplementation.class,
@@ -218,7 +261,6 @@ public class AntlrExtractorTest {
                 )
                 .addToNamedLookup("antlr/extractors/text/x-g4/org/nemesis/antlr/ANTLRv4Parser/GrammarFileContext",
                         org.nemesis.antlr.file.AntlrKeys_SyntaxTreeNavigator_Registration_ExtractionContributor_extractTree.class,
-                        org.nemesis.antlr.file.Antlr_whatevs_grammarSpec_headerAction_actionBlockRuleHighlighting_ExtractionContributor_extract.class,
                         org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.class
                 )
                 .build();
@@ -232,7 +274,17 @@ public class AntlrExtractorTest {
         onShutdown.run();
     }
 
+    public static final class FQ extends FileEncodingQueryImplementation {
+
+        @Override
+        public Charset getEncoding(FileObject file) {
+            return UTF_8;
+        }
+
+    }
+
     public static final class DF implements DocumentFactory {
+
         private static final Map<FileObject, Document> docForFile
                 = new HashMap<>();
         private static final Map<Document, FileObject> fileForDoc
@@ -240,8 +292,44 @@ public class AntlrExtractorTest {
 
         @Override
         public Document createDocument(String mimeType) {
-            BaseDocument doc = new BaseDocument(true, mimeType);
+            NbEditorDocument doc = new NBD(mimeType);
+//            BaseDocument doc = new BaseDocument(true, mimeType);
             return doc;
+        }
+
+        static class NBD extends NbEditorDocument {
+
+            public NBD(String mimeType) {
+                super(mimeType);
+                System.out.println("HEYA! " + mimeType);
+            }
+
+            protected @Override
+            Dictionary createDocumentProperties(Dictionary origDocumentProperties) {
+                if (true) {
+                    return new Hashtable();
+                }
+                // Overridden to avoid initializing the module system
+                return new LazyPropertyMap(origDocumentProperties) {
+                    public @Override
+                    Object put(Object key, Object value) {
+                        Object origValue = super.put(key, value);
+                        if (Document.StreamDescriptionProperty.equals(key)) {
+                            assert value != null;
+                            if (origValue == null) {
+                                // XXX: workaround for #137528, touches project settings
+                            } else {
+                                // this property should only ever be set once. even if it
+                                // is set more times it must never be set to a different value
+                                assert origValue.equals(value);
+                            }
+                        }
+
+                        return origValue;
+                    }
+                };
+            }
+
         }
 
         @Override
@@ -290,7 +378,55 @@ public class AntlrExtractorTest {
                 return com.mastfrog.util.preconditions.Exceptions.chuck(ex);
             }
         }
-
     }
 
+    static class FakePrefs extends AbstractPreferences {
+
+        public FakePrefs(String name) {
+            super(null, name);
+        }
+
+        @Override
+        protected void putSpi(String key, String value) {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+
+        @Override
+        protected String getSpi(String key) {
+            return null;
+        }
+
+        @Override
+        protected void removeSpi(String key) {
+        }
+
+        @Override
+        protected void removeNodeSpi() throws BackingStoreException {
+        }
+
+        @Override
+        protected String[] keysSpi() throws BackingStoreException {
+            return new String[0];
+        }
+
+        @Override
+        protected String[] childrenNamesSpi() throws BackingStoreException {
+            return new String[0];
+        }
+
+        @Override
+        protected AbstractPreferences childSpi(String name) {
+            return this;
+        }
+
+        @Override
+        protected void syncSpi() throws BackingStoreException {
+
+        }
+
+        @Override
+        protected void flushSpi() throws BackingStoreException {
+
+        }
+    }
 }

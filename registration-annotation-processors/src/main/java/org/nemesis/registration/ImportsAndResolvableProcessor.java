@@ -85,8 +85,6 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                         .isSubTypeOf(NAMED_REGION_KEY_TYPE);
             });
         }).build();
-
-        System.out.println("\nTEST:\n" + test);
     }
 
     @Override
@@ -171,7 +169,7 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                 .overridePublic("createReferenceResolver", mb -> {
                     mb.withTypeParam("K extends Enum<K>")
                             .addArgument(simpleName(NAMED_REGION_KEY_TYPE) + "<K>", "key")
-                            .returning(simpleName(REGISTERABLE_RESOLVER_TYPE))
+                            .returning(simpleName(REGISTERABLE_RESOLVER_TYPE) + "<K>")
                             .body().returningInvocationOf("createReferenceResolver")
                             .withArgument("key").on("DELEGATE").endBlock();
                     ;
@@ -225,7 +223,8 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                 .annotatedWith("ServiceProvider", ab -> {
                     ab.addClassArgument("service", simpleName(REGISTERABLE_RESOLVER_TYPE))
                             .addArgument("path", "antlr/resolvers/" + mimeType);
-                }).field("delegate").withModifier(PRIVATE, FINAL).ofType("RegisterableResolver<" + simpleName(mir.toString()) + ">")
+                }).field("delegate").withModifier(PRIVATE, FINAL).ofType(simpleName(REGISTERABLE_RESOLVER_TYPE)
+                + "<" + simpleName(mir.toString()) + ">")
                 .constructor(con -> {
                     con.setModifier(PUBLIC).body(bb -> {
                         bb.declare("importFinder").initializedByInvoking("forMimeType")

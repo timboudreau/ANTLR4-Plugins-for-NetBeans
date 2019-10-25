@@ -64,7 +64,9 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-        AnnotationUtils.forceLogging();
+        if (Boolean.getBoolean("annotation.utils.log.all")) {
+            AnnotationUtils.forceLogging();
+        }
         super.onInit(env, utils); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -499,25 +501,26 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         });
         if (saveLayer) {
             LayerBuilder layer = layer(declaringElements);
-                LayerBuilder.File file = layer.file(sampleLayerPath)
-                        .url("nbres:/" + sampleFilePath);
-                if (!bundle.isEmpty()) {
-                    file.stringvalue("SystemFileSystem.localizingBundle", bundle);
-                }
-                file.write();
-                log("generating layer {0} with {1}", layer, themeFileResourcePathForTheme);
+            LayerBuilder.File file = layer.file(sampleLayerPath)
+                    .url("nbres:/" + sampleFilePath);
+            if (!bundle.isEmpty()) {
+                file.stringvalue("SystemFileSystem.localizingBundle", bundle);
+            }
+            file.stringvalue("nbeditor-settings-ColoringType", "token");
+            file.write();
+            log("generating layer {0} with {1}", layer, themeFileResourcePathForTheme);
 
-                themeFileResourcePathForTheme.forEach((theme, pathInJar) -> {
-                    String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
-                    LayerBuilder.File themeLayerFile = layer.file(layerPath);
-                    themeLayerFile.url("nbres:/" + pathInJar);
-                    if (!bundle.isEmpty()) {
-                        themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
-                    } else {
-                        themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
-                    }
-                    themeLayerFile.write();
-                });
+            themeFileResourcePathForTheme.forEach((theme, pathInJar) -> {
+                String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
+                LayerBuilder.File themeLayerFile = layer.file(layerPath);
+                themeLayerFile.url("nbres:/" + pathInJar);
+                if (!bundle.isEmpty()) {
+                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                } else {
+                    themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
+                }
+                themeLayerFile.write();
+            });
 //            }, declaringElements);
         }
         // Returning true could stop LanguageRegistrationProcessor from being run

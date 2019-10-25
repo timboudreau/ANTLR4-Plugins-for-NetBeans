@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.4</version>
+    <version>2.0.5</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -152,6 +152,7 @@ limitations under the License.
                         <systemPropertyVariables>
                             <unit.test>true</unit.test>
                             <forkNumber>${surefire.forkNumber}</forkNumber>
+                            <netbeans.moduleitem.dontverifyclassloader>true</netbeans.moduleitem.dontverifyclassloader>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>

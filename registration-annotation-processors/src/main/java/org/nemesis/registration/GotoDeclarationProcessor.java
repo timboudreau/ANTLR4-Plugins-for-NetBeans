@@ -243,7 +243,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
 //                                                                            .statement("return")
 //                                                                            .endBlock();
 //                                                                });
-                                                        lbb.simpleLoop(simpleName(REF_SET_KEY_TYPE), "key")
+                                                        lbb.simpleLoop(simpleName(REF_SET_KEY_TYPE) + "<?>", "key")
                                                                 .over("KEYS", loopBody -> {
 
                                                                     loopBody.declare("regions").initializedByInvoking("references")

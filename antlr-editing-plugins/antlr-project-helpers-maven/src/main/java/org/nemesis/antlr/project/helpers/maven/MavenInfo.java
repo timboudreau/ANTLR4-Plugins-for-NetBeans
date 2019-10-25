@@ -26,8 +26,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
@@ -74,11 +76,19 @@ final class MavenInfo {
         this.info = pomInfo;
     }
 
+    @Override
+    public String toString() {
+        return "MavenInfo(" + projectDir + ")";
+    }
+
     Path projectDir() {
         return projectDir;
     }
 
     static MavenAntlrConfiguration createAntlrConfig(MavenInfo info, Path baseDir) {
+        if (info == null) {
+            return null; // broken POM
+        }
         String[] keys = new String[]{
             ANTLR_PROP_INCLUDES,
             ANTLR_PROP_EXCLUDES,
@@ -102,22 +112,23 @@ final class MavenInfo {
             "false", //atn
             "forceAtn", //forceAtn
         };
+        PomInfo infoInfo = info.info();
         Map<String, String> vals = info.getConfigValues(keys, defaults);
-        Path buildDir = baseDir.resolve(info.info.buildDir);
+        Path buildDir = baseDir.resolve(infoInfo.buildDir);
         Path importDir = baseDir.resolve(vals.get(ANTLR_PROP_LIB_DIRECTORY));
         Path sourceDir = baseDir.resolve(vals.get(ANTLR_PROP_SOURCE_DIRECTORY));
         Path outDir = buildDir.resolve(vals.get(ANTLR_PROP_OUTPUT_DIRECTORY));
-        Path buildOutput = baseDir.resolve(info.info.buildOutput);
-        Path testOutput = baseDir.resolve(info.info.testOutput);
-        Path sources = baseDir.resolve(info.info.sources);
-        Path testSources = baseDir.resolve(info.info.testSources);
+        Path buildOutput = baseDir.resolve(infoInfo.buildOutput);
+        Path testOutput = baseDir.resolve(infoInfo.testOutput);
+        Path sources = baseDir.resolve(infoInfo.sources);
+        Path testSources = baseDir.resolve(infoInfo.testSources);
         boolean listener = isTrue(vals.get(ANTLR_PROP_LISTENER));
         boolean visitor = isTrue(vals.get(ANTLR_PROP_VISITOR));
         boolean atn = isTrue(vals.get(ANTLR_PROP_ATN));
         boolean forceATN = isTrue(vals.get(ANTLR_PROP_FORCE_ATN));
         String includePattern = vals.get(ANTLR_PROP_INCLUDES);
         String excludePattern = vals.get(ANTLR_PROP_EXCLUDES);
-        Charset encoding = info.info.encoding;
+        Charset encoding = infoInfo.encoding;
         return new MavenAntlrConfiguration(importDir, sourceDir, outDir, listener,
                 visitor, atn, forceATN, includePattern, excludePattern,
                 encoding, buildDir, buildOutput, testOutput, sources, testSources);
@@ -132,11 +143,13 @@ final class MavenInfo {
         assert keys.length == defaults.length;
         Map<String, String> result = new HashMap<>();
         PomInfo currentInfo = info();
-        for (int i = 0; i < keys.length; i++) {
-            String key = keys[i];
-            String def = defaults[i];
-            String val = currentInfo.configurationValues.getOrDefault(key, def);
-            result.put(key, val);
+        if (currentInfo != null) {
+            for (int i = 0; i < keys.length; i++) {
+                String key = keys[i];
+                String def = defaults[i];
+                String val = currentInfo.configurationValues.getOrDefault(key, def);
+                result.put(key, val);
+            }
         }
         return result;
     }
@@ -166,6 +179,10 @@ final class MavenInfo {
     private PomInfo createInfo() {
         try {
             info = PomInfo.create(projectDir.resolve("pom.xml"));
+            if (info == null) {
+                System.out.println("NULL pom info for " + projectDir);
+                info = new PomInfo(Collections.emptyMap());
+            }
         } catch (Exception ex) {
             Logger.getLogger(MavenInfo.class.getName()).log(Level.INFO,
                     "Could not resolve poms for " + projectDir, ex);
@@ -175,9 +192,14 @@ final class MavenInfo {
     }
 
     public static void main(String[] args) throws Exception {
-        Path path = Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/antlr-editing-plugins/tokens-file-grammar/pom.xml");
+//        Path path = Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/antlr-editing-plugins/tokens-file-grammar/pom.xml");
+//        Path path = Paths.get("/home/tim/work/personal/mastfrog-parent/revision-info-plugin/pom.xml");
+        Path path = Paths.get("/home/tim/work/personal/personal/acteur-native/pom.xml");
         PomInfo info = PomInfo.create(path);
         MavenInfo mi = new MavenInfo(path.getParent(), info);
+        System.out.println(mi);
+        PomInfo pi = mi.createInfo();
+        System.out.println("PI: " + pi);
     }
 
     private static final class PomInfo {
@@ -192,7 +214,7 @@ final class MavenInfo {
         private String testSources = "src/test/java";
 
         PomInfo(Map<Path, Long> lastModified) {
-            this.lastModified = lastModified;
+            this.lastModified = lastModified == null ? Collections.emptyMap() : lastModified;
         }
 
         public boolean isUpToDate() {
@@ -220,7 +242,11 @@ final class MavenInfo {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder(512);
+            StringBuilder sb = new StringBuilder(512)
+                    .append("PomInfo(").append(encoding.name())
+                    .append(" configVals ").append(configurationValues.size())
+                    .append(' ').append(lastModified)
+                    .append(' ');
             for (Map.Entry<String, String> e : configurationValues.entrySet()) {
                 if (sb.length() > 0) {
                     sb.append('\n');
@@ -228,7 +254,7 @@ final class MavenInfo {
                 sb.append('\'').append(e.getKey()).append('\'').append(" = ").append('\'')
                         .append(e.getValue()).append('\'');
             }
-            return sb.toString();
+            return sb.append(' ').toString();
         }
 
         static PomInfo create(Path path) throws Exception {
@@ -265,78 +291,78 @@ final class MavenInfo {
         static PomInfo createPomInfo(Map<Path, Long> lastModified, List<PomFileAnalyzer> parents, PomFileResolver resolv) throws Exception {
             PomInfo result = new PomInfo(lastModified);
             lastModified.put(PomFileResolver.settingsFile().toPath(), PomFileResolver.settingsFileLastModified());
-            PropertyResolver props = new PropertyResolver(parents.get(0).pomFile().toFile(), resolv, parents.get(0));
+            if (!parents.isEmpty()) {
+                PropertyResolver props = new PropertyResolver(parents.get(0).pomFile().toFile(), resolv, parents.get(0));
 
-            // Ensure that changes in parent projects will trigger a reread of
-            // antlr info
-            noteDependencies(parents);
+                // Ensure that changes in parent projects will trigger a reread of
+                // antlr info
+                noteDependencies(parents);
 
-//            logPoms(parents);
-
-            for (PomFileAnalyzer a : CollectionUtils.reversed(parents)) {
-                PomFileAnalyzer.PluginConfigurationInfo info = a.antlrPluginInfo();
-                // RESOLVE PROPERTIES HERE
-                // EXTRACT LIBDIR, INCLUDES, ENCODING, EXCLUDES
-                Map<String, String> items = info.props;
-                Map<String, String> newItems = new HashMap<>();
-                for (Map.Entry<String, String> e : items.entrySet()) {
-                    String key = e.getKey().trim();
-                    String value = e.getValue().trim();
-                    if (value.contains("${")) {
-                        value = props.substituteInto(value);
-                        value = value.replaceAll("\\s+", " ");
+                for (PomFileAnalyzer a : CollectionUtils.reversed(parents)) {
+                    PomFileAnalyzer.PluginConfigurationInfo info = a.antlrPluginInfo();
+                    // RESOLVE PROPERTIES HERE
+                    // EXTRACT LIBDIR, INCLUDES, ENCODING, EXCLUDES
+                    Map<String, String> items = info.props;
+                    Map<String, String> newItems = new HashMap<>();
+                    for (Map.Entry<String, String> e : items.entrySet()) {
+                        String key = e.getKey().trim();
+                        String value = e.getValue().trim();
+                        if (value.contains("${")) {
+                            value = props.substituteInto(value);
+                            value = value.replaceAll("\\s+", " ");
+                        }
+                        newItems.put(key, value);
                     }
-                    newItems.put(key, value);
+                    result.include(newItems);
                 }
-                result.include(newItems);
-            }
 
-            String enc = result.configurationValues.get("encoding");
-            if (enc == null) {
-                enc = props.substituteInto(props.resolve("project.build.sourceEncoding"));
-            }
-            if (enc != null) {
-                try {
-                    Charset cs = Charset.forName(enc);
-                    result.encoding = cs;
-                } catch (Exception ex) {
-                    Logger.getLogger(PomInfo.class.getName()).log(Level.INFO,
-                            "Could not resolve encoding '" + enc + "'", ex);
+                String enc = result.configurationValues.get("encoding");
+                if (enc == null && props != null) {
+                    enc = props.substituteInto(props.resolve("project.build.sourceEncoding"));
                 }
-            }
-            String buildDir = props.substituteInto(props.resolve("project.build.directory"));
-            if (buildDir != null) {
-                result.setBuildDir(buildDir);
-            } else {
-                props.addProperty("project.build.directory", "target");
-            }
-            List<String> keys = new ArrayList<>(result.configurationValues.keySet());
-            for (String key : keys) {
-                String val = result.configurationValues.get(key);
-                if (val != null && val.contains("${")) {
-                    result.configurationValues.put(key, props.substituteInto(val));
+                if (enc != null) {
+                    try {
+                        Charset cs = Charset.forName(enc);
+                        result.encoding = cs;
+                    } catch (Exception ex) {
+                        Logger.getLogger(PomInfo.class.getName()).log(Level.INFO,
+                                "Could not resolve encoding '" + enc + "'", ex);
+                    }
                 }
-            }
+                String buildDir = props.substituteInto(props.resolve("project.build.directory"));
+                if (buildDir != null) {
+                    result.setBuildDir(buildDir);
+                } else {
+                    props.addProperty("project.build.directory", "target");
+                }
+                List<String> keys = new ArrayList<>(result.configurationValues.keySet());
+                for (String key : keys) {
+                    String val = result.configurationValues.get(key);
+                    if (val != null && val.contains("${")) {
+                        result.configurationValues.put(key, props.substituteInto(val));
+                    }
+                }
 
-            String buildOutput = props.substituteInto(props.resolve("project.build.outputDirectory"));
-            String testOutput = props.substituteInto(props.resolve("project.build.testOutputDirectory"));
-            String testSource = props.substituteInto(props.resolve("project.build.testSourceDirectory"));
+                String buildOutput = props.substituteInto(props.resolve("project.build.outputDirectory"));
+                String testOutput = props.substituteInto(props.resolve("project.build.testOutputDirectory"));
+                String testSource = props.substituteInto(props.resolve("project.build.testSourceDirectory"));
 
-            if (buildOutput != null) {
-                result.setBuildOutputDir(buildOutput);
-            }
-            if (testOutput != null) {
-                result.setTestOutputDir(testOutput);
-            }
-            if (testSource != null) {
-                result.setTestSourceDir(testSource);
-            }
+                if (buildOutput != null) {
+                    result.setBuildOutputDir(buildOutput);
+                }
+                if (testOutput != null) {
+                    result.setTestOutputDir(testOutput);
+                }
+                if (testSource != null) {
+                    result.setTestSourceDir(testSource);
+                }
 
-            for (String s : new String[]{ANTLR_PROP_ATN, ANTLR_PROP_FORCE_ATN, ANTLR_PROP_LISTENER, ANTLR_PROP_VISITOR}) {
-                String key = "antlr4." + s;
-                String val = props.resolve(key);
-                if (val != null && !val.isEmpty()) {
-                    result.configurationValues.put(s, val);
+                for (String s : new String[]{ANTLR_PROP_ATN, ANTLR_PROP_FORCE_ATN, ANTLR_PROP_LISTENER, ANTLR_PROP_VISITOR}) {
+                    String key = "antlr4." + s;
+                    String val = props.resolve(key);
+                    if (val != null && !val.isEmpty()) {
+                        result.configurationValues.put(s, val);
+                    }
                 }
             }
             return result;
@@ -348,12 +374,13 @@ final class MavenInfo {
         }
 
         static PomInfo onAllRelativePomsFound(PomFileAnalyzer last, Map<Path, Long> lastModified, List<PomFileAnalyzer> parents, PomFileResolver resolv) throws Exception {
+            logPoms(parents);
             String parentGroup = last.getParentGroupID();
             if (parentGroup != null && !parentGroup.isEmpty()) {
                 String parentArtifact = last.getParentArtifactID();
                 String parentVersion = last.getParentVersion();
                 if (parentArtifact != null) {
-                    File resolved = resolv.resolve(parentGroup, parentArtifact, parentVersion);
+                    File resolved = resolv == null ? null : resolv.resolve(parentGroup, parentArtifact, parentVersion);
                     if (resolved != null && !lastModified.containsKey(resolved.toPath())) {
                         lastModified.put(resolved.toPath(), resolved.lastModified());
                         try {
@@ -369,6 +396,9 @@ final class MavenInfo {
             return createPomInfo(lastModified, parents, resolv);
         }
 
+        static ThreadLocal<Set<Path>> currentlyLoading = ThreadLocal.withInitial(HashSet::new);
+        static Set<Path> blacklistedPoms = new HashSet<>();
+
         static PomInfo withParentPoms(Path path, Map<Path, Long> lastModifieds, List<PomFileAnalyzer> all, ThrowingTriFunction<PomFileAnalyzer, Map<Path, Long>, List<PomFileAnalyzer>, PomInfo> onDone) throws Exception {
             if (!Files.exists(path)) {
                 if (!all.isEmpty()) {
@@ -377,37 +407,81 @@ final class MavenInfo {
                     return null;
                 }
             }
-            PomFileAnalyzer a = new PomFileAnalyzer(path.toFile());
+            // XXX this code runs a LOT during scanning and could probably benefit
+            // from a timed cache for repeatedly looked up chains.
+            Set<Path> curr = currentlyLoading.get();
             try {
-                lastModifieds.put(path, Files.getLastModifiedTime(path).toMillis());
-                return a.<PomInfo>inContext(doc -> {
-                    all.add(a);
-                    boolean hasParent = a.getParentGroupID() != null;
-                    if (hasParent) {
-                        String parentRelativePath = a.getParentRelativePath();
-                        if (parentRelativePath == null) {
-                            parentRelativePath = "..";
-                        }
-                        Path parentPom = path.getParent().resolve(parentRelativePath);
-                        if (Files.isDirectory(parentPom)) {
-                            parentPom = parentPom.resolve("pom.xml");
-                        }
-                        if (Files.exists(parentPom) && !lastModifieds.containsKey(parentPom)) {
-                            return withParentPoms(parentPom, lastModifieds, all, onDone);
-                        } else {
-                            return onDone.apply(a, lastModifieds, all);
-                        }
-                    } else {
-                        return onDone.apply(a, lastModifieds, null);
-                    }
-                });
-            } catch (IOException ioe) {
-                Logger.getLogger(PomInfo.class.getName()).log(Level.INFO, "Exception processing poms", ioe);
-                if (!all.isEmpty()) {
-                    return onDone.apply(all.get(all.size() - 1), lastModifieds, all);
-                } else {
+                if (curr.contains(path) || blacklistedPoms.contains(path)) {
                     return null;
                 }
+                curr.add(path);
+                PomFileAnalyzer a = new PomFileAnalyzer(path.toFile());
+                PomInfo result;
+                try {
+                    lastModifieds.put(path, Files.getLastModifiedTime(path).toMillis());
+                    result = a.<PomInfo>inContext(doc -> {
+                        all.add(a);
+                        String parentGroup = a.getParentGroupID();
+                        String parentArtifact = a.getParentArtifactID();
+                        String parentVersion = a.getParentVersion();
+                        boolean hasParent = parentGroup != null && !parentGroup.isEmpty()
+                                && parentArtifact != null && !parentArtifact.isEmpty()
+                                && parentVersion != null && !parentVersion.isEmpty();
+
+                        if (hasParent) {
+                            String parentRelativePath = a.getParentRelativePath();
+                            Path parentPom;
+                            if (parentRelativePath == null || parentRelativePath.isEmpty()) {
+                                parentPom = path.getParent().getParent().resolve("pom.xml");
+                                boolean found = false;
+                                if (Files.exists(parentPom) && !Files.isDirectory(parentPom)) {
+                                    PomFileAnalyzer test = new PomFileAnalyzer(parentPom.toFile());
+                                    if (parentGroup.equals(test.getGroupID()) && parentArtifact.equals(test.getArtifactId())
+                                            && parentVersion.equals(test.getVersion())) {
+                                        found = true;
+                                    }
+                                }
+                                if (!found) {
+                                    PomFileResolver loc = PomFileResolver.localRepo();
+                                    File parentPomFile = loc.resolve(parentGroup, parentArtifact, parentVersion);
+                                    parentPom = parentPomFile.toPath();
+                                }
+                            } else {
+                                parentPom = "..".equals(parentRelativePath)
+                                        || "../pom.xml".equals(parentRelativePath)
+                                        ? path.getParent().getParent()
+                                        : path.getParent().resolve(parentRelativePath);
+                            }
+
+                            if (Files.isDirectory(parentPom)) {
+                                parentPom = parentPom.resolve("pom.xml");
+                            }
+//                            parentPom = parentPom.toFile().getAbsoluteFile().toPath();
+                            parentPom = parentPom.toAbsolutePath();
+                            boolean recursing = currentlyLoading.get().contains(parentPom);
+                            if (!recursing && !blacklistedPoms.contains(parentPom) && !lastModifieds.containsKey(parentPom) && Files.exists(parentPom)) {
+                                return withParentPoms(parentPom, lastModifieds, all, onDone);
+                            } else {
+                                return onDone.apply(a, lastModifieds, all);
+                            }
+                        } else {
+                            return onDone.apply(a, lastModifieds, all == null ? Collections.emptyList() : all);
+                        }
+                    });
+                    return result;
+                } finally {
+                    curr.remove(path);
+                }
+            } catch (IOException | StackOverflowError ioe) {
+                blacklistedPoms.add(path);
+                Logger.getLogger(PomInfo.class.getName()).log(Level.INFO,
+                        "Exception processing poms.  Blacklisting " + path,
+                        ioe);
+            }
+            if (!all.isEmpty()) {
+                return onDone.apply(all.get(all.size() - 1), lastModifieds, all);
+            } else {
+                return null;
             }
         }
 

@@ -1,19 +1,15 @@
 
 # Antlr Editing Plugins To-Dos
 
- - Better detection of "can match the empty string" stuff - subclass of ParserATNFactory 
-which uses a custom LL1Analyzer which keeps a stack in _LOOK() to find the actual rule
-in the closure which is causing the problem
-
  - ParsedAntlrError should not use path.
 
  - Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
 
+ - Need better caching for maven project info - it is reparsing POMs too frequently
+
  - Add warning when skip action encountered
 
  - Add array of preferred rules to generic code completion?
-
- - Hint to replace, e.g. 'foo*' with 'foo (foo+)?' (or find a likely delimiter?)
 
  - Ability to specify a centrality key for Navigator panel annotations - will have to
     be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
@@ -34,8 +30,6 @@ in the closure which is causing the problem
 
  - Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
    - Could use general support for sets of ranges in the range library
-
- - Formatter settings not being picked up
 
  - Relative should *prefer* but not insist on looking up the same type
 
@@ -82,7 +76,6 @@ FORMATTING:
 
  - Rename AntlrFormatterProvider to AntlrFormatter and update in the annotation processor
  - REINDENT SUPPORT
- - Wrapping lines action is not getting the correct line position and going insane
  - Should preserve whitespace if no action taken
 
 ACTIONS:

@@ -53,7 +53,6 @@ public class NbExtractors extends Extractors {
             throw new IllegalArgumentException("'" + mimeType
                     + "' does not look like a mime type.");
         }
-        System.out.println("NBExtrators extract " + src + " for " + mimeType + " and " + type);
         if (ParserManager.canBeParsed(mimeType)) {
             try {
                 return parse(mimeType, src, type);
@@ -61,8 +60,6 @@ public class NbExtractors extends Extractors {
                 LOG.log(Level.SEVERE, "Failed parsing " + src + " of "
                         + mimeType + " with " + type, ex);
             }
-        } else {
-            System.out.println("ParserManager says " + mimeType + " cannot be parsed");
         }
         return null;
     }
@@ -76,16 +73,12 @@ public class NbExtractors extends Extractors {
                 @Override
                 public void run(ResultIterator resultIterator) throws Exception {
                     Parser.Result pr = resultIterator.getParserResult();
-                    System.out.println("     PARSE GOT " + pr);
                     if (pr instanceof ExtractionParserResult) {
                         result[0] = ((ExtractionParserResult) pr).extraction();
                     }
                 }
             });
-            System.out.println("  returning pr " + result[0]);
             return result[0];
-        } else {
-            System.out.println("could not create a Source over " + src);
         }
         return null;
     }

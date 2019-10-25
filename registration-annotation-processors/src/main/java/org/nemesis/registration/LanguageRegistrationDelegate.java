@@ -177,7 +177,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             });
             ;
         }).build();
-        System.out.println("MIRROR TEST: \n" + mirrorTest);
     }
 
     private final Map<String, Set<VariableElement>> gotos = new HashMap<>();
@@ -1961,7 +1960,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     private void maybeGenerateParserRuleExtractors(String mimeType, List<AnnotationMirror> categories, LexerProxy lexer, TypeElement type, AnnotationMirror mirror, TypeMirror tokenCategorizerClass, String catName, Name pkg, String prefix, ParserProxy parser) throws Exception {
-        System.out.println("HAVE " + categories.size() + " CATEGORIES");
         List<AnnotationMirror> relevant = new ArrayList<>(categories.size() / 2);
         Map<Integer, Set<String>> ownership = CollectionUtils.supplierMap(TreeSet::new);
         for (AnnotationMirror am : categories) {
@@ -1990,7 +1988,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 }
             }
         }
-        System.out.println("FOUND " + relevant.size() + " relevant categories");
         for (AnnotationMirror am : relevant) {
             Set<Integer> parserRuleIds = new TreeSet<>(utils().annotationValues(am, "parserRuleIds", Integer.class));
             StringBuilder genClassName = new StringBuilder(prefix).append('_');
@@ -1998,33 +1995,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             String categoryName = utils().annotationValue(am, "name", String.class, "<unnamed>");
             genClassName.append(toUsableFieldName(categoryName));
             List<String> fieldNames = new ArrayList<>(parserRuleIds.size());
-            System.out.println("  CATEGORY " + categoryName + " maps");
             for (int val : parserRuleIds) {
                 String nm = parser.nameForRule(val);
-                System.out.println("     " + nm);
                 genClassName.append('_').append(nm);
                 keyFieldName.append('_').append(nm.toUpperCase());
                 fieldNames.add(parser.ruleFieldForRuleId(val));
             }
             genClassName.append("RuleHighlighting");
-            /*
-.extractingRegionsUnder(AntlrKeys.STUFF)
-                .whenRuleIdIn(ANTLRv4Parser.RULE_fragmentRuleDeclaration, ANTLRv4Parser.RULE_labeledParserRuleElement)
-                .extractingKeyWith(rule -> {
-                    String name = ANTLRv4Parser.ruleNames[rule.getRuleIndex()];
-                    System.out.println("ID KEY " + name + ": " + rule.getText());
-                    return name;
-                }).finishRegionExtractor()
-
-public static final RegionsKey<String> STUFF = RegionsKey.create(String.class, "stuff");
-
-    @HighlighterKeyRegistration(mimeType = MIME_TYPE, positionInZOrder = 10, order = 11,
-            colors = @ColoringCategory(name = "stuff",
-                    colors = @Coloration(bg = {100, 255, 100})))
-
-org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration
-
-             */
             ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(type)).named(genClassName.toString())
                     .makePublic().makeFinal()
                     .importing("org.nemesis.extraction.ExtractionRegistration",
@@ -2073,11 +2050,7 @@ org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration
 
                     });
             ;
-
-            System.out.println("GENERATE\n" + cb);
-
             writeOne(cb);
-
         }
     }
 

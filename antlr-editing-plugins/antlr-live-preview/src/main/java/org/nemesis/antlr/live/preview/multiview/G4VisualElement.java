@@ -303,13 +303,15 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     @Override
     @Messages("save_sample_file=Save sample file?")
     public CloseOperationState canCloseElement() {
-        Collection<? extends SaveCookie> cks = saveCookieResult.allInstances();
-        if (!cks.isEmpty()) {
-            SaveAction save = SystemAction.get(SaveAction.class);
-            Lookup ctx = Lookups.fixed(cks.toArray());
-            MultiViewFactory.createUnsafeCloseState(Bundle.save_sample_file(),
-                    save.createContextAwareInstance(ctx),
-                    new DiscardAction(obj.getLookup().lookup(DiscardChangesCookie.class)));
+        if (saveCookieResult != null) { // can be null if an exception was thrown opening
+            Collection<? extends SaveCookie> cks = saveCookieResult.allInstances();
+            if (!cks.isEmpty()) {
+                SaveAction save = SystemAction.get(SaveAction.class);
+                Lookup ctx = Lookups.fixed(cks.toArray());
+                MultiViewFactory.createUnsafeCloseState(Bundle.save_sample_file(),
+                        save.createContextAwareInstance(ctx),
+                        new DiscardAction(obj.getLookup().lookup(DiscardChangesCookie.class)));
+            }
         }
         return CloseOperationState.STATE_OK;
     }
