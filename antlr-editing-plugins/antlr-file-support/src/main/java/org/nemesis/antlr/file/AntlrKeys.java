@@ -60,14 +60,21 @@ import org.nemesis.extraction.key.SingletonKey;
  * @author Tim Boudreau
  */
 @AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
-        parser = @ParserControl(type = ANTLRv4Parser.class, generateSyntaxTreeNavigatorPanel = true,
+        parser = @ParserControl(
+                type = ANTLRv4Parser.class,
+                generateSyntaxTreeNavigatorPanel = true,
                 generateExtractionDebugNavigatorPanel = true,
+//                defaultErrorHighlightingEnabled = false,
                 entryPointRule = ANTLRv4Parser.RULE_grammarFile),
-        file = @FileType(extension = "g4", multiview = true, iconBase = ICON_PATH, hooks = AntlrDataObjectHooks.class),
+        file = @FileType(extension = "g4",
+                multiview = true,
+                iconBase = ICON_PATH,
+                hooks = AntlrDataObjectHooks.class),
         syntax = @SyntaxInfo(
                 whitespaceTokens = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
                     HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
-                    OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS}, commentTokens = {
+                    OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS},
+                commentTokens = {
                     LINE_COMMENT, BLOCK_COMMENT, CHN_BLOCK_COMMENT,
                     FRAGDEC_LINE_COMMENT, CHN_LINE_COMMENT, DOC_COMMENT,
                     HDR_IMPRT_LINE_COMMENT, HDR_PCKG_LINE_COMMENT,
@@ -107,18 +114,23 @@ import org.nemesis.extraction.key.SingletonKey;
                         PARDEC_OPT_UNTERMINATED, IMPORT_UNTERMINATED
                     }, colors = {
                 @Coloration(
+                        derivedFrom = "errors",
                         fg = {255, 200, 200},
                         bg = {222, 90, 90},
+                        waveUnderline = {255, 200, 200},
                         themes = {
                             POPULAR_BRIGHT_THEMES
                         }),
                 @Coloration(
+                        derivedFrom = "errors",
                         fg = {255, 200, 200},
                         bg = {171, 63, 63},
+                        waveUnderline = {255, 200, 200},
                         themes = {
                             POPULAR_DARK_THEMES
                         })
             }),
+
             @TokenCategory(name = "delimiter", tokenIds = {COMMA, SEMI, OR},
                     colors = {
                         @Coloration(

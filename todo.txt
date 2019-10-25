@@ -1,49 +1,43 @@
 
 # Antlr Editing Plugins To-Dos
 
- - Default colorings are bad and still contain experimental stuff
+ - Better detection of "can match the empty string" stuff - subclass of ParserATNFactory 
+which uses a custom LL1Analyzer which keeps a stack in _LOOK() to find the actual rule
+in the closure which is causing the problem
 
- - Default formatting settings are not very good
+ - ParsedAntlrError should not use path.
+
+ - Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
+
+ - Add warning when skip action encountered
+
+ - Add array of preferred rules to generic code completion?
+
+ - Hint to replace, e.g. 'foo*' with 'foo (foo+)?' (or find a likely delimiter?)
 
  - Ability to specify a centrality key for Navigator panel annotations - will have to
-    be a Supplier<NamedReferenceSetKey<?>>
-   - If we want additional keys (to do alternatives properly), will need localized names for keys
-
- - Need a clean way to get from named region enum to coloring name
-   - Interface it can implement?
+    be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
+    to enable graph-algorithm facilitated sorting
+   - If we want additional keys (e.g., to do Antlr named alternatives and 
+     anything like that properly without hand-coding), will need localized names for keys
 
  - For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
-
- - Nestable colorations, as in our old ebnf support
+   - Nestable colorations, as in our old ebnf support
 
  - Sample should be specifiable as a URL / file name
 
  - Registration processors:  All FQNs should be constants.
 
- - Need a way to specify additional colorings in the abstract
-
  - Use @ConvertAsProperties on preview
 
  - Java embedding for Antlr, general Antlr embedding support
-
- - Goto decl should also resolve imports - expose keys
-
- - Error highlighting should show unresolvable imports
-
- - Antlr name references are not detected if the format is "foo=someRule"
 
  - Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
    - Could use general support for sets of ranges in the range library
 
  - Formatter settings not being picked up
 
- - Split out import finder from the resolving stuff?
-    - @ImportNames annotation to auto generate name resolution / goto declaration support
-       - Strategy for relative path lookups?
-
- - Fix AdhocColoringRegistry to use import finder, not actually resolve everything unless needed
-
- - Enhance relative resolvers in the nb specialization project to look up tokens files, etc. from the project's ClassPathProvider
+ - Relative should *prefer* but not insist on looking up the same type
 
  - Keybinding actions still not actually working if not performers for standard netbeans ones
 
@@ -52,29 +46,20 @@ and parse multiple files and do many graph traversals on every reparse.  Cache s
 on target file and dispose on modification.  Can't be in the extraction project due to
 file object type and listening requirement.
 
- 
  - Resolve via tokens file into other project on classpath via ClassPathProvider
+   - Enhance relative resolvers in the nb specialization project to look 
+     up tokens files, etc. from the project's ClassPathProvider
 
  - Maybe get the parsed grammar object out of the grammar result - no need to keep it hanging around, 
    and it's not really used except for update check - could just keep the JFSFileModifications snapshot
    and that is enough; those things that actually need the output should get them via the as yet
    unused antlr output api.
 
- - Make coalescing use evil continue-as-goto instead of recursion?
-
- - UI for ATN prediction at cursor - started in parser-recorder
-
- - Sort out the range generics puzzle with coalescing
-
- - Get .tokens file contents / related grammar tokens into extraction / preview
-
  - The pattern matching stuff in antlr-formatters is exactly what is needed for code completion - extract and generify it
 
 !!! Font color entries not written to layer unless the annotation processor
 is called multiple times (e.g. there is another highlighting entry on a
 highlighter registration annotation on a key).
-
-fix coalescer to support longs
 
 -------
 

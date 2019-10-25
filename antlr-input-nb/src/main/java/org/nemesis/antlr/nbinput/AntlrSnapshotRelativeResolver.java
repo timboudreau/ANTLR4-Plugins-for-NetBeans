@@ -15,7 +15,10 @@
  */
 package org.nemesis.antlr.nbinput;
 
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import javax.swing.text.Document;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.spi.RelativeResolverImplementation;
@@ -31,33 +34,88 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = RelativeResolverImplementation.class, path = "antlr-languages/relative-resolvers/text/x-g4")
 public final class AntlrSnapshotRelativeResolver extends RelativeResolverImplementation<Snapshot> {
 
+    private static final ThreadLocal<Set<ReentryItem>> REENTRIES
+            = ThreadLocal.withInitial(HashSet::new);
+
     public AntlrSnapshotRelativeResolver() {
         super(Snapshot.class);
     }
 
     @Override
     public Optional<Snapshot> resolve(Snapshot relativeTo, String name) {
-        Source src = relativeTo.getSource();
-        FileObject fo = src.getFileObject();
-        if (fo == null) {
+        ReentryItem item = new ReentryItem(relativeTo, name);
+        Set<ReentryItem> alreadyResolvingOnCurrentThread = REENTRIES.get();
+        if (alreadyResolvingOnCurrentThread.contains(item)) {
             return Optional.empty();
         }
-        GrammarSource<FileObject> fogs = GrammarSource.find(fo, fo.getMIMEType());
-        if (fogs == null) {
+        alreadyResolvingOnCurrentThread.add(item);
+        try {
+            Source src = relativeTo.getSource();
+            FileObject fo = src.getFileObject();
+            if (fo == null) {
+                return Optional.empty();
+            }
+            GrammarSource<FileObject> fogs = GrammarSource.find(fo, fo.getMIMEType());
+            if (fogs == null) {
+                return Optional.empty();
+            }
+            GrammarSource<?> gs = fogs.resolveImport(name);
+            if (gs != null) {
+                Optional<Document> odoc = gs.lookup(Document.class);
+                if (odoc.isPresent()) {
+                    return Optional.of(Source.create(odoc.get()).createSnapshot());
+                }
+                Optional<FileObject> ofo = gs.lookup(FileObject.class);
+                if (ofo.isPresent()) {
+                    return Optional.of(Source.create(ofo.get()).createSnapshot());
+                }
+            }
             return Optional.empty();
+        } finally {
+            alreadyResolvingOnCurrentThread.remove(item);
         }
-        GrammarSource<?> gs = fogs.resolveImport(name);
-        if (gs != null) {
-            Optional<Document> odoc = gs.lookup(Document.class);
-            if (odoc.isPresent()) {
-                return Optional.of(Source.create(odoc.get()).createSnapshot());
-            }
-            Optional<FileObject> ofo = gs.lookup(FileObject.class);
-            if (ofo.isPresent()) {
-                return Optional.of(Source.create(ofo.get()).createSnapshot());
-            }
-        }
-        return Optional.empty();
     }
 
+    static final class ReentryItem {
+
+        private final String name;
+        private int sourceId;
+
+        ReentryItem(Snapshot relativeTo, String name) {
+            this.name = name;
+            // Sources are cached by the infrastructure
+            sourceId = System.identityHashCode(relativeTo.getSource());
+        }
+
+        @Override
+        public String toString() {
+            return "ReentryItem{" + "name=" + name + ", sourceId=" + sourceId + '}';
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 43 * hash + Objects.hashCode(this.name);
+            hash = 43 * hash + this.sourceId;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ReentryItem other = (ReentryItem) obj;
+            if (this.sourceId != other.sourceId) {
+                return false;
+            }
+            return Objects.equals(this.name, other.name);
+        }
+    }
 }

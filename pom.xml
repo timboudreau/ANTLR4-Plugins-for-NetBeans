@@ -27,7 +27,7 @@ limitations under the License.
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <netbeans.version>RELEASE111</netbeans.version>
         <java.source.level>1.8</java.source.level>
-        <netbeans.hint.licensePath>${project.parent.relativePath}/License.txt</netbeans.hint.licensePath>
+        <netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>
         <antlr.version>4.7.2</antlr.version>
         <module.display.category>ANTLR</module.display.category>
         <maven.test.skip>true</maven.test.skip>

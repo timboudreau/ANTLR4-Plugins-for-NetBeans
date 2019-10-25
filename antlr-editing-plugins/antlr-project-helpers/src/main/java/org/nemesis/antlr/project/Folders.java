@@ -136,10 +136,12 @@ public enum Folders {
         }
         Path path = file.toPath();
         Folders owner = ownerOf(fo);
-        Iterable<Path> dirs = owner.find(fo);
-        for (Path p : dirs) {
-            if (path.startsWith(p)) {
-                return p.relativize(path);
+        if (owner != null) {
+            Iterable<Path> dirs = owner.find(fo);
+            for (Path p : dirs) {
+                if (path.startsWith(p)) {
+                    return p.relativize(path);
+                }
             }
         }
         return null;
@@ -181,6 +183,14 @@ public enum Folders {
 
     public Iterable<Path> allFiles(Project project) {
         return FoldersLookupStrategy.get(project).allFiles(this);
+    }
+
+    public Iterable<FileObject> allFiles(FileObject fo) {
+        return FoldersLookupStrategy.get(fo).allFileObjects(this);
+    }
+
+    public Iterable<Path> allFiles(Path path) {
+        return FoldersLookupStrategy.get(path).allFiles(this);
     }
 
     public Iterable<FileObject> allFileObjects(Project project) {

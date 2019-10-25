@@ -95,5 +95,14 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <!-- needed to keep the surefire classloader from screwing up
+            and not including this in the classpath for single tests.
+            -->
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr-runtime</artifactId>
+            <version>3.5.2</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>

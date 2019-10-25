@@ -82,7 +82,6 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
             NamedRegionKey<T> key, String mimeType, Function<NamedSemanticRegion<T>, AttributeSet> xformed) {
         Function<String, AttributeSet> coloringFinder = coloringForMimeType(mimeType);
         if (Supplier.class.isAssignableFrom(key.type())) {
-            System.out.println("HAVE A SUPPLIER FOR " + key.type());
             xformed = new DelegateToColoringNameSupplier(coloringFinder, xformed);
         }
         return xformed;
@@ -106,8 +105,6 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
                 AttributeSet coloring = cache.get(kind);
                 if (coloring == null) {
                     coloring = coloringLookup.apply(region);
-                    System.out.println("Coloring lookup " + coloringLookup
-                            + " gives " + coloring + " for kind " + kind);
                     log("Coloring {0} for {1} from {2}",
                             new Object[]{coloring, kind, this});
                     if (coloring != null) {
@@ -145,26 +142,19 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
 
         @Override
         public AttributeSet apply(NamedSemanticRegion<T> region) {
-            System.out.println("DelegateToColoringNameSupplier get for " + region.kind()
-                    + " is supplier? " + (region.kind() instanceof Supplier<?>));
             if (region.kind() instanceof Supplier<?>) {
-                System.out.println("  USE SUPPLIER FOR " + region.kind());
                 Supplier<?> cns = (Supplier<?>) region.kind();
                 if (cns != null && cns.get() != null) {
                     Object o = cns.get();
-                    System.out.println("   SUPPLIER GAVE " + o + " is a " + (o == null ? "null" : o.getClass().getSimpleName()));
                     if (o instanceof String) {
                         AttributeSet result = coloringFinder.apply((String) o);
-                        System.out.println("     colroing res for " + result);
                         if (result != null) {
-                            System.out.println("         returning " + result);
                             return result;
                         }
                     }
                 }
             }
             AttributeSet result = oldxformed.apply(region);
-            System.out.println("  fallthrough to " + oldxformed);
             return result;
         }
     }

@@ -22,6 +22,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.text.Document;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -44,10 +45,10 @@ import org.netbeans.spi.editor.hints.LazyFixList;
  */
 public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
 
-    private final Logger LOG = Logger.getLogger(getClass().getName());
+    private final Logger LOG = Logger.getLogger( getClass().getName() );
 
     protected NbParserHelper() {
-        LOG.setLevel(Level.ALL);
+        LOG.setLevel( Level.ALL );
     }
 
     /**
@@ -56,15 +57,21 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * @param lexer
      * @param parser
      * @param snapshot
+     *
      * @throws Exception
      */
-    public final Supplier<List<? extends SyntaxError>> parserCreated(L lexer, P parser, Snapshot snapshot) throws Exception {
+    public final Supplier<List<? extends SyntaxError>> parserCreated( L lexer, P parser, Snapshot snapshot ) throws
+            Exception {
         lexer.removeErrorListeners();
         parser.removeErrorListeners();
-        GenericAntlrErrorListener listener = new GenericAntlrErrorListener(snapshot);
-        onCreateAntlrParser(lexer, parser, snapshot);
-        lexer.addErrorListener(listener);
-        LOG.log(Level.FINEST, "ADDING ERROR LISTENER TO {0} for {1} as {2} ", new Object[]{lexer, snapshot, listener});
+        boolean checkErrors = isDefaultErrorHandlingEnabled();
+        GenericAntlrErrorListener listener = checkErrors ? new GenericAntlrErrorListener( snapshot ) : null;
+        onCreateAntlrParser( lexer, parser, snapshot );
+        if ( checkErrors ) {
+            lexer.addErrorListener( listener );
+        }
+        LOG.log( Level.FINEST, "ADDING ERROR LISTENER TO {0} for {1} as {2} ", new Object[]{ lexer, snapshot,
+            listener } );
         return listener;
     }
 
@@ -72,12 +79,13 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * Perform any configuration of the lexer or parser here, before parsing.
      * The default implementation does nothing.
      *
-     * @param lexer The lexer
-     * @param parser The parser
+     * @param lexer    The lexer
+     * @param parser   The parser
      * @param snapshot The snapshot
+     *
      * @throws Exception if something goes wrong
      */
-    protected void onCreateAntlrParser(L lexer, P parser, Snapshot snapshot) throws Exception {
+    protected void onCreateAntlrParser( L lexer, P parser, Snapshot snapshot ) throws Exception {
 
     }
 
@@ -91,15 +99,17 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * any code handling the parser result. The default implementation does
      * nothing.
      *
-     * @param tree The parse tree for the root object
+     * @param tree       The parse tree for the root object
      * @param extraction The extracted data from the parse
-     * @param populate An input object that lets you place objects into the
-     * parse result which are available from calls to AntlrParseResult.get() on
-     * the instance created from this parse.
+     * @param populate   An input object that lets you place objects into the
+     *                   parse result which are available from calls to AntlrParseResult.get() on
+     *                   the instance created from this parse.
+     *
      * @throws Exception If something goes wrong
      */
-    protected void onParseCompleted(T tree, Extraction extraction, ParseResultContents populate, Fixes fixes, BooleanSupplier cancelled) throws Exception {
-
+    protected void onParseCompleted( T tree, Extraction extraction, ParseResultContents populate, Fixes fixes,
+            BooleanSupplier cancelled ) throws Exception {
+        // do nothing
     }
 
     protected final LazyFixList emptyFixList() {
@@ -112,21 +122,39 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * replace them with more human-readable items, include fixes, etc.
      *
      * @param snapshot A snapshot
-     * @param error An error
+     * @param error    An error
+     *
      * @return An error description, or null to use the default conversion
      */
-    protected ErrorDescription convertError(Snapshot snapshot, SyntaxError error) {
+    protected ErrorDescription convertError( Snapshot snapshot, SyntaxError error ) {
         return null;
     }
 
-    final void _errorNode(ErrorNode nd, ParseResultContents populate) {
-        if (onErrorNode(nd, populate)) {
+    protected boolean isDefaultErrorHandlingEnabled() {
+        return true;
+    }
+
+    final void _errorNode( Document doc, ErrorNode nd, ParseResultContents populate ) {
+        if ( onErrorNode( nd, populate ) ) {
             return;
         }
         Token tok = nd.getSymbol();
-        if (tok != null) {
-            SyntaxError se = new SyntaxError(Optional.of(tok), tok.getStartIndex(), tok.getStopIndex() + 1, "Unexpected symbol " + tok.getText(), null);
-            populate.addSyntaxError(se);
+        if ( tok != null ) {
+            // Where possible, prefer the line offsets derived from the document
+            boolean added = GenericAntlrErrorListener.offsetsOf( doc, tok,
+                                                                 ( start, end ) -> {
+                                                                     SyntaxError se
+                                                                     = new SyntaxError( Optional.of( tok ), start, end,
+                                                                                        "Unexpected symbol " + tok
+                                                                                                .getText(), null );
+                                                                     populate.addSyntaxError( se );
+
+                                                                 } );
+            if ( !added ) {
+                SyntaxError se = new SyntaxError( Optional.of( tok ), tok.getStartIndex(), tok.getStopIndex() + 1,
+                                                  "Unexpected symbol " + tok.getText(), null );
+                populate.addSyntaxError( se );
+            }
         }
     }
 
@@ -135,74 +163,87 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * returns true, the default handling (creating a generic syntax error) will
      * be bypassed.
      *
-     * @param nd An error node
+     * @param nd       An error node
      * @param populate The parser result contents
+     *
      * @return true if this message has handled (or ignored) it, false otherwise
      */
-    protected boolean onErrorNode(ErrorNode nd, ParseResultContents populate) {
+    protected boolean onErrorNode( ErrorNode nd, ParseResultContents populate ) {
         return false;
     }
 
-    public final void parseCompleted(String mimeType, T tree, Extraction extraction, ParseResultContents populate, BooleanSupplier cancelled, Supplier<List<? extends SyntaxError>> errorSupplier) throws Exception {
-        assert errorSupplier != null : "null error supplier";
-        assert populate != null : "null populator";
+    public final void parseCompleted( String mimeType, T tree, Extraction extraction, ParseResultContents populate,
+            BooleanSupplier cancelled, Supplier<List<? extends SyntaxError>> errorSupplier ) throws Exception {
+        assert populate != null : "null parse result contents";
         assert extraction != null : "extraction null";
         assert tree != null : "tree null";
         assert cancelled != null : "cancelled null";
         boolean wasCancelled = cancelled.getAsBoolean();
-        LOG.log(Level.FINE, "Parse of {0} completed - cancelled? {1}",
-                new Object[]{extraction.source(), wasCancelled});
-        if (!wasCancelled) {
+        LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1}",
+                 new Object[]{ extraction.source(), wasCancelled } );
+        if ( !wasCancelled ) {
             // Ensure the tree gets fully walked and the parse fully run, so
             // all errors are collected
             try {
-                new ParseTreeWalker().walk(new ErrorNodeCollector(populate), tree);
-                List<? extends SyntaxError> errors = errorSupplier.get();
-                LOG.log(Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{errors.size(), errorSupplier});
-                populate.setSyntaxErrors(errors, this);
+                Document doc = null;
+                if ( extraction.source().source() instanceof Document ) {
+                    doc = ( Document ) extraction.source().source();
+                } else if ( extraction.source().source() instanceof Snapshot ) {
+                    doc = ( ( Snapshot ) extraction.source().source() ).getSource().getDocument( false );
+                }
+                List<? extends SyntaxError> errors = null;
+                if ( isDefaultErrorHandlingEnabled() && errorSupplier != null ) {
+                    new ParseTreeWalker().walk( new ErrorNodeCollector( doc, populate ), tree );
+                    errors = errorSupplier.get();
+                    LOG.log( Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{ errors.size(),
+                        errorSupplier } );
+                    populate.setSyntaxErrors( errors, this );
+                }
                 Fixes fixes = populate.fixes();
-                ParseResultHook.runForMimeType(mimeType, tree, extraction, populate, fixes);
-                onParseCompleted(tree, extraction, populate, fixes, cancelled);
-                LOG.log(Level.FINEST, "Post-processing complete with {0} "
-                        + "syntax errors, fixes {1}", new Object[] {
-                            errors.size(), fixes
+                ParseResultHook.runForMimeType( mimeType, tree, extraction, populate, fixes );
+                onParseCompleted( tree, extraction, populate, fixes, cancelled );
+                LOG.log( Level.FINEST, "Post-processing complete with {0} "
+                                       + "syntax errors, fixes {1}", new Object[]{
+                            errors == null ? 0 : errors.size(), fixes
                         } );
-            } catch (Exception | Error err) {
-                LOG.log(Level.SEVERE, "Error post-processing parse", err);
-                if (err instanceof Error) {
-                    throw (Error) err;
+            } catch ( Exception | Error err ) {
+                LOG.log( Level.SEVERE, "Error post-processing parse", err );
+                if ( err instanceof Error ) {
+                    throw ( Error ) err;
                 }
             }
         } else {
-            LOG.log(Level.FINEST, "Not using parse result {0} due to cancellation", populate);
+            LOG.log( Level.FINEST, "Not using parse result {0} due to cancellation", populate );
         }
     }
 
     final class ErrorNodeCollector implements ParseTreeListener {
+        private final Document docMayBeNull;
 
         private final ParseResultContents cts;
 
-        public ErrorNodeCollector(ParseResultContents cts) {
+        public ErrorNodeCollector( Document docMayBeNull, ParseResultContents cts ) {
+            this.docMayBeNull = docMayBeNull;
             this.cts = cts;
         }
 
         @Override
-        public void visitTerminal(TerminalNode tn) {
+        public void visitTerminal( TerminalNode tn ) {
 
         }
 
         @Override
-        public void visitErrorNode(ErrorNode en) {
-            _errorNode(en, cts);
-            LOG.log(Level.FINE, "  ErrorNode: {0}", en);
+        public void visitErrorNode( ErrorNode en ) {
+            _errorNode( docMayBeNull, en, cts );
+            LOG.log( Level.FINE, "  ErrorNode: {0}", en );
         }
 
         @Override
-        public void enterEveryRule(ParserRuleContext prc) {
+        public void enterEveryRule( ParserRuleContext prc ) {
         }
 
         @Override
-        public void exitEveryRule(ParserRuleContext prc) {
+        public void exitEveryRule( ParserRuleContext prc ) {
         }
     }
 }

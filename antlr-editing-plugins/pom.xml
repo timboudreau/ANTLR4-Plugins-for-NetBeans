@@ -46,7 +46,7 @@ limitations under the License.
     <packaging>pom</packaging>
     <name>Antlr IDE Plugins Parent</name>
     <properties>
-        <netbeans.hint.licensePath>${project.parent.relativePath}/../../LICENSE</netbeans.hint.licensePath>
+        <netbeans.hint.licensePath>${project.parent.relativePath}/../../license-notice-apache-2.txt</netbeans.hint.licensePath>
     </properties>
     <modules>
         <module>antlr-language-grammar</module>

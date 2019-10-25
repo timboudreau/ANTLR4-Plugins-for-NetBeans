@@ -203,10 +203,9 @@ public final class AntlrExtractor {
                 // Generate fake definitions for declared tokens so we don't flag them as errors
                 .whereRuleIs(ANTLRv4Parser.TokenListContext.class)
                 .derivingNameFromTerminalNodes(RuleTypes.LEXER, AntlrExtractor::deriveTokenIdFromTokenList)
-
-//                .whereRuleIs(ANTLRv4Parser.ParserRuleLabeledAlternativeContext.class)
-//                //                .derivingNameWith("identifier().ID()", Alternatives.NAMED_ALTERNATIVES)
-//                .derivingNameWith(AntlrExtractor::extractAlternativeLabelInfo)
+                //                .whereRuleIs(ANTLRv4Parser.ParserRuleLabeledAlternativeContext.class)
+                //                //                .derivingNameWith("identifier().ID()", Alternatives.NAMED_ALTERNATIVES)
+                //                .derivingNameWith(AntlrExtractor::extractAlternativeLabelInfo)
 
                 // Now collect usages of the rule ids we just collected.  This gets us both
                 // the ability to query for a NamedReferenceSet<RuleTypes> which has the reference
@@ -262,8 +261,8 @@ public final class AntlrExtractor {
                 .whenRuleType(ANTLRv4Parser.AnalyzerDirectiveSpecContext.class)
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.DIRECTIVE)
                 .finishRegionExtractor();
-        ;
     }
+
 
     AntlrExtractor() {
         ExtractorBuilder<GrammarFileContext> builder = Extractor.builder(GrammarFileContext.class, ANTLR_MIME_TYPE);

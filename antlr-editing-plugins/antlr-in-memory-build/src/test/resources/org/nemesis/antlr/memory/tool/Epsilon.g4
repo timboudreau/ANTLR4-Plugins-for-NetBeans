@@ -1,9 +1,4 @@
-<#assign licenseFirst = "/*">
-<#assign licensePrefix = " * ">
-<#assign licenseLast = " */">
-<#include "../Licenses/license-${project.license}.txt">
-
-grammar ${name};
+grammar Epsilon;
 
 // TODO:  Add your lexer and parser rules here
 
@@ -11,13 +6,23 @@ grammar ${name};
 compilation_unit
     : array
     | number
+    | mods
+    | hexenites
     ;
 
 array
-    : OpenBrace number (Comma number)+ Closebrace;
+    : OpenBrace number (Comma number)+ CloseBrace;
 
 number
     : Integer;
+
+mods : mod+;
+
+mod : (ModA | ModB | ModC)*;
+
+hexenites : hexen+;
+
+hexen : Hex*;
 
 Integer
     : MINUS? DIGITS;
@@ -40,6 +45,18 @@ OpenBrace
 CloseBrace
     : ']';
 
+
+
+ModA : '`';
+
+ModB : '^';
+
+ModC : '!';
+
+HexNum : (HEX | DIGIT)+;
+
+fragment HEX : 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+
 fragment OPEN_LINE_COMMENT
     : '//';
 
@@ -60,3 +77,4 @@ fragment DIGIT
 
 fragment MINUS
     : '-';
+

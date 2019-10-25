@@ -427,7 +427,11 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                     + lastEnd + " regions must be added in order, and when "
                     + "container and contained, the largest must "
                     + "be added first, the successively smaller.  Regions "
-                    + "may not straddle each other.");
+                    + "may not straddle each other. With key "
+                    + (key == null
+                            ? "<null>"
+                            : key.getClass().getName() + ": " + key)
+                    + " to " + this);
         }
         for (int i = size - 2; i >= 0; i--) {
             int st = starts[i];

@@ -42,7 +42,7 @@ public class AntlrRuntimeHighlightLayerFactory implements HighlightsLayerFactory
         }
         AntlrRuntimeErrorsHighlighter hl = new AntlrRuntimeErrorsHighlighter(ctx);
         return new HighlightsLayer[]{
-            HighlightsLayer.create(ANTLR_RUNTIME_ERRORS, ZOrder.SHOW_OFF_RACK,
+            HighlightsLayer.create(ANTLR_RUNTIME_ERRORS, ZOrder.TOP_RACK,
             true, hl.bag())
         };
     }

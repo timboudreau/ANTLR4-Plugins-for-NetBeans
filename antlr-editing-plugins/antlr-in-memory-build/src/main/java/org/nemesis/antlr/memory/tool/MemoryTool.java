@@ -30,6 +30,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +72,7 @@ public final class MemoryTool extends Tool {
 
     private static final String OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT = "vs2005";
     private final boolean initialized;
+    private List<EpsilonRuleInfo> epsilonIssues;
 
     MemoryTool(ToolContext ctx, String... args) {
         super(args);
@@ -142,12 +144,72 @@ public final class MemoryTool extends Tool {
 
     public List<ParsedAntlrError> errors() {
         List<ParsedAntlrError> result = new ArrayList<>(((ErrM) this.errMgr).errors);
-        Collections.sort(result);
         if (errorsFilledIn != result.size()) {
-            errorsFilledIn = result.size();
             fillInErrors(result);
+            convertEpsilonIssuesToErrors(result);
+            errorsFilledIn = result.size();
         }
+        Collections.sort(result);
         return result;
+    }
+
+    boolean hasEpsilonIssues() {
+        return ((ErrM) this.errMgr).hasEpsilonIssues;
+    }
+
+    private void convertEpsilonIssuesToErrors(List<ParsedAntlrError> errors) {
+//        System.out.println("HAVE " + (epsilonIssues == null ? "null" : epsilonIssues.size()) + " EPSILON ISSUES");
+        if (epsilonIssues != null) {
+            boolean hasSelfViolations = false;
+            boolean anyConverted = false;
+            Collections.sort(epsilonIssues);
+            Set<String> seen = new HashSet<>();
+            Path path = null;
+            for (EpsilonRuleInfo e : epsilonIssues) {
+                boolean isSelfViolation = e.isSelfViolation();
+                hasSelfViolations |= isSelfViolation;
+                if (!isSelfViolation) {
+                    String key = e.victimRuleName + ":" + e.culpritRuleName;
+                    if (seen.contains(key)) {
+//                        System.out.println("  Seen - skip " + e);
+                        continue;
+                    }
+                    seen.add(key);
+                    anyConverted = true;
+                    for (Iterator<ParsedAntlrError> it = errors.iterator(); it.hasNext();) {
+                        ParsedAntlrError pae = it.next();
+                        if (path == null) {
+                            path = pae.path();
+                        }
+                        if (pae.code() == e.kind.antlrErrorCode()
+                                && e.victimTokenLine == pae.lineNumber()
+                                && e.victimLineOffset == pae.lineOffset()) {
+                            it.remove();
+                        }
+                    }
+                    ParsedAntlrError replacement
+                            = new ParsedAntlrError(true, e.kind.antlrErrorCode(),
+                                    path, e.victimTokenLine, e.victimLineOffset,
+                                    e.victimErrorMessage());
+
+                    replacement.setFileOffsetAndLength(e.victimStart, e.victimEnd - e.victimStart);
+
+                    errors.add(replacement);
+
+                    ParsedAntlrError culpritError
+                            = new ParsedAntlrError(true, e.kind.antlrErrorCode(),
+                                    path, e.culpritRuleLine, e.culpritRuleLineOffset,
+                                    e.culpritErrorMessage());
+
+                    culpritError.setFileOffsetAndLength(e.culpritRuleStart, e.culpritRuleEnd - e.culpritRuleStart);
+
+                    errors.add(culpritError);
+                }
+            }
+            if (!anyConverted && hasSelfViolations) {
+
+            }
+        }
     }
 
     private List<String> customLineSplit(CharSequence seq) {
@@ -276,6 +338,10 @@ public final class MemoryTool extends Tool {
         }
     }
 
+    public List<EpsilonRuleInfo> epsilonIssues() {
+        return epsilonIssues == null ? Collections.emptyList() : epsilonIssues;
+    }
+
     public Grammar loadGrammar(String fileName, Consumer<JFSFileObject> c) {
         ToolContext ctx = ToolContext.get(this);
         JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, UnixPath.get(fileName));
@@ -288,10 +354,27 @@ public final class MemoryTool extends Tool {
         }
         if (fo != null) {
             JFSFileObject finalFile = fo;
-            return withCurrentPath(Paths.get(fo.getName()), () -> {
+            Grammar result = withCurrentPath(Paths.get(fo.getName()), () -> {
                 c.accept(finalFile);
                 return readOneGrammar(finalFile, fileName, ctx);
             });
+            ErrM errm = (ErrM) this.errMgr;
+            if (errm.hasEpsilonIssues) {
+                result.originalTokenStream.seek(0);
+                result.originalTokenStream.getTokenSource();
+                MatchEmptyStringAnalyzer ana = new MatchEmptyStringAnalyzer(result);
+                List<EpsilonRuleInfo> issues = ana.analyze();
+                for (EpsilonRuleInfo epsilonIssue : issues) {
+                    if (epsilonIssue.grammarName.equals(result.name)) {
+                        if (epsilonIssues == null) {
+                            epsilonIssues = new ArrayList<>(issues.size());
+                        }
+                        epsilonIssues.add(epsilonIssue);
+                    }
+                    // XXX if not, link to other file?
+                }
+            }
+            return result;
         } else {
             log("Could not load primary grammar " + fileName + " from any of " + attemptedPaths);
         }
@@ -319,43 +402,8 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public Grammar xreadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx) {
-        try (Reader inReader = finalFile.openReader(true)) {
-            return xdoReadOneGrammar(finalFile, fileName, ctx, inReader);
-        } catch (ClosedByInterruptException ex) {
-            Thread.interrupted();
-            try (Reader reader2 = finalFile.openReader(true)) {
-                return xdoReadOneGrammar(finalFile, fileName, ctx, reader2);
-            } catch (IOException ex1) {
-                ex1.printStackTrace();
-                errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, ex1, fileName);
-                return null;
-            }
-        } catch (IOException oi) {
-            oi.printStackTrace();
-            errMgr.toolError(ErrorType.CANNOT_OPEN_FILE, oi, fileName);
-            return null;
-        }
-    }
-
     private Grammar doReadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx, org.antlr.runtime.CharStream stream) throws IOException {
         GrammarRootAST grammarRootAST = parse(fileName, stream);
-        final Grammar g = createGrammar(grammarRootAST);
-        if (g != null) {
-            g.fileName = fileName;
-            log("Loaded primary grammar " + g.name + " file "
-                    + g.fileName + " from " + ctx.inputLocation
-                    + ":" + finalFile);
-            process(g, false);
-        }
-        return g;
-    }
-
-    private Grammar xdoReadOneGrammar(JFSFileObject finalFile, String fileName, ToolContext ctx, Reader reader) throws IOException {
-        int len = finalFile.length();
-        System.out.println("LENGTH " + len + " " + finalFile);
-        org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(reader, len, 512);
-        GrammarRootAST grammarRootAST = parse(fileName, charStream);
         final Grammar g = createGrammar(grammarRootAST);
         if (g != null) {
             g.fileName = fileName;
@@ -581,6 +629,7 @@ public final class MemoryTool extends Tool {
 
         private final List<ParsedAntlrError> errors = new ArrayList<>(13);
         private final List<String> infos = new ArrayList<>(3);
+        boolean hasEpsilonIssues;
 
         public ErrM(Tool tool) {
             super(tool);
@@ -616,9 +665,12 @@ public final class MemoryTool extends Tool {
 
         @Override
         public void emit(ErrorType etype, ANTLRMessage msg) {
-            if (etype == ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR) {
-//                Thread.dumpStack();
-//                System.out.println(msg);
+            switch (etype) {
+                case EPSILON_CLOSURE:
+                case EPSILON_OPTIONAL:
+                case EPSILON_LR_FOLLOW:
+                    hasEpsilonIssues = true;
+                    break;
             }
             msg.fileName = replaceWithPath(msg.fileName);
             Path supplied = currentFile.get();
@@ -636,20 +688,29 @@ public final class MemoryTool extends Tool {
                 CommonToken ct = (CommonToken) msg.offendingToken;
                 startOffset = ct.getStartIndex();
                 stopOffset = ct.getStopIndex();
+            } else if (msg.offendingToken instanceof org.antlr.runtime.CommonToken) {
+                org.antlr.runtime.CommonToken ct = (org.antlr.runtime.CommonToken) msg.offendingToken;
+                startOffset = ct.getStartIndex();
+                stopOffset = ct.getStopIndex();
+            } else if (msg.offendingToken != null) {
+                String txt = msg.offendingToken.getText();
+                if (txt != null) {
+                    startOffset = msg.offendingToken.getInputStream().index();
+                    stopOffset = startOffset + txt.length() - 1;
+                }
             }
-            boolean isError = etype.severity == ErrorSeverity.ERROR || etype.severity == ErrorSeverity.ERROR_ONE_OFF
+            boolean isError = etype.severity == ErrorSeverity.ERROR
+                    || etype.severity == ErrorSeverity.ERROR_ONE_OFF
                     || etype.severity == ErrorSeverity.FATAL;
 
             String message = toString(msg);
             Matcher m = ERRNUM.matcher(message);
             if (m.find() && m.group(1).length() > 0) {
                 message = m.group(1);
-//            } else {
-//                System.out.println("NO PATTERN IN '" + message + "'");
             }
             ParsedAntlrError pae = new ParsedAntlrError(isError, etype.code, pth, line, charPositionInLine, message);
             if (startOffset != -1 && stopOffset != -1) {
-                pae.setFileOffsetAndLength(startOffset, stopOffset - startOffset);
+                pae.setFileOffsetAndLength(startOffset, (stopOffset - startOffset) + 1);
             }
             errors.add(pae);
             super.emit(etype, msg);

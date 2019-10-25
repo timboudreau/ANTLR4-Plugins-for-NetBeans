@@ -35,7 +35,7 @@ token_declarations :
     line*
     ;
 
-// A line may be empty and file also
+// A line may be  empty and file also
 // A line may terminate by end of file
 line :
     token_declaration (CR | EOF)

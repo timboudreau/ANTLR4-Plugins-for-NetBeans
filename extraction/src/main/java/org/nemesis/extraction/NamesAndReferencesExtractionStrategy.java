@@ -35,6 +35,7 @@ import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.extraction.key.NamedRegionKey;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.StringGraph;
+import java.util.logging.Level;
 
 /**
  *
@@ -251,7 +252,6 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         // - this code runs thousands of times, potentially every time a key
         // is pressed.  It needs to be fast and low-allocation more than it
         // needs to be pretty.
-
         private final NamedSemanticRegionsBuilder<T> namesBuilder;
         private final NamedSemanticRegionsBuilder<T> ruleBoundsBuilder;
         private final int[] activations;
@@ -284,7 +284,15 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 return null;
             }
             if (node instanceof ParserRuleContext) {
-                onVisit((ParserRuleContext) node);
+                try {
+                    // Try not to wreak complete havoc with the rest of
+                    // extraction
+                    onVisit((ParserRuleContext) node);
+                } catch (Exception ex) {
+                    LOG.log(Level.SEVERE, "Exception visiting "
+                            + node.getText()
+                            + " (" + node.getClass().getSimpleName() + ")", ex);
+                }
             } else {
                 super.visitChildren(node);
             }

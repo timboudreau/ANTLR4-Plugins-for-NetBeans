@@ -15,7 +15,14 @@
                 return;
             }
         }
-        bi.accept( nm, ctx );
+        try {
+            bi.accept(nm, ctx);
+        } catch (IllegalArgumentException ex) {
+            java.util.logging.Logger logger = java.util.logging.Logger.getLogger("org.nemesis.SyntaxTreeNavigator");
+            logger.log(java.util.logging.Level.INFO, "Likely range add out of order adding "
+                    + nm + " - " + ctx + " from " + start.getStartIndex()
+                    + " to " + stop.getStopIndex(), ex);
+        }
     }
 
     private static boolean hasRuleChildren(ParserRuleContext ctx) {

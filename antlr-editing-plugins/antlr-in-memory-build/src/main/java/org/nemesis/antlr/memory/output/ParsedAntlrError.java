@@ -53,6 +53,9 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
     }
 
     public void setFileOffsetAndLength(int offset, int length) {
+        if (offset == 955) {
+            new Exception("Got " + offset + " " + length + ": " + message).printStackTrace();
+        }
         this.fileOffset = offset;
         this.length = length;
     }

@@ -109,7 +109,6 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
             // can include those underneath the rule they belong to, indented
             graph = ruleBounds.crossReference(namedAlts);
         }
-        System.out.println("model was " + model);
         for (int i = 0; i < rules.size(); i++) {
             NamedSemanticRegion<RuleTypes> rule = rules.get(i);
             if (!showAlternatives) {
@@ -127,7 +126,6 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
             // are any alternatives to display
             if (showAlternatives && graph != null && graph.leftSlice().childCount(rule) > 0) {
                 List<NamedSemanticRegion<RuleTypes>> alts = new ArrayList<>(graph.leftSlice().children(rule));
-                System.out.println("\n\nALTS:\n" + alts + "\n\n");
                 switch (sort) {
                     case ALPHA:
                     case ALPHA_TYPE:
@@ -143,12 +141,10 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
                         SortTypes.ALPHA.sort(alts, extraction, AntlrKeys.RULE_NAME_REFERENCES);
                 }
                 for (NamedSemanticRegion<RuleTypes> alt : alts) {
-                    System.out.println("ALT: " + alt + " for " + rule);
                     model.add(alt);
                 }
             }
         }
-        System.out.println("Model now " + model);
         return newSelectedIndex;
     }
 

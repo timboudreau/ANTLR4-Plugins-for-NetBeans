@@ -1330,9 +1330,20 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         if (!hasExplicitHelperClass) {
             // <P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
-            cl.innerClass(helperClassName).extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
-                    + ", AntlrParseResult, " + entryPointSimple + ">")
-                    .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC).build();
+            ClassBuilder<ClassBuilder<String>> cb = cl.innerClass(helperClassName)
+                    .extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
+                            + ", AntlrParseResult, " + entryPointSimple + ">")
+                    .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC);
+
+            boolean useDefaultErrorHandling = utils()
+                    .annotationValue(parserInfo, "defaultErrorHighlightingEnabled", Boolean.class, true);
+
+            if (!useDefaultErrorHandling) {
+                cb.overridePublic("isDefaultErrorHandlingEnabled").returning("boolean")
+                        .body().returning("false").endBlock();
+            }
+
+            cb.build();
         }
 
         cl.importing("org.netbeans.api.editor.mimelookup.MimeRegistration")

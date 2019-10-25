@@ -52,18 +52,22 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
     @Override
     public CharBuffer asCharBuffer(Charset encoding, boolean ignoreEncodingErrors) throws IOException {
         BadLocationException[] ex = new BadLocationException[1];
-        doc.render(() -> {
-            int length = doc.getLength();
-            try {
-                doc.getText(0, length, segment);
-            } catch (BadLocationException e) {
-                ex[0] = e;
+        synchronized (this) {
+            doc.render(() -> {
+                int length = doc.getLength();
+                try {
+                    doc.getText(0, length, segment);
+                } catch (BadLocationException e) {
+                    ex[0] = e;
+                }
+            });
+            if (ex[0] != null) {
+                throw new IOException("Exception fetching text from "
+                        + doc, ex[0]);
             }
-        });
-        if (ex[0] != null) {
-            throw new IOException(ex[0]);
+            Segment result = (Segment) segment.clone();
+            return CharBuffer.wrap(result, result.offset, result.count);
         }
-        return CharBuffer.wrap(segment, segment.offset, segment.offset + segment.count);
     }
 
     @Override

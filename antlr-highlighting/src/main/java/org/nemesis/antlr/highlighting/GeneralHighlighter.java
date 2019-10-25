@@ -241,7 +241,11 @@ abstract class GeneralHighlighter<T> implements Runnable {
     }
 
     private void withParseResult(Document doc, Extraction extraction, T argument) throws Exception {
-        LOG.log(Level.FINEST, "{0} got parse result {0}", new Object[]{this});
+        LOG.log(Level.FINEST, "{0} got parse result", new Object[]{this});
+        if (extraction == null) {
+            LOG.log(Level.INFO, "Recieved null parse result", new Exception());
+            return;
+        }
         refresh(doc, extraction, argument);
     }
 

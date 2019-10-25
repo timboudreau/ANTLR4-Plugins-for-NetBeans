@@ -62,6 +62,7 @@ limitations under the License.
                         <publicPackage>org.nemesis.data</publicPackage>
                         <publicPackage>org.nemesis.data.graph.hetero</publicPackage>
                         <publicPackage>org.nemesis.data.named</publicPackage>
+                        <publicPackage>org.nemesis.distance</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

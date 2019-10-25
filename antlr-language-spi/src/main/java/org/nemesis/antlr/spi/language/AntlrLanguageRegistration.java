@@ -226,6 +226,15 @@ public @interface AntlrLanguageRegistration {
          * @return If true the panel will be generated
          */
         boolean generateExtractionDebugNavigatorPanel() default false;
+
+        /**
+         * If true (the default), syntax errors will automatically be
+         * highlighted; set to false if you want to provide your own error
+         * highlighting in place of that.
+         *
+         * @return true by default
+         */
+        boolean defaultErrorHighlightingEnabled() default true;
     }
 
     /**

@@ -45,6 +45,7 @@ import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
 import com.mastfrog.abstractions.list.IndexedResolvable;
 import org.nemesis.data.impl.SizedArrayValueSupplier;
+import static org.nemesis.distance.LevenshteinDistance.sortByDistance;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in
@@ -1636,46 +1637,5 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     private static List<String> sortByDistanceTop(int count, String to, List<String> l) {
         sortByDistance(to, l);
         return l.subList(0, Math.min(count, l.size()));
-    }
-
-    private static void sortByDistance(String to, List<String> l) {
-        Collections.sort(l, (a, b) -> {
-            int da = levenshteinDistance(to, a, false);
-            int db = levenshteinDistance(to, b, false);
-            return da > db ? 1 : da < db ? -1 : 0;
-        });
-    }
-
-    private static int levenshteinDistance(
-            String str1,
-            String str2,
-            final boolean caseSensitive) {
-        if (!caseSensitive) {
-            str1 = str1.toLowerCase();
-            str2 = str2.toLowerCase();
-        }
-        int[][] distance = new int[str1.length() + 1][str2.length() + 1];
-
-        for (int i = 0; i <= str1.length(); i++) {
-            distance[i][0] = i;
-        }
-        for (int j = 1; j <= str2.length(); j++) {
-            distance[0][j] = j;
-        }
-
-        for (int i = 1; i <= str1.length(); i++) {
-            for (int j = 1; j <= str2.length(); j++) {
-                distance[i][j] = minimum(
-                        distance[i - 1][j] + 1,
-                        distance[i][j - 1] + 1,
-                        distance[i - 1][j - 1] + ((str1.charAt(i - 1) == str2.charAt(j - 1)) ? 0 : 1));
-            }
-        }
-
-        return distance[str1.length()][str2.length()];
-    }
-
-    private static int minimum(int a, int b, int c) {
-        return Math.min(Math.min(a, b), c);
     }
 }
