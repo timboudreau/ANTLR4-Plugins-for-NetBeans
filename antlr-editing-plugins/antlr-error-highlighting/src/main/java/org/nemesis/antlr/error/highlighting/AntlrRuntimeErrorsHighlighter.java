@@ -120,7 +120,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             StyledDocument sdoc = (StyledDocument) doc;
             int docLength = sdoc.getLength();
             Element el = NbDocument.findLineRootElement(sdoc);
-            /*
             System.out.println("\nERROR:\t'" + error.message() + "'");
             System.out.println("type:\t" + (error.isError() ? "ERROR" : "WARNING"));
             System.out.println("err-code:\t" + error.code());
@@ -130,9 +129,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             System.out.println("doc-length:\t" + docLength);
             System.out.println("total-lines:\t" + el.getElementCount());
             System.out.println("");
-             */
+            
             int lineNumber = error.lineNumber() - 1 >= el.getElementCount()
                     ? el.getElementCount() - 1 : error.lineNumber() - 1;
+            if (lineNumber < 0) {
+                System.err.println("WEIRD LINE NUMBER " + lineNumber + " in " + error);
+                lineNumber = error.lineNumber();
+                if (lineNumber < 0) {
+                    System.out.println("   ORIG ERROR HAD WEIRD LINE NUMBER");
+                    lineNumber = 0;
+                }
+            }
             int lineOffsetInDocument = NbDocument.findLineOffset((StyledDocument) doc, lineNumber);
             int errorStartOffset = Math.max(0, lineOffsetInDocument + error.lineOffset());
             int errorEndOffset = Math.min(docLength - 1, errorStartOffset + error.length());
