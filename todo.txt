@@ -1,8 +1,6 @@
 
 # Antlr Editing Plugins To-Dos
 
- - ParsedAntlrError should not use path.
-
  - Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
 
  - Need better caching for maven project info - it is reparsing POMs too frequently
@@ -10,6 +8,9 @@
  - Add warning when skip action encountered
 
  - Add array of preferred rules to generic code completion?
+
+ - Split out code to create parser and api for antlr parser results from annotations and
+   other stuff in language spi - does not belong together
 
  - Ability to specify a centrality key for Navigator panel annotations - will have to
     be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
@@ -23,6 +24,9 @@
  - Sample should be specifiable as a URL / file name
 
  - Registration processors:  All FQNs should be constants.
+
+ - Annotation processors should produce a list of the modules/maven coordinates which are required in
+   order to build everything
 
  - Use @ConvertAsProperties on preview
 

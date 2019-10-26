@@ -48,13 +48,17 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.text.NbDocument;
 
 /**
+ * Borrowed this code with modifications from NetBeans' common scripting
+ * language project, which borrowed it from the circa-JDK 5 / NetBeans 6
+ * Retouche use-javac-internally project.
+ *
  * This file is originally from Retouche, the Java Support infrastructure in
  * NetBeans. I have modified the file as little as possible to make merging
  * Retouche fixes back as simple as possible.
  *
- * @author Jan Lahoda
+ * @author Jan Lahoda, Tim Boudreau
  */
-public class InstantRenamePerformer implements DocumentListener, KeyListener {
+final class InstantRenamePerformer implements DocumentListener, KeyListener {
 
     private SyncDocumentRegion region;
     private Document doc;
@@ -73,6 +77,7 @@ public class InstantRenamePerformer implements DocumentListener, KeyListener {
     private AttributeSet attribsSlaveAll = null;
 
     private static final Logger LOG = Logger.getLogger(InstantRenamePerformer.class.getName());
+
     static {
         LOG.setLevel(Level.ALL);
     }
@@ -139,7 +144,7 @@ public class InstantRenamePerformer implements DocumentListener, KeyListener {
         return (InstantRenamePerformer) target.getClientProperty(InstantRenamePerformer.class);
     }
 
-    public static void performInstantRename(JTextComponent target, Iterable<IntRange> highlights, int caretOffset) throws BadLocationException {
+    public static void performInstantRename(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset) throws BadLocationException {
         //check if there is already an instant rename action in progress
         InstantRenamePerformer performer = getPerformerFromComponent(target);
         if (performer != null) {
@@ -308,8 +313,8 @@ public class InstantRenamePerformer implements DocumentListener, KeyListener {
     }
 
 //    private static final AttributeSet defaultSyncedTextBlocksHighlight = AttributesUtilities.createImmutable(StyleConstants.Background, new Color(138, 191, 236));
-    private static final AttributeSet defaultSyncedTextBlocksHighlight =
-            AttributesUtilities.createImmutable(StyleConstants.Foreground, Color.red);
+    private static final AttributeSet defaultSyncedTextBlocksHighlight
+            = AttributesUtilities.createImmutable(StyleConstants.Foreground, Color.red);
 
     private static AttributeSet getSyncedTextBlocksHighlight(String name) {
         FontColorSettings fcs = MimeLookup.getLookup(MimePath.EMPTY).lookup(FontColorSettings.class);

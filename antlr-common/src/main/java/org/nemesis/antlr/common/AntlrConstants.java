@@ -20,6 +20,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import javax.swing.ImageIcon;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.netbeans.api.annotations.common.StaticResource;
 import org.openide.util.ImageUtilities;
 
 /**
@@ -38,6 +39,7 @@ public final class AntlrConstants {
     private static final String PARSER_PNG = "parser.png";
     private static final String FRAGMENT_PNG = "fragment.png";
     private static final String PACKAGE_IMAGE_PATH = "org/nemesis/antlr/common/";
+    @StaticResource
     public static final String ICON_PATH = PACKAGE_IMAGE_PATH + "antlr-g4-file-type.png";
 
     private static Map<RuleTypes, ImageIcon> iconForTypeMap;

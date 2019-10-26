@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.refactoring;
 
+import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.range.IntRange;
 import java.awt.event.ActionEvent;
 import java.util.Collections;
@@ -46,6 +47,7 @@ import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.api.indexing.IndexingManager;
+import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
@@ -59,6 +61,9 @@ import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
 
 /**
+ * Subclass this (or annotate one or more NameReferenceSetKeys with
+ * <code>&#064;InstantRename</code> and let the annotation processor do it for
+ * you) to make it work.
  *
  * @author Tim Boudreau
  */
@@ -66,13 +71,14 @@ public class InstantRenameAction extends BaseAction {
 
     private final NameReferenceSetKey<?> key;
     private static final Logger LOG = Logger.getLogger(InstantRenameAction.class.getName());
+    public static final String ACTION_NAME = "in-place-refactoring";
 
     static {
         LOG.setLevel(Level.SEVERE);
     }
 
     protected InstantRenameAction(NameReferenceSetKey<?> key) {
-        super("in-place-refactoring", MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
+        super(ACTION_NAME, MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
         this.key = key;
     }
 
@@ -81,7 +87,7 @@ public class InstantRenameAction extends BaseAction {
     }
 
     @Messages({
-        "in-place-refactoring=Rename",
+        ACTION_NAME + "=Rename",
         "InstantRenameDenied=Cannot perform rename here",
         "scanning-in-progress=Scanning In Progress"
     })
@@ -89,9 +95,11 @@ public class InstantRenameAction extends BaseAction {
     public void actionPerformed(ActionEvent evt, final JTextComponent target) {
         try {
             final int caret = target.getCaretPosition();
-            final String ident = Utilities.getIdentifier(Utilities.getDocument(target), caret);
+            BaseDocument document = Utilities.getDocument(target);
+            final String ident = Utilities.getIdentifier(document, caret);
             System.out.println("IDENTIFIER: '" + ident + "'");
             if (ident == null) {
+                System.out.println("NO IDENT");
                 Utilities.setStatusBoldText(target, Bundle.InstantRenameDenied());
                 return;
             }
@@ -102,199 +110,68 @@ public class InstantRenameAction extends BaseAction {
             }
             Source js = Source.create(target.getDocument());
             if (js == null) {
+                System.out.println("NO SOURCE");
                 return;
             }
-
-            final Iterable<IntRange>[] changePoints = new Iterable[1];
-            final AtomicInteger changed = new AtomicInteger(0);
-
-            DocumentListener dl = new DocumentListener() {
-
-                @Override
-                public void insertUpdate(DocumentEvent e) {
-                    changed.compareAndSet(0, 1);
-                }
-
-                @Override
-                public void removeUpdate(DocumentEvent e) {
-                    changed.compareAndSet(0, 1);
-                }
-
-                @Override
-                public void changedUpdate(DocumentEvent e) {
-                    // ignore attr changes
-                }
-
-            };
-            target.getDocument().addDocumentListener(dl);
-
-            final InstantRenamer[] renamer = new InstantRenamer[1];
+            ModificationChecker checker = new ModificationChecker(document);
             try {
-
-                NbAntlrUtils.withPostProcessingDisabledThrowing(() -> {
-                    do {
-                        changed.set(0);
-                        ParserManager.parse(
-                                Collections.<Source>singleton(js),
-                                new UserTask() {
-                            public @Override
-                            void run(ResultIterator resultIterator) throws Exception {
-
-                                Parser.Result res = resultIterator.getParserResult();
-                                if (res instanceof ExtractionParserResult) {
-                                    Extraction extraction = ((ExtractionParserResult) res).extraction();
-                                    NamedRegionReferenceSets<?> refs = extraction.references(key);
-                                    NamedSemanticRegions<?> names = extraction.namedRegions(key.referencing());
-                                    NamedSemanticRegion<?> caretNamedRegion = refs.at(caret);
-                                    NamedSemanticRegion<?> referent = null;
-                                    if (caretNamedRegion == null) {
-                                        caretNamedRegion = referent = names.at(caret);
-                                    }
-                                    if (caretNamedRegion == null) {
-                                        return;
-                                    }
-                                    String ident = caretNamedRegion.name();
-                                    System.out.println("RENAMING '" + ident + "'");
-                                    if (referent == null) {
-                                        referent = names.regionFor(ident);
-                                    }
-                                    if (referent == null) {
-                                        return;
-                                    }
-                                    NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
-                                    Iterable<? extends IntRange> regions = referencesToName;
-//                                Iterable<? extends IntRange> orig = Collections.singleton(referent);
-                                    Set<IntRange> all = new HashSet<>();
-                                    regions.forEach(all::add);
-                                    all.add(referent);
-//                                Iterable<? extends IntRange> merged = CollectionUtils.concatenate(orig, regions);
-                                    changePoints[0] = all;
-                                }
-
-                                /*
-                            Map<String, Parser.Result> embeddedResults = new HashMap<>();
-                            outer:
-                            for (;;) {
-                                final Result parserResult = resultIterator.getParserResult();
-                                if (parserResult == null) {
-                                    return;
-                                }
-                                embeddedResults.put(parserResult.getSnapshot().getMimeType(),
-                                        resultIterator.getParserResult());
-                                String inheritedType = parserResult.getSnapshot().getMimePath().getInheritedType();
-                                if (inheritedType != null) {
-                                    embeddedResults.put(inheritedType, resultIterator.getParserResult());
-                                }
-                                Iterable<Embedding> embeddings = resultIterator.getEmbeddings();
-                                for (Embedding e : embeddings) {
-                                    if (e.containsOriginalOffset(caret)) {
-                                        resultIterator = resultIterator.getResultIterator(e);
-                                        continue outer;
-                                    }
-                                }
-                                break;
-                            }
-
-                            BaseDocument baseDoc = (BaseDocument) target.getDocument();
-                            List<Language> list = LanguageRegistry.getInstance().getEmbeddedLanguages(baseDoc, caret);
-                            for (Language language : list) {
-                                if (language.getInstantRenamer() != null) {
-                                    //the parser result matching with the language is just
-                                    //mimetype based, it doesn't take mimepath into account,
-                                    //which I belive is ok here.
-                                    Parser.Result result = embeddedResults.get(language.getMimeType());
-                                    if (!(result instanceof ParserResult)) {
-                                        return;
-                                    }
-                                    ParserResult parserResult = (ParserResult) result;
-
-                                    renamer[0] = language.getInstantRenamer();
-                                    assert renamer[0] != null;
-
-                                    String[] descRetValue = new String[1];
-
-                                    if (!renamer[0].isRenameAllowed(parserResult, caret, descRetValue)) {
-                                        return;
-                                    }
-
-                                    Set<OffsetRange> regions = renamer[0].getRenameRegions(parserResult, caret);
-
-                                    if ((regions != null) && (regions.size() > 0)) {
-                                        changePoints[0] = regions;
-                                    }
-
-                                    break; //the for break
-                                }
-                            }
-                                 */
-                            }
-                        }
-                        );
-
-                        if (changePoints[0] != null) {
-                            final BadLocationException[] exc = new BadLocationException[1];
-                            final BaseDocument baseDoc = (BaseDocument) target.getDocument();
-                            baseDoc.render(new Runnable() {
-                                public void run() {
-                                    try {
-                                        // writers are now locked out, check mod flag:
-                                        if (changed.get() == 0) {
-                                            // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
-                                            // if no document change happened, then offsets must be correct and within doc bounds.
-                                            int maxLen = baseDoc.getLength();
-                                            for (IntRange r : changePoints[0]) {
-                                                if (r.start() >= maxLen || r.end() >= maxLen) {
-                                                    throw new IllegalArgumentException("Bad OffsetRange provided by " + renamer[0] + ": " + r + ", docLen=" + maxLen);
-                                                }
-                                            }
-                                            doInstantRename(changePoints[0], target, caret);
-                                            // don't loop even if there's a modification
-                                            changed.set(2);
-                                        }
-                                    } catch (BadLocationException ex) {
-                                        exc[0] = ex;
-                                    }
-                                }
-                            });
-                            if (exc[0] != null) {
-                                throw exc[0];
-                            }
-                        } else {
-                            Document doc = target.getDocument();
-                            FileObject fo = NbEditorUtilities.getFileObject(doc);
-                            if (fo != null) {
-                                DataObject dob = DataObject.find(fo);
-                                EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                                if (ck != null) {
-                                    doFullRename(ck, dob.getNodeDelegate());
-                                }
-                            }
-                            break;
-                        }
-                    } while (changed.get() == 1);
-
-                    return null;
-                });
+                System.out.println("call with pp disabled");
+                NbAntlrUtils.withPostProcessingDisabledThrowing(new InstantRenameImplementation(key, checker, js, caret, target, document));
+                System.out.println("done");
             } catch (Exception ex) {
                 LOG.log(Level.SEVERE, "Refactoring", ex);
             } finally {
-                target.getDocument().removeDocumentListener(dl);
+                checker.detach();
             }
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Refactoring", e);
         }
     }
 
+    private static final class ModificationChecker implements DocumentListener {
+
+        private final AtomicInteger changed = new AtomicInteger();
+        private final Document doc;
+
+        public ModificationChecker(Document doc) {
+            this.doc = doc;
+            doc.addDocumentListener(this);
+        }
+
+        void detach() {
+            doc.removeDocumentListener(this);
+        }
+
+        void set(int val) {
+            changed.set(val);
+        }
+
+        int get() {
+            return changed.get();
+        }
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            changed.compareAndSet(0, 1);
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            changed.compareAndSet(0, 1);
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            // ignore attr changes
+        }
+    }
+
     @Override
-    protected Class getShortDescriptionBundleClass() {
+    protected Class<?> getShortDescriptionBundleClass() {
         return InstantRenameAction.class;
     }
 
-    void doInstantRename(Iterable<IntRange> changePoints, JTextComponent target, int caret) throws BadLocationException {
-        InstantRenamePerformer.performInstantRename(target, changePoints, caret);
-    }
-
-    private void doFullRename(EditorCookie ec, Node n) {
+    private static void doFullRename(EditorCookie ec, Node n) {
         InstanceContent ic = new InstanceContent();
         ic.add(ec);
         ic.add(n);
@@ -305,4 +182,131 @@ public class InstantRenameAction extends BaseAction {
         a.actionPerformed(RefactoringActionsFactory.DEFAULT_EVENT);
     }
 
+    private static class InstantRenameImplementation extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
+
+        private final NameReferenceSetKey<?> key;
+        private final ModificationChecker checker;
+        private final Source source;
+        private final int caret;
+        private final JTextComponent target;
+        private BadLocationException thrown;
+        private final BaseDocument baseDoc;
+        private Iterable<? extends IntRange> regions;
+
+        public InstantRenameImplementation(NameReferenceSetKey<?> key, ModificationChecker checker, Source js, int caret, JTextComponent target, BaseDocument baseDoc) {
+            this.key = key;
+            this.checker = checker;
+            this.source = js;
+            this.caret = caret;
+            this.target = target;
+            this.baseDoc = baseDoc;
+        }
+
+        @Override
+        public void run() {
+            try {
+                // writers are now locked out, check mod flag:
+                if (checker.get() == 0) {
+                    // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
+                    // if no document change happened, then offsets must be correct and within doc bounds.
+                    int maxLen = baseDoc.getLength();
+                    for (IntRange r : regions) {
+                        if (r.start() >= maxLen || r.end() >= maxLen) {
+                            throw new IllegalArgumentException("Bad OffsetRange provided: " + r + ", docLen=" + maxLen);
+                        }
+                    }
+                    InstantRenamePerformer.performInstantRename(target, regions, caret);
+                    // don't loop even if there's a modification
+                    checker.set(2);
+                }
+            } catch (BadLocationException ex) {
+                thrown = ex;
+            }
+        }
+
+        private void rethrowIfThrown() throws BadLocationException {
+            BadLocationException ble = thrown;
+            thrown = null;
+            if (ble != null) {
+                throw ble;
+            }
+        }
+
+        @Override
+        public Iterable<? extends IntRange> get() throws Exception {
+            do {
+                checker.set(0);
+                findRegions();
+                System.out.println("parse task got " + regions);
+                if (regions != null) {
+                    final BaseDocument baseDoc = (BaseDocument) target.getDocument();
+                    baseDoc.render(this);
+                    rethrowIfThrown();
+                } else {
+                    Document doc = target.getDocument();
+                    FileObject fo = NbEditorUtilities.getFileObject(doc);
+                    if (fo != null) {
+                        DataObject dob = DataObject.find(fo);
+                        EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+                        if (ck != null) {
+                            doFullRename(ck, dob.getNodeDelegate());
+                        }
+                    }
+                    break;
+                }
+            } while (checker.get() == 1);
+            return null;
+        }
+
+        Iterable<? extends IntRange> findRegions() throws ParseException {
+            ParserManager.parse(Collections.singleton(source), this);
+            return regions;
+        }
+
+        @Override
+        public void run(ResultIterator resultIterator) throws Exception {
+            System.out.println("do parse");
+            Parser.Result res = resultIterator.getParserResult();
+            if (res instanceof ExtractionParserResult) {
+                Extraction extraction = ((ExtractionParserResult) res).extraction();
+                NamedRegionReferenceSets<?> refs = extraction.references(key);
+                NamedSemanticRegions<?> names = extraction.namedRegions(key.referencing());
+                NamedSemanticRegion<?> caretNamedRegion = refs.at(caret);
+                NamedSemanticRegion<?> referent = null;
+                if (caretNamedRegion == null) {
+                    caretNamedRegion = referent = names.at(caret);
+                }
+                if (caretNamedRegion == null) {
+                    System.out.println("no caret named region - give up");
+                    return;
+                }
+                String ident = caretNamedRegion.name();
+                if (referent == null) {
+                    referent = names.regionFor(ident);
+                }
+                if (referent == null) {
+                    System.out.println("  no referent for " + ident);
+                    return;
+                }
+                NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
+                LOG.log(Level.FINE, "Inplace rename {0} reparse {1} using {2} in"
+                        + " region {3}",
+                        new Object[]{
+                            ident,
+                            extraction.source(),
+                            key,
+                            caretNamedRegion
+                        });
+                System.out.println("RENAMING '" + ident + "'");
+                Iterable<? extends IntRange> regions = referencesToName;
+                Set<IntRange> all = new HashSet<>();
+                regions.forEach(all::add);
+                all.add(referent);
+                System.out.println("FOUND REGIONS: " + regions);
+                this.regions = all;
+            } else {
+                System.out.println("wrong parser result type " + res);
+            }
+        }
+    }
 }
