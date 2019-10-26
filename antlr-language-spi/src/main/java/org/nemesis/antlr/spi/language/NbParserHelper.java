@@ -178,9 +178,12 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         assert tree != null : "tree null";
         assert cancelled != null : "cancelled null";
         boolean wasCancelled = cancelled.getAsBoolean();
-        LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1}",
-                 new Object[]{ extraction.source(), wasCancelled } );
-        if ( !wasCancelled ) {
+        boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
+        LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1} "
+                + "postprocessingEnabled? {2}",
+                 new Object[]{ extraction.source(), wasCancelled,
+                 postprocess} );
+        if ( !wasCancelled && postprocess ) {
             // Ensure the tree gets fully walked and the parse fully run, so
             // all errors are collected
             try {
@@ -189,6 +192,11 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                     doc = ( Document ) extraction.source().source();
                 } else if ( extraction.source().source() instanceof Snapshot ) {
                     doc = ( ( Snapshot ) extraction.source().source() ).getSource().getDocument( false );
+                } else {
+                    Optional<Document> optDoc = extraction.source().lookup(Document.class);
+                    if (optDoc.isPresent()) {
+                        doc = optDoc.get();
+                    }
                 }
                 List<? extends SyntaxError> errors = null;
                 if ( isDefaultErrorHandlingEnabled() && errorSupplier != null ) {

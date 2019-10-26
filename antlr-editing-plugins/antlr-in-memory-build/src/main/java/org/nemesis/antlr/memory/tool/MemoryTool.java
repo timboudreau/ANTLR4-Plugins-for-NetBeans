@@ -679,7 +679,7 @@ public final class MemoryTool extends Tool {
                         + " - " + msg).printStackTrace();
             }
             Path pth = msg.fileName == null ? supplied == null
-                    ? Paths.get("_no-file_") : supplied : Paths.get(msg.fileName);
+                    ? UnixPath.get("_no-file_") : supplied : UnixPath.get(msg.fileName);
             int charPositionInLine = msg.charPosition;
             int line = msg.line;
             int startOffset = -1;

@@ -29,6 +29,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Wraps an Antlr syntax error, so that if Antlr classes were loaded in
+ * an isolating classloader, we do not leak types that were created by
+ * it and inadvertently keep it alive.
  *
  * @author Tim Boudreau
  */
@@ -52,6 +55,14 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
         this.message = message;
     }
 
+    /**
+     * Antlr syntax errors typically only have a line and line offset;
+     * where they can be computed, we add character position info
+     * after creation.
+     *
+     * @param offset The offset
+     * @param length The length of the region in error
+     */
     public void setFileOffsetAndLength(int offset, int length) {
         if (offset == 955) {
             new Exception("Got " + offset + " " + length + ": " + message).printStackTrace();

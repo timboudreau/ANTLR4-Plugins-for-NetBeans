@@ -17,7 +17,6 @@ package org.nemesis.antlr.refactoring;
 
 import com.mastfrog.range.IntRange;
 import java.awt.event.ActionEvent;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -30,6 +29,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -46,7 +46,6 @@ import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.api.indexing.IndexingManager;
-import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
@@ -131,46 +130,48 @@ public class InstantRenameAction extends BaseAction {
 
             final InstantRenamer[] renamer = new InstantRenamer[1];
             try {
-                do {
-                    changed.set(0);
-                    ParserManager.parse(
-                            Collections.<Source>singleton(js),
-                            new UserTask() {
-                        public @Override
-                        void run(ResultIterator resultIterator) throws Exception {
 
-                            Parser.Result res = resultIterator.getParserResult();
-                            if (res instanceof ExtractionParserResult) {
-                                Extraction extraction = ((ExtractionParserResult) res).extraction();
-                                NamedRegionReferenceSets<?> refs = extraction.references(key);
-                                NamedSemanticRegions<?> names = extraction.namedRegions(key.referencing());
-                                NamedSemanticRegion<?> caretNamedRegion = refs.at(caret);
-                                NamedSemanticRegion<?> referent = null;
-                                if (caretNamedRegion == null) {
-                                    caretNamedRegion = referent = names.at(caret);
-                                }
-                                if (caretNamedRegion == null) {
-                                    return;
-                                }
-                                String ident = caretNamedRegion.name();
-                                System.out.println("RENAMING '" + ident + "'");
-                                if (referent == null) {
-                                    referent = names.regionFor(ident);
-                                }
-                                if (referent == null) {
-                                    return;
-                                }
-                                NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
-                                Iterable<? extends IntRange> regions = referencesToName;
+                NbAntlrUtils.withPostProcessingDisabledThrowing(() -> {
+                    do {
+                        changed.set(0);
+                        ParserManager.parse(
+                                Collections.<Source>singleton(js),
+                                new UserTask() {
+                            public @Override
+                            void run(ResultIterator resultIterator) throws Exception {
+
+                                Parser.Result res = resultIterator.getParserResult();
+                                if (res instanceof ExtractionParserResult) {
+                                    Extraction extraction = ((ExtractionParserResult) res).extraction();
+                                    NamedRegionReferenceSets<?> refs = extraction.references(key);
+                                    NamedSemanticRegions<?> names = extraction.namedRegions(key.referencing());
+                                    NamedSemanticRegion<?> caretNamedRegion = refs.at(caret);
+                                    NamedSemanticRegion<?> referent = null;
+                                    if (caretNamedRegion == null) {
+                                        caretNamedRegion = referent = names.at(caret);
+                                    }
+                                    if (caretNamedRegion == null) {
+                                        return;
+                                    }
+                                    String ident = caretNamedRegion.name();
+                                    System.out.println("RENAMING '" + ident + "'");
+                                    if (referent == null) {
+                                        referent = names.regionFor(ident);
+                                    }
+                                    if (referent == null) {
+                                        return;
+                                    }
+                                    NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
+                                    Iterable<? extends IntRange> regions = referencesToName;
 //                                Iterable<? extends IntRange> orig = Collections.singleton(referent);
-                                Set<IntRange> all = new HashSet<>();
-                                regions.forEach(all::add);
-                                all.add(referent);
+                                    Set<IntRange> all = new HashSet<>();
+                                    regions.forEach(all::add);
+                                    all.add(referent);
 //                                Iterable<? extends IntRange> merged = CollectionUtils.concatenate(orig, regions);
-                                changePoints[0] = all;
-                            }
+                                    changePoints[0] = all;
+                                }
 
-                            /*
+                                /*
                             Map<String, Parser.Result> embeddedResults = new HashMap<>();
                             outer:
                             for (;;) {
@@ -225,56 +226,61 @@ public class InstantRenameAction extends BaseAction {
                                     break; //the for break
                                 }
                             }
-                             */
+                                 */
+                            }
                         }
-                    }
-                    );
+                        );
 
-                    if (changePoints[0] != null) {
-                        final BadLocationException[] exc = new BadLocationException[1];
-                        final BaseDocument baseDoc = (BaseDocument) target.getDocument();
-                        baseDoc.render(new Runnable() {
-                            public void run() {
-                                try {
-                                    // writers are now locked out, check mod flag:
-                                    if (changed.get() == 0) {
-                                        // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
-                                        // if no document change happened, then offsets must be correct and within doc bounds.
-                                        int maxLen = baseDoc.getLength();
-                                        for (IntRange r : changePoints[0]) {
-                                            if (r.start() >= maxLen || r.end() >= maxLen) {
-                                                throw new IllegalArgumentException("Bad OffsetRange provided by " + renamer[0] + ": " + r + ", docLen=" + maxLen);
+                        if (changePoints[0] != null) {
+                            final BadLocationException[] exc = new BadLocationException[1];
+                            final BaseDocument baseDoc = (BaseDocument) target.getDocument();
+                            baseDoc.render(new Runnable() {
+                                public void run() {
+                                    try {
+                                        // writers are now locked out, check mod flag:
+                                        if (changed.get() == 0) {
+                                            // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
+                                            // if no document change happened, then offsets must be correct and within doc bounds.
+                                            int maxLen = baseDoc.getLength();
+                                            for (IntRange r : changePoints[0]) {
+                                                if (r.start() >= maxLen || r.end() >= maxLen) {
+                                                    throw new IllegalArgumentException("Bad OffsetRange provided by " + renamer[0] + ": " + r + ", docLen=" + maxLen);
+                                                }
                                             }
+                                            doInstantRename(changePoints[0], target, caret);
+                                            // don't loop even if there's a modification
+                                            changed.set(2);
                                         }
-                                        doInstantRename(changePoints[0], target, caret);
-                                        // don't loop even if there's a modification
-                                        changed.set(2);
+                                    } catch (BadLocationException ex) {
+                                        exc[0] = ex;
                                     }
-                                } catch (BadLocationException ex) {
-                                    exc[0] = ex;
+                                }
+                            });
+                            if (exc[0] != null) {
+                                throw exc[0];
+                            }
+                        } else {
+                            Document doc = target.getDocument();
+                            FileObject fo = NbEditorUtilities.getFileObject(doc);
+                            if (fo != null) {
+                                DataObject dob = DataObject.find(fo);
+                                EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+                                if (ck != null) {
+                                    doFullRename(ck, dob.getNodeDelegate());
                                 }
                             }
-                        });
-                        if (exc[0] != null) {
-                            throw exc[0];
+                            break;
                         }
-                    } else {
-                        Document doc = target.getDocument();
-                        FileObject fo = NbEditorUtilities.getFileObject(doc);
-                        if (fo != null) {
-                            DataObject dob = DataObject.find(fo);
-                            EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                            if (ck != null) {
-                                doFullRename(ck, dob.getNodeDelegate());
-                            }
-                        }
-                        break;
-                    }
-                } while (changed.get() == 1);
+                    } while (changed.get() == 1);
+
+                    return null;
+                });
+            } catch (Exception ex) {
+                LOG.log(Level.SEVERE, "Refactoring", ex);
             } finally {
                 target.getDocument().removeDocumentListener(dl);
             }
-        } catch (BadLocationException | IOException | ParseException e) {
+        } catch (Exception e) {
             LOG.log(Level.SEVERE, "Refactoring", e);
         }
     }

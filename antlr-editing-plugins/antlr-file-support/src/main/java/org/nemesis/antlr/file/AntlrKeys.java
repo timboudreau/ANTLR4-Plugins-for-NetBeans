@@ -39,6 +39,7 @@ import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
 import org.nemesis.antlr.spi.language.Goto;
 import org.nemesis.antlr.spi.language.Imports;
+import org.nemesis.antlr.spi.language.InplaceRename;
 import org.nemesis.antlr.spi.language.ReferenceableFromImports;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
 import static org.nemesis.antlr.spi.language.highlighting.Coloration.ALL_POPULAR_THEMES;
@@ -380,6 +381,7 @@ import org.nemesis.extraction.key.SingletonKey;
                             themes = ALL_POPULAR_THEMES,
                             derivedFrom = "fragment")),
 
+            // Used by inplace rename
             @TokenCategory(name = "synchronized-text-blocks-ext",
                     tokenIds = {},
                     colors = {
@@ -401,7 +403,6 @@ import org.nemesis.extraction.key.SingletonKey;
                                 fg = {10, 10, 10}
                         )}
             )
-
         }
 )
 public class AntlrKeys {
@@ -465,6 +466,7 @@ public class AntlrKeys {
         )
     })
     @Goto(mimeType = ANTLR_MIME_TYPE)
+    @InplaceRename(mimeType=ANTLR_MIME_TYPE)
     public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
     public static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
 

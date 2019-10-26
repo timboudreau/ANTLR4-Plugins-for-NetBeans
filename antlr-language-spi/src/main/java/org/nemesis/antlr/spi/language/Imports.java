@@ -19,8 +19,6 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.nemesis.extraction.Extraction;
-import org.nemesis.source.api.GrammarSource;
 
 /**
  * Annotation which can be applied to a NameRegionKey, indicating that an
@@ -65,7 +63,8 @@ import org.nemesis.source.api.GrammarSource;
 public @interface Imports {
 
     String mimeType();
-
+/*
+    // PENDING:
     SimpleImportFindingStrategy[] simpleStrategy() default {};
 
     Class<? extends ImportFindingStrategy> strategy()
@@ -80,4 +79,5 @@ public @interface Imports {
 
         GrammarSource<?> resolve(Extraction sourceExtraction, String name);
     }
+    */
 }

@@ -41,6 +41,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-spi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
         </dependency>
         <dependency>
