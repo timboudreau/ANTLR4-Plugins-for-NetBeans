@@ -62,10 +62,6 @@ final class ProgrammaticParseResultHookRegistry {
     private static final Logger LOG = Logger.getLogger(
             ProgrammaticParseResultHookRegistry.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     static Set<ResultHookReference<?>> set() {
         // XXX should be WeakHashSet?
         return Collections.synchronizedSet(new HashSet<>(5));

@@ -59,10 +59,6 @@ public final class AdhocReparseListeners {
             = CollectionUtils.weakSupplierMap(WeakSet::new);
     private final String mimeType;
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     public AdhocReparseListeners(String mimeType) {
         this.mimeType = mimeType;
     }

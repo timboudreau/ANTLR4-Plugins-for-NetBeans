@@ -64,7 +64,7 @@ import org.nemesis.extraction.key.SingletonKey;
                 type = ANTLRv4Parser.class,
                 generateSyntaxTreeNavigatorPanel = true,
                 generateExtractionDebugNavigatorPanel = true,
-//                defaultErrorHighlightingEnabled = false,
+                //                defaultErrorHighlightingEnabled = false,
                 entryPointRule = ANTLRv4Parser.RULE_grammarFile),
         file = @FileType(extension = "g4",
                 multiview = true,
@@ -378,7 +378,29 @@ import org.nemesis.extraction.key.SingletonKey;
                     colors = @Coloration(
                             bold = true,
                             themes = ALL_POPULAR_THEMES,
-                            derivedFrom = "fragment"))
+                            derivedFrom = "fragment")),
+
+            @TokenCategory(name = "synchronized-text-blocks-ext",
+                    tokenIds = {},
+                    colors = {
+                        @Coloration(
+                                bold = true,
+                                themes = ALL_POPULAR_THEMES,
+                                bg = {142, 96, 96},
+                                fg = {245, 245, 245}
+                        )
+                    }
+            ),
+            @TokenCategory(name = "synchronized-text-blocks-ext-slave",
+                    tokenIds = {},
+                    colors = {
+                        @Coloration(
+                                bold = true,
+                                themes = ALL_POPULAR_THEMES,
+                                bg = {172, 96, 96},
+                                fg = {10, 10, 10}
+                        )}
+            )
 
         }
 )

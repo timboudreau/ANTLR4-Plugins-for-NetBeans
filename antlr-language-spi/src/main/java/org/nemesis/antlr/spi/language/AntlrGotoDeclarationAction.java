@@ -85,10 +85,6 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
             = Logger.getLogger(AntlrGotoDeclarationAction.class.getName());
     private final NameReferenceSetKey<?>[] keys;
 
-    static {
-        LOGGER.setLevel(Level.ALL);
-    }
-
     AntlrGotoDeclarationAction(NameReferenceSetKey<?>[] keys) {
         this.keys = notNull("keys", keys);
         putValue(ASYNCHRONOUS_KEY, true);

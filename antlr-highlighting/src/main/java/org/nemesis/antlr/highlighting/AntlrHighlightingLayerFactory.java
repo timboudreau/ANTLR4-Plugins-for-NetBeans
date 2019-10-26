@@ -49,10 +49,6 @@ public abstract class AntlrHighlightingLayerFactory implements HighlightsLayerFa
     private static final Logger LOG = Logger.getLogger(
             AntlrHighlightingLayerFactory.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     AntlrHighlightingLayerFactory(List<HighlighterFactory> all) {
         Collections.sort(all);
         this.all = Collections.unmodifiableList(all);

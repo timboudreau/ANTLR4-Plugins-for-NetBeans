@@ -16,7 +16,6 @@
 package org.nemesis.antlr.live.language;
 
 import java.awt.EventQueue;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
@@ -38,7 +37,6 @@ public abstract class AbstractAntlrHighlighter {
     public AbstractAntlrHighlighter(AdhocHighlighterManager mgr, ZOrder zorder) {
         this.mgr = mgr;
         this.zorder = zorder;
-        LOG.setLevel(Level.ALL);
     }
 
     final ZOrder zorder() {

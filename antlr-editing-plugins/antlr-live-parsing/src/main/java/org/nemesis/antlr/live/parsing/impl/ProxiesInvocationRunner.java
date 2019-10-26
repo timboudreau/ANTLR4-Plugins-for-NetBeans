@@ -62,10 +62,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     @SuppressWarnings("LeakingThisInConstructor")
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);

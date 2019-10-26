@@ -86,10 +86,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             AntlrRuntimeErrorsHighlighter.class.getName());
     private final Context ctx;
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     @SuppressWarnings("LeakingThisInConstructor")
     AntlrRuntimeErrorsHighlighter(Context ctx) {
         this.ctx = ctx;
@@ -120,6 +116,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             StyledDocument sdoc = (StyledDocument) doc;
             int docLength = sdoc.getLength();
             Element el = NbDocument.findLineRootElement(sdoc);
+            /*
             System.out.println("\nERROR:\t'" + error.message() + "'");
             System.out.println("type:\t" + (error.isError() ? "ERROR" : "WARNING"));
             System.out.println("err-code:\t" + error.code());
@@ -129,14 +126,13 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             System.out.println("doc-length:\t" + docLength);
             System.out.println("total-lines:\t" + el.getElementCount());
             System.out.println("");
+*/
             
             int lineNumber = error.lineNumber() - 1 >= el.getElementCount()
                     ? el.getElementCount() - 1 : error.lineNumber() - 1;
             if (lineNumber < 0) {
-                System.err.println("WEIRD LINE NUMBER " + lineNumber + " in " + error);
                 lineNumber = error.lineNumber();
                 if (lineNumber < 0) {
-                    System.out.println("   ORIG ERROR HAD WEIRD LINE NUMBER");
                     lineNumber = 0;
                 }
             }
@@ -204,7 +200,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             }
                         }
                     } catch (IllegalStateException ex) {
-                        System.err.println("No line offsets in " + err);
+                        LOG.log(Level.FINE, "No line offsets in {0}", err);
                     } catch (BadLocationException | IndexOutOfBoundsException ex) {
                         LOG.log(Level.WARNING, "Error line " + err.lineNumber()
                                 + " position in line " + err.lineOffset()

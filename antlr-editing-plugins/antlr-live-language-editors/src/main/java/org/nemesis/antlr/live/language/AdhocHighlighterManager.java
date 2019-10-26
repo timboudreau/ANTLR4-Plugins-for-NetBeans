@@ -97,10 +97,6 @@ final class AdhocHighlighterManager {
     private final ComponentListener cl;
     private volatile boolean showing;
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     AdhocHighlighterManager(String mimeType, Context ctx) {
         this.mimeType = mimeType;
         this.ctx = ctx;

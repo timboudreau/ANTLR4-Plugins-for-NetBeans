@@ -85,10 +85,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private Runnable unsubscriber;
     private final String logName;
     private final Path path;

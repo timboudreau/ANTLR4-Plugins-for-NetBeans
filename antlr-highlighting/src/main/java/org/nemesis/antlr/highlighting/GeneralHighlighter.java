@@ -77,7 +77,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         this.implementation = implementation;
         key = new HighlighterBagKey(this, implementation);
         OffsetsBag bag = new OffsetsBag(doc, implementation.mergeHighlights());
-        LOG.setLevel(Level.ALL);
         // This avoids us holding a reference from GeneralHighlighter -> OffsetsBag -> Document
         // forever
         doc.putProperty(key, bag);

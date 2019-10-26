@@ -48,7 +48,6 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
     private final Logger LOG = Logger.getLogger( getClass().getName() );
 
     protected NbParserHelper() {
-        LOG.setLevel( Level.ALL );
     }
 
     /**

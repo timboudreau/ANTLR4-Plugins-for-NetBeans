@@ -39,10 +39,6 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
     private static final String BASE = HighlighterFactory.class.getName().replace('.', '-');
     private static final Logger LOG = Logger.getLogger(HighlighterFactory.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     HighlighterFactory(String id, ZOrder zorder, boolean fixedSize, int positionInZOrder, Function<Context, GeneralHighlighter<?>> factory) {
         this.zorder = zorder;
         this.fixedSize = fixedSize;

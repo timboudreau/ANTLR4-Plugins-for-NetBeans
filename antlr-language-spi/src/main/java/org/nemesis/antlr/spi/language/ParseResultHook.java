@@ -40,9 +40,6 @@ public class ParseResultHook<T extends ParserRuleContext> {
 
     private final Class<T> type;
     private static final Logger LOG = Logger.getLogger(ParseResultHook.class.getName());
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     protected ParseResultHook(Class<T> type) {
         Parameters.notNull("type", type);

@@ -43,10 +43,6 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
 
     private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     private static void log(String msg, Object... args) {
         if (LOG.isLoggable(Level.FINER)) {
             LOG.log(Level.FINER, msg, args);
