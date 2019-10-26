@@ -34,6 +34,7 @@ public class RenameQueryResult {
     private final RenameAugmenter augmenter;
     private final RenamePostProcessor postProcessor;
     private final String reason;
+    private CharFilter charFilter;
 
     RenameQueryResult(RenameActionType type) {
         assert type.isStandalone() : "This constructor should not be called "
@@ -63,6 +64,22 @@ public class RenameQueryResult {
         this.augmenter = null;
         this.postProcessor = notNull("postProcessor", postProcessor);
         this.reason = null;
+    }
+
+    /**
+     * Adds a filter to this inplace renamer to cause some typed character
+     * to have no effect (if the filter's test method returns false for
+     * them).
+     *
+     * @param filter A filter
+     * @return A query result
+     */
+    public RenameQueryResult withCharFilter(CharFilter filter) {
+        if (this.charFilter != null) {
+            throw new IllegalStateException("Filter already set to " + filter);
+        }
+        this.charFilter = notNull("filter", filter);
+        return this;
     }
 
     @Override

@@ -55,10 +55,8 @@ import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.nodes.Node;
-import org.openide.util.Lookup;
 import org.openide.util.NbBundle.Messages;
-import org.openide.util.lookup.AbstractLookup;
-import org.openide.util.lookup.InstanceContent;
+import org.openide.util.lookup.Lookups;
 
 /**
  * Subclass this (or annotate one or more NameReferenceSetKeys with
@@ -74,7 +72,7 @@ public class InstantRenameAction extends BaseAction {
     public static final String ACTION_NAME = "in-place-refactoring";
 
     static {
-        LOG.setLevel(Level.SEVERE);
+        LOG.setLevel(Level.ALL);
     }
 
     protected InstantRenameAction(NameReferenceSetKey<?> key) {
@@ -86,20 +84,23 @@ public class InstantRenameAction extends BaseAction {
         return new HighlightsLayerFactoryImpl();
     }
 
+    @Override
+    protected final boolean asynchonous() {
+        return false;
+    }
+
     @Messages({
         ACTION_NAME + "=Rename",
         "InstantRenameDenied=Cannot perform rename here",
         "scanning-in-progress=Scanning In Progress"
     })
     @Override
-    public void actionPerformed(ActionEvent evt, final JTextComponent target) {
+    public final void actionPerformed(ActionEvent evt, final JTextComponent target) {
         try {
             final int caret = target.getCaretPosition();
             BaseDocument document = Utilities.getDocument(target);
             final String ident = Utilities.getIdentifier(document, caret);
-            System.out.println("IDENTIFIER: '" + ident + "'");
             if (ident == null) {
-                System.out.println("NO IDENT");
                 Utilities.setStatusBoldText(target, Bundle.InstantRenameDenied());
                 return;
             }
@@ -108,16 +109,13 @@ public class InstantRenameAction extends BaseAction {
                 Utilities.setStatusBoldText(target, Bundle.scanning_in_progress());
                 return;
             }
-            Source js = Source.create(target.getDocument());
-            if (js == null) {
-                System.out.println("NO SOURCE");
+            Source source = Source.create(target.getDocument());
+            if (source == null) {
                 return;
             }
-            ModificationChecker checker = new ModificationChecker(document);
+            ModificationNoticer checker = new ModificationNoticer(document);
             try {
-                System.out.println("call with pp disabled");
-                NbAntlrUtils.withPostProcessingDisabledThrowing(new InstantRenameImplementation(key, checker, js, caret, target, document));
-                System.out.println("done");
+                NbAntlrUtils.withPostProcessingDisabledThrowing(new RegionsFinder(key, checker, source, caret, target, document));
             } catch (Exception ex) {
                 LOG.log(Level.SEVERE, "Refactoring", ex);
             } finally {
@@ -128,64 +126,21 @@ public class InstantRenameAction extends BaseAction {
         }
     }
 
-    private static final class ModificationChecker implements DocumentListener {
-
-        private final AtomicInteger changed = new AtomicInteger();
-        private final Document doc;
-
-        public ModificationChecker(Document doc) {
-            this.doc = doc;
-            doc.addDocumentListener(this);
-        }
-
-        void detach() {
-            doc.removeDocumentListener(this);
-        }
-
-        void set(int val) {
-            changed.set(val);
-        }
-
-        int get() {
-            return changed.get();
-        }
-
-        @Override
-        public void insertUpdate(DocumentEvent e) {
-            changed.compareAndSet(0, 1);
-        }
-
-        @Override
-        public void removeUpdate(DocumentEvent e) {
-            changed.compareAndSet(0, 1);
-        }
-
-        @Override
-        public void changedUpdate(DocumentEvent e) {
-            // ignore attr changes
-        }
-    }
-
     @Override
-    protected Class<?> getShortDescriptionBundleClass() {
+    protected final Class<?> getShortDescriptionBundleClass() {
         return InstantRenameAction.class;
     }
 
     private static void doFullRename(EditorCookie ec, Node n) {
-        InstanceContent ic = new InstanceContent();
-        ic.add(ec);
-        ic.add(n);
-
-        Lookup actionContext = new AbstractLookup(ic);
-
-        Action a = RefactoringActionsFactory.renameAction().createContextAwareInstance(actionContext);
+        Action a = RefactoringActionsFactory.renameAction()
+                .createContextAwareInstance(Lookups.fixed(ec, n));
         a.actionPerformed(RefactoringActionsFactory.DEFAULT_EVENT);
     }
 
-    private static class InstantRenameImplementation extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
+    private static class RegionsFinder extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
 
         private final NameReferenceSetKey<?> key;
-        private final ModificationChecker checker;
+        private final ModificationNoticer checker;
         private final Source source;
         private final int caret;
         private final JTextComponent target;
@@ -193,7 +148,7 @@ public class InstantRenameAction extends BaseAction {
         private final BaseDocument baseDoc;
         private Iterable<? extends IntRange> regions;
 
-        public InstantRenameImplementation(NameReferenceSetKey<?> key, ModificationChecker checker, Source js, int caret, JTextComponent target, BaseDocument baseDoc) {
+        public RegionsFinder(NameReferenceSetKey<?> key, ModificationNoticer checker, Source js, int caret, JTextComponent target, BaseDocument baseDoc) {
             this.key = key;
             this.checker = checker;
             this.source = js;
@@ -206,7 +161,7 @@ public class InstantRenameAction extends BaseAction {
         public void run() {
             try {
                 // writers are now locked out, check mod flag:
-                if (checker.get() == 0) {
+                if (checker.isUnmodified()) {
                     // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
                     // if no document change happened, then offsets must be correct and within doc bounds.
                     int maxLen = baseDoc.getLength();
@@ -215,9 +170,9 @@ public class InstantRenameAction extends BaseAction {
                             throw new IllegalArgumentException("Bad OffsetRange provided: " + r + ", docLen=" + maxLen);
                         }
                     }
-                    InstantRenamePerformer.performInstantRename(target, regions, caret);
+                    InstantRenamePerformer.performInstantRename(target, regions, caret, null);
                     // don't loop even if there's a modification
-                    checker.set(2);
+                    checker.setHandedOff();
                 }
             } catch (BadLocationException ex) {
                 thrown = ex;
@@ -235,9 +190,8 @@ public class InstantRenameAction extends BaseAction {
         @Override
         public Iterable<? extends IntRange> get() throws Exception {
             do {
-                checker.set(0);
+                checker.setUnmodified();
                 findRegions();
-                System.out.println("parse task got " + regions);
                 if (regions != null) {
                     final BaseDocument baseDoc = (BaseDocument) target.getDocument();
                     baseDoc.render(this);
@@ -254,8 +208,8 @@ public class InstantRenameAction extends BaseAction {
                     }
                     break;
                 }
-            } while (checker.get() == 1);
-            return null;
+            } while (checker.modificationIsInProgress());
+            return regions;
         }
 
         Iterable<? extends IntRange> findRegions() throws ParseException {
@@ -265,7 +219,6 @@ public class InstantRenameAction extends BaseAction {
 
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
-            System.out.println("do parse");
             Parser.Result res = resultIterator.getParserResult();
             if (res instanceof ExtractionParserResult) {
                 Extraction extraction = ((ExtractionParserResult) res).extraction();
@@ -277,7 +230,6 @@ public class InstantRenameAction extends BaseAction {
                     caretNamedRegion = referent = names.at(caret);
                 }
                 if (caretNamedRegion == null) {
-                    System.out.println("no caret named region - give up");
                     return;
                 }
                 String ident = caretNamedRegion.name();
@@ -285,7 +237,6 @@ public class InstantRenameAction extends BaseAction {
                     referent = names.regionFor(ident);
                 }
                 if (referent == null) {
-                    System.out.println("  no referent for " + ident);
                     return;
                 }
                 NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
@@ -297,16 +248,64 @@ public class InstantRenameAction extends BaseAction {
                             key,
                             caretNamedRegion
                         });
-                System.out.println("RENAMING '" + ident + "'");
                 Iterable<? extends IntRange> regions = referencesToName;
                 Set<IntRange> all = new HashSet<>();
                 regions.forEach(all::add);
                 all.add(referent);
-                System.out.println("FOUND REGIONS: " + regions);
                 this.regions = all;
             } else {
-                System.out.println("wrong parser result type " + res);
+                LOG.log(Level.WARNING, "Called with wrong parser result type: {0}", res);
             }
+        }
+    }
+
+    private static final class ModificationNoticer implements DocumentListener {
+
+        private final AtomicInteger changed = new AtomicInteger();
+        private final Document doc;
+
+        public ModificationNoticer(Document doc) {
+            this.doc = doc;
+            doc.addDocumentListener(this);
+        }
+
+        boolean isUnmodified() {
+            return changed.get() == 0;
+        }
+
+        boolean modificationIsInProgress() {
+            return changed.get() == 1;
+        }
+
+        void detach() {
+            doc.removeDocumentListener(this);
+        }
+
+        void set(int val) {
+            changed.set(val);
+        }
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            changed.compareAndSet(0, 1);
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            changed.compareAndSet(0, 1);
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            // ignore attr changes
+        }
+
+        private void setUnmodified() {
+            changed.set(0);
+        }
+
+        private void setHandedOff() {
+            changed.set(2);
         }
     }
 }

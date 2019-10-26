@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.event.CaretEvent;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.AttributeSet;
@@ -36,6 +35,7 @@ import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
 import javax.swing.text.Position.Bias;
 import javax.swing.text.StyleConstants;
+import org.nemesis.antlr.refactoring.spi.CharFilter;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
@@ -75,6 +75,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
     private AttributeSet attribsSlaveRight = null;
     private AttributeSet attribsSlaveMiddle = null;
     private AttributeSet attribsSlaveAll = null;
+    private final CharFilter filter;
 
     private static final Logger LOG = Logger.getLogger(InstantRenamePerformer.class.getName());
 
@@ -82,14 +83,11 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         LOG.setLevel(Level.ALL);
     }
 
-    /**
-     * Creates a new instance of InstantRenamePerformer
-     */
     @SuppressWarnings("LeakingThisInConstructor")
-    private InstantRenamePerformer(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset) throws BadLocationException {
+    private InstantRenamePerformer(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset, CharFilter filter) throws BadLocationException {
         this.target = target;
+        this.filter = filter;
         doc = target.getDocument();
-
         MutablePositionRegion mainRegion = null;
         List<MutablePositionRegion> regions = new ArrayList<MutablePositionRegion>();
 
@@ -105,7 +103,8 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         }
 
         if (mainRegion == null) {
-            Logger.getLogger(InstantRenamePerformer.class.getName()).warning("No highlight contains the caret (" + caretOffset + "; highlights=" + highlights + ")"); //NOI18N
+            LOG.log(Level.WARNING, "No highlight contains the caret ({0}; highlights={1})",
+                    new Object[]{caretOffset, highlights}); //NOI18N
             // Attempt to use another region - pick the one closest to the caret
             if (regions.size() > 0) {
                 mainRegion = regions.get(0);
@@ -144,7 +143,8 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         return (InstantRenamePerformer) target.getClientProperty(InstantRenamePerformer.class);
     }
 
-    public static void performInstantRename(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset) throws BadLocationException {
+    @SuppressWarnings("ResultOfObjectAllocationIgnored")
+    public static void performInstantRename(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset, CharFilter filter) throws BadLocationException {
         //check if there is already an instant rename action in progress
         InstantRenamePerformer performer = getPerformerFromComponent(target);
         if (performer != null) {
@@ -152,7 +152,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
             performer.release();
         }
 
-        new InstantRenamePerformer(target, highlights, caretOffset);
+        new InstantRenamePerformer(target, highlights, caretOffset, filter);
     }
 
     private boolean isIn(MutablePositionRegion region, int caretOffset) {
@@ -190,15 +190,21 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         requestRepaint();
     }
 
+    @Override
     public void changedUpdate(DocumentEvent e) {
     }
 
-    public void caretUpdate(CaretEvent e) {
-    }
-
+    @Override
     public void keyTyped(KeyEvent e) {
+        if (filter != null && filter != CharFilter.ALL) {
+            boolean initial = region.getFirstRegionLength() == 0;
+            if (!filter.test(initial, e.getKeyChar())) {
+                e.consume();
+            }
+        }
     }
 
+    @Override
     public void keyPressed(KeyEvent e) {
         if ((e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getModifiers() == 0)
                 || (e.getKeyCode() == KeyEvent.VK_ENTER && e.getModifiers() == 0)) {
@@ -207,6 +213,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         }
     }
 
+    @Override
     public void keyReleased(KeyEvent e) {
     }
 
@@ -230,85 +237,27 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
             OffsetsBag bag = getHighlightsBag(doc);
             bag.clear();
         } else {
-            // Compute attributes
-            if (attribs == null) {
-                // read the attributes for the master region
-                attribs = getSyncedTextBlocksHighlight("synchronized-text-blocks-ext"); //NOI18N
-                Color foreground = (Color) attribs.getAttribute(StyleConstants.Foreground);
-                Color background = (Color) attribs.getAttribute(StyleConstants.Background);
-                attribsLeft = createAttribs(
-                        StyleConstants.Background, background,
-                        EditorStyleConstants.LeftBorderLineColor, foreground,
-                        EditorStyleConstants.TopBorderLineColor, foreground,
-                        EditorStyleConstants.BottomBorderLineColor, foreground
-                );
-                attribsRight = createAttribs(
-                        StyleConstants.Background, background,
-                        EditorStyleConstants.RightBorderLineColor, foreground,
-                        EditorStyleConstants.TopBorderLineColor, foreground,
-                        EditorStyleConstants.BottomBorderLineColor, foreground
-                );
-                attribsMiddle = createAttribs(
-                        StyleConstants.Background, background,
-                        EditorStyleConstants.TopBorderLineColor, foreground,
-                        EditorStyleConstants.BottomBorderLineColor, foreground
-                );
-                attribsAll = createAttribs(
-                        StyleConstants.Background, background,
-                        EditorStyleConstants.LeftBorderLineColor, foreground,
-                        EditorStyleConstants.RightBorderLineColor, foreground,
-                        EditorStyleConstants.TopBorderLineColor, foreground,
-                        EditorStyleConstants.BottomBorderLineColor, foreground
-                );
-
-                // read the attributes for the slave regions
-                attribsSlave = getSyncedTextBlocksHighlight("synchronized-text-blocks-ext-slave"); //NOI18N
-                Color slaveForeground = (Color) attribsSlave.getAttribute(StyleConstants.Foreground);
-                Color slaveBackground = (Color) attribsSlave.getAttribute(StyleConstants.Background);
-                attribsSlaveLeft = createAttribs(
-                        StyleConstants.Background, slaveBackground,
-                        EditorStyleConstants.LeftBorderLineColor, slaveForeground,
-                        EditorStyleConstants.TopBorderLineColor, slaveForeground,
-                        EditorStyleConstants.BottomBorderLineColor, slaveForeground
-                );
-                attribsSlaveRight = createAttribs(
-                        StyleConstants.Background, slaveBackground,
-                        EditorStyleConstants.RightBorderLineColor, slaveForeground,
-                        EditorStyleConstants.TopBorderLineColor, slaveForeground,
-                        EditorStyleConstants.BottomBorderLineColor, slaveForeground
-                );
-                attribsSlaveMiddle = createAttribs(
-                        StyleConstants.Background, slaveBackground,
-                        EditorStyleConstants.TopBorderLineColor, slaveForeground,
-                        EditorStyleConstants.BottomBorderLineColor, slaveForeground
-                );
-                attribsSlaveAll = createAttribs(
-                        StyleConstants.Background, slaveBackground,
-                        EditorStyleConstants.LeftBorderLineColor, slaveForeground,
-                        EditorStyleConstants.RightBorderLineColor, slaveForeground,
-                        EditorStyleConstants.TopBorderLineColor, slaveForeground,
-                        EditorStyleConstants.BottomBorderLineColor, slaveForeground
-                );
-            }
-
-            OffsetsBag nue = new OffsetsBag(doc);
-            for (int i = 0; i < region.getRegionCount(); i++) {
-                int startOffset = region.getRegion(i).getStartOffset();
-                int endOffset = region.getRegion(i).getEndOffset();
-                int size = region.getRegion(i).getLength();
-                if (size == 1) {
-                    nue.addHighlight(startOffset, endOffset, i == 0 ? attribsAll : attribsSlaveAll);
-                } else if (size > 1) {
-                    nue.addHighlight(startOffset, startOffset + 1, i == 0 ? attribsLeft : attribsSlaveLeft);
-                    nue.addHighlight(endOffset - 1, endOffset, i == 0 ? attribsRight : attribsSlaveRight);
-                    if (size > 2) {
-                        nue.addHighlight(startOffset + 1, endOffset - 1, i == 0 ? attribsMiddle : attribsSlaveMiddle);
+            int count = region.getRegionCount();
+            if (count > 0) {
+                ensureAttribs();
+                OffsetsBag nue = new OffsetsBag(doc);
+                for (int i = 0; i < count; i++) {
+                    int startOffset = region.getRegion(i).getStartOffset();
+                    int endOffset = region.getRegion(i).getEndOffset();
+                    int size = region.getRegion(i).getLength();
+                    if (size == 1) {
+                        nue.addHighlight(startOffset, endOffset, i == 0 ? attribsAll : attribsSlaveAll);
+                    } else if (size > 1) {
+                        nue.addHighlight(startOffset, startOffset + 1, i == 0 ? attribsLeft : attribsSlaveLeft);
+                        nue.addHighlight(endOffset - 1, endOffset, i == 0 ? attribsRight : attribsSlaveRight);
+                        if (size > 2) {
+                            nue.addHighlight(startOffset + 1, endOffset - 1, i == 0 ? attribsMiddle : attribsSlaveMiddle);
+                        }
                     }
                 }
+                OffsetsBag bag = getHighlightsBag(doc);
+                bag.setHighlights(nue);
             }
-
-            OffsetsBag bag = getHighlightsBag(doc);
-            bag.setHighlights(nue);
         }
     }
 
@@ -360,5 +309,66 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         }
 
         return bag;
+    }
+
+    void ensureAttribs() {
+        if (attribs == null) {
+            // read the attributes for the master region
+            attribs = getSyncedTextBlocksHighlight("synchronized-text-blocks-ext"); //NOI18N
+            Color foreground = (Color) attribs.getAttribute(StyleConstants.Foreground);
+            Color background = (Color) attribs.getAttribute(StyleConstants.Background);
+            attribsLeft = createAttribs(
+                    StyleConstants.Background, background,
+                    EditorStyleConstants.LeftBorderLineColor, foreground,
+                    EditorStyleConstants.TopBorderLineColor, foreground,
+                    EditorStyleConstants.BottomBorderLineColor, foreground
+            );
+            attribsRight = createAttribs(
+                    StyleConstants.Background, background,
+                    EditorStyleConstants.RightBorderLineColor, foreground,
+                    EditorStyleConstants.TopBorderLineColor, foreground,
+                    EditorStyleConstants.BottomBorderLineColor, foreground
+            );
+            attribsMiddle = createAttribs(
+                    StyleConstants.Background, background,
+                    EditorStyleConstants.TopBorderLineColor, foreground,
+                    EditorStyleConstants.BottomBorderLineColor, foreground
+            );
+            attribsAll = createAttribs(
+                    StyleConstants.Background, background,
+                    EditorStyleConstants.LeftBorderLineColor, foreground,
+                    EditorStyleConstants.RightBorderLineColor, foreground,
+                    EditorStyleConstants.TopBorderLineColor, foreground,
+                    EditorStyleConstants.BottomBorderLineColor, foreground
+            );
+            // read the attributes for the slave regions
+            attribsSlave = getSyncedTextBlocksHighlight("synchronized-text-blocks-ext-slave"); //NOI18N
+            Color slaveForeground = (Color) attribsSlave.getAttribute(StyleConstants.Foreground);
+            Color slaveBackground = (Color) attribsSlave.getAttribute(StyleConstants.Background);
+            attribsSlaveLeft = createAttribs(
+                    StyleConstants.Background, slaveBackground,
+                    EditorStyleConstants.LeftBorderLineColor, slaveForeground,
+                    EditorStyleConstants.TopBorderLineColor, slaveForeground,
+                    EditorStyleConstants.BottomBorderLineColor, slaveForeground
+            );
+            attribsSlaveRight = createAttribs(
+                    StyleConstants.Background, slaveBackground,
+                    EditorStyleConstants.RightBorderLineColor, slaveForeground,
+                    EditorStyleConstants.TopBorderLineColor, slaveForeground,
+                    EditorStyleConstants.BottomBorderLineColor, slaveForeground
+            );
+            attribsSlaveMiddle = createAttribs(
+                    StyleConstants.Background, slaveBackground,
+                    EditorStyleConstants.TopBorderLineColor, slaveForeground,
+                    EditorStyleConstants.BottomBorderLineColor, slaveForeground
+            );
+            attribsSlaveAll = createAttribs(
+                    StyleConstants.Background, slaveBackground,
+                    EditorStyleConstants.LeftBorderLineColor, slaveForeground,
+                    EditorStyleConstants.RightBorderLineColor, slaveForeground,
+                    EditorStyleConstants.TopBorderLineColor, slaveForeground,
+                    EditorStyleConstants.BottomBorderLineColor, slaveForeground
+            );
+        }
     }
 }
