@@ -13,12 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring.spi;
+package org.nemesis.charfilter.anno;
 
-public interface RenamePostProcessor {
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.CLASS;
+import java.lang.annotation.Target;
 
-    void onRenameCompleted(String original, String nue, Runnable undo);
+/**
+ * Defines a CharFilter, using two CharPredicateSpecs to define what should be
+ * <i>excluded</i>.
+ *
+ * @author Tim Boudreau
+ */
+@Retention(CLASS)
+@Target({})
+public @interface CharFilterSpec {
 
-    default void cancelled() {
-    }
+    CharPredicateSpec initialCharacterExcludes() default @CharPredicateSpec();
+
+    CharPredicateSpec subsequentCharacterExcludes() default @CharPredicateSpec();
+
 }

@@ -19,7 +19,7 @@ import javax.swing.text.StyledDocument;
 
 public interface RenameAugmenter {
 
-    void nameUpdated(String orig, String newName, StyledDocument doc, int startOffset, int endOffset);
+    void nameUpdated(String orig, String newName, StyledDocument doc);
 
     default void completed() {
 

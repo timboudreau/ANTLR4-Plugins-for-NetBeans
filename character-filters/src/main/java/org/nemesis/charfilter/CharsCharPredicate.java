@@ -13,12 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring.spi;
+package org.nemesis.charfilter;
 
-public interface RenamePostProcessor {
+import java.util.Arrays;
 
-    void onRenameCompleted(String original, String nue, Runnable undo);
+/**
+ *
+ * @author Tim Boudreau
+ */
+final class CharsCharPredicate implements CharPredicate {
 
-    default void cancelled() {
+    private final char[] chars;
+
+    public CharsCharPredicate(char[] chars) {
+        Arrays.sort(chars);
+        this.chars = chars;
+    }
+
+    @Override
+    public boolean test(char c) {
+        return Arrays.binarySearch(chars, c) >= 0;
     }
 }

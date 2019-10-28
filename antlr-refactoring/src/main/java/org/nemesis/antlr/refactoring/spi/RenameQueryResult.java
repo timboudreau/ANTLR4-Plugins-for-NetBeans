@@ -20,7 +20,7 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Objects;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.refactoring.impl.RenameQueryResultTrampoline;
-import org.nemesis.extraction.Extraction;
+import org.nemesis.charfilter.CharFilter;
 
 /**
  * Result of querying a registerer-provided InstantRenamer to determine if a
@@ -28,13 +28,13 @@ import org.nemesis.extraction.Extraction;
  *
  * @author Tim Boudreau
  */
-public class RenameQueryResult {
+public final class RenameQueryResult {
 
     private final RenameActionType type;
     private final RenameAugmenter augmenter;
     private final RenamePostProcessor postProcessor;
     private final String reason;
-    private CharFilter charFilter;
+    private final CharFilter charFilter;
 
     RenameQueryResult(RenameActionType type) {
         assert type.isStandalone() : "This constructor should not be called "
@@ -43,6 +43,7 @@ public class RenameQueryResult {
         augmenter = null;
         postProcessor = null;
         reason = null;
+        charFilter = null;
     }
 
     RenameQueryResult(String reason) {
@@ -50,6 +51,7 @@ public class RenameQueryResult {
         this.type = RenameActionType.NOT_ALLOWED;
         this.postProcessor = null;
         this.augmenter = null;
+        charFilter = null;
     }
 
     RenameQueryResult(RenameAugmenter augmenter, boolean takeover) {
@@ -57,6 +59,7 @@ public class RenameQueryResult {
         this.augmenter = notNull("augmenter", augmenter);
         postProcessor = null;
         this.reason = null;
+        charFilter = null;
     }
 
     RenameQueryResult(RenamePostProcessor postProcessor) {
@@ -64,22 +67,26 @@ public class RenameQueryResult {
         this.augmenter = null;
         this.postProcessor = notNull("postProcessor", postProcessor);
         this.reason = null;
+        charFilter = null;
+    }
+
+    RenameQueryResult(RenameQueryResult orig, CharFilter filter) {
+        this.type = orig.type;
+        this.postProcessor = orig.postProcessor;
+        this.reason = orig.reason;
+        this.augmenter = orig.augmenter;
+        this.charFilter = filter;
     }
 
     /**
-     * Adds a filter to this inplace renamer to cause some typed character
-     * to have no effect (if the filter's test method returns false for
-     * them).
+     * Adds a filter to this inplace renamer to cause some typed character to
+     * have no effect (if the filter's test method returns false for them).
      *
      * @param filter A filter
      * @return A query result
      */
     public RenameQueryResult withCharFilter(CharFilter filter) {
-        if (this.charFilter != null) {
-            throw new IllegalStateException("Filter already set to " + filter);
-        }
-        this.charFilter = notNull("filter", filter);
-        return this;
+        return new RenameQueryResult(this, notNull("filter", filter));
     }
 
     @Override
@@ -101,24 +108,30 @@ public class RenameQueryResult {
             case POST_PROCESS:
                 sb.append(" postProcess=").append(postProcessor);
                 break;
+            case NOTHING_FOUND:
+                sb.append(" nothing-found");
+                break;
             default:
                 throw new AssertionError(type);
+        }
+        if (charFilter != null) {
+            sb.append(" charFilter=").append(charFilter);
         }
         return sb.append(')').toString();
     }
 
-    void onRenameCompleted(String original, Extraction extraction, String nue, Runnable undo) {
+    void onRenameCompleted(String original, String nue, Runnable undo) {
         if (augmenter != null) {
             augmenter.completed();
         }
         if (postProcessor != null) {
-            postProcessor.onRenameCompleted(original, extraction, nue, undo);
+            postProcessor.onRenameCompleted(original, nue, undo);
         }
     }
 
-    void nameUpdated(String orig, String newName, StyledDocument doc, int startOffset, int endOffset) {
+    void nameUpdated(String orig, String newName, StyledDocument doc) {
         if (augmenter != null) {
-            augmenter.nameUpdated(orig, newName, doc, startOffset, endOffset);
+            augmenter.nameUpdated(orig, newName, doc);
         }
     }
 
@@ -129,6 +142,10 @@ public class RenameQueryResult {
         if (postProcessor != null) {
             postProcessor.cancelled();
         }
+    }
+
+    boolean testChar(boolean initial, char typed) {
+        return charFilter == null ? true : charFilter.test(initial, typed);
     }
 
     RenameActionType type() {
@@ -174,15 +191,16 @@ public class RenameQueryResult {
         private static RenameQueryResult VETO = new RenameQueryResult(RenameActionType.NOT_ALLOWED);
         private static RenameQueryResult PROCEED = new RenameQueryResult(RenameActionType.INPLACE);
         private static RenameQueryResult USE_REFACTORING = new RenameQueryResult(RenameActionType.USE_REFACTORING_API);
+        private static RenameQueryResult NOTHING = new RenameQueryResult(RenameActionType.NOTHING_FOUND);
 
         @Override
-        protected void _onRename(RenameQueryResult res, String original, Extraction extraction, String nue, Runnable undo) {
-            res.onRenameCompleted(original, extraction, nue, undo);
+        protected void _onRename(RenameQueryResult res, String original, String nue, Runnable undo) {
+            res.onRenameCompleted(original, nue, undo);
         }
 
         @Override
-        protected void _nameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc, int startOffset, int endOffset) {
-            res.nameUpdated(orig, newName, doc, startOffset, endOffset);
+        protected void _nameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc) {
+            res.nameUpdated(orig, newName, doc);
         }
 
         @Override
@@ -203,6 +221,10 @@ public class RenameQueryResult {
             return PROCEED;
         }
 
+        protected RenameQueryResult _nothingFound() {
+            return NOTHING;
+        }
+
         protected RenameQueryResult _useRefactoring() {
             return USE_REFACTORING;
         }
@@ -217,6 +239,11 @@ public class RenameQueryResult {
 
         protected RenameQueryResult _postProcess(RenamePostProcessor postProcessor) {
             return new RenameQueryResult(postProcessor);
+        }
+
+        @Override
+        protected boolean _testChar(RenameQueryResult res, boolean initial, char typed) {
+            return res.testChar(initial, typed);
         }
     }
 

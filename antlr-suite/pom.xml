@@ -46,6 +46,7 @@ limitations under the License.
     <packaging>nbm-application</packaging>
     <name>antlr-suite-app</name>
     <properties>
+        <maven.test.skip>true</maven.test.skip>
         <brandingToken>${netbeans.branding.token}</brandingToken>
         <all.clusters>${project.build.directory}/${brandingToken}</all.clusters>
         <netbeans.verify.integrity>false</netbeans.verify.integrity>
@@ -74,6 +75,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jfs</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>character-filters</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

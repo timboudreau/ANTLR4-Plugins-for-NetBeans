@@ -15,10 +15,10 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.util.strings.Strings;
 import java.util.EnumSet;
 import java.util.Set;
 import org.antlr.v4.runtime.Token;
-import org.nemesis.misc.utils.StringUtils;
 
 /**
  * Simple formatting action implementations, usable for most tasks; in
@@ -385,7 +385,7 @@ public enum SimpleFormattingAction implements FormattingAction {
             String result = action.toString() + "-by-"
                     + key.toString();
             if (more != null) {
-                result += "-" + StringUtils.join("-", (Object[]) more);
+                result += "-" + Strings.join('-', (Object[]) more);
             }
             result += spacesNotStops ? "-spaces" : "-tab-stops";
             if (adjustment != 0) {

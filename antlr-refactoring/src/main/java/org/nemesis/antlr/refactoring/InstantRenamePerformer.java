@@ -35,7 +35,7 @@ import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
 import javax.swing.text.Position.Bias;
 import javax.swing.text.StyleConstants;
-import org.nemesis.antlr.refactoring.spi.CharFilter;
+import javax.swing.text.StyledDocument;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
@@ -61,7 +61,7 @@ import org.openide.text.NbDocument;
 final class InstantRenamePerformer implements DocumentListener, KeyListener {
 
     private SyncDocumentRegion region;
-    private Document doc;
+    private BaseDocument doc;
     private JTextComponent target;
 
     private AttributeSet attribs = null;
@@ -75,23 +75,27 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
     private AttributeSet attribsSlaveRight = null;
     private AttributeSet attribsSlaveMiddle = null;
     private AttributeSet attribsSlaveAll = null;
-    private final CharFilter filter;
+    private final String origText;
+    private String lastText;
+    private boolean firstEvent = true;
 
     private static final Logger LOG = Logger.getLogger(InstantRenamePerformer.class.getName());
 
     static {
         LOG.setLevel(Level.ALL);
     }
+    private final FindItemsResult<?, ?, ?, ?> result;
 
     @SuppressWarnings("LeakingThisInConstructor")
-    private InstantRenamePerformer(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset, CharFilter filter) throws BadLocationException {
+    private InstantRenamePerformer(JTextComponent target, FindItemsResult<?, ?, ?, ?> result, int caretOffset, String origText) throws BadLocationException {
         this.target = target;
-        this.filter = filter;
-        doc = target.getDocument();
+        this.result = result;
+        this.origText = lastText = origText;
+        doc = (BaseDocument) target.getDocument();
         MutablePositionRegion mainRegion = null;
         List<MutablePositionRegion> regions = new ArrayList<MutablePositionRegion>();
 
-        for (IntRange h : highlights) {
+        for (IntRange h : result) {
             Position start = NbDocument.createPosition(doc, h.start(), Bias.Backward);
             Position end = NbDocument.createPosition(doc, h.end(), Bias.Forward);
             MutablePositionRegion current = new MutablePositionRegion(start, end);
@@ -104,7 +108,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
 
         if (mainRegion == null) {
             LOG.log(Level.WARNING, "No highlight contains the caret ({0}; highlights={1})",
-                    new Object[]{caretOffset, highlights}); //NOI18N
+                    new Object[]{caretOffset, result}); //NOI18N
             // Attempt to use another region - pick the one closest to the caret
             if (regions.size() > 0) {
                 mainRegion = regions.get(0);
@@ -117,6 +121,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
                     }
                 }
             } else {
+                origText = null;
                 return;
             }
         }
@@ -125,9 +130,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
 
         region = new SyncDocumentRegion(doc, regions);
 
-        if (doc instanceof BaseDocument) {
-            ((BaseDocument) doc).addPostModificationDocumentListener(this);
-        }
+        doc.addPostModificationDocumentListener(this);
 
         target.addKeyListener(this);
 
@@ -144,15 +147,15 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
     }
 
     @SuppressWarnings("ResultOfObjectAllocationIgnored")
-    public static void performInstantRename(JTextComponent target, Iterable<? extends IntRange> highlights, int caretOffset, CharFilter filter) throws BadLocationException {
+    public static void performInstantRename(JTextComponent target, FindItemsResult<?, ?, ?, ?> result, int caretOffset, String origText) throws BadLocationException {
         //check if there is already an instant rename action in progress
         InstantRenamePerformer performer = getPerformerFromComponent(target);
         if (performer != null) {
             //cancel the old one
-            performer.release();
+            performer.release(true);
         }
 
-        new InstantRenamePerformer(target, highlights, caretOffset, filter);
+        new InstantRenamePerformer(target, result, caretOffset, origText);
     }
 
     private boolean isIn(MutablePositionRegion region, int caretOffset) {
@@ -167,7 +170,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         }
 
         inSync = true;
-        region.sync(0);
+        sync();
         inSync = false;
         requestRepaint();
     }
@@ -185,30 +188,64 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         }
 
         inSync = true;
-        region.sync(0);
+        sync();
         inSync = false;
         requestRepaint();
+    }
+
+    private void sync() {
+        region.sync(0);
+        notifyParticipant();
+    }
+
+    private void notifyParticipant() {
+        if (result.isPassChanges()) {
+            String text = region.getFirstRegionText();
+            if (!lastText.equals(text)) {
+                try {
+                    result.onNameUpdated(lastText, (StyledDocument) doc, text);
+                } finally {
+                    lastText = text;
+                }
+            }
+        }
     }
 
     @Override
     public void changedUpdate(DocumentEvent e) {
     }
 
+    private boolean isFirstCharacter() {
+        int selStart = target.getSelectionStart();
+        int selEnd = target.getSelectionEnd();
+        if (selStart != selEnd) {
+            if (selStart == region.getFirstRegionStartOffset()) {
+                return true;
+            }
+        } else {
+            if (selStart == region.getFirstRegionStartOffset() || region.getFirstRegionLength() == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void keyTyped(KeyEvent e) {
-        if (filter != null && filter != CharFilter.ALL) {
-            boolean initial = region.getFirstRegionLength() == 0;
-            if (!filter.test(initial, e.getKeyChar())) {
-                e.consume();
-            }
+        boolean initial = isFirstCharacter();
+        boolean suppressed = !result.test(initial, e.getKeyChar());
+        System.out.println("Key '" + e.getKeyChar() + "' initial " + initial + " suppress? " + suppressed);
+        if (suppressed) {
+            e.consume();
         }
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if ((e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getModifiers() == 0)
-                || (e.getKeyCode() == KeyEvent.VK_ENTER && e.getModifiers() == 0)) {
-            release();
+        boolean isEscape = e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getModifiers() == 0;
+        boolean isEnter = e.getKeyCode() == KeyEvent.VK_ENTER && e.getModifiers() == 0;
+        if (isEscape || isEnter) {
+            release(false);
             e.consume();
         }
     }
@@ -217,7 +254,19 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
     public void keyReleased(KeyEvent e) {
     }
 
-    void release() {
+    void undo() {
+        region.setText(origText);
+    }
+
+    void release(boolean cancellation) {
+        String newText = region.getFirstRegionText();
+        boolean modified = !origText.equals(newText);
+        if (!modified) {
+            result.onCancelled();
+        } else {
+            result.onNameUpdated(origText, (StyledDocument) doc, newText);
+            result.onRename(origText, newText, this::undo);
+        }
         target.putClientProperty("NetBeansEditor.navigateBoundaries", null); // NOI18N
         target.putClientProperty(InstantRenamePerformer.class, null);
         if (doc instanceof BaseDocument) {

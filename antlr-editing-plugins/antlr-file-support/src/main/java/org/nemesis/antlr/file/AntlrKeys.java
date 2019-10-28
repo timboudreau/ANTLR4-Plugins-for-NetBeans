@@ -16,7 +16,6 @@
 package org.nemesis.antlr.file;
 
 import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
-import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.file.impl.AntlrDataObjectHooks;
 import java.util.Set;
 import org.nemesis.antlr.ANTLRv4Lexer;
@@ -30,6 +29,7 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.file.AntlrKeys.ANTLR_SAMPLE;
+import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.fold.FoldTypeSpec;
@@ -39,7 +39,6 @@ import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
 import org.nemesis.antlr.spi.language.Goto;
 import org.nemesis.antlr.spi.language.Imports;
-import org.nemesis.antlr.spi.language.InplaceRename;
 import org.nemesis.antlr.spi.language.ReferenceableFromImports;
 import org.nemesis.antlr.spi.language.highlighting.Coloration;
 import static org.nemesis.antlr.spi.language.highlighting.Coloration.ALL_POPULAR_THEMES;
@@ -466,9 +465,10 @@ public class AntlrKeys {
         )
     })
     @Goto(mimeType = ANTLR_MIME_TYPE)
-    @InplaceRename(mimeType=ANTLR_MIME_TYPE)
+//    @InplaceRename(mimeType=ANTLR_MIME_TYPE)
     public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
-    public static final SingletonKey<GrammarType> GRAMMAR_TYPE = SingletonKey.create(GrammarType.class);
+
+    public static final SingletonKey<GrammarDeclaration> GRAMMAR_TYPE = SingletonKey.create(GrammarDeclaration.class);
 
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE, colors = @ColoringCategory(name = "ebnfs",
             colors = {

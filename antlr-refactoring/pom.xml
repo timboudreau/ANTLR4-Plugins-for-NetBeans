@@ -20,6 +20,8 @@
                     <moduleType>autoload</moduleType>
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.refactoring</publicPackage>
+                        <publicPackage>org.nemesis.antlr.refactoring.spi</publicPackage>
+                        <publicPackage>org.nemesis.antlr.refactoring.spi.chars</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>
@@ -34,6 +36,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>character-filters</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

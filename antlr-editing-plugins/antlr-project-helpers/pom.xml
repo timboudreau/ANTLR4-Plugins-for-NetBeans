@@ -50,7 +50,7 @@ limitations under the License.
             maven module and results in class incompatibilities inside
             the surefire plugin
         -->
-        <maven.test.skip>false</maven.test.skip>
+        <maven.test.skip>true</maven.test.skip>
     </properties>
     <profiles>
         <profile>

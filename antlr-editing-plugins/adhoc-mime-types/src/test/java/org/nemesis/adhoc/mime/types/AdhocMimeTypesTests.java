@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -13,15 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring.spi;
+package org.nemesis.adhoc.mime.types;
+
+import java.io.IOException;
+import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.EXTENSIONS_REGISTRY;
 
 /**
  *
  * @author Tim Boudreau
  */
-public interface CharFilter {
+public class AdhocMimeTypesTests {
 
-    boolean test(boolean isInitial, char typed);
+    public static void reinitAndDeleteCache() throws IOException {
+        AdhocMimeTypes._reinitAndDeleteCache();
+    }
 
-    public static CharFilter ALL = (ignored1, ignored2) -> true;
+    public static Object extensionsRegistry() {
+        return EXTENSIONS_REGISTRY;
+    }
 }

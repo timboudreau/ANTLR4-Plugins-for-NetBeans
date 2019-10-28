@@ -13,12 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring.spi;
+package org.nemesis.antlr.refactoring;
 
-public interface RenamePostProcessor {
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.key.ExtractionKey;
+import org.netbeans.editor.BaseDocument;
 
-    void onRenameCompleted(String original, String nue, Runnable undo);
+interface InstantRenameProcessorEntry<T, X extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<? extends I>> {
 
-    default void cancelled() {
-    }
+    X key();
+
+    RenameParticipant<T, X, I, C> participant();
+
+    FindItemsResult<T, X, I, C> find(Extraction extraction, BaseDocument document, int caret, String identifier);
 }

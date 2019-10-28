@@ -15,7 +15,9 @@
  */
 package org.nemesis.extraction;
 
+import com.mastfrog.function.TriConsumer;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -35,12 +37,15 @@ final class SingletonExtractionStrategy<KeyType, R extends ParserRuleContext> im
     final Predicate<RuleNode> ancestorQualifier;
     final Class<R> ruleType;
     final Function<R, KeyType> extractor;
+    final BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer;
 
-    SingletonExtractionStrategy(SingletonKey<KeyType> key, Predicate<RuleNode> ancestorQualifier, Class<R> ruleType, Function<R, KeyType> extractor) {
+    SingletonExtractionStrategy(SingletonKey<KeyType> key, Predicate<RuleNode> ancestorQualifier, Class<R> ruleType, Function<R, KeyType> extractor, BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer) {
         this.key = key;
         this.ancestorQualifier = ancestorQualifier;
         this.ruleType = ruleType;
         this.extractor = extractor;
+        this.consumer = consumer;
+        assert (consumer == null) != (extractor == null);
     }
 
     @Override

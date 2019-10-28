@@ -15,6 +15,7 @@
  */
 package org.nemesis.extraction;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.lang.reflect.Array;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -117,9 +118,17 @@ final class SingletonExtractionStrategies<KeyType> implements Hashable {
         }
 
         private <R extends ParserRuleContext> void doRunOne(SingletonExtractionStrategy<KeyType, R> extractor, R ctx) {
-            KeyType found = extractor.extractor.apply(ctx);
-            if (found != null) {
-                encounters.add(found, ctx.start.getStartIndex(), ctx.stop.getStopIndex() + 1, extractor.ruleType);
+            if (extractor.extractor != null) {
+                KeyType found = extractor.extractor.apply(ctx);
+                if (found != null) {
+                    encounters.add(found, ctx.start.getStartIndex(), ctx.stop.getStopIndex() + 1, extractor.ruleType);
+                }
+            } else if (extractor.consumer != null) {
+                extractor.consumer.accept(ctx, (keyType, start, end) -> {
+                    if (keyType != null) {
+                        encounters.add(keyType, notNull("start", start), notNull("end", end), extractor.ruleType);
+                    }
+                });
             }
         }
 

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.file.impl;
 
+import com.mastfrog.function.TriConsumer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -32,6 +33,7 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDeclarationContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.ANTLRv4Parser.GrammarSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarTypeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDeclarationContext;
 import org.nemesis.antlr.ANTLRv4Parser.RuleSpecContext;
@@ -170,8 +172,8 @@ public final class AntlrExtractor {
                 .finishRegionExtractor()
                 // Extract a singleton, the grammar type
                 .extractingSingletonUnder(AntlrKeys.GRAMMAR_TYPE)
-                .using(GrammarTypeContext.class)
-                .extractingObjectWith(AntlrExtractor::findGrammarType)
+                .using(GrammarSpecContext.class)
+                .extractionObjectAndBoundsWith(AntlrExtractor::findGrammarType)
                 .finishObjectExtraction()
                 // No extract imports
                 .extractNamedRegionsKeyedTo(ImportKinds.class)
@@ -263,34 +265,51 @@ public final class AntlrExtractor {
                 .finishRegionExtractor();
     }
 
-
     AntlrExtractor() {
         ExtractorBuilder<GrammarFileContext> builder = Extractor.builder(GrammarFileContext.class, ANTLR_MIME_TYPE);
         populateBuilder(builder);
         extractor = builder.build();
     }
 
-    static GrammarType findGrammarType(ANTLRv4Parser.GrammarTypeContext gtc) {
+    static void findGrammarType(ANTLRv4Parser.GrammarSpecContext spec, TriConsumer<GrammarDeclaration, Integer, Integer> cons) {
+        GrammarTypeContext gtc = spec.grammarType();
         GrammarType grammarType = GrammarType.UNDEFINED;
-        TerminalNode lexer = gtc.LEXER();
-        TerminalNode parser = gtc.PARSER();
-        TerminalNode grammar = gtc.GRAMMAR();
-        if (lexer != null
-                && parser == null
-                && grammar != null) {
-            grammarType = GrammarType.LEXER;
-        }
-        if (lexer == null
-                && parser != null
-                && grammar != null) {
-            grammarType = GrammarType.PARSER;
-        }
-        if (lexer == null
-                && parser == null
-                && grammar != null) {
+        if (gtc == null) {
             grammarType = GrammarType.COMBINED;
+        } else {
+            TerminalNode lexer = gtc.LEXER();
+            TerminalNode parser = gtc.PARSER();
+            TerminalNode grammar = gtc.GRAMMAR();
+            if (lexer != null
+                    && parser == null
+                    && grammar != null) {
+                grammarType = GrammarType.LEXER;
+            }
+            if (lexer == null
+                    && parser != null
+                    && grammar != null) {
+                grammarType = GrammarType.PARSER;
+            }
+            if (lexer == null
+                    && parser == null
+                    && grammar != null) {
+                grammarType = GrammarType.COMBINED;
+            }
         }
-        return grammarType;
+        ANTLRv4Parser.IdentifierContext idContext = spec.identifier();
+        String name;
+        if (idContext != null) {
+            TerminalNode term = idContext.ID();
+            if (term != null) {
+                name = term.getText();
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+        GrammarDeclaration result = new GrammarDeclaration(grammarType, name, spec.start.getStartIndex(), spec.stop.getStopIndex() + 1);
+        cons.apply(result, idContext.start.getStartIndex(), idContext.stop.getStopIndex() + 1);
     }
 
     public Extraction extract(GrammarFileContext ctx, GrammarSource<?> src) {

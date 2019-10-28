@@ -20,8 +20,10 @@ import org.nemesis.antlr.refactoring.impl.RenameQueryResultTrampoline;
 import org.nemesis.antlr.refactoring.spi.RenamePostProcessor;
 import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
 import org.nemesis.antlr.refactoring.spi.RenameAugmenter;
-import org.nemesis.extraction.ExtractionParserResult;
-import org.netbeans.api.annotations.common.NonNull;
+import org.nemesis.charfilter.CharFilter;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.key.ExtractionKey;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -31,9 +33,7 @@ import org.openide.util.NbBundle.Messages;
  *
  * @author Tim Boudreau
  */
-public abstract class RenameParticipant {
-
-    public static final RenameParticipant DEFAULT = new DefaultParticipant();
+public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<? extends I>> {
 
     /**
      * Determine if and how an instant rename operation should proceed. The
@@ -68,7 +68,8 @@ public abstract class RenameParticipant {
      * initiation
      * @return A result
      */
-    protected abstract RenameQueryResult isRenameAllowed(@NonNull ExtractionParserResult info, int caretOffset, String identifier);
+    protected abstract RenameQueryResult isRenameAllowed(Extraction ext,
+            K key, I item, C collection, int caretOffset, String identifier);
 
     /**
      * Create a result which will, on completion or cancellation, call the
@@ -145,11 +146,67 @@ public abstract class RenameParticipant {
         return RenameQueryResultTrampoline.createUseRefactoringResult();
     }
 
-    private static final class DefaultParticipant extends RenameParticipant {
+    public static <T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>>
+            RenameParticipant<T, K, I, C> filterOnly(CharFilter filter) {
+        return new DefaultParticipant<>(filter);
+    }
+
+    public static <T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>>
+            RenameParticipant<T, K, I, C> defaultInstance() {
+        return new DefaultParticipant<>();
+    }
+
+    RenameParticipant wrap(CharFilter filter) {
+        return new WrapWithFilter<>(this, filter);
+    }
+
+    private static final class DefaultParticipant<T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>>
+            extends RenameParticipant<T, K, I, C> {
+
+        private final CharFilter filter;
+
+        public DefaultParticipant() {
+            this(null);
+        }
+
+        public DefaultParticipant(CharFilter filter) {
+            this.filter = filter;
+        }
 
         @Override
-        protected RenameQueryResult isRenameAllowed(ExtractionParserResult info, int caretOffset, String identifier) {
-            return proceed();
+        protected RenameQueryResult isRenameAllowed(Extraction ext, K key, I item, C collection, int caretOffset, String identifier) {
+            return filter == null ? proceed() : proceed().withCharFilter(filter);
+        }
+    }
+
+    private static class WrapWithFilter<T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>> extends RenameParticipant<T, K, I, C> {
+
+        private final RenameParticipant orig;
+
+        private final CharFilter filter;
+
+        public WrapWithFilter(RenameParticipant orig, CharFilter filter) {
+            this.orig = orig;
+            this.filter = filter;
+        }
+
+        @Override
+        protected RenameQueryResult isRenameAllowed(Extraction ext, ExtractionKey key,
+                IndexAddressable.IndexAddressableItem item, IndexAddressable collection,
+                int caretOffset, String identifier) {
+
+            RenameQueryResult res = orig.isRenameAllowed(ext, key, item,
+                    collection, caretOffset, identifier);
+
+            switch (RenameQueryResultTrampoline.typeOf(res)) {
+                case INPLACE:
+                case INPLACE_AUGMENTED:
+                case POST_PROCESS:
+                case TAKEOVER:
+                    return res.withCharFilter(filter);
+                default:
+                    return res;
+            }
         }
     }
 }

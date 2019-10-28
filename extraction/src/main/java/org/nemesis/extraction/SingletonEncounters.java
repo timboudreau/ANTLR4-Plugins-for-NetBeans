@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 
 /**
@@ -32,7 +33,7 @@ import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
  *
  * @param <KeyType>
  */
-public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter<KeyType>>, Serializable {
+public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter<KeyType>>, Serializable, IndexAddressable<SingletonEncounter<KeyType>> {
 
     private final List<SingletonEncounter<KeyType>> encounters = new ArrayList<>(3);
 
@@ -41,7 +42,7 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
     }
 
     void add(KeyType key, int start, int end, Class<? extends ParserRuleContext> in) {
-        encounters.add(new SingletonEncounter<>(start, end, key, in));
+        encounters.add(new SingletonEncounter<>(start, end, key, in, encounters.size()));
     }
 
     /**
@@ -61,8 +62,8 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
     }
 
     /**
-     * Visit all encounters which are <i>not the first one</i> (useful for marking
-     * these as errors).
+     * Visit all encounters which are <i>not the first one</i> (useful for
+     * marking these as errors).
      *
      * @param c A consumer
      * @return The number visited
@@ -98,18 +99,50 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
         return sb.toString();
     }
 
-    public static final class SingletonEncounter<KeyType> implements Serializable {
+    @Override
+    public SingletonEncounter<KeyType> at(int position) {
+        for (SingletonEncounter<KeyType> item : encounters) {
+            if (item.contains(position)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean isChildType(IndexAddressableItem item) {
+        return item instanceof SingletonEncounter<?>;
+    }
+
+    @Override
+    public SingletonEncounter<KeyType> forIndex(int index) {
+        return encounters.get(index);
+    }
+
+    @Override
+    public int size() {
+        return encounters.size();
+    }
+
+    @Override
+    public int indexOf(Object obj) {
+        return encounters.indexOf(obj);
+    }
+
+    public static final class SingletonEncounter<KeyType> implements Serializable, IndexAddressable.IndexAddressableItem {
 
         private final int start;
         private final int end;
         private final KeyType key;
         private final Class<? extends ParserRuleContext> in;
+        private final int index;
 
-        public SingletonEncounter(int start, int end, KeyType key, Class<? extends ParserRuleContext> in) {
+        public SingletonEncounter(int start, int end, KeyType key, Class<? extends ParserRuleContext> in, int index) {
             this.start = start;
             this.end = end;
             this.key = key;
             this.in = in;
+            this.index = index;
         }
 
         public int start() {
@@ -128,8 +161,52 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
             return in;
         }
 
+        @Override
         public String toString() {
             return key + "@" + start + ":" + end + "`" + in.getSimpleName();
+        }
+
+        @Override
+        public int index() {
+            return index;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 67 * hash + this.start;
+            hash = 67 * hash + this.end;
+            hash = 67 * hash + Objects.hashCode(this.key);
+            hash = 67 * hash + Objects.hashCode(this.in);
+            hash = 67 * hash + this.index;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final SingletonEncounter<?> other = (SingletonEncounter<?>) obj;
+            if (this.start != other.start) {
+                return false;
+            }
+            if (this.end != other.end) {
+                return false;
+            }
+            if (this.index != other.index) {
+                return false;
+            }
+            if (!Objects.equals(this.key, other.key)) {
+                return false;
+            }
+            return Objects.equals(this.in, other.in);
         }
     }
 }

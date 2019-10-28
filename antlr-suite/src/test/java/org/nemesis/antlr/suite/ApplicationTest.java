@@ -27,7 +27,7 @@ public class ApplicationTest extends NbTestCase {
                 gui(false).
                 failOnMessage(Level.WARNING). // works at least in RELEASE71
                 failOnException(Level.INFO).
-                enableClasspathModules(false). 
+                enableClasspathModules(false).
                 clusters(".*").
                 suite(); // RELEASE71+, else use NbModuleSuite.create(NbModuleSuite.createConfiguration(...))
     }

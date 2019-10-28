@@ -21,21 +21,36 @@ public enum RenameActionType {
     INPLACE_AUGMENTED,
     TAKEOVER,
     USE_REFACTORING_API,
-    POST_PROCESS;
+    POST_PROCESS,
+    NOTHING_FOUND;
 
     public boolean isStandalone() {
-        switch(this) {
-            case NOT_ALLOWED :
-            case INPLACE_AUGMENTED :
-            case USE_REFACTORING_API :
+        switch (this) {
+            case INPLACE:
+            case NOT_ALLOWED:
+            case INPLACE_AUGMENTED:
+            case USE_REFACTORING_API:
+            case NOTHING_FOUND:
                 return true;
-            default :
+            default:
                 return false;
         }
     }
 
     public boolean isRefactor() {
         return this == USE_REFACTORING_API;
+    }
+
+    public boolean isInplaceProceed() {
+        switch (this) {
+            case INPLACE:
+            case INPLACE_AUGMENTED:
+            case TAKEOVER:
+            case POST_PROCESS:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public boolean isPassChanges() {

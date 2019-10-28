@@ -18,26 +18,23 @@ package org.nemesis.antlr.refactoring;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.range.IntRange;
 import java.awt.event.ActionEvent;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.Action;
+import javax.swing.JOptionPane;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Position;
+import org.nemesis.antlr.refactoring.impl.RenameQueryResultTrampoline;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
-import org.nemesis.data.named.NamedRegionReferenceSet;
-import org.nemesis.data.named.NamedRegionReferenceSets;
-import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
-import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.Utilities;
@@ -49,14 +46,18 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.api.indexing.IndexingManager;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
-import org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory;
+import org.netbeans.modules.refactoring.api.Problem;
+import org.netbeans.modules.refactoring.api.RefactoringSession;
+import org.netbeans.modules.refactoring.api.RenameRefactoring;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.nodes.Node;
+import org.openide.text.CloneableEditorSupport;
+import org.openide.text.PositionBounds;
+import org.openide.text.PositionRef;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.Lookups;
+import org.openide.util.lookup.ProxyLookup;
 
 /**
  * Subclass this (or annotate one or more NameReferenceSetKeys with
@@ -65,22 +66,34 @@ import org.openide.util.lookup.Lookups;
  *
  * @author Tim Boudreau
  */
-public class InstantRenameAction extends BaseAction {
+public final class InstantRenameAction extends BaseAction {
 
-    private final NameReferenceSetKey<?> key;
-    private static final Logger LOG = Logger.getLogger(InstantRenameAction.class.getName());
+    static final Logger LOG = Logger.getLogger(InstantRenameAction.class.getName());
     public static final String ACTION_NAME = "in-place-refactoring";
+    private final List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries;
 
     static {
         LOG.setLevel(Level.ALL);
     }
 
-    protected InstantRenameAction(NameReferenceSetKey<?> key) {
+    protected InstantRenameAction(List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries) {
         super(ACTION_NAME, MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
-        this.key = key;
+        this.entries = entries;
     }
 
-    protected static HighlightsLayerFactory highlightsFactory() {
+    protected InstantRenameAction(InstantRenameProcessorEntry<?, ?, ?, ?>... entries) {
+        this(Arrays.asList(entries));
+    }
+//    protected InstantRenameAction(NameReferenceSetKey<?> key) {
+//        super(ACTION_NAME, MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
+//        this.entries = Arrays.asList()
+//    }
+
+    public static InstantRenameActionBuilder builder() {
+        return new InstantRenameActionBuilder();
+    }
+
+    public static HighlightsLayerFactory highlightsFactory() {
         return new HighlightsLayerFactoryImpl();
     }
 
@@ -101,21 +114,25 @@ public class InstantRenameAction extends BaseAction {
             BaseDocument document = Utilities.getDocument(target);
             final String ident = Utilities.getIdentifier(document, caret);
             if (ident == null) {
-                Utilities.setStatusBoldText(target, Bundle.InstantRenameDenied());
+                Utilities.setStatusBoldText(target,
+                        Bundle.InstantRenameDenied());
                 return;
             }
 
             if (IndexingManager.getDefault().isIndexing()) {
-                Utilities.setStatusBoldText(target, Bundle.scanning_in_progress());
+                Utilities.setStatusBoldText(target,
+                        Bundle.scanning_in_progress());
                 return;
             }
             Source source = Source.create(target.getDocument());
             if (source == null) {
                 return;
             }
-            ModificationNoticer checker = new ModificationNoticer(document);
+            ModificationState checker = new ModificationState(document);
             try {
-                NbAntlrUtils.withPostProcessingDisabledThrowing(new RegionsFinder(key, checker, source, caret, target, document));
+                NbAntlrUtils.withPostProcessingDisabledThrowing(
+                        new RegionsFinder(entries, checker, source, caret,
+                                target, document, ident));
             } catch (Exception ex) {
                 LOG.log(Level.SEVERE, "Refactoring", ex);
             } finally {
@@ -131,30 +148,64 @@ public class InstantRenameAction extends BaseAction {
         return InstantRenameAction.class;
     }
 
-    private static void doFullRename(EditorCookie ec, Node n) {
+    private static void doFullRename(DataObject obj, Document doc, JTextComponent comp, int caret) {
+        /*
+        // You would expect this to work, but it doesn't.  Something missing from the lookup?
         Action a = RefactoringActionsFactory.renameAction()
-                .createContextAwareInstance(Lookups.fixed(ec, n));
+                .createContextAwareInstance(new ProxyLookup(obj.getLookup(), Lookups.fixed(doc, comp)));
         a.actionPerformed(RefactoringActionsFactory.DEFAULT_EVENT);
+         */
+        CloneableEditorSupport supp = obj.getLookup().lookup(CloneableEditorSupport.class);
+        PositionRef ref = supp.createPositionRef(caret, Position.Bias.Forward);
+        PositionBounds bds = new PositionBounds(ref, ref);
+        RefactoringSession session = RefactoringSession.create("Rename Grammar");
+        RenameRefactoring refactoring = new RenameRefactoring(new ProxyLookup(obj.getLookup(), Lookups.fixed(doc, comp, bds)));
+        Problem pre = refactoring.preCheck();
+        if (pre != null && pre.isFatal()) {
+            //fatal problem in precheck
+            JOptionPane.showMessageDialog(comp, pre.getMessage());
+            return;
+        }
+        String name = JOptionPane.showInputDialog(comp, "New Grammar Name", obj.getName(), JOptionPane.QUESTION_MESSAGE);
+        if (name == null || name.trim().isEmpty() || name.equals(obj.getName())) {
+            session.finished();
+            return;
+        }
+        refactoring.setNewName(name.trim());
+        Problem p = refactoring.prepare(session);
+
+        if (p != null && p.isFatal()) {
+            //fatal problem in precheck
+            JOptionPane.showMessageDialog(comp, p.getMessage());
+            return;
+        }
+
+        session.doRefactoring(true /* saveAll */);
+        session.finished();
     }
 
     private static class RegionsFinder extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
 
-        private final NameReferenceSetKey<?> key;
-        private final ModificationNoticer checker;
+        private final ModificationState checker;
         private final Source source;
         private final int caret;
         private final JTextComponent target;
         private BadLocationException thrown;
         private final BaseDocument baseDoc;
-        private Iterable<? extends IntRange> regions;
+        private FindItemsResult<?, ?, ?, ?> result;
+        private final List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries;
+        private final String ident;
 
-        public RegionsFinder(NameReferenceSetKey<?> key, ModificationNoticer checker, Source js, int caret, JTextComponent target, BaseDocument baseDoc) {
-            this.key = key;
+        RegionsFinder(List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries,
+                ModificationState checker, Source js, int caret, JTextComponent target,
+                BaseDocument baseDoc, String ident) {
+            this.entries = entries;
             this.checker = checker;
             this.source = js;
             this.caret = caret;
             this.target = target;
             this.baseDoc = baseDoc;
+            this.ident = ident;
         }
 
         @Override
@@ -165,12 +216,12 @@ public class InstantRenameAction extends BaseAction {
                     // sanity check the regions against snaphost size, see #227890; OffsetRange contains document positions.
                     // if no document change happened, then offsets must be correct and within doc bounds.
                     int maxLen = baseDoc.getLength();
-                    for (IntRange r : regions) {
+                    for (IntRange r : result) {
                         if (r.start() >= maxLen || r.end() >= maxLen) {
                             throw new IllegalArgumentException("Bad OffsetRange provided: " + r + ", docLen=" + maxLen);
                         }
                     }
-                    InstantRenamePerformer.performInstantRename(target, regions, caret, null);
+                    InstantRenamePerformer.performInstantRename(target, result, caret, ident);
                     // don't loop even if there's a modification
                     checker.setHandedOff();
                 }
@@ -192,29 +243,25 @@ public class InstantRenameAction extends BaseAction {
             do {
                 checker.setUnmodified();
                 findRegions();
-                if (regions != null) {
+                if (result != null && !result.isNotFound() && result.isInplaceProceed()) {
                     final BaseDocument baseDoc = (BaseDocument) target.getDocument();
                     baseDoc.render(this);
                     rethrowIfThrown();
-                } else {
+                } else if (result == null || result.isUseRefactoring()) {
                     Document doc = target.getDocument();
                     FileObject fo = NbEditorUtilities.getFileObject(doc);
                     if (fo != null) {
                         DataObject dob = DataObject.find(fo);
-                        EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                        if (ck != null) {
-                            doFullRename(ck, dob.getNodeDelegate());
-                        }
+                        doFullRename(dob, baseDoc, target, caret);
                     }
                     break;
                 }
             } while (checker.modificationIsInProgress());
-            return regions;
+            return result == null ? Collections.emptySet() : result.ranges();
         }
 
-        Iterable<? extends IntRange> findRegions() throws ParseException {
+        void findRegions() throws ParseException {
             ParserManager.parse(Collections.singleton(source), this);
-            return regions;
         }
 
         @Override
@@ -222,49 +269,29 @@ public class InstantRenameAction extends BaseAction {
             Parser.Result res = resultIterator.getParserResult();
             if (res instanceof ExtractionParserResult) {
                 Extraction extraction = ((ExtractionParserResult) res).extraction();
-                NamedRegionReferenceSets<?> refs = extraction.references(key);
-                NamedSemanticRegions<?> names = extraction.namedRegions(key.referencing());
-                NamedSemanticRegion<?> caretNamedRegion = refs.at(caret);
-                NamedSemanticRegion<?> referent = null;
-                if (caretNamedRegion == null) {
-                    caretNamedRegion = referent = names.at(caret);
+                FindItemsResult<?, ?, ?, ?> fir = null;
+                for (InstantRenameProcessorEntry<?, ?, ?, ?> entry : entries) {
+                    fir = entry.find(extraction, baseDoc, caret, ident);
+                    if (!fir.isNotFound()) {
+                        break;
+                    }
                 }
-                if (caretNamedRegion == null) {
-                    return;
+                if (fir == null) {
+                    fir = new FindItemsResult<>(Collections.emptySet(), RenameQueryResultTrampoline.createNothingFoundResult());
                 }
-                String ident = caretNamedRegion.name();
-                if (referent == null) {
-                    referent = names.regionFor(ident);
-                }
-                if (referent == null) {
-                    return;
-                }
-                NamedRegionReferenceSet<?> referencesToName = refs.references(ident);
-                LOG.log(Level.FINE, "Inplace rename {0} reparse {1} using {2} in"
-                        + " region {3}",
-                        new Object[]{
-                            ident,
-                            extraction.source(),
-                            key,
-                            caretNamedRegion
-                        });
-                Iterable<? extends IntRange> regions = referencesToName;
-                Set<IntRange> all = new HashSet<>();
-                regions.forEach(all::add);
-                all.add(referent);
-                this.regions = all;
+                result = fir;
             } else {
                 LOG.log(Level.WARNING, "Called with wrong parser result type: {0}", res);
             }
         }
     }
 
-    private static final class ModificationNoticer implements DocumentListener {
+    private static final class ModificationState implements DocumentListener {
 
         private final AtomicInteger changed = new AtomicInteger();
         private final Document doc;
 
-        public ModificationNoticer(Document doc) {
+        public ModificationState(Document doc) {
             this.doc = doc;
             doc.addDocumentListener(this);
         }

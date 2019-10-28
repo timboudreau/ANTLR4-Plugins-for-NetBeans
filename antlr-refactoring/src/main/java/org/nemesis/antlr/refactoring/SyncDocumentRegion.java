@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.refactoring;
 
+import com.mastfrog.util.preconditions.Exceptions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,31 +26,31 @@ import org.netbeans.lib.editor.util.CharSequenceUtilities;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.lib.editor.util.swing.MutablePositionRegion;
 import org.netbeans.lib.editor.util.swing.PositionRegion;
-import org.openide.ErrorManager;
 
 /**
- * Antlr:  Copied from CSL API.
+ * Antlr: Copied from CSL API.
  *
- * Copied from editor/codetemplates and adjusted for the needs of the instant rename.
- * 
+ * Copied from editor/codetemplates and adjusted for the needs of the instant
+ * rename.
+ *
  * Maintain the same text in the selected regions of the text document.
  *
  * @author Miloslav Metelka
  */
 public final class SyncDocumentRegion {
-    
+
     private final Document doc;
     private final List<? extends MutablePositionRegion> regions;
     private final List<? extends MutablePositionRegion> sortedRegions;
     private final boolean regionsSortPerformed;
-    
+
     /**
      * Construct synchronized document regions.
      *
      * @param doc document on which to operate.
-     * @param regions regions that should be kept synchronized.
-     *  The first region is the master. All the regions need to have
-     *  the initial position to have the backward bias.
+     * @param regions regions that should be kept synchronized. The first region
+     * is the master. All the regions need to have the initial position to have
+     * the backward bias.
      */
     public SyncDocumentRegion(Document doc, List<? extends MutablePositionRegion> regions) {
         this.doc = doc;
@@ -63,11 +64,11 @@ public final class SyncDocumentRegion {
             Collections.sort(sortedRegions, PositionRegion.getComparator());
         }
     }
-    
+
     public int getRegionCount() {
         return regions.size();
     }
-    
+
     public MutablePositionRegion getRegion(int regionIndex) {
         return regions.get(regionIndex);
     }
@@ -75,15 +76,15 @@ public final class SyncDocumentRegion {
     public int getFirstRegionStartOffset() {
         return getRegion(0).getStartOffset();
     }
-    
+
     public int getFirstRegionEndOffset() {
         return getRegion(0).getEndOffset();
     }
-    
+
     public int getFirstRegionLength() {
         return getFirstRegionEndOffset() - getFirstRegionStartOffset();
     }
-    
+
     /**
      * Get region in a sorted list of the regions.
      *
@@ -91,17 +92,36 @@ public final class SyncDocumentRegion {
      * @return region in a sorted list of the regions.
      */
     public MutablePositionRegion getSortedRegion(int regionIndex) {
-         return sortedRegions.get(regionIndex);
+        return sortedRegions.get(regionIndex);
+    }
+
+    public void setText(String text) {
+        MutablePositionRegion region = getRegion(0);
+        String firstRegionText = getRegionText(0);
+        int offset = region.getStartOffset();
+        int length = region.getEndOffset() - offset;
+        try {
+            if (!CharSequenceUtilities.textEquals(text, DocumentUtilities.getText(doc, offset, length))) {
+                if (firstRegionText.length() > 0) {
+                    doc.insertString(offset, text, null);
+                }
+                doc.remove(offset + firstRegionText.length(), length);
+            }
+        } catch (BadLocationException e) {
+            Exceptions.printStackTrace(SyncDocumentRegion.class, e);
+            return;
+        }
+        sync(0);
     }
 
     /**
      * Propagate text of the first region into all other regions.
      *
-     * @param moveStartDownLength how much to move starting position
-     *  down. It may be 0 to signal that the startng position should
-     *  stay as is.
+     * @param moveStartDownLength how much to move starting position down. It
+     * may be 0 to signal that the startng position should stay as is.
      */
-    public void sync(int moveStartDownLength) {
+    public boolean sync(int moveStartDownLength) {
+        boolean changed = false;
         if (moveStartDownLength != 0) {
             // Move first region's start offset down
             MutablePositionRegion firstRegion = getRegion(0);
@@ -109,13 +129,12 @@ public final class SyncDocumentRegion {
                 Position newStartPos = doc.createPosition(
                         firstRegion.getStartOffset() - moveStartDownLength);
                 firstRegion.setStartPosition(newStartPos);
-                
+
             } catch (BadLocationException e) {
-                ErrorManager.getDefault().notify(e);
+                Exceptions.printStackTrace(SyncDocumentRegion.class, e);
             }
-            
         }
-        
+
         String firstRegionText = getFirstRegionText();
         if (firstRegionText != null) {
             int regionCount = getRegionCount();
@@ -125,23 +144,25 @@ public final class SyncDocumentRegion {
                 int length = region.getEndOffset() - offset;
                 try {
                     if (!CharSequenceUtilities.textEquals(firstRegionText, DocumentUtilities.getText(doc, offset, length))) {
+                        changed = true;
                         if (firstRegionText.length() > 0) {
                             doc.insertString(offset, firstRegionText, null);
                         }
                         doc.remove(offset + firstRegionText.length(), length);
                     }
                 } catch (BadLocationException e) {
-                    ErrorManager.getDefault().notify(e);
+                    Exceptions.printStackTrace(SyncDocumentRegion.class, e);
                 }
 
             }
         }
+        return changed;
     }
 
-    private String getFirstRegionText() {
+    String getFirstRegionText() {
         return getRegionText(0);
     }
-    
+
     private String getRegionText(int regionIndex) {
         try {
             MutablePositionRegion region = getRegion(regionIndex);
@@ -149,7 +170,7 @@ public final class SyncDocumentRegion {
             int length = region.getEndOffset() - offset;
             return doc.getText(offset, length);
         } catch (BadLocationException e) {
-            ErrorManager.getDefault().notify(e);
+            Exceptions.printStackTrace(SyncDocumentRegion.class, e);
             return null;
         }
     }

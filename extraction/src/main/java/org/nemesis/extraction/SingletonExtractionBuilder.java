@@ -15,8 +15,11 @@
  */
 package org.nemesis.extraction;
 
+import com.mastfrog.function.TriConsumer;
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -118,10 +121,15 @@ public class SingletonExtractionBuilder<T extends ParserRuleContext, KeyType> {
         }
 
         public FinishableSingletonExtractorBuilder<T, KeyType> extractingObjectWith(Function<R, KeyType> func) {
-            SingletonExtractionStrategy<KeyType, R> info = new SingletonExtractionStrategy<>(key, ancestorQualifier, ruleType, func);
+            SingletonExtractionStrategy<KeyType, R> info = new SingletonExtractionStrategy<>(key, ancestorQualifier, ruleType, func, null);
+            set.add(info);
+            return new FinishableSingletonExtractorBuilder<>(bldr, key, set);
+        }
+
+        public FinishableSingletonExtractorBuilder<T, KeyType> extractionObjectAndBoundsWith(BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer) {
+            SingletonExtractionStrategy<KeyType, R> info = new SingletonExtractionStrategy<>(key, ancestorQualifier, ruleType, null, notNull("consumer", consumer));
             set.add(info);
             return new FinishableSingletonExtractorBuilder<>(bldr, key, set);
         }
     }
-
 }

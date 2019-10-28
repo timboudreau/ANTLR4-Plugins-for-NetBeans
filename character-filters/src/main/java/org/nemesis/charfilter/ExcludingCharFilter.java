@@ -13,12 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring.spi;
+package org.nemesis.charfilter;
 
-public interface RenamePostProcessor {
+/**
+ *
+ * @author Tim Boudreau
+ */
+final class ExcludingCharFilter implements CharFilter {
 
-    void onRenameCompleted(String original, String nue, Runnable undo);
+    private final CharPredicate initial;
+    private final CharPredicate subsequent;
 
-    default void cancelled() {
+    ExcludingCharFilter(CharPredicate initial, CharPredicate subsequent) {
+        this.initial = initial;
+        this.subsequent = subsequent;
+    }
+
+    @Override
+    public boolean test(boolean isInitial, char typed) {
+        if (isInitial) {
+            return initial.test(typed);
+        } else {
+            return subsequent.test(typed);
+        }
     }
 }

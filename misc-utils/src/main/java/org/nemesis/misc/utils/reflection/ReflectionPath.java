@@ -52,6 +52,7 @@ public final class ReflectionPath<T> {
         return valuePath;
     }
 
+    @Override
     public boolean equals(Object o) {
         return o == this ? true : o == null ? false :
                 o instanceof ReflectionPath<?> ?
@@ -59,6 +60,7 @@ public final class ReflectionPath<T> {
                 && ((ReflectionPath<?>) o).valuePath.equals(valuePath) : false;
     }
 
+    @Override
     public int hashCode() {
         return valuePath.hashCode() + 7 * type.hashCode();
     }

@@ -21,7 +21,6 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.refactoring.spi.RenameAugmenter;
 import org.nemesis.antlr.refactoring.spi.RenamePostProcessor;
 import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
-import org.nemesis.extraction.Extraction;
 
 /**
  *
@@ -46,12 +45,12 @@ public abstract class RenameQueryResultTrampoline {
         return DEFAULT;
     }
 
-    public static void onRename(RenameQueryResult res, String original, Extraction extraction, String nue, Runnable undo) {
-        getDefault()._onRename(res, original, extraction, nue, undo);
+    public static void onRename(RenameQueryResult res, String original, String nue, Runnable undo) {
+        getDefault()._onRename(res, original, nue, undo);
     }
 
-    public static void onNameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc, int startOffset, int endOffset) {
-        getDefault()._nameUpdated(res, orig, newName, doc, startOffset, endOffset);
+    public static void onNameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc) {
+        getDefault()._nameUpdated(res, orig, newName, doc);
     }
 
     public static void onCancelled(RenameQueryResult res) {
@@ -86,9 +85,19 @@ public abstract class RenameQueryResultTrampoline {
         return getDefault()._postProcess(processor);
     }
 
-    protected abstract void _onRename(RenameQueryResult res, String original, Extraction extraction, String nue, Runnable undo);
+    public static boolean testChar(RenameQueryResult res, boolean initial, char typed) {
+        return getDefault()._testChar(res, initial, typed);
+    }
 
-    protected abstract void _nameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc, int startOffset, int endOffset);
+    public static RenameQueryResult createNothingFoundResult() {
+        return getDefault()._nothingFound();
+    }
+
+    protected abstract boolean _testChar(RenameQueryResult res, boolean initial, char typed);
+
+    protected abstract void _onRename(RenameQueryResult res, String original, String nue, Runnable undo);
+
+    protected abstract void _nameUpdated(RenameQueryResult res, String orig, String newName, StyledDocument doc);
 
     protected abstract void _cancelled(RenameQueryResult res);
 
@@ -105,5 +114,7 @@ public abstract class RenameQueryResultTrampoline {
     protected abstract RenameQueryResult _augment(RenameAugmenter aug);
 
     protected abstract RenameQueryResult _postProcess(RenamePostProcessor postProcessor);
+
+    protected abstract RenameQueryResult _nothingFound();
 
 }

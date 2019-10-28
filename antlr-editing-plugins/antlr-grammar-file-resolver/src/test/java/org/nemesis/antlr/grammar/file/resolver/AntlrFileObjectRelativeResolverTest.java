@@ -71,9 +71,19 @@ public class AntlrFileObjectRelativeResolverTest {
 
     @BeforeEach
     public void setup() throws URISyntaxException, IOException {
+        System.out.println("CLASSLOADER: " + Thread.currentThread().getContextClassLoader());
+        String cp = System.getProperty("java.class.path");
+        for (String item : cp.split(":")) {
+            if (!item.contains(".m2")) {
+                System.out.println(item);
+            }
+        }
+
         MockServices.setServices(MavenFolderStrategyFactory.class, NbMavenProjectFactory.class);
         grammarProject = ProjectTestHelper.findAntlrGrammarProject();
         projectFO = FileUtil.toFileObject(FileUtil.normalizeFile(grammarProject.toFile()));
+
+
         mavenProject = ProjectManager.getDefault().findProject(projectFO);
         assertNotNull(mavenProject);
 
