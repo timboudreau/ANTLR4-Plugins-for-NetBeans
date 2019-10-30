@@ -153,7 +153,13 @@ public class ParseResultHook<T extends ParserRuleContext> {
     }
 
     @SuppressWarnings({"unchecked", "rawTypes"})
-    static <R extends ParserRuleContext> void runForMimeType(String mimeType, R ctx, Extraction extraction, ParseResultContents populate, Fixes fixes) {
+    static <R extends ParserRuleContext> void runForMimeType(String mimeType, R ctx, 
+            Extraction extraction, ParseResultContents populate, Fixes fixes) {
+        boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
+        if (!postprocess) {
+            System.out.println( "SKIP POST PROCESSING FOR " + mimeType );
+            return;
+        }
         Collection<? extends ParseResultHook> all = MimeLookup.getLookup(mimeType).lookupAll(ParseResultHook.class);
         List<ParseResultHook<? super R>> found = new ArrayList<>(3);
         for (ParseResultHook<?> p : all) {

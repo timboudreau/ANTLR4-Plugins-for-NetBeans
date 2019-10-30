@@ -19,12 +19,12 @@ package org.nemesis.charfilter;
  *
  * @author Tim Boudreau
  */
-final class ExcludingCharFilter implements CharFilter {
+final class PredicatesCharFilter implements CharFilter {
 
     private final CharPredicate initial;
     private final CharPredicate subsequent;
 
-    ExcludingCharFilter(CharPredicate initial, CharPredicate subsequent) {
+    PredicatesCharFilter(CharPredicate initial, CharPredicate subsequent) {
         this.initial = initial;
         this.subsequent = subsequent;
     }
@@ -36,5 +36,11 @@ final class ExcludingCharFilter implements CharFilter {
         } else {
             return subsequent.test(typed);
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" + initial + " / "
+                + subsequent + ")";
     }
 }

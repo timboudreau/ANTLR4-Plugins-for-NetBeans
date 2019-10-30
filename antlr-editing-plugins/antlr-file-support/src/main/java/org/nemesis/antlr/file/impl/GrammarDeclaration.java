@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.file.impl;
 
+import com.mastfrog.abstractions.Named;
 import com.mastfrog.range.IntRange;
 import java.util.Objects;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
@@ -24,7 +25,7 @@ import org.nemesis.antlr.common.extractiontypes.GrammarType;
  *
  * @author Tim Boudreau
  */
-public final class GrammarDeclaration implements IntRange<GrammarDeclaration> {
+public final class GrammarDeclaration implements IntRange<GrammarDeclaration>, Named {
 
     private final GrammarType grammarType;
     private final String grammarName;
@@ -38,7 +39,7 @@ public final class GrammarDeclaration implements IntRange<GrammarDeclaration> {
         this.grammarNameEnd = grammarNameEnd;
     }
 
-    public String grammarName() {
+    public String name() {
         return grammarName;
     }
 

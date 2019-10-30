@@ -16,8 +16,13 @@
 package org.nemesis.antlr.spi.language;
 
 import com.mastfrog.function.throwing.ThrowingSupplier;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
@@ -37,7 +42,10 @@ import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerInput;
 import org.netbeans.spi.lexer.LexerRestartInfo;
 import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
+import org.openide.util.Exceptions;
 
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import static org.openide.util.Parameters.notNull;
 
 /**
@@ -101,6 +109,7 @@ public final class NbAntlrUtils {
         String mime = src.getMimeType();
         if ( mime == null || ParserManager.canBeParsed( mime ) ) {
             try {
+                onBeforeParse( src );
                 ParserManager.parse( Collections.singleton( src ), new UserTask() {
                                  @Override
                                  public void run( ResultIterator resultIterator ) throws Exception {
@@ -124,6 +133,19 @@ public final class NbAntlrUtils {
         }
     }
 
+    private static void onBeforeParse( Source source ) {
+        if ( MODE.get() == PostprocessingMode.DEFERRED ) {
+            Set<Object> reparseLater = REPARSE_AFTER_DEFERRAL.get();
+            Document doc = source.getDocument( false );
+            if ( doc != null ) {
+                reparseLater.add( doc );
+            } else {
+                reparseLater.add( source.getFileObject() );
+            }
+        }
+    }
+
+    private static ThreadLocal<Set<Object>> REPARSE_AFTER_DEFERRAL = ThreadLocal.withInitial( LinkedHashSet::new );
     private static ThreadLocal<PostprocessingMode> MODE = ThreadLocal.withInitial( () -> PostprocessingMode.ENABLED );
 
     /**
@@ -133,7 +155,7 @@ public final class NbAntlrUtils {
      * keystroke and running full analysis to populate error hints and such would be useless
      * and interfere with performance.
      *
-     * @param <T> The type returned
+     * @param <T>  The type returned
      * @param supp A supplier
      *
      * @return The result of invoking the supplier
@@ -149,7 +171,7 @@ public final class NbAntlrUtils {
      * keystroke and running full analysis to populate error hints and such would be useless
      * and interfere with performance.
      *
-     * @param <T> The type returned
+     * @param <T>  The type returned
      * @param supp A supplier
      *
      * @return The result of invoking the supplier
@@ -158,11 +180,47 @@ public final class NbAntlrUtils {
         return withPostProcessingMode( PostprocessingMode.SUSPENDED, supp );
     }
 
+    /**
+     * Deferrs post-processing of parser results - such as running parser result
+     * hooks to populate errors, within the closure of the passed supplier. This
+     * is used for a few features, such as in-place rename, where a parse is done on every
+     * keystroke and running full analysis to populate error hints and such would be useless
+     * and interfere with performance. Using the deferred method, after all reentrant
+     * calls have exited, the source will be invalidated and a reparse forced of any
+     * sources parsed within the closure of the outermost passed supplier.
+     *
+     * @param <T>  The type returned
+     * @param supp A supplier
+     *
+     * @return The result of invoking the supplier
+     */
+    public static <T> T withPostProcessingDeferred( Supplier<T> supp ) {
+        return withPostProcessingMode( PostprocessingMode.DEFERRED, supp );
+    }
+
+    /**
+     * Disables post-processing of parser results - such as running parser result
+     * hooks to populate errors, within the closure of the passed supplier. This
+     * is used for a few features, such as in-place rename, where a parse is done on every
+     * keystroke and running full analysis to populate error hints and such would be useless
+     * and interfere with performance. Using the deferred method, after all reentrant
+     * calls have exited, the source will be invalidated and a reparse forced of any
+     * sources parsed within the closure of the outermost passed supplier.
+     *
+     * @param <T>  The type returned
+     * @param supp A supplier
+     *
+     * @return The result of invoking the supplier
+     */
+    public static <T> T withPostProcessingDeferredThrowing( ThrowingSupplier<T> supp ) throws Exception {
+        return withPostProcessingMode( PostprocessingMode.DEFERRED, supp );
+    }
+
     static PostprocessingMode postProcessingMode() {
         return MODE.get();
     }
 
-    static boolean isPostprocessingEnabled() {
+    public static boolean isPostprocessingEnabled() {
         return MODE.get().isPostprocessing();
     }
 
@@ -174,6 +232,7 @@ public final class NbAntlrUtils {
             return supp.get();
         } finally {
             MODE.set( old );
+            onPostProcessingExit( old, mode );
         }
     }
 
@@ -185,6 +244,48 @@ public final class NbAntlrUtils {
             return supp.get();
         } finally {
             MODE.set( old );
+            onPostProcessingExit( old, mode );
+        }
+    }
+
+    static Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
+
+    private static void onPostProcessingExit( PostprocessingMode was, PostprocessingMode is ) {
+        if ( is != was && was == PostprocessingMode.DEFERRED) {
+            // Force an invalidate and reparse of anything parsed during
+            // deferral, so that syntax highlighting is up-to-date and similar -
+            // these will not have been called for any parses while suspended
+            List<Object> toReparse = new ArrayList<>( REPARSE_AFTER_DEFERRAL.get() );
+            for ( Object reparse : toReparse ) {
+                if ( reparse instanceof Document ) {
+                    Document d = ( Document ) reparse;
+                    Object o = d.getProperty( StreamDescriptionProperty );
+                    FileObject fo = null;
+                    if ( o instanceof DataObject ) {
+                        fo = ( ( DataObject ) o ).getPrimaryFile();
+                    } else if ( o instanceof FileObject ) {
+                        fo = ( FileObject ) o;
+                    }
+                    if ( fo != null && fo.isValid() ) {
+                        INVALIDATOR.accept( fo );
+                    }
+                    try {
+                        parseImmediately( d );
+                    } catch ( Exception ex ) {
+                        Exceptions.printStackTrace( ex );
+                    }
+                } else if ( reparse instanceof FileObject ) {
+                    FileObject fo = ( FileObject ) reparse;
+                    if ( fo.isValid() ) {
+                        INVALIDATOR.accept( fo );
+                        try {
+                            parseImmediately( fo );
+                        } catch ( Exception ex ) {
+                            Exceptions.printStackTrace( ex );
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -15,9 +15,13 @@
  */
 package org.nemesis.charfilter;
 
+import java.util.function.Function;
 import static org.nemesis.charfilter.CharPredicate.EVERYTHING;
 
 /**
+ * A predicate for strings and characters which distinguishes the initial
+ * character as possibly being subject to different tests than all subsequent
+ * characters.
  *
  * @author Tim Boudreau
  */
@@ -25,7 +29,16 @@ public interface CharFilter {
 
     boolean test(boolean isInitial, char typed);
 
-    public static CharFilter ALL = (ignored1, ignored2) -> true;
+    public static final CharFilter ALL = new AllOrNothing(true);
+    public static final CharFilter NONE = new AllOrNothing(false);
+
+    public static CharFilterBuilder<CharFilter> builder() {
+        return CharFilterBuilder.create();
+    }
+
+    public static <T> CharFilterBuilder<T> builder(Function<? super CharFilter, T> converter) {
+        return CharFilterBuilder.from(converter);
+    }
 
     default boolean test(CharSequence string) {
         return test(string, false);
@@ -38,18 +51,18 @@ public interface CharFilter {
                 return false;
             }
         }
-        return allowEmpty ? max > 0 : true;
+        return !allowEmpty ? max > 0 : true;
     }
 
-    public static CharFilter excluding(CharPredicate all) {
-        return excluding(all, all);
+    public static CharFilter of(CharPredicate all) {
+        return CharFilter.of(all, all);
     }
 
-    public static CharFilter excluding(CharPredicate initial, CharPredicate subsequent) {
-        return new ExcludingCharFilter(initial, subsequent);
+    public static CharFilter of(CharPredicate initial, CharPredicate subsequent) {
+        return new PredicatesCharFilter(initial, subsequent);
     }
 
-    public static CharFilter excluding(CharPredicate[] initial, CharPredicate[] subsequent) {
+    public static CharFilter of(CharPredicate[] initial, CharPredicate[] subsequent) {
         CharPredicate i = initial.length == 0 ? EVERYTHING : initial[0];
         for (int j = 1; j < initial.length; j++) {
             i = i.or(initial[j]);
@@ -58,6 +71,6 @@ public interface CharFilter {
         for (int j = 1; j < subsequent.length; j++) {
             s = s.or(subsequent[j]);
         }
-        return excluding(i, s);
+        return CharFilter.of(i, s);
     }
 }

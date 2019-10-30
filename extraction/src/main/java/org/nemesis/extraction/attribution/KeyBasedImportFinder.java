@@ -42,25 +42,32 @@ final class KeyBasedImportFinder implements ImportFinder, ImportKeySupplier {
         return Arrays.copyOf(importKeys, importKeys.length);
     }
 
+    public <T extends Enum<T>> void importsForKey(
+            Set<? super GrammarSource<?>> result,
+            NamedRegionKey<T> k,
+            Extraction importer,
+            Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
+        NamedSemanticRegions<?> regions = importer.namedRegions(k);
+        if (regions != null && !regions.isEmpty()) {
+            for (NamedSemanticRegion<?> r : regions) {
+                GrammarSource<?> src = importer
+                        .source()
+                        .resolveImport(r.name());
+                if (src != null) {
+                    result.add(src);
+                } else {
+                    notFound.add(r);
+                }
+            }
+        }
+    }
+
     @Override
     public Set<GrammarSource<?>> allImports(Extraction importer,
             Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
         Set<GrammarSource<?>> result = new LinkedHashSet<>();
         for (NamedRegionKey<?> k : importKeys) {
-            NamedSemanticRegions<?> regions = importer.namedRegions(k);
-            if (regions != null && !regions.isEmpty()) {
-                for (NamedSemanticRegion<?> r : regions) {
-                    GrammarSource<?> src = importer
-                            .source()
-                            .resolveImport(r.name());
-                    if (src != null) {
-                        result.add(src);
-                    } else {
-                        notFound.add(r);
-                    }
-
-                }
-            }
+            importsForKey(result, k, importer, notFound);
         }
         return result;
     }

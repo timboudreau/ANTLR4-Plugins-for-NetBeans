@@ -15,16 +15,30 @@
  */
 package org.nemesis.extraction.attribution;
 
+import java.util.Set;
 import java.util.function.Supplier;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.source.api.GrammarSource;
 
 /**
- * Interface which can be implemented by an ImportFinder, allowing
- * the infrastructure to hyperlink or otherwise highlight semantic
- * regions which indicate imports.
+ * Interface which can be implemented by an ImportFinder, allowing the
+ * infrastructure to hyperlink or otherwise highlight semantic regions which
+ * indicate imports.
  *
  * @author Tim Boudreau
  */
-public interface ImportKeySupplier extends Supplier<NamedRegionKey<?>[]>{
+public interface ImportKeySupplier extends Supplier<NamedRegionKey<?>[]> {
 
+    default <T extends Enum<T>> void importsForKey(
+            Set<? super GrammarSource<?>> result,
+            NamedRegionKey<T> k,
+            Extraction importer,
+            Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
+        if (this instanceof ImportFinder) {
+            Set<GrammarSource<?>> all = ((ImportFinder) this).allImports(importer, notFound);
+            result.addAll(all);
+        }
+    }
 }

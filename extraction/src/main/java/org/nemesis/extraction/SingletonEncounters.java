@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
@@ -102,7 +103,7 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
     @Override
     public SingletonEncounter<KeyType> at(int position) {
         for (SingletonEncounter<KeyType> item : encounters) {
-            if (item.contains(position)) {
+            if (item.contains(position) || item.end() == position) {
                 return item;
             }
         }
@@ -129,7 +130,9 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
         return encounters.indexOf(obj);
     }
 
-    public static final class SingletonEncounter<KeyType> implements Serializable, IndexAddressable.IndexAddressableItem {
+    public static final class SingletonEncounter<KeyType> implements
+            Serializable, IndexAddressable.IndexAddressableItem,
+            Supplier<KeyType> {
 
         private final int start;
         private final int end;
@@ -153,8 +156,13 @@ public class SingletonEncounters<KeyType> implements Iterable<SingletonEncounter
             return end;
         }
 
-        public KeyType value() {
+        public KeyType get() {
             return key;
+        }
+
+        @Deprecated
+        public KeyType value() {
+            return get();
         }
 
         public Class<? extends ParserRuleContext> in() {

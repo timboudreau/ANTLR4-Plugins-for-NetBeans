@@ -84,6 +84,17 @@ public interface ImportFinder {
     }
 
     /**
+     * Returns true if this is a dummy instance and no actual import finders are
+     * registered for the requested mime type - testing this can save work in
+     * the case of usage searches where none will ever be found.
+     *
+     * @return true if this instance will never find any imports
+     */
+    default boolean isAlwaysEmpty() {
+        return false;
+    }
+
+    /**
      * No-op implementation of ImportFinder used as a fallback when none is
      * registered.
      */
@@ -92,6 +103,11 @@ public interface ImportFinder {
         public Set<GrammarSource<?>> allImports(Extraction importer,
                 Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
             return Collections.emptySet();
+        }
+
+        @Override
+        public boolean isAlwaysEmpty() {
+            return true;
         }
 
         @Override

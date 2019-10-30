@@ -7,6 +7,12 @@
 
  - Add warning when skip action encountered
 
+ - Hint for "can match the empty string" is active for things like "desc? S_OPEN_BRACKET L_INT* S_CLOSE_BRACKET;" and
+should not be - fix the analysis.
+    - Maybe when defining extraction, should be able to specify a sequence of parent rules that must be present
+
+ - Inplace rename:  The key listener needs to really figure out if it is going to be the first character in the item
+
  - Add array of preferred rules to generic code completion?
 
  - Split out code to create parser and api for antlr parser results from annotations and

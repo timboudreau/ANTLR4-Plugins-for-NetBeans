@@ -52,6 +52,7 @@ limitations under the License.
                 <extensions>true</extensions>
                 <configuration>
                     <cluster>antlr</cluster>
+                    <verifyRuntime>false</verifyRuntime>
                     <moduleType>autoload</moduleType>
                     <author>Tim Boudreau</author>
                     <useOSGiDependencies>false</useOSGiDependencies>

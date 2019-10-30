@@ -27,7 +27,6 @@ import org.nemesis.antlr.refactoring.impl.RenameActionType;
 import static org.nemesis.antlr.refactoring.impl.RenameActionType.INPLACE;
 import static org.nemesis.antlr.refactoring.impl.RenameActionType.INPLACE_AUGMENTED;
 import static org.nemesis.antlr.refactoring.impl.RenameActionType.POST_PROCESS;
-import static org.nemesis.antlr.refactoring.impl.RenameActionType.TAKEOVER;
 import static org.nemesis.antlr.refactoring.impl.RenameActionType.USE_REFACTORING_API;
 import org.nemesis.antlr.refactoring.impl.RenameQueryResultTrampoline;
 import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
@@ -178,7 +177,6 @@ public final class InstantRenameActionBuilder {
             switch (type) {
                 case INPLACE:
                 case INPLACE_AUGMENTED:
-                case TAKEOVER:
                 case POST_PROCESS:
                 case USE_REFACTORING_API:
                     return new FindItemsResult<>(Collections.singleton(enc), res);
@@ -209,7 +207,6 @@ public final class InstantRenameActionBuilder {
             switch (type) {
                 case INPLACE:
                 case INPLACE_AUGMENTED:
-                case TAKEOVER:
                 case POST_PROCESS:
                 case USE_REFACTORING_API:
                     return new FindItemsResult<>(Collections.singleton(region), res);
@@ -249,7 +246,6 @@ public final class InstantRenameActionBuilder {
             switch (type) {
                 case INPLACE:
                 case INPLACE_AUGMENTED:
-                case TAKEOVER:
                 case POST_PROCESS:
                 case USE_REFACTORING_API:
                     NamedRegionReferenceSet<?> referencesToName = refs.references(ident);

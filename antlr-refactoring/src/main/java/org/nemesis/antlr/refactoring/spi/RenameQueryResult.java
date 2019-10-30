@@ -54,8 +54,8 @@ public final class RenameQueryResult {
         charFilter = null;
     }
 
-    RenameQueryResult(RenameAugmenter augmenter, boolean takeover) {
-        type = takeover ? RenameActionType.TAKEOVER : RenameActionType.INPLACE_AUGMENTED;
+    RenameQueryResult(RenameAugmenter augmenter) {
+        type = RenameActionType.INPLACE_AUGMENTED;
         this.augmenter = notNull("augmenter", augmenter);
         postProcessor = null;
         this.reason = null;
@@ -99,7 +99,6 @@ public final class RenameQueryResult {
             case INPLACE:
                 break;
             case INPLACE_AUGMENTED:
-            case TAKEOVER:
                 sb.append(" augmenter=").append(augmenter);
                 break;
             case NOT_ALLOWED:
@@ -188,10 +187,10 @@ public final class RenameQueryResult {
 
     static class TrampolineImpl extends RenameQueryResultTrampoline {
 
-        private static RenameQueryResult VETO = new RenameQueryResult(RenameActionType.NOT_ALLOWED);
-        private static RenameQueryResult PROCEED = new RenameQueryResult(RenameActionType.INPLACE);
-        private static RenameQueryResult USE_REFACTORING = new RenameQueryResult(RenameActionType.USE_REFACTORING_API);
-        private static RenameQueryResult NOTHING = new RenameQueryResult(RenameActionType.NOTHING_FOUND);
+        private static final RenameQueryResult VETO = new RenameQueryResult(RenameActionType.NOT_ALLOWED);
+        private static final RenameQueryResult PROCEED = new RenameQueryResult(RenameActionType.INPLACE);
+        private static final RenameQueryResult USE_REFACTORING = new RenameQueryResult(RenameActionType.USE_REFACTORING_API);
+        private static final RenameQueryResult NOTHING = new RenameQueryResult(RenameActionType.NOTHING_FOUND);
 
         @Override
         protected void _onRename(RenameQueryResult res, String original, String nue, Runnable undo) {
@@ -213,30 +212,32 @@ public final class RenameQueryResult {
             return res.type();
         }
 
+        @Override
         protected RenameQueryResult _veto(String reason) {
             return reason == null ? VETO : new RenameQueryResult(reason);
         }
 
+        @Override
         protected RenameQueryResult _proceed() {
             return PROCEED;
         }
 
+        @Override
         protected RenameQueryResult _nothingFound() {
             return NOTHING;
         }
 
+        @Override
         protected RenameQueryResult _useRefactoring() {
             return USE_REFACTORING;
         }
 
-        protected RenameQueryResult _takeover(RenameAugmenter aug) {
-            return new RenameQueryResult(aug, true);
-        }
-
+        @Override
         protected RenameQueryResult _augment(RenameAugmenter aug) {
-            return new RenameQueryResult(aug, false);
+            return new RenameQueryResult(aug);
         }
 
+        @Override
         protected RenameQueryResult _postProcess(RenamePostProcessor postProcessor) {
             return new RenameQueryResult(postProcessor);
         }

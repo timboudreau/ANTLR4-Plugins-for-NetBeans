@@ -22,12 +22,17 @@ import com.mastfrog.range.IntRange;
 import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.UndoableEditEvent;
+import javax.swing.event.UndoableEditListener;
+import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -36,6 +41,11 @@ import javax.swing.text.Position;
 import javax.swing.text.Position.Bias;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.undo.AbstractUndoableEdit;
+import javax.swing.undo.CannotUndoException;
+import javax.swing.undo.UndoableEdit;
+import org.nemesis.antlr.refactoring.impl.EnsureInstantRenamersAreRemovedPluginFactory;
+import org.nemesis.antlr.refactoring.impl.RenamePerformer;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
@@ -45,6 +55,7 @@ import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.BaseKit;
 import org.netbeans.lib.editor.util.swing.MutablePositionRegion;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.openide.text.CloneableEditorSupport;
 import org.openide.text.NbDocument;
 
 /**
@@ -58,11 +69,11 @@ import org.openide.text.NbDocument;
  *
  * @author Jan Lahoda, Tim Boudreau
  */
-final class InstantRenamePerformer implements DocumentListener, KeyListener {
+final class InstantRenamePerformer implements DocumentListener, KeyListener, RenamePerformer {
 
     private SyncDocumentRegion region;
-    private BaseDocument doc;
-    private JTextComponent target;
+    private final BaseDocument doc;
+    private final JTextComponent target;
 
     private AttributeSet attribs = null;
     private AttributeSet attribsLeft = null;
@@ -77,7 +88,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
     private AttributeSet attribsSlaveAll = null;
     private final String origText;
     private String lastText;
-    private boolean firstEvent = true;
+    private volatile boolean inSync;
 
     private static final Logger LOG = Logger.getLogger(InstantRenamePerformer.class.getName());
 
@@ -131,6 +142,10 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         region = new SyncDocumentRegion(doc, regions);
 
         doc.addPostModificationDocumentListener(this);
+        UndoableEdit undo = new CancelInstantRenameUndoableEdit(this);
+        for (UndoableEditListener l : doc.getUndoableEditListeners()) {
+            l.undoableEditHappened(new UndoableEditEvent(doc, undo));
+        }
 
         target.addKeyListener(this);
 
@@ -140,6 +155,9 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         requestRepaint();
 
         target.select(mainRegion.getStartOffset(), mainRegion.getEndOffset());
+        sendUndoableEdit(doc, CloneableEditorSupport.BEGIN_COMMIT_GROUP);
+        // ensure when a real refactoring is run, all performers are cleaned up
+        EnsureInstantRenamersAreRemovedPluginFactory.register(this);
     }
 
     private static InstantRenamePerformer getPerformerFromComponent(JTextComponent target) {
@@ -162,7 +180,10 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         return region.getStartOffset() <= caretOffset && caretOffset <= region.getEndOffset();
     }
 
-    private boolean inSync;
+    @Override
+    public void markSynced() {
+        inSync = true;
+    }
 
     public synchronized void insertUpdate(DocumentEvent e) {
         if (inSync) {
@@ -258,27 +279,24 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
         region.setText(origText);
     }
 
-    void release(boolean cancellation) {
-        String newText = region.getFirstRegionText();
-        boolean modified = !origText.equals(newText);
-        if (!modified) {
-            result.onCancelled();
-        } else {
-            result.onNameUpdated(origText, (StyledDocument) doc, newText);
-            result.onRename(origText, newText, this::undo);
+    public void release(boolean cancellation) {
+        if (EnsureInstantRenamersAreRemovedPluginFactory.deregister(this)) {
+            sendUndoableEdit(doc, CloneableEditorSupport.END_COMMIT_GROUP);
+            String newText = region.getFirstRegionText();
+            boolean modified = !origText.equals(newText);
+            if (!modified) {
+                result.onCancelled();
+            } else {
+                result.onNameUpdated(origText, (StyledDocument) doc, newText);
+                result.onRename(origText, newText, this::undo);
+            }
+            target.putClientProperty("NetBeansEditor.navigateBoundaries", null); // NOI18N
+            target.putClientProperty(InstantRenamePerformer.class, null);
+            doc.removePostModificationDocumentListener(this);
+            target.removeKeyListener(this);
+            region = null;
+            requestRepaint();
         }
-        target.putClientProperty("NetBeansEditor.navigateBoundaries", null); // NOI18N
-        target.putClientProperty(InstantRenamePerformer.class, null);
-        if (doc instanceof BaseDocument) {
-            ((BaseDocument) doc).removePostModificationDocumentListener(this);
-        }
-        target.removeKeyListener(this);
-        target = null;
-
-        region = null;
-        requestRepaint();
-
-        doc = null;
     }
 
     private void requestRepaint() {
@@ -418,6 +436,38 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener {
                     EditorStyleConstants.TopBorderLineColor, slaveForeground,
                     EditorStyleConstants.BottomBorderLineColor, slaveForeground
             );
+        }
+    }
+
+    private static void sendUndoableEdit(Document d, UndoableEdit ue) {
+        if (d instanceof AbstractDocument) {
+            UndoableEditListener[] uels = ((AbstractDocument) d).getUndoableEditListeners();
+            UndoableEditEvent ev = new UndoableEditEvent(d, ue);
+            for (UndoableEditListener uel : uels) {
+                uel.undoableEditHappened(ev);
+            }
+        }
+    }
+
+    private static class CancelInstantRenameUndoableEdit extends AbstractUndoableEdit {
+
+        private final Reference<InstantRenamePerformer> performer;
+
+        public CancelInstantRenameUndoableEdit(InstantRenamePerformer performer) {
+            this.performer = new WeakReference<InstantRenamePerformer>(performer);
+        }
+
+        @Override
+        public boolean isSignificant() {
+            return false;
+        }
+
+        @Override
+        public void undo() throws CannotUndoException {
+            InstantRenamePerformer perf = performer.get();
+            if (perf != null) {
+                perf.release(true);
+            }
         }
     }
 }

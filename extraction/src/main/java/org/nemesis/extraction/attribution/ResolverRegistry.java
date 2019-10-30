@@ -16,6 +16,7 @@
 package org.nemesis.extraction.attribution;
 
 import com.mastfrog.util.cache.TimedCache;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,6 +128,19 @@ public final class ResolverRegistry {
                 }
             }
             return set.toArray(new NamedRegionKey<?>[set.size()]);
+        }
+
+        @Override
+        public <T extends Enum<T>> void importsForKey(Set<? super GrammarSource<?>> result, NamedRegionKey<T> k, Extraction importer, Set<? super NamedSemanticRegion<? extends Enum<?>>> notFound) {
+            for (ImportFinder imp : finders) {
+                if (imp instanceof ImportKeySupplier) {
+                    ImportKeySupplier keyImp = (ImportKeySupplier) imp;
+                    Set<NamedRegionKey<?>> keys = setOf(keyImp.get());
+                    if (keys.contains(k)) {
+                        keyImp.importsForKey(result, k, importer, notFound);
+                    }
+                }
+            }
         }
     }
 

@@ -16,8 +16,12 @@
 package org.nemesis.charfilter;
 
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
+ * Predicate for an array of characters
  *
  * @author Tim Boudreau
  */
@@ -28,10 +32,40 @@ final class CharsCharPredicate implements CharPredicate {
     public CharsCharPredicate(char[] chars) {
         Arrays.sort(chars);
         this.chars = chars;
+        // XXX check duplicates?  Newer JDKs behave badly on binary search
+        // with duplicates.
     }
 
     @Override
     public boolean test(char c) {
         return Arrays.binarySearch(chars, c) >= 0;
     }
+
+    @Override
+    public String toString() {
+        return "anyOf(" + new String(chars) + ")";
+    }
+
+    @Override
+    public CharPredicate or(CharPredicate other) {
+        if (other instanceof CharsCharPredicate) {
+            CharsCharPredicate oc = (CharsCharPredicate) other;
+            Set<Character> all = new TreeSet<>();
+            for (char c : chars) {
+                all.add(c);
+            }
+            for (char c : oc.chars) {
+                all.add(c);
+            }
+            char[] items = new char[all.size()];
+            Iterator<Character> it = all.iterator();
+            int ix = 0;
+            while (it.hasNext()) {
+                items[ix++] = it.next();
+            }
+            return new CharsCharPredicate(items);
+        }
+        return CharPredicate.super.or(other);
+    }
+
 }

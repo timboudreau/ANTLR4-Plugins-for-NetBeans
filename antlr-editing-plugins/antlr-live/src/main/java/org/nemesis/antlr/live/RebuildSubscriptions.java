@@ -64,6 +64,7 @@ import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileRenameEvent;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
@@ -302,7 +303,42 @@ public final class RebuildSubscriptions {
         public void fileDeleted(FileEvent fe) {
             FileObject deleted = fe.getFile();
             new HashSet<>(mappings).stream().filter((m) -> (m.fo.equals(deleted))).forEach((m) -> {
-                mappings.remove(m);
+                try {
+                    JFS jfs = mapping.forProject(FileOwnerQuery.getOwner(initialFile));
+                    JFSFileObject jfsFo = jfs.get(StandardLocation.SOURCE_PATH, m.targetPath);
+                    if (jfsFo != null) {
+                        jfsFo.delete();
+                    }
+                    mappings.remove(m);
+                } catch (IOException ex) {
+                    LOG.log(Level.INFO, null, ex);
+                }
+            });
+        }
+
+        @Override
+        public void fileRenamed(FileRenameEvent fe) {
+            FileObject renamed = fe.getFile();
+            System.out.println("RENAMED: " + renamed);
+            new HashSet<>(mappings).stream().filter((m) -> (m.fo.equals(renamed))).forEach((m) -> {
+                try {
+                    JFS jfs = mapping.forProject(FileOwnerQuery.getOwner(initialFile));
+                    JFSFileObject jfsFo = jfs.get(StandardLocation.SOURCE_PATH, m.targetPath);
+                    if (jfsFo != null) {
+                        jfsFo.delete();
+                    }
+                    Folders owner = Folders.ownerOf(renamed);
+                    UnixPath newPath = pathFor(renamed, owner);
+                    if (!newPath.equals(m.targetPath)) {
+                        mappings.remove(m);
+                        Mapping nue = map(renamed, owner, newPath);
+                        mappings.add(nue);
+                        System.out.println("RENAME - remove " + m.targetPath + " from JFS and replace with " + nue.targetPath
+                                + " for " + renamed.getPath());
+                    }
+                } catch (IOException ex) {
+                    LOG.log(Level.INFO, null, ex);
+                }
             });
         }
 
@@ -313,25 +349,30 @@ public final class RebuildSubscriptions {
                 Folders owner = Folders.ownerOf(fo);
                 Path relativePath = Folders.ownerRelativePath(fo);
                 if (owner != null && relativePath != null) {
-                    map(fo, owner);
+                    mappings.add(map(fo, owner));
                 }
             }
         }
 
-        @Override
-        public void fileFolderCreated(FileEvent fe) {
+        private UnixPath pathFor(FileObject fo, Folders owner) {
+            Path relativePath = owner == Folders.ANTLR_IMPORTS
+                    ? Paths.get("imports/" + fo.getNameExt()) : Folders.ownerRelativePath(fo);
+            return UnixPath.get(relativePath);
         }
 
         Mapping map(FileObject fo, Folders owner) {
-            Path relativePath = owner == Folders.ANTLR_IMPORTS
-                    ? Paths.get("imports/" + fo.getNameExt()) : Folders.ownerRelativePath(fo);
+            UnixPath mappingPath = pathFor(fo, owner);
+            return map(fo, owner, mappingPath);
+        }
+
+        Mapping map(FileObject fo, Folders owner, UnixPath mappingPath) {
             try {
                 DataObject dob = DataObject.find(fo);
                 EditorCookie.Observable obs = dob.getLookup().lookup(EditorCookie.Observable.class);
-                return new Mapping(fo, obs, UnixPath.get(relativePath));
+                return new Mapping(fo, obs, mappingPath);
             } catch (DataObjectNotFoundException ex) {
                 LOG.log(Level.SEVERE, "No data object for " + fo.getPath(), ex);
-                return new Mapping(fo, null, UnixPath.get(relativePath));
+                return new Mapping(fo, null, mappingPath);
             } finally {
                 ParseResultHook.register(fo, hook);
             }
@@ -343,6 +384,7 @@ public final class RebuildSubscriptions {
             private EditorCookie.Observable obs;
             private final FileObject fo;
             private MappingMode mode;
+            private volatile boolean defunct;
 
             @SuppressWarnings("LeakingThisInConstructor")
             Mapping(FileObject fo, EditorCookie.Observable obs, UnixPath targetPath) {
@@ -361,6 +403,18 @@ public final class RebuildSubscriptions {
                     LOG.log(Level.WARNING, "No EditorCookie.Observable for {0}", fo.getPath());
                 }
                 fo.addFileChangeListener(FileUtil.weakFileChangeListener(this, fo));
+            }
+
+            @Override
+            public void fileRenamed(FileRenameEvent fe) {
+                defunct = true;
+                Generator.this.fileRenamed(fe);
+            }
+
+            @Override
+            public void fileDeleted(FileEvent fe) {
+                defunct = true;
+                Generator.this.fileDeleted(fe);
             }
 
             public boolean isGrammarFile() {
@@ -382,6 +436,19 @@ public final class RebuildSubscriptions {
             }
 
             public long lastModified(JFS jfs) {
+                if (defunct) {
+                    for (Mapping m : Generator.this.mappings) {
+                        if (fo.equals(m.fo)) {
+                            JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, targetPath);
+                            if (jfo == null) {
+                                return fo.lastModified().getTime();
+                            }
+                        }
+                    }
+                    // just ensure a false result for the up to date check -
+                    // we are no longer actually mapped
+                    return System.currentTimeMillis();
+                }
                 // It seems we sometimes don't get notifications about the document
                 // being opened - may be a race with adding the listener on startup
                 recheckMapping();

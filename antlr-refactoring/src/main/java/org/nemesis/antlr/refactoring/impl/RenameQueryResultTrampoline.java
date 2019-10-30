@@ -73,12 +73,8 @@ public abstract class RenameQueryResultTrampoline {
         return getDefault()._useRefactoring();
     }
 
-    public static RenameQueryResult createTakeoverResult(RenameAugmenter aug) {
-        return getDefault()._takeover(aug);
-    }
-
     public static RenameQueryResult createAugmentResult(RenameAugmenter aug) {
-        return getDefault()._takeover(aug);
+        return getDefault()._augment(aug);
     }
 
     public static RenameQueryResult createPostProcessResult(RenamePostProcessor processor) {
@@ -108,8 +104,6 @@ public abstract class RenameQueryResultTrampoline {
     protected abstract RenameQueryResult _proceed();
 
     protected abstract RenameQueryResult _useRefactoring();
-
-    protected abstract RenameQueryResult _takeover(RenameAugmenter aug);
 
     protected abstract RenameQueryResult _augment(RenameAugmenter aug);
 

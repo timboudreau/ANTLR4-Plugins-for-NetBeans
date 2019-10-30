@@ -22,8 +22,16 @@ import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
 import org.nemesis.antlr.refactoring.spi.RenameAugmenter;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.SingletonEncounters;
+import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 import org.nemesis.extraction.key.ExtractionKey;
+import org.nemesis.extraction.key.NameReferenceSetKey;
+import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.extraction.key.SingletonKey;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -47,10 +55,6 @@ public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends
      * returning <code>useRefactoringAPI()</code> (you will need to have
      * refactoring implementations registered via the NetBeans refactoring API
      * for this to do anything)</li>
-     * <li><b>Take over the process of modifying the document</b> &mdash; by
-     * returning <code>takeOverModificationsWith(yourRenameAugmenter)</code>
-     * &mdash; the inplace rename action will still process keystrokes, but any
-     * modifications to the document are up to you.</li>
      * <li><b>Allow inplace renaming to proceed, but also get a chance to
      * further process any modifications</b> &mdash; by returning
      * <code>proceedAndAugmentWith(myAugmenter)</code> - say, to update another
@@ -91,18 +95,6 @@ public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends
      */
     protected final RenameQueryResult proceedAndAugmentWith(RenameAugmenter augmenter) {
         return RenameQueryResultTrampoline.createAugmentResult(augmenter);
-    }
-
-    /**
-     * Create a result which allows inplace <i>typing</i> to proceed, and will
-     * pass changes to the passed RenameAugmenter, but makes no actual
-     * modifications to the document.
-     *
-     * @param augmenter An augmenter
-     * @return a result
-     */
-    protected final RenameQueryResult takeOverModificationsWith(RenameAugmenter augmenter) {
-        return RenameQueryResultTrampoline.createTakeoverResult(augmenter);
     }
 
     /**
@@ -156,8 +148,9 @@ public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends
         return new DefaultParticipant<>();
     }
 
-    RenameParticipant wrap(CharFilter filter) {
-        return new WrapWithFilter<>(this, filter);
+    @SuppressWarnings("unchecked")
+    RenameParticipant<T, K, I, C> wrap(CharFilter filter) {
+        return (RenameParticipant<T, K, I, C>) new WrapWithFilter<>(this, filter);
     }
 
     private static final class DefaultParticipant<T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<I>>
@@ -202,11 +195,40 @@ public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends
                 case INPLACE:
                 case INPLACE_AUGMENTED:
                 case POST_PROCESS:
-                case TAKEOVER:
                     return res.withCharFilter(filter);
                 default:
                     return res;
             }
         }
+    }
+
+    /**
+     * Convenience subclass for <code>NameReferenceSetKey</code>s so
+     * implementers don't have to deal with the gargantuan generic signature.
+     *
+     * @param <T> A type
+     */
+    public static abstract class NamedReferencesRenameParticipant<T extends Enum<T>> extends RenameParticipant<T, NameReferenceSetKey<T>, NamedSemanticRegion<T>, NamedRegionReferenceSets<T>> {
+
+    }
+
+    /**
+     * Convenience subclass for <code>NamedRegionKey</code>s so implementers
+     * don't have to deal with the gargantuan generic signature.
+     *
+     * @param <T> A type
+     */
+    public static abstract class NamedRegionsRenameParticipant<T extends Enum<T>> extends RenameParticipant<T, NamedRegionKey<T>, NamedSemanticRegion<T>, NamedSemanticRegions<T>> {
+
+    }
+
+    /**
+     * Convenience subclass for <code>SingletonKey</code>s so implementers don't
+     * have to deal with the gargantuan generic signature.
+     *
+     * @param <T> A type
+     */
+    public static abstract class SingletonsRenameParticipant<T> extends RenameParticipant<T, SingletonKey<T>, SingletonEncounter<T>, SingletonEncounters<T>> {
+
     }
 }

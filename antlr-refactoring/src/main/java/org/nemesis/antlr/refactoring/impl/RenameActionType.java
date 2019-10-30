@@ -19,7 +19,6 @@ public enum RenameActionType {
     NOT_ALLOWED,
     INPLACE,
     INPLACE_AUGMENTED,
-    TAKEOVER,
     USE_REFACTORING_API,
     POST_PROCESS,
     NOTHING_FOUND;
@@ -45,7 +44,6 @@ public enum RenameActionType {
         switch (this) {
             case INPLACE:
             case INPLACE_AUGMENTED:
-            case TAKEOVER:
             case POST_PROCESS:
                 return true;
             default:
@@ -54,7 +52,7 @@ public enum RenameActionType {
     }
 
     public boolean isPassChanges() {
-        return this == INPLACE_AUGMENTED || this == TAKEOVER;
+        return this == INPLACE_AUGMENTED;
     }
 
     public boolean proceedWithInplace() {
@@ -62,7 +60,6 @@ public enum RenameActionType {
             case INPLACE:
             case INPLACE_AUGMENTED:
             case POST_PROCESS:
-            case TAKEOVER:
                 return true;
             default:
                 return false;

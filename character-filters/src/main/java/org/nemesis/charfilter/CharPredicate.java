@@ -15,33 +15,55 @@
  */
 package org.nemesis.charfilter;
 
+import java.util.function.Function;
+
 /**
+ * A predicate for characters; convenience implementations in
+ * {@link org.nemesis.charfilter.CharPredicates}.
  *
+ * @see org.nemesis.charfilter.CharPredicates
  * @author Tim Boudreau
  */
 @FunctionalInterface
 public interface CharPredicate {
 
-    static CharPredicate EVERYTHING = ignored -> true;
+    public static final CharPredicate EVERYTHING = new AllOrNothing(true);
+    public static final CharPredicate NOTHING = new AllOrNothing(false);
 
     boolean test(char c);
 
+    static CharPredicateBuilder<CharPredicate, ? extends CharPredicateBuilder<CharPredicate, ?>> builder() {
+        return CharPredicateBuilder.create();
+    }
+
+    static <T> CharPredicateBuilder<T, ? extends CharPredicateBuilder<T, ?>> builder(Function<CharPredicate, T> converter) {
+        return CharPredicateBuilder.from(converter);
+    }
+
+    static CharPredicate anyOf(char... chars) {
+        if (chars.length == 0) {
+            return EVERYTHING.negate();
+        }
+        return new CharsCharPredicate(chars);
+    }
+
+    static CharPredicate noneOf(char... chars) {
+        if (chars.length == 0) {
+            return EVERYTHING.negate();
+        }
+        return new CharsCharPredicate(chars).negate();
+    }
+
     default CharPredicate and(CharPredicate other) {
-        return c -> {
-            return CharPredicate.this.test(c) && other.test(c);
-        };
+        return new LogicalCharPredicate(false, this, other);
     }
 
     default CharPredicate or(CharPredicate other) {
-        return c -> {
-            return CharPredicate.this.test(c) || other.test(c);
-        };
+        return new LogicalCharPredicate(true, this, other);
     }
 
     default CharPredicate negate() {
-        return c -> {
-            return !CharPredicate.this.test(c);
-        };
+        return new NegatedCharPredicate(this);
     }
 
     static CharPredicate combine(boolean or, CharPredicate... all) {

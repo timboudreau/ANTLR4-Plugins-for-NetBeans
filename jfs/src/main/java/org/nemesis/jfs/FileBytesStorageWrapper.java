@@ -117,8 +117,9 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
         try {
             return Files.getLastModifiedTime(path).toMillis();
         } catch (IOException ex) {
-            JFS.LOG.log(Level.WARNING, "Could not get modified time for " + path, ex);
-            return 0;
+            JFS.LOG.log(Level.FINE, "Could not get modified time "
+                    + "for mapped " + path + " - probabbly deleted.", ex);
+            return System.currentTimeMillis();
         }
     }
 
@@ -144,7 +145,7 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
         try {
             return (int) Files.size(path);
         } catch (IOException ex) {
-            JFS.LOG.log(Level.WARNING, "Could not get size of " + path, ex);
+            JFS.LOG.log(Level.FINE, "Could not get size of " + path, ex);
             return 0;
         }
     }

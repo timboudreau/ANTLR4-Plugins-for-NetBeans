@@ -297,19 +297,16 @@ public final class AntlrExtractor {
             }
         }
         ANTLRv4Parser.IdentifierContext idContext = spec.identifier();
-        String name;
-        if (idContext != null) {
-            TerminalNode term = idContext.ID();
-            if (term != null) {
-                name = term.getText();
-            } else {
-                return;
-            }
+        if (idContext != null && idContext.ID() != null && idContext.ID().getSymbol() != null) { // broken source
+            String name = idContext.ID().getText();
+            GrammarDeclaration result = new GrammarDeclaration(grammarType,
+                    name, spec.start.getStartIndex(),
+                    spec.stop.getStopIndex() + 1);
+            cons.apply(result, idContext.ID().getSymbol().getStartIndex(),
+                    idContext.ID().getSymbol().getStopIndex() + 1);
         } else {
             return;
         }
-        GrammarDeclaration result = new GrammarDeclaration(grammarType, name, spec.start.getStartIndex(), spec.stop.getStopIndex() + 1);
-        cons.apply(result, idContext.start.getStartIndex(), idContext.stop.getStopIndex() + 1);
     }
 
     public Extraction extract(GrammarFileContext ctx, GrammarSource<?> src) {

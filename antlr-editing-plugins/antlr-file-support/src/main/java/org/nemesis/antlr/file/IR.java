@@ -20,7 +20,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.refactoring.InstantRenameAction;
-import org.nemesis.antlr.refactoring.RenameParticipant;
+import org.nemesis.antlr.refactoring.RenameParticipant.NamedReferencesRenameParticipant;
 import org.nemesis.antlr.refactoring.spi.RenamePostProcessor;
 import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
 import org.nemesis.charfilter.CharFilter;
@@ -42,7 +42,7 @@ import org.openide.util.NbBundle;
  * @author Tim Boudreau
  */
 public class IR
-        extends RenameParticipant<RuleTypes, NameReferenceSetKey<RuleTypes>, NamedSemanticRegion<RuleTypes>, NamedRegionReferenceSets<RuleTypes>>
+        extends NamedReferencesRenameParticipant<RuleTypes>
         implements /*RenameAugmenter */
         RenamePostProcessor {
 
@@ -51,7 +51,7 @@ public class IR
             = "Refactoring", name = "in-place-refactoring")
     public static InstantRenameAction inplaceRename() {
         return InstantRenameAction.builder()
-                .add(AntlrKeys.RULE_NAME_REFERENCES, new IR(), CharFilter.excluding(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
+                .add(AntlrKeys.RULE_NAME_REFERENCES, new IR(), CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
                 .add(AntlrKeys.GRAMMAR_TYPE, new RenameGrammarParticipant())
                 .build();
     }
@@ -80,7 +80,7 @@ public class IR
         System.out.println("COMPLETED: '" + original + "' -> '" + nue + "' - undo " + undo);
     }
 
-    static class RenameGrammarParticipant extends RenameParticipant<GrammarDeclaration, SingletonKey<GrammarDeclaration>, SingletonEncounter<GrammarDeclaration>, SingletonEncounters<GrammarDeclaration>> {
+    static class RenameGrammarParticipant extends SingletonsRenameParticipant<GrammarDeclaration> {
 
         @Override
         protected RenameQueryResult isRenameAllowed(Extraction ext, SingletonKey<GrammarDeclaration> key, SingletonEncounter<GrammarDeclaration> item, SingletonEncounters<GrammarDeclaration> collection, int caretOffset, String identifier) {
