@@ -17,8 +17,17 @@ Rename from original only renames first occurence
 Should a key have a relationship to a "name" key, so there is a bounds key and a name key?
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
+  - Attributions could probably be that and it would be more intuitive
 
 Key localization support.
+ - Including localization of enums individually
+ - And key/value pair hints in annotation?
+
+Extraction can know the relation between name key and bounds key
+
+
+
+An attribution should have the key it came from
 
 Rename refactoring from ref only renames first occurrence
 

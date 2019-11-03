@@ -109,14 +109,14 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 store.addDuplicateNamedRegions(ruleRegionKey, name, duplicates);
             });
         }
-        // TODO: If we use names, that fixes highlighting of the rule being referenced
-        // but breaks graphs, since the name will not contain the reference.
-        // Add a way to provide another reference key for that.
 
 //        ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(names == null ? ruleBounds : names);
         ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(ruleBounds);
         ctx.accept(v1);
         v1.conclude(store);
+        if (ruleRegionKey != null && this.namePositionKey != null) {
+            store.addNameAndBoundsKeyPair(new NameAndBoundsPair<>(ruleRegionKey, namePositionKey));
+        }
     }
 
     @Override

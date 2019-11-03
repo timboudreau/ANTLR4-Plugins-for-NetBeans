@@ -62,8 +62,13 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
             int caretPosition, Extraction extraction,
             PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
         Problem result = null;
+        // Ensure we are using the *names* key so we don't try to, for example,
+        // overwrite an entire Antlr rule with its new name because we grabbed
+        // the rule bounds instead of the name bounds - extraction will have it
+        // if the extractor was built with a name-key/bounds-key pair.
+        NamedRegionKey<T> regionKey = extraction.nameKeyFor(key);
         // See if a region for our key contains the cursor
-        NamedSemanticRegions<T> regions = extraction.namedRegions(key);
+        NamedSemanticRegions<T> regions = extraction.namedRegions(regionKey);
         // Get the region
         NamedSemanticRegion<T> region = regions.at(caretPosition);
 
@@ -84,7 +89,7 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
             NamedRegionReferenceSet<T> set = refs.references(name);
             logFine("Add all references to {0} from {1}", name, refsKey);
             for (NamedSemanticRegionReference<T> r : set) {
-                Problem p = usageConsumer.accept(r, name, file, key.name(), extraction);
+                Problem p = usageConsumer.accept(r, name, file, regionKey.name(), extraction);
                 result = chainProblems(result, p);
                 if (cancelled.getAsBoolean() || (p != null && p.isFatal())) {
                     logFinest("Cancelled {0}", this);
@@ -108,7 +113,13 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
         Problem result = null;
         if (region instanceof NamedSemanticRegionReference<?>) {
             NamedSemanticRegion<?> orig = ((NamedSemanticRegionReference<?>) region).referencing();
-            usageConsumer.accept(orig, orig.name(), file, key.name(), extraction);
+            String name = orig.name();
+            NamedSemanticRegions<T> nameBoundsCollection = extraction.namedRegions(key);
+            NamedSemanticRegion<T> theName = nameBoundsCollection.regionFor(name);
+            assert theName != null : "Have a reference to " + orig + " names collection has no "
+                    + "corresponding name entry for it.";
+
+            usageConsumer.accept(theName, name, file, key.name(), extraction);
         } else {
             usageConsumer.accept(region, region.name(), file, key.name(), extraction);
         }

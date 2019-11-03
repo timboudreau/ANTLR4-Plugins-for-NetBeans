@@ -40,4 +40,5 @@ interface NameInfoStore {
 
     <T extends Enum<T>> void addDuplicateNamedRegions(NamedRegionKey<T> key, String name, Iterable<? extends NamedSemanticRegion<T>> duplicates);
 
+    <T extends Enum<T>> void addNameAndBoundsKeyPair(NameAndBoundsPair<T> pair);
 }

@@ -78,6 +78,7 @@ public final class Extraction implements Externalizable {
     private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
     private transient Map<Extractor<?>, Map<GrammarSource<?>, TimedSoftReference<Extraction>>> cachedExtractions;
+    private final Set<NameAndBoundsPair<?>> nameAndBoundsKeyRelationships = new HashSet<>();
     private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>(3);
     private String extractorsHash;
     private GrammarSource<?> source;
@@ -91,6 +92,70 @@ public final class Extraction implements Externalizable {
         this.tokensHash = tokensHash;
         this.documentRootType = documentRootType;
         this.mimeType = mimeType;
+    }
+
+    /**
+     * In the case this extraction was built using <i>two</i> keys, one
+     * to extract regions and one to extract the names of those regions,
+     * that relationship can be recovered from the extraction here,
+     * and the key for names found.  This method will never return null -
+     * the calling key, or if it is a NameReferenceSetKey, the value of its
+     * referencing key will be returned.
+     *
+     * @param <T> The type
+     * @param key A NamedRegionKey or NameReferenceSetKey
+     * @return The key, if known, the represents <i>name bounds</i> as opposed
+     * to element bounds, for this key
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends Enum<T>> NamedRegionKey<T> nameKeyFor(NamedExtractionKey<T> key) {
+        NamedRegionKey<T> regionKey;
+        if (key instanceof NameReferenceSetKey<?>) {
+            regionKey = ((NameReferenceSetKey<T>) key).referencing();
+        } else if (key instanceof NamedRegionKey<?>) {
+            regionKey = (NamedRegionKey<T>) key;
+        } else {
+            throw new UnsupportedOperationException("Unknown key type " + key.getClass().getName() + ": " + key);
+        }
+        for (NameAndBoundsPair<?> pair : nameAndBoundsKeyRelationships) {
+            NamedRegionKey<T> result = pair.nameKeyFor(regionKey);
+            if (result != null) {
+                return result;
+            }
+        }
+        return regionKey;
+    }
+
+    /**
+     * In the case this extraction was built using <i>two</i> keys, one
+     * to extract regions and one to extract the names of those regions,
+     * that relationship can be recovered from the extraction here,
+     * and the key for names found.  This method will never return null -
+     * the calling key, or if it is a NameReferenceSetKey, the value of its
+     * referencing key will be returned.
+     *
+     * @param <T> The type
+     * @param key A NamedRegionKey or NameReferenceSetKey
+     * @return The key, if known, the represents <i>name bounds</i> as opposed
+     * to element bounds, for this key
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends Enum<T>> NamedRegionKey<T> boundsKeyFor(NamedExtractionKey<T> key) {
+        NamedRegionKey<T> regionKey;
+        if (key instanceof NameReferenceSetKey<?>) {
+            regionKey = ((NameReferenceSetKey<T>) key).referencing();
+        } else if (key instanceof NamedRegionKey<?>) {
+            regionKey = (NamedRegionKey<T>) key;
+        } else {
+            throw new UnsupportedOperationException("Unknown key type " + key.getClass().getName() + ": " + key);
+        }
+        for (NameAndBoundsPair<?> pair : nameAndBoundsKeyRelationships) {
+            NamedRegionKey<T> result = pair.boundsKeyFor(regionKey);
+            if (result != null) {
+                return result;
+            }
+        }
+        return regionKey;
     }
 
     public Set<RegionsKey<?>> regionsKeys() {
@@ -725,16 +790,6 @@ public final class Extraction implements Externalizable {
                 remaining.add(reg.key(), reg.start(), reg.end());
             }
         }
-        /*
-        for (SemanticRegion<UnknownNameReference<T>> reg : u) {
-            AttributedForeignNameReference<R, I, N, T> r = reg.key().resolve(this, res);
-            if (r != null) {
-                bldr.add(r, reg.start(), reg.end());
-            } else {
-                remaining.add(reg.key(), reg.start(), reg.end());
-            }
-        }
-         */
         Attributions<R, I, N, T> result = new Attributions<>(bldr.build(), remaining.build());
         perResolverCache.put(res, result);
         return result;
@@ -810,6 +865,11 @@ public final class Extraction implements Externalizable {
                 Extraction.this.duplicates.put(key, m);
             }
             m.put(name, all);
+        }
+
+        @Override
+        public <T extends Enum<T>> void addNameAndBoundsKeyPair(NameAndBoundsPair<T> pair) {
+            nameAndBoundsKeyRelationships.add(pair);
         }
     };
 }
