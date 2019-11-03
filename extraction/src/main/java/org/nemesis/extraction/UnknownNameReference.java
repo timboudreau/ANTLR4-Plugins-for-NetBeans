@@ -20,6 +20,7 @@ import java.io.Serializable;
 import org.nemesis.data.IndexAddressable;
 import com.mastfrog.abstractions.Named;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.extraction.key.NamedExtractionKey;
 
 /**
  *
@@ -36,8 +37,8 @@ public interface UnknownNameReference<T extends Enum<T>> extends Named, IndexAdd
     default <R, I extends IndexAddressable.NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>> AttributedForeignNameReference<R, I, N, T>
             resolve(Extraction extraction, UnknownNameReferenceResolver<R, I, N, T> resolver) throws IOException {
         ResolutionConsumer<R, I, N, T, AttributedForeignNameReference<R, I, N, T>> cons
-                = (UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction target)
-                -> new AttributedForeignNameReference<>(unknown, resolutionSource, in, element, extraction, target);
+                = (NamedExtractionKey<T> refKey, UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction target)
+                -> new AttributedForeignNameReference<>(refKey, unknown, resolutionSource, in, element, extraction, target);
         return resolver.resolve(extraction, this, cons);
     }
 }

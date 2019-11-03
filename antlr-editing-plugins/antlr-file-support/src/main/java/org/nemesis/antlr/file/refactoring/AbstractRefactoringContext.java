@@ -802,9 +802,9 @@ public abstract class AbstractRefactoringContext {
                 el = (NamedSemanticRegion<T>) ((NamedSemanticRegionReference<?>) el).referencing();
             }
             if (el != null) {
-                Optional<FileObject> otherFile = ref.target().source().lookup(FileObject.class);
+                Optional<FileObject> otherFile = ref.attributedTo().source().lookup(FileObject.class);
                 if (otherFile.isPresent()) {
-                    FindResult<T> result = new FindResult<>(key, el, ref.target(), otherFile.get());
+                    FindResult<T> result = new FindResult<>(key, el, ref.attributedTo(), otherFile.get());
                     return result;
                 }
             }

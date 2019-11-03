@@ -190,7 +190,7 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
         logFine("Attribute {0} getting {1}", scanningExtraction.source(), attributions);
 
         for (SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T>> attr : attributions.attributed()) {
-            Extraction target = attr.key().target();
+            Extraction target = attr.key().attributedTo();
             logFine("Attribution {0} from {1}", attr, target.source());
             if (cancelled.getAsBoolean()) {
                 break;

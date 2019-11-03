@@ -713,9 +713,10 @@ public final class Extraction implements Externalizable {
         Class c = AttributedForeignNameReference.class;
         SemanticRegions.SemanticRegionsBuilder<AttributedForeignNameReference<R, I, N, T>> bldr = SemanticRegions.builder(c);
         SemanticRegions.SemanticRegionsBuilder<UnknownNameReference> remaining = SemanticRegions.builder(UnknownNameReference.class);
-        Map<UnknownNameReference<T>, AttributedForeignNameReference<R, I, N, T>> all = res.resolveAll(this, u, (UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction ext) -> {
-            return new AttributedForeignNameReference<R,I,N,T>(unknown, resolutionSource, in, element, this, ext);
-        });
+        Map<UnknownNameReference<T>, AttributedForeignNameReference<R, I, N, T>> all
+                = res.resolveAll(this, u, (NamedExtractionKey<T> resKey, UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction ext) -> {
+                    return new AttributedForeignNameReference<R, I, N, T>(resKey, unknown, resolutionSource, in, element, this, ext);
+                });
         for (SemanticRegion<UnknownNameReference<T>> reg : u) {
             AttributedForeignNameReference<R, I, N, T> r = all.get(reg.key());
             if (r != null) {
@@ -733,7 +734,7 @@ public final class Extraction implements Externalizable {
                 remaining.add(reg.key(), reg.start(), reg.end());
             }
         }
-        */
+         */
         Attributions<R, I, N, T> result = new Attributions<>(bldr.build(), remaining.build());
         perResolverCache.put(res, result);
         return result;

@@ -17,6 +17,7 @@ package org.nemesis.extraction;
 
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.extraction.key.NamedExtractionKey;
 
 /**
  *
@@ -24,6 +25,6 @@ import org.nemesis.data.named.NamedSemanticRegion;
  */
 public interface ResolutionConsumer<R, I extends IndexAddressable.NamedIndexAddressable<N>, N extends NamedSemanticRegion<T>, T extends Enum<T>, X> {
 
-    X resolved(UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction target);
+    X resolved(NamedExtractionKey<T> key, UnknownNameReference<T> unknown, R resolutionSource, I in, N element, Extraction target);
 
 }

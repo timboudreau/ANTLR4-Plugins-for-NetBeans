@@ -145,7 +145,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
             Problem result = null;
             Attributions<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T> attributions = scanningExtraction.resolveAll((NameReferenceSetKey<T>) key);
             for (SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T>> attr : attributions.attributed()) {
-                Extraction target = attr.key().from();
+                Extraction target = attr.key().foundIn();
                 if (cancelled.getAsBoolean()) {
                     return result;
                 }
@@ -154,7 +154,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
                 if (isSameSource(origFile, origExtraction, target)) {
                     NamedSemanticRegion<T> found = attr.key().element();
                     if (reg == found || reg.equals(found) || reg.relationTo(found) == RangeRelation.EQUAL) {
-                        Optional<FileObject> targetFile = attr.key().target().source().lookup(FileObject.class);
+                        Optional<FileObject> targetFile = attr.key().attributedTo().source().lookup(FileObject.class);
                         if (targetFile.isPresent()) {
                             Problem p = usageConsumer.accept(attr, attr.key().name(), targetFile.get(), key.name(), scanningExtraction);
                             result = chainProblems(result, p);

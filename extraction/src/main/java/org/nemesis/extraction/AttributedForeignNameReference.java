@@ -19,6 +19,7 @@ import java.util.Objects;
 import org.nemesis.data.IndexAddressable;
 import com.mastfrog.abstractions.Named;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.extraction.key.NamedExtractionKey;
 
 /**
  *
@@ -32,8 +33,16 @@ public final class AttributedForeignNameReference<R, I extends IndexAddressable.
     private final N element;
     private final Extraction extraction;
     private final Extraction target;
+    private final NamedExtractionKey<T> key;
 
-    AttributedForeignNameReference(UnknownNameReference<T> unk, R resolutionSource, I in, N element, Extraction extraction, Extraction target) {
+    AttributedForeignNameReference(NamedExtractionKey<T> key,
+            UnknownNameReference<T> unk,
+            R resolutionSource,
+            I in,
+            N element,
+            Extraction extraction,
+            Extraction target) {
+        this.key = key;
         this.unk = unk;
         this.resolutionSource = resolutionSource;
         this.in = in;
@@ -42,11 +51,15 @@ public final class AttributedForeignNameReference<R, I extends IndexAddressable.
         this.target = target;
     }
 
-    public Extraction from() {
+    public NamedExtractionKey<T> key() {
+        return key;
+    }
+
+    public Extraction foundIn() {
         return extraction;
     }
 
-    public Extraction target() {
+    public Extraction attributedTo() {
         return target;
     }
 
