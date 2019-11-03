@@ -1,0 +1,4 @@
+#!/bin/sh
+rm -f $HOME/.antlr/dev/var/cache/all-*
+rm -f $HOME/.antlr/dev/var/cache/package-attrs.dat
+./run

@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.file.refactoring.usages;
 
+import org.netbeans.modules.refactoring.api.Problem;
+
 /**
  *
  * @author Tim Boudreau
@@ -22,7 +24,7 @@ package org.nemesis.antlr.file.refactoring.usages;
 @FunctionalInterface
 public interface PetaConsumer<A, B, C, D, E> {
 
-    void accept(A a, B b, C c, D d, E e);
+    Problem accept(A a, B b, C c, D d, E e);
 
 //    default PetaConsumer<A, B, C, D, E> andThen(PetaConsumer<A, B, C, D, E> next) {
 //        return (a, b, c, d, e) -> {

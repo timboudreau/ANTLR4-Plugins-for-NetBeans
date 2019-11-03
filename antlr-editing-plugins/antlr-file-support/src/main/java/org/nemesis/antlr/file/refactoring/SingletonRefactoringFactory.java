@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -17,9 +17,6 @@ package org.nemesis.antlr.file.refactoring;
 
 import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.function.TriFunction;
-import com.mastfrog.range.IntRange;
-import com.mastfrog.range.Range;
-import com.mastfrog.range.RangeRelation;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Optional;
 import org.nemesis.charfilter.CharFilter;
@@ -36,7 +33,7 @@ import org.openide.text.PositionBounds;
  *
  * @author Tim Boudreau
  */
-abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> implements TriFunction<R, Extraction, PositionBounds, RefactoringPlugin> {
+abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> extends AbstractRefactoringContext implements TriFunction<R, Extraction, PositionBounds, RefactoringPlugin> {
 
     private final SingletonKey<K> key;
     private final CharFilter filter;
@@ -55,30 +52,12 @@ abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> imp
                 + filter + " stringifier=" + stringifier + ")";
     }
 
-    static <K> SingletonEncounter<K> find(SingletonKey<K> key, Extraction extraction, PositionBounds bounds) {
+    <K> SingletonEncounter<K> find(SingletonKey<K> key, Extraction extraction, PositionBounds bounds) {
         SingletonEncounters<K> gtEncounters = extraction.singletons(key);
         if (gtEncounters.isEmpty()) {
             return null;
         }
-        int start = bounds.getBegin().getOffset();
-        int end = bounds.getEnd().getOffset();
-        IntRange range = Range.ofCoordinates(start, end);
-        SingletonEncounters.SingletonEncounter<K> item = null;
-        loop:
-        for (SingletonEncounters.SingletonEncounter<K> s : gtEncounters) {
-            RangeRelation rel = s.relationTo(range);
-            switch (rel) {
-                case CONTAINED:
-                case CONTAINS:
-                case EQUAL:
-                    item = s;
-                    break loop;
-            }
-        }
-        if (item == null) {
-            item = gtEncounters.at(range.start());
-        }
-        return item;
+        return AbstractRefactoringContext.find(bounds, gtEncounters);
     }
 
     @Override
@@ -90,6 +69,7 @@ abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> imp
         FileObject file = fileOpt.get();
         SingletonEncounter<K> item = find(key, extraction, bounds);
         if (item != null) {
+            logFine("{0} creates a refactoring plugin for {1}", this, item);
             return createRefactoringPlugin(key, refactoring, extraction,
                     file, item, stringifier, filter);
         }

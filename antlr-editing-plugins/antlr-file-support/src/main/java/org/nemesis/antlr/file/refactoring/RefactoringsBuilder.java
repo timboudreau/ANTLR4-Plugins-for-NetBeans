@@ -34,13 +34,12 @@ import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.api.RenameRefactoring;
 import org.netbeans.modules.refactoring.api.WhereUsedQuery;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
-import org.netbeans.modules.refactoring.spi.RefactoringPluginFactory;
 import org.openide.filesystems.FileObject;
 import org.openide.text.PositionBounds;
 
 /**
- * Builder for Antlr-based refactorings - call <code>forMimeType()</code>
- * to get an instance.  The usage pattern is to wrap and delegate.
+ * Builder for Antlr-based refactorings - call <code>forMimeType()</code> to get
+ * an instance. The usage pattern is to wrap and delegate.
  *
  * @author Tim Boudreau
  */
@@ -52,34 +51,68 @@ public final class RefactoringsBuilder {
 
     RefactoringsBuilder(String mimeType) {
         this.mimeType = mimeType;
+        for (CustomRefactoring<?> c : CustomRefactoring.registeredRefactorings(mimeType)) {
+            generators.add(c.toGenerator());
+        }
     }
 
+    Set<RefactoringPluginGenerator<?>> generators() {
+        return generators;
+    }
+
+    /**
+     * Create a new RefactoringsBuilder for a given MIME type.
+     *
+     * @param mimeType The mime type
+     * @return A builder
+     */
     public static RefactoringsBuilder forMimeType(String mimeType) {
         return new RefactoringsBuilder(mimeType);
     }
 
+    /**
+     * Add a factory for a refactoring of any (or a custom) type.
+     *
+     * @param <T>
+     * @param type The type
+     * @param factory The factory method - this should test if it will really
+     * match something it understands from the caret position or selection, and
+     * if so, return a refactoring plugin.
+     *
+     * @return this
+     */
     public <T extends AbstractRefactoring> RefactoringsBuilder add(Class<T> type, TriFunction<? super T, ? super Extraction, ? super PositionBounds, ? extends RefactoringPlugin> factory) {
         generators.add(new RefactoringPluginGenerator<>(notNull("type", type), notNull("factory", factory)));
         return this;
     }
 
+    /**
+     * Create a builder to answer rename refactorings.
+     *
+     * @return A builder
+     */
     public RenameRefactoringBuilder rename() {
         return new RenameRefactoringBuilder(this);
     }
 
+    /**
+     * Create a builder to answer find-usages queries.
+     *
+     * @return
+     */
     public WhereUsedRefactoringBuilder usages() {
         return new WhereUsedRefactoringBuilder(this);
     }
 
-    /**
-     * Create a new refactoring plugin factory suitable for registering
-     * in the default lookup.
-     *
-     * @return A plugin factory
-     */
-    public RefactoringPluginFactory build() {
-        return new AntlrRefactoringPluginFactory(mimeType, generators);
-    }
+//    /**
+//     * Create a new refactoring plugin factory suitable for registering in the
+//     * default lookup.
+//     *
+//     * @return A plugin factory
+//     */
+//    public RefactoringPluginFactory build() {
+//        return new AntlrRefactoringPluginFactory(mimeType, generators);
+//    }
 
     public static class RefactoringItemBuilder<T, R extends AbstractRefactoring, B extends RefactoringItemBuilder<T, R, B>>
             extends AbstractRefactoringBuilder<T, B> {
@@ -96,10 +129,12 @@ public final class RefactoringsBuilder {
             extends RefactoringItemBuilder<T, R, B> {
 
         final Class<R> type;
+        final K key;
 
         KeyedRefactoringItemBuilder(K key, Class<R> type, Function<? super B, T> converter) {
             super(type, converter);
             this.type = notNull("type", type);
+            this.key = notNull("key", key);
         }
     }
 
@@ -122,28 +157,38 @@ public final class RefactoringsBuilder {
         }
 
         public <T extends Enum<T>> RefactoringsBuilder finding(NamedRegionKey<T> k) {
-            NamedCreationStrategy<WhereUsedQuery, T> c
-                    = (NamedExtractionKey<T> key, WhereUsedQuery refactoring,
-                            Extraction extraction, FileObject file, NamedSemanticRegion<T> item, CharFilter filter)
-                    -> new NamedFindUsagesPlugin<>(refactoring, extraction, file, k, item);
-
+            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<T>(k);
             builder.generators.add(
                     NamedRefactoringCreationStrategyFactory.create(WhereUsedQuery.class, c, k, CharFilter.ALL));
             return builder;
         }
 
         public <T extends Enum<T>> RefactoringsBuilder finding(NameReferenceSetKey<T> k) {
-            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategy<WhereUsedQuery, T>() {
-                @Override
-                public RefactoringPlugin createRefactoringPlugin(NamedExtractionKey<T> key,
-                        WhereUsedQuery refactoring, Extraction extraction, FileObject file,
-                        NamedSemanticRegion<T> item, CharFilter filter) {
-                    return new NamedFindUsagesPlugin<>(refactoring, extraction, file, key, item);
-                }
-            };
+            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<T>(k);
             builder.generators.add(
                     NamedRefactoringCreationStrategyFactory.create(WhereUsedQuery.class, c, k, CharFilter.ALL));
             return builder;
+        }
+    }
+
+    private static class NamedCreationStrategyImpl<T extends Enum<T>> implements NamedCreationStrategy<WhereUsedQuery, T> {
+
+        private final NamedExtractionKey<T> k;
+
+        public NamedCreationStrategyImpl(NamedExtractionKey<T> k) {
+            this.k = k;
+        }
+
+        @Override
+        public RefactoringPlugin createRefactoringPlugin(NamedExtractionKey<T> key,
+                WhereUsedQuery refactoring, Extraction extraction, FileObject file,
+                NamedSemanticRegion<T> item, CharFilter filter) {
+            return new NamedFindUsagesPlugin<>(refactoring, extraction, file, k, item);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "(" + k + ")";
         }
     }
 
@@ -168,15 +213,48 @@ public final class RefactoringsBuilder {
             return result;
         }
 
+        public <T extends Enum<T>> RenameNamedReferencesBuilder renaming(NameReferenceSetKey<T> key) {
+            return new RenameNamedReferencesBuilder<>(builder, notNull("key", key));
+        }
     }
 
-    public static class SingletonFileNameRefactoringItemBuilder<T, X, B extends SingletonFileNameRefactoringItemBuilder<T, X, B>> extends KeyedRefactoringItemBuilder<X, SingletonKey<X>, T, RenameRefactoring, B> {
+    public static final class RenameNamedReferencesBuilder<T extends Enum<T>> {
+
+        private final RefactoringsBuilder builder;
+        private final NameReferenceSetKey<T> key;
+        private CharFilter filter;
+
+        RenameNamedReferencesBuilder(RefactoringsBuilder builder, NameReferenceSetKey<T> key) {
+            this.builder = builder;
+            this.key = key;
+        }
+
+        public RefactoringsBuilder withCharFilter(CharFilter filter) {
+            this.filter = filter;
+            return build();
+        }
+
+        public RefactoringsBuilder build() {
+            return builder.add(RenameRefactoring.class, RenameNamedPlugin.generator(key.referencing(), key, filter));
+        }
+    }
+
+    public static class SingletonFileNameRefactoringItemBuilder<T, X, B extends SingletonFileNameRefactoringItemBuilder<T, X, B>>
+            extends KeyedRefactoringItemBuilder<X, SingletonKey<X>, T, RenameRefactoring, B> {
 
         CharFilter nameFilter = CharFilter.ALL;
         Stringifier<? super X> stringifier;
 
         SingletonFileNameRefactoringItemBuilder(SingletonKey<X> key, Function<? super B, T> converter) {
             super(key, RenameRefactoring.class, converter);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                    + "(" + super.type.getSimpleName()
+                    + " " + key + " " + nameFilter + " "
+                    + stringifier + ")";
         }
 
         public CharFilterBuilder<B> withCharFilter() {
@@ -198,6 +276,5 @@ public final class RefactoringsBuilder {
         public T build() {
             return done();
         }
-
     }
 }

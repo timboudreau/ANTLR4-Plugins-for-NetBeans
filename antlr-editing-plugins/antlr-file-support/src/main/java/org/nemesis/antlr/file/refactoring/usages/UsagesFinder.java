@@ -29,13 +29,11 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.attribution.ImportFinder;
-import org.nemesis.extraction.attribution.ImportKeySupplier;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.nemesis.extraction.key.SingletonKey;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
 
@@ -48,7 +46,9 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
     /*
     So, we have a caret position and an extraction
      */
-    public abstract void findUsages(BooleanSupplier cancelled, FileObject file, int caretPosition, Extraction extraction, PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer);
+    public abstract Problem findUsages(BooleanSupplier cancelled,
+            FileObject file, int caretPosition, Extraction extraction,
+            PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer);
 
     public static UsagesFinder forMimeType(String mimeType) {
         Lookup lkp = MimeLookup.getLookup(mimeType);
@@ -71,20 +71,30 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
         }
 
         @Override
-        public void findUsages(BooleanSupplier cancelled, FileObject file, int caretPosition, Extraction extraction, PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+        public Problem findUsages(BooleanSupplier cancelled, FileObject file,
+                int caretPosition, Extraction extraction,
+                PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
+            Problem result = null;
             for (UsagesFinder finder : all) {
                 if (cancelled.getAsBoolean()) {
-                    return;
+                    return result;
                 }
-                finder.findUsages(cancelled, file, caretPosition, extraction, usageConsumer);
+                Problem p = finder.findUsages(cancelled, file, caretPosition, extraction, usageConsumer);
+                result = chainProblems(result, p);
+                if (result.isFatal()) {
+                    return result;
+                }
             }
+            return result;
         }
     }
 
     static class DummyUsagesFinder extends UsagesFinder {
 
         @Override
-        public void findUsages(BooleanSupplier cancelled, FileObject file, int caretPosition, Extraction origExtraction, PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+        public Problem findUsages(BooleanSupplier cancelled, FileObject file,
+                int caretPosition, Extraction origExtraction,
+                PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
             // do nothing
 //            Set<NamedRegionKey<?>> keys = extraction.regionKeys();
             ImportersFinder impf = ImportersFinder.forFile(file);
@@ -105,59 +115,40 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
             if (targetKey != null) {
                 NamedRegionKey<?> finalTargetKey = targetKey;
                 NamedSemanticRegion<?> finalTargetRegion = targetRegion;
-                impf.usagesOf(cancelled, file, null, (a, b, c, d, ext) -> {
+                return impf.usagesOf(cancelled, file, null, (a, b, c, d, ext) -> {
                     if (scanned.contains(c) || cancelled.getAsBoolean()) {
-                        return;
+                        return null;
                     }
                     scanned.add(c);
                     for (NameReferenceSetKey<?> key : ext.referenceKeys()) {
                         if (key.referencing().equals(finalTargetKey)) {
-                            countFound[0] += attributeOne(finalTargetRegion, key, file, origExtraction, caretPosition, c, ext, usageConsumer);
+                            Problem p = attributeOne(cancelled, finalTargetRegion, key, file, origExtraction, caretPosition, c, ext, usageConsumer);
+                            if (p != null && p.isFatal()) {
+                                return p;
+                            }
                         }
                         if (cancelled.getAsBoolean()) {
-                            return;
+                            break;
                         }
                     }
+                    return null;
                 });
-            } else {
-                Set<SingletonKey<?>> singletonKeys = origExtraction.singletonKeys();
-                impf.usagesOf(cancelled, file, null, (IntRange a, String b, FileObject c, String d, Extraction ext) -> {
-                    ImportFinder importFinder = ImportFinder.forMimeType(c.getMIMEType());
-                    if (importFinder instanceof ImportKeySupplier) {
-                        NamedRegionKey<?>[] importKeys = ((ImportKeySupplier) importFinder).get();
-
-                        for (SingletonKey<?> sing : origExtraction.singletonKeys()) {
-                            if (scanned.contains(c)) {
-                                return;
-                            }
-
-                        }
-                    }
-                });
-//                if (countFound[0] == 0) {
-//
-//                }
             }
+            return null;
         }
 
-        private boolean isSameSource(FileObject origFile, Extraction origExtraction, Extraction target) {
-            boolean isRightFile = target == origExtraction || target.source().equals(origExtraction.source());
-            if (!isRightFile) {
-                Optional<FileObject> optSourceFile = target.source().lookup(FileObject.class);
-                isRightFile = optSourceFile.isPresent() && origFile.equals(optSourceFile.get());
-            }
-            return isRightFile;
-        }
-
-        <T extends Enum<T>> int attributeOne(NamedSemanticRegion<?> reg, NameReferenceSetKey<T> key,
+        <T extends Enum<T>> Problem attributeOne(BooleanSupplier cancelled, NamedSemanticRegion<?> reg, NameReferenceSetKey<T> key,
                 FileObject origFile, Extraction origExtraction, int caretPosition,
                 FileObject scanning, Extraction scanningExtraction,
-                PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+                PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
 
-            int result = 0;
+            Problem result = null;
             Attributions<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T> attributions = scanningExtraction.resolveAll((NameReferenceSetKey<T>) key);
             for (SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T>> attr : attributions.attributed()) {
                 Extraction target = attr.key().from();
+                if (cancelled.getAsBoolean()) {
+                    return result;
+                }
                 // Try to avoid potential Snapshot -> Source -> Document -> FileObject conversion
                 // if we can do a simpler test
                 if (isSameSource(origFile, origExtraction, target)) {
@@ -165,8 +156,11 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
                     if (reg == found || reg.equals(found) || reg.relationTo(found) == RangeRelation.EQUAL) {
                         Optional<FileObject> targetFile = attr.key().target().source().lookup(FileObject.class);
                         if (targetFile.isPresent()) {
-                            usageConsumer.accept(attr, attr.key().name(), targetFile.get(), key.name(), scanningExtraction);
-                            result++;
+                            Problem p = usageConsumer.accept(attr, attr.key().name(), targetFile.get(), key.name(), scanningExtraction);
+                            result = chainProblems(result, p);
+                            if (p != null && p.isFatal()) {
+                                break;
+                            }
                         }
                     }
                 }

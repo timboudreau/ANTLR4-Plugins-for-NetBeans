@@ -19,56 +19,66 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.extraction;
+import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.findFileObject;
+import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.findPositionBounds;
+import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.inParsingContext;
+import org.nemesis.antlr.refactoring.common.Refactorability;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
 import org.netbeans.modules.refactoring.spi.RefactoringPluginFactory;
 import org.openide.filesystems.FileObject;
 import org.openide.text.PositionBounds;
+import org.openide.util.Lookup;
 
 /**
+ * Plugin factory for Antlr (extraction) based refactorings; populate it in the
+ * consumer passed to the constructor, and register in the default lookup. This
+ * needs to be registered as <i>both</i> RefactoringPluginFactory and
+ * Refactorability, e.g.
+ * <pre>
+ * &#064;ServiceProviders({
+ *     &#064;ServiceProvider(service = RefactoringPluginFactory.class, position = 41),
+ *     &#064;ServiceProvider(service = Refactorability.class, position = 41)
+ * })
+ * </pre>
  *
  * @author Tim Boudreau
  */
-public final class AntlrRefactoringPluginFactory extends AbstractRefactoringContext implements RefactoringPluginFactory {
+public abstract class AntlrRefactoringPluginFactory implements RefactoringPluginFactory, Refactorability {
 
     private final Set<RefactoringPluginGenerator<?>> entries = new LinkedHashSet<>();
     private final String mimeType;
-    private static final Logger LOG = Logger.getLogger(AntlrRefactoringPluginFactory.class.getName());
+    private final Logger LOG = Logger.getLogger(getClass().getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
+    protected AntlrRefactoringPluginFactory(String mimeType, Consumer<RefactoringsBuilder> toPopulate) {
+        if (AbstractRefactoringContext.debugLog) {
+            LOG.setLevel(Level.ALL);
+        }
+        RefactoringsBuilder bldr = new RefactoringsBuilder(mimeType);
+        this.mimeType = notNull("mimeType", mimeType);
+        notNull("toPopulate", toPopulate).accept(bldr);
+        entries.addAll(bldr.generators());
     }
 
-    /*
-    public AntlrRefactoringPluginFactory() {
-        this(ANTLR_MIME_TYPE,
-                new RefactoringPluginGenerator<>(RenameRefactoring.class,
-                        new StrategyRefactoringFactory(
-                                AntlrKeys.GRAMMAR_TYPE,
-                                CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART),
-                                NamedStringifier.INSTANCE,
-                                new RenameFileFromSingletonCreationStrategy()
-                        )),
-                //                        new AntlrRenameFileRefactoringFactory()),
-                new RefactoringPluginGenerator<>(WhereUsedQuery.class,
-                        AntlrRefactoringPluginFactory::handleFindUsages)
-        );
-    }
-     */
-    AntlrRefactoringPluginFactory(String mimeType, Collection<? extends RefactoringPluginGenerator<?>> entries) {
-        this.entries.addAll(entries);
-        this.mimeType = mimeType;
-    }
-
-    public static RefactoringsBuilder builder(String mimeType) {
-        return new RefactoringsBuilder(mimeType);
+    public final boolean canRefactor(Class<? extends AbstractRefactoring> type, FileObject file, Lookup lookup) {
+        boolean result = mimeType.equals(file.getMIMEType());
+        if (result) {
+            for (RefactoringPluginGenerator<?> gen : entries) {
+                if (gen.matches(type)) {
+                    result = true;
+                    break;
+                }
+            }
+        }
+        return result;
     }
 
     private AntlrRefactoringPluginFactory(String mimeType, RefactoringPluginGenerator<?>... entries) {
@@ -91,31 +101,37 @@ public final class AntlrRefactoringPluginFactory extends AbstractRefactoringCont
         return false;
     }
 
+    private void ifLoggable(Level level, Runnable r) {
+        if (LOG.isLoggable(level)) {
+            r.run();
+        }
+    }
+
     @Override
-    public RefactoringPlugin createInstance(AbstractRefactoring refactoring) {
+    public final RefactoringPlugin createInstance(AbstractRefactoring refactoring) {
         return inParsingContext(() -> { // cache parses
             if (!isSupported(refactoring)) {
-                if (LOG.isLoggable(Level.FINEST)) {
-                    LOG.log(Level.FINEST, "{0} does not support {1}",
-                            new Object[]{this, refactoring});
-                }
+                ifLoggable(Level.FINEST, () -> {
+                    logFinest("{0} does not support {1}",
+                            this, refactoring);
+                });
                 // Not a refactoring we have a generator for
                 return null;
             }
             FileObject fo = findFileObject(refactoring);
             if (!mimeType.equals(fo.getMIMEType())) {
-                if (LOG.isLoggable(Level.FINEST)) {
-                    LOG.log(Level.FINEST, "{0} has nothing for {1} of {2} for {3}",
-                            new Object[]{this, fo, fo.getMIMEType(), refactoring});
-                }
+                ifLoggable(Level.FINEST, () -> {
+                    logFinest("{0} has nothing for {1} of {2} for {3}",
+                            this, fo, fo.getMIMEType(), refactoring);
+                });
                 // Wrong mime type
                 return null;
             }
             Extraction extraction = extraction(fo);
             if (extraction == null) {
                 // Likely an exception thrown in parsing
-                LOG.log(Level.WARNING, "Null extraction for {0} from {1}",
-                        new Object[]{refactoring.getRefactoringSource(), fo});
+                logWarn("Null extraction for {0} from {1}",
+                        refactoring.getRefactoringSource(), fo);
                 return null;
             }
             PositionBounds bounds = findPositionBounds(refactoring);
@@ -123,14 +139,15 @@ public final class AntlrRefactoringPluginFactory extends AbstractRefactoringCont
                 for (RefactoringPluginGenerator<?> entry : find(refactoring)) {
                     RefactoringPlugin plugin = entry.accept(refactoring, extraction, bounds);
                     if (plugin != null) {
+                        logFine("Use factory {0} for {1}", entry, plugin);
                         return plugin;
                     }
                 }
             } else {
-                LOG.log(Level.WARNING,
+                logWarn(
                         "{0} could not find a PositionBounds via {1} in {2} for {3}",
-                        new Object[]{this, refactoring.getRefactoringSource(),
-                            fo, refactoring});
+                        this, refactoring.getRefactoringSource(),
+                        fo, refactoring);
             }
             return null;
         });
@@ -142,5 +159,17 @@ public final class AntlrRefactoringPluginFactory extends AbstractRefactoringCont
         sb.append('(').append(mimeType).append(' ').append(entries.size()).append(" entries: ")
                 .append(Strings.join(", ", entries)).append(')');
         return sb.toString();
+    }
+
+    private void logFinest(String s, Object... args) {
+        LOG.log(Level.FINEST, s, args);
+    }
+
+    private void logFine(String s, Object... args) {
+        LOG.log(Level.FINE, s, args);
+    }
+
+    private void logWarn(String s, Object... args) {
+        LOG.log(Level.WARNING, s, args);
     }
 }

@@ -21,6 +21,7 @@ import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.crea
 import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.lookupOf;
 import org.netbeans.modules.refactoring.api.RenameRefactoring;
 import org.netbeans.modules.refactoring.spi.ModificationResult;
+import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
 import org.netbeans.modules.refactoring.spi.SimpleRefactoringElementImplementation;
 import org.openide.filesystems.FileObject;
 import org.openide.text.PositionBounds;
@@ -31,20 +32,23 @@ import org.openide.util.NbBundle;
  *
  * @author Tim Boudreau
  */
-final class OneRangeInOneFileChange extends SimpleRefactoringElementImplementation {
+final class OneRangeInOneFileChange extends SimpleRefactoringElementImplementation implements ComparableRefactoringElementImplementation {
 
-    private final IntRange decl;
+    private final IntRange<? extends IntRange> decl;
     private final String originalName;
     private final RenameRefactoring refactoring;
     private final FileObject fo;
     private final String localizedRegionKindName;
+    private final Object[] lookupContents;
+    private Lookup lookup;
 
-    OneRangeInOneFileChange(IntRange decl, String originalName, RenameRefactoring refactoring, FileObject fo, String localizedRegionKindName) {
+    OneRangeInOneFileChange(IntRange<? extends IntRange> decl, String originalName, RenameRefactoring refactoring, FileObject fo, String localizedRegionKindName, Object... lookupContents) {
         this.decl = decl;
         this.originalName = originalName;
         this.refactoring = refactoring;
         this.fo = fo;
         this.localizedRegionKindName = localizedRegionKindName;
+        this.lookupContents = lookupContents;
     }
 
     public ModificationResult toModificationResult() throws IOException {
@@ -60,7 +64,7 @@ final class OneRangeInOneFileChange extends SimpleRefactoringElementImplementati
     @Override
     public String toString() {
         return "Change '" + originalName + "' of " + localizedRegionKindName
-                + " at " + decl;
+                + " at " + decl + " in " + fo.getPath();
     }
 
     @NbBundle.Messages(value = {
@@ -85,7 +89,11 @@ final class OneRangeInOneFileChange extends SimpleRefactoringElementImplementati
 
     @Override
     public Lookup getLookup() {
-        return lookupOf(fo);
+        if (lookup == null) {
+            lookup = AbstractRefactoringContext.lookupFrom(lookupOf(fo),
+                    lookupContents, decl);
+        }
+        return lookup;
     }
 
     @Override
@@ -96,5 +104,42 @@ final class OneRangeInOneFileChange extends SimpleRefactoringElementImplementati
     @Override
     public PositionBounds getPosition() {
         return createPosition(fo, decl);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == this) {
+            return true;
+        } else if (o == null) {
+            return false;
+        } else if (o instanceof OneRangeInOneFileChange) {
+            OneRangeInOneFileChange other = (OneRangeInOneFileChange) o;
+            if (other.decl.start() == decl.start() && other.decl.end() == decl.end() && other.fo.equals(fo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = fo.hashCode();
+        result += (13781 * decl.start()) + (101 * decl.end());
+        return result;
+    }
+
+    @Override
+    public int compareTo(RefactoringElementImplementation o) {
+        if (o instanceof OneRangeInOneFileChange) {
+            OneRangeInOneFileChange other = (OneRangeInOneFileChange) o;
+            if (other.fo.equals(fo)) {
+                return decl.compareTo(other.decl);
+            } else {
+                return fo.getPath().compareTo(other.fo.getPath());
+            }
+        } else if (o instanceof RenameFile) {
+            return -1;
+        }
+        return 0;
     }
 }

@@ -506,6 +506,11 @@ public final class MemoryTool extends Tool {
     @Override
     public Grammar loadImportedGrammar(Grammar g, GrammarAST nameNode) throws IOException {
         String name = nameNode.getText();
+        if (name.equals(g.name)) {
+            // Avoid a StaackOverflowError if the grammar imports itself
+            this.errMgr.emit(ErrorType.INVALID_IMPORT, new ANTLRMessage(ErrorType.INVALID_IMPORT, nameNode.token, name, name));
+            return null;
+        }
         Grammar imported = importedGrammars().get(name);
         if (imported == null) {
             g.tool.log("grammar", "load " + name + " from " + g.fileName);

@@ -16,8 +16,10 @@
 package org.nemesis.antlr.file.refactoring;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 import static org.nemesis.antlr.file.refactoring.AbstractRefactoringContext.lookupOf;
+import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
 import org.netbeans.modules.refactoring.spi.SimpleRefactoringElementImplementation;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
@@ -30,7 +32,7 @@ import org.openide.util.NbBundle;
 /**
  * Borrowed with modifications from Refactoring API.
  */
-class RenameFile extends SimpleRefactoringElementImplementation {
+class RenameFile extends SimpleRefactoringElementImplementation implements ComparableRefactoringElementImplementation {
 
     private final Supplier<String> newNameSupplier;
     private final FileObject fo;
@@ -67,6 +69,7 @@ class RenameFile extends SimpleRefactoringElementImplementation {
         try {
             oldName = fo.getName();
             DataObject.find(fo).rename(newNameSupplier.get());
+            Thread.dumpStack();
         } catch (DataObjectNotFoundException ex) {
             throw new IllegalStateException(ex);
         } catch (IOException ex) {
@@ -101,5 +104,42 @@ class RenameFile extends SimpleRefactoringElementImplementation {
     @Override
     public PositionBounds getPosition() {
         return null;
+    }
+
+    @Override
+    public int compareTo(RefactoringElementImplementation o) {
+        if (o instanceof RenameFile) {
+            RenameFile other = (RenameFile) o;
+            return fo.getPath().compareTo(other.fo.getPath());
+        } else if (o instanceof OneRangeInOneFileChange) {
+            return 1;
+        }
+        return 0;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 97 * hash + Objects.hashCode(this.fo);
+        hash = 97 * hash + Objects.hashCode(this.oldName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final RenameFile other = (RenameFile) obj;
+        if (!Objects.equals(this.oldName, other.oldName)) {
+            return false;
+        }
+        return Objects.equals(this.fo, other.fo);
     }
 }

@@ -32,7 +32,7 @@ final class StrategyRefactoringFactory<R extends AbstractRefactoring, K> extends
 
     private final SingletonRefactoringCreationStrategy<R, K> strategy;
 
-    public StrategyRefactoringFactory(SingletonKey<K> key, CharFilter filter, Stringifier<? super K> stringifier, SingletonRefactoringCreationStrategy<R, K> strategy) {
+    StrategyRefactoringFactory(SingletonKey<K> key, CharFilter filter, Stringifier<? super K> stringifier, SingletonRefactoringCreationStrategy<R, K> strategy) {
         super(key, filter, stringifier);
         this.strategy = strategy;
     }

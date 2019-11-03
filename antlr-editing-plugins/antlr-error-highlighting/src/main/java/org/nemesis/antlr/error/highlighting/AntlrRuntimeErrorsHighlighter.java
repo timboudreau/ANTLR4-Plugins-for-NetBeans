@@ -16,16 +16,21 @@
 package org.nemesis.antlr.error.highlighting;
 
 import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.graph.StringGraph;
+import com.mastfrog.range.IntRange;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.MissingResourceException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
@@ -41,6 +46,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.error.highlighting.EbnfHintsExtractor.SOLO_EBNFS;
 import org.nemesis.antlr.file.AntlrKeys;
+import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
@@ -56,6 +62,7 @@ import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.attribution.ImportFinder;
 import org.nemesis.source.api.GrammarSource;
@@ -70,6 +77,7 @@ import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.text.NbDocument;
+import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
@@ -126,8 +134,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             System.out.println("doc-length:\t" + docLength);
             System.out.println("total-lines:\t" + el.getElementCount());
             System.out.println("");
-*/
-            
+             */
+
             int lineNumber = error.lineNumber() - 1 >= el.getElementCount()
                     ? el.getElementCount() - 1 : error.lineNumber() - 1;
             if (lineNumber < 0) {
@@ -165,6 +173,169 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 = extraction.namedRegions(SOLO_EBNFS);
         if (ebnfsThatCanMatchTheEmptyString != null && !ebnfsThatCanMatchTheEmptyString.isEmpty()) {
             addEbnfHints(fixes, ebnfsThatCanMatchTheEmptyString);
+        }
+        checkGrammarNameMatchesFile(tree, mimeType, extraction, res, populate, fixes);
+        flagOrphansIfNoImports(tree, mimeType, extraction, res, populate, fixes);
+    }
+
+    private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
+        Set<String> closure = usageGraph.closureOf(orphan);
+        Set<String> toDelete = new LinkedHashSet<>();
+        toDelete.add(orphan);
+        for (String child : closure) {
+            toDelete.addAll(usageGraph.closureOf(child));
+        }
+        Set<String> stillInUse = new HashSet<>();
+        for (String del : toDelete) {
+            Set<String> rev = usageGraph.reverseClosureOf(del);
+            if (!toDelete.containsAll(rev)) {
+                Set<String> usedBy = new HashSet<>(rev);
+                usedBy.removeAll(toDelete);
+                stillInUse.add(del);
+            }
+        }
+        toDelete.removeAll(stillInUse);
+        return toDelete;
+    }
+
+    private String elide(String s) {
+        if (s.length() > 64) {
+            return s.substring(0, 63) + "\u2026"; // ellipsis
+        }
+        return s;
+    }
+
+    @Messages({
+        "# {0} - Rule name",
+        "unusedRule=Unused rule ''{0}''",
+        "# {0} - Rule name",
+        "deleteRule=Delete rule ''{0}''",
+        "# {0} - Rule name",
+        "# {1} - Top rule",
+        "# {2} - Path",
+        "notReachableRule=Rule ''{0}'' is used but not reachable from {1} but is used by {2}",
+        "# {0} - Rule name",
+        "# {1} - Path",
+        "deleteRuleAndClosure=Delete ''{0}'' and its closure {1}",})
+    private void flagOrphansIfNoImports(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes) {
+        if (extraction.namedRegions(AntlrKeys.IMPORTS).isEmpty()) {
+            NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrKeys.RULE_NAMES);
+            if (!rules.isEmpty()) {
+                StringGraph graph = extraction.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
+                NamedSemanticRegions<RuleTypes> ruleBounds = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
+                NamedSemanticRegion<RuleTypes> firstRule = rules.index().first();
+                String firstRuleName = firstRule.name();
+                Set<String> seen = new HashSet<>();
+                Optional<Document> doc = extraction.source().lookup(Document.class);
+                if (!doc.isPresent()) {
+                    return;
+                }
+                Set<String> orphans = new LinkedHashSet<>(graph.topLevelOrOrphanNodes());
+                orphans.remove(firstRuleName);
+                for (String name : orphans) {
+                    if (seen.contains(name)) {
+                        continue;
+                    }
+                    try {
+                        String msg = Bundle.unusedRule(name);
+                        fixes.addWarning("orphan-" + name, rules.regionFor(name), msg, fixen -> {
+                            NamedSemanticRegion<RuleTypes> bounds = ruleBounds.regionFor(name);
+                            // Offer to delete just that rule:
+                            if (graph.inboundReferenceCount(name) == 0) {
+                                fixen.addDeletion(Bundle.deleteRule(name), bounds.start(), bounds.end());
+                                seen.add(name);
+                            }
+
+                            Set<String> deletableClosure = findDeletableClosureOfOrphan(name, graph);
+                            if (deletableClosure.size() > 1) {
+                                // We can also delete the closure of this rule wherever no other
+                                // rules reference it
+                                Set<IntRange<? extends IntRange<?>>> closureRanges = new HashSet<>();
+                                // We will need to prune some rules out of the closure if they
+                                // would still be referenced by others, as those would become
+                                // syntax errors
+                                for (String cl : deletableClosure) {
+                                    closureRanges.add(ruleBounds.regionFor(cl));
+                                }
+                                if (closureRanges.size() > 0) {
+                                    // Don't put the name of the rule in its closure
+                                    deletableClosure.remove(name);
+                                    String closureString
+                                            = "<i>"
+                                            + Strings.join(", ",
+                                                    CollectionUtils.reversed(
+                                                            new ArrayList<>(deletableClosure)));
+                                    fixen.addDeletions(
+                                            Bundle.deleteRuleAndClosure(name,
+                                                    elide(closureString)),
+                                            closureRanges);
+                                    seen.add(name);
+                                }
+                            }
+                        });
+
+                        Set<String> closure = graph.closureOf(name);
+                        for (String node : closure) {
+                            if (seen.contains(node)) {
+                                continue;
+                            }
+                            seen.add(node);
+                            // XXX at some point, note if there is a channels() or skip
+                            // directive and don't offer to delete those
+                            Set<String> revClosure = graph.reverseClosureOf(node);
+                            if (!revClosure.contains(firstRuleName)) {
+                                String rc = Strings.join(" -> ", revClosure);
+                                NamedSemanticRegion<RuleTypes> subBounds
+                                        = ruleBounds.regionFor(node);
+                                fixes.addWarning("nr-" + node, subBounds,
+                                        Bundle.notReachableRule(node, firstRuleName,
+                                                rc));
+                            }
+                        }
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
+        }
+    }
+
+    @Messages({
+        "# {0} - the file name",
+        "# {1} - the grammar name as found in the grammar file",
+        "fileAndGrammarMismatch=File name {0} does not match grammar name {1}",
+        "# {0} - the file name",
+        "# {1} - the grammar name as found in the grammar file",
+        "replaceGrammarName=Replace {0} with {1}"
+    })
+    private void checkGrammarNameMatchesFile(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes) {
+        SingletonEncounters<GrammarDeclaration> grammarDecls = extraction.singletons(AntlrKeys.GRAMMAR_TYPE);
+        if (grammarDecls.hasEncounter()) {
+            SingletonEncounters.SingletonEncounter<GrammarDeclaration> decl = grammarDecls.first();
+            assert decl != null;
+            Optional<FileObject> file = extraction.source().lookup(FileObject.class);
+            if (file != null) {
+                String name = file.get().getName();
+                if (!Objects.equals(name, decl.get().name())) {
+                    try {
+                        String msg = Bundle.fileAndGrammarMismatch(name, decl.get().name());
+                        fixes.addError("bad-name-" + name, decl.start(), decl.end(),
+                                msg, fixen -> {
+                                    fixen.addReplacement(Bundle.replaceGrammarName(
+                                            decl.get().name(), extraction.source().name()),
+                                            decl.start(), decl.end(), name);
+                                });
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
         }
     }
 

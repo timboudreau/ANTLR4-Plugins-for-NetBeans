@@ -18,9 +18,11 @@ package org.nemesis.antlr.file.refactoring.usages;
 import com.mastfrog.range.IntRange;
 import java.util.Collection;
 import java.util.function.BooleanSupplier;
+import org.nemesis.antlr.file.refactoring.AbstractRefactoringContext;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
 
@@ -33,7 +35,7 @@ import org.openide.util.Lookup;
  *
  * @author Tim Boudreau
  */
-public abstract class ImportersFinder {
+public abstract class ImportersFinder extends AbstractRefactoringContext {
 
     public static ImportersFinder forFile(FileObject fo) {
         return forMimeType(fo.getMIMEType());
@@ -63,11 +65,11 @@ public abstract class ImportersFinder {
         }
     }
 
-    public abstract void usagesOf(
+    public abstract Problem usagesOf(
             BooleanSupplier cancelled,
             FileObject file,
             NamedRegionKey<?> optionalImportKey,
-            PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer);
+            PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer);
 
     static final class DefaultUsagesFinder extends SimpleImportersFinder {
 
@@ -91,13 +93,17 @@ public abstract class ImportersFinder {
         }
 
         @Override
-        public void usagesOf(BooleanSupplier cancelled, FileObject file, NamedRegionKey<?> optionalImportKey, PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+        public Problem usagesOf(BooleanSupplier cancelled, FileObject file, 
+                NamedRegionKey<?> optionalImportKey, PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
+            Problem result = null;
             for (ImportersFinder f : all) {
-                f.usagesOf(cancelled, file, optionalImportKey, usageConsumer);
+                Problem p = f.usagesOf(cancelled, file, optionalImportKey, usageConsumer);
+                result = chainProblems(result, p);
                 if (cancelled.getAsBoolean()) {
-                    return;
+                    break;
                 }
             }
+            return result;
         }
     }
 }

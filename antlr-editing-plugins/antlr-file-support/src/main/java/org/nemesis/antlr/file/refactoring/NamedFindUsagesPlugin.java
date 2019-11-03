@@ -18,7 +18,9 @@ package org.nemesis.antlr.file.refactoring;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import org.nemesis.antlr.file.refactoring.usages.SimpleUsagesFinder;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedExtractionKey;
 import org.nemesis.extraction.key.NamedRegionKey;
@@ -41,6 +43,8 @@ public class NamedFindUsagesPlugin<T extends Enum<T>> extends AbstractAntlrRefac
         super(refactoring, extraction, file);
         this.key = notNull("key", key);
         this.target = notNull("target", target);
+        refactoring.getContext().add(key);
+        refactoring.getContext().add(target);
     }
 
     @Override
@@ -49,26 +53,46 @@ public class NamedFindUsagesPlugin<T extends Enum<T>> extends AbstractAntlrRefac
     }
 
     @Override
+    protected Object[] getLookupContents() {
+        return new Object[]{key};
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
     public Problem doPrepare(RefactoringElementsBag bag) {
         NamedRegionKey<T> regionKey = key instanceof NamedRegionKey<?> ? (NamedRegionKey<T>) key : null;
         NameReferenceSetKey<T> refsKey = key instanceof NameReferenceSetKey<?> ? (NameReferenceSetKey<T>) key : null;
         assert regionKey != null || refsKey != null;
+        ExtractionKey<?> lookupKey = regionKey == null ? refsKey : regionKey;
         if (regionKey == null) {
             regionKey = refsKey.referencing();
+            lookupKey = refsKey;
+        } else if (refsKey == null) {
+            for (NameReferenceSetKey<?> nrsk : extraction.referenceKeys()) {
+                if (nrsk.referencing() == regionKey) {
+                    refsKey = (NameReferenceSetKey<T>) nrsk;
+                    break;
+                }
+            }
         }
-        new SimpleUsagesFinder<>(regionKey, refsKey).findUsages(this::isCancelled, file, extraction, target, extraction.namedRegions(regionKey),
+        logFine("Prepare {0} using {1} and {2}", this, regionKey, refsKey);
+        ExtractionKey<?> finalLookupKey = lookupKey;
+        if (key instanceof NameReferenceSetKey<?>) {
+            // IF we are starting searching for usages from a reference,
+            // include the original
+            NamedSemanticRegion<T> t = target;
+            if (target instanceof NamedSemanticRegionReference<?>) {
+                t = ((NamedSemanticRegionReference<T>) target).referencing();
+            }
+            bag.add(refactoring, createUsage(file, t, regionKey.name(), t.name(), t));
+        }
+        return new SimpleUsagesFinder<>(regionKey, refsKey).findUsages(this::isCancelled, file, extraction, target, extraction.namedRegions(regionKey),
                 (range, name, targetFo, elName, ext) -> {
-            bag.add(refactoring, new Usage(targetFo, range, elName, name));
-        });
-        return null;
-        /*
-        UsagesFinder finder = UsagesFinder.forMimeType(file.getMIMEType());
-        int caretPosition = loc.getBegin().getOffset();
-        finder.findUsages(this::isCancelled, file, caretPosition, extraction, (range, name, targetFo, elName, ext) -> {
-            bag.add(refactoring, new Usage(targetFo, range, elName, name));
-        });
-        return null;
-        */
+                    logFinest("Add usage {0} for {1} of {2} in {3}",
+                            range, this, key, targetFo.getNameExt());
+                    bag.add(refactoring, createUsage(targetFo, range, elName, name, finalLookupKey));
+                    return null;
+                });
     }
 
 }

@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.file.refactoring;
 
+import com.mastfrog.util.collections.ArrayUtils;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -26,24 +27,47 @@ import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
 import org.netbeans.modules.refactoring.spi.RefactoringElementsBag;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
+import org.openide.util.lookup.Lookups;
 
 /**
  *
  * @author Tim Boudreau
  */
-abstract class AbstractAntlrRefactoringPlugin<R extends AbstractRefactoring> extends AbstractRefactoringContext implements RefactoringPlugin {
+abstract class AbstractAntlrRefactoringPlugin<R extends AbstractRefactoring>
+        extends AbstractRefactoringContext implements RefactoringPlugin, Lookup.Provider {
 
     protected final R refactoring;
     protected final Extraction extraction;
     protected final FileObject file;
     private final AtomicBoolean cancelled = new AtomicBoolean();
+    private Lookup lookup;
 
     AbstractAntlrRefactoringPlugin(R refactoring, Extraction extraction, FileObject file) {
         this.refactoring = notNull("refactoring", refactoring);
         this.extraction = notNull("extraction", extraction);
         this.file = notNull("file", file);
         System.out.println("CREATE A " + getClass().getName() + " for " + refactoring + " and " + file.getNameExt());
+    }
+
+    protected Object[] getLookupContents() {
+        return null;
+    }
+
+    @Override
+    public final Lookup getLookup() {
+        if (lookup == null) {
+            Object[] baseContents = new Object[]{this, extraction, refactoring, file, cancelled};
+            Object[] contents = getLookupContents();
+            if (contents != null && contents.length != 0) {
+                Object[] all = ArrayUtils.concatenateAll(baseContents, contents);
+                lookup = Lookups.fixed(all);
+            } else {
+                lookup = Lookups.fixed(baseContents);
+            }
+        }
+        return lookup;
     }
 
     protected final boolean isCancelled() {

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.nemesis.antlr.file.refactoring;
 
 import com.mastfrog.abstractions.Named;
@@ -35,5 +34,14 @@ final class NamedStringifier implements Stringifier<Named> {
     @Override
     public String toString() {
         return "Stringifier<Named>";
+    }
+
+    public static Stringifier<Object> generic() {
+        return obj -> {
+            if (obj instanceof Named) {
+                return ((Named) obj).name();
+            }
+            return obj.toString();
+        };
     }
 }

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if [ -f "target/antlr/bin/antlr" ]; then
+	echo "Run with existing binary"
+else 
+	echo "No binary, building..."
+	mvn clean install
+fi
+
+./target/antlr/bin/antlr
+

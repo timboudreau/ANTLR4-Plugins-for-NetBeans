@@ -17,6 +17,8 @@ package org.nemesis.antlr.file.refactoring;
 
 import com.mastfrog.function.TriFunction;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
@@ -33,6 +35,13 @@ final class RefactoringPluginGenerator<R extends AbstractRefactoring> {
 
     private final Class<R> type;
     private final TriFunction<? super R, ? super Extraction, ? super PositionBounds, ? extends RefactoringPlugin> test;
+    private static final Logger LOG = Logger.getLogger(RefactoringPluginGenerator.class.getName());
+
+    static {
+        if (AbstractRefactoringContext.debugLog) {
+            LOG.setLevel(Level.ALL);
+        }
+    }
 
     RefactoringPluginGenerator(Class<R> type,
             TriFunction<? super R, ? super Extraction, ? super PositionBounds, ? extends RefactoringPlugin> test) {
@@ -40,9 +49,20 @@ final class RefactoringPluginGenerator<R extends AbstractRefactoring> {
         this.test = test;
     }
 
+    boolean matches(Class<? extends AbstractRefactoring> type) {
+        return this.type == type;
+    }
+
     RefactoringPlugin accept(AbstractRefactoring refactoring, Extraction extraction, PositionBounds pos) {
         if (type.isInstance(refactoring)) {
-            return test.apply(type.cast(refactoring), extraction, pos);
+            RefactoringPlugin result = test.apply(type.cast(refactoring), extraction, pos);
+            if (LOG.isLoggable(Level.FINEST) && result != null) {
+                LOG.log(Level.FINEST, "{0} Created {1} for {2}",
+                        new Object[]{
+                            this, result, refactoring
+                        });
+            }
+            return result;
         }
         return null;
     }

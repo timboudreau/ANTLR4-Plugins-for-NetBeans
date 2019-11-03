@@ -33,12 +33,12 @@ import org.openide.filesystems.FileObject;
 final class LazyModificationSupplier implements IOSupplier<String> {
 
     private final AbstractRefactoring refactoring;
-    private final IntRange decl;
+    private final IntRange<? extends IntRange> decl;
     private final FileObject file;
     private final Supplier<String> replacementTextSupplier;
     private String cached;
 
-    public LazyModificationSupplier(AbstractRefactoring refactoring, IntRange decl, FileObject file, Supplier<String> replacementTextSupplier) {
+    public LazyModificationSupplier(AbstractRefactoring refactoring, IntRange<? extends IntRange> decl, FileObject file, Supplier<String> replacementTextSupplier) {
         this.refactoring = notNull("refactoring", refactoring);
         this.decl = notNull("decl", decl);
         this.file = notNull("file", file);

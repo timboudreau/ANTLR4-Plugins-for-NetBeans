@@ -93,18 +93,15 @@ public final class CaretInfo {
 
     public void apply(JTextComponent comp) throws BadLocationException {
         if (!isViable()) {
-            System.out.println("NOT APPLYING " + this + " to " + comp.getDocument());
             return;
         }
         // -1 because all documents terminate with a \n, even empty ones
         // according to swing
         int len = comp.getDocument().getLength() - 1;
         if (isSelection()) {
-            System.out.println("APPLY SELECTION " + this);
             comp.setSelectionStart(Math.max(0, Math.min(start, len)));
             comp.setSelectionEnd(Math.max(0, Math.min(end, len)));
         } else {
-            System.out.println("APPLY CARET POSITION " + this);
             comp.setCaretPosition(start);
         }
     }

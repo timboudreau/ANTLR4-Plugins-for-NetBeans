@@ -30,8 +30,8 @@ public final class Attributions<R, I extends IndexAddressable.NamedIndexAddressa
     private final SemanticRegions<UnknownNameReference> unresolved;
 
     Attributions(SemanticRegions<AttributedForeignNameReference<R, I, N, T>> resolved, SemanticRegions<UnknownNameReference> unresolved) {
-        this.resolved = resolved;
-        this.unresolved = unresolved;
+        this.resolved = resolved == null ? SemanticRegions.empty() : resolved;
+        this.unresolved = unresolved == null ? SemanticRegions.empty() : unresolved;
     }
 
     public boolean hasResolved() {

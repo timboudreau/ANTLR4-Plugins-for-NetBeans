@@ -38,6 +38,7 @@ import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.SourceGroup;
 import org.netbeans.api.project.Sources;
+import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
 
@@ -119,10 +120,13 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
     }
 
     @Override
-    public final void usagesOf(BooleanSupplier cancelled, FileObject file, NamedRegionKey<?> optionalImportKey, PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+    public final Problem usagesOf(BooleanSupplier cancelled, FileObject file,
+            NamedRegionKey<?> optionalImportKey,
+            PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
+        Problem result = null;
         ImportFinder imports = ImportFinder.forMimeType(file.getMIMEType());
         if (imports.isAlwaysEmpty()) {
-            return;
+            return result;
         }
         if (!(imports instanceof ImportKeySupplier)) {
             if (optionalImportKey == null) {
@@ -130,7 +134,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
             } else {
                 Iterable<FileObject> all = possibleImportersOf(cancelled, file);
                 if (cancelled.getAsBoolean()) {
-                    return;
+                    return result;
                 }
                 Set<FileObject> seen = new HashSet<>();
                 seen.add(file);
@@ -139,29 +143,34 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                         continue;
                     }
                     if (cancelled.getAsBoolean()) {
-                        return;
+                        return result;
                     }
                     if (fo.getMIMEType().equals(file.getMIMEType())) {
                         try {
-                            Extraction ext = NbAntlrUtils.parseImmediately(fo);
+                            Extraction ext = parse(fo);
                             NamedSemanticRegions<?> imported = ext.namedRegions(optionalImportKey);
                             if (!imported.isEmpty()) {
                                 for (GrammarSource<?> src : imports.allImports(ext, CollectionUtils.blackHoleSet())) {
                                     if (cancelled.getAsBoolean()) {
-                                        return;
+                                        return result;
                                     }
                                     Optional<FileObject> importedFile = src.lookup(FileObject.class);
                                     if (importedFile.isPresent() && file.equals(importedFile.get())) {
                                         String importName = src.name();
                                         NamedSemanticRegion<?> region = imported.regionFor(importName);
                                         if (region != null) {
-                                            usageConsumer.accept(region, region.name(), fo, optionalImportKey.name(), ext);
+                                            Problem p = usageConsumer.accept(region, region.name(), fo, optionalImportKey.name(), ext);
+                                            result = chainProblems(result, p);
+                                            if (cancelled.getAsBoolean() || (p != null && p.isFatal())) {
+                                                break;
+                                            }
                                         }
                                     }
                                 }
                             }
                         } catch (Exception ex) {
                             Exceptions.printStackTrace(ex);
+                            return chainProblems(result, new Problem(true, ex.getMessage()));
                         }
                     }
                 }
@@ -180,7 +189,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                     continue;
                 }
                 if (cancelled.getAsBoolean()) {
-                    return;
+                    return result;
                 }
                 for (NamedRegionKey<?> key : keys) {
                     if (fo.getMIMEType().equals(file.getMIMEType())) {
@@ -201,10 +210,12 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                             }
                         } catch (Exception ex) {
                             Exceptions.printStackTrace(ex);
+                            result = chainProblems(result, new Problem(true, ex.getMessage()));
                         }
                     }
                 }
             }
         }
+        return result;
     }
 }

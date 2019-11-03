@@ -27,7 +27,8 @@ limitations under the License.
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <netbeans.version>RELEASE111</netbeans.version>
         <java.source.level>1.8</java.source.level>
-        <netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>
+        <netbeans.hint.licensePath>${project.parent.relativePath}/../license-notice-apache-2.txt</netbeans.hint.licensePath>
+        <!--<netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>-->
         <antlr.version>4.7.2</antlr.version>
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
@@ -37,7 +38,7 @@ limitations under the License.
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.1</new.junit.version>
         <manifest.file.path>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifest.file.path>
-        <netbeans.hint.license>notice-apache-2</netbeans.hint.license>
+<!--        <netbeans.hint.license>notice-apache-2</netbeans.hint.license>-->
     </properties>
     <licenses>
         <license>
@@ -202,6 +203,9 @@ limitations under the License.
         <module>antlr-editing-plugins</module>
         <module>antlr-refactoring</module>
         <module>character-filters</module>
+        <module>antlr-refactoring-ui</module>
+        <module>antlr-refactoring-common</module>
+        <module>editor-utils</module>
     </modules>
     <repositories>
         <repository>
@@ -261,6 +265,16 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>adhoc-mime-types</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-refactoring-ui</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-refactoring-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -496,6 +510,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>tokens-file-grammar</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>editor-utils</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -15,7 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 -->
-
 <project-shared-configuration>
     <!--
 This file contains additional configuration written by modules in the NetBeans IDE.
@@ -30,6 +29,6 @@ You can copy and paste the single properties, into the pom.xml file and the IDE 
 That way multiple projects can share the same settings (useful for formatting rules for example).
 Any value defined here will override the pom.xml file value but is only applicable to the current project.
 -->
-        <netbeans.hint.jdkPlatform>JDK_9</netbeans.hint.jdkPlatform>
+        <netbeans.hint.jdkPlatform>JDK_10</netbeans.hint.jdkPlatform>
     </properties>
 </project-shared-configuration>

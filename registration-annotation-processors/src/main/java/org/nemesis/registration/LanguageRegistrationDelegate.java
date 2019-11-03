@@ -247,6 +247,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String prefix = utils().annotationValue(mirror, "name", String.class);
         LexerProxy lexerProxy = LexerProxy.create(mirror, type, utils());
         if (lexerProxy == null) {
+            utils().warn("Could not find Lexer info for " + mimeType + " on " + type.getQualifiedName(), type);
             return true;
         }
         TypeMirror tokenCategorizerClass = utils().typeForSingleClassAnnotationMember(mirror, "tokenCategorizer");
@@ -256,10 +257,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (parserHelper != null) {
             parser = createParserProxy(parserHelper, utils());
             if (parser == null) {
+                utils().warn("Could not find parser info for " + mimeType + " on " + type.getQualifiedName()
+                        + " will generate basic syntax support and no more."
+                        , type);
+                generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
                 return true;
             }
             generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
         }
+        generateRegistration(prefix, mirror, mimeType, type);
 
         generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
 
@@ -282,6 +288,32 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         // Returning true could stop LanguageFontsColorsProcessor from being run
         return false;
+    }
+
+    private static final String ANTLR_MIME_REG_TYPE = "org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration";
+    private static final String SERVICE_PROVIDER_ANNO_TYPE = "org.openide.util.lookup.ServiceProvider";
+    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on) throws IOException {
+        String generatedClassName = prefix + "AntlrLanguageRegistration";
+        String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
+        ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
+                .importing(ANTLR_MIME_REG_TYPE , SERVICE_PROVIDER_ANNO_TYPE)
+                .extending(regSimple)
+                .annotatedWith(simpleName(SERVICE_PROVIDER_ANNO_TYPE), ab -> {
+                    // should do *something* to provide ordering - hash code will do
+                    ab.addClassArgument("service", regSimple)
+                            .addArgument("position", Math.abs(generatedClassName.hashCode()));
+                })
+                .withModifier(PUBLIC, FINAL)
+                .docComment("Generated from annotation on ", on.getQualifiedName()," for MIME type ",
+                        mimeType, " by " + getClass().getName())
+                .constructor(con -> {
+                    con.setModifier(PUBLIC)
+                            .body(bb -> {
+                                bb.invoke("super").withStringLiteral(mimeType).inScope();
+                            });
+                });
+                ;
+        writeOne(cb);
     }
 
     private void generateCodeCompletion(String prefix, AnnotationMirror mirror, AnnotationMirror codeCompletion, TypeElement on, String mimeType, LexerProxy lexer, ParserProxy parser) throws IOException {
@@ -1904,7 +1936,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         if (categories != null) {
             handleCategories(categories, proxy, type, mirror, tokenCategorizerClass, tokenCatName, pkg, prefix);
-            maybeGenerateParserRuleExtractors(mimeType, categories, proxy, type, mirror, tokenCategorizerClass, hierName, pkg, prefix, parser);
+            if (parser != null) {
+                maybeGenerateParserRuleExtractors(mimeType, categories, proxy, type, mirror, tokenCategorizerClass, hierName, pkg, prefix, parser);
+            }
         }
         String bundle = utils().annotationValue(mirror, "localizingBundle", String.class);
 

@@ -45,9 +45,13 @@ public interface CharFilter {
     }
 
     default boolean test(CharSequence string, boolean allowEmpty) {
+        if (string == null) {
+            return allowEmpty;
+        }
         int max = string.length();
         for (int i = 0; i < max; i++) {
             if (!test(i == 0, string.charAt(i))) {
+                System.out.println("Fail '" + string + "' at " + i + " with " + this);
                 return false;
             }
         }

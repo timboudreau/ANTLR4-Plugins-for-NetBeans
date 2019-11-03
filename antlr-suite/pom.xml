@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -54,12 +54,12 @@ limitations under the License.
     </properties>
     <dependencies>
         <!--
-                <dependency>
-                    <groupId>${project.groupId}</groupId>
-                    <artifactId>debug-ui</artifactId>
-                    <version>${project.version}</version>
-                </dependency>
--->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>debug-ui</artifactId>
+                            <version>${project.version}</version>
+                        </dependency>
+        -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
@@ -67,6 +67,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-completion</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>editor-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -103,6 +107,14 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-error-highlighting</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-refactoring-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-refactoring-common</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

@@ -1376,6 +1376,11 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return sb.toString();
         }
 
+        @Override
+        public NamedSemanticRegion<K> first() {
+            return indices.length == 0 ? null : new IndexNamedSemanticRegionImpl(indices[0]);
+        }
+
         public NamedSemanticRegion<K> withStart(int start) {
             int offset = Arrays.binarySearch(starts, 0, size, start);
             return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
@@ -1387,7 +1392,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         }
 
         private int indexFor(int pos) {
-            // XXX could use the original end supplier rapped in one which
+            // XXX could use the original end supplier wrapped in one which
             // looks up by index, and forgo having an ends array here
             int result = ArrayUtil.rangeBinarySearch(pos, starts, new ArrayEndSupplier(ends), size);
             assert result < 0 || (pos >= starts[result] && pos < ends[result]) : "rangeBinarySearch bogus result for regionAt(" + pos + ")"

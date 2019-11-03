@@ -24,17 +24,18 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.JOptionPane;
+import javax.swing.Action;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import javax.swing.text.Position;
 import org.nemesis.antlr.refactoring.impl.RenameQueryResultTrampoline;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
+import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.Utilities;
@@ -46,15 +47,10 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.api.indexing.IndexingManager;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
-import org.netbeans.modules.refactoring.api.Problem;
-import org.netbeans.modules.refactoring.api.RefactoringSession;
-import org.netbeans.modules.refactoring.api.RenameRefactoring;
+import org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.text.CloneableEditorSupport;
-import org.openide.text.PositionBounds;
-import org.openide.text.PositionRef;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.Lookups;
 import org.openide.util.lookup.ProxyLookup;
@@ -72,10 +68,6 @@ public final class InstantRenameAction extends BaseAction {
     public static final String ACTION_NAME = "in-place-refactoring";
     private final List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries;
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     protected InstantRenameAction(List<? extends InstantRenameProcessorEntry<?, ?, ?, ?>> entries) {
         super(ACTION_NAME, MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
         this.entries = entries;
@@ -84,10 +76,6 @@ public final class InstantRenameAction extends BaseAction {
     protected InstantRenameAction(InstantRenameProcessorEntry<?, ?, ?, ?>... entries) {
         this(Arrays.asList(entries));
     }
-//    protected InstantRenameAction(NameReferenceSetKey<?> key) {
-//        super(ACTION_NAME, MAGIC_POSITION_RESET | UNDO_MERGE_RESET); //NOI18N
-//        this.entries = Arrays.asList()
-//    }
 
     public static InstantRenameActionBuilder builder() {
         return new InstantRenameActionBuilder();
@@ -149,39 +137,10 @@ public final class InstantRenameAction extends BaseAction {
     }
 
     private static void doFullRename(DataObject obj, Document doc, JTextComponent comp, int caret) {
-        /*
         // You would expect this to work, but it doesn't.  Something missing from the lookup?
         Action a = RefactoringActionsFactory.renameAction()
                 .createContextAwareInstance(new ProxyLookup(obj.getLookup(), Lookups.fixed(doc, comp)));
         a.actionPerformed(RefactoringActionsFactory.DEFAULT_EVENT);
-         */
-        CloneableEditorSupport supp = obj.getLookup().lookup(CloneableEditorSupport.class);
-        PositionRef ref = supp.createPositionRef(caret, Position.Bias.Forward);
-        PositionBounds bds = new PositionBounds(ref, ref);
-        RefactoringSession session = RefactoringSession.create("Rename Grammar");
-        RenameRefactoring refactoring = new RenameRefactoring(new ProxyLookup(obj.getLookup(), Lookups.fixed(doc, comp, bds)));
-        Problem pre = refactoring.preCheck();
-        if (pre != null && pre.isFatal()) {
-            //fatal problem in precheck
-            JOptionPane.showMessageDialog(comp, pre.getMessage());
-            return;
-        }
-        String name = JOptionPane.showInputDialog(comp, "New Grammar Name", obj.getName(), JOptionPane.QUESTION_MESSAGE);
-        if (name == null || name.trim().isEmpty() || name.equals(obj.getName())) {
-            session.finished();
-            return;
-        }
-        refactoring.setNewName(name.trim());
-        Problem p = refactoring.prepare(session);
-
-        if (p != null && p.isFatal()) {
-            //fatal problem in precheck
-            JOptionPane.showMessageDialog(comp, p.getMessage());
-            return;
-        }
-
-        session.doRefactoring(true /* saveAll */);
-        session.finished();
     }
 
     private static class RegionsFinder extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
@@ -274,6 +233,18 @@ public final class InstantRenameAction extends BaseAction {
                     fir = entry.find(extraction, baseDoc, caret, ident);
                     if (!fir.isNotFound()) {
                         break;
+                    }
+                }
+                if (fir == null || fir.isNotFound()) {
+                    // If we found nothing to rename, see if there is an unknown
+                    // reference at this spot, and if so, trigger the refactoring
+                    // API which may be able to attribute and resolve it
+                    for (NameReferenceSetKey<?> refkey : extraction.referenceKeys()) {
+                        IndexAddressable unknowns = extraction.unknowns(refkey);
+                        if (unknowns != null && unknowns.at(caret) != null) {
+                            fir = new FindItemsResult<>(Collections.emptySet(),
+                                    RenameQueryResultTrampoline.createUseRefactoringResult());
+                        }
                     }
                 }
                 if (fir == null) {

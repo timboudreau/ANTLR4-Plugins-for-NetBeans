@@ -27,4 +27,6 @@ public interface NamedSemanticRegionPositionIndex<K extends Enum<K>> extends Ite
 
     public NamedSemanticRegion<K> withEnd(int end);
 
+    public NamedSemanticRegion<K> first();
+
 }

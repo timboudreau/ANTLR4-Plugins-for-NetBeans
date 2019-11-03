@@ -21,6 +21,9 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
 import org.nemesis.extraction.Extraction;
 import com.mastfrog.function.throwing.ThrowingFunction;
+import com.mastfrog.range.IntRange;
+import java.util.ArrayList;
+import java.util.Collection;
 import org.netbeans.editor.BaseDocument;
 import org.openide.filesystems.FileObject;
 import org.openide.text.NbDocument;
@@ -38,41 +41,43 @@ public abstract class FixConsumer implements BiConsumer<ThrowingFunction<BaseDoc
     /**
      * Add a proposed fix.
      *
-     * @param describer A supplier for the fix description
+     * @param describer   A supplier for the fix description
      * @param implementer The code to run to implement the fix
+     *
      * @return this
      */
-    public final FixConsumer add(ThrowingFunction<BaseDocument, String> describer, FixImplementation implementer) {
-        accept(describer, implementer);
+    public final FixConsumer add( ThrowingFunction<BaseDocument, String> describer, FixImplementation implementer ) {
+        accept( describer, implementer );
         return this;
     }
 
     /**
      * Add a proposed fix.
      *
-     * @param describer The fix description
+     * @param describer   The fix description
      * @param implementer The code to run to implement the fix
+     *
      * @return this
      */
-    public final FixConsumer add(String description, FixImplementation implementer) {
-        accept(staticName(description), implementer);
+    public final FixConsumer add( String description, FixImplementation implementer ) {
+        accept( staticName( description ), implementer );
         return this;
     }
 
-    private ThrowingFunction<BaseDocument, String> staticName(String name) {
-        return new StaticName(name);
+    private ThrowingFunction<BaseDocument, String> staticName( String name ) {
+        return new StaticName( name );
     }
 
     // For loggability
-    private static final class StaticName implements ThrowingFunction<BaseDocument,String> {
+    private static final class StaticName implements ThrowingFunction<BaseDocument, String> {
         private final String name;
 
-        public StaticName(String name) {
+        public StaticName( String name ) {
             this.name = name;
         }
 
         @Override
-        public String apply(BaseDocument in) {
+        public String apply( BaseDocument in ) {
             return name;
         }
 
@@ -81,45 +86,67 @@ public abstract class FixConsumer implements BiConsumer<ThrowingFunction<BaseDoc
         }
     }
 
-    public final FixConsumer addReplacement(String description, int start, int end, String replacementText) {
-        return add(description, replacement(start, end, replacementText));
+    public final FixConsumer addReplacement( String description, int start, int end, String replacementText ) {
+        return add( description, replacement( start, end, replacementText ) );
     }
 
-    public final FixConsumer addDeletion(String description, int start, int end) {
-        return add(description, deletion(start, end));
+    public final FixConsumer addDeletion( String description, int start, int end ) {
+        return add( description, deletion( start, end ) );
     }
 
-    public final FixConsumer addInsertion(String description, int start, int end, String insertionText) {
-        return add(description, insertion(start, end, insertionText));
+    public final FixConsumer addDeletions( String description, Collection<? extends IntRange<? extends IntRange>> ranges ) {
+        return add( description, deletions( ranges ) );
     }
 
-    public final FixConsumer addReplacement(ThrowingFunction<BaseDocument, String> describer, int start, int end, String replacementText) {
-        return add(describer, replacement(start, end, replacementText));
+    public final FixConsumer addInsertion( String description, int start, int end, String insertionText ) {
+        return add( description, insertion( start, end, insertionText ) );
     }
 
-    public final FixConsumer addDeletion(ThrowingFunction<BaseDocument, String> describer, int start, int end) {
-        return add(describer, deletion(start, end));
+    public final FixConsumer addReplacement( ThrowingFunction<BaseDocument, String> describer, int start, int end,
+            String replacementText ) {
+        return add( describer, replacement( start, end, replacementText ) );
     }
 
-    public final FixConsumer addInsertion(ThrowingFunction<BaseDocument, String> describer, int start, int end, String insertionText) {
-        return add(describer, insertion(start, end, insertionText));
+    public final FixConsumer addDeletion( ThrowingFunction<BaseDocument, String> describer, int start, int end ) {
+        return add( describer, deletion( start, end ) );
     }
 
-    static FixImplementation replacement(int start, int end, String replacementText) {
-        return (BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits) -> {
-            edits.replace(document, start, end, replacementText);
+    public final FixConsumer addDeletions( ThrowingFunction<BaseDocument, String> describer,
+            Collection<? extends IntRange<? extends IntRange>> ranges ) {
+        return add( describer, deletions( ranges ) );
+    }
+
+    public final FixConsumer addInsertion( ThrowingFunction<BaseDocument, String> describer, int start, int end,
+            String insertionText ) {
+        return add( describer, insertion( start, end, insertionText ) );
+    }
+
+    static FixImplementation replacement( int start, int end, String replacementText ) {
+        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
+            edits.replace( document, start, end, replacementText );
         };
     }
 
-    static FixImplementation insertion(int start, int end, String insertedText) {
-        return (BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits) -> {
-            edits.insert(document, start, insertedText);
+    static FixImplementation insertion( int start, int end, String insertedText ) {
+        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
+            edits.insert( document, start, insertedText );
         };
     }
 
-    static FixImplementation deletion(int start, int end) {
-        return (BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits) -> {
-            edits.delete(document, start, end);
+    static FixImplementation deletion( int start, int end ) {
+        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
+            edits.delete( document, start, end );
+        };
+    }
+
+    static FixImplementation deletions( Collection<? extends IntRange<? extends IntRange>> ranges ) {
+        ArrayList<IntRange<? extends IntRange>> all = new ArrayList<>( ranges );
+        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
+            edits.multiple( document, e -> {
+                        for ( IntRange<? extends IntRange> r : all ) {
+                            e.delete( r.start(), r.end() );
+                        }
+                    } );
         };
     }
 
@@ -133,11 +160,12 @@ public abstract class FixConsumer implements BiConsumer<ThrowingFunction<BaseDoc
      *
      * @param doc
      * @param offset
+     *
      * @return
      */
-    public final int lineNumberForDisplay(BaseDocument doc, int offset) throws BadLocationException {
-        int line = NbDocument.findLineNumber((StyledDocument) doc, offset);
-        if (offset > 0 && doc.getText(offset - 1, 1).charAt(0) == '\n') {
+    public final int lineNumberForDisplay( BaseDocument doc, int offset ) throws BadLocationException {
+        int line = NbDocument.findLineNumber( ( StyledDocument ) doc, offset );
+        if ( offset > 0 && doc.getText( offset - 1, 1 ).charAt( 0 ) == '\n' ) {
             line++;
         }
         return line;

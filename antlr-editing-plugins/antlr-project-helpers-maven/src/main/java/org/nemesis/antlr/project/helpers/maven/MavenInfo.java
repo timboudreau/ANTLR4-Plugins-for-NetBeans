@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
@@ -176,11 +177,30 @@ final class MavenInfo {
         return info = createInfo();
     }
 
+    private static Map<String, Long> knownNonAntlr = new ConcurrentHashMap<>();
+
     private PomInfo createInfo() {
         try {
-            info = PomInfo.create(projectDir.resolve("pom.xml"));
+            // Ensure a quick negative test if we have already determined that
+            // this is a project which does not have Antlr support in it's
+            // or it's parents' POM files - otherwise we will parse all the
+            // way back to the topmost parent project every time the IDE
+            // scans sources
+            Path pom = projectDir.resolve("pom.xml");
+            long currLastModified = Files.getLastModifiedTime(pom).toMillis();
+            Long lm = knownNonAntlr.get(pom.toString());
+            if (lm != null) {
+                if (lm.longValue() >= currLastModified) {
+                    return new PomInfo(Collections.emptyMap());
+                } else {
+                    knownNonAntlr.remove(pom.toString());
+                }
+            }
+
+            info = PomInfo.create(pom);
             if (info == null) {
                 System.out.println("NULL pom info for " + projectDir);
+                knownNonAntlr.put(pom.toString(), currLastModified);
                 info = new PomInfo(Collections.emptyMap());
             }
         } catch (Exception ex) {

@@ -34,23 +34,33 @@ public class SingletonFindUsagesPlugin<T> extends AbstractAntlrRefactoringPlugin
 
     private final SingletonKey<T> key;
     private final SingletonEncounter<T> singleton;
-    private final Stringifier<T> stringifier;
+    private final Stringifier<? super T> stringifier;
 
     public SingletonFindUsagesPlugin(WhereUsedQuery refactoring, Extraction extraction, FileObject file, SingletonKey<T> key,
             SingletonEncounter<T> singleton, Stringifier<T> stringifier) {
         super(refactoring, extraction, file);
         this.key = key;
         this.singleton = singleton;
-        this.stringifier = stringifier;
+        this.stringifier = stringifier == null ? NamedStringifier.generic() : stringifier;
+        refactoring.getContext().add(key);
+        refactoring.getContext().add(singleton);
+        refactoring.getContext().add(singleton.get());
+        refactoring.getContext().add(this.stringifier);
+    }
+
+    @Override
+    protected Object[] getLookupContents() {
+        return stringifier == null ? new Object[]{key, singleton}
+                : new Object[] {key, singleton, stringifier};
     }
 
     @Override
     protected Problem doPrepare(RefactoringElementsBag bag) {
         SingletonUsagesFinder<T> finder = new SingletonUsagesFinder<>(key, stringifier);
-        finder.findUsages(this::isCancelled, file, singleton, (IntRange bounds, String itemName, FileObject inFile, String kindName, Extraction inExtraction) -> {
-            bag.add(refactoring, new Usage(inFile, bounds, kindName, itemName));
+        return finder.findUsages(this::isCancelled, file, singleton, (IntRange<? extends IntRange> bounds, String itemName, FileObject inFile, String kindName, Extraction inExtraction) -> {
+            bag.add(refactoring, createUsage(inFile, bounds, kindName, itemName, key));
+            return null;
         });
-        return null;
     }
 
     @Override

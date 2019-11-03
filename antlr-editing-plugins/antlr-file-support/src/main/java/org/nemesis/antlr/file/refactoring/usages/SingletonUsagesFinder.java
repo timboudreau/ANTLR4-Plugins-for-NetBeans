@@ -25,6 +25,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 import org.nemesis.extraction.key.SingletonKey;
+import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
 
 /**
@@ -34,9 +35,9 @@ import org.openide.filesystems.FileObject;
 public class SingletonUsagesFinder<T> extends UsagesFinder {
 
     private final SingletonKey<T> key;
-    private final Stringifier<T> stringifier;
+    private final Stringifier<? super T> stringifier;
 
-    public SingletonUsagesFinder(SingletonKey<T> key, Stringifier<T> stringifier) {
+    public SingletonUsagesFinder(SingletonKey<T> key, Stringifier<? super T> stringifier) {
         this.key = key;
         this.stringifier = stringifier;
     }
@@ -51,30 +52,26 @@ public class SingletonUsagesFinder<T> extends UsagesFinder {
         return enc.get().toString();
     }
 
-    public final void findUsages(BooleanSupplier cancelled, FileObject file,
+    public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             SingletonEncounter<T> encounter,
-            PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+            PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
         String name = name(encounter);
         Set<FileObject> seen = new HashSet<>(10);
         ImportersFinder importers = ImportersFinder.forFile(file);
-        importers.usagesOf(cancelled, file, null, (range, name1, fo, name2, ext) -> {
-            if (seen.contains(fo) || cancelled.getAsBoolean()) {
-                return;
+        return importers.usagesOf(cancelled, file, null, (range, name1, fo, name2, ext) -> {
+            if (!seen.contains(fo) && !cancelled.getAsBoolean() && name1.equals(name)) {
+                return usageConsumer.accept(range, name1, fo, name2, ext);
             }
-            if (name1.equals(name)) {
-                usageConsumer.accept(range, name1, fo, name2, ext);
-            }
+            return null;
         });
     }
 
     @Override
-    public final void findUsages(BooleanSupplier cancelled, FileObject file,
+    public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             int caretPosition, Extraction extraction,
-            PetaConsumer<IntRange, String, FileObject, String, Extraction> usageConsumer) {
+            PetaConsumer<IntRange<? extends IntRange>, String, FileObject, String, Extraction> usageConsumer) {
         SingletonEncounters<T> encs = extraction.singletons(key);
         SingletonEncounter<T> e = encs.at(caretPosition);
-        if (e != null) {
-            findUsages(cancelled, file, e, usageConsumer);
-        }
+        return e == null ? null : findUsages(cancelled, file, e, usageConsumer);
     }
 }

@@ -681,6 +681,8 @@ public final class Extraction implements Externalizable {
                     Logger.getLogger(Extraction.class.getName()).log(Level.SEVERE,
                             "resolving " + key, ex);
                 }
+            } else {
+                result = new Attributions<>(SemanticRegions.empty(), SemanticRegions.empty());
             }
         }
         return result;

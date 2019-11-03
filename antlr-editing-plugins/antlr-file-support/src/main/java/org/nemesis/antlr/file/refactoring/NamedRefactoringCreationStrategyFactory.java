@@ -19,14 +19,9 @@ import com.mastfrog.function.TriFunction;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Optional;
 import org.nemesis.charfilter.CharFilter;
-import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.named.NamedSemanticRegionReference;
-import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedExtractionKey;
-import org.nemesis.extraction.key.NamedRegionKey;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
 import org.openide.filesystems.FileObject;
@@ -36,40 +31,23 @@ import org.openide.text.PositionBounds;
  *
  * @author Tim Boudreau
  */
-abstract class NamedRefactoringCreationStrategyFactory<R extends AbstractRefactoring, T extends Enum<T>> implements TriFunction<R, Extraction, PositionBounds, RefactoringPlugin> {
+abstract class NamedRefactoringCreationStrategyFactory<R extends AbstractRefactoring, T extends Enum<T>>
+        extends AbstractRefactoringContext implements TriFunction<R, Extraction, PositionBounds, RefactoringPlugin> {
 
     final Class<R> type;
     final NamedExtractionKey<T> key;
     final CharFilter filter;
 
     NamedRefactoringCreationStrategyFactory(Class<R> type, NamedExtractionKey<T> key, CharFilter filter) {
-        this.type = type;
-        this.key = key;
+        this.type = notNull("type", type);
+        this.key = notNull("key", key);
         this.filter = filter == null ? CharFilter.ALL : filter;
     }
 
-    @SuppressWarnings("unchecked")
-    static <T extends Enum<T>> NamedSemanticRegion<T> find(NamedExtractionKey<T> key, Extraction extraction, PositionBounds bounds) {
-        NamedRegionKey<T> namedKey = null;
-        NameReferenceSetKey<T> refKey = null;
-        if (notNull("key", key) instanceof NameReferenceSetKey<?>) {
-            refKey = (NameReferenceSetKey<T>) key;
-            namedKey = refKey.referencing();
-        } else if (key instanceof NamedRegionKey<?>) {
-            namedKey = (NamedRegionKey<T>) key;
-        }
-        assert namedKey != null : "Unknown named key type: " + key;
-        NamedSemanticRegions<T> regions = extraction.namedRegions(namedKey);
-        int pos = bounds.getBegin().getOffset();
-        NamedSemanticRegion region = regions.at(pos);
-        if (region == null && refKey != null) {
-            NamedRegionReferenceSets<T> sets = extraction.nameReferences(refKey);
-            NamedSemanticRegionReference<T> ref = sets.at(pos);
-            if (ref != null) {
-                region = ref.referencing();
-            }
-        }
-        return region;
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" + type.getSimpleName()
+                + " for " + key + " with " + filter + ")";
     }
 
     @Override
@@ -79,10 +57,12 @@ abstract class NamedRefactoringCreationStrategyFactory<R extends AbstractRefacto
             return null;
         }
         FileObject file = fileOpt.get();
-        NamedSemanticRegion<T> item = find(key, extraction, bounds);
+        FindResult<T> item = findWithAttribution(file, key, extraction, bounds);
         if (item != null) {
-            return createRefactoringPlugin(key, refactoring, extraction,
-                    file, item, filter);
+            RefactoringPlugin result = createRefactoringPlugin(item.key(), refactoring, item.extraction(),
+                    item.file(), item.region(), filter);
+            logFine("{0} creates plugin {1} for {2}", this, result, item);
+            return result;
         }
         return null;
     }
@@ -121,13 +101,11 @@ abstract class NamedRefactoringCreationStrategyFactory<R extends AbstractRefacto
         }
 
         public String toString() {
-            return getClass().getSimpleName() + "(" 
+            return getClass().getSimpleName() + "("
                     + type.getSimpleName() + " "
                     + key + " "
                     + filter + " "
                     + strategy + ")";
         }
-
     }
-
 }

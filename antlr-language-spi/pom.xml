@@ -62,6 +62,7 @@ limitations under the License.
                         <publicPackage>org.nemesis.antlr.spi.language.highlighting</publicPackage>
                         <publicPackage>org.nemesis.antlr.spi.language.highlighting.semantic</publicPackage>
                         <publicPackage>org.nemesis.antlr.spi.language.keybindings</publicPackage>
+                        <publicPackage>org.nemesis.antlr.spi.language.editorutils</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>
@@ -87,6 +88,10 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-lib</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-document</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
@@ -147,6 +152,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>editor-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

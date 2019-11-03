@@ -22,9 +22,8 @@ import com.mastfrog.range.Range;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.nemesis.antlr.file.refactoring.usages.ImportersFinder;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.extraction.Extraction;
@@ -35,6 +34,7 @@ import org.netbeans.modules.refactoring.api.Problem;
 import org.netbeans.modules.refactoring.api.RenameRefactoring;
 import org.netbeans.modules.refactoring.spi.ModificationResult;
 import org.netbeans.modules.refactoring.spi.RefactoringCommit;
+import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
 import org.netbeans.modules.refactoring.spi.RefactoringElementsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
@@ -52,8 +52,6 @@ import org.openide.util.NbBundle;
     "empty_name=Empty name"})
 class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefactoringPlugin<RenameRefactoring> {
 
-    private static final Logger LOG = Logger.getLogger(
-            RenameFileAndReferencesFromSingletonPlugin.class.getName());
     private final SingletonEncounters.SingletonEncounter<T> decl;
     private final Stringifier<? super T> stringifier;
     private boolean warned;
@@ -71,14 +69,26 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
         super(refactoring, extraction, file);
         this.decl = notNull("decl", decl);
         this.key = notNull("key", key);
-        this.stringifier = stringifier; // null ok
+        this.stringifier = NamedStringifier.generic(); // null ok
         this.filter = filter == null ? CharFilter.ALL : filter; // null ok
+        refactoring.getContext().add(key);
+        refactoring.getContext().add(decl);
+        refactoring.getContext().add(decl.get());
+        refactoring.getContext().add(stringifier == null ? NamedStringifier.generic() : stringifier);
+        refactoring.getContext().add(this.filter);
+    }
+
+    @Override
+    protected Object[] getLookupContents() {
+        return stringifier == null ? new Object[]{key, filter}
+                : new Object[]{key, filter, stringifier};
     }
 
     @Override
     public String toString() {
-        return "Rename " + key + " " + decl + " to " + refactoring.getNewName()
-                + " with filter " + filter;
+        return getClass().getSimpleName() + "("
+                + refactoring + " " + file.getNameExt()
+                + " " + key + " " + decl + " filter " + filter + ")";
     }
 
     @Override
@@ -98,13 +108,11 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
             } else {
                 if (!warned) {
                     warned = true;
-                    LOG.log(Level.WARNING, "No stringifier provided and "
+                    logWarn("No stringifier provided and "
                             + "{0} does not implement Named. Using toString()"
                             + "for {1}",
-                            new Object[]{
-                                obj == null ? "<nulltype>" : obj.getClass().getName(),
-                                obj
-                            });
+                            obj == null ? "<nulltype>" : obj.getClass().getName(),
+                            obj);
                 }
                 name = obj == null ? "null" : obj.toString();
             }
@@ -160,6 +168,11 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
         return preCheck();
     }
 
+    private void addToBag(RefactoringElementsBag bag, RefactoringElementImplementation impl) {
+        logFinest("Add change {0} for {1}", impl, this);
+        bag.add(refactoring, impl);
+    }
+
     @Override
     public Problem doPrepare(RefactoringElementsBag bag) {
         Problem check = checkParameters();
@@ -170,32 +183,41 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
         // related files - not needed here, and a reparse will be
         // triggered on rewrite
         return AbstractRefactoringContext.inParsingContext(() -> {
+            logFine("Prepare {0}", this);
             OneRangeInOneFileChange impl = new OneRangeInOneFileChange(decl,
-                    oldName(), refactoring, file, key.name());
-            bag.add(refactoring, impl);
+                    oldName(), refactoring, file, key.name(), key);
+            addToBag(bag, impl);
             Set<OneRangeInOneFileChange> others
                     = collectImports(file, bag, refactoring, null);
             if (isCancelled()) {
+                logFine("Cancelled {0}", this);
                 return null;
             }
             try {
-                Set<ModificationResult> results = new HashSet<>(others.size() + 1);
+                Set<ModificationResult> results = new LinkedHashSet<>(others.size() + 1);
                 ModificationResult res = impl.toModificationResult();
+                addToSet(res, results);
                 results.add(res);
                 for (OneRangeInOneFileChange i : others) {
-                    results.add(i.toModificationResult());
+                    logFinest("Add change {0} for {1}", i, this);
+                    addToSet(i.toModificationResult(), results);
                 }
                 RefactoringCommit commit = new RefactoringCommit(results);
                 bag.registerTransaction(commit);
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
-                return new Problem(true, ex.toString());
+                return toProblem(ex);
             }
             // do the rename last, so as not to interfere with anything
             // trying to read it
-            bag.add(refactoring, new RenameFile(refactoring::getNewName, file));
+            addToBag(bag, new RenameFile(refactoring::getNewName, file));
             return null;
         });
+    }
+
+    private void addToSet(ModificationResult res, Set<? super ModificationResult> results) {
+        logFinest("Add mod {0} for {1}", res, this);
+        results.add(res);
     }
 
     Set<OneRangeInOneFileChange> collectImports(FileObject file,
@@ -205,24 +227,34 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
         ImportersFinder finder = ImportersFinder.forFile(file);
 
         Set<OneRangeInOneFileChange> changes = new HashSet<>();
-        finder.usagesOf(this::isCancelled, file, importKey, (IntRange range, String originalName,
-                FileObject fo, String localizedRegionName,
-                Extraction ignored) -> {
-            // Ensure we don't hold a reference to parse contents
-            // by copying to a plain IntRange from a NamedSemanticRegion or
-            // similar
-            IntRange ir = Range.ofCoordinates(range.start(), range.end());
-            System.out.println("Replace " + originalName + " with " + refactoring.getNewName() + " in " + fo.getNameExt()
-                    + " at " + ir
-                    + " for " + range + " " + localizedRegionName);
-            OneRangeInOneFileChange impl = new OneRangeInOneFileChange(ir,
-                    originalName, refactoring, fo, localizedRegionName);
-            changes.add(impl);
-            bag.add(refactoring, impl);
-            if (isCancelled()) {
-                return;
-            }
-        });
+        finder.usagesOf(this::isCancelled, file, importKey,
+                (IntRange<? extends IntRange> range, String originalName,
+                        FileObject fo, String localizedRegionName,
+                        Extraction ignored) -> {
+                    // Ensure we don't hold a reference to parse contents
+                    // by copying to a plain IntRange from a NamedSemanticRegion or
+                    // similar
+                    IntRange<? extends IntRange> ir = Range.ofCoordinates(
+                            range.start(), range.end());
+                    logFinest("Replace {0} with {1} in {2} at {3} for {4} {5}",
+                            originalName,
+                            refactoring.getNewName(),
+                            fo.getNameExt(),
+                            ir,
+                            range,
+                            localizedRegionName);
+                    OneRangeInOneFileChange impl = new OneRangeInOneFileChange(
+                            ir,
+                            originalName,
+                            refactoring,
+                            fo,
+                            localizedRegionName,
+                            importKey,
+                            originalName);
+                    changes.add(impl);
+                    addToBag(bag, impl);
+                    return null;
+                });
         return changes;
     }
 }

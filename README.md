@@ -6,12 +6,25 @@ This project contains two sets of Antlr-related NetBeans plugins:
     * Most common language features and glue code are generated for you from annotations - syntax coloring, code completion, navigator panels
     * These can be extended further as you would with any language, and there are APIs that make that easy - for example, code formatting
     * The [API docs](./api.md) describe how to develop language plugins further
+    * Features that can be implemented with little code beyond annotations
+       * Syntax highlighting
+       * Semantic highlighting
+       * Instant rename
+       * Basic refactoring
+       * Code folding
+       * Code completion
+       * Navigator panels
+       * Error annotations
+       * Code completion
  * A plugin for developing Antlr grammars including
     * Syntax highlighting
     * Navigator panels
     * Code completion
     * Formatting
     * *Live-preview* - syntax highlighting and error checking of code in the language you are developing, which is updated as you edit the grammar, so you can see the effects of your changes instantly
+    * Basic Refactoring
+    * Error checking done by running Antlr (in-memory) against your project - taking a page from NetBeans native support for Ant and Maven,
+      there is no need to replicate Antlr's built-in error checking (and keep it up to date with new versions) when you can simply run Antlr and *use* its output
 
 ## Projects
 
@@ -151,3 +164,10 @@ something.
 
 Then `antlr-suite` project does that. Simply navigate to that directory and run `./runone` to launch it
 (the user dir will be `~/.antlr/dev` and the binary will be `target/bin/antlr` - ugly but works).
+
+### Other IDEs
+
+The core functionality that does source extraction and builds the models used to efficiently
+provide IDE features is largely independent of NetBeans APIs - a different set of annotation
+processors could generate support for a different IDE.
+
