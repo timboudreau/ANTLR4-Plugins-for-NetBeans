@@ -66,13 +66,15 @@ limitations under the License.
                             <artifactId>maven-compiler-plugin</artifactId>
                             <version>3.8.1</version>
                             <configuration>
-                                <fork>true</fork>
+                                <fork>false</fork>
+                                <forceJavacCompilerUse>true</forceJavacCompilerUse>
                                 <release>8</release>
                                 <debug>true</debug>
                                 <encoding>UTF-8</encoding>
                                 <showWarnings>false</showWarnings>
                                 <compilerArgument>-Xlint:unchecked</compilerArgument>
                                 <showDeprecation>false</showDeprecation>
+                                <!--<verbose>true</verbose>-->
                                 <jdkToolchain>
                                     <version>1.8</version>
                                 </jdkToolchain>
@@ -89,6 +91,7 @@ limitations under the License.
 
     <build>
         <plugins>
+            <!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -97,7 +100,6 @@ limitations under the License.
                     <source>${java.source.level}</source>
                     <target>${java.source.level}</target>
                     <forceJavacCompilerUse>true</forceJavacCompilerUse>
-                    <!--
                     <annotationProcessorPaths>
                         <path>
                             <groupId>${project.groupId}</groupId>
@@ -110,9 +112,9 @@ limitations under the License.
                             <version>${netbeans.version}</version>
                         </path>
                     </annotationProcessorPaths>
-                    -->
                 </configuration>
             </plugin>
+            -->
             <plugin>
                 <groupId>org.apache.netbeans.utilities</groupId>
                 <artifactId>nbm-maven-plugin</artifactId>
@@ -153,6 +155,10 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-instant-rename</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
         </dependency>
         <dependency>
@@ -170,6 +176,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>localizers</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

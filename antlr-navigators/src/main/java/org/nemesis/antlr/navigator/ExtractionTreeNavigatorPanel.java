@@ -27,6 +27,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import javax.swing.Icon;
 import javax.swing.JEditorPane;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -45,11 +46,13 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
+import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
+import org.nemesis.localizers.api.Localizers;
 import org.openide.awt.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Mutex;
@@ -173,6 +176,10 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
             if (value instanceof LazyTreeNode) {
                 value = ((LazyTreeNode) value).userObject;
             }
+            Icon icon = Localizers.icon(value);
+            if (icon.getIconWidth() > 0) {
+                r.setIcon(icon);
+            }
             if (value instanceof Named) {
                 Named n = (Named) value;
                 String nm = n.name();
@@ -189,9 +196,13 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
                         r.setText("<b>" + nm + "</b> " + value);
                     }
                 }
+            } else if (value instanceof UnknownNameReference<?>) {
+                UnknownNameReference<?> unk = (UnknownNameReference<?>) value;
+                r.setText(unk.name() + " (unattributed reference)");
             } else if (value instanceof ExtractionKey) {
                 ExtractionKey k = (ExtractionKey) value;
-                r.setText("<b>" + k.name() + "</b> <i>(" + k.getClass().getSimpleName() + ")</i>");
+                String name = Localizers.displayName(k);
+                r.setText("<b>" + name + "</b> <i>(" + k.getClass().getSimpleName() + ")</i>");
             } else if (value instanceof Extraction) {
                 r.setText("Extraction <i>" + ((Extraction) value).tokensHash());
             }
@@ -218,7 +229,13 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
                 if (!refs.isEmpty()) {
                     kids.add(new LazyTreeNode(parent, refKey, true));
                 }
+                for (SemanticRegion<?> unk : ext.unknowns(refKey)) {
+                    kids.add(new LazyTreeNode(parent, unk.key(), true));
+                }
             }
+        } else if (userObject instanceof UnknownNameReference<?>) {
+            UnknownNameReference<?> unk = (UnknownNameReference<?>) userObject;
+
         } else if (userObject instanceof RegionsKey<?>) {
             RegionsKey<?> rk = (RegionsKey<?>) userObject;
             SemanticRegions<?> semr = ext.regions(rk);
@@ -244,9 +261,8 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
         } else if (userObject instanceof NameReferenceSetKey<?>) {
             NameReferenceSetKey<?> nrsk = (NameReferenceSetKey<?>) userObject;
             for (NamedRegionReferenceSet<?> r : ext.references(nrsk)) {
-                NamedRegionReferenceSet<?> set = (NamedRegionReferenceSet<?>) userObject;
-                if (!set.isEmpty()) {
-                    kids.add(new LazyTreeNode(parent, r, false));
+                if (!r.isEmpty()) {
+                    kids.add(new LazyTreeNode(parent, r, true));
                 }
             }
         } else if (userObject instanceof NamedRegionReferenceSet<?>) {

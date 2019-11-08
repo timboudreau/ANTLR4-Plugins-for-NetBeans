@@ -161,5 +161,11 @@ limitations under the License.
             <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>character-filters</artifactId>
+            <version>2.0.5</version>
+            <type>jar</type>
+        </dependency>
     </dependencies>
 </project>

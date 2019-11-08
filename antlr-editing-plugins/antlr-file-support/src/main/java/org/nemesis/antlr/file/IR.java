@@ -16,13 +16,12 @@
 package org.nemesis.antlr.file;
 
 import javax.swing.text.StyledDocument;
-import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
-import org.nemesis.antlr.refactoring.InstantRenameAction;
-import org.nemesis.antlr.refactoring.RenameParticipant.NamedReferencesRenameParticipant;
-import org.nemesis.antlr.refactoring.spi.RenamePostProcessor;
-import org.nemesis.antlr.refactoring.spi.RenameQueryResult;
+import org.nemesis.antlr.instantrename.InstantRenameAction;
+import org.nemesis.antlr.instantrename.RenameParticipant.NamedReferencesRenameParticipant;
+import org.nemesis.antlr.instantrename.spi.RenamePostProcessor;
+import org.nemesis.antlr.instantrename.spi.RenameQueryResult;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.charfilter.CharPredicates;
 import org.nemesis.data.named.NamedRegionReferenceSets;
@@ -32,10 +31,7 @@ import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.SingletonKey;
-import org.netbeans.api.editor.EditorActionRegistration;
-import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.openide.util.NbBundle;
 
 /**
  *
@@ -46,18 +42,19 @@ public class IR
         implements /*RenameAugmenter */
         RenamePostProcessor {
 
-    @NbBundle.Messages("in-place-refactoring=&Rename")
-    @EditorActionRegistration(mimeType = ANTLR_MIME_TYPE, noIconInMenu = true, category
-            = "Refactoring", name = "in-place-refactoring")
+//    @NbBundle.Messages("in-place-refactoring=&Rename")
+//    @EditorActionRegistration(mimeType = ANTLR_MIME_TYPE, noIconInMenu = true, category
+//            = "Refactoring", name = "in-place-refactoring")
     public static InstantRenameAction inplaceRename() {
         return InstantRenameAction.builder()
-                .add(AntlrKeys.RULE_NAME_REFERENCES, new IR(), CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
+                .add(AntlrKeys.RULE_NAME_REFERENCES, new IR(),
+                        CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
                 .add(AntlrKeys.GRAMMAR_TYPE, new RenameGrammarParticipant())
                 .build();
     }
 
-    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service
-            = HighlightsLayerFactory.class)
+//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service
+//            = HighlightsLayerFactory.class)
     public static HighlightsLayerFactory highlights() {
         return InstantRenameAction.highlightsFactory();
     }

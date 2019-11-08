@@ -52,6 +52,12 @@ limitations under the License.
             <artifactId>mastfrog-utils-wrapper</artifactId>
             <scope>compile</scope>
         </dependency>
+        <!-- XXX delete the implementation here and use this: -->
+<!--        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>mock-named-services</artifactId>
+            <scope>compile</scope>
+        </dependency>-->
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-mimelookup</artifactId>

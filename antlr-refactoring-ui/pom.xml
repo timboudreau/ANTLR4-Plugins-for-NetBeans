@@ -15,7 +15,7 @@
                 <artifactId>nbm-maven-plugin</artifactId>
                 <extensions>true</extensions>
                 <configuration>
-                    <moduleType>eager</moduleType>
+                    <moduleType>autoload</moduleType>
                 </configuration>
             </plugin>
         </plugins>
@@ -41,6 +41,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>localizers</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

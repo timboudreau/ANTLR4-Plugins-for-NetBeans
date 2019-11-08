@@ -32,12 +32,12 @@ import java.util.stream.Stream;
  *
  * @author Tim Boudreau
  */
-public class DuplicateCheckingList<T> extends AbstractList<T> {
+final class DuplicateCheckingList<T> extends AbstractList<T> {
 
     private final List<T> delegate;
     private final List<Exception> addAt;
 
-    public DuplicateCheckingList(List<T> delegate) {
+    DuplicateCheckingList(List<T> delegate) {
         this.delegate = delegate;
         addAt = new ArrayList<>(delegate.size());
     }

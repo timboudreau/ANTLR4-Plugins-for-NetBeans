@@ -8,6 +8,14 @@
 
 Add option to hints to be added to changes, which will result in selection
 
+Combined undo for refactoring	 
+
+Could do a checksum of tokens within a block as part of extraction, for fast duplicate detection
+
+Move refactoring api to its own module
+
+Get rid of stringifier now that we have localizers
+
 Rename rule refactoring undo is broken
 
 Rename rule refactoring does not work from preview (name reset?)
@@ -24,6 +32,9 @@ Key localization support.
  - And key/value pair hints in annotation?
 
 Extraction can know the relation between name key and bounds key
+
+Fix UsageFinder API
+ - And it should take extraction key, not string
 
 
 

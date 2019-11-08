@@ -131,13 +131,23 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
             TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, pane);
             if (tc != null) {
                 tc.requestActive();
-                Rectangle rect = pane.modelToView(endOffset);
+                Rectangle endRect = pane.modelToView(endOffset);
+                Rectangle startRect = pane.modelToView(startOffset);
+                startRect.add(endRect);
+                // If the element is not extramely indented, avoid
+                // horizontally scrolling the editor, as that is usually
+                // just annoying
+                if (startRect.x < 800) {
+                    startRect.x = 0;
+                    startRect.width = Math.max(startRect.width, 200);
+                }
+
                 // Let the window system take care of possibly
                 // activating the editor *before* we try to
                 // manipulate it - we're on the event queue now,
                 // but requestActive will be asynchronous
                 EventQueue.invokeLater(() -> {
-                    pane.scrollRectToVisible(rect);
+                    pane.scrollRectToVisible(startRect);
                 });
             }
         } catch (BadLocationException ex) {

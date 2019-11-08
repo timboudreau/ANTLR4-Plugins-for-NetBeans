@@ -33,6 +33,9 @@ import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.fold.FoldTypeSpec;
+import org.nemesis.antlr.instantrename.RenameParticipant;
+import org.nemesis.antlr.instantrename.annotations.InplaceRename;
+import org.nemesis.antlr.instantrename.spi.RenameQueryResult;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
@@ -50,10 +53,16 @@ import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrig
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightZOrder;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistrations;
+import org.nemesis.charfilter.CharPredicates;
+import org.nemesis.charfilter.anno.CharFilterSpec;
+import org.nemesis.charfilter.anno.CharPredicateSpec;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
+import org.nemesis.localizers.annotations.Localize;
 
 /**
  *
@@ -406,9 +415,11 @@ import org.nemesis.extraction.key.SingletonKey;
 )
 public class AntlrKeys {
 
+    @Localize(displayName = "Rule Bounds")
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
 
     @Imports(mimeType = ANTLR_MIME_TYPE)
+    @Localize(displayName = "Import")
     public static final NamedRegionKey<ImportKinds> IMPORTS = NamedRegionKey.create("imports", ImportKinds.class);
 
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE, order = -10000, positionInZOrder = -1000,
@@ -429,6 +440,7 @@ public class AntlrKeys {
 
     @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldSpec = @FoldTypeSpec(name = "header", guardedStart = 3,
             guardedEnd = 3, displayText = "header"))
+    @Localize(displayName = "Header Element")
     public static final RegionsKey<HeaderMatter> HEADER_MATTER = RegionsKey.create(HeaderMatter.class, "headerMatter");
 
 //    @SimpleNavigatorRegistration(displayName = "Rules", order = 1, mimeType = MIME_TYPE,
@@ -436,6 +448,7 @@ public class AntlrKeys {
     @ReferenceableFromImports(mimeType = ANTLR_MIME_TYPE)
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
             positionInZOrder = 502, fixedSize = true, coloringName = "token-id")
+    @Localize(displayName = "Rule Name")
     public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
 
     @HighlighterKeyRegistrations(value = {
@@ -465,9 +478,39 @@ public class AntlrKeys {
         )
     })
     @Goto(mimeType = ANTLR_MIME_TYPE)
-//    @InplaceRename(mimeType=ANTLR_MIME_TYPE)
+    @InplaceRename(mimeType = ANTLR_MIME_TYPE,
+            filter = @CharFilterSpec(
+                    initialCharacter = @CharPredicateSpec(
+                            include = CharPredicates.JAVA_IDENTIFIER_START
+                    ),
+                    subsequentCharacters = @CharPredicateSpec(
+                            include = CharPredicates.JAVA_IDENTIFIER_PART
+                    )
+            )
+    )
+    @Localize(displayName = "Rule References")
     public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
 
+    public static final class AlwaysUseRefactoringAPI extends RenameParticipant.SingletonsRenameParticipant<GrammarDeclaration> {
+
+        @Override
+        protected RenameQueryResult isRenameAllowed(Extraction ext, SingletonKey<GrammarDeclaration> key, SingletonEncounters.SingletonEncounter<GrammarDeclaration> item, SingletonEncounters<GrammarDeclaration> collection, int caretOffset, String identifier) {
+            return useRefactoringAPI();
+        }
+
+    }
+
+    @Localize(displayName = "Grammar Type")
+    @InplaceRename(mimeType = ANTLR_MIME_TYPE,
+            filter = @CharFilterSpec(
+                    initialCharacter = @CharPredicateSpec(
+                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_START}
+                    ),
+                    subsequentCharacters = @CharPredicateSpec(
+                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_PART}
+                    )
+            ), renameParticipant = AlwaysUseRefactoringAPI.class
+    )
     public static final SingletonKey<GrammarDeclaration> GRAMMAR_TYPE = SingletonKey.create(GrammarDeclaration.class);
 
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE, colors = @ColoringCategory(name = "ebnfs",
@@ -480,13 +523,16 @@ public class AntlrKeys {
                         themes = POPULAR_DARK_THEMES,
                         bg = {159, 160, 219, 24})
             }))
+    @Localize(displayName = "Repeating Elements")
     public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
 
 //    @AntlrFoldsRegistration(mimeType = MIME_TYPE, foldSpec = @FoldTypeSpec(name = "block", guardedStart = 3,
 //            guardedEnd = 3, displayText = "block"))
+    @Localize(displayName = "Parenthesized Blocks")
     public static final RegionsKey<Void> BLOCKS = RegionsKey.create(Void.class, "blocks");
 
     @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldType = FoldTypeName.MEMBER)
+    @Localize(displayName = "Code Folds")
     public static final RegionsKey<FoldableRegion> FOLDABLES = RegionsKey.create(FoldableRegion.class, "folds");
 
     static final String ANTLR_SAMPLE = "grammar Timestamps;\n"

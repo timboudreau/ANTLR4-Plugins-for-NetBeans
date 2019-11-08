@@ -1,4 +1,5 @@
 Manifest-Version: 1.0
 OpenIDE-Module-Localizing-Bundle: org/nemesis/antlr/project/helpers/maven/Bundle.properties
 OpenIDE-Module-Install: org/nemesis/antlr/project/helpers/maven/Installer.class
+AutoUpdate-Show-In-Client: true
 

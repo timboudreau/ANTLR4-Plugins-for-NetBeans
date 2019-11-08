@@ -17,7 +17,7 @@ package org.nemesis.antlr.file.antlrrefactoring;
 
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.file.AntlrKeys;
-import org.nemesis.antlr.file.refactoring.AntlrRefactoringPluginFactory;
+import org.nemesis.antlr.refactoring.AntlrRefactoringPluginFactory;
 import org.nemesis.antlr.refactoring.common.Refactorability;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.charfilter.CharPredicates;
@@ -44,11 +44,10 @@ public final class AntlrLanguageRefactoringPluginFactory extends AntlrRefactorin
                                     CharPredicates.JAVA_IDENTIFIER_START,
                                     CharPredicates.JAVA_IDENTIFIER_PART
                             ))
-                    //                    .withStringifier(namedStringifier())
                     .build()
                     .usages().finding(AntlrKeys.GRAMMAR_TYPE)
-                    .usages().finding(AntlrKeys.RULE_NAMES)
                     .usages().finding(AntlrKeys.RULE_NAME_REFERENCES)
+                    .usages().finding(AntlrKeys.RULE_NAME_REFERENCES.referencing())
                     .rename().renaming(AntlrKeys.RULE_NAME_REFERENCES)
                     .withCharFilter(
                             CharFilter.of(
@@ -58,30 +57,4 @@ public final class AntlrLanguageRefactoringPluginFactory extends AntlrRefactorin
 
         });
     }
-
-    /*
-    private synchronized RefactoringPluginFactory delegate() {
-        if (delegate == null) {
-            delegate = AntlrRefactoringPluginFactory.builder(ANTLR_MIME_TYPE)
-                    .rename().renaming(AntlrKeys.GRAMMAR_TYPE)
-                    .withNameFilter(CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
-                    .withStringifier(namedStringifier())
-                    .build()
-                    .usages().finding(AntlrKeys.GRAMMAR_TYPE, namedStringifier())
-                    .usages().finding(AntlrKeys.RULE_NAMES)
-                    .usages().finding(AntlrKeys.RULE_NAME_REFERENCES)
-                    .rename().renaming(AntlrKeys.RULE_NAME_REFERENCES).withCharFilter(CharFilter.of(CharPredicates.JAVA_IDENTIFIER_START, CharPredicates.JAVA_IDENTIFIER_PART))
-                    .build();
-            System.out.println("Created ANTLR refactorings: \n" + delegate + "\n");
-        }
-        return delegate;
-    }
-     */
-//    @Override
-//    public RefactoringPlugin createInstance(AbstractRefactoring ar) {
-//        return delegate().createInstance(ar);
-//    }
-//    public AntlrLanguageRefactoringPluginFactory(RefactoringPluginFactory delegate) {
-//        this.delegate = delegate;
-//    }
 }

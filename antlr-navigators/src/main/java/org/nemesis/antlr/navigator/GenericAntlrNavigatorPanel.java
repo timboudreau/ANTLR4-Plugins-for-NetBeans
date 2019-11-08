@@ -37,6 +37,7 @@ import javax.swing.ListModel;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.data.named.NamedSemanticRegion;
 import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
+import org.nemesis.extraction.key.NamedRegionKey;
 import org.openide.awt.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.text.NbDocument;
@@ -246,6 +247,23 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
     @SuppressWarnings("deprecation")
     private void moveTo(JEditorPane pane, NamedSemanticRegion<K> el) {
         assert EventQueue.isDispatchThread();
+        // References are associated with extracted *bounds*, but usually
+        // two sets of NamedSemanticRegions are extracted, one for the container
+        // element and one for the bounds of the name itself, and we can
+        // ask the extraction for the corresponding name key, and fetch
+        // the corresponding name element - which is a better thing to
+        // select, as selecting the entire text of a Java method or similar
+        // on click is just annoying.  So, if we were built with a single
+        // NamedRegionKey, the list model has the current extraction we're
+        // working from, so it can fetch the actual name item to choose
+        // selection coordinates
+        if (list().getModel() instanceof EditorAndChangeAwareListModel<?>) {
+            EditorAndChangeAwareListModel<?> mdl = (EditorAndChangeAwareListModel<?>) list.getModel();
+            NamedRegionKey<K> key = config.key();
+            if (key != null) {
+                el = mdl.nameRegionFor(key, el);
+            }
+        }
         int len = pane.getDocument().getLength();
         if (el.start() < len && el.end() <= len) {
             moveTo(pane, el.start(), el.end());

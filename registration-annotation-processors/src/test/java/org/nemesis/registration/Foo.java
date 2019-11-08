@@ -44,7 +44,7 @@ public class Foo {
             if (styles.contains(FontStyle.BOLD)) {
                 System.out.println("    bold");
             }
-            if (styles.contains(FontStyle.BOLD)) {
+            if (styles.contains(FontStyle.ITALIC)) {
                 System.out.println("    italic");
             }
         }

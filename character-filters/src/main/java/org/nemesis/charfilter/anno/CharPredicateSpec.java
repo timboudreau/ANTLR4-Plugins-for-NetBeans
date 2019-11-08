@@ -39,4 +39,6 @@ public @interface CharPredicateSpec {
     CharPredicates[] include() default {};
 
     boolean logicallyOr() default true;
+
+    boolean negated() default false;
 }

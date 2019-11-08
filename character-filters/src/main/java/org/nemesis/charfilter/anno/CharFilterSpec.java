@@ -29,8 +29,7 @@ import java.lang.annotation.Target;
 @Target({})
 public @interface CharFilterSpec {
 
-    CharPredicateSpec initialCharacterExcludes() default @CharPredicateSpec();
+    CharPredicateSpec initialCharacter() default @CharPredicateSpec();
 
-    CharPredicateSpec subsequentCharacterExcludes() default @CharPredicateSpec();
-
+    CharPredicateSpec subsequentCharacters() default @CharPredicateSpec();
 }

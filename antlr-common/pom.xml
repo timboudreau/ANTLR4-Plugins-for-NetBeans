@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -61,6 +61,92 @@ limitations under the License.
                     </publicPackages>
                 </configuration>
             </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>registration-annotation-processors</artifactId>
+                                    <version>${project.version}</version>
+                                </path>
+                                <path>
+                                    <groupId>org.netbeans.api</groupId>
+                                    <artifactId>org-openide-util-lookup</artifactId>
+                                    <version>${netbeans.version}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                            <annotationProcessors>org.nemesis.registration.LocalizeAnnotationProcessor,org.netbeans.modules.openide.util.ServiceProviderProcessor</annotationProcessors>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+<plugin>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.8.1</version>
+    <executions>
+        <execution>
+            <id>default-compile</id>
+            <phase>compile</phase>
+            <goals>
+                <goal>compile</goal>
+            </goals>
+            <configuration>
+                <proc>none</proc>
+            </configuration>
+        </execution>
+        <execution>
+            <id>annos-generate</id>
+            <phase>generate-sources</phase>
+            <goals>
+                <goal>compile</goal>
+            </goals>
+            <configuration>
+                <proc>only</proc>
+                <annotationProcessorPaths>
+                    <path>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>registration-annotation-processors</artifactId>
+                        <version>${project.version}</version>
+                    </path>
+                    <path>
+                        <groupId>org.netbeans.api</groupId>
+                        <artifactId>org-openide-util-lookup</artifactId>
+                        <version>${netbeans.version}</version>
+                    </path>
+                </annotationProcessorPaths>
+                <annotationProcessors>org.nemesis.registration.LocalizeAnnotationProcessor,org.netbeans.modules.openide.util.ServiceProviderProcessor</annotationProcessors>
+            </configuration>
+        </execution>
+        <execution>
+            <id>annos-compile</id>
+            <phase>generate-sources</phase>
+            <goals>
+                <goal>compile</goal>
+            </goals>
+            <configuration>
+                <proc>none</proc>
+            </configuration>
+        </execution>
+    </executions>
+    <configuration>
+        <source>8</source>
+        <target>8</target>
+        <showDeprecation>false</showDeprecation>
+        <showWarnings>false</showWarnings>
+        <encoding>UTF-8</encoding>
+    </configuration>
+</plugin>
+            -->
         </plugins>
     </build>
     <dependencies>
@@ -70,12 +156,25 @@ limitations under the License.
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>registration-annotation-processors</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>localizers</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util-lookup</artifactId>
         </dependency>
     </dependencies>
 </project>

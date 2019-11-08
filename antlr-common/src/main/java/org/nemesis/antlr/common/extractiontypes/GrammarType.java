@@ -15,12 +15,22 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import org.nemesis.localizers.annotations.Localize;
+
 /**
  *
  * @author Frédéric Yvon Vinet
  */
+@Localize(displayName="Grammar Type", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
 public enum GrammarType {
-    LEXER("lexer"), PARSER("parser"), COMBINED("combined"), UNDEFINED("undefined");
+    @Localize(displayName="Lexer Grammar")
+    LEXER("lexer"),
+    @Localize(displayName="Parser Grammar")
+    PARSER("parser"),
+    @Localize(displayName="Combined Grammar")
+    COMBINED("combined"),
+    @Localize(displayName="Unrecognized Grammar Type")
+    UNDEFINED("undefined");
         
     private final String value;
     GrammarType (String value) {

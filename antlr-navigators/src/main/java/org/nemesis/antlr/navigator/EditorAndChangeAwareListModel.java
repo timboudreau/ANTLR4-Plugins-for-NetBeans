@@ -16,7 +16,10 @@
 package org.nemesis.antlr.navigator;
 
 import java.util.List;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.key.NamedRegionKey;
 import org.openide.cookies.EditorCookie;
 
 final class EditorAndChangeAwareListModel<T> extends ListListModel<T> {
@@ -32,4 +35,17 @@ final class EditorAndChangeAwareListModel<T> extends ListListModel<T> {
         this.semantics = semantics;
     }
 
+    <T extends Enum<T>> NamedSemanticRegion<T> nameRegionFor(NamedRegionKey<T> key, NamedSemanticRegion<T> orig) {
+        Extraction sem = semantics;
+        if (sem == null || orig == null) {
+            return orig;
+        }
+        NamedRegionKey<T> namesKey = sem.nameKeyFor(key);
+        if (namesKey == key) {
+            return orig;
+        }
+        NamedSemanticRegions<T> nameRegions = sem.namedRegions(namesKey);
+        NamedSemanticRegion<T> result = nameRegions.regionFor(orig.name());
+        return result == null ? orig : result;
+    }
 }

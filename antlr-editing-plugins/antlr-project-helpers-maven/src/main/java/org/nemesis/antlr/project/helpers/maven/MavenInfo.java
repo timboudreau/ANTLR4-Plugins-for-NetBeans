@@ -115,6 +115,7 @@ final class MavenInfo {
         };
         PomInfo infoInfo = info.info();
         Map<String, String> vals = info.getConfigValues(keys, defaults);
+
         Path buildDir = baseDir.resolve(infoInfo.buildDir);
         Path importDir = baseDir.resolve(vals.get(ANTLR_PROP_LIB_DIRECTORY));
         Path sourceDir = baseDir.resolve(vals.get(ANTLR_PROP_SOURCE_DIRECTORY));
@@ -507,19 +508,27 @@ final class MavenInfo {
         }
 
         private void setBuildDir(String buildDir) {
-            this.buildDir = buildDir;
+            if (buildDir != null) {
+                this.buildDir = buildDir;
+            }
         }
 
         private void setTestSourceDir(String testSource) {
-            this.testSources = testSource;
+            if (testSource != null) {
+                this.testSources = testSource;
+            }
         }
 
         private void setTestOutputDir(String testOutput) {
-            this.testOutput = testOutput;
+            if (testOutput != null) {
+                this.testOutput = testOutput;
+            }
         }
 
         private void setBuildOutputDir(String buildOutput) {
-            this.buildOutput = buildOutput;
+            if (buildOutput != null) {
+                this.buildOutput = buildOutput;
+            }
         }
     }
 }

@@ -121,6 +121,24 @@ public class CharPredicateBuilder<T, B extends CharPredicateBuilder<T, B>> {
         return cast();
     }
 
+    public B and(CharPredicate predicate) {
+        if (this.predicate != null) {
+            this.predicate = this.predicate.and(predicate);
+        } else {
+            this.predicate = predicate;
+        }
+        return cast();
+    }
+
+    public B or(CharPredicate predicate) {
+        if (this.predicate != null) {
+            this.predicate = this.predicate.or(predicate);
+        } else {
+            this.predicate = predicate;
+        }
+        return cast();
+    }
+
     @SuppressWarnings("unchecked")
     B cast() {
         return (B) this;

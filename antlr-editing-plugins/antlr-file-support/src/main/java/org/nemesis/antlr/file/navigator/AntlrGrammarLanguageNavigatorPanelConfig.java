@@ -19,6 +19,8 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -132,6 +134,9 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
                         sort.sort(alts, extraction, AntlrKeys.RULE_NAME_REFERENCES);
                         break;
                     case NATURAL:
+                        // StringGraph elements will be alpha-sorted, so we need to
+                        // regain their natural order
+                        Collections.sort(alts, Comparator.naturalOrder());
                         // These will always be natural sort, as originally created
                         break;
                     default:

@@ -15,11 +15,15 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import org.nemesis.localizers.annotations.Localize;
+
 /**
  *
  * @author Tim Boudreau
  */
 public enum ImportKinds {
+    @Localize(displayName="Token Vocabulary")
     TOKEN_VOCAB,
+    @Localize(displayName="Imported Grammar")
     DELEGATE_GRAMMAR
 }

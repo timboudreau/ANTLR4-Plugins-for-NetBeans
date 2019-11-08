@@ -602,7 +602,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
      * @throws IllegalArgumentException if the name is not present
      */
     public IndexNamedSemanticRegionImpl regionFor(String name) {
-        return new IndexNamedSemanticRegionImpl(internalIndexOf(name));
+        int ix = indexOf(name);
+        return ix < 0 ? null : new IndexNamedSemanticRegionImpl(ix);
     }
 
     /**

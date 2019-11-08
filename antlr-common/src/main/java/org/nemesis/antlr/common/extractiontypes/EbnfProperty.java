@@ -15,10 +15,17 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import org.nemesis.localizers.annotations.Localize;
+
 /**
  *
  * @author Tim Boudreau
  */
 public enum EbnfProperty {
-    STAR, QUESTION, PLUS;
+    @Localize(displayName="Wildcard")
+    STAR,
+    @Localize(displayName="Single character wildcard")
+    QUESTION,
+    @Localize(displayName="More than one")
+    PLUS;
 }

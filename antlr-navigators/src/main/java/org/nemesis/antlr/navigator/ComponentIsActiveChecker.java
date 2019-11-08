@@ -21,6 +21,6 @@ package org.nemesis.antlr.navigator;
  *
  * @author Tim Boudreau
  */
-public interface ComponentIsActiveChecker {
+interface ComponentIsActiveChecker {
     boolean isActive();
 }

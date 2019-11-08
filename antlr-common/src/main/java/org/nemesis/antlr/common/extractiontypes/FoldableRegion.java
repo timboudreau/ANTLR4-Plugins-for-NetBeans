@@ -16,6 +16,7 @@
 package org.nemesis.antlr.common.extractiontypes;
 
 import java.util.Objects;
+import org.nemesis.localizers.annotations.Localize;
 
 /**
  *
@@ -71,9 +72,13 @@ public final class FoldableRegion {
     }
 
     public static enum FoldableKind {
+        @Localize(displayName="Comment")
         COMMENT,
+        @Localize(displayName="Documentation Comment")
         DOC_COMMENT,
+        @Localize(displayName="Rule")
         RULE,
+        @Localize(displayName="Action")
         ACTION;
 
         public FoldableRegion createFor(String text) {

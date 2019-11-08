@@ -16,13 +16,23 @@
 package org.nemesis.antlr.common.extractiontypes;
 
 import java.util.function.Supplier;
+import org.nemesis.localizers.annotations.Localize;
 
 /**
  *
  * @author Tim Boudreau
  */
+@Localize(displayName="Rule Type", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
 public enum RuleTypes implements Supplier<String> {
-    FRAGMENT, LEXER, PARSER, NAMED_ALTERNATIVES;
+    @Localize(displayName="Fragment", iconPath="org/nemesis/antlr/common/fragment.png")
+    FRAGMENT, 
+    @Localize(displayName="Lexer Rule", iconPath="org/nemesis/antlr/common/lexer.png")
+    LEXER,
+    @Localize(displayName="Parser Rule", iconPath="org/nemesis/antlr/common/parser.png")
+    PARSER,
+    @Localize(displayName="Alternative", iconPath="org/nemesis/antlr/common/alternative.png")
+    NAMED_ALTERNATIVES
+    ;
 
     // only used for names, not bounds
     @Override

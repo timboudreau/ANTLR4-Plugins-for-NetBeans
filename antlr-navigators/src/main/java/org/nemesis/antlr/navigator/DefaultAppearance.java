@@ -26,6 +26,7 @@ import javax.swing.JComponent;
 import javax.swing.UIManager;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.localizers.api.Localizers;
 import org.openide.awt.HtmlRenderer;
 
 /**
@@ -104,6 +105,15 @@ final class DefaultAppearance implements Appearance<Object> {
             Enum<?> key = nsr.kind();
             if (key instanceof Icon) {
                 on.setIcon((Icon) key);
+            } else {
+                Icon icon = Localizers.icon(key);
+                if (icon.getIconWidth() > 0) {
+                    on.setIcon(icon);
+                }
+            }
+            String tt = Localizers.displayName(region);
+            if (tt != null) {
+                ((JComponent) on).setToolTipText(tt);
             }
             String name = nsr.name();
             if (scopingDelimiters == null) {

@@ -27,8 +27,10 @@ import static org.nemesis.registration.LanguageFontsColorsProcessor.GROUP_SEMANT
 import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIGHLIGHTING_ANNO;
 import com.mastfrog.annotation.processor.Delegates;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import com.mastfrog.java.vogon.ClassBuilder;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
+import org.nemesis.registration.typenames.TypeName;
 
 /**
  *
@@ -68,4 +70,9 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
                 .whenAnnotationTypes(REGISTRATION_ANNO);
     }
 
+    static ClassBuilder<String> newClassBuilder(String pkg, String name, TypeName... imports) {
+        ClassBuilder<String> result = ClassBuilder.forPackage(pkg).named(name);
+        TypeName.addImports(result, imports);
+        return result;
+    }
 }

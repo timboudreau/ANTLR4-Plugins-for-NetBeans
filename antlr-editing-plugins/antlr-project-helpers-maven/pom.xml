@@ -61,7 +61,7 @@ limitations under the License.
                 <configuration>
                     <verifyRuntime>warn</verifyRuntime>
                     <useOSGiDependencies>false</useOSGiDependencies>
-                    <moduleType>eager</moduleType>
+                    <moduleType>autoload</moduleType>
                     <publicPackages/>
                 </configuration>
             </plugin>

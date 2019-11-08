@@ -25,6 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.swing.JPopupMenu;
+import org.nemesis.antlr.navigator.NavigatorPanelConfig.Builder.FetchByKey;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.ExtractionKey;
@@ -64,6 +65,13 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         this.sortable = sortable;
         this.elementFetcher = elementFetcher;
         this.delimitersFinder = delimitersFinder;
+    }
+
+    NamedRegionKey<K> key() {
+        if (elementFetcher instanceof FetchByKey<?>) {
+            return ((FetchByKey<K>) elementFetcher).key();
+        }
+        return null;
     }
 
     Set<String> delimiters(Extraction ext) {
@@ -223,12 +231,17 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
             return fetchingWith(new FetchByKey<>(key));
         }
 
-        private static final class FetchByKey<K extends Enum<K>> implements BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> {
+        static class FetchByKey<K extends Enum<K>> implements BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> {
 
-            private final NamedRegionKey<K> key;
+            final NamedRegionKey<K> key;
+            private List<BiConsumer<? super Extraction, ? super List<? super NamedSemanticRegion<K>>>> afters;
 
-            public FetchByKey(NamedRegionKey<K> key) {
+            FetchByKey(NamedRegionKey<K> key) {
                 this.key = key;
+            }
+
+            NamedRegionKey<K> key() {
+                return key;
             }
 
             @Override
@@ -236,6 +249,21 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
                 for (NamedSemanticRegion<K> region : t.namedRegions(key)) {
                     u.add(region);
                 }
+                if (afters != null) {
+                    afters.forEach((after) -> {
+                        after.accept(t, u);
+                    });
+                }
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> andThen(BiConsumer<? super Extraction, ? super List<? super NamedSemanticRegion<K>>> after) {
+                if (afters == null) {
+                    afters = new ArrayList<>(2);
+                }
+                afters.add(after);
+                return this;
             }
         }
 
@@ -349,21 +377,19 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
      * @param <K> The enum type
      */
 //    public interface ListModelPopulator<K extends Enum<K>> {
-
-        /**
-         * Populate the list model with whatever objects this panel should find
-         * in the extraction.
-         *
-         * @param extraction The extraction
-         * @param model A new, empty model
-         * @param oldSelection The selection in the panel at this time
-         * @param requestedSort The sort order that should be used
-         * @return The index of the old selection (if not null) in the new set
-         * of model elements, or -1 if not found
-         */
+    /**
+     * Populate the list model with whatever objects this panel should find in
+     * the extraction.
+     *
+     * @param extraction The extraction
+     * @param model A new, empty model
+     * @param oldSelection The selection in the panel at this time
+     * @param requestedSort The sort order that should be used
+     * @return The index of the old selection (if not null) in the new set of
+     * model elements, or -1 if not found
+     */
 //        int populateListModel(Extraction extraction, List<NamedSemanticRegion<K>> fetched, DefaultListModel<NamedSemanticRegion<K>> model, NamedSemanticRegion<K> oldSelection, SortTypes sort);
 //    }
-
     int populateListModel(Extraction extraction, List<? super NamedSemanticRegion<K>> newListModel, NamedSemanticRegion<K> oldSelection, SortTypes requestedSort) {
         List<NamedSemanticRegion<K>> items = new ArrayList<>(100);
         elementFetcher.accept(extraction, items);

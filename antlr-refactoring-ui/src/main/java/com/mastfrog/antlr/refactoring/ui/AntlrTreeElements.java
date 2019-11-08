@@ -22,6 +22,7 @@ import java.awt.Graphics;
 import java.io.IOException;
 import javax.swing.Icon;
 import org.nemesis.extraction.key.ExtractionKey;
+import org.nemesis.localizers.api.Localizers;
 import org.netbeans.api.actions.Openable;
 import org.netbeans.modules.refactoring.api.RefactoringElement;
 import org.netbeans.modules.refactoring.spi.ui.TreeElement;
@@ -83,12 +84,24 @@ public class AntlrTreeElements implements TreeElementFactoryImplementation {
 
         @Override
         public Icon getIcon() {
-            return new I();
+            Icon result = I.INSTANCE;
+            IntRange<?> range = el.getLookup().lookup(IntRange.class);
+            if (range != null) {
+                result = Localizers.icon(range, result);
+            }
+            return result;
         }
 
         @Override
         public String getText(boolean bln) {
 //            return !bln ? el.getText() : el.getDisplayText();
+            IntRange<?> range = el.getLookup().lookup(IntRange.class);
+            if (range != null) {
+                ExtractionKey<?> ext = el.getLookup().lookup(ExtractionKey.class);
+
+                String nm = ext != null ? Localizers.displayName(ext) : el.getDisplayText();
+                return "<html><b>" + nm + "</b> " + Localizers.displayName(range);
+            }
             return el.getDisplayText();
         }
 
@@ -115,6 +128,8 @@ public class AntlrTreeElements implements TreeElementFactoryImplementation {
     }
 
     static final class I implements Icon {
+
+        static final I INSTANCE = new I();
 
         @Override
         public void paintIcon(Component c, Graphics g, int x, int y) {

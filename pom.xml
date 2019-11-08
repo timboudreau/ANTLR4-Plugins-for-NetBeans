@@ -201,11 +201,15 @@ limitations under the License.
         <module>protoc-antlr</module>
         <module>jfs-nb</module>
         <module>antlr-editing-plugins</module>
-        <module>antlr-refactoring</module>
         <module>character-filters</module>
         <module>antlr-refactoring-ui</module>
         <module>antlr-refactoring-common</module>
         <module>editor-utils</module>
+        <module>type-code-generation</module>
+        <module>localizers</module>
+        <module>mock-named-services</module>
+        <module>antlr-instant-rename</module>
+        <module>antlr-refactoring</module>
     </modules>
     <repositories>
         <repository>
@@ -269,6 +273,21 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>type-code-generation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>mock-named-services</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>localizers</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-refactoring-ui</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -290,6 +309,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-code-folding</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-instant-rename</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
