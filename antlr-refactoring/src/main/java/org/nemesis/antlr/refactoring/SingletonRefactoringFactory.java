@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.function.TriFunction;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Optional;
@@ -37,19 +36,17 @@ abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> ext
 
     private final SingletonKey<K> key;
     private final CharFilter filter;
-    private final Stringifier<? super K> stringifier;
 
-    public SingletonRefactoringFactory(SingletonKey<K> key, CharFilter filter, Stringifier<? super K> stringifier) {
+    public SingletonRefactoringFactory(SingletonKey<K> key, CharFilter filter) {
         this.key = notNull("key", key);
         this.filter = filter;
-        this.stringifier = stringifier;
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "("
-                + key + " filter="
-                + filter + " stringifier=" + stringifier + ")";
+                + key + " "
+                + filter + ")";
     }
 
     <K> SingletonEncounter<K> find(SingletonKey<K> key, Extraction extraction, PositionBounds bounds) {
@@ -71,11 +68,10 @@ abstract class SingletonRefactoringFactory<R extends AbstractRefactoring, K> ext
         if (item != null) {
             logFine("{0} creates a refactoring plugin for {1}", this, item);
             return createRefactoringPlugin(key, refactoring, extraction,
-                    file, item, stringifier, filter);
+                    file, item, filter);
         }
         return null;
     }
 
-    protected abstract RefactoringPlugin createRefactoringPlugin(SingletonKey<K> key, R refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<K> item, Stringifier<? super K> optionalStringifier, CharFilter filter);
-
+    protected abstract RefactoringPlugin createRefactoringPlugin(SingletonKey<K> key, R refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<K> item, CharFilter filter);
 }

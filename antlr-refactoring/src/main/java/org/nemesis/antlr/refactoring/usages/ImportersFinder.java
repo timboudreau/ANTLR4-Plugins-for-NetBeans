@@ -70,7 +70,7 @@ public abstract class ImportersFinder extends AbstractRefactoringContext {
             BooleanSupplier cancelled,
             FileObject file,
             NamedRegionKey<?> optionalImportKey,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer);
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer);
 
     static final class DefaultUsagesFinder extends SimpleImportersFinder {
 
@@ -95,7 +95,7 @@ public abstract class ImportersFinder extends AbstractRefactoringContext {
 
         @Override
         public Problem usagesOf(BooleanSupplier cancelled, FileObject file, 
-                NamedRegionKey<?> optionalImportKey, PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+                NamedRegionKey<?> optionalImportKey, PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
             Problem result = null;
             for (ImportersFinder f : all) {
                 Problem p = f.usagesOf(cancelled, file, optionalImportKey, usageConsumer);

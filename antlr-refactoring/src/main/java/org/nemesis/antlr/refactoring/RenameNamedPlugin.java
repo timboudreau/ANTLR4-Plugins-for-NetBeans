@@ -117,10 +117,10 @@ public class RenameNamedPlugin<T extends Enum<T>> extends AbstractAntlrRefactori
     protected Problem doPrepare(RefactoringElementsBag bag) {
         return inParsingContext(() -> {
             SimpleUsagesFinder<T> uf = new SimpleUsagesFinder<>(key, refs);
-            Map<FileObject, List<IntRange<? extends IntRange>>> ranges = CollectionUtils.supplierMap(ArrayList::new);
+            Map<FileObject, List<IntRange<? extends IntRange<?>>>> ranges = CollectionUtils.supplierMap(ArrayList::new);
             String[] regText = new String[1];
             Problem p = uf.findUsages(this::isCancelled, file, extraction, toRename, extraction.namedRegions(key),
-                    (IntRange<? extends IntRange> target, String regionText, FileObject targetFile, ExtractionKey<?> key, Extraction sourceExtraction) -> {
+                    (IntRange<? extends IntRange<?>> target, String regionText, FileObject targetFile, ExtractionKey<?> key, Extraction sourceExtraction) -> {
                         ranges.get(targetFile).add(target);
                         if (regText[0] == null) {
                             regText[0] = regionText;
@@ -129,7 +129,7 @@ public class RenameNamedPlugin<T extends Enum<T>> extends AbstractAntlrRefactori
                     }
             );
             if (!ranges.isEmpty() && (p == null || !p.isFatal())) {
-                for (Map.Entry<FileObject, List<IntRange<? extends IntRange>>> e : ranges.entrySet()) {
+                for (Map.Entry<FileObject, List<IntRange<? extends IntRange<?>>>> e : ranges.entrySet()) {
                     try {
                         ReplaceRanges.create(key, e.getKey(), e.getValue(), regText[0], refactoring.getNewName(), rr -> {
                             bag.add(refactoring, rr);

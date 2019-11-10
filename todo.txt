@@ -1,53 +1,42 @@
 # Refactoring
 
   * Should be able to rename from an import.
-  * FindUsages should return Problem
-  * Find usages works on references but not on nameds.
-  * Get lookup contents into renames and replacements for refactoring previews
-  * Need diff window for preview?
+
+Is char filter really being used?
+
+Need a way to contribute different char filters based on region key
+
+
+
+Find the @Imports annotation from inside in InplaceRenameProcessor, 
+   and use it to generate reverse find-usages if there is a SingletonKey for the mime type:
+
+1. Register the key pair importKey -> singletonKey
+2. Find the file imported from
+3. Find the singleton in the file and check it matches
+4. Just run the rename / usages as if it were that
+
+
 
 Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
 Could do a checksum of tokens within a block as part of extraction, for fast duplicate detection
+  - Should be indexed in a small map of short:short
 
-Move refactoring api to its own module
-
-Get rid of stringifier now that we have localizers
-
-Rename rule refactoring undo is broken
+InvocationBuilder missing withValueFromNewArray and others
 
 Rename rule refactoring does not work from preview (name reset?)
 
-Rename from original only renames first occurence
-
-Should a key have a relationship to a "name" key, so there is a bounds key and a name key?
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
 
-Key localization support.
- - Including localization of enums individually
- - And key/value pair hints in annotation?
-
-Extraction can know the relation between name key and bounds key
 
 Fix UsageFinder API
- - And it should take extraction key, not string
-
-
-
-An attribution should have the key it came from
-
-Rename refactoring from ref only renames first occurrence
-
-Name of original element not picked up in new name dialog
- - Usage finder should have option to include original?
 
 Some kind of heinous off-by-god-knows-what in getting text for preview
-
-Individual items are not clickable
 
 
 # Antlr Editing Plugins To-Dos

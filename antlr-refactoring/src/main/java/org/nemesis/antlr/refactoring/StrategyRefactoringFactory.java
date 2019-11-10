@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
@@ -32,14 +31,14 @@ final class StrategyRefactoringFactory<R extends AbstractRefactoring, K> extends
 
     private final SingletonRefactoringCreationStrategy<R, K> strategy;
 
-    StrategyRefactoringFactory(SingletonKey<K> key, CharFilter filter, Stringifier<? super K> stringifier, SingletonRefactoringCreationStrategy<R, K> strategy) {
-        super(key, filter, stringifier);
+    StrategyRefactoringFactory(SingletonKey<K> key, CharFilter filter, SingletonRefactoringCreationStrategy<R, K> strategy) {
+        super(key, filter);
         this.strategy = strategy;
     }
 
     @Override
-    protected RefactoringPlugin createRefactoringPlugin(SingletonKey<K> key, R refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<K> item, Stringifier<? super K> optionalStringifier, CharFilter filter) {
-        return strategy.createRefactoringPlugin(key, refactoring, extraction, file, item, optionalStringifier, filter);
+    protected RefactoringPlugin createRefactoringPlugin(SingletonKey<K> key, R refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<K> item, CharFilter filter) {
+        return strategy.createRefactoringPlugin(key, refactoring, extraction, file, item, filter);
     }
 
     @Override

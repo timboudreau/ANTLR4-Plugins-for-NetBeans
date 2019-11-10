@@ -15,12 +15,24 @@
  */
 package org.nemesis.antlr.instantrename.impl;
 
+import org.nemesis.antlr.refactoring.common.BeforeRefactoringTask;
+
 /**
  *
  * @author Tim Boudreau
  */
-public interface RenamePerformer {
+public interface RenamePerformer extends BeforeRefactoringTask {
 
     void release(boolean cancel);
     void markSynced();
+
+    @Override
+    public default void prepare() {
+        markSynced();
+    }
+
+    @Override
+    public default void perform() {
+        release(true);
+    }
 }

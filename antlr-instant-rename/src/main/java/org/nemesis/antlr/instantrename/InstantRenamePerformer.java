@@ -44,8 +44,8 @@ import javax.swing.text.StyledDocument;
 import javax.swing.undo.AbstractUndoableEdit;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEdit;
-import org.nemesis.antlr.instantrename.impl.EnsureInstantRenamersAreRemovedPluginFactory;
 import org.nemesis.antlr.instantrename.impl.RenamePerformer;
+import org.nemesis.antlr.refactoring.common.RefactoringActionsBridge;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
@@ -157,7 +157,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
         target.select(mainRegion.getStartOffset(), mainRegion.getEndOffset());
         sendUndoableEdit(doc, CloneableEditorSupport.BEGIN_COMMIT_GROUP);
         // ensure when a real refactoring is run, all performers are cleaned up
-        EnsureInstantRenamersAreRemovedPluginFactory.register(this);
+        RefactoringActionsBridge.beforeAnyRefactoring(this);
     }
 
     private static InstantRenamePerformer getPerformerFromComponent(JTextComponent target) {
@@ -255,7 +255,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
     public void keyTyped(KeyEvent e) {
         boolean initial = isFirstCharacter();
         boolean suppressed = !result.test(initial, e.getKeyChar());
-        System.out.println("Key '" + e.getKeyChar() + "' initial " + initial + " suppress? " + suppressed);
+//        System.out.println("Key '" + e.getKeyChar() + "' initial " + initial + " suppress? " + suppressed);
         if (suppressed) {
             e.consume();
         }
@@ -280,7 +280,7 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
     }
 
     public void release(boolean cancellation) {
-        if (EnsureInstantRenamersAreRemovedPluginFactory.deregister(this)) {
+        if (RefactoringActionsBridge.unregisterBeforeAnyRefactoring(this)) {
             sendUndoableEdit(doc, CloneableEditorSupport.END_COMMIT_GROUP);
             String newText = region.getFirstRegionText();
             boolean modified = !origText.equals(newText);

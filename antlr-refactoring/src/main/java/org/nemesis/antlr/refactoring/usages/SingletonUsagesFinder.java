@@ -15,8 +15,6 @@
  */
 package org.nemesis.antlr.refactoring.usages;
 
-import com.mastfrog.abstractions.Named;
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.range.IntRange;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,6 +24,7 @@ import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.SingletonKey;
+import org.nemesis.localizers.api.Localizers;
 import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
 
@@ -36,30 +35,28 @@ import org.openide.filesystems.FileObject;
 public class SingletonUsagesFinder<T> extends UsagesFinder {
 
     private final SingletonKey<T> key;
-    private final Stringifier<? super T> stringifier;
 
-    public SingletonUsagesFinder(SingletonKey<T> key, Stringifier<? super T> stringifier) {
+    public SingletonUsagesFinder(SingletonKey<T> key) {
         this.key = key;
-        this.stringifier = stringifier;
     }
 
     private String name(SingletonEncounter<T> enc) {
-        if (stringifier != null) {
-            return stringifier.toString(enc.value());
-        }
-        if (enc.get() instanceof Named) {
-            return ((Named) enc.get()).name();
-        }
-        return enc.get().toString();
+        return Localizers.displayName(enc);
     }
 
     public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             SingletonEncounter<T> encounter,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         String name = name(encounter);
         Set<FileObject> seen = new HashSet<>(10);
         ImportersFinder importers = ImportersFinder.forFile(file);
         return importers.usagesOf(cancelled, file, null, (range, name1, fo, name2, ext) -> {
+            boolean seenIt = seen.contains(fo);
+            boolean cancel = cancelled.getAsBoolean();
+            boolean sameName = name1.equals(name);
+            logFine("SingletonUsage check {0} looking for {1} in {2} seen? {3}, "
+                    + " cancelled? {4}, sameName? {5} in {6}", name1, name, file.getNameExt(),
+                    seenIt, cancel, sameName, range);
             if (!seen.contains(fo) && !cancelled.getAsBoolean() && name1.equals(name)) {
                 return usageConsumer.accept(range, name1, fo, key, ext);
             }
@@ -70,7 +67,7 @@ public class SingletonUsagesFinder<T> extends UsagesFinder {
     @Override
     public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             int caretPosition, Extraction extraction,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         SingletonEncounters<T> encs = extraction.singletons(key);
         SingletonEncounter<T> e = encs.at(caretPosition);
         return e == null ? null : findUsages(cancelled, file, e, usageConsumer);

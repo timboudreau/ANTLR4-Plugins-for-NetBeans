@@ -49,7 +49,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
      */
     public abstract Problem findUsages(BooleanSupplier cancelled,
             FileObject file, int caretPosition, Extraction extraction,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer);
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer);
 
     public static UsagesFinder forMimeType(String mimeType) {
         Lookup lkp = MimeLookup.getLookup(mimeType);
@@ -74,7 +74,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
         @Override
         public Problem findUsages(BooleanSupplier cancelled, FileObject file,
                 int caretPosition, Extraction extraction,
-                PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+                PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
             Problem result = null;
             for (UsagesFinder finder : all) {
                 if (cancelled.getAsBoolean()) {
@@ -95,7 +95,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
         @Override
         public Problem findUsages(BooleanSupplier cancelled, FileObject file,
                 int caretPosition, Extraction origExtraction,
-                PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+                PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
             // do nothing
 //            Set<NamedRegionKey<?>> keys = extraction.regionKeys();
             ImportersFinder impf = ImportersFinder.forFile(file);
@@ -142,7 +142,7 @@ public abstract class UsagesFinder extends AbstractRefactoringContext {
         <T extends Enum<T>> Problem attributeOne(BooleanSupplier cancelled, NamedSemanticRegion<?> reg, NameReferenceSetKey<T> key,
                 FileObject origFile, Extraction origExtraction, int caretPosition,
                 FileObject scanning, Extraction scanningExtraction,
-                PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+                PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
 
             Problem result = null;
             Attributions<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T> attributions = scanningExtraction.resolveAll((NameReferenceSetKey<T>) key);

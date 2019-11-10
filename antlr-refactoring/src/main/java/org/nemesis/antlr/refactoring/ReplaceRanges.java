@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -27,9 +27,14 @@ import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
+import static org.nemesis.antlr.refactoring.AbstractRefactoringContext.escapeHtml;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.editor.utils.DocumentOperation;
 import org.nemesis.editor.utils.DocumentOperator;
 import org.nemesis.editor.utils.DocumentProcessor;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.localizers.api.Localizers;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
@@ -111,14 +116,14 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         }
     }
 
-    public static void create(ExtractionKey<?> key, FileObject fo, List<IntRange<? extends IntRange>> ranges, String oldText, String newText, Consumer<RefactoringElementImplementation> c) throws IOException, BadLocationException {
+    public static void create(ExtractionKey<?> key, FileObject fo, List<IntRange<? extends IntRange<?>>> ranges, String oldText, String newText, Consumer<RefactoringElementImplementation> c) throws IOException, BadLocationException {
         if (ranges.isEmpty()) {
             return;
         }
         DataObject dob = DataObject.find(fo);
         Lookup lkp = dob.getLookup();
         CloneableEditorSupport supp = lkp.lookup(CloneableEditorSupport.class);
-        List<IntRange<? extends IntRange>> items = new ArrayList<>(ranges);
+        List<IntRange<? extends IntRange<?>>> items = new ArrayList<>(ranges);
         Collections.sort(items);
         StyledDocument doc = supp.getDocument();
         String origFileText = textOf(fo, doc);
@@ -130,7 +135,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         Object[] lookupContents = new Object[]{key, newText};
         AtomicBoolean performed = new AtomicBoolean();
         for (int i = 0; i < ranges.size(); i++) {
-            IntRange<? extends IntRange> range = items.get(i);
+            IntRange<? extends IntRange<?>> range = items.get(i);
             PositionRef begin = supp.createPositionRef(range.start(), Position.Bias.Forward);
             if (first == null) {
                 first = begin;
@@ -142,7 +147,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
             PositionRef end = supp.createPositionRef(range.end(), Position.Bias.Backward);
             PositionBounds bds = new PositionBounds(begin, end);
             bounds.add(bds);
-            children.add(new RangeChild(key, range, bds, fo, origFileText, newText, disabled, performed));
+            children.add(new RangeChild(key, range, bds, fo, origFileText, newText, disabled, performed, oldText));
         }
         PositionRef last = supp.createPositionRef(lastPos, Position.Bias.Backward);
         PositionBounds span = new PositionBounds(first, last);
@@ -268,11 +273,33 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         return Bundle.replaceTitle(bounds.size(), keyLoc, oldText, newText);
     }
 
-    @NbBundle.Messages(value = {"# {0} - the kind of element",
-        "replaceName=Replace name in {0}"})
+    private Object keyObject(IntRange<?> range) {
+        if (range == null) {
+            return null;
+        }
+        if (range instanceof AttributedForeignNameReference<?, ?, ?, ?>) {
+            AttributedForeignNameReference<?, ?, ?, ?> attr = (AttributedForeignNameReference<?, ?, ?, ?>) range;
+            return ((AttributedForeignNameReference<?, ?, ?, ?>) range).element().kind();
+        } else if (range instanceof NamedSemanticRegion<?>) {
+            return ((NamedSemanticRegion<?>) range).kind();
+        } else if (range instanceof NamedSemanticRegionReference<?>) {
+            return ((NamedSemanticRegionReference<?>) range).kind();
+        } else if (range instanceof SingletonEncounters.SingletonEncounter<?>) {
+            return ((SingletonEncounters.SingletonEncounter) range).get();
+        }
+        return null;
+    }
+
+    @NbBundle.Messages(value = {
+        "# {0} - occurrences",
+        "# {1} - elementType",
+        "# {2} - name",
+        "replaceName=Replace original and {0} uses of <i>{1}</i> <b>{2}</b>"})
     @Override
     public String getDisplayText() {
-        return Bundle.replaceName(Localizers.displayName(key)); // XXX pass this in
+        Object ko = keyObject(getLookup().lookup(IntRange.class));
+        return Bundle.replaceName(bounds.size(),
+                Localizers.displayName(ko == null ? key.type() : ko), oldText);
     }
 
     /**
@@ -289,11 +316,12 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         private final String newName;
         private final Map<PositionBounds, Boolean> disabledItems;
         private final AtomicBoolean performed;
+        private final String oldName;
 
         public RangeChild(ExtractionKey<?> key, IntRange<?> range,
                 PositionBounds bounds, FileObject file, String origText,
                 String newName, Map<PositionBounds, Boolean> disabled,
-                AtomicBoolean performed) {
+                AtomicBoolean performed, String origName) {
             this.key = key;
             this.range = range;
             this.bounds = bounds;
@@ -302,6 +330,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
             this.newName = newName;
             this.disabledItems = disabled;
             this.performed = performed;
+            this.oldName = origName;
         }
 
         @Override
@@ -330,11 +359,11 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
 
         @Override
         @Messages({
-            "# {0} - the type of item",
+            "# {0} - type",
             "# {1} - start",
             "# {2} - end",
             "oneChangeText=At {0}:{1}",
-            "# {0} - the type of item",
+            "# {0} - type",
             "# {1} - start",
             "# {2} - end",
             "invalidChange=Invalidated {0} at {1}:{2}"
@@ -344,19 +373,62 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
                 return performed.get() ? newName : bounds.getText();
             } catch (BadLocationException | IOException ex) {
                 dead = true;
-                return Bundle.invalidChange(Localizers.displayName(range), range.start(), range.end());
+                return Bundle.invalidChange(escapeHtml(Localizers.displayName(range)), range.start(), range.end());
             }
         }
 
-        @Override
-        public String getDisplayText() {
-            try {
-                String locName = Localizers.displayName(range);
-                return Bundle.oneChangeText(locName, bounds.getBegin().getLine(), bounds.getBegin().getColumn());
-            } catch (IOException ex) {
-                dead = true;
-                return Bundle.invalidChange(Localizers.displayName(range),range.start(), range.end());
+        private Object keyObject() {
+            if (range instanceof AttributedForeignNameReference<?, ?, ?, ?>) {
+                AttributedForeignNameReference<?, ?, ?, ?> attr = (AttributedForeignNameReference<?, ?, ?, ?>) range;
+                return attr.element().kind();
+            } else if (range instanceof NamedSemanticRegion<?>) {
+                return ((NamedSemanticRegion<?>) range).kind();
+            } else if (range instanceof NamedSemanticRegionReference<?>) {
+                return ((NamedSemanticRegionReference<?>) range).kind();
+            } else if (range instanceof SingletonEncounters.SingletonEncounter<?>) {
+                return ((SingletonEncounters.SingletonEncounter) range).get();
             }
+            return range;
+        }
+
+        @Override
+        @Messages({
+            "# {0} - reference type",
+            "# {1} - type of thing",
+            "# {2} - name",
+            "# {3} - file name",
+            "# {4} - line",
+            "# {5} - offsetInLine",
+            "simple_replacement=<html>Replace <i>{1} {0}</i> <b>{2}</b> in {3} <font color=\"!controlShadow\">at {4}:{5}</font>",
+            "# {0} - reference type",
+            "# {1} - type of thing",
+            "# {2} - name",
+            "# {3} - file name",
+            "# {4} - line",
+            "# {5} - offsetInLine",
+            "simple_ref_replacement=Replace reference to <i>{1} {0}</i> <b>{2}</b> in {3} <font color=\"!controlShadow\">at {4}:{5}</font>"
+        })
+        public String getDisplayText() {
+//            Object ko = keyObject();
+//            if (!(ko instanceof NamedSemanticRegion<?>) && !(ko instanceof NamedSemanticRegionReference<?>)) {
+//                System.out.println("KEY OBJECT " + ko.getClass().getName() + ": " + ko);
+//            }
+            String localizedKeyName = escapeHtml(Localizers.displayName(key));
+            String localizedObjectName = escapeHtml(Localizers.displayName(keyObject()));
+            String theName = this.oldName;
+            String fileName = file.getNameExt();
+            boolean isReference = range instanceof NamedSemanticRegionReference<?>;
+            int start = range.start();
+            int end = range.end();
+            try {
+                start = bounds.getBegin().getLine();
+                end = bounds.getEnd().getColumn();
+            } catch (Exception ex) {
+                dead = true;
+            }
+            return isReference
+                    ? Bundle.simple_replacement(localizedKeyName, localizedObjectName, theName, fileName, start, end)
+                    : Bundle.simple_ref_replacement(localizedKeyName, localizedObjectName, theName, fileName, start, end);
         }
 
         @Override

@@ -36,7 +36,15 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>extraction-data-models</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>character-filters</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

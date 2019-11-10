@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.file;
 
-import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
 import org.nemesis.antlr.file.impl.AntlrDataObjectHooks;
 import java.util.Set;
 import org.nemesis.antlr.ANTLRv4Lexer;
@@ -29,13 +28,12 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.file.AntlrKeys.ANTLR_SAMPLE;
+import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.fold.FoldTypeSpec;
-import org.nemesis.antlr.instantrename.RenameParticipant;
 import org.nemesis.antlr.instantrename.annotations.InplaceRename;
-import org.nemesis.antlr.instantrename.spi.RenameQueryResult;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
@@ -56,8 +54,6 @@ import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegist
 import org.nemesis.charfilter.CharPredicates;
 import org.nemesis.charfilter.anno.CharFilterSpec;
 import org.nemesis.charfilter.anno.CharPredicateSpec;
-import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
@@ -415,7 +411,7 @@ import org.nemesis.localizers.annotations.Localize;
 )
 public class AntlrKeys {
 
-    @Localize(displayName = "Rule Bounds")
+    @Localize(displayName = "Rule Body")
     public static final NamedRegionKey<RuleTypes> RULE_BOUNDS = NamedRegionKey.create("ruleBounds", RuleTypes.class);
 
     @Imports(mimeType = ANTLR_MIME_TYPE)
@@ -448,7 +444,7 @@ public class AntlrKeys {
     @ReferenceableFromImports(mimeType = ANTLR_MIME_TYPE)
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
             positionInZOrder = 502, fixedSize = true, coloringName = "token-id")
-    @Localize(displayName = "Rule Name")
+    @Localize(displayName = "Rule")
     public static final NamedRegionKey<RuleTypes> RULE_NAMES = NamedRegionKey.create("ruleNames", RuleTypes.class);
 
     @HighlighterKeyRegistrations(value = {
@@ -488,28 +484,22 @@ public class AntlrKeys {
                     )
             )
     )
-    @Localize(displayName = "Rule References")
+    @Localize(displayName = "Rule Reference")
     public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
-
-    public static final class AlwaysUseRefactoringAPI extends RenameParticipant.SingletonsRenameParticipant<GrammarDeclaration> {
-
-        @Override
-        protected RenameQueryResult isRenameAllowed(Extraction ext, SingletonKey<GrammarDeclaration> key, SingletonEncounters.SingletonEncounter<GrammarDeclaration> item, SingletonEncounters<GrammarDeclaration> collection, int caretOffset, String identifier) {
-            return useRefactoringAPI();
-        }
-
-    }
 
     @Localize(displayName = "Grammar Type")
     @InplaceRename(mimeType = ANTLR_MIME_TYPE,
             filter = @CharFilterSpec(
                     initialCharacter = @CharPredicateSpec(
-                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_START}
+                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_START},
+                            logicallyOr = false
                     ),
                     subsequentCharacters = @CharPredicateSpec(
-                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_PART}
+                            include = {CharPredicates.FILE_NAME_SAFE, CharPredicates.JAVA_IDENTIFIER_PART},
+                            logicallyOr = false
                     )
-            ), renameParticipant = AlwaysUseRefactoringAPI.class
+            ),
+            useRefactoringApi = true
     )
     public static final SingletonKey<GrammarDeclaration> GRAMMAR_TYPE = SingletonKey.create(GrammarDeclaration.class);
 

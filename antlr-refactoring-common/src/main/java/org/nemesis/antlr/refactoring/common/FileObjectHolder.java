@@ -19,14 +19,12 @@ import java.util.function.Supplier;
 import org.openide.filesystems.FileObject;
 
 /**
- * Provides a way of hiding the FileObject from the refactoring
- * source context - we need it so we can get the extraction for
- * the file, but if it is present in the source lookup, all rename
- * refactorings of elements will be hijacked by FileRenamePlugin
- * implemented in NetBeans' base refactoring API - so we will
- * wind up with a rename of <i>any contents of a file</i> also
- * causing that <i>file</i> to be renamed to the same name, which
- * is a mess.
+ * Provides a way of hiding the FileObject from the refactoring source context -
+ * we need it so we can get the extraction for the file, but if it is present in
+ * the source lookup, all rename refactorings of elements will be hijacked by
+ * FileRenamePlugin implemented in NetBeans' base refactoring API - so we will
+ * wind up with a rename of <i>any contents of a file</i> also causing that
+ * <i>file</i> to be renamed to the same name, which is a mess.
  *
  * @author Tim Boudreau
  */
@@ -57,7 +55,7 @@ public class FileObjectHolder implements Supplier<FileObject> {
                         ? ((FileObjectHolder) o).file.equals(file)
                         : false;
     }
-    
+
     @Override
     public int hashCode() {
         return file.hashCode();

@@ -231,4 +231,30 @@ public abstract class RenameParticipant<T, K extends ExtractionKey<T>, I extends
     public static abstract class SingletonsRenameParticipant<T> extends RenameParticipant<T, SingletonKey<T>, SingletonEncounter<T>, SingletonEncounters<T>> {
 
     }
+
+    /**
+     * Returns a dummy instance that simply always calls the refactoring API, so
+     * rename can be invoked the normal way, but always results in the
+     * refactoring API appearing.
+     *
+     * @param <T>
+     * @param <K>
+     * @param <I>
+     * @param <C>
+     * @return A rename participant
+     */
+    public static <T, K extends ExtractionKey<T>, I extends IndexAddressable.IndexAddressableItem, C extends IndexAddressable<? extends I>>
+            RenameParticipant<T, K, I, C> useRefactoringParticipant() {
+        return UseRefactoringAPI.INSTANCE;
+    }
+
+    private static final class UseRefactoringAPI extends RenameParticipant {
+
+        static final UseRefactoringAPI INSTANCE = new UseRefactoringAPI();
+
+        @Override
+        protected RenameQueryResult isRenameAllowed(Extraction ext, ExtractionKey key, IndexAddressable.IndexAddressableItem item, IndexAddressable collection, int caretOffset, String identifier) {
+            return useRefactoringAPI();
+        }
+    }
 }

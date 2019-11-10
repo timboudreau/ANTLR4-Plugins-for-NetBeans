@@ -56,6 +56,7 @@ public @interface InplaceRename {
     /**
      * Provide a RenameParticipant which can approve or veto rename initiation
      * and provide hooks which are called on change or finish.
+     * Mutually exclusive with specifying useRefactoringApi.
      *
      * @return A rename participant type
      */

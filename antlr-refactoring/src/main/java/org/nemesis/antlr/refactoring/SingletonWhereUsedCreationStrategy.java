@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
@@ -31,25 +30,18 @@ import org.openide.filesystems.FileObject;
 final class SingletonWhereUsedCreationStrategy<T> implements SingletonRefactoringCreationStrategy<WhereUsedQuery, T> {
 
     private final SingletonKey<T> key;
-    private final Stringifier<T> stringifier;
 
     public SingletonWhereUsedCreationStrategy(SingletonKey<T> key) {
-        this(key, null);
-    }
-
-    public SingletonWhereUsedCreationStrategy(SingletonKey<T> key, Stringifier<T> stringifier) {
         this.key = key;
-        this.stringifier = stringifier;
     }
 
     @Override
-    public RefactoringPlugin createRefactoringPlugin(SingletonKey<T> key, WhereUsedQuery refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<T> item, Stringifier<? super T> optionalStringifier, CharFilter filter) {
-        return new SingletonFindUsagesPlugin<>(refactoring, extraction, file, key, item, stringifier);
+    public RefactoringPlugin createRefactoringPlugin(SingletonKey<T> key, WhereUsedQuery refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<T> item, CharFilter filter) {
+        return new SingletonFindUsagesPlugin<>(refactoring, extraction, file, key, item);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + key + " "
-                + stringifier + ")";
+        return getClass().getSimpleName() + "(" + key + ")";
     }
 }

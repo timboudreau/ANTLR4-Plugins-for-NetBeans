@@ -61,7 +61,7 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
     @Override
     public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             int caretPosition, Extraction extraction,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         Problem result = null;
         // Ensure we are using the *names* key so we don't try to, for example,
         // overwrite an entire Antlr rule with its new name because we grabbed
@@ -110,7 +110,7 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
     public final Problem findUsages(BooleanSupplier cancelled, FileObject file,
             Extraction extraction, NamedSemanticRegion<T> region,
             NamedSemanticRegions<T> owner,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         Problem result = null;
         if (region instanceof NamedSemanticRegionReference<?>) {
             NamedSemanticRegion<?> orig = ((NamedSemanticRegionReference<?>) region).referencing();
@@ -148,13 +148,13 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
     private <T extends Enum<T>> Problem doFindUsages(BooleanSupplier cancelled,
             FileObject file, NamedSemanticRegion<T> region, NamedSemanticRegions<T> regions,
             Extraction origExtraction, 
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         // ImportersFinder will give us the set of files that import this one
         ImportersFinder impf = ImportersFinder.forFile(file);
         // We can get multiple callbacks per file for duplicate imports, so
         // keep a set so we only process each file once
         Set<FileObject> scanned = new HashSet<>();
-        return impf.usagesOf(cancelled, file, null, (IntRange<? extends IntRange> a, String b, FileObject c, ExtractionKey<?> d, Extraction ext) -> {
+        return impf.usagesOf(cancelled, file, null, (IntRange<? extends IntRange<?>> a, String b, FileObject c, ExtractionKey<?> d, Extraction ext) -> {
             Problem result = null;
             if (scanned.contains(c) || cancelled.getAsBoolean()) { // done or already did it
                 logFinest("Already scanned {0}", c.getNameExt());
@@ -194,7 +194,7 @@ public class SimpleUsagesFinder<T extends Enum<T>> extends UsagesFinder {
             NamedSemanticRegion<?> reg, NameReferenceSetKey<T> key,
             FileObject origFile, Extraction origExtraction,
             FileObject scanning, Extraction scanningExtraction,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
 
         Problem result = null;
         // Attribute unknown variables for the passed key in the file that imports

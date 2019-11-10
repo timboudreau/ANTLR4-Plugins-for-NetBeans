@@ -13,35 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring;
-
-import com.mastfrog.abstractions.Named;
-import com.mastfrog.abstractions.Stringifier;
+package org.nemesis.antlr.refactoring.common;
 
 /**
+ * Abstraction for tasks (such as removing instant renamers, which should always
+ * be done before invoking a refactoring).
  *
  * @author Tim Boudreau
  */
-final class NamedStringifier implements Stringifier<Named> {
+public interface BeforeRefactoringTask {
 
-    static final NamedStringifier INSTANCE = new NamedStringifier();
+    /**
+     * Implement to run any code that should run <i>immediately</i>
+     * before refactoring invocation.
+     */
+    void prepare();
 
-    @Override
-    public String toString(Named obj) {
-        return obj.name();
-    }
+    /**
+     * Implement to run any code that <i>must run in the event thread</i>
+     * after prepare() is called.
+     */
+    default void perform() {
 
-    @Override
-    public String toString() {
-        return "Stringifier<Named>";
-    }
-
-    public static Stringifier<Object> generic() {
-        return obj -> {
-            if (obj instanceof Named) {
-                return ((Named) obj).name();
-            }
-            return obj.toString();
-        };
     }
 }

@@ -22,7 +22,9 @@ import java.awt.Rectangle;
 import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
+import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.localizers.api.Localizers;
@@ -47,7 +49,7 @@ import org.openide.windows.TopComponent;
 class Usage extends AbstractRefactoringContext implements ComparableRefactoringElementImplementation {
 
     private final FileObject file;
-    private final IntRange<? extends IntRange> range;
+    private final IntRange<? extends IntRange<?>> range;
     private int status = NORMAL;
     private final ExtractionKey<?> key;
     private final String name;
@@ -56,7 +58,7 @@ class Usage extends AbstractRefactoringContext implements ComparableRefactoringE
     private final Object[] lookupContents;
     private final PositionBounds position;
 
-    Usage(FileObject file, IntRange<? extends IntRange> range, ExtractionKey<?> key, String name, Object... lookupContents) {
+    Usage(FileObject file, IntRange<? extends IntRange<?>> range, ExtractionKey<?> key, String name, Object... lookupContents) {
         this.file = file;
         this.range = range;
         this.key = key;
@@ -111,26 +113,42 @@ class Usage extends AbstractRefactoringContext implements ComparableRefactoringE
         if (range instanceof UnknownNameReference<?>) {
             return true;
         }
-        if (range instanceof org.nemesis.extraction.AttributedForeignNameReference<?,?,?,?>) {
+        if (range instanceof org.nemesis.extraction.AttributedForeignNameReference<?, ?, ?, ?>) {
             return true;
         }
         return false;
     }
 
+    private Object keyObject() {
+        if (range instanceof NamedSemanticRegion<?>) {
+            return ((NamedSemanticRegion<?>) range).kind();
+        } else if (range instanceof NamedSemanticRegionReference<?>) {
+            return ((NamedSemanticRegionReference<?>) range).kind();
+        } else if (range instanceof SingletonEncounters.SingletonEncounter<?>) {
+            return ((SingletonEncounters.SingletonEncounter) range).get();
+        }
+        return range;
+    }
+
     @Override
     @Messages({
         "# {0} - reference type",
-        "# {1} - file name",
-        "simple_usage={0} in {1}",
+        "# {1} - type of thing",
+        "# {2} - name",
+        "# {3} - file name",
+        "simple_usage=<html>{1} {0} <b>{2}</b> in {3}",
         "# {0} - reference type",
-        "# {1} - file name",
-        "simple_ref={0} in {1}"
+        "# {1} - type of thing",
+        "# {2} - name",
+        "# {3} - file name",
+        "simple_ref={1} {0} <b>{2}</b> in {3}"
     })
     public String getDisplayText() {
-        return getText();
-//        return isRef()
-//                ? Bundle.simple_ref(name, file.getName())
-//                : Bundle.simple_usage(name, file.getName());
+        String localizedKeyName = escapeHtml(Localizers.displayName(key));
+        String localizedObjectName = escapeHtml(Localizers.displayName(keyObject()));
+        String theName = this.name;
+        String fileName = file.getNameExt();
+        return Bundle.simple_usage(localizedKeyName, localizedObjectName, theName, fileName);
     }
 
     @Override

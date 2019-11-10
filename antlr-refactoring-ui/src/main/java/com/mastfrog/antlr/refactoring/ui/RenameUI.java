@@ -16,6 +16,9 @@
 package com.mastfrog.antlr.refactoring.ui;
 
 import com.mastfrog.abstractions.Named;
+import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findCategoryOfThingRefactored;
+import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findNameOfThingRefactored;
+import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findRefactoringFileName;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.EventQueue;
@@ -23,6 +26,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.util.Objects;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -33,6 +37,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
+import org.nemesis.charfilter.CharFilter;
 import org.netbeans.modules.refactoring.api.Problem;
 import org.netbeans.modules.refactoring.api.RenameRefactoring;
 import org.netbeans.modules.refactoring.spi.ui.CustomRefactoringPanel;
@@ -43,31 +48,44 @@ import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.Utilities;
+import org.openide.util.lookup.ProxyLookup;
 
 /**
  *
  * @author Tim Boudreau
  */
 @Messages({
-    "# {0} - the name",
-    "rename=Rename {0}",
-    "# {0} - the name",
-    "# {1} - the new name",
-    "rename_detail=Rename {0} to {1}"
+    "# {0} - category",
+    "# {1} - name",
+    "# {2} - newName",
+    "# {3} - file",
+    "rename=<html>Rename <b>{0}</b> <i>{1}</i> in {2}",
+    "# {0} - category",
+    "# {1} - name",
+    "# {2} - newName",
+    "# {3} - file",
+    "rename_detail=<html>Rename <b>{0}</b> <i>{1}</i> in {2}"
 })
 public class RenameUI extends BaseUI<RenameRefactoring> {
 
-    private final String what;
     private RenamePanelProvider provider;
 
     RenameUI(Lookup lookup) {
         super(new RenameRefactoring(lookup));
-        this.what = "dunno";
+    }
+
+    private Lookup lookup() {
+        return refactoring == null ? Lookup.EMPTY
+                : new ProxyLookup(refactoring.getRefactoringSource(), refactoring.getContext());
     }
 
     @Override
     public String getName() {
-        return Bundle.rename(what);
+        Lookup lookup = lookup();
+        return Bundle.rename_detail(findCategoryOfThingRefactored(lookup),
+                findNameOfThingRefactored(lookup),
+                newName(),
+                findRefactoringFileName(lookup));
     }
 
     private String newName() {
@@ -77,7 +95,7 @@ public class RenameUI extends BaseUI<RenameRefactoring> {
 
     @Override
     public String getDescription() {
-        return Bundle.rename_detail(what, newName());
+        return getName();
     }
 
     @Override
@@ -102,7 +120,25 @@ public class RenameUI extends BaseUI<RenameRefactoring> {
     }
 
     @Override
+    @Messages({
+        "nameUnchanged=Name not changed",
+        "emptyName=Empty name",
+        "invalidName=Name contains forbiddent characters"
+    })
     public Problem checkParameters() {
+        if (provider != null && Objects.equals(refactoring.getNewName(), provider.defaultName())) {
+            return new Problem(true, Bundle.nameUnchanged());
+        }
+        String name = refactoring.getNewName();
+        if (name != null) {
+            if (name.isEmpty() || name.trim().isEmpty()) {
+                return new Problem(true, Bundle.emptyName());
+            }
+            CharFilter filter = refactoring.getContext().lookup(CharFilter.class);
+            if (filter != null && !filter.test(name, false)) {
+                return new Problem(true, Bundle.invalidName());
+            }
+        }
         return refactoring.checkParameters();
     }
 
@@ -151,9 +187,9 @@ public class RenameUI extends BaseUI<RenameRefactoring> {
             }
         }
 
-        private String defaultName() {
+        String defaultName() {
             Named named = refactoring.getContext().lookup(Named.class);
-            System.out.println("\n\nREF CTX CONTENTS: " + refactoring.getContext().lookupAll(Object.class));
+//            System.out.println("\n\nREF CTX CONTENTS: " + refactoring.getContext().lookupAll(Object.class));
             if (named != null) {
                 name = named.name();
             }
@@ -208,6 +244,8 @@ public class RenameUI extends BaseUI<RenameRefactoring> {
             });
             JPanel result = new JPanel(new BorderLayout());
             result.add(panel, BorderLayout.NORTH);
+            // ensure the name state is updated
+            change();
             return result;
         }
 

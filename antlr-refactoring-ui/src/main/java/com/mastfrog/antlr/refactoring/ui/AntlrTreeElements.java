@@ -21,6 +21,9 @@ import java.awt.Component;
 import java.awt.Graphics;
 import java.io.IOException;
 import javax.swing.Icon;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.SingletonEncounters.SingletonEncounter;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.localizers.api.Localizers;
 import org.netbeans.api.actions.Openable;
@@ -87,21 +90,35 @@ public class AntlrTreeElements implements TreeElementFactoryImplementation {
             Icon result = I.INSTANCE;
             IntRange<?> range = el.getLookup().lookup(IntRange.class);
             if (range != null) {
-                result = Localizers.icon(range, result);
+                if (range instanceof NamedSemanticRegion<?>) {
+                    result = Localizers.icon(((NamedSemanticRegion<?>) range).kind());
+                    if (result.getIconHeight() > 0) {
+                        return result;
+                    }
+                } else if (range instanceof SingletonEncounter<?>) {
+                    result = Localizers.icon(((SingletonEncounter<?>) range).get());
+                    if (result.getIconHeight() > 0) {
+                        return result;
+                    }
+                } else if (range instanceof AttributedForeignNameReference<?,?,?,?>) {
+                    result = Localizers.icon(((AttributedForeignNameReference<?,?,?,?>) range).element().kind());
+                    if (result.getIconHeight() > 0) {
+                        return result;
+                    }
+                }
+                result = Localizers.icon(range);
+                if (result.getIconWidth() == 0) {
+                    ExtractionKey<?> key = el.getLookup().lookup(ExtractionKey.class);
+                    if (key != null) {
+                        result = Localizers.icon(key);
+                    }
+                }
             }
-            return result;
+            return result.getIconWidth() == 0 ? I.INSTANCE : result;
         }
 
         @Override
         public String getText(boolean bln) {
-//            return !bln ? el.getText() : el.getDisplayText();
-            IntRange<?> range = el.getLookup().lookup(IntRange.class);
-            if (range != null) {
-                ExtractionKey<?> ext = el.getLookup().lookup(ExtractionKey.class);
-
-                String nm = ext != null ? Localizers.displayName(ext) : el.getDisplayText();
-                return "<html><b>" + nm + "</b> " + Localizers.displayName(range);
-            }
             return el.getDisplayText();
         }
 

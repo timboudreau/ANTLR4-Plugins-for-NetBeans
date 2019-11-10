@@ -17,15 +17,22 @@ package org.nemesis.registration;
 
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
+import static com.mastfrog.annotation.AnnotationUtils.enclosingType;
+import static com.mastfrog.annotation.AnnotationUtils.simpleName;
+import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.annotation.processor.LayerTask;
 import com.mastfrog.annotation.validation.AnnotationMirrorTestBuilder;
 import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.collections.CollectionUtils.supplierMap;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -52,8 +59,10 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
+import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
 import static org.nemesis.registration.InplaceRenameProcessor.INPLACE_RENAME_ANNO_TYPE;
 import org.nemesis.registration.typenames.KnownTypes;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_REFACTORING_PLUGIN_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_FILTER;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_PREDICATE;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_PREDICATES;
@@ -65,9 +74,15 @@ import static org.nemesis.registration.typenames.KnownTypes.MESSAGES;
 import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_KEY;
 import static org.nemesis.registration.typenames.KnownTypes.NAME_REFERENCE_SET_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.REFACTORABILITY;
+import static org.nemesis.registration.typenames.KnownTypes.REFACTORINGS_BUILDER;
+import static org.nemesis.registration.typenames.KnownTypes.REFACTORING_PLUGIN_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.RENAME_PARTICIPANT;
+import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
+import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDERS;
 import static org.nemesis.registration.typenames.KnownTypes.SINGLETON_KEY;
 import org.nemesis.registration.typenames.TypeName;
+import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -77,7 +92,7 @@ import org.openide.util.lookup.ServiceProvider;
  * @author Tim Boudreau
  */
 @ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes(INPLACE_RENAME_ANNO_TYPE)
+@SupportedAnnotationTypes({INPLACE_RENAME_ANNO_TYPE, IMPORTS_ANNOTATION})
 public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
     private final Map<InplaceKey, List<InplaceInfo>> infos = supplierMap(ArrayList::new);
@@ -94,6 +109,7 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                 .whereAnnotationType(INPLACE_RENAME_ANNO_TYPE, b -> {
                     // Make sure the mime type is good
                     b.testMember("mimeType").validateStringValueAsMimeType().build();
+                    b.onlyOneMemberMayBeSet("useRefactoringApi", "renameParticipant");
                     // Test the filters don't contain duplicate elements or types that
                     // are not what is required
                     b.testMemberAsAnnotation("filter", bldr -> {
@@ -237,15 +253,30 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         return findSupertype(tm, base, new HashSet<>());
     }
 
+    private boolean sameTypes(TypeMirror t, TypeMirror base) {
+        if (t.toString().startsWith(base.toString())) {
+            String tn = processingEnv.getTypeUtils().erasure(t).toString();
+            if (tn.indexOf('<') > 0) {
+                // erasure(t) seems to be broken on JDK 10
+                tn = tn.substring(0, tn.indexOf('<'));
+            }
+            System.out.println("  COMPARE " + tn + " and " + base.toString());
+            if (tn.equals(base.toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private TypeMirror findSupertype(TypeMirror tm, TypeMirror base, Set<TypeMirror> seen) {
+        if (sameTypes(tm, base)) {
+            return tm;
+        }
         for (TypeMirror t : processingEnv.getTypeUtils().directSupertypes(tm)) {
             if (seen.contains(t)) {
                 continue;
-            }
-            if (t.toString().startsWith(base.toString())) {
-                if (processingEnv.getTypeUtils().erasure(t).toString().equals(base.toString())) {
-                    return t;
-                }
+            } else if (sameTypes(t, base)) {
+                return t;
             }
             TypeMirror result = findSupertype(t, base, seen);
             if (result != null) {
@@ -254,6 +285,17 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         }
         seen.add(tm);
         return null;
+    }
+
+    private boolean isReferenceKey(VariableElement el) {
+        return findSupertype(el.asType(), NAME_REFERENCE_SET_KEY.qnameNotouch()) != null;
+    }
+
+    private boolean isSingletonKey(VariableElement el) {
+        boolean result = findSupertype(el.asType(), SINGLETON_KEY.qnameNotouch()) != null;
+        System.out.println("TYPE OF EL is " + el.asType() + " looking for " + SINGLETON_KEY.qnameNotouch()
+                + " result " + result);
+        return result;
     }
 
     @Override
@@ -274,10 +316,18 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
     private void processItems() throws IOException {
         for (Iterator<Map.Entry<InplaceKey, List<InplaceInfo>>> it = infos.entrySet().iterator(); it.hasNext();) {
             Map.Entry<InplaceKey, List<InplaceInfo>> e = it.next();
-            InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> ib = null;
+            InvocationBuilder<BlockBuilder<ClassBuilder<String>>> creatingInstantRenameAction = null;
+            InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>> refactoringPluginFactoryConstructor = null;
             for (Iterator<InplaceInfo> infosIterator = e.getValue().iterator(); infosIterator.hasNext();) {
-                ib = processOneItem(e.getKey(), infosIterator.next(), e.getKey().classBuilder(), !infosIterator.hasNext(), ib);
+                InplaceInfo info = infosIterator.next();
+                if (info.generateInstantRenameSupport) {
+                    creatingInstantRenameAction = processOneItem(e.getKey(), info, e.getKey().classBuilder(), !infosIterator.hasNext(), creatingInstantRenameAction);
+                }
+                if (info.generateRefactoringSupport) {
+                    refactoringPluginFactoryConstructor = processOneRefactoring(e.getKey(), info, e.getKey().refactoringsClassBuilder(), !infosIterator.hasNext(), refactoringPluginFactoryConstructor);
+                }
             }
+            ensureLayerGenerationTaskAdded(e.getKey());
         }
         infos.clear();
     }
@@ -378,7 +428,7 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         return res;
     }
 
-    private void charFilterSpec(AnnotationMirror mirror, InvocationBuilder<InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>>> ib, ClassBuilder<?> cb) {
+    private <T> void charFilterSpec(AnnotationMirror mirror, InvocationBuilder<InvocationBuilder<T>> ib, ClassBuilder<?> cb) {
         AnnotationMirror initial = utils().annotationValue(mirror, "initialCharacter", AnnotationMirror.class);
         if (initial == null) {
             CHAR_PREDICATE.addImport(cb);
@@ -398,29 +448,63 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
 
     }
 
+    /**
+     * Handle one inplace rename operation, adding the necessary calls to the
+     * builder-in-progress, adding the statements for creating it if not
+     * present.
+     *
+     * @param key The key
+     * @param info The annotated item
+     * @param cb The class builder for adding imports to
+     * @param last Whether or not this is the last one and the builder should be
+     * closed
+     * @param subInvocation The call-in-progress which we will be chaining calls
+     * to
+     * @return The call-in-progress, to be added to by the next item if need be.
+     * @throws IOException If something goes wrong
+     */
     private InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> processOneItem(
             InplaceKey key, InplaceInfo info, ClassBuilder<String> cb, boolean last, InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> subInvocation) throws IOException {
         AnnotationMirror mirror = info.mirror;
 
-        TypeElement encType = AnnotationUtils.enclosingType(info.el);
-        String fqn = encType.getQualifiedName() + "." + info.el.getSimpleName();
+        // Get the owning type of the annotated variable and generate a static import
+        // for the variable
+        TypeElement encType = AnnotationUtils.enclosingType(info.var);
+        String fqn = encType.getQualifiedName() + "." + info.var.getSimpleName();
         cb.staticImport(fqn);
 
         if (subInvocation == null) {
+            // Open the builder - first invocation
             subInvocation = key.invocation().onInvocationOf("add")
-                    .withArgument(info.el.getSimpleName().toString());
+                    .withArgument(info.var.getSimpleName().toString());
         } else {
+            // Continue the builder - subsequent invocation
             subInvocation = subInvocation.onInvocationOf("add")
-                    .withArgument(info.el.getSimpleName().toString());
+                    .withArgument(info.var.getSimpleName().toString());
         }
-        List<String> rpTypes = utils().typeList(info.mirror, "renameParticipant", RENAME_PARTICIPANT.qnameNotouch());
-        if (!rpTypes.isEmpty()) {
+        // The test will have already flagged it if both renameParticipant and useRefactoringApi
+        // are present, and we will never get here
+        boolean isUseRefactoringApi = utils().annotationValue(mirror, "useRefactoringApi", Boolean.class, false);
+        if (!isUseRefactoringApi) {
+            // If not the refactoring API, see if a type is specified - if it is, we have
+            // already validated that it is reachable and type-compatible
+            List<String> rpTypes = utils().typeList(info.mirror, "renameParticipant", RENAME_PARTICIPANT.qnameNotouch());
+            if (!rpTypes.isEmpty()) {
+                RENAME_PARTICIPANT.addImport(cb);
+                TypeName participantType = TypeName.fromQualifiedName(rpTypes.get(0).replace('$', '.'));
+                participantType.addImport(cb);
+                subInvocation = subInvocation.withArgument("new " + participantType.simpleName() + "()");
+            }
+        } else {
+            // Add a call to RenameParticipant.useRefactoringParticipant, which always
+            // forwards inplace rename invocations to the refactoring api
             RENAME_PARTICIPANT.addImport(cb);
-            TypeName participantType = TypeName.fromQualifiedName(rpTypes.get(0).replace('$', '.'));
-            participantType.addImport(cb);
-            subInvocation = subInvocation.withArgument("new " + participantType.simpleName() + "()");
+            subInvocation = subInvocation.withArgumentFromInvoking("useRefactoringParticipant")
+                    .on(RENAME_PARTICIPANT.simpleName());
         }
 
+        // See if we have a char filter configured, and if so, add the calls to add that
+        // before completing this entry in the builder
         AnnotationMirror charFilterSpec = utils().annotationValue(mirror, "filter", AnnotationMirror.class);
         if (charFilterSpec != null) {
             CHAR_FILTER.addImport(cb);
@@ -430,14 +514,131 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         }
 
         if (last) {
+            // Add the outermost (FIRST!) call and close the block
             subInvocation.onInvocationOf("builder").on(INSTANT_RENAME_ACTION.simpleName()).endBlock();
             writeOne(cb);
         }
         return subInvocation;
     }
 
+    private InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>> processOneRefactoring(
+            InplaceKey key, InplaceInfo info, ClassBuilder<String> cb, boolean last, InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>> subInvocation)
+            throws IOException {
+
+        System.err.println("Generate " + key + " for " + key.mimeType);
+
+        // Create our final call on the builder - everything we do here is
+        // chained BEHIND that (as in, we add the calls in reverse order of how
+        // they will show up in source code), so the final on(what) or inScope()
+        // indicates to the InvocationBuilder that it is complete and should be
+        // added to the block it is in
+        if (subInvocation == null) {
+            key.refactoringsInvocationBuilder().lineComment(info + " for " + key);
+            InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>> b
+                    = key.refactoringsInvocationBuilder().invoke("finished");
+            subInvocation = b;
+        }
+
+        // Get the FQN of the field that was annotated, and generate a static import
+        String targetFieldName = info.var.getSimpleName().toString();
+        String targetFieldFqn = AnnotationUtils.enclosingType(info.var).getQualifiedName() + "." + targetFieldName;
+        cb.staticImport(targetFieldFqn);
+
+        // Add the usages calls in reverse order
+        subInvocation = subInvocation
+                .onInvocationOf("finding").withArgument(targetFieldName)
+                .onInvocationOf("usages");
+
+        AnnotationMirror mirror = info.mirror;
+        AnnotationMirror charFilterSpec = utils().annotationValue(mirror, "filter", AnnotationMirror.class);
+        // If we have a character filter, add that for the rename we're about to add
+        // (again, this must be done in reverse order)
+        if (charFilterSpec != null) {
+            subInvocation = subInvocation.onInvocationOf("withCharFilter");
+            CHAR_FILTER.addImport(cb);
+            InvocationBuilder<InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>>> cfSub
+                    = subInvocation.withArgumentFromInvoking("of");
+            charFilterSpec(charFilterSpec, cfSub, cb);
+        } else {
+            subInvocation = subInvocation.onInvocationOf("build");
+        }
+
+        // Now add rename info
+        subInvocation = subInvocation
+                .onInvocationOf("renaming").withArgument(targetFieldName)
+                .onInvocationOf("rename");
+        if (isSingletonKey(info.var)) {
+            VariableElement importsKey = importsAnnotated.get(key.mimeType);
+            System.err.println("Have a singleton key " + info.var.getSimpleName() + " - imports key " + importsKey);
+            if (importsKey != null) {
+                importsAnnotated.remove(key.mimeType);
+                TypeElement importKeyOwner = AnnotationUtils.enclosingType(importsKey);
+                String importKeyName = importsKey.getSimpleName().toString();
+                String importKeyFqn = importKeyOwner.getQualifiedName() + "." + importKeyName;
+                cb.staticImport(importKeyFqn);
+
+                subInvocation = subInvocation.onInvocationOf("finding")
+                        .withArgument(importKeyName)
+                        .withArgument(targetFieldName)
+                        .onInvocationOf("usages");
+
+                if (charFilterSpec != null) {
+                    subInvocation = subInvocation.onInvocationOf("withCharFilter");
+                    CHAR_FILTER.addImport(cb);
+                    InvocationBuilder<InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>>> cfSub
+                            = subInvocation.withArgumentFromInvoking("of");
+                    charFilterSpec(charFilterSpec, cfSub, cb);
+                } else {
+                    subInvocation = subInvocation.onInvocationOf("build");
+                }
+
+                subInvocation = subInvocation
+                        .onInvocationOf("renaming")
+                        .withArgument(importKeyName)
+                        .withArgument(targetFieldName)
+                        .onInvocationOf("rename");
+
+                System.out.println("SubInvocation now " + subInvocation);
+
+            } else {
+                System.err.println("No key for type " + info + " have items for mime type? " + importsAnnotated.containsKey(key.mimeType));
+            }
+        } else {
+            System.err.println("Not a singleton key " + info + " have items for mime type? " + importsAnnotated.containsKey(key.mimeType));
+        }
+
+        // Prepend the call that opens the builder in the first place
+        if (last) {
+            subInvocation.on("bldr")
+                    // Close the lambda
+                    .endBlock()
+                    // Close the super invocation
+                    .inScope()
+                    // Close the constructor body
+                    .endBlock();
+
+            writeOne(cb);
+        }
+        return subInvocation;
+    }
+
+    private final Map<String, VariableElement> importsAnnotated = new HashMap<>();
+
+    protected boolean processImportsAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        if (mimeType != null) {
+            System.err.println("ADD " + var + " for " + mimeType);
+            importsAnnotated.put(mimeType, var);
+        }
+        return false;
+    }
+
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        if (IMPORTS_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
+            System.err.println("HAVE AN IMPORTS ANNOTATION " + var.getSimpleName() + " in " + enclosingType(var));
+            return processImportsAnnotation(var, mirror, roundEnv);
+        }
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         String pkg = utils().packageName(var);
         String className = capitalize(AnnotationUtils.stripMimeType(mimeType)) + "InplaceRenameAction";
@@ -446,21 +647,101 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         InplaceInfo info = new InplaceInfo(var, mirror);
 
         infos.get(key).add(info);
-        return true;
+        return false;
+    }
+
+    private Set<InplaceKey> haveRegisteredLayerGenerationTasks = new HashSet<>();
+
+    private void ensureLayerGenerationTaskAdded(InplaceKey key) {
+        if (!haveRegisteredLayerGenerationTasks.contains(key)) {
+            Set<VariableElement> allElements = new HashSet<>();
+            for (InplaceInfo item : this.infos.get(key)) {
+                if (item.generateRefactoringSupport) {
+                    allElements.add(item.var);
+                }
+            }
+            if (!allElements.isEmpty()) {
+                addLayerTask(new GenerateLayerRefactoringActions(key), allElements.toArray(new Element[allElements.size()]));
+            }
+        }
+    }
+
+    static enum Refactorings {
+        RENAME("org.netbeans.modules.refactoring.api.ui.RenameAction.instance",
+                "org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory", "renameAction"),
+        WHERE_USED("org.netbeans.modules.refactoring.api.ui.WhereUsedAction.instance",
+                "org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory", "whereUsedAction");
+        private final String layerFileName;
+        private final String factoryClass;
+        private final String factoryMethod;
+
+        private Refactorings(String layerFileName, String factoryClass, String factoryMethod) {
+            this.layerFileName = layerFileName;
+            this.factoryClass = factoryClass;
+            this.factoryMethod = factoryMethod;
+        }
+
+        void addToLayer(LayerBuilder bldr, String folderPath, int index) {
+            LayerBuilder.File file = bldr.file(folderPath + "/" + layerFileName);
+            file.methodvalue("instanceCreate", factoryClass, factoryMethod);
+            file.stringvalue("instanceOf", "javax.swing.Action");
+            // Space the positions so user code can insert in between if needed
+            file.intvalue("position", index * 100);
+            file.write();
+        }
+    }
+
+    class GenerateLayerRefactoringActions implements LayerTask {
+
+        private final InplaceKey key;
+
+        public GenerateLayerRefactoringActions(InplaceKey key) {
+            this.key = key;
+        }
+
+        private Set<Refactorings> generatingRefactorings() {
+            return EnumSet.allOf(Refactorings.class);
+        }
+
+        @Override
+        public void run(LayerBuilder bldr) throws Exception {
+            haveRegisteredLayerGenerationTasks.remove(key);
+            Set<Refactorings> refactorings = generatingRefactorings();
+            if (refactorings.isEmpty()) {
+                return;
+            }
+            String basePath = "Editors/" + key.mimeType + "/";
+            for (String layerFolder : new String[]{"RefactoringActions", "Popup"}) {
+                int ix = 1;
+                for (Refactorings ref : refactorings) {
+                    ref.addToLayer(bldr, basePath + layerFolder, ix++);
+                }
+            }
+        }
     }
 
     static class InplaceInfo {
 
-        final VariableElement el;
+        final VariableElement var;
         final AnnotationMirror mirror;
+        final boolean generateRefactoringSupport;
+        final boolean generateInstantRenameSupport;
 
-        public InplaceInfo(VariableElement el, AnnotationMirror mirror) {
-            this.el = el;
+        public InplaceInfo(VariableElement el, AnnotationMirror mirror, boolean generateInstantRenameSupport, boolean generateRefactoringSupport) {
+            this.var = el;
             this.mirror = mirror;
+            this.generateRefactoringSupport = generateRefactoringSupport;
+            this.generateInstantRenameSupport = generateInstantRenameSupport;
         }
 
+        public InplaceInfo(VariableElement el, AnnotationMirror mirror) {
+            this(el, mirror, true, true);
+        }
+
+        @Override
         public String toString() {
-            return el + " -> " + mirror;
+            return var + " -> " + mirror + "(" + (generateInstantRenameSupport ? "instant-rename" : "no-instant-rename")
+                    + " " + (generateInstantRenameSupport ? "instant-rename" : "no-instant-rename") + ")";
         }
     }
 
@@ -470,14 +751,50 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
         private final String pkg;
         private final String className;
         private ClassBuilder<String> classBuilder;
+        private ClassBuilder<String> refactoringsClassBuilder;
+
         private InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> invocation;
         private final Set<String> packagesWithBundleKey;
+        private BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>> refactoringsBuilder;
 
         public InplaceKey(String mimeType, String pkg, String className, Set<String> packagesWithBundleKey) {
             this.mimeType = mimeType;
             this.pkg = pkg;
             this.className = className;
             this.packagesWithBundleKey = packagesWithBundleKey;
+        }
+
+        BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>> refactoringsInvocationBuilder() {
+            return refactoringsBuilder == null ? refactoringsBuilder
+                    = refactoringsClassBuilder().constructor().setModifier(PUBLIC)
+                            .body().invoke("super").withStringLiteral(mimeType)
+                            .withLambdaArgument().withArgument(REFACTORINGS_BUILDER.simpleName(), "bldr").body()
+                    : refactoringsBuilder;
+        }
+
+        ClassBuilder<String> refactoringsClassBuilder() {
+            if (refactoringsClassBuilder == null) {
+                refactoringsClassBuilder = ClassBuilder.forPackage(pkg)
+                        .named(stripMimeType(mimeType).toUpperCase() + "RefactoringPluginFactory")
+                        .extending(ANTLR_REFACTORING_PLUGIN_FACTORY.simpleName())
+                        .withModifier(PUBLIC, FINAL)
+                        .docComment("Generated from annotations")
+                        .annotatedWith(SERVICE_PROVIDERS.simpleName(), ab -> {
+                            ClassBuilder.ArrayValueBuilder<?> arr = ab.addArrayArgument("value");
+                            for (KnownTypes type : new KnownTypes[]{REFACTORING_PLUGIN_FACTORY, REFACTORABILITY}) {
+                                arr.annotation(SERVICE_PROVIDER.simpleName())
+                                        .addClassArgument("service", type.simpleName())
+                                        .addArgument("position", 107).closeAnnotation();
+                            }
+                            arr.closeArray();
+                        });
+                TypeName.addImports(refactoringsClassBuilder,
+                        ANTLR_REFACTORING_PLUGIN_FACTORY, SERVICE_PROVIDERS,
+                        SERVICE_PROVIDER, REFACTORING_PLUGIN_FACTORY,
+                        REFACTORABILITY, REFACTORINGS_BUILDER);
+
+            }
+            return refactoringsClassBuilder;
         }
 
         InvocationBuilder<ClassBuilder.BlockBuilder<ClassBuilder<String>>> invocation() {
@@ -517,7 +834,7 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                             mb.annotatedWith(MIME_REGISTRATION.simpleName(), ab -> {
                                 ab.addArgument("mimeType", mimeType)
                                         .addClassArgument("service", HIGHLIGHTS_LAYER_FACTORY.simpleName()
-                                        ).addArgument("position", 100);
+                                        ).addArgument("position", 107);
                             });
                             mb.withModifier(PUBLIC, STATIC)
                                     .returning(HIGHLIGHTS_LAYER_FACTORY.simpleName())
@@ -563,6 +880,41 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                 return false;
             }
             return Objects.equals(this.className, other.className);
+        }
+    }
+
+    private SupportedExtractionKeyType keyType(VariableElement el) {
+        TypeMirror t = el.asType();
+        for (SupportedExtractionKeyType s : SupportedExtractionKeyType.values()) {
+            TypeMirror result = this.findSupertype(t, s.typeName());
+            if (result != null) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    static enum SupportedExtractionKeyType {
+        NAME_REFERENCE_SETS(NAME_REFERENCE_SET_KEY.qnameNotouch()),
+        NAMED_REGIONS(NAMED_REGION_KEY.qnameNotouch()),
+        SINGLETON(SINGLETON_KEY.qnameNotouch());
+        private final String typeName;
+
+        private SupportedExtractionKeyType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public TypeMirror type(AnnotationUtils utils) {
+            return utils.type(typeName);
+        }
+
+        String typeName() {
+            return typeName;
+        }
+
+        @Override
+        public String toString() {
+            return simpleName(typeName);
         }
     }
 }

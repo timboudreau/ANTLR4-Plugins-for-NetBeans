@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.refactoring;
+package org.nemesis.antlr.refactoring.impl;
 
 import java.util.Map;
 import javax.swing.Icon;

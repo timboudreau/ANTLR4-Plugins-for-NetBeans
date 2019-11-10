@@ -123,7 +123,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
     @Override
     public final Problem usagesOf(BooleanSupplier cancelled, FileObject file,
             NamedRegionKey<?> optionalImportKey,
-            PetaFunction<IntRange<? extends IntRange>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
+            PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
         Problem result = null;
         ImportFinder imports = ImportFinder.forMimeType(file.getMIMEType());
         if (imports.isAlwaysEmpty()) {

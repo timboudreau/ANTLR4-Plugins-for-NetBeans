@@ -22,13 +22,13 @@ import org.nemesis.localizers.annotations.Localize;
  *
  * @author Tim Boudreau
  */
-@Localize(displayName="Rule Type", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
+@Localize(displayName="Rule", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
 public enum RuleTypes implements Supplier<String> {
     @Localize(displayName="Fragment", iconPath="org/nemesis/antlr/common/fragment.png")
     FRAGMENT, 
-    @Localize(displayName="Lexer Rule", iconPath="org/nemesis/antlr/common/lexer.png")
+    @Localize(displayName="Lexer", iconPath="org/nemesis/antlr/common/lexer.png")
     LEXER,
-    @Localize(displayName="Parser Rule", iconPath="org/nemesis/antlr/common/parser.png")
+    @Localize(displayName="Parser", iconPath="org/nemesis/antlr/common/parser.png")
     PARSER,
     @Localize(displayName="Alternative", iconPath="org/nemesis/antlr/common/alternative.png")
     NAMED_ALTERNATIVES

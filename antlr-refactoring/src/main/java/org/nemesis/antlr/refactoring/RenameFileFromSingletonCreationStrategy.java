@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
@@ -31,8 +30,8 @@ import org.openide.filesystems.FileObject;
 final class RenameFileFromSingletonCreationStrategy<T> implements SingletonRefactoringCreationStrategy<RenameRefactoring, T> {
 
     @Override
-    public RefactoringPlugin createRefactoringPlugin(SingletonKey<T> key, RenameRefactoring refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<T> item, Stringifier<? super T> optionalStringifier, CharFilter filter) {
-        return new RenameFileAndReferencesFromSingletonPlugin<>(key, refactoring, extraction, file, item, optionalStringifier, filter);
+    public RefactoringPlugin createRefactoringPlugin(SingletonKey<T> key, RenameRefactoring refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<T> item, CharFilter filter) {
+        return new RenameFileAndReferencesFromSingletonPlugin<>(key, refactoring, extraction, file, item, filter);
     }
 
     @Override

@@ -15,8 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Named;
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.function.throwing.ThrowingBiFunction;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
@@ -25,6 +23,7 @@ import com.mastfrog.util.collections.ArrayUtils;
 import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
+import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -104,6 +103,22 @@ public abstract class AbstractRefactoringContext {
     private static boolean cacheDisabled = Boolean.getBoolean("AbstractRefactoringContext.noCache");
     private static final ThreadLocal<CacheContext> CTX = ThreadLocal.withInitial(CacheContext::new);
     static boolean debugLog = true;
+
+    protected static String escapeHtml(String s) {
+        return Strings.escape(s, AbstractRefactoringContext::escape);
+    }
+
+    static CharSequence escape(char c) {
+        switch (c) {
+            case '<':
+                return "&lt";
+            case '>':
+                return "&gt;";
+            case '"':
+                return "&quot;";
+        }
+        return Strings.singleChar(c);
+    }
 
     /**
      * Logging support - all subclasses get a per-type logger; this allows debug
@@ -295,15 +310,6 @@ public abstract class AbstractRefactoringContext {
         return fo;
     }
 
-    /**
-     * Returns a Stringifier for Named.
-     *
-     * @return A stringifier
-     */
-    public static Stringifier<Named> namedStringifier() {
-        return NamedStringifier.INSTANCE;
-    }
-
     private static final class CacheContext {
 
         private int entryCount;
@@ -454,7 +460,7 @@ public abstract class AbstractRefactoringContext {
      * @param found The discovered region
      * @return true if they match
      */
-    protected static boolean sameRange(IntRange<? extends IntRange> reg, IntRange<? extends IntRange> found) {
+    protected static boolean sameRange(IntRange<? extends IntRange<?>> reg, IntRange<? extends IntRange<?>> found) {
         return reg == found || reg.relationTo(found) == RangeRelation.EQUAL || reg.equals(found);
     }
 
@@ -593,7 +599,7 @@ public abstract class AbstractRefactoringContext {
      * @param lookupContents Any contents which should be included in its lookup
      * @return A refactoring element
      */
-    protected static RefactoringElementImplementation createUsage(FileObject file, 
+    protected static RefactoringElementImplementation createUsage(FileObject file,
             IntRange<? extends IntRange> range, ExtractionKey<?> key, String name, Object... lookupContents) {
         return new Usage(file, range, key, name, lookupContents);
     }

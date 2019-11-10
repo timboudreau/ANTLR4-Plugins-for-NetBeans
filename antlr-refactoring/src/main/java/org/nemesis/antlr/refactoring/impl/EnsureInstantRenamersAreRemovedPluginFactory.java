@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.instantrename.impl;
+package org.nemesis.antlr.refactoring.impl;
 
+import java.awt.EventQueue;
 import java.util.Collections;
 import java.util.Set;
-import javax.swing.SwingUtilities;
+import org.nemesis.antlr.refactoring.common.BeforeRefactoringTask;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.api.Problem;
 import org.netbeans.modules.refactoring.api.ProgressEvent;
@@ -35,13 +36,13 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service=RefactoringPluginFactory.class, position=96)
 public class EnsureInstantRenamersAreRemovedPluginFactory implements RefactoringPlugin, RefactoringPluginFactory {
 
-    private static final Set<RenamePerformer> registry = Collections.synchronizedSet(new WeakSet<RenamePerformer>());
+    private static final Set<BeforeRefactoringTask> registry = Collections.synchronizedSet(new WeakSet<BeforeRefactoringTask>());
 
-    public static void register(RenamePerformer run) {
+    public static void register(BeforeRefactoringTask run) {
         registry.add(run);
     }
 
-    public static boolean deregister(RenamePerformer run) {
+    public static boolean deregister(BeforeRefactoringTask run) {
         return registry.remove(run);
     }
 
@@ -74,16 +75,14 @@ public class EnsureInstantRenamersAreRemovedPluginFactory implements Refactoring
         refactoringElements.getSession().addProgressListener(new ProgressListener() {
             @Override
             public void start(ProgressEvent event) {
-                final RenamePerformer[] performers = registry.toArray(new RenamePerformer[0]);
-                for (RenamePerformer p : performers) {
-                    p.markSynced();
+                final BeforeRefactoringTask[] performers = registry.toArray(new BeforeRefactoringTask[0]);
+                registry.clear();
+                for (BeforeRefactoringTask p : performers) {
+                    p.prepare();
                 }
-                SwingUtilities.invokeLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        for (RenamePerformer p : performers) {
-                            p.release(true);
-                        }
+                EventQueue.invokeLater(() -> {
+                    for (BeforeRefactoringTask p : performers) {
+                        p.perform();
                     }
                 });
             }

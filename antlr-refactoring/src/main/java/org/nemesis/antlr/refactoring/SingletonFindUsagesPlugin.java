@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.range.IntRange;
 import org.nemesis.antlr.refactoring.usages.SingletonUsagesFinder;
 import org.nemesis.extraction.Extraction;
@@ -35,39 +34,36 @@ public class SingletonFindUsagesPlugin<T> extends AbstractAntlrRefactoringPlugin
 
     private final SingletonKey<T> key;
     private final SingletonEncounter<T> singleton;
-    private final Stringifier<? super T> stringifier;
 
     public SingletonFindUsagesPlugin(WhereUsedQuery refactoring, Extraction extraction, FileObject file, SingletonKey<T> key,
-            SingletonEncounter<T> singleton, Stringifier<T> stringifier) {
+            SingletonEncounter<T> singleton) {
         super(refactoring, extraction, file);
         this.key = key;
         this.singleton = singleton;
-        this.stringifier = stringifier == null ? NamedStringifier.generic() : stringifier;
         refactoring.getContext().add(key);
         refactoring.getContext().add(singleton);
         refactoring.getContext().add(singleton.get());
-        refactoring.getContext().add(this.stringifier);
     }
 
     @Override
     protected Object[] getLookupContents() {
-        return stringifier == null ? new Object[]{key, singleton}
-                : new Object[] {key, singleton, stringifier};
+        return new Object[]{key, singleton};
     }
 
     @Override
     protected Problem doPrepare(RefactoringElementsBag bag) {
-        SingletonUsagesFinder<T> finder = new SingletonUsagesFinder<>(key, stringifier);
-        return finder.findUsages(this::isCancelled, file, singleton, (IntRange<? extends IntRange> bounds, String itemName, FileObject inFile, ExtractionKey<?> key, Extraction inExtraction) -> {
-            bag.add(refactoring, createUsage(inFile, bounds, key, itemName, key));
-            return null;
-        });
+        SingletonUsagesFinder<T> finder = new SingletonUsagesFinder<>(key);
+        return finder.findUsages(this::isCancelled, file, singleton,
+                (IntRange<? extends IntRange<?>> bounds, String itemName, FileObject inFile, ExtractionKey<?> key, Extraction inExtraction) -> {
+                    bag.add(refactoring, createUsage(inFile, bounds, key, itemName, key));
+                    return null;
+                });
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "("
-                + key + " " + singleton + " " + stringifier
+                + key + " " + singleton
                 + file.getNameExt() + " "
                 + refactoring + " "
                 + extraction.tokensHash() + " "

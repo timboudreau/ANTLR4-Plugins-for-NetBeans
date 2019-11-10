@@ -15,15 +15,15 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Named;
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
+import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.supplierMap;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import javax.swing.text.BadLocationException;
 import org.nemesis.antlr.refactoring.usages.ImportersFinder;
@@ -54,8 +54,6 @@ import org.openide.util.NbBundle;
 class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefactoringPlugin<RenameRefactoring> {
 
     private final SingletonEncounters.SingletonEncounter<T> decl;
-    private final Stringifier<? super T> stringifier;
-    private boolean warned;
     private final SingletonKey<T> key;
     private final CharFilter filter;
 
@@ -65,24 +63,20 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
             Extraction extraction,
             FileObject file,
             SingletonEncounters.SingletonEncounter<T> decl,
-            Stringifier<? super T> stringifier,
             CharFilter filter) {
         super(refactoring, extraction, file);
         this.decl = notNull("decl", decl);
         this.key = notNull("key", key);
-        this.stringifier = NamedStringifier.generic(); // null ok
         this.filter = filter == null ? CharFilter.ALL : filter; // null ok
         refactoring.getContext().add(key);
         refactoring.getContext().add(decl);
         refactoring.getContext().add(decl.get());
-        refactoring.getContext().add(stringifier == null ? NamedStringifier.generic() : stringifier);
         refactoring.getContext().add(this.filter);
     }
 
     @Override
     protected Object[] getLookupContents() {
-        return stringifier == null ? new Object[]{key, filter}
-                : new Object[]{key, filter, stringifier};
+        return new Object[]{key, filter, decl, oldName()};
     }
 
     @Override
@@ -101,26 +95,7 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
     }
 
     private String oldName() {
-        String name;
-        if (stringifier == null) {
-            T obj = decl.get();
-            if (obj instanceof Named) {
-                name = ((Named) obj).name();
-            } else {
-                if (!warned) {
-                    warned = true;
-                    logWarn("No stringifier provided and "
-                            + "{0} does not implement Named. Using toString()"
-                            + "for {1}",
-                            obj == null ? "<nulltype>" : obj.getClass().getName(),
-                            obj);
-                }
-                name = obj == null ? "null" : obj.toString();
-            }
-        } else {
-            name = stringifier.toString(decl.get());
-        }
-        return name;
+        return Localizers.displayName(decl.get());
     }
 
     private static Problem fatal(String msg) {
@@ -148,43 +123,50 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
     @Override
     public Problem doPrepare(RefactoringElementsBag bag) {
         Problem check = checkParameters();
-        if (check != null) {
-            return check;
-        }
-        // Ensure we don't provision hints and similar across a bunch of
-        // related files - not needed here, and a reparse will be
-        // triggered on rewrite
-        return AbstractRefactoringContext.inParsingContext(() -> {
-            logFine("Prepare {0}", this);
-            Problem p  = collectImports(this::isCancelled, file, bag,
-                    refactoring, null);
-            if (isCancelled() || (p != null && p.isFatal())) {
-                logFine("Cancelled {0}", this);
+        if (check == null || !check.isFatal()) {
+            logFinest("Prepare Singleton rename refactoring");
+            // Ensure we don't provision hints and similar across a bunch of
+            // related files - not needed here, and a reparse will be
+            // triggered on rewrite
+            Problem nue = AbstractRefactoringContext.inParsingContext(() -> {
+                logFine("Prepare {0}", this);
+                List<RefactoringElementImplementation> result = new ArrayList<>(20);
+                Problem p = collectImports(this::isCancelled, file, bag,
+                        refactoring, null, result);
+                if (isCancelled() || (p != null && p.isFatal())) {
+                    logFine("Cancelled {0}", this);
+                    return p;
+                }
+                // do the rename last, so as not to interfere with anything
+                // trying to read it
+                bag.add(refactoring, new RenameFile(refactoring::getNewName, file));
+                for (RefactoringElementImplementation el : result) {
+                    bag.add(refactoring, el);
+                }
                 return p;
-            }
-            // do the rename last, so as not to interfere with anything
-            // trying to read it
-            bag.add(refactoring, new RenameFile(refactoring::getNewName, file));
-            return p;
-        });
+            });
+            check = chainProblems(nue, check);
+        }
+        return check;
     }
 
     Problem collectImports(BooleanSupplier cancelled, FileObject file,
             RefactoringElementsBag bag,
             RenameRefactoring refactoring,
-            NamedRegionKey<?> importKey) {
+            NamedRegionKey<?> importKey, List<RefactoringElementImplementation> result) {
         ImportersFinder finder = ImportersFinder.forFile(file);
 
-        List<RefactoringElementImplementation> result = new ArrayList<>(20);
-
-        return finder.usagesOf(this::isCancelled, file, importKey,
-                (IntRange<? extends IntRange> range, String originalName,
+        Map<FileObject, List<RangeEntry>> rangesForFile = supplierMap(ArrayList::new);
+        rangesForFile.get(file).add(new RangeEntry(decl, oldName()));
+        logFine("Collect imports for region key {0}", importKey);
+        Problem problem = finder.usagesOf(this::isCancelled, file, importKey,
+                (IntRange<? extends IntRange<?>> range, String originalName,
                         FileObject fo, ExtractionKey<?> key,
                         Extraction ignored) -> {
                     // Ensure we don't hold a reference to parse contents
                     // by copying to a plain IntRange from a NamedSemanticRegion or
                     // similar
-                    IntRange<? extends IntRange> ir = Range.ofCoordinates(
+                    IntRange<? extends IntRange<?>> ir = Range.ofCoordinates(
                             range.start(), range.end());
                     logFinest("Replace {0} with {1} in {2} at {3} for {4} {5}",
                             originalName,
@@ -193,18 +175,44 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
                             ir,
                             range,
                             Localizers.displayName(key));
-                    Problem problem = null;
-                    try {
-                        ReplaceRanges.create(key, fo, 
-                                Collections.singletonList(range),
-                                originalName,
-                                refactoring.getNewName(),
-                                result::add);
-                    } catch (IOException | BadLocationException ex) {
-                        log(ex);
-                        problem = toProblem(ex);
-                    }
-                    return problem;
+                    rangesForFile.get(fo).add(new RangeEntry(range, originalName));
+                    return null;
                 });
+        if (problem == null || !problem.isFatal()) {
+            for (Map.Entry<FileObject, List<RangeEntry>> e : rangesForFile.entrySet()) {
+                if (e.getValue().isEmpty()) {
+                    continue;
+                }
+                String originalName = e.getValue().get(0).origName;
+                List<IntRange<? extends IntRange<?>>> ranges = CollectionUtils.transform(e.getValue(), RangeEntry::range);
+                try {
+                    ReplaceRanges.create(key, e.getKey(),
+                            ranges,
+                            originalName,
+                            refactoring.getNewName(),
+                            result::add);
+                } catch (IOException | BadLocationException ex) {
+                    log(ex);
+                    problem = toProblem(ex);
+                    break;
+                }
+            }
+        }
+        return problem;
+    }
+
+    static final class RangeEntry {
+
+        private final IntRange<? extends IntRange<?>> range;
+        private final String origName;
+
+        public RangeEntry(IntRange<? extends IntRange<?>> range, String origName) {
+            this.range = range;
+            this.origName = origName;
+        }
+
+        IntRange<? extends IntRange<?>> range() {
+            return range;
+        }
     }
 }

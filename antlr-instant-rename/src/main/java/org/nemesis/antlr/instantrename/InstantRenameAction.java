@@ -24,13 +24,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.Action;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.instantrename.impl.RenameQueryResultTrampoline;
+import org.nemesis.antlr.refactoring.common.RefactoringActionsBridge;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.extraction.Extraction;
@@ -47,13 +47,9 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.api.indexing.IndexingManager;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
-import org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.openide.filesystems.FileObject;
-import org.openide.loaders.DataObject;
 import org.openide.util.NbBundle.Messages;
-import org.openide.util.lookup.Lookups;
-import org.openide.util.lookup.ProxyLookup;
 
 /**
  * Subclass this (or annotate one or more NameReferenceSetKeys with
@@ -93,6 +89,7 @@ public final class InstantRenameAction extends BaseAction {
     @Messages({
         ACTION_NAME + "=Rename",
         "InstantRenameDenied=Cannot perform rename here",
+        "readOnlyFile=Read-only file",
         "scanning-in-progress=Scanning In Progress"
     })
     @Override
@@ -112,6 +109,14 @@ public final class InstantRenameAction extends BaseAction {
                         Bundle.scanning_in_progress());
                 return;
             }
+
+            FileObject fo = NbEditorUtilities.getFileObject(document);
+            if (fo != null && !fo.canWrite()) {
+                Utilities.setStatusBoldText(target,
+                        Bundle.readOnlyFile());
+                return;
+            }
+
             Source source = Source.create(target.getDocument());
             if (source == null) {
                 return;
@@ -134,13 +139,6 @@ public final class InstantRenameAction extends BaseAction {
     @Override
     protected final Class<?> getShortDescriptionBundleClass() {
         return InstantRenameAction.class;
-    }
-
-    private static void doFullRename(DataObject obj, Document doc, JTextComponent comp, int caret) {
-        // You would expect this to work, but it doesn't.  Something missing from the lookup?
-        Action a = RefactoringActionsFactory.renameAction()
-                .createContextAwareInstance(new ProxyLookup(obj.getLookup(), Lookups.fixed(doc, comp)));
-        a.actionPerformed(RefactoringActionsFactory.DEFAULT_EVENT);
     }
 
     private static class RegionsFinder extends UserTask implements ThrowingSupplier<Iterable<? extends IntRange>>, Runnable {
@@ -210,8 +208,7 @@ public final class InstantRenameAction extends BaseAction {
                     Document doc = target.getDocument();
                     FileObject fo = NbEditorUtilities.getFileObject(doc);
                     if (fo != null) {
-                        DataObject dob = DataObject.find(fo);
-                        doFullRename(dob, baseDoc, target, caret);
+                        RefactoringActionsBridge.invokeFullRename(fo, baseDoc, target, caret);
                     }
                     break;
                 }

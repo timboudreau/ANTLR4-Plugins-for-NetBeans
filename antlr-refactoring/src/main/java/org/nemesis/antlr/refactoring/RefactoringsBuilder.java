@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import com.mastfrog.function.TriFunction;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.LinkedHashSet;
@@ -104,15 +103,14 @@ public final class RefactoringsBuilder {
         return new WhereUsedRefactoringBuilder(this);
     }
 
-//    /**
-//     * Create a new refactoring plugin factory suitable for registering in the
-//     * default lookup.
-//     *
-//     * @return A plugin factory
-//     */
-//    public RefactoringPluginFactory build() {
-//        return new AntlrRefactoringPluginFactory(mimeType, generators);
-//    }
+    /**
+     * Currently does nothing, but simplifies code generation.
+     *
+     * @return this
+     */
+    public RefactoringsBuilder finished() {
+        return this;
+    }
 
     public static class RefactoringItemBuilder<T, R extends AbstractRefactoring, B extends RefactoringItemBuilder<T, R, B>>
             extends AbstractRefactoringBuilder<T, B> {
@@ -146,28 +144,51 @@ public final class RefactoringsBuilder {
             this.builder = builder;
         }
 
-        public <T> RefactoringsBuilder finding(SingletonKey<T> k) {
-            return finding(k, null);
+        /**
+         * Find uses a region key representing an <i>import of another file</i>,
+         * matching the name of the queried region against names of files this
+         * file imports, then resolving the passed singleton key within that
+         * file, and running the requested refactoring against that.
+         *
+         * @param <K>
+         * @param <T>
+         * @param key
+         * @param asFileReferenceTo
+         * @return
+         */
+        public <K, T extends Enum<T>> RefactoringsBuilder finding(NamedRegionKey<T> key, SingletonKey<K> asFileReferenceTo) {
+            ImportKeyDelegateToSingletonKeyStrategy<T, K, WhereUsedQuery> strategy
+                    = ImportKeyDelegateToSingletonKeyStrategy.forWhereUsed(notNull("asFileReferenceTo", asFileReferenceTo),
+                            notNull("key", key), CharFilter.ALL /* filter does not matter for where used */);
+            return builder.add(WhereUsedQuery.class, strategy);
         }
 
-        public <T> RefactoringsBuilder finding(SingletonKey<T> k, Stringifier<? super T> stringifier) {
-            SingletonWhereUsedCreationStrategy<T> strat = new SingletonWhereUsedCreationStrategy<>(k);
-            SingletonRefactoringFactory<WhereUsedQuery, T> f = new StrategyRefactoringFactory<>(k, null, stringifier, strat);
+        /**
+         * Find usages of a singleton key, <i>treating it as a reference to the file
+         * the query was initiated in.
+         *
+         * @param <T>
+         * @param k The key
+         * @return This builder
+         */
+        public <T> RefactoringsBuilder finding(SingletonKey<T> k) {
+            SingletonWhereUsedCreationStrategy<T> strat = new SingletonWhereUsedCreationStrategy<>(notNull("k", k));
+            SingletonRefactoringFactory<WhereUsedQuery, T> f = new StrategyRefactoringFactory<>(k, null, strat);
             return builder.add(WhereUsedQuery.class, f);
         }
 
         public <T extends Enum<T>> RefactoringsBuilder finding(NamedRegionKey<T> k) {
-            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<T>(k);
+            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<>(notNull("k", k));
             builder.generators.add(
                     NamedRefactoringCreationStrategyFactory.create(WhereUsedQuery.class, c, k, CharFilter.ALL));
             return builder;
         }
 
         public <T extends Enum<T>> RefactoringsBuilder finding(NameReferenceSetKey<T> k) {
-            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<T>(k);
+            NamedCreationStrategy<WhereUsedQuery, T> c = new NamedCreationStrategyImpl<>(notNull("k", k));
             builder.generators.add(
                     NamedRefactoringCreationStrategyFactory.create(WhereUsedQuery.class, c, k, CharFilter.ALL));
-            return builder;
+            return finding(k.referencing());
         }
     }
 
@@ -200,6 +221,10 @@ public final class RefactoringsBuilder {
             this.builder = builder;
         }
 
+        public <T extends Enum<T>, K> RenameViaImportBuilder<T, K> renaming(NamedRegionKey<T> key, SingletonKey<K> asFileReferenceTo) {
+            return new RenameViaImportBuilder<>(builder, key, asFileReferenceTo);
+        }
+
         public <X, B extends SingletonFileNameRefactoringItemBuilder<RefactoringsBuilder, X, B>> SingletonFileNameRefactoringItemBuilder<RefactoringsBuilder, X, B>
                 renaming(SingletonKey<X> key) {
             SingletonFileNameRefactoringItemBuilder<RefactoringsBuilder, X, B> result = new SingletonFileNameRefactoringItemBuilder<>(notNull("key", key), sfnrib -> {
@@ -207,7 +232,6 @@ public final class RefactoringsBuilder {
                         new StrategyRefactoringFactory<>(
                                 key,
                                 sfnrib.nameFilter,
-                                sfnrib.stringifier,
                                 new RenameFileFromSingletonCreationStrategy<>()));
             });
             return result;
@@ -215,6 +239,36 @@ public final class RefactoringsBuilder {
 
         public <T extends Enum<T>> RenameNamedReferencesBuilder renaming(NameReferenceSetKey<T> key) {
             return new RenameNamedReferencesBuilder<>(builder, notNull("key", key));
+        }
+    }
+
+    public static final class RenameViaImportBuilder<T extends Enum<T>, K> {
+
+        private final RefactoringsBuilder builder;
+        private final NamedRegionKey<T> key;
+        private CharFilter filter;
+        private final SingletonKey<K> targetKey;
+
+        RenameViaImportBuilder(RefactoringsBuilder builder, NamedRegionKey<T> key, SingletonKey<K> targetKey) {
+            this.builder = builder;
+            this.key = key;
+            this.targetKey = targetKey;
+        }
+
+        public RefactoringsBuilder withCharFilter(CharFilter filter) {
+            this.filter = filter;
+            return build();
+        }
+
+        public CharFilterBuilder<RefactoringsBuilder> withCharFilter() {
+            return CharFilter.builder(cf -> {
+                return withCharFilter(cf);
+            });
+        }
+
+        public RefactoringsBuilder build() {
+            ImportKeyDelegateToSingletonKeyStrategy<T, K, RenameRefactoring> strategy = ImportKeyDelegateToSingletonKeyStrategy.forRename(targetKey, key, filter == null ? CharFilter.ALL : filter);
+            return builder.add(RenameRefactoring.class, strategy);
         }
     }
 
@@ -234,8 +288,15 @@ public final class RefactoringsBuilder {
             return build();
         }
 
+        public CharFilterBuilder<RefactoringsBuilder> withCharFilter() {
+            return CharFilter.builder(cf -> {
+                return withCharFilter(cf);
+            });
+        }
+
         public RefactoringsBuilder build() {
-            return builder.add(RenameRefactoring.class, RenameNamedPlugin.generator(key.referencing(), key, filter));
+            return builder.add(RenameRefactoring.class,
+                    RenameNamedPlugin.generator(key.referencing(), key, filter));
         }
     }
 
@@ -243,7 +304,6 @@ public final class RefactoringsBuilder {
             extends KeyedRefactoringItemBuilder<X, SingletonKey<X>, T, RenameRefactoring, B> {
 
         CharFilter nameFilter = CharFilter.ALL;
-        Stringifier<? super X> stringifier;
 
         SingletonFileNameRefactoringItemBuilder(SingletonKey<X> key, Function<? super B, T> converter) {
             super(key, RenameRefactoring.class, converter);
@@ -254,23 +314,18 @@ public final class RefactoringsBuilder {
             return getClass().getSimpleName()
                     + "(" + super.type.getSimpleName()
                     + " " + key + " " + nameFilter + " "
-                    + stringifier + ")";
+                    + ")";
         }
 
-        public CharFilterBuilder<B> withCharFilter() {
+        public CharFilterBuilder<T> withCharFilter() {
             return CharFilter.builder(cf -> {
-                return withNameFilter(cf);
+                return withCharFilter(cf);
             });
         }
 
-        public B withNameFilter(CharFilter filter) {
+        public T withCharFilter(CharFilter filter) {
             nameFilter = filter;
-            return cast();
-        }
-
-        public B withStringifier(Stringifier<? super X> stringifier) {
-            this.stringifier = stringifier;
-            return cast();
+            return done();
         }
 
         public T build() {

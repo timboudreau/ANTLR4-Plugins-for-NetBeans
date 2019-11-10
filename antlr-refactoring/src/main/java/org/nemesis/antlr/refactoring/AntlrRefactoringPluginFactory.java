@@ -58,6 +58,14 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
     private final String mimeType;
     private final Logger LOG = Logger.getLogger(getClass().getName());
 
+    /**
+     * Create a new plugin factory.
+     *
+     * @param mimeType The mime type
+     * @param toPopulate A consumer which you implement and pass to the super
+     * constructor, which will at some point be called if refactorings are
+     * needed.
+     */
     protected AntlrRefactoringPluginFactory(String mimeType, Consumer<RefactoringsBuilder> toPopulate) {
         if (AbstractRefactoringContext.debugLog) {
             LOG.setLevel(Level.ALL);
@@ -68,7 +76,20 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
         entries.addAll(bldr.generators());
     }
 
-    public final boolean canRefactor(Class<? extends AbstractRefactoring> type, FileObject file, Lookup lookup) {
+    /**
+     * Implementation of Refactorability, used by the refactoring API
+     * to avoid popping up a refactoring dialog on tokens where it
+     * won't be able to do anything.
+     *
+     * @param type The AbstractRefactoring type (it will always be a subtype
+     * of that, but does not specify it to avoid entangling instant rename
+     * with the refactoring API).
+     * @param file The file
+     * @param lookup A lookup
+     * @return True if the current element might be able to be refactored
+     * using some plugin this factory can create
+     */
+    public final boolean canRefactor(Class<?> type, FileObject file, Lookup lookup) {
         boolean result = mimeType.equals(file.getMIMEType());
         if (result) {
             for (RefactoringPluginGenerator<?> gen : entries) {

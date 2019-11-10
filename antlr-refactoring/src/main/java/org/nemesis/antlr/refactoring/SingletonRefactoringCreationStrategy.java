@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.refactoring;
 
-import com.mastfrog.abstractions.Stringifier;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
@@ -30,6 +29,11 @@ import org.openide.filesystems.FileObject;
  */
 interface SingletonRefactoringCreationStrategy<R extends AbstractRefactoring, K> {
 
-    RefactoringPlugin createRefactoringPlugin(SingletonKey<K> key, R refactoring, Extraction extraction, FileObject file, SingletonEncounters.SingletonEncounter<K> item, Stringifier<? super K> optionalStringifier, CharFilter filter);
-
+    RefactoringPlugin createRefactoringPlugin(
+            SingletonKey<K> key,
+            R refactoring,
+            Extraction extraction,
+            FileObject file,
+            SingletonEncounters.SingletonEncounter<K> item,
+            CharFilter filter);
 }

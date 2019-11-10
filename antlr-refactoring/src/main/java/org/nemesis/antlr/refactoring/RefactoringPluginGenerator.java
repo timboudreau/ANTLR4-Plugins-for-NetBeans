@@ -49,7 +49,7 @@ final class RefactoringPluginGenerator<R extends AbstractRefactoring> {
         this.test = test;
     }
 
-    boolean matches(Class<? extends AbstractRefactoring> type) {
+    boolean matches(Class<?> type) {
         return this.type == type;
     }
 
