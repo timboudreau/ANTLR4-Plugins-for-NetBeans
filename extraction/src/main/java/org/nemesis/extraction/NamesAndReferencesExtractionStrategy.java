@@ -36,6 +36,7 @@ import org.nemesis.extraction.key.NamedRegionKey;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.StringGraph;
 import java.util.logging.Level;
+import org.nemesis.data.named.ContentsChecksums;
 
 /**
  *
@@ -50,9 +51,10 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
     private final ReferenceExtractorPair<?>[] referenceExtractors;
     private final String scopingDelimiter;
     private static final Logger LOG = Logger.getLogger(NamesAndReferencesExtractionStrategy.class.getName());
+    private final SummingFunction summer;
 
     @SuppressWarnings("unchecked")
-    NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors, String scopingDelimiter) {
+    NamesAndReferencesExtractionStrategy(Class<T> keyType, NamedRegionKey<T> namePositionKey, NamedRegionKey<T> ruleRegionKey, Set<NameExtractionStrategy<?, T>> nameExtractors, Set<ReferenceExtractorPair<T>> referenceExtractors, String scopingDelimiter, SummingFunction summer) {
         this.keyType = keyType;
         assert namePositionKey != null || ruleRegionKey != null;
         this.namePositionKey = namePositionKey;
@@ -60,6 +62,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         this.nameExtractors = nameExtractors.toArray((NameExtractionStrategy<?, T>[]) new NameExtractionStrategy<?, ?>[nameExtractors.size()]);
         this.referenceExtractors = referenceExtractors.toArray(new ReferenceExtractorPair<?>[referenceExtractors.size()]);
         this.scopingDelimiter = scopingDelimiter;
+        this.summer = summer;
     }
 
     @Override
@@ -89,7 +92,8 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
     }
 
     void invoke(ParserRuleContext ctx, NameInfoStore store, BooleanSupplier cancelled) {
-        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor(cancelled);
+        ContentsChecksums.Builder sumBuilder = summer != null ? ContentsChecksums.builder() : null;
+        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor(cancelled, sumBuilder, summer);
         ctx.accept(v);
         NamedSemanticRegions<T> names = v.namesBuilder == null ? null : v.namesBuilder.build();
         NamedSemanticRegions<T> ruleBounds = v.ruleBoundsBuilder.build();
@@ -108,9 +112,11 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             v.ruleBoundsBuilder.retrieveDuplicates((name, duplicates) -> {
                 store.addDuplicateNamedRegions(ruleRegionKey, name, duplicates);
             });
+            if (sumBuilder != null) {
+                store.addChecksums(ruleRegionKey, sumBuilder.build(ruleBounds));
+            }
         }
 
-//        ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(names == null ? ruleBounds : names);
         ReferenceExtractorVisitor v1 = new ReferenceExtractorVisitor(ruleBounds);
         ctx.accept(v1);
         v1.conclude(store);
@@ -132,6 +138,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         }
         for (ReferenceExtractorPair<?> p : referenceExtractors) {
             hasher.hashObject(p);
+        }
+        if (summer != null) {
+            hasher.hashObject(summer);
         }
     }
 
@@ -257,10 +266,14 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         private final int[] activations;
         private final BooleanSupplier cancelled;
         final LinkedList<String>[] nameStacks;
+        private final ContentsChecksums.Builder sums;
+        private final SummingFunction summer;
 
         @SuppressWarnings("unchecked")
-        RuleNameAndBoundsVisitor(BooleanSupplier cancelled) {
+        RuleNameAndBoundsVisitor(BooleanSupplier cancelled, ContentsChecksums.Builder sums, SummingFunction summer) {
             this.cancelled = cancelled;
+            this.sums = sums;
+            this.summer = summer;
             activations = new int[nameExtractors.length];
             nameStacks = (LinkedList<String>[]) new LinkedList<?>[nameExtractors.length];
             for (int i = 0; i < activations.length; i++) {
@@ -348,13 +361,14 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
 
         private <R extends ParserRuleContext> String[] doRunOne(R node, NameExtractionStrategy<R, T> e, int nameExtractorIndex) {
             String[] result = new String[2];
-            e.find(node, (NamedRegionData<T> nm, TerminalNode tn) -> {
+            int count = e.find(node, (NamedRegionData<T> nm, TerminalNode tn) -> {
                 // If we are iterating TerminalNodes, tn will be non-null; otherwise
                 // it will be null and we are doing single extraction - this is so we can,
                 // for example, in an ANTLR grammar for ANTLR, create token names and
                 // references from an import tokens statement where there is no rule
                 // definition, but we should not point the definition position for all
                 // of the names to the same spot
+                boolean added = false;
                 if (nm != null) {
                     String name = nm.name(nameStacks == null ? null : nameStacks[nameExtractorIndex], scopingDelimiter);
                     result[0] = name;
@@ -362,19 +376,35 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                     if (namesBuilder != null) {
                         // XXX, the names extractor actually needs to return the name AND the offsets of the name
                         // use the same code we use for finding the reference
-                        namesBuilder.add(name, nm.kind, nm.start, nm.end);
+                        added = namesBuilder.add(name, nm.kind, nm.start, nm.end);
                     }
-                    if (ruleBoundsBuilder != null) {
+                    if ((added || namesBuilder == null) && ruleBoundsBuilder != null) {
                         if (tn == null) {
-                            ruleBoundsBuilder.add(name, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
+                            added = ruleBoundsBuilder.add(name, nm.kind, node.start.getStartIndex(), node.stop.getStopIndex() + 1);
+                            if (added) {
+                                sum(node);
+                            }
+                            return added;
                         } else {
                             Token tok = tn.getSymbol();
-                            ruleBoundsBuilder.add(name, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+                            added = ruleBoundsBuilder.add(name, nm.kind, tok.getStartIndex(), tok.getStopIndex() + 1);
+                            if (added) {
+                                sum(node);
+                            }
+                            return added;
                         }
                     }
                 }
+                return added;
             });
             return result;
+        }
+
+        private void sum(ParserRuleContext ctx) {
+            if (summer == null) {
+                return;
+            }
+            this.sums.add(summer.sum(ctx));
         }
     }
 }

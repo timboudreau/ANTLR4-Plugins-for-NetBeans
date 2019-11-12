@@ -63,6 +63,7 @@ final class AntlrGrammarLanguageNavigatorPanelConfig {
                 .withCentralityKey(AntlrKeys.RULE_NAME_REFERENCES)
                 .setDisplayName(Bundle.ruleListName())
                 .setHint(Bundle.ruleListHint())
+                .trackCaret()
                 .sortable()
                 .build();
     }

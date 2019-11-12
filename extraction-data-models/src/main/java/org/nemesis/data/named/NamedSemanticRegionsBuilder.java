@@ -65,7 +65,7 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
         dups.add(start, end, kind);
     }
 
-    public NamedSemanticRegionsBuilder<K> add(String name, K kind, int start, int end) {
+    public boolean add(String name, K kind, int start, int end) {
         assert name != null;
         assert kind != null;
         K existing = typeForName.get(name);
@@ -78,14 +78,14 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
             addDuplicate(name, kind, start, end);
         }
         if (existing != null && existing.ordinal() < kind.ordinal()) {
-            return this;
+            return false;
         }
         typeForName.put(name, kind);
         offsetsForName.put(name, new int[]{start, end});
         if (end != name.length() + start) {
             needArrayBased = true;
         }
-        return this;
+        return existing == null;
     }
 
     NamedSemanticRegionsBuilder<K> add(String name, K kind) {

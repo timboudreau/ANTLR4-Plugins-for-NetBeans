@@ -39,7 +39,11 @@ final class SingletonExtractionStrategy<KeyType, R extends ParserRuleContext> im
     final Function<R, KeyType> extractor;
     final BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer;
 
-    SingletonExtractionStrategy(SingletonKey<KeyType> key, Predicate<RuleNode> ancestorQualifier, Class<R> ruleType, Function<R, KeyType> extractor, BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer) {
+    SingletonExtractionStrategy(SingletonKey<KeyType> key, 
+            Predicate<RuleNode> ancestorQualifier,
+            Class<R> ruleType,
+            Function<R, KeyType> extractor,
+            BiConsumer<R, TriConsumer<KeyType, Integer, Integer>> consumer) {
         this.key = key;
         this.ancestorQualifier = ancestorQualifier;
         this.ruleType = ruleType;

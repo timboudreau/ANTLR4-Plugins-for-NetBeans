@@ -1,29 +1,12 @@
 # Refactoring
 
-  * Should be able to rename from an import.
-
-Is char filter really being used?
 
 Need a way to contribute different char filters based on region key
-
-
-
-Find the @Imports annotation from inside in InplaceRenameProcessor, 
-   and use it to generate reverse find-usages if there is a SingletonKey for the mime type:
-
-1. Register the key pair importKey -> singletonKey
-2. Find the file imported from
-3. Find the singleton in the file and check it matches
-4. Just run the rename / usages as if it were that
-
-
 
 Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
-Could do a checksum of tokens within a block as part of extraction, for fast duplicate detection
-  - Should be indexed in a small map of short:short
 
 InvocationBuilder missing withValueFromNewArray and others
 
@@ -36,19 +19,11 @@ KeyedSemanticRegion and friends with comparable and two type parameters?  Would 
 
 Fix UsageFinder API
 
-Some kind of heinous off-by-god-knows-what in getting text for preview
-
 
 # Antlr Editing Plugins To-Dos
 
-  * Navigator panel should use a 1-width rectangle when selecting, so a wider-than-editor selection
-      does not show up right-scrolled by default
-  * Hint when grammar name and file name do not match
-  * Mark unused grammar elements with hint to remove if they are not 0'th and are orphans in the rule graph
-     * XXX this will require figuring out usages from importers - usage finders in separate API + indexing
   * Import finders and project helper sibling search being called WAY too many times per-parse - threadlocal context and cache?
      * Maybe a generalized threadlocal context and cache API?
-
   * Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
   * Need better caching for maven project info  * it is reparsing POMs too frequently
     * Done, but what's there now only checks the timestamp of the local pom - we already have a dependency cache, so we should use that to check all related poms before assuming we don't know - otherwise adding antlr support to a parent project will not be detected
@@ -56,24 +31,17 @@ Some kind of heinous off-by-god-knows-what in getting text for preview
   * Hint for "can match the empty string" is active for things like "desc? S_OPEN_BRACKET L_INT* S_CLOSE_BRACKET;" and
 should not be  * fix the analysis.
      * Maybe when defining extraction, should be able to specify a sequence of parent rules that must be present
-  * Inplace rename:  The key listener needs to really figure out if it is going to be the first character in the item
   * Need a JavaSourceForAntlrSourceQuery to implement refactoring of rule names where we actually go ahead and refactor Java code
-  * Need a presentation UI for keys, in order to use them
-  * Need to at least cache which projects are definitely NOT antlr projects by timestamp, to speed up lookups
   * Add array of preferred rules to generic code completion?
   * Split out code to create parser and api for antlr parser results from annotations and
    other stuff in language spi  * does not belong together
   * Ability to specify a centrality key for Navigator panel annotations  * will have to
     be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
     to enable graph-algorithm facilitated sorting
-    * If we want additional keys (e.g., to do Antlr named alternatives and 
-     anything like that properly without hand-coding), will need localized names for keys
   * For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
     * Nestable colorations, as in our old ebnf support
   * Sample should be specifiable as a URL / file name
   * Registration processors:  All FQNs should be constants.
-  * Annotation processors should produce a list of the modules/maven coordinates which are required in
-   order to build everything
   * Use @ConvertAsProperties on preview
   * Java embedding for Antlr, general Antlr embedding support
   * Track insertions and update custom highlighting offsets in adhoc highlighting sequence?

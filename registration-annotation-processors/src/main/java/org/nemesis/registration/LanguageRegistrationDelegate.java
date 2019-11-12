@@ -70,6 +70,14 @@ import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.util.collections.CollectionUtils;
+import static org.nemesis.registration.typenames.JdkTypes.BI_PREDICATE;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR_BUILDER;
+import static org.nemesis.registration.typenames.KnownTypes.PARSER_RULE_CONTEXT;
+import static org.nemesis.registration.typenames.KnownTypes.PARSE_TREE;
+import static org.nemesis.registration.typenames.KnownTypes.REGIONS_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.SIMPLE_NAVIGATOR_REGISTRATION;
+import org.nemesis.registration.typenames.TypeName;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
@@ -258,8 +266,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             parser = createParserProxy(parserHelper, utils());
             if (parser == null) {
                 utils().warn("Could not find parser info for " + mimeType + " on " + type.getQualifiedName()
-                        + " will generate basic syntax support and no more."
-                        , type);
+                        + " will generate basic syntax support and no more.",
+                        type);
                 generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
                 return true;
             }
@@ -292,11 +300,12 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     private static final String ANTLR_MIME_REG_TYPE = "org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration";
     private static final String SERVICE_PROVIDER_ANNO_TYPE = "org.openide.util.lookup.ServiceProvider";
+
     private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on) throws IOException {
         String generatedClassName = prefix + "AntlrLanguageRegistration";
         String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
-                .importing(ANTLR_MIME_REG_TYPE , SERVICE_PROVIDER_ANNO_TYPE)
+                .importing(ANTLR_MIME_REG_TYPE, SERVICE_PROVIDER_ANNO_TYPE)
                 .extending(regSimple)
                 .annotatedWith(simpleName(SERVICE_PROVIDER_ANNO_TYPE), ab -> {
                     // should do *something* to provide ordering - hash code will do
@@ -304,7 +313,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .addArgument("position", Math.abs(generatedClassName.hashCode()));
                 })
                 .withModifier(PUBLIC, FINAL)
-                .docComment("Generated from annotation on ", on.getQualifiedName()," for MIME type ",
+                .docComment("Generated from annotation on ", on.getQualifiedName(), " for MIME type ",
                         mimeType, " by " + getClass().getName())
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
@@ -312,7 +321,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.invoke("super").withStringLiteral(mimeType).inScope();
                             });
                 });
-                ;
+        ;
         writeOne(cb);
     }
 
@@ -1444,12 +1453,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
         String generatedClassName = type.getSimpleName() + "_SyntaxTreeNavigator_Registration";
         String entryPointType = entryPointMethod.getReturnType().toString();
-        String entryPointSimple = simpleName(entryPointType.toString());
-        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                .importing("java.util.function.BiConsumer", "org.antlr.v4.runtime.ParserRuleContext",
-                        "org.antlr.v4.runtime.tree.ParseTree", "org.nemesis.antlr.navigator.SimpleNavigatorRegistration",
-                        "org.nemesis.extraction.ExtractionRegistration", "org.nemesis.extraction.ExtractorBuilder",
-                        "org.nemesis.extraction.key.RegionsKey", "org.antlr.v4.runtime.Token", entryPointType)
+        String entryPointSimple = simpleName(entryPointType);
+        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName);
+
+        TypeName.addImports(cb, BI_PREDICATE, PARSER_RULE_CONTEXT, PARSE_TREE,
+                SIMPLE_NAVIGATOR_REGISTRATION, EXTRACTION_REGISTRATION, EXTRACTOR_BUILDER,
+                REGIONS_KEY);
+
+        cb.importing("org.antlr.v4.runtime.Token", entryPointType)
                 .withModifier(PUBLIC)
                 .docComment("Provides a generic Navigator panel which displays the syntax tree of the current file.")
                 .constructor(c -> {
@@ -1459,6 +1470,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 if (icon != null) {
                     ab.addArgument("icon", icon);
                 }
+                ab.addArgument("trackCaret", true);
                 ab.addArgument("mimeType", mimeType)
                         .addArgument("order", 20000)
                         .addArgument("displayName", "Syntax Tree").closeAnnotation();

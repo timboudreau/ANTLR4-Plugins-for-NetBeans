@@ -16,10 +16,12 @@
 package org.nemesis.extraction;
 
 import java.util.Arrays;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
@@ -32,71 +34,114 @@ final class RegionExtractionStrategy<KeyType, RuleType extends RuleNode, TType> 
 
     final Class<RuleType> ruleType;
     final Predicate<RuleNode> ancestorQualifier;
-    final BiConsumer<RuleType, BiConsumer<KeyType, TType>> extractor;
+    final BiPredicate<RuleType, BiPredicate<KeyType, TType>> extractor;
     private final RegionExtractType ttype;
+    final Predicate<ParseTree> qualifier;
 
     RegionExtractionStrategy(Class<RuleType> ruleType, Predicate<RuleNode> ancestorQualifier,
-            BiConsumer<RuleType, BiConsumer<KeyType, TType>> tok, RegionExtractType ttype) {
+            BiPredicate<RuleType, BiPredicate<KeyType, TType>> tok, RegionExtractType ttype,
+            Predicate<ParseTree> qualifier) {
         this.ruleType = ruleType;
         this.ancestorQualifier = ancestorQualifier;
         this.extractor = tok;
         this.ttype = ttype;
+        this.qualifier = qualifier;
     }
 
-    public void extract(RuleType rule, BiConsumer<KeyType, int[]> c) {
-        extractor.accept(rule, ttype.wrap(c));
+    public boolean extract(RuleType rule, BiPredicate<KeyType, int[]> c) {
+        // DO THE CHECKSUM HERE
+        BiPredicate<KeyType, TType> wrapped = ttype.wrap(c);
+        return extractor.test(rule, wrapped);
+    }
+
+    public boolean extract(RuleType rule, BiPredicate<KeyType, int[]> c, SummingFunction summer, LongConsumer sums) {
+        if (summer == null) {
+            BiPredicate<KeyType, TType> wrapped = ttype.wrap(c);
+            return extractor.test(rule, wrapped);
+        } else {
+            BiPredicate<RuleType, BiPredicate<KeyType, int[]>> wrappedExt
+                    = SumConsumerAdapter.<RuleType, KeyType>wrap(this::extract, summer, sums);
+            return wrappedExt.test(rule, c);
+        }
     }
 
     @Override
     public void hashInto(Hasher hasher) {
         hasher.writeString(ruleType.getName());
         hasher.hashObject(ancestorQualifier);
+        if (qualifier != null) {
+            hasher.hashObject(qualifier);
+        }
         hasher.hashObject(extractor);
         hasher.writeInt(ttype.ordinal());
     }
 
     static <KeyType> RegionExtractionStrategy<KeyType, ? super ParserRuleContext, ParserRuleContext> forRuleIds(
-            Predicate<RuleNode> ancestorQualifier, int[] ids, Function<ParserRuleContext, KeyType> cvt) {
-        BiConsumer<ParserRuleContext, BiConsumer<KeyType, ParserRuleContext>> bc = (rn, cons) -> {
+            Predicate<RuleNode> ancestorQualifier, int[] ids, Function<ParserRuleContext, KeyType> cvt, Predicate<ParseTree> targetQualifier) {
+        return new RegionExtractionStrategy<>(ParserRuleContext.class,
+                ancestorQualifier,
+                ids.length == 1 ? new SingleIdFilter(ids[0], cvt) : new IdListFilter(ids, cvt),
+                RegionExtractType.PARSER_RULE_CONTEXT, targetQualifier);
+    }
+
+    interface SumConsumer<KeyType> {
+
+        void accept(KeyType keyType, ParserRuleContext ctx, boolean hasSum, long sum);
+    }
+
+    private static class IdListFilter<KeyType> implements BiPredicate<ParserRuleContext, BiPredicate<KeyType, ParserRuleContext>>, Hashable {
+
+        private final int[] ids;
+        private final Function<ParserRuleContext, KeyType> cvt;
+
+        IdListFilter(int[] ids, Function<ParserRuleContext, KeyType> cvt) {
+            this.ids = ids;
+            this.cvt = cvt;
+        }
+
+        @Override
+        public boolean test(ParserRuleContext rn, BiPredicate<KeyType, ParserRuleContext> cons) {
             int ix = rn.getRuleIndex();
             if (Arrays.binarySearch(ids, ix) >= 0) {
                 KeyType kt = cvt.apply(rn);
                 if (kt != null) {
-                    cons.accept(kt, rn);
+                    return cons.test(kt, rn);
                 }
             }
-        };
-        return new RegionExtractionStrategy<>(ParserRuleContext.class, ancestorQualifier, bc, RegionExtractType.PARSER_RULE_CONTEXT);
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "IdListFilter(" + Arrays.toString(ids) + " " + cvt + ")";
+        }
     }
 
-    static class PRC<KeyType> implements BiConsumer<ParserRuleContext, BiConsumer<KeyType, ParserRuleContext>>, Hashable {
+    private static class SingleIdFilter<KeyType> implements BiPredicate<ParserRuleContext, BiPredicate<KeyType, ParserRuleContext>>, Hashable {
 
+        private final int id;
         private final Function<ParserRuleContext, KeyType> cvt;
-        private final int[] ruleIds;
 
-        public PRC(Function<ParserRuleContext, KeyType> func, int[] ruleIds) {
-            this.cvt = func;
-            this.ruleIds = ruleIds;
+        SingleIdFilter(int id, Function<ParserRuleContext, KeyType> cvt) {
+            this.id = id;
+            this.cvt = cvt;
         }
 
         @Override
-        public void accept(ParserRuleContext ruleNode, BiConsumer<KeyType, ParserRuleContext> cons) {
-            int ix = ruleNode.getRuleIndex();
-            if (Arrays.binarySearch(ruleIds, ix) >= 0) {
-                KeyType kt = cvt.apply(ruleNode);
+        public boolean test(ParserRuleContext rn, BiPredicate<KeyType, ParserRuleContext> cons) {
+            int ix = rn.getRuleIndex();
+            if (id == ix) {
+                KeyType kt = cvt.apply(rn);
                 if (kt != null) {
-                    cons.accept(kt, ruleNode);
+                    return cons.test(kt, rn);
                 }
             }
+            return false;
         }
 
         @Override
-        public void hashInto(Hasher hasher) {
-            for (int val : ruleIds) {
-                hasher.writeInt(val);
-            }
-            hasher.hashObject(cvt);
+        public String toString() {
+            return "SingleIdFilter(" + id + " " + cvt + ")";
         }
-
     }
 }

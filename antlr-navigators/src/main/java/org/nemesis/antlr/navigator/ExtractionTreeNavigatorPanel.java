@@ -17,6 +17,7 @@ package org.nemesis.antlr.navigator;
 
 import com.mastfrog.abstractions.Named;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Strings;
 import java.awt.Component;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -38,6 +39,7 @@ import javax.swing.tree.TreePath;
 import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -169,21 +171,34 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
         @Override
         public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
             Component result = r.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+            r.setHtml(true);
             if (tree instanceof ComponentIsActiveChecker) {
                 r.setParentFocused(((ComponentIsActiveChecker) tree).isActive());
             }
-            r.setHtml(true);
+            if (value instanceof String) {
+                value = escapeHtml((String) value);
+            }
             if (value instanceof LazyTreeNode) {
                 value = ((LazyTreeNode) value).userObject;
             }
             Icon icon = Localizers.icon(value);
             if (icon.getIconWidth() > 0) {
                 r.setIcon(icon);
+            } else {
+                if (value instanceof NamedSemanticRegion<?>) {
+                    icon = Localizers.icon(((NamedSemanticRegion<?>) value).kind());
+                } else if (value instanceof SingletonEncounter<?>) {
+                    icon = Localizers.icon(((SingletonEncounter<?>) value).get());
+                }
+                if (icon.getIconWidth() > 0) {
+                    r.setIcon(icon);
+                }
             }
             if (value instanceof Named) {
                 Named n = (Named) value;
                 String nm = n.name();
                 if (nm != null) {
+                    nm = escapeHtml(nm);
                     if (value instanceof NamedSemanticRegion<?>) {
                         NamedSemanticRegion<?> nsr = (NamedSemanticRegion<?>) value;
                         if (nsr.kind() instanceof Supplier<?>) {
@@ -196,15 +211,30 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
                         r.setText("<b>" + nm + "</b> " + value);
                     }
                 }
+            } else if (value instanceof ContentsChecksums<?>) {
+                r.setText("<b>Duplicates</b> by Checksum");
+            } else if (value instanceof DuplicateSet) {
+                r.setText(value.toString());
             } else if (value instanceof UnknownNameReference<?>) {
                 UnknownNameReference<?> unk = (UnknownNameReference<?>) value;
-                r.setText(unk.name() + " (unattributed reference)");
+                r.setText("<b>" + escapeHtml(unk.name()) + "</b> (unattributed reference)");
             } else if (value instanceof ExtractionKey) {
                 ExtractionKey k = (ExtractionKey) value;
                 String name = Localizers.displayName(k);
                 r.setText("<b>" + name + "</b> <i>(" + k.getClass().getSimpleName() + ")</i>");
             } else if (value instanceof Extraction) {
                 r.setText("Extraction <i>" + ((Extraction) value).tokensHash());
+            } else if (value != null) {
+                r.setText(escapeHtml(value.toString()));
+            } else if (value instanceof SemanticRegion<?>) {
+                SemanticRegion<?> sem = (SemanticRegion<?>) value;
+                StringBuilder sb = new StringBuilder();
+                sb.append("<b>").append(sem.index()).append("</b> ")
+                        .append(sem.start()).append(":").append(sem.end());
+                if (sem.key() != null) {
+                    sb.append(" <i>").append(escapeHtml(sem.key().toString())).append("</i>");
+                }
+                r.setText(sb.toString());
             }
             return result;
         }
@@ -235,12 +265,29 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
             }
         } else if (userObject instanceof UnknownNameReference<?>) {
             UnknownNameReference<?> unk = (UnknownNameReference<?>) userObject;
-
+            kids.add(new LazyTreeNode(parent, unk, false));
+        } else if (userObject instanceof ContentsChecksums<?>) {
+            ContentsChecksums<?> cc = (ContentsChecksums<?>) userObject;
+            if (cc.hasDuplicates()) {
+                int[] ix = new int[]{1};
+                cc.visitRegionGroups(group -> {
+                    kids.add(new LazyTreeNode(parent, new DuplicateSet(ix[0]++, group), !group.isEmpty()));
+                });
+            }
+        } else if (userObject instanceof DuplicateSet) {
+            DuplicateSet dups = (DuplicateSet) userObject;
+            dups.items.forEach((o) -> {
+                kids.add(new LazyTreeNode(parent, o, o instanceof SemanticRegion<?> && ((SemanticRegion<?>) o).hasChildren()));
+            });
         } else if (userObject instanceof RegionsKey<?>) {
             RegionsKey<?> rk = (RegionsKey<?>) userObject;
             SemanticRegions<?> semr = ext.regions(rk);
             for (SemanticRegion<?> outermost : semr.outermostElements()) {
                 kids.add(new LazyTreeNode(parent, outermost, outermost.hasChildren()));
+            }
+            ContentsChecksums<?> checksums = ext.checksums(rk);
+            if (checksums.hasDuplicates()) {
+                kids.add(new LazyTreeNode(parent, checksums, true));
             }
         } else if (userObject instanceof SemanticRegion<?>) {
             SemanticRegion<?> sem = (SemanticRegion<?>) userObject;
@@ -257,6 +304,10 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
             NamedSemanticRegions<?> regs = ext.namedRegions(nrk);
             for (NamedSemanticRegion reg : regs) {
                 kids.add(new LazyTreeNode(parent, reg, false));
+            }
+            ContentsChecksums<?> checksums = ext.checksums(nrk);
+            if (checksums.hasDuplicates()) {
+                kids.add(new LazyTreeNode(parent, checksums, true));
             }
         } else if (userObject instanceof NameReferenceSetKey<?>) {
             NameReferenceSetKey<?> nrsk = (NameReferenceSetKey<?>) userObject;
@@ -277,6 +328,23 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
         return kids.isEmpty() ? Collections.emptyList() : kids;
     }
 
+    static final class DuplicateSet {
+
+        final int index;
+        final List<? extends IndexAddressableItem> items;
+
+        DuplicateSet(int index, List<? extends IndexAddressableItem> items) {
+            this.index = index;
+            this.items = items;
+        }
+
+        @Override
+        public String toString() {
+            return "<b>" + index + "</b> - " + items.size()
+                    + " duplicate token sequences";
+        }
+    }
+
     static final class LazyTreeNode implements TreeNode {
 
         private List<TreeNode> children = new ArrayList<>();
@@ -292,13 +360,6 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
 
         public String toString() {
             return Objects.toString(userObject);
-        }
-
-        private <T> T find(Class<? super T> type) {
-            if (type.isInstance(userObject)) {
-                return (T) type.cast(userObject);
-            }
-            return parent.find(type);
         }
 
         private Extraction extraction() {
@@ -375,5 +436,21 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
         public Enumeration<? extends TreeNode> children() {
             return CollectionUtils.toEnumeration(children.iterator());
         }
+    }
+
+    static String escapeHtml(String s) {
+        return Strings.escape(s, ExtractionTreeNavigatorPanel::escape);
+    }
+
+    static CharSequence escape(char c) {
+        switch (c) {
+            case '<':
+                return "&lt";
+            case '>':
+                return "&gt;";
+            case '"':
+                return "&quot;";
+        }
+        return Strings.singleChar(c);
     }
 }

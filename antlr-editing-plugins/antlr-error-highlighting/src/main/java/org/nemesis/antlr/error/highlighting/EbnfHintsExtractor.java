@@ -17,13 +17,17 @@ package org.nemesis.antlr.error.highlighting;
 
 import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.BlockContext;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfContext;
+import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAlternativeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAtomContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleElementContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleIdentifierContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleReferenceContext;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.ExtractorBuilder;
@@ -39,9 +43,74 @@ final class EbnfHintsExtractor {
     public static final NamedRegionKey<EbnfItem> SOLO_EBNFS
             = NamedRegionKey.create("solo-ebnfs", EbnfItem.class);
 
+    static <T> T ancestor(ParseTree rule, Class<T> type) {
+        ParseTree r = rule;
+        while (r != null) {
+            if (type.isInstance(r)) {
+                return type.cast(r);
+            }
+            r = r.getParent();
+        }
+        return null;
+    }
+
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = ANTLRv4Parser.GrammarFileContext.class)
     static void populateBuilder(ExtractorBuilder<? super ANTLRv4Parser.GrammarFileContext> bldr) {
 
+        bldr.extractNamedRegionsKeyedTo(EbnfItem.class)
+                .recordingNamePositionUnder(SOLO_EBNFS)
+                .whereRuleIs(ANTLRv4Parser.ParserRuleIdentifierContext.class)
+                .whenInAncestorRule(ANTLRv4Parser.ParserRuleAlternativeContext.class)
+                .whereParentHierarchy()
+                .withParentType(ParserRuleReferenceContext.class)
+                .withParentType(ParserRuleAtomContext.class)
+                .withParentType(ParserRuleElementContext.class).thatHasOnlyOneChild()
+                .build().derivingNameWith((ParserRuleIdentifierContext pric) -> {
+                    // Find the pattern
+                    // foo : someRule*; or foo : someRule?;
+                    ParserRuleAlternativeContext anc = ancestor(pric, ParserRuleAlternativeContext.class);
+                    if (anc.getChildCount() > 1) {
+                        return null;
+                    }
+                    ANTLRv4Parser.EbnfSuffixContext ebnf = ancestor(pric, ParserRuleElementContext.class).ebnfSuffix();
+                    if (ebnf != null) {
+                        return createEbnfHintRegionData(ebnf, pric);
+                    }
+                    return null;
+                })
+                .whereRuleIs(BlockContext.class)
+                .whenInAncestorRule(EbnfContext.class)
+                .whereParentHierarchy()
+                .withParentType(EbnfContext.class)
+                .withParentType(ParserRuleElementContext.class)
+                .build()
+                .derivingNameWith((BlockContext block) -> {
+                    // Find the pattern
+                    // foo : (a | b | c)*
+                    EbnfContext ebnf = ancestor(block, EbnfContext.class);
+                    if (ebnf.ebnfSuffix() != null) {
+                        return createEbnfHintRegionData(ebnf.ebnfSuffix(), block);
+                    }
+                    return null;
+                })
+                .whereRuleIs(ParserRuleElementContext.class)
+                .whereParentHierarchy()
+                .withParentType(ParserRuleAlternativeContext.class)
+                .skippingParent()
+                .withParentType(ParserRuleDefinitionContext.class)
+                .build()
+                .derivingNameWith((ParserRuleElementContext ctx) -> {
+                    // Find the pattern
+                    // foo : SomeLexerToken*
+                    if (ctx.getChildCount() == 2) {
+                        EbnfSuffixContext ebnf = ctx.ebnfSuffix() != null ? ctx.ebnf() != null ? ctx.ebnf().ebnfSuffix() : null : null;
+                        if (ebnf != null) {
+                            return createEbnfHintRegionData(ebnf, ctx);
+                        }
+                    }
+                    return null;
+                }).finishNamedRegions();
+/*
         bldr.extractNamedRegionsKeyedTo(EbnfItem.class)
                 .recordingNamePositionUnder(SOLO_EBNFS)
                 .whereRuleIs(ANTLRv4Parser.ParserRuleIdentifierContext.class)
@@ -91,12 +160,12 @@ final class EbnfHintsExtractor {
                     if (atom.getChildCount() == 1) {
 //                        withAncestorOf(ParserRuleAlternativeContext.class, atom, prlac -> {
 //                            if (prlac.getChildCount() == 1) {
-                                return withParentAs(ParserRuleElementContext.class, atom, (ParserRuleElementContext elem) -> {
-                                    if (elem.ebnfSuffix() != null && elem.getChildCount() == 2) {
-                                        return createEbnfHintRegionData(elem.ebnfSuffix(), elem);
-                                    }
-                                    return null;
-                                });
+                        return withParentAs(ParserRuleElementContext.class, atom, (ParserRuleElementContext elem) -> {
+                            if (elem.ebnfSuffix() != null && elem.getChildCount() == 2) {
+                                return createEbnfHintRegionData(elem.ebnfSuffix(), elem);
+                            }
+                            return null;
+                        });
 //                            }
 //                            return null;
 //                        });
@@ -104,6 +173,7 @@ final class EbnfHintsExtractor {
                     return null;
                 })
                 .finishNamedRegions();
+                */
     }
 
     private static <T extends ParserRuleContext, R> R withAncestorOf(Class<T> type, ParserRuleContext ctx, Function<T, R> c) {

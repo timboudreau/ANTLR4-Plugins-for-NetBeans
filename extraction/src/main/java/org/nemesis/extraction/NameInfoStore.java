@@ -22,6 +22,7 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import com.mastfrog.graph.StringGraph;
+import org.nemesis.data.named.ContentsChecksums;
 import org.netbeans.api.annotations.common.NullAllowed;
 
 /**
@@ -41,4 +42,6 @@ interface NameInfoStore {
     <T extends Enum<T>> void addDuplicateNamedRegions(NamedRegionKey<T> key, String name, Iterable<? extends NamedSemanticRegion<T>> duplicates);
 
     <T extends Enum<T>> void addNameAndBoundsKeyPair(NameAndBoundsPair<T> pair);
+
+    <T extends Enum<T>> void addChecksums(NamedRegionKey<T> key, ContentsChecksums<NamedSemanticRegion<T>> checksums);
 }

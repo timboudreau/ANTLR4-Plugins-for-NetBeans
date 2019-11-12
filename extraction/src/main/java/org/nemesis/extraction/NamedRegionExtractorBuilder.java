@@ -27,6 +27,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.data.Hashable;
@@ -52,9 +53,10 @@ import org.nemesis.misc.utils.reflection.ReflectionPath.ResolutionContext;
  * nodes</li>
  * <li>Optionally, you may also specify similar parameters for finding all
  * <i>references to</i> a named region (such as uses of a variable)</li> - i.e.
- * if one kind of rule <b>defines</b> names (such as a rule detecting Java&trade;
- * methods) and another rule defines possible <b>calls</b> to those methods,
- * you can scan for both here, and have your extraction contain keys for both.
+ * if one kind of rule <b>defines</b> names (such as a rule detecting
+ * Java&trade; methods) and another rule defines possible <b>calls</b> to those
+ * methods, you can scan for both here, and have your extraction contain keys
+ * for both.
  * </ul>
  *
  * @author Tim Boudreau
@@ -68,6 +70,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
     private final Set<ReferenceExtractorPair<T>> referenceExtractors = new HashSet<>();
     private final Function<NamesAndReferencesExtractionStrategy, Ret> buildFunction;
     private final ResolutionContext ctx = new ResolutionContext();
+    private SummingFunction summingFunction;
 
     NamedRegionExtractorBuilder(Class<T> keyType, Function<NamesAndReferencesExtractionStrategy, Ret> buildFunction) {
         this.keyType = keyType;
@@ -100,16 +103,38 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         return new NamedRegionExtractorBuilderWithRuleKey<>(this);
     }
 
+    /**
+     * Sum or hash tokens using the default algorithm, summing only tokens on
+     * channel 0. If this is called, a ContentsChecksums will be available from
+     * the extraction for this key.
+     *
+     * @return this
+     */
+    public NamedRegionExtractorBuilder<T, Ret> summingTokens() {
+        return summingTokensWith(SummingFunction.createDefault().filterChannel(0));
+    }
+
+    /**
+     * Sum or hash tokens using the passed algorithm. If this is called, a
+     * ContentsChecksums will be available from the extraction for this key.
+     *
+     * @return this
+     */
+    public NamedRegionExtractorBuilder<T, Ret> summingTokensWith(SummingFunction summingFunction) {
+        this.summingFunction = summingFunction;
+        return this;
+    }
+
     void addReferenceExtractorPair(ReferenceExtractorPair<T> pair) {
         this.referenceExtractors.add(pair);
     }
 
     Ret _build() {
-        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, null));
+        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, null, summingFunction));
     }
 
     private Ret setScopingDelimiter(String delim) {
-        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, delim));
+        return buildFunction.apply(new NamesAndReferencesExtractionStrategy<>(keyType, namePositionKey, ruleRegionKey, nameExtractors, referenceExtractors, delim, summingFunction));
     }
 
     public static final class NamedRegionExtractorBuilderWithNameKey<T extends Enum<T>, Ret> {
@@ -211,10 +236,26 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         private final NamedRegionExtractorBuilder<T, Ret> bldr;
         private final Class<R> type;
         private Predicate<RuleNode> qualifiers;
+        private Predicate<ParseTree> targetPredicate;
 
         NameExtractorBuilder(NamedRegionExtractorBuilder<T, Ret> bldr, Class<R> type) {
             this.bldr = bldr;
             this.type = type;
+        }
+
+        public NameExtractorBuilder<R, T, Ret> whereRuleMatches(Predicate<ParseTree> test) {
+            if (this.targetPredicate != null) {
+                this.targetPredicate = this.targetPredicate.or(test);
+            } else {
+                this.targetPredicate = test;
+            }
+            return this;
+        }
+
+        public RuleParentPredicate.Builder<NameExtractorBuilder<R,T,Ret>> whereParentHierarchy() {
+            return RuleParentPredicate.builder(rppb -> {
+                return whereRuleMatches(rppb);
+            });
         }
 
         /**
@@ -274,7 +315,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
          * @return A builder
          */
         public FinishableNamedRegionExtractorBuilder<T, Ret> derivingNameWith(Function<R, NamedRegionData<T>> extractor) {
-            NameExtractionStrategy<R, T> info = new NameExtractionStrategy<>(type, extractor, qualifiers);
+            NameExtractionStrategy<R, T> info = new NameExtractionStrategy<>(type, extractor, qualifiers, targetPredicate);
             bldr.nameExtractors.add(info);
             return new FinishableNamedRegionExtractorBuilder<>(bldr);
         }
@@ -427,7 +468,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
          * @return a builder which can be finished
          */
         public FinishableNamedRegionExtractorBuilder<T, Ret> derivingNameFromTerminalNodes(T argType, Function<R, List<? extends TerminalNode>> extractor) {
-            NameExtractionStrategy<R, T> info = new NameExtractionStrategy<>(type, qualifiers, argType, extractor);
+            NameExtractionStrategy<R, T> info = new NameExtractionStrategy<>(type, qualifiers, argType, extractor, targetPredicate);
             bldr.nameExtractors.add(info);
             return new FinishableNamedRegionExtractorBuilder<>(bldr);
         }
@@ -626,10 +667,10 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
 
         /**
-         * Build this region extractor, and specifying that nested names
-         * will be scoped with the name they occur inside, with the
-         * parent names separated by the passed delimiter.  This results
-         * in names being derived where, if you had the structure
+         * Build this region extractor, and specifying that nested names will be
+         * scoped with the name they occur inside, with the parent names
+         * separated by the passed delimiter. This results in names being
+         * derived where, if you had the structure
          * <pre>
          * foo
          *   bar
@@ -646,22 +687,20 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
          * </pre>
          *
          * which makes it possible to have nested names, rather than detecting
-         * one occurrence of <code>foo</code> and one duplicate name.  Region
-         * detection will then expect names to be similarly scoped when they
-         * are encountered in the source, so a detected reference to "bar"
-         * would be an unknown reference, but a reference to "foo.bar" would
-         * not.
+         * one occurrence of <code>foo</code> and one duplicate name. Region
+         * detection will then expect names to be similarly scoped when they are
+         * encountered in the source, so a detected reference to "bar" would be
+         * an unknown reference, but a reference to "foo.bar" would not.
          * <p>
-         * It should also be possible to go the other direction (e.g., mapping
-         * a raw class name to a Java&trade; import statement), but this is not yet
-         * implemented.
+         * It should also be possible to go the other direction (e.g., mapping a
+         * raw class name to a Java&trade; import statement), but this is not
+         * yet implemented.
          * </p>
          * <p>
          * If you are using the <code>antlr-navigators</code> project to
-         * generate navigator panels, the default <code>Appearance</code>
-         * will strip the prefix of a name, and indent by the number of
-         * delimiters found, to create the appearance of nesting without
-         * lengthy names.
+         * generate navigator panels, the default <code>Appearance</code> will
+         * strip the prefix of a name, and indent by the number of delimiters
+         * found, to create the appearance of nesting without lengthy names.
          * </p>
          *
          * @param delim A string delimiter.

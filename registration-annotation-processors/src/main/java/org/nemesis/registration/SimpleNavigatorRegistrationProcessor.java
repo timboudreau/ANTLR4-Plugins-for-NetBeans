@@ -199,7 +199,9 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
                                     bb.invoke("withAppearance").withNewInstanceArgument().ofType(appearance.toString())
                                             .on("result");
                                 }
-
+                                if (utils().annotationValue(mirror, "trackCaret", Boolean.class, false)) {
+                                    bb.invoke("trackCaret").on("result");
+                                }
 //                                ADD APPEARANCE
 
                                 bb.invoke("setDisplayName").withArgument("displayName").on("result");

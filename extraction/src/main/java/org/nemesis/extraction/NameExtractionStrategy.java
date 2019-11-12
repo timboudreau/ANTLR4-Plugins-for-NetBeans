@@ -16,11 +16,12 @@
 package org.nemesis.extraction;
 
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.data.Hashable;
@@ -37,23 +38,27 @@ final class NameExtractionStrategy<R extends ParserRuleContext, T extends Enum<T
     final Predicate<RuleNode> ancestorQualifier;
     final T argType;
     final Function<R, List<? extends TerminalNode>> terminalFinder;
+    final Predicate<ParseTree> parseTreePredicate;
 
-    NameExtractionStrategy(Class<R> type, Function<R, NamedRegionData<T>> extractor, Predicate<RuleNode> ancestorQualifier) {
+    NameExtractionStrategy(Class<R> type, Function<R, NamedRegionData<T>> extractor, Predicate<RuleNode> ancestorQualifier, Predicate<ParseTree> parseTreePredicate) {
         this.type = type;
         this.extractor = extractor;
         this.ancestorQualifier = ancestorQualifier;
         this.terminalFinder = null;
         this.argType = null;
+        this.parseTreePredicate = parseTreePredicate;
     }
 
-    NameExtractionStrategy(Class<R> type, Predicate<RuleNode> ancestorQualifier, T argType, Function<R, List<? extends TerminalNode>> terminalFinder) {
+    NameExtractionStrategy(Class<R> type, Predicate<RuleNode> ancestorQualifier, T argType, Function<R, List<? extends TerminalNode>> terminalFinder, Predicate<ParseTree> parseTreePredicate) {
         this.type = type;
         this.extractor = null;
         this.ancestorQualifier = ancestorQualifier;
         this.argType = argType;
         this.terminalFinder = terminalFinder;
+        this.parseTreePredicate = parseTreePredicate;
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(NameExtractionStrategy.class.getName())
                 .append('@').append(System.identityHashCode(this));
@@ -86,19 +91,28 @@ final class NameExtractionStrategy<R extends ParserRuleContext, T extends Enum<T
         }
     }
 
-    public void find(R node, BiConsumer<NamedRegionData<T>, TerminalNode> cons) {
+    public int find(R node, BiPredicate<NamedRegionData<T>, TerminalNode> cons) {
+        if (parseTreePredicate != null && !parseTreePredicate.test(node)) {
+            return 0;
+        }
         if (extractor != null) {
-            cons.accept(extractor.apply(node), null);
+            boolean result = cons.test(extractor.apply(node), null);
+            return result ? 1 : 0;
         } else {
             List<? extends TerminalNode> nds = terminalFinder.apply(node);
+            int result = 0;
             if (nds != null) {
                 for (TerminalNode tn : nds) {
                     Token tok = tn.getSymbol();
                     if (tok != null) {
-                        cons.accept(new NamedRegionData<>(tn.getText(), argType, tok.getStartIndex(), tok.getStopIndex() + 1), tn);
+                        boolean found = cons.test(new NamedRegionData<>(tn.getText(), argType, tok.getStartIndex(), tok.getStopIndex() + 1), tn);
+                        if (found) {
+                            result++;
+                        }
                     }
                 }
             }
+            return result;
         }
     }
 }

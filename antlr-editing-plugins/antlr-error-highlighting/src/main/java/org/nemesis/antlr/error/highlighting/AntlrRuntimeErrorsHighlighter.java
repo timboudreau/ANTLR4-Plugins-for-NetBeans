@@ -21,6 +21,10 @@ import com.mastfrog.range.IntRange;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
+import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,12 +37,18 @@ import java.util.MissingResourceException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.Action;
+import javax.swing.Timer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
+import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.AntlrConstants;
@@ -46,6 +56,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.error.highlighting.EbnfHintsExtractor.SOLO_EBNFS;
 import org.nemesis.antlr.file.AntlrKeys;
+import static org.nemesis.antlr.file.AntlrKeys.RULE_BOUNDS;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
@@ -53,12 +64,16 @@ import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.project.Folders;
 import org.nemesis.antlr.spi.language.ParseResultContents;
+import org.nemesis.antlr.spi.language.fix.DocumentEditBag;
+import org.nemesis.antlr.spi.language.fix.FixImplementation;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.distance.LevenshteinDistance;
+import org.nemesis.editor.utils.DocumentOperator;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
@@ -66,17 +81,21 @@ import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.attribution.ImportFinder;
 import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
+import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.text.NbDocument;
+import org.openide.text.PositionBounds;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
@@ -176,6 +195,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
         checkGrammarNameMatchesFile(tree, mimeType, extraction, res, populate, fixes);
         flagOrphansIfNoImports(tree, mimeType, extraction, res, populate, fixes);
+        flagDuplicateBlocks(tree, mimeType, extraction, res, populate, fixes);
     }
 
     private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
@@ -203,6 +223,186 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             return s.substring(0, 63) + "\u2026"; // ellipsis
         }
         return s;
+    }
+
+    @Messages({
+        "# {0} - occurrences",
+        "# {1} - text",
+        "dup_hints_detail=The block ''{0}'' occurs {1} times in the grammar. Extract into a new rule?",
+        "# {0} - occurrences",
+        "dup_block=The same parenthesized expression occurs at {0}.  Extract into a new rule?"
+    })
+    private void flagDuplicateBlocks(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes) {
+        ContentsChecksums<SemanticRegion<Void>> checksums = extraction.checksums(AntlrKeys.BLOCKS);
+        if (!checksums.isEmpty()) {
+            int[] index = new int[1];
+            checksums.visitRegionGroups(group -> {
+                System.out.println("\nDuplicate region groups: " + group);
+                index[0]++;
+                List<PositionBoundsRange> ranges = new ArrayList<>(group.size());
+                StringBuilder occurrences = new StringBuilder(group.size() * 4);
+                String text = null;
+                for (SemanticRegion<Void> region : group) {
+                    PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), region);
+                    if (pbr == null) {
+                        System.out.println("Could not create pbr for " + region);
+                        return;
+                    }
+                    ranges.add(pbr);
+                    if (text == null) {
+                        try {
+                            text = pbr.bounds().getText();
+                        } catch (BadLocationException | IOException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                    if (occurrences.length() > 0) {
+                        occurrences.append(',');
+                    }
+                    occurrences.append(region.start()).append(':').append(region.stop());
+                }
+                String details = Bundle.dup_hints_detail(text, group.size());
+                Supplier<String> det = () -> details;
+                String msg = Bundle.dup_block(group.size());
+                for (PositionBoundsRange r : ranges) {
+                    ExtractRule extract = new ExtractRule(ranges, extraction, r, text);
+                    String id = "bx-" + index[0] + "-" + r.original().index();
+                    try {
+                        fixes.addHint(id, r, msg, det, fixen -> {
+                            fixen.add(details, extract);
+                        });
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            });
+        }
+    }
+
+    static final class ExtractRule implements FixImplementation, Runnable, DocumentListener, ActionListener {
+
+        private final List<PositionBoundsRange> ranges;
+        private final Extraction ext;
+        private final PositionBoundsRange preferred;
+        private final String text;
+        private final Timer timer;
+        private PositionBounds toSelect;
+        private BaseDocument doc;
+
+        ExtractRule(List<PositionBoundsRange> ranges, Extraction ext, PositionBoundsRange preferred, String text) {
+            this.ranges = ranges;
+            this.ext = ext;
+            this.preferred = preferred;
+            this.text = text;
+            timer = new Timer(75, this);
+            timer.setRepeats(false);
+        }
+
+        private String newRuleText() {
+            return Strings.escape(text, ch -> {
+                switch (ch) {
+                    case '\n':
+                    case '\t':
+                    case 0:
+                        return "";
+                    case ' ':
+                        return "";
+                }
+                return Strings.singleChar(ch);
+            }).replaceAll("\\s+", " ");
+        }
+
+        private String newRuleName() {
+            // XXX scan the references inside the bounds, and figure out if any
+            // are parser rules, if so, lower case, if not upper
+            return "new_rule";
+        }
+
+        private int newRuleInsertPosition() {
+            // XXX get the current caret position and find the rule nearest
+            NamedSemanticRegions<RuleTypes> rules = ext.namedRegions(RULE_BOUNDS);
+            NamedSemanticRegion<RuleTypes> region = rules.at(preferred.original().start());
+            if (region != null) {
+                return region.end() + 1;
+            }
+            for (PositionBoundsRange pb : ranges) {
+                region = rules.at(pb.start());
+                if (region != null) {
+                    return region.end() + 1;
+                }
+            }
+            return ext.source().lookup(Document.class).get().getLength() - 1;
+        }
+
+        @Override
+        public void implement(BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits) throws Exception {
+            doc = document;
+            String name = newRuleName();
+            int pos = newRuleInsertPosition();
+            String newText = newRuleText();
+            toSelect = PositionBoundsRange.createBounds(extraction.source(), pos, pos + name.length());
+            DocumentOperator.builder().disableTokenHierarchyUpdates().readLock().writeLock().singleUndoTransaction()
+                    .blockIntermediateRepaints().acquireAWTTreeLock().build().operateOn((StyledDocument) document)
+                    .operate(() -> {
+                        for (PositionBoundsRange bds : ranges) {
+                            edits.replace(document, bds.start(), bds.end(), name);
+                        }
+                        int newTextStart = toSelect.getBegin().getOffset();
+                        document.addPostModificationDocumentListener(this);
+                        edits.insert(document, newTextStart, '\n' + name + " : " + newText + ";\n");
+                        return null;
+                    });
+        }
+
+        @Override
+        public void run() {
+            if (!timer.isRunning()) {
+                timer.start();
+            }
+        }
+
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            doc.removePostModificationDocumentListener(this);
+            EventQueue.invokeLater(this);
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            doc.removePostModificationDocumentListener(this);
+            EventQueue.invokeLater(this);
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            doc.removePostModificationDocumentListener(this);
+            EventQueue.invokeLater(this);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            System.out.println("Try to position cursor");
+            JTextComponent comp = EditorRegistry.findComponent(doc);
+            if (comp != null && toSelect != null) {
+                int caretDest = toSelect.getBegin().getOffset() + 1;
+                comp.getCaret().setDot(caretDest);
+                System.out.println("  send caret to " + caretDest);
+                String mimeType = NbEditorUtilities.getMimeType(doc);
+                if (mimeType != null) {
+                    System.out.println("  mime" + mimeType);
+                    Action action = FileUtil.getConfigObject("Editors/" + mimeType + "/Actions/in-place-refactoring.instance", Action.class);
+                    System.out.println("    action " + action);
+                    if (action != null) {
+                        ActionEvent ae = new ActionEvent(comp, ActionEvent.ACTION_PERFORMED, "in-place-refactoring");
+                        System.out.println("   sending action event to " + action);
+                        action.actionPerformed(ae);
+                    }
+                }
+            }
+        }
     }
 
     @Messages({

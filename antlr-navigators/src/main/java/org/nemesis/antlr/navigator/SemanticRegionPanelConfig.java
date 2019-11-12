@@ -43,11 +43,12 @@ public final class SemanticRegionPanelConfig<K> {
     private final boolean sortable;
     private final String displayName;
     private final String hint;
+    private final boolean trackCaret;
 
     private SemanticRegionPanelConfig(Appearance<SemanticRegion<K>> appearance,
             ListModelPopulator<K, SemanticRegion<K>> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super SemanticRegion<K>>> elementFetcher,
-            String displayName, boolean sortable, String hint) {
+            String displayName, boolean sortable, String hint, boolean trackCaret) {
         this.appearance = appearance == null ? new DefaultAppearance() : appearance;
         this.populator = populator;
         this.popupMenuPopulator = popupMenuPopulator;
@@ -55,6 +56,18 @@ public final class SemanticRegionPanelConfig<K> {
         this.displayName = displayName;
         this.sortable = sortable;
         this.elementFetcher = elementFetcher;
+        this.trackCaret = trackCaret;
+    }
+
+    boolean isTrackCaret() {
+        return trackCaret;
+    }
+
+    RegionsKey<K> key() {
+        if (elementFetcher instanceof SemanticRegionPanelConfig.Builder.FetchByKey<?>) {
+            return ((SemanticRegionPanelConfig.Builder.FetchByKey<K>) elementFetcher).key();
+        }
+        return null;
     }
 
     /**
@@ -75,9 +88,15 @@ public final class SemanticRegionPanelConfig<K> {
         private String displayName;
         private String hint;
         private Appearance<SemanticRegion<K>> appearance;
+        private boolean trackCaret;
 
         private Builder() {
 
+        }
+
+        public Builder<K> trackCaret() {
+            trackCaret = true;
+            return this;
         }
 
         public SemanticRegionPanelConfig<K> build() {
@@ -88,7 +107,7 @@ public final class SemanticRegionPanelConfig<K> {
                 throw new IllegalStateException("Display name must be set");
             }
             return new SemanticRegionPanelConfig<>(appearance, populator == null ? new DefaultPopulator<K>() : populator,
-                    popupMenuPopulator, elementFetcher, displayName, sortable, hint);
+                    popupMenuPopulator, elementFetcher, displayName, sortable, hint, trackCaret);
         }
 
         static final class DefaultPopulator<K> implements ListModelPopulator<K, SemanticRegion<K>> {
@@ -156,7 +175,7 @@ public final class SemanticRegionPanelConfig<K> {
         }
 
         public Builder<K> setSingleIcon(String icon) {
-            return withAppearance(new IconAppearance<SemanticRegion<K>>(icon));
+            return withAppearance(new IconAppearance<>(icon));
         }
 
         /**
@@ -176,6 +195,10 @@ public final class SemanticRegionPanelConfig<K> {
 
             public FetchByKey(RegionsKey<K> key) {
                 this.key = key;
+            }
+
+            public RegionsKey<K> key() {
+                return key;
             }
 
             @Override
@@ -291,6 +314,6 @@ public final class SemanticRegionPanelConfig<K> {
     }
 
     public NavigatorPanel toNavigatorPanel(String mimeType) {
-        return new GenericSemanticRegionNavigatorPanel<>(this, appearance);
+        return new GenericSemanticRegionNavigatorPanel<>(mimeType, this, appearance);
     }
 }

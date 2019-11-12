@@ -17,7 +17,7 @@ package org.nemesis.extraction;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -36,16 +36,18 @@ enum RegionExtractType implements Function<Object, int[]> {
     private static final Level PERVERSITIES_LOG_LEVEL = Level.FINER;
 
     @SuppressWarnings("unchecked")
-    public <K, TType> BiConsumer<K, TType> wrap(BiConsumer<K, int[]> c) {
+    public <K, TType> BiPredicate<K, TType> wrap(BiPredicate<K, int[]> c) {
         return (K t, TType u) -> {
+            boolean result = false;
             if (RegionExtractType.this == TERMINAL_NODE_LIST && u instanceof List<?>) {
                 List<TerminalNode> tns = (List<TerminalNode>) u;
                 for (TerminalNode n : tns) {
-                    c.accept(t, TERMINAL_NODE.apply(u));
+                    result |= c.test(t, TERMINAL_NODE.apply(n));
                 }
             } else {
-                c.accept(t, apply(u));
+                result = c.test(t, apply(u));
             }
+            return result;
         };
     }
 

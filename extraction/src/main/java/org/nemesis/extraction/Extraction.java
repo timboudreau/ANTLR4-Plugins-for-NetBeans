@@ -50,6 +50,7 @@ import org.nemesis.extraction.key.SingletonKey;
 import com.mastfrog.graph.StringGraph;
 import java.util.concurrent.ConcurrentHashMap;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.extraction.attribution.ResolverRegistry;
 import org.nemesis.misc.utils.TimedSoftReference;
 import org.nemesis.source.api.GrammarSource;
@@ -73,7 +74,8 @@ public final class Extraction implements Externalizable {
     private final Map<NamedRegionKey<?>, Map<String, Set<NamedSemanticRegion<?>>>> duplicates = new HashMap<>(5);
     private final Map<NameReferenceSetKey<?>, NamedRegionReferenceSets<?>> refs = new HashMap<>(7);
     private final Map<NameReferenceSetKey<?>, StringGraph> graphs = new HashMap<>(5);
-    private final Map<NameReferenceSetKey<?>, SemanticRegions<UnknownNameReference<?>>> unknowns = new HashMap<>();
+    private final Map<NameReferenceSetKey<?>, SemanticRegions<UnknownNameReference<?>>> unknowns = new HashMap<>(3);
+    private final Map<ExtractionKey<?>, ContentsChecksums<?>> checksums = new HashMap<>(3);
     private final Map<SingletonKey<?>, SingletonEncounters<?>> singles = new HashMap<>(4);
     private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
@@ -94,13 +96,35 @@ public final class Extraction implements Externalizable {
         this.mimeType = mimeType;
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Enum<T>> ContentsChecksums<NamedSemanticRegion<T>> checksums(NamedRegionKey<T> key) {
+        ContentsChecksums<?> result = checksums.get(key);
+        if (result == null) {
+            return ContentsChecksums.empty();
+        }
+        return (ContentsChecksums<NamedSemanticRegion<T>>) result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> ContentsChecksums<SemanticRegion<T>> checksums(RegionsKey<T> key) {
+        ContentsChecksums<?> result = checksums.get(key);
+        if (result == null) {
+            return ContentsChecksums.empty();
+        }
+        return (ContentsChecksums<SemanticRegion<T>>) result;
+    }
+
+    <K> void add(RegionsKey<K> key, ContentsChecksums<SemanticRegion<K>> checksums) {
+        this.checksums.put(key, checksums);
+    }
+
     /**
-     * In the case this extraction was built using <i>two</i> keys, one
-     * to extract regions and one to extract the names of those regions,
-     * that relationship can be recovered from the extraction here,
-     * and the key for names found.  This method will never return null -
-     * the calling key, or if it is a NameReferenceSetKey, the value of its
-     * referencing key will be returned.
+     * In the case this extraction was built using <i>two</i> keys, one to
+     * extract regions and one to extract the names of those regions, that
+     * relationship can be recovered from the extraction here, and the key for
+     * names found. This method will never return null - the calling key, or if
+     * it is a NameReferenceSetKey, the value of its referencing key will be
+     * returned.
      *
      * @param <T> The type
      * @param key A NamedRegionKey or NameReferenceSetKey
@@ -127,12 +151,12 @@ public final class Extraction implements Externalizable {
     }
 
     /**
-     * In the case this extraction was built using <i>two</i> keys, one
-     * to extract regions and one to extract the names of those regions,
-     * that relationship can be recovered from the extraction here,
-     * and the key for names found.  This method will never return null -
-     * the calling key, or if it is a NameReferenceSetKey, the value of its
-     * referencing key will be returned.
+     * In the case this extraction was built using <i>two</i> keys, one to
+     * extract regions and one to extract the names of those regions, that
+     * relationship can be recovered from the extraction here, and the key for
+     * names found. This method will never return null - the calling key, or if
+     * it is a NameReferenceSetKey, the value of its referencing key will be
+     * returned.
      *
      * @param <T> The type
      * @param key A NamedRegionKey or NameReferenceSetKey
@@ -833,6 +857,10 @@ public final class Extraction implements Externalizable {
                 scopingDelimiters.put(key, scopingDelimiter);
             }
             nameds.put(key, regions);
+        }
+
+        public <T extends Enum<T>> void addChecksums(NamedRegionKey<T> key, ContentsChecksums<NamedSemanticRegion<T>> checksums) {
+            Extraction.this.checksums.put(key, checksums);
         }
 
         @Override

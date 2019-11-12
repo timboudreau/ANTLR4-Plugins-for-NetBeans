@@ -17,18 +17,20 @@ package org.nemesis.extraction;
 
 import java.util.Iterator;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.data.Hashable;
 import org.nemesis.data.Hashable.Hasher;
+import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.extraction.key.RegionsKey;
 
 /**
@@ -40,16 +42,17 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
     final RegionsKey<RegionKeyType> key;
     final Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors;
     final Set<? extends TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors;
-
+    final SummingFunction summer;
     private static final Logger LOG = Logger.getLogger(RegionExtractionStrategies.class.getName());
 
-    RegionExtractionStrategies(RegionsKey<RegionKeyType> key, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, Set<? extends TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors) {
+    RegionExtractionStrategies(RegionsKey<RegionKeyType> key, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, Set<? extends TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors, SummingFunction summer) {
         this.key = key;
         this.extractors = extractors;
         this.tokenExtractors = tokenExtractors;
+        this.summer = summer;
         LOG.log(Level.FINE, "Create a region extractors strategy for {0} "
-                + "with {1} token extractors and {2} rule extractors",
-                new Object[]{key, tokenExtractors.size(), extractors.size()});
+                + "with {1} token extractors and {2} rule extractors summer {3}",
+                new Object[]{key, tokenExtractors.size(), extractors.size(), summer});
     }
 
     @Override
@@ -89,6 +92,9 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
     public void hashInto(Hasher hasher) {
         hasher.writeInt(190019943);
         key.hashInto(hasher);
+        if (summer != null) {
+            summer.hashInto(hasher);
+        }
         for (RegionExtractionStrategy<?, ?, ?> e : extractors) {
             hasher.hashObject(e);
         }
@@ -130,26 +136,46 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
         return result != null && !result.isEmpty();
     }
 
-    ParseTreeVisitor<Void> createVisitor(BiConsumer<RegionKeyType, int[]> c, BooleanSupplier cancelled) {
-        return new V<>(key.type(), c, extractors, cancelled);
+    V createVisitor(BiPredicate<RegionKeyType, int[]> c, BooleanSupplier cancelled) {
+        return new V<>(key.type(), c, extractors, cancelled, summer);
+    }
+
+    ContentsChecksums<SemanticRegion<RegionKeyType>> retrieveChecksums(V<RegionKeyType> v, SemanticRegions<RegionKeyType> regions) {
+        if (v.sumsBuilder == null) {
+            return ContentsChecksums.empty();
+        }
+        ContentsChecksums<SemanticRegion<RegionKeyType>> result = v.sumsBuilder.build(regions);
+        return result;
     }
 
     static class V<RegionKeyType> extends AbstractParseTreeVisitor<Void> {
 
-        private final BiConsumer<RegionKeyType, int[]> c;
+        private final BiPredicate<RegionKeyType, int[]> consumer;
         private final RegionExtractionStrategy<?, ?, ?>[] extractors;
         private final int[] activatedCount;
         private final BooleanSupplier cancelled;
+        private final SummingFunction summer;
+        final ContentsChecksums.Builder sumsBuilder;
 
-        V(Class<RegionKeyType> keyType, BiConsumer<RegionKeyType, int[]> c, Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors, BooleanSupplier cancelled) {
-            this.c = c;
+        V(Class<RegionKeyType> keyType, BiPredicate<RegionKeyType, int[]> consumer,
+                Set<? extends RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors,
+                BooleanSupplier cancelled,
+                SummingFunction summer) {
             this.cancelled = cancelled;
             this.extractors = extractors.toArray(new RegionExtractionStrategy<?, ?, ?>[extractors.size()]);
+            this.summer = summer;
             this.activatedCount = new int[this.extractors.length];
             for (int i = 0; i < this.extractors.length; i++) {
                 if (this.extractors[i].ancestorQualifier == null) {
                     activatedCount[i] = 1;
                 }
+            }
+            if (summer == null) {
+                this.consumer = consumer;
+                this.sumsBuilder = null;
+            } else {
+                sumsBuilder = ContentsChecksums.builder();
+                this.consumer = new SumsWrapper<>(consumer, summer, sumsBuilder);
             }
         }
 
@@ -169,7 +195,7 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
                     }
                 }
                 if (activatedCount[i] > 0) {
-                    runOne(node, e);
+                    runOne(node, e, i);
                 }
             }
             super.visitChildren(node);
@@ -181,14 +207,63 @@ final class RegionExtractionStrategies<RegionKeyType> implements Hashable {
             return null;
         }
 
-        private <RuleType extends RuleNode, TType> void runOne(RuleNode node, RegionExtractionStrategy<RegionKeyType, RuleType, TType> e) {
+        private <RuleType extends RuleNode, TType> void runOne(RuleNode node, RegionExtractionStrategy<RegionKeyType, RuleType, TType> e, int index) {
             if (e.ruleType.isInstance(node)) {
-                doRunOne(e.ruleType.cast(node), e);
+                if (e.qualifier != null && !e.qualifier.test(node)) {
+                    return;
+                }
+                doRunOne(e.ruleType.cast(node), e, index);
             }
         }
 
-        private <RuleType extends RuleNode, TType> void doRunOne(RuleType node, RegionExtractionStrategy<RegionKeyType, RuleType, TType> e) {
-            e.extract(node, c);
+        private <RuleType extends RuleNode, TType> void doRunOne(RuleType node,
+                RegionExtractionStrategy<RegionKeyType, RuleType, TType> e, int index) {
+            if (summer == null) {
+                e.extract(node, consumer);
+            } else {
+                if (node instanceof ParserRuleContext) {
+                    // Could be written more cleanly, but this is performance-sensitive
+                    ((SumsWrapper<?>) consumer).node = ((ParserRuleContext) node);
+                    e.extract(node, consumer);
+                    ((SumsWrapper<?>) consumer).node = null;
+                } else {
+                    e.extract(node, consumer);
+                }
+            }
+        }
+
+        static class SumsWrapper<RegionKeyType> implements BiPredicate<RegionKeyType, int[]> {
+
+            private final BiPredicate<RegionKeyType, int[]> delegate;
+            private final SummingFunction summer;
+            private final ContentsChecksums.Builder sumsBuilder;
+            ParserRuleContext node;
+
+            public SumsWrapper(BiPredicate<RegionKeyType, int[]> delegate, SummingFunction summer, ContentsChecksums.Builder sumsBuilder) {
+                this.delegate = delegate;
+                this.summer = summer;
+                this.sumsBuilder = sumsBuilder;
+            }
+
+            @Override
+            public boolean test(RegionKeyType key, int[] bounds) {
+                boolean result = delegate.test(key, bounds);
+                // Here we need to actually KNOW if something was added and how many -
+                // as in, if it was a duplicate, don't add an entry
+
+                // Hmm, maybe get before/after size on the regions being built?
+                if (result) {
+                    if (bounds != null && bounds.length >= 2 && bounds[1] > bounds[0] && node instanceof ParserRuleContext) {
+                        long sum = summer.sum(node, bounds[0], bounds[1]);
+                        LOG.log(Level.FINEST, "Checksum for {0}:{1} is {2}",
+                                new Object[]{bounds[0], bounds[1], sum});
+                        sumsBuilder.add(sum);
+                    } else {
+                        sumsBuilder.add(0);
+                    }
+                }
+                return result;
+            }
         }
     }
 }

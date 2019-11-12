@@ -102,8 +102,13 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
             component.setBorder(empty);
             component.setViewportBorder(empty);
             list.setBorder(empty);
+            onAfterCreateComponent(list);
         }
         return component;
+    }
+
+    protected void onAfterCreateComponent(C component) {
+        
     }
 
     public void panelActivated(Lookup context) {

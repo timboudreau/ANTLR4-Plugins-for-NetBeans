@@ -27,10 +27,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JEditorPane;
 import javax.swing.JList;
 import javax.swing.JPopupMenu;
+import javax.swing.JSeparator;
 import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
@@ -59,6 +62,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
     private final String mimeType;
     private final NavigatorPanelConfig<K> config;
     private final Appearance<? super NamedSemanticRegion<K>> appearance;
+    private CaretTracker tracker;
 
     GenericAntlrNavigatorPanel(String mimeType, NavigatorPanelConfig<K> config, Appearance<? super NamedSemanticRegion<K>> appearance) {
         this.mimeType = mimeType;
@@ -81,16 +85,38 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
     }
 
     private String sortKey() {
-        String mt = mimeType.replace('/', '-');
+        String mt = mimeType.replace('/', '-').replace('+', '_');
         return mt + "-" + PREFERENCES_KEY_NAVIGATOR_SORT;
     }
 
     @Override
     protected void onBeforeCreateComponent() {
-        String savedSort = NbPreferences.forModule(GenericAntlrNavigatorPanel.class)
-                .get(sortKey(), NATURAL.name());
+        Preferences prefs = NbPreferences.forModule(GenericAntlrNavigatorPanel.class);
+        String savedSort = prefs.get(sortKey(), NATURAL.name());
         if (sort.name().equals(savedSort)) {
             this.sort = SortTypes.valueOf(savedSort);
+        }
+        trackingCaret = prefs.getBoolean(trackingKey(), true);
+    }
+
+    private String trackingKey() {
+        return "caretTrack_" + mimeType.replace('/', '_').replace('+', '_');
+    }
+
+    @Override
+    public void panelDeactivated() {
+        super.panelDeactivated();
+        if (tracker != null) {
+            tracker.detach();
+        }
+    }
+
+    @Override
+    protected void onAfterCreateComponent(ActivatedTcPreCheckJList<NamedSemanticRegion<K>> component) {
+        if (config.isTrackCaret() && config.key() != null) {
+            this.tracker = new CaretTracker(list, config.key());
+        } else {
+            this.tracker = null;
         }
     }
 
@@ -129,6 +155,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
 
         int newSelectedIndex = config.populateListModel(extraction, debugItems, oldSelection, sort);
         setNewModel(newModel, forChange, newSelectedIndex);
+        updateCaretTracking(extraction, ck);
     }
 
     @SuppressWarnings("unchecked")
@@ -145,7 +172,39 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
         }
     }
 
+    private boolean trackingCaret;
+
+    private boolean isTrackCaret() {
+        return trackingCaret;
+    }
+
+    private void setTrackingCaret(boolean val) {
+        if (trackingCaret != val) {
+            trackingCaret = val;
+            Preferences prefs = NbPreferences.forModule(getClass());
+            prefs.putBoolean(trackingKey(), val);
+            if (!trackingCaret) {
+                if (tracker != null) {
+                    tracker.detach();
+                }
+            } else {
+                if (tracker != null) {
+                    ListModel<?> lm = list().getModel();
+                    if (lm instanceof EditorAndChangeAwareListModel<?>) {
+                        EditorAndChangeAwareListModel<?> em = (EditorAndChangeAwareListModel<?>) lm;
+                        tracker.track(em.semantics, em.cookie);
+                    }
+                }
+            }
+        }
+    }
+
+    private void toggleTrackingCaret() {
+        setTrackingCaret(!isTrackCaret());
+    }
+
     @Messages({
+        "track-caret=Track Caret",
         "the-list-tootip=Click to navigate; right click to show popup"})
     @SuppressWarnings("unchecked")
     @Override
@@ -166,6 +225,17 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
                         }
                     }
                     config.onPopulatePopupMenu(menu);
+                    if (tracker != null) {
+                        JCheckBoxMenuItem item = new JCheckBoxMenuItem(Bundle.track_caret());
+                        item.setSelected(isTrackCaret());
+                        item.addActionListener(ae -> {
+                            toggleTrackingCaret();
+                        });
+                        if (menu.getComponentCount() > 0) {
+                            menu.add(new JSeparator());
+                        }
+                        menu.add(item);
+                    }
                     menu.show(list, e.getX(), e.getY());
                 } else {
                     EditorAndChangeAwareListModel<NamedSemanticRegion<K>> mdl
@@ -199,6 +269,12 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
         // Use the fast, lightweight HtmlRenderer I wrote in 2002 for the actual rendering
         result.setCellRenderer(new Ren(appearance, this::getSort, this::getDelimiters));
         return result;
+    }
+
+    private void updateCaretTracking(Extraction extraction, EditorCookie ck) {
+        if (tracker != null && trackingCaret) {
+            tracker.track(extraction, ck);
+        }
     }
 
     private static final class Ren<K extends Enum<K>> implements ListCellRenderer<NamedSemanticRegion<K>> {

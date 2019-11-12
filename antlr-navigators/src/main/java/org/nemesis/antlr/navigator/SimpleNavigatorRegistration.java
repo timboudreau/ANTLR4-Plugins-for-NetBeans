@@ -70,4 +70,12 @@ public @interface SimpleNavigatorRegistration {
      * @return An appearance type
      */
     Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
+
+    /**
+     * If true, the panel will have the ability to update the selection
+     * and scroll when the editor caret position changes.
+     *
+     * @return Whether or not to track the caret
+     */
+    boolean trackCaret() default false;
 }

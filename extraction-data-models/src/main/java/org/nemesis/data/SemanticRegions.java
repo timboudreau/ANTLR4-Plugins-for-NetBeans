@@ -311,6 +311,10 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             regions = new SemanticRegions<>(type);
         }
 
+        public int size() {
+            return regions.size();
+        }
+
         public SemanticRegionsBuilder<T> add(T key, int start, int end) {
             assert key == null || regions.keys.getClass().getComponentType().isInstance(key) :
                     "Bad key type: " + key + " (" + key.getClass() + ")";

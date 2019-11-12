@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import org.antlr.v4.runtime.BufferedTokenStream;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -74,10 +74,8 @@ public final class AntlrExtractor {
         return txt == null ? false : txt.trim().indexOf('\n') > 0;
     }
 
-    private static void extractActionBounds(ParserRuleContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
-        if (containsNonTrailingNewlines(ctx)) {
-            cons.accept(FoldableKind.ACTION.createFor(ctx.getText()), ctx);
-        }
+    private static boolean extractActionBounds(ParserRuleContext ctx, BiPredicate<FoldableRegion, ParserRuleContext> cons) {
+        return containsNonTrailingNewlines(ctx) && cons.test(FoldableKind.ACTION.createFor(ctx.getText()), ctx);
     }
 
     private static FoldableRegion regionForToken(Token token) {
@@ -105,11 +103,11 @@ public final class AntlrExtractor {
         }
     }
 
-    static void extractRuleSpecFoldBounds(RuleSpecContext ctx, BiConsumer<FoldableRegion, ParserRuleContext> cons) {
+    static boolean extractRuleSpecFoldBounds(RuleSpecContext ctx, BiPredicate<FoldableRegion, ParserRuleContext> cons) {
         if (ctx.getText().length() < 60) {
             // we can't test for newlines because they are routed to a different
             // channel
-            return;
+            return false;
         }
         String name = null;
         ANTLRv4Parser.LexerRuleSpecContext lexSpec = ctx.lexerRuleSpec();
@@ -132,9 +130,11 @@ public final class AntlrExtractor {
                 }
             }
         }
-        if (name != null) {
-            cons.accept(FoldableKind.RULE.createFor(name), ctx);
+        boolean result = name != null;
+        if (result) {
+            result = cons.test(FoldableKind.RULE.createFor(name), ctx);
         }
+        return name != null;
     }
 
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
@@ -224,6 +224,7 @@ public final class AntlrExtractor {
                 .finishNamedRegions()
                 // Just collect the offsets of all BlockContext trees, in a nested data structure
                 .extractingRegionsUnder(AntlrKeys.BLOCKS)
+                .summingTokensFor(ANTLRv4Lexer.VOCABULARY)
                 .whenRuleType(ANTLRv4Parser.BlockContext.class)
                 .extractingBoundsFromRule()
                 .finishRegionExtractor()
@@ -422,24 +423,26 @@ public final class AntlrExtractor {
         return null;
     }
 
-    private static void extractEbnfPropertiesFromEbnfContext(ANTLRv4Parser.EbnfContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
-        maybeAddEbnf(ctx.block(), ctx.ebnfSuffix(), c);
+    private static boolean extractEbnfPropertiesFromEbnfContext(ANTLRv4Parser.EbnfContext ctx, BiPredicate<Set<EbnfProperty>, int[]> c) {
+        return maybeAddEbnf(ctx.block(), ctx.ebnfSuffix(), c);
     }
 
-    private static void extractEbnfRegionFromParserRuleElement(ANTLRv4Parser.ParserRuleElementContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
+    private static boolean extractEbnfRegionFromParserRuleElement(ANTLRv4Parser.ParserRuleElementContext ctx, BiPredicate<Set<EbnfProperty>, int[]> c) {
         if (ctx.parserRuleAtom() != null) {
-            maybeAddEbnf(ctx.parserRuleAtom(), ctx.ebnfSuffix(), c);
+            return maybeAddEbnf(ctx.parserRuleAtom(), ctx.ebnfSuffix(), c);
         } else if (ctx.labeledParserRuleElement() != null) {
-            maybeAddEbnf(ctx.labeledParserRuleElement(), ctx.ebnfSuffix(), c);
+            return maybeAddEbnf(ctx.labeledParserRuleElement(), ctx.ebnfSuffix(), c);
         }
+        return false;
     }
 
-    private static void extractEbnfRegionFromLexerRuleElement(ANTLRv4Parser.LexerRuleElementContext ctx, BiConsumer<Set<EbnfProperty>, int[]> c) {
+    private static boolean extractEbnfRegionFromLexerRuleElement(ANTLRv4Parser.LexerRuleElementContext ctx, BiPredicate<Set<EbnfProperty>, int[]> c) {
         if (ctx.lexerRuleAtom() != null) {
-            maybeAddEbnf(ctx.lexerRuleAtom(), ctx.ebnfSuffix(), c);
+            return maybeAddEbnf(ctx.lexerRuleAtom(), ctx.ebnfSuffix(), c);
         } else if (ctx.lexerRuleElementBlock() != null) {
-            maybeAddEbnf(ctx.lexerRuleElementBlock(), ctx.ebnfSuffix(), c);
+            return maybeAddEbnf(ctx.lexerRuleElementBlock(), ctx.ebnfSuffix(), c);
         }
+        return false;
     }
 
     private static NamedRegionData<RuleTypes> extractAlternativeLabelInfo(ANTLRv4Parser.ParserRuleLabeledAlternativeContext ctx) {
@@ -482,9 +485,9 @@ public final class AntlrExtractor {
         return null;
     }
 
-    private static void maybeAddEbnf(ParserRuleContext repeated, ANTLRv4Parser.EbnfSuffixContext suffix, BiConsumer<Set<EbnfProperty>, int[]> c) {
+    private static boolean maybeAddEbnf(ParserRuleContext repeated, ANTLRv4Parser.EbnfSuffixContext suffix, BiPredicate<Set<EbnfProperty>, int[]> c) {
         if (suffix == null || repeated == null) {
-            return;
+            return false;
         }
         String ebnfString = suffix.getText();
         if (!ebnfString.isEmpty()) {
@@ -492,9 +495,10 @@ public final class AntlrExtractor {
             if (!key.isEmpty()) {
                 int start = repeated.getStart().getStartIndex();
                 int end = suffix.getStop().getStopIndex() + 1;
-                c.accept(key, new int[]{start, end});
+                return c.test(key, new int[]{start, end});
             }
         }
+        return false;
     }
 
     private static Set<EbnfProperty> ebnfPropertiesForSuffix(ANTLRv4Parser.EbnfSuffixContext ctx) {

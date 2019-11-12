@@ -32,9 +32,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.nemesis.data.Hashable;
+import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.named.ContentsChecksums;
 import static org.nemesis.extraction.ExtractionRegistration.BASE_PATH;
 import org.nemesis.extraction.key.SingletonKey;
 import org.nemesis.source.api.GrammarSource;
@@ -286,15 +287,23 @@ public final class Extractor<T extends ParserRuleContext> {
 
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
-        ParseTreeVisitor<?> v = info.createVisitor((k, bounds) -> {
+        RegionExtractionStrategies.V v = info.createVisitor((k, bounds) -> {
             if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0) && (bounds[0] != bounds[1] /* empty file */)) {
+                int before = bldr.size();
                 bldr.add(k, bounds[0], bounds[1]);
+                return before != bldr.size();
             }
+            return false;
         }, cancelled);
         ruleNode.accept(v);
         RegionsCombiner<K> combiner = new RegionsCombiner<>(bldr.build());
         info.runTokenExtrationStrategies(combiner, tokens, cancelled);
-        extraction.add(info.key, combiner.get());
+        SemanticRegions<K> regions = combiner.get();
+        extraction.add(info.key, regions);
+        ContentsChecksums<SemanticRegion<K>> checksums = info.retrieveChecksums(v, regions);
+        if (!checksums.isEmpty()) {
+            extraction.add(info.key, checksums);
+        }
     }
 
     static final class RegionsCombiner<T> implements Consumer<SemanticRegions<T>> {

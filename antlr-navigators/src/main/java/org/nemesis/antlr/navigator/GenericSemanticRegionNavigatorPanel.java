@@ -27,10 +27,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JEditorPane;
 import javax.swing.JList;
 import javax.swing.JPopupMenu;
+import javax.swing.JSeparator;
 import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
@@ -40,6 +43,7 @@ import org.openide.awt.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
+import org.openide.util.NbPreferences;
 
 /**
  *
@@ -47,10 +51,14 @@ import org.openide.util.Mutex;
  */
 final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavigatorPanel<SemanticRegion<K>, ActivatedTcPreCheckJList<SemanticRegion<K>>> {
 
+    private final String mimeType;
     private final SemanticRegionPanelConfig<K> config;
     private final Appearance<? super SemanticRegion<K>> appearance;
+    private CaretTracker tracker;
+    private boolean trackingCaret;
 
-    public GenericSemanticRegionNavigatorPanel(SemanticRegionPanelConfig<K> config, Appearance<? super SemanticRegion<K>> appearance) {
+    GenericSemanticRegionNavigatorPanel(String mimeType, SemanticRegionPanelConfig<K> config, Appearance<? super SemanticRegion<K>> appearance) {
+        this.mimeType = mimeType;
         this.config = config;
         this.appearance = appearance;
     }
@@ -66,6 +74,30 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavi
     }
 
     @Override
+    public void panelDeactivated() {
+        super.panelDeactivated();
+        if (tracker != null) {
+            tracker.detach();
+        }
+    }
+
+    @Override
+    protected void onBeforeCreateComponent() {
+        super.onBeforeCreateComponent();
+        Preferences prefs = NbPreferences.forModule(GenericAntlrNavigatorPanel.class);
+        trackingCaret = prefs.getBoolean(trackingKey(), true);
+    }
+
+    @Override
+    protected void onAfterCreateComponent(ActivatedTcPreCheckJList<SemanticRegion<K>> component) {
+        if (config.isTrackCaret() && config.key() != null) {
+            this.tracker = new CaretTracker(list, config.key());
+        } else {
+            this.tracker = null;
+        }
+    }
+
+    @Override
     protected void withNewModel(Extraction extraction, EditorCookie ck, int forChange) {
         SemanticRegion<K> oldSelection = null;
         if (list.getModel() instanceof EditorAndChangeAwareListModel<?>) {
@@ -77,6 +109,44 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavi
 
         int newSelectedIndex = config.populateListModel(extraction, nue, oldSelection, SortTypes.NATURAL);
         setNewModel(newModel, forChange, newSelectedIndex);
+        updateCaretTracking(extraction, ck);
+    }
+
+    protected JList list() {
+        return list;
+    }
+
+    private boolean isTrackCaret() {
+        return trackingCaret;
+    }
+
+    private String trackingKey() {
+        return "caretTrack_" + mimeType.replace('/', '_').replace('+', '_');
+    }
+
+    private void setTrackingCaret(boolean val) {
+        if (trackingCaret != val) {
+            trackingCaret = val;
+            Preferences prefs = NbPreferences.forModule(getClass());
+            prefs.putBoolean(trackingKey(), val);
+            if (!trackingCaret) {
+                if (tracker != null) {
+                    tracker.detach();
+                }
+            } else {
+                if (tracker != null) {
+                    ListModel<?> lm = list().getModel();
+                    if (lm instanceof EditorAndChangeAwareListModel<?>) {
+                        EditorAndChangeAwareListModel<?> em = (EditorAndChangeAwareListModel<?>) lm;
+                        tracker.track(em.semantics, em.cookie);
+                    }
+                }
+            }
+        }
+    }
+
+    private void toggleTrackingCaret() {
+        setTrackingCaret(!isTrackCaret());
     }
 
     @SuppressWarnings("unchecked")
@@ -91,6 +161,17 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavi
                     // Dynamic popup menu to set sort order and showing labels
                     JPopupMenu menu = new JPopupMenu();
                     config.onPopulatePopupMenu(menu);
+                    if (tracker != null) {
+                        JCheckBoxMenuItem item = new JCheckBoxMenuItem(Bundle.track_caret());
+                        item.setSelected(isTrackCaret());
+                        item.addActionListener(ae -> {
+                            toggleTrackingCaret();
+                        });
+                        if (menu.getComponentCount() > 0) {
+                            menu.add(new JSeparator());
+                        }
+                        menu.add(item);
+                    }
                     menu.show(list, e.getX(), e.getY());
                 } else {
                     EditorAndChangeAwareListModel<SemanticRegion<K>> mdl
@@ -201,5 +282,11 @@ final class GenericSemanticRegionNavigatorPanel<K> extends AbstractAntlrListNavi
     @Override
     protected void setNoModel(int forChange) {
         setNewModel(null, forChange, -1);
+    }
+
+    private void updateCaretTracking(Extraction extraction, EditorCookie ck) {
+        if (tracker != null && trackingCaret) {
+            tracker.track(extraction, ck);
+        }
     }
 }

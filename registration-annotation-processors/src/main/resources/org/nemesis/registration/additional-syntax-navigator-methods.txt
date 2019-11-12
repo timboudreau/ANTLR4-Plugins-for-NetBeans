@@ -1,28 +1,28 @@
-    private static void ruleToString(ParserRuleContext ctx, BiConsumer<String, ParserRuleContext> bi) {
+private static boolean ruleToString(ParserRuleContext ctx, BiPredicate<String, ParserRuleContext> bi) {
         String nm = ctx.getClass().getSimpleName();
-        if ( nm.endsWith( "Context" ) ) {
-            nm = nm.substring( 0, nm.length() - 7 );
+        if (nm.endsWith("Context")) {
+            nm = nm.substring(0, nm.length() - 7);
         }
         Token start = ctx.getStart();
         Token stop = ctx.getStop();
-        if ( start != null && ( start == stop || start.equals( stop ) ) ) {
-            if ( !hasRuleChildren( ctx ) ) {
+        if (start != null && (start == stop || start.equals(stop))) {
+            if (!hasRuleChildren(ctx)) {
                 String text = start.getText();
-                if ( text.length() > 12 ) {
-                    text = text.substring( 0, 12 ) + "...";
+                if (text.length() > 15) {
+                    text = text.substring(0, 15) + "\u2026";
                 }
-                bi.accept( "<i>" + text + "</i>:" + nm, ctx );
-                return;
+                return bi.test("<b>" + escapeHtml(text) + "</b> <font color=\"!controlShadow\">" + nm, ctx);
             }
         }
         try {
-            bi.accept(nm, ctx);
+            return bi.test(nm, ctx);
         } catch (IllegalArgumentException ex) {
             java.util.logging.Logger logger = java.util.logging.Logger.getLogger("org.nemesis.SyntaxTreeNavigator");
             logger.log(java.util.logging.Level.INFO, "Likely range add out of order adding "
                     + nm + " - " + ctx + " from " + start.getStartIndex()
                     + " to " + stop.getStopIndex(), ex);
         }
+        return false;
     }
 
     private static boolean hasRuleChildren(ParserRuleContext ctx) {
@@ -34,4 +34,25 @@
             }
         }
         return false;
+    }
+
+    private static String escapeHtml(String val) {
+        StringBuilder sb = new StringBuilder(val.length() + 10);
+        for (int i=0; i < val.length(); i++) {
+            char c = val.charAt(i);
+            switch(c) {
+                case '"' :
+                    sb.append("&quot;");
+                    break;
+                case '<' :
+                    sb.append("&lt;");
+                    break;
+                case '>':
+                    sb.append("&gt;");
+                    break;
+                default :
+                    sb.append(c);
+            }
+        }
+        return sb.toString();
     }

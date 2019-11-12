@@ -51,11 +51,13 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
     private final String displayName;
     private final String hint;
     private final Function<Extraction, Set<String>> delimitersFinder;
+    private final boolean trackCaret;
 
     private NavigatorPanelConfig(NameReferenceSetKey<K> centralityKey, Appearance<NamedSemanticRegion<K>> appearance,
             ListModelPopulator<K, NamedSemanticRegion<K>> populator, Consumer<JPopupMenu> popupMenuPopulator,
             BiConsumer<Extraction, List<? super NamedSemanticRegion<K>>> elementFetcher,
-            String displayName, boolean sortable, String hint, Function<Extraction, Set<String>> delimitersFinder) {
+            String displayName, boolean sortable, String hint, Function<Extraction, Set<String>> delimitersFinder,
+            boolean trackCaret) {
         this.centralityKey = centralityKey;
         this.appearance = appearance == null ? new DefaultAppearance() : appearance;
         this.populator = populator;
@@ -65,6 +67,11 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         this.sortable = sortable;
         this.elementFetcher = elementFetcher;
         this.delimitersFinder = delimitersFinder;
+        this.trackCaret = trackCaret;
+    }
+
+    boolean isTrackCaret() {
+        return trackCaret;
     }
 
     NamedRegionKey<K> key() {
@@ -98,9 +105,15 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
         private Appearance<NamedSemanticRegion<K>> appearance;
         private NameReferenceSetKey<K> centralityKey;
         private final Set<ExtractionKey<K>> keys = new HashSet<>();
+        private boolean trackCaret;
 
         private Builder() {
 
+        }
+
+        public Builder<K> trackCaret() {
+            trackCaret = true;
+            return this;
         }
 
         public NavigatorPanelConfig<K> build() {
@@ -112,7 +125,7 @@ public final class NavigatorPanelConfig<K extends Enum<K>> {
             }
             return new NavigatorPanelConfig<>(centralityKey, appearance, populator == null ? new DefaultPopulator<>() : populator,
                     popupMenuPopulator, elementFetcher, displayName, sortable, hint,
-                    delimiters(keys));
+                    delimiters(keys), trackCaret);
         }
 
         static <K> Function<Extraction, Set<String>> delimiters(Set<ExtractionKey<K>> keys) {
