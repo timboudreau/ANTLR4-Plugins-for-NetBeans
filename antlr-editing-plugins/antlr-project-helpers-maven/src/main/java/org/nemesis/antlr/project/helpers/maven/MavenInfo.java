@@ -279,7 +279,7 @@ final class MavenInfo {
         }
 
         static PomInfo create(Path path) throws Exception {
-            new Exception("Create pom info: " + path).printStackTrace();
+//            new Exception("Create pom info: " + path).printStackTrace();
             if (Files.exists(path)) {
                 List<PomFileAnalyzer> all = new ArrayList<>();
                 Map<Path, Long> watches = new HashMap<>();

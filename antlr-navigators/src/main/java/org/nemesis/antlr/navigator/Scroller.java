@@ -48,13 +48,14 @@ final class Scroller implements ActionListener, ComponentListener, MouseWheelLis
     private final Rectangle target = new Rectangle();
     private final JScrollPane pane;
     private final JComponent comp;
-    private final Timer timer = new Timer(60, this);
+    private final Timer timer = new Timer(30, this);
 
     @SuppressWarnings(value = "LeakingThisInConstructor")
     public Scroller(JComponent comp, JScrollPane pane) {
         this.pane = pane;
         this.comp = comp;
         comp.putClientProperty(Scroller.class.getName(), this);
+        timer.setCoalesce(false);
     }
 
     static Scroller get(JComponent comp) {
@@ -92,10 +93,19 @@ final class Scroller implements ActionListener, ComponentListener, MouseWheelLis
         if (realTargetHeight == 0) {
             realTargetHeight = bounds.height;
         }
-        tick = 1;
+        tick = 0;
         target.setBounds(bounds);
         comp.addComponentListener(this);
         comp.addMouseWheelListener(this);
+        startTimer();
+    }
+
+    int start = 0;
+    void startTimer() {
+        BoundedRangeModel vmdl = pane.getVerticalScrollBar().getModel();
+        int val = vmdl.getValue();
+        start = val;
+        System.out.println("\nSTART " + val + " target " + target.y);
         timer.start();
     }
 
@@ -110,12 +120,14 @@ var easeInOutQuad = function (x, t, b, c, d) {
         int ease(double percent, int elapsed, int start, int end, int total);
     }
 
-    private int quadraticEase(double percent, int elapsed, int start, int end, int total) {
+    private int quadraticEase(double percent, double elapsed, double start, double end, double total) {
+        double result;
         if ((elapsed /= total / 2) < 1) {
-            return end / 2 * elapsed * elapsed + start;
+            result = end / 2 * elapsed * elapsed + start;
         } else {
-            return -end / 2 * ((--elapsed) * (elapsed - 2) - 1) + elapsed;
+            result = -end / 2 * ((--elapsed) * (elapsed - 2) - 1) + elapsed;
         }
+        return (int) result;
     }
 
     int step(int distance) {
@@ -152,14 +164,34 @@ var easeInOutQuad = function (x, t, b, c, d) {
         comp.removeMouseWheelListener(this);
     }
 
-    @Override
+//    @Override
+    public void xactionPerformed(ActionEvent e) {
+        if (!comp.isDisplayable() || !comp.isVisible() || !comp.isShowing()) {
+            timer.stop();
+            return;
+        }
+        BoundedRangeModel vmdl = pane.getVerticalScrollBar().getModel();
+        int val = vmdl.getValue();
+        if (val == target.y) {
+            done();
+        }
+        int total = 100;
+//        int ydist = val - target.y;
+        int ease = quadraticEase(0, tick, start, target.y, total);
+        System.out.println("Start " + start + " val " + val + " target " + target.y + " ease " + ease + " at " + tick + "/" + total);
+        vmdl.setValue(ease);
+        tick++;
+        if (tick == total + 1) {
+            vmdl.setValue(target.y);
+            done();
+        }
+    }
     public void actionPerformed(ActionEvent e) {
         if (!comp.isDisplayable() || !comp.isVisible() || !comp.isShowing()) {
             timer.stop();
             return;
         }
         BoundedRangeModel vmdl = pane.getVerticalScrollBar().getModel();
-        BoundedRangeModel hmdl = pane.getHorizontalScrollBar().getModel();
         int val = vmdl.getValue();
         int ydist = val - target.y;
         int step = step(val > target.y ? val - target.y : target.y - val);

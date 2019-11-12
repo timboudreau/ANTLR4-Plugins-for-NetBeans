@@ -142,6 +142,7 @@ public enum JdkTypes implements TypeName {
     INT_FUNCTION("java.util.function.IntFunction"),
     INT_PREDICATE("java.util.function.IntPredicate"),
     INT_UNARY_OPERATOR("java.util.function.IntUnaryOperator"),
+    LONG_CONSUMER("java.util.function.LongConsumer"),
     LONG_SUPPLIER("java.util.function.LongSupplier"),
     PREDICATE("java.util.function.Predicate"),
     SUPPLIER("java.util.function.Supplier"),

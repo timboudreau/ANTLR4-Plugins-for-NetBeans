@@ -124,10 +124,14 @@ public enum KnownTypes implements TypeName {
     BASE_ACTION("org.netbeans.editor.BaseAction", Libraries.LIB),
     BASE_DOCUMENT("org.netbeans.editor.BaseDocument", Libraries.LIB),
     BASE_KIT("org.netbeans.editor.BaseKit", Libraries.LIB),
+    BEFORE_REFACTORING_TASK(
+        "org.nemesis.antlr.refactoring.common.BeforeRefactoringTask",
+        Libraries.REFACTORING_COMMON),
     BIAS("com.mastfrog.util.search.Bias", Libraries.WRAPPER),
     BIT_SET_HETERO_OBJECT_GRAPH(
         "org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph",
         Libraries.MODELS),
+    BIT_SET_UTILS("com.mastfrog.graph.BitSetUtils", Libraries.WRAPPER),
     BOOLEAN_CONSUMER("com.mastfrog.function.BooleanConsumer", Libraries.WRAPPER),
     BUFFERED_TOKEN_STREAM("org.antlr.v4.runtime.BufferedTokenStream",
         Libraries.ANTLR_WRAPPER),
@@ -194,10 +198,10 @@ public enum KnownTypes implements TypeName {
     COMPLETION_RESULT_SET(
         "org.netbeans.spi.editor.completion.CompletionResultSet",
         Libraries.EDITOR_COMPLETION),
-    COMPLETION_STRINGIFIER("org.nemesis.antlr.completion.Stringifier",
-        Libraries.CODE_COMPLETION),
     COMPLETION_TASK("org.netbeans.spi.editor.completion.CompletionTask",
         Libraries.EDITOR_COMPLETION),
+    CONTENTS_CHECKSUMS("org.nemesis.data.named.ContentsChecksums",
+        Libraries.MODELS),
     CONTEXT(
         "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context",
         Libraries.LIB2),
@@ -360,6 +364,10 @@ public enum KnownTypes implements TypeName {
         Libraries.FORMATTERS),
     FORMATTING_RULES("org.nemesis.antlrformatting.api.FormattingRules",
         Libraries.FORMATTERS),
+    G4INPLACE_RENAME_ACTION("org.nemesis.antlr.file.G4InplaceRenameAction",
+        Libraries.SUPPORT),
+    G4REFACTORING_PLUGIN_FACTORY(
+        "org.nemesis.antlr.file.G4RefactoringPluginFactory", Libraries.SUPPORT),
     GOTO("org.nemesis.antlr.spi.language.Goto", Libraries.ANTLR_LANGUAGE),
     GRAMMAR_COMPLETION_PROVIDER(
         "org.nemesis.antlr.completion.grammar.GrammarCompletionProvider",
@@ -436,8 +444,6 @@ public enum KnownTypes implements TypeName {
         Libraries.WRAPPER),
     IO_RUNNABLE("com.mastfrog.function.throwing.io.IORunnable",
         Libraries.WRAPPER),
-    IO_SUPPLIER("com.mastfrog.function.throwing.io.IOSupplier",
-        Libraries.WRAPPER),
     IO_TRI_FUNCTION("com.mastfrog.function.throwing.io.IOTriFunction",
         Libraries.WRAPPER),
     ITEM_RENDERER("org.nemesis.antlr.completion.ItemRenderer",
@@ -502,9 +508,6 @@ public enum KnownTypes implements TypeName {
     MNEMONICS("org.openide.awt.Mnemonics", Libraries.AWT),
     MODAL_TOKEN("org.nemesis.antlrformatting.api.ModalToken",
         Libraries.FORMATTERS),
-    MODIFICATION_RESULT(
-        "org.netbeans.modules.refactoring.spi.ModificationResult",
-        Libraries.MODULES_REFACTORING),
     MULTI_DATA_OBJECT("org.openide.loaders.MultiDataObject", Libraries.LOADERS),
     MULTI_FILE_LOADER("org.openide.loaders.MultiFileLoader", Libraries.LOADERS),
     MULTI_FILE_SYSTEM("org.openide.filesystems.MultiFileSystem",
@@ -519,9 +522,6 @@ public enum KnownTypes implements TypeName {
     NAMED_INDEX_ADDRESSABLE(
         "org.nemesis.data.IndexAddressable.NamedIndexAddressable",
         Libraries.MODELS),
-    NAMED_REFERENCES_RENAME_PARTICIPANT(
-        "org.nemesis.antlr.instantrename.RenameParticipant.NamedReferencesRenameParticipant",
-        Libraries.RENAME),
     NAMED_REGION_DATA("org.nemesis.extraction.NamedRegionData",
         Libraries.EXTRACTION),
     NAMED_REGION_EXTRACTOR_BUILDER(
@@ -542,9 +542,6 @@ public enum KnownTypes implements TypeName {
         Libraries.MODELS),
     NAMED_SEMANTIC_REGIONS_BUILDER(
         "org.nemesis.data.named.NamedSemanticRegionsBuilder", Libraries.MODELS),
-    NAMED_SEMANTIC_REGION_LOCALIZER(
-        "org.nemesis.antlr.refactoring.NamedSemanticRegionLocalizer",
-        Libraries.REFACTORING),
     NAMED_SEMANTIC_REGION_POSITION_INDEX(
         "org.nemesis.data.named.NamedSemanticRegionPositionIndex",
         Libraries.MODELS),
@@ -655,6 +652,9 @@ public enum KnownTypes implements TypeName {
         Libraries.REFACTORING_COMMON),
     REFACTORINGS_BUILDER("org.nemesis.antlr.refactoring.RefactoringsBuilder",
         Libraries.REFACTORING),
+    REFACTORING_ACTIONS_BRIDGE(
+        "org.nemesis.antlr.refactoring.common.RefactoringActionsBridge",
+        Libraries.REFACTORING_COMMON),
     REFACTORING_ACTIONS_FACTORY(
         "org.netbeans.modules.refactoring.api.ui.RefactoringActionsFactory",
         Libraries.MODULES_REFACTORING),
@@ -716,6 +716,8 @@ public enum KnownTypes implements TypeName {
         Libraries.COMPLETION),
     RULE_CONTEXT("org.antlr.v4.runtime.RuleContext", Libraries.ANTLR_WRAPPER),
     RULE_NODE("org.antlr.v4.runtime.tree.RuleNode", Libraries.ANTLR_WRAPPER),
+    RULE_PARENT_PREDICATE("org.nemesis.extraction.RuleParentPredicate",
+        Libraries.EXTRACTION),
     RUNTIME_CHAR_STREAM("org.antlr.runtime.CharStream", Libraries.RUNTIME),
     RUNTIME_LEXER("org.antlr.v4.runtime.Lexer", Libraries.ANTLR_WRAPPER),
     RUNTIME_RECOGNITION_EXCEPTION("org.antlr.runtime.RecognitionException",
@@ -787,13 +789,16 @@ public enum KnownTypes implements TypeName {
     STATIC_RESOURCE("org.netbeans.api.annotations.common.StaticResource",
         Libraries.ANNOTATIONS_COMMON),
     STATUS_DISPLAYER("org.openide.awt.StatusDisplayer", Libraries.AWT),
-    STRINGIFIER("com.mastfrog.abstractions.Stringifier", Libraries.WRAPPER),
+    STRINGIFIER("org.nemesis.antlr.completion.Stringifier",
+        Libraries.CODE_COMPLETION),
     STRINGS("com.mastfrog.util.strings.Strings", Libraries.WRAPPER),
     STRING_GRAPH("com.mastfrog.graph.StringGraph", Libraries.WRAPPER),
     STRING_KIND("org.nemesis.antlr.completion.StringKind",
         Libraries.CODE_COMPLETION),
     STRING_PREDICATES("com.mastfrog.predicates.string.StringPredicates",
         Libraries.WRAPPER),
+    SUMMING_FUNCTION("org.nemesis.extraction.SummingFunction",
+        Libraries.EXTRACTION),
     SYNC_DOCUMENT_REGION("org.nemesis.antlr.instantrename.SyncDocumentRegion",
         Libraries.RENAME),
     SYNTAX_ERROR("org.nemesis.antlr.spi.language.SyntaxError",
