@@ -71,7 +71,7 @@ public final class ProjectUpdates {
         }
     }
 
-    private static Set<Path> dependencies(Path path) {
+    static Set<Path> dependencies(Path path) {
         Set<Path> res = new LinkedHashSet<>(5);
         dependencyTree(path, res);
         return res;
