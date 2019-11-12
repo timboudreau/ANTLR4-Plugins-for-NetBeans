@@ -159,13 +159,17 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
     }
 
     private DocumentProcessor<Void, IOException> op(String text, Map<PositionBounds, Boolean> enablement) {
-        return () -> {
-            for (PositionBounds pb : bounds) {
-                if (!enablement.containsKey(pb)) {
-                    pb.setText(text);
+        // JDK 8 javac does not like a lambda here
+        return new DocumentProcessor<Void, IOException>() {
+            @Override
+            public Void get() throws IOException, BadLocationException {
+                for (PositionBounds pb : bounds) {
+                    if (!enablement.containsKey(pb)) {
+                        pb.setText(text);
+                    }
                 }
+                return null;
             }
-            return null;
         };
     }
 
