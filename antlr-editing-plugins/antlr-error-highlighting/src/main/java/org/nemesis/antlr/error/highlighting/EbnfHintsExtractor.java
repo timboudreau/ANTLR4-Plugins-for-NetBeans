@@ -15,23 +15,13 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
-import com.mastfrog.range.DataIntRange;
-import com.mastfrog.range.Range;
-import com.mastfrog.util.strings.Escaper;
-import com.mastfrog.util.strings.Strings;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.nemesis.antlr.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.BlockContext;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfContext;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
-import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDeclarationContext;
-import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAlternativeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAtomContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
@@ -77,22 +67,22 @@ final class EbnfHintsExtractor {
                             .withParentType(ParserRuleElementContext.class).thatHasOnlyOneChild();
                 })
                 .derivingNameWith((ParserRuleIdentifierContext pric) -> {
-                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(pric.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
-                            + "' in " + Strings.escape(pric.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+//                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(pric.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+//                            + "' in " + Strings.escape(pric.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
                     // Find the pattern
                     // foo : someRule*; or foo : someRule?;
                     ParserRuleAlternativeContext anc = ancestor(pric, ParserRuleAlternativeContext.class);
                     if (anc.getChildCount() > 1) {
-                        System.out.println("    child count too high");
+//                        System.out.println("    child count too high");
                         return null;
                     }
                     ANTLRv4Parser.EbnfSuffixContext ebnf = ancestor(pric, ParserRuleElementContext.class).ebnfSuffix();
                     if (ebnf != null) {
                         NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf, pric);
-                        System.out.println("      result " + result);
+//                        System.out.println("      result " + result);
                         return result;
                     } else {
-                        System.out.println("   no ebnf");
+//                        System.out.println("   no ebnf");
                     }
                     return null;
                 })
@@ -106,7 +96,8 @@ final class EbnfHintsExtractor {
                             if (suffix != null) {
                                 boolean result = (suffix.STAR() != null || suffix.QUESTION() != null)
                                         && suffix.PLUS() == null;
-                                System.out.println("TESTING EBNF '" + suffix.getText() + "' result " + result);
+//                                System.out.println("TESTING EBNF '" + suffix.getText() + "' result " + result);
+                                return result;
                             }
                         }
                         return false;
@@ -116,11 +107,11 @@ final class EbnfHintsExtractor {
                     // Find the pattern
                     // foo : (a | b | c)*
                     EbnfContext ebnf = ancestor(block, EbnfContext.class);
-                    System.out.println("try Block '" + Strings.escape(block.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
-                            + "' in " + Strings.escape(block.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+//                    System.out.println("try Block '" + Strings.escape(block.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+//                            + "' in " + Strings.escape(block.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
 //                    if (ebnf.ebnfSuffix() != null) {
                     NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf.ebnfSuffix(), block);
-                    System.out.println("      result " + result);
+//                    System.out.println("      result " + result);
                     return result;
 //                    } else {
 //                        System.out.println("  no ebnf");
@@ -136,35 +127,35 @@ final class EbnfHintsExtractor {
 
                 })
                 .derivingNameWith((ParserRuleElementContext ctx) -> {
-                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(ctx.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
-                            + "' in " + Strings.escape(ctx.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+//                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(ctx.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+//                            + "' in " + Strings.escape(ctx.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
                     // Find the pattern
                     // foo : SomeLexerToken*
                     if (ctx.getChildCount() == 2) {
-                        System.out.println("  has cc 2");
+//                        System.out.println("  has cc 2");
                         for (int i = 0; i < 2; i++) {
-                            System.out.println("     CHILD " + i + ": '" + ctx.getChild(i).getText() + "' "
-                                    + ctx.getChild(i).getClass().getSimpleName());
+//                            System.out.println("     CHILD " + i + ": '" + ctx.getChild(i).getText() + "' "
+//                                    + ctx.getChild(i).getClass().getSimpleName());
                         }
-                        System.out.println("ebnf suffix: '" + (ctx.ebnfSuffix() == null ? "null'" : ctx.ebnfSuffix().getText() + "'"));
-                        System.out.println("EBNF: '" + (ctx.ebnf() == null ? "null'" : ctx.ebnf().getText() + "'"));
+//                        System.out.println("ebnf suffix: '" + (ctx.ebnfSuffix() == null ? "null'" : ctx.ebnfSuffix().getText() + "'"));
+//                        System.out.println("EBNF: '" + (ctx.ebnf() == null ? "null'" : ctx.ebnf().getText() + "'"));
                         EbnfSuffixContext ebnf = null;
                         if (ctx.ebnfSuffix() != null) {
                             ebnf = ctx.ebnfSuffix();
-                            System.out.println("  found on ctx? " + (ebnf != null));
+//                            System.out.println("  found on ctx? " + (ebnf != null));
                         } else {
                             if (ctx.ebnf() != null) {
                                 ebnf = ctx.ebnf().ebnfSuffix();
-                                System.out.println("  found on ctx.ebnf() " + (ebnf != null));
+//                                System.out.println("  found on ctx.ebnf() " + (ebnf != null));
                             }
                         }
 //                        EbnfSuffixContext ebnf = ctx.ebnfSuffix() != null ? ctx.ebnf() != null ? ctx.ebnf().ebnfSuffix() : null : null;
                         if (ebnf != null) {
                             NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf, ctx);
-                            System.out.println("      result " + result);
+//                            System.out.println("      result " + result);
                             return result;
                         } else {
-                            System.out.println("   but no ebnf");
+//                            System.out.println("   but no ebnf");
                         }
                     }
                     return null;

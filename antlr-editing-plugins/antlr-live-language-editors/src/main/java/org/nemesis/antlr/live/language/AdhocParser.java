@@ -58,7 +58,6 @@ final class AdhocParser extends Parser {
     }
 
     static void forceInvalidate(FileObject fo) {
-        System.out.println("AdhocParser.forceInvalidate");
         Set<Task> all = new HashSet<>();
         String mime = fo.getMIMEType();
         for (Map.Entry<Task, AdhocParserResult> e : RESULT_FOR_TASK.entrySet()) {
@@ -100,7 +99,6 @@ final class AdhocParser extends Parser {
 //        last = null;
 //        RESULT_FOR_TASK.clear();
         if (parsesAtLastFire != parses) {
-            System.out.println("PARSER FIRE CHANGE " + AdhocMimeTypes.loggableMimeType(mimeType));
             Thread.dumpStack();
             parsesAtLastFire = parses;
             supp.fireChange();
@@ -164,7 +162,6 @@ final class AdhocParser extends Parser {
             Set<Task> toRemove = new HashSet<>();
             for (Map.Entry<Task, AdhocParserResult> e : RESULT_FOR_TASK.entrySet()) {
                 if (t == e.getValue()) {
-                    System.out.println("remove task entry " + e.getKey());
                     toRemove.add(e.getKey());
                 }
             }
@@ -182,10 +179,6 @@ final class AdhocParser extends Parser {
         Result result = RESULT_FOR_TASK.get(task);
         if (result == null && last != null) {
             result = last;
-        }
-        System.out.println("GET RESULT FOR TASK " + task + " gets " + result);
-        if (result == null) {
-//            new Exception("Null task result " + task).printStackTrace();
         }
         return result;
     }

@@ -38,7 +38,6 @@ import org.openide.util.lookup.ProxyLookup;
 public class AntlrActionsProvider extends ActionsImplementationProvider {
 
     private boolean isRefactorable(Lookup lookup, Class<? extends AbstractRefactoring> ref) {
-        System.out.println("\n\nIS REF LOOKUP CONTENTS: " + lookup.lookupAll(Object.class));
         FileObject file = file(lookup);
         return file != null && AntlrMimeTypeRegistration.isAntlrLanguage(file)
                 && Refactorability.isRefactoringSupported(ref, file, lookup);
@@ -85,7 +84,6 @@ public class AntlrActionsProvider extends ActionsImplementationProvider {
     }
 
     private FileObject file(Lookup lookup) {
-        System.out.println("LOOKUP CONTENTS: \n\n" + lookup.lookupAll(Object.class) + "\n\n");
         FileObjectHolder holder = lookup.lookup(FileObjectHolder.class);
         FileObject fo = holder == null ? null : holder.get();
         if (fo == null) {

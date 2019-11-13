@@ -151,7 +151,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         LOG.log(Level.FINEST, "Refresh src errs {0} from {1}",
                 new Object[]{this, info});
 
-        System.out.println("refresh source errors " + info.semantics.loggingInfo());
+//        System.out.println("refresh source errors " + info.semantics.loggingInfo());
 
         if (proxy.isUnparsed()) {
             String msg = Bundle.buildFailed();

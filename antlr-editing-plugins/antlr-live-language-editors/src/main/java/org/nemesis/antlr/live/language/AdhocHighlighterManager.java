@@ -248,7 +248,7 @@ final class AdhocHighlighterManager {
         @Override
         public void stateChanged(ChangeEvent e) {
 //            scheduleRepaint();
-            System.out.println("\n\nhighlighters got colorings colorings change");
+//            System.out.println("\n\nhighlighters got colorings colorings change");
             repaintHighlights();
         }
 

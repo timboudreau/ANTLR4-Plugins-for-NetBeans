@@ -54,7 +54,6 @@ final class ImportKeyDelegateToSingletonKeyStrategy<T extends Enum<T>, K, R exte
         this.sourceKey = sourceKey;
         this.filter = filter;
         this.delegate = delegate;
-        System.out.println("Create impdel " + this);
     }
 
     static <T extends Enum<T>, K> ImportKeyDelegateToSingletonKeyStrategy<T, K, WhereUsedQuery> forWhereUsed(SingletonKey<K> targetKey, NamedRegionKey<T> sourceKey, CharFilter filter) {
@@ -73,44 +72,34 @@ final class ImportKeyDelegateToSingletonKeyStrategy<T extends Enum<T>, K, R exte
     @Override
     public RefactoringPlugin apply(R query, Extraction extraction, PositionBounds bounds) {
         Optional<FileObject> foOpt = extraction.source().lookup(FileObject.class);
-        System.out.println("Apply " + query.getClass().getName() + " to " + extraction.source() + " at " + bounds);
         if (foOpt.isPresent()) {
             FindResult<T> region = super.find(foOpt.get(), sourceKey, extraction, bounds);
-            System.out.println("FOUND REGION for " + sourceKey + "? " + region);
             if (region != null && region.region() != null) {
                 ImportFinder impFinder = ImportFinder.forKeys(sourceKey);
-                System.out.println("  have import finder " + impFinder);
                 Set<GrammarSource<?>> thingsWeImport = impFinder.allImports(extraction, CollectionUtils.blackHoleSet());
-                System.out.println("   we import " + thingsWeImport);
                 for (GrammarSource<?> src : thingsWeImport) {
-                    System.out.println("   Check '" + src.name() + "' and '" + region.region().name() + "'");
                     if (region.region().name().equals(src.name())) {
                         Optional<Document> docOpt = src.lookup(Document.class);
                         Extraction targetExtraction = null;
                         try {
                             if (docOpt.isPresent()) {
                                 targetExtraction = parse(docOpt.get());
-                                System.out.println("  parse by doc " + targetExtraction.source());
                             } else {
                                 Optional<FileObject> targetFoOpt = src.lookup(FileObject.class);
                                 if (targetFoOpt.isPresent()) {
                                     targetExtraction = parse(targetFoOpt.get());
-                                    System.out.println("  parse by file " + targetExtraction.source());
                                 }
                             }
                         } catch (Exception ex) {
                             Exceptions.printStackTrace(ex);
                         }
                         if (targetExtraction != null) {
-                            System.out.println("  have a target extraction " + targetExtraction.source());
                             SingletonEncounters<K> singletons = targetExtraction.singletons(targetKey);
                             if (singletons.hasEncounter()) {
                                 SingletonEncounters.SingletonEncounter<K> singleton = singletons.first();
-                                System.out.println("    have singleton");
                                 Optional<FileObject> tfo = src.lookup(FileObject.class);
                                 if (tfo.isPresent()) {
                                     FileObject originalFile = tfo.get();
-                                    System.out.println("    original file " + originalFile);
                                     return delegate.create(targetKey, query, extraction, originalFile, singleton, filter);
                                 }
                             }

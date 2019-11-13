@@ -251,7 +251,6 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
     public void keyTyped(KeyEvent e) {
         boolean initial = isFirstCharacter();
         boolean suppressed = !result.test(initial, e.getKeyChar());
-//        System.out.println("Key '" + e.getKeyChar() + "' initial " + initial + " suppress? " + suppressed);
         if (suppressed) {
             e.consume();
         }
@@ -332,7 +331,6 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
         FontColorSettings fcs = MimeLookup.getLookup(MimePath.EMPTY).lookup(FontColorSettings.class);
         AttributeSet as = fcs != null ? fcs.getFontColors(name) : null;
         as = as == null ? defaultSyncedTextBlocksHighlight : as;
-        System.out.println("Sync'd block highlight: " + as);
         return as;
     }
 

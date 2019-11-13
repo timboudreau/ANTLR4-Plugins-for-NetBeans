@@ -174,7 +174,7 @@ public class AdhocColoring implements AdhocAttributeSet {
         int flags = Integer.parseInt(s[0], 16);
         if ((flags & MASK_FOREGROUND) != 0 && (flags & MASK_BACKGROUND) != 0) {
             flags ^= MASK_BACKGROUND;
-            System.err.println("Removed simultaneous background and foreground flags from " + toParse + " - removed background flag");
+//            System.err.println("Removed simultaneous background and foreground flags from " + toParse + " - removed background flag");
         }
         int color = Integer.parseInt(s[1], 16);
         return new AdhocColoring((byte) flags, new Color(color));

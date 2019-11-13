@@ -854,8 +854,6 @@ public final class JFS implements JavaFileManager {
                     LOG.log(Level.FINE, "JFS.close(): Will not close {0} in "
                             + "{1} - a live classloader over it exists",
                             new Object[]{e.getKey(), fsid});
-                    System.out.println("Classloader still exists over " + e.getKey() + " - "
-                            + e.getValue());
                 }
             }
             for (Location loc : toRemove) {

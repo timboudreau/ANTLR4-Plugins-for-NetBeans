@@ -93,7 +93,6 @@ public final class EmbeddedAntlrParsers {
 
     private EmbeddedAntlrParser _subscribe(String logName, FileObject grammar) {
         Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(grammar);
-        System.out.println("SUBSCRIBE " + logName + " to " + grammar.getNameExt());
         EmbeddedAntlrParserImpl p;
 //        EmbeddedAntlrParser p = find(set);
 //        if (p != null) {

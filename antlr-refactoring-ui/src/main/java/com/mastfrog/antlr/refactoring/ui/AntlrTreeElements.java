@@ -51,7 +51,6 @@ public class AntlrTreeElements implements TreeElementFactoryImplementation {
 
     @Override
     public TreeElement getTreeElement(Object o) {
-        System.out.println("get tree element " + o + " (" + o.getClass().getName() + ")");
         if (o instanceof RefactoringElement) {
             RefactoringElement el = (RefactoringElement) o;
             // A squirrely way around the fact that you can't look up

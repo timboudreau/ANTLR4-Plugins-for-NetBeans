@@ -256,7 +256,6 @@ public final class RuleHierarchyPredicateBuilder<T> {
             }
             int lastPosition = builder.hierarchy.size() - 1;
             RuleParentPredicate<P> last = (RuleParentPredicate<P>) builder.hierarchy.get(lastPosition);
-            System.out.println("AND " + last + " WITH " + additionalTest);
             builder.hierarchy.set(lastPosition, last.and(additionalTest));
             return this;
         }

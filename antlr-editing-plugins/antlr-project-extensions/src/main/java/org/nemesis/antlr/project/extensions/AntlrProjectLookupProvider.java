@@ -21,6 +21,7 @@ import org.netbeans.api.project.Project;
 import org.netbeans.spi.project.LookupProvider;
 import org.netbeans.spi.project.LookupProvider.Registration.ProjectType;
 import org.openide.util.Lookup;
+import org.openide.util.RequestProcessor;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
 
@@ -32,6 +33,13 @@ import org.openide.util.lookup.InstanceContent;
 public class AntlrProjectLookupProvider implements LookupProvider {
 
     static final Logger LOG = Logger.getLogger(AntlrProjectLookupProvider.class.getName());
+    private long created = System.currentTimeMillis();
+    private static final long DELAY = 65000;
+    private final RequestProcessor initThreadPool = new RequestProcessor("antlr-project-lookup-init", 3, false);
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     public AntlrProjectLookupProvider() {
         LOG.log(Level.FINE, "Created an {0}", AntlrProjectLookupProvider.class.getName());
@@ -39,14 +47,32 @@ public class AntlrProjectLookupProvider implements LookupProvider {
 
     @Override
     public Lookup createAdditionalLookup(Lookup baseContext) {
-        Project project = baseContext.lookup(Project.class);
-        LOG.log(Level.FINER, "Create antlr lookup for project {0}",
-                project.getProjectDirectory().getName());
+        long delay = remainingDelay();
         InstanceContent content = new InstanceContent();
-        content.add(new AntlrFileBuiltQuery());
-        content.add(new AntlrSources(baseContext));
-        content.add(AntlrRecommendedTemplates.INSTANCE);
+        Runnable init = () -> {
+            Project project = baseContext.lookup(Project.class);
+            LOG.log(Level.FINER, "Create antlr lookup for project {0}",
+                    project.getProjectDirectory().getName());
+            content.add(new AntlrFileBuiltQuery());
+            content.add(new AntlrSources(baseContext));
+            content.add(AntlrRecommendedTemplates.INSTANCE);
+        };
+        if (delay > 0) {
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "Postpone project lookup init for {0} for {1}ms.",
+                        new Object[]{baseContext.lookup(Project.class), delay});
+            }
+            RequestProcessor.Task task = initThreadPool.create(init);
+            task.schedule((int) delay);
+        } else {
+            init.run();
+        }
         return new AbstractLookup(content);
+    }
+
+    private long remainingDelay() {
+        long target = created + DELAY;
+        return Math.max(0, target - System.currentTimeMillis());
     }
 
 }

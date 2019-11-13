@@ -278,7 +278,9 @@ public class AntlrFormatterConfig {
     }
 
     private static ANTLRv4Lexer lexerFor(CharStream stream) {
-        return new ANTLRv4Lexer(stream);
+        ANTLRv4Lexer result = new ANTLRv4Lexer(stream);
+        result.removeErrorListeners();
+        return result;
     }
 
     private static RuleNode rn(Lexer lexer) {

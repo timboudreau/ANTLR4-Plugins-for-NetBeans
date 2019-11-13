@@ -243,10 +243,7 @@ class Usage extends AbstractRefactoringContext implements ComparableRefactoringE
                         // It seems unlikely, but we sometimes get a PositionBounds
                         // with the end set to null, and the class does not check it
                         Rectangle a = comp.modelToView(position.getBegin().getOffset());
-                        if (a == null) {
-                            System.out.println("GOT NULL RECT FOR " + position);
-                        }
-                        if (position.getEnd() != null) {
+                        if (a != null && position.getEnd() != null) {
                             Rectangle b = comp.modelToView(position.getEnd().getOffset());
                             a.add(b);
                         }
@@ -254,7 +251,9 @@ class Usage extends AbstractRefactoringContext implements ComparableRefactoringE
                         if (position.getEnd() != null) {
                             comp.setSelectionEnd(position.getEnd().getOffset());
                         }
-                        comp.scrollRectToVisible(a);
+                        if (a != null) {
+                            comp.scrollRectToVisible(a);
+                        }
                         opened = true;
                     } catch (BadLocationException ex) {
                         Exceptions.printStackTrace(ex);

@@ -179,8 +179,8 @@ final class PomFileAnalyzer {
                     if ("groupId".equals(el.getTagName())) {
                         String gid = el.getTextContent().trim();
                         if (!groupId.equals(gid)) {
-                            System.err.println("Found plugin w/ right name " + artifactIdNode
-                                    + "' but wrong groupId: '" + gid + "' not '" + groupId + "'");
+//                            System.err.println("Found plugin w/ right name " + artifactIdNode
+//                                    + "' but wrong groupId: '" + gid + "' not '" + groupId + "'");
                             return info;
                         }
                     }
@@ -1675,8 +1675,8 @@ final class PomFileAnalyzer {
                             el.removeChild(ver);
                             el.appendChild(newVersion);
                             found = true;
-                            System.out.println("Replace dependency in "
-                                    + getGroupID() + ":" + getArtifactId() + " -> " + version);
+//                            System.out.println("Replace dependency in "
+//                                    + getGroupID() + ":" + getArtifactId() + " -> " + version);
                         }
                     }
                 }
@@ -1690,7 +1690,7 @@ final class PomFileAnalyzer {
         Element parentVersionElement = (Element) (NodeList) findParentVersion.evaluate(d, XPathConstants.NODE);
 
         if (parentArtifactIdElement != null && parentGroupIdElement != null && parentVersionElement != null) {
-            System.out.println("FOUND PARENT " + parentGroupIdElement.getTextContent() + ":" + parentArtifactIdElement.getTextContent() + ":" + parentVersionElement.getTextContent());
+//            System.out.println("FOUND PARENT " + parentGroupIdElement.getTextContent() + ":" + parentArtifactIdElement.getTextContent() + ":" + parentVersionElement.getTextContent());
 
             if (oldGroupId.equals(parentGroupIdElement.getTextContent())
                     && oldArtifactID.equals(parentArtifactIdElement.getTextContent())

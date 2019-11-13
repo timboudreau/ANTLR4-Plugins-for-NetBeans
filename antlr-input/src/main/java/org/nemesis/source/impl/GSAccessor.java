@@ -91,9 +91,6 @@ public abstract class GSAccessor {
                 new IllegalArgumentException("Name should not be passed with extension: " + name).printStackTrace();
             }
         }
-        if (imported == null) {
-            System.out.println("CANNOT RESOLVE " + name + " against " + impl);
-        }
         return imported == null ? null : newGrammarSource(imported);
     }
 

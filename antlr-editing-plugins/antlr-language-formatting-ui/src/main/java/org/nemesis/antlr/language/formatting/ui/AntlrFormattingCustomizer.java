@@ -90,7 +90,6 @@ public class AntlrFormattingCustomizer implements PreferencesCustomizer, Preview
             preview.setEditorKit(CloneableEditorSupport.getEditorKit("text/x-g4"));
             preview.setEditable(false);
             String text = formatPreviewText(ui.config().preferences(), previewText());
-            System.out.println("PREVIEW TEXT:\n" + text);
             try {
                 preview.getDocument().insertString(0, text, null);
             } catch (BadLocationException ex) {

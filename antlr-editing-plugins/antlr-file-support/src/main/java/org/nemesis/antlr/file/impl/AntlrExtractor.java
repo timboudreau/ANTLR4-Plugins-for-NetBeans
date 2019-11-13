@@ -314,6 +314,7 @@ public final class AntlrExtractor {
         Supplier<TokenStream> streamSource = () -> {
             try {
                 ANTLRv4Lexer lex = new ANTLRv4Lexer(src.stream());
+                lex.removeErrorListeners();
                 BufferedTokenStream stream = new BufferedTokenStream(lex);
                 return stream;
             } catch (IOException ex) {

@@ -96,8 +96,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
 
         CodeCompletionCore.CandidatesCollection result = core.collectCandidates(caretToken, null);
 
-        System.out.println("\n\nCOMPLETION RESULT: " + result + "\n");
-
         Token caretTok = stream.get(caretToken);
 
         result.tokens.forEach((tokenId, list) -> {

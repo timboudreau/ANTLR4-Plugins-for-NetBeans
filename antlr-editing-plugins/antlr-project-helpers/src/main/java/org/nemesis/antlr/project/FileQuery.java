@@ -216,7 +216,7 @@ public final class FileQuery {
                     for (String name : names) {
                         Path fileName = Paths.get(name + '.' + ext);
                         Path test = parentDir.resolve(fileName);
-                        System.out.println("search sibling in " + parentDir + " for " + test);
+//                        System.out.println("search sibling in " + parentDir + " for " + test);
                         if (Files.exists(test)) {
                             return Optional.of(test);
                         }

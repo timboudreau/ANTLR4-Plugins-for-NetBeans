@@ -429,7 +429,6 @@ public class AntlrRunSubscriptions {
                                         .build(extraction.source().name());
 
                             } else {
-                                System.out.println("USE CACHED");
                                 arg = cache.lastArg;
                                 cr = cache.lastCompileResult;
                                 LOG.log(Level.FINEST, "Reuse cached {0} and {1}",
