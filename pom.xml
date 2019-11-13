@@ -15,11 +15,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.5</version>
+    <version>2.0.6</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -38,7 +38,7 @@ limitations under the License.
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.1</new.junit.version>
         <manifest.file.path>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifest.file.path>
-<!--        <netbeans.hint.license>notice-apache-2</netbeans.hint.license>-->
+        <!--        <netbeans.hint.license>notice-apache-2</netbeans.hint.license>-->
     </properties>
     <licenses>
         <license>

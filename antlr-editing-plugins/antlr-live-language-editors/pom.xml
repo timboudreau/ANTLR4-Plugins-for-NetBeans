@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
-        <version>2.0.5</version>
+        <version>2.0.6</version>
     </parent>
     <artifactId>antlr-live-language-editors</artifactId>
     <scm>
@@ -248,7 +248,7 @@ limitations under the License.
             <scope>test</scope>
             <type>test-jar</type>
             <version>${project.version}</version>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-masterfs-nio2</artifactId>

@@ -73,7 +73,6 @@ public final class ResolverRegistry {
     static ImportFinder importFinder(String mime) {
         ResolverRegistry reg = REGISTRIES.get(mime);
         Collection<? extends ImportFinder> all = reg.lkp.lookupAll(ImportFinder.class);
-        System.out.println("FOUND IMPORT FINDERS " + all + " for " + mime);
         switch (all.size()) {
             case 0:
                 return ImportFinder.EMPTY;

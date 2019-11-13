@@ -351,14 +351,10 @@ public final class AdhocColoringsRegistry {
     private void importImportedTokensAndRules(String mimeType, Extraction ext,
             Set<GrammarSource<?>> seen, AdhocColorings intoColorings) {
         ImportFinder finder = ImportFinder.forMimeType(mimeType);
-        System.out.println("\n\nIMPORT TOKENS " + ext.source() + " finder: " + finder);
         seen.add(ext.source());
         Set<GrammarSource<?>> imports = finder.allImports(ext, CollectionUtils.blackHoleSet());
-        System.out.println("   IMPORTS: " + imports);
         for (GrammarSource<?> src : imports) {
-            System.out.println("   check source " + src);
             if (seen.contains(src)) {
-                System.out.println("  seen it.");
                 continue;
             }
             src.lookup(Source.class, source -> {
@@ -370,11 +366,8 @@ public final class AdhocColoringsRegistry {
                             if (result instanceof ExtractionParserResult) {
                                 Extraction ext = ((ExtractionParserResult) result).extraction();
                                 if (!seen.contains(ext.source())) { // could be indirect import, so check here too
-                                    System.out.println("    recurse for " + ext.source());
                                     doUpdate(intoColorings, mimeType, ext, seen);
                                 }
-                            } else {
-                                System.out.println("Not an extraction result: " + result);
                             }
                         }
                     });

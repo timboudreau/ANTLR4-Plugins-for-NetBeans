@@ -91,10 +91,6 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
     private volatile boolean inSync;
 
     private static final Logger LOG = Logger.getLogger(InstantRenamePerformer.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
     private final FindItemsResult<?, ?, ?, ?> result;
 
     @SuppressWarnings("LeakingThisInConstructor")

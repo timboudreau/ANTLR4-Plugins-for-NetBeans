@@ -17,7 +17,6 @@ package org.nemesis.registration;
 
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
-import static com.mastfrog.annotation.AnnotationUtils.enclosingType;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
@@ -260,7 +259,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                 // erasure(t) seems to be broken on JDK 10
                 tn = tn.substring(0, tn.indexOf('<'));
             }
-            System.out.println("  COMPARE " + tn + " and " + base.toString());
             if (tn.equals(base.toString())) {
                 return true;
             }
@@ -293,8 +291,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
 
     private boolean isSingletonKey(VariableElement el) {
         boolean result = findSupertype(el.asType(), SINGLETON_KEY.qnameNotouch()) != null;
-        System.out.println("TYPE OF EL is " + el.asType() + " looking for " + SINGLETON_KEY.qnameNotouch()
-                + " result " + result);
         return result;
     }
 
@@ -525,8 +521,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
             InplaceKey key, InplaceInfo info, ClassBuilder<String> cb, boolean last, InvocationBuilder<BlockBuilder<InvocationBuilder<BlockBuilder<ClassBuilder<String>>>>> subInvocation)
             throws IOException {
 
-        System.err.println("Generate " + key + " for " + key.mimeType);
-
         // Create our final call on the builder - everything we do here is
         // chained BEHIND that (as in, we add the calls in reverse order of how
         // they will show up in source code), so the final on(what) or inScope()
@@ -569,7 +563,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                 .onInvocationOf("rename");
         if (isSingletonKey(info.var)) {
             VariableElement importsKey = importsAnnotated.get(key.mimeType);
-            System.err.println("Have a singleton key " + info.var.getSimpleName() + " - imports key " + importsKey);
             if (importsKey != null) {
                 importsAnnotated.remove(key.mimeType);
                 TypeElement importKeyOwner = AnnotationUtils.enclosingType(importsKey);
@@ -597,16 +590,8 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                         .withArgument(importKeyName)
                         .withArgument(targetFieldName)
                         .onInvocationOf("rename");
-
-                System.out.println("SubInvocation now " + subInvocation);
-
-            } else {
-                System.err.println("No key for type " + info + " have items for mime type? " + importsAnnotated.containsKey(key.mimeType));
             }
-        } else {
-            System.err.println("Not a singleton key " + info + " have items for mime type? " + importsAnnotated.containsKey(key.mimeType));
         }
-
         // Prepend the call that opens the builder in the first place
         if (last) {
             subInvocation.on("bldr")
@@ -627,7 +612,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
     protected boolean processImportsAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if (mimeType != null) {
-            System.err.println("ADD " + var + " for " + mimeType);
             importsAnnotated.put(mimeType, var);
         }
         return false;
@@ -636,7 +620,6 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (IMPORTS_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
-            System.err.println("HAVE AN IMPORTS ANNOTATION " + var.getSimpleName() + " in " + enclosingType(var));
             return processImportsAnnotation(var, mirror, roundEnv);
         }
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);

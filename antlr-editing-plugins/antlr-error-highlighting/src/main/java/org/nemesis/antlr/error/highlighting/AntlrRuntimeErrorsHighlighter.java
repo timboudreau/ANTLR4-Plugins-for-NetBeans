@@ -240,7 +240,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         if (!checksums.isEmpty()) {
             int[] index = new int[1];
             checksums.visitRegionGroups(group -> {
-                System.out.println("\nDuplicate region groups: " + group);
+//                System.out.println("\nDuplicate region groups: " + group);
                 index[0]++;
                 List<PositionBoundsRange> ranges = new ArrayList<>(group.size());
                 StringBuilder occurrences = new StringBuilder(group.size() * 4);
@@ -248,7 +248,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 for (SemanticRegion<Void> region : group) {
                     PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), region);
                     if (pbr == null) {
-                        System.out.println("Could not create pbr for " + region);
                         return;
                     }
                     ranges.add(pbr);
@@ -384,20 +383,15 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            System.out.println("Try to position cursor");
             JTextComponent comp = EditorRegistry.findComponent(doc);
             if (comp != null && toSelect != null) {
                 int caretDest = toSelect.getBegin().getOffset() + 1;
                 comp.getCaret().setDot(caretDest);
-                System.out.println("  send caret to " + caretDest);
                 String mimeType = NbEditorUtilities.getMimeType(doc);
                 if (mimeType != null) {
-                    System.out.println("  mime" + mimeType);
                     Action action = FileUtil.getConfigObject("Editors/" + mimeType + "/Actions/in-place-refactoring.instance", Action.class);
-                    System.out.println("    action " + action);
                     if (action != null) {
                         ActionEvent ae = new ActionEvent(comp, ActionEvent.ACTION_PERFORMED, "in-place-refactoring");
-                        System.out.println("   sending action event to " + action);
                         action.actionPerformed(ae);
                     }
                 }

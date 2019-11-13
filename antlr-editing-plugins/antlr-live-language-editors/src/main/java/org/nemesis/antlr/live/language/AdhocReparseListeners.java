@@ -141,7 +141,6 @@ public final class AdhocReparseListeners {
         boolean wasRegistered = DynamicLanguages.ensureRegistered(mimeType);
         if (!wasRegistered) {
             Language l = Language.find(mimeType);
-            System.out.println("looked up " + l);
         }
         final File file = FileUtil.toFile(fo);
 
@@ -151,10 +150,8 @@ public final class AdhocReparseListeners {
             @Override
             public void run() {
                 FileObject theFileObject = FileUtil.toFileObject(file);
-                System.out.println("RUN " + runCount + " " + mimeType);
                 if (!theFileObject.getMIMEType().equals(mimeType)) {
                     if (runCount++ < 6) {
-                        System.out.println("not yet, reschedule");
                         PROC.schedule(this, 1, TimeUnit.SECONDS);
                         return;
                     }
@@ -182,10 +179,8 @@ public final class AdhocReparseListeners {
             }
         };
         if (wasRegistered) {
-            System.out.println("was registered - run immediate");
             r.run();
         } else {
-            System.out.println("not registered - async run");
 //            PROC.schedule(r, 500, TimeUnit.MILLISECONDS);
             r.run();
         }
@@ -232,7 +227,6 @@ public final class AdhocReparseListeners {
     }
 
     void onReparse(Source src, EmbeddedAntlrParserResult res) {
-        System.out.println("ON REPARSE " + src.getFileObject());
         Debug.run(this, "on-reparse " + AdhocMimeTypes.loggableMimeType(src.getMimeType()) + " " + AdhocMimeTypes.loggableMimeType(res.proxy().mimeType()), () -> {
             StringBuilder sb = new StringBuilder("Source mime type: ").append(src.getMimeType()).append('\n');
             sb.append("Source: ").append(src.getFileObject()).append('\n');
@@ -284,7 +278,6 @@ public final class AdhocReparseListeners {
     }
 
     static boolean reparsed(String mimeType, Source src, EmbeddedAntlrParserResult res) {
-        System.out.println("REPARSED " + src.getFileObject());
         if (true) {
             return withListeners(mimeType, false, arl -> {
                 arl.onReparse(src, res);
@@ -313,7 +306,6 @@ public final class AdhocReparseListeners {
         }
         // Coalesce reparses since there are frequently many after a rebuild
         boolean result = withListeners(mimeType, false, arl -> {
-            System.out.println("In with Listeners");
             synchronized (PENDING) {
                 SourceKey k = new SourceKey(mimeType, src, res);
                 SourceKey real = PENDING.get(k);
@@ -335,10 +327,7 @@ public final class AdhocReparseListeners {
 
     public static boolean reparsed(String mimeType, Document src, EmbeddedAntlrParserResult embp) {
         return withListeners(mimeType, false, arl -> {
-            FileObject fo = NbEditorUtilities.getFileObject(src);
-            if (fo != null) {
-                System.out.println("  not calling on reparse on " + arl.fileListeners.get(fo));
-            }
+//            FileObject fo = NbEditorUtilities.getFileObject(src);
             arl.onReparse(src, embp);
         });
     }

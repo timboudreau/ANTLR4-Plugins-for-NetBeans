@@ -291,7 +291,6 @@ final class BlockManager {
                 lastEnd[0]++;
             }
         }
-        System.out.println("\n AFTER FULL DEFRAG " + this + "\n");
         assert this.regionCount(true) == 1 : "After full defrag, there are still unallocated interstitial regions: " + this;
 //        System.out.println("AFTER FULL DEFRAG, " + this.regionCount(true) + " regions");
         int newCardinality = used.cardinality();
@@ -384,7 +383,6 @@ final class BlockManager {
                     break;
                 }
             }
-            System.out.println("unalloc region count after: " + regionCount(false) + " frag " + fragmentation());
         } finally {
             inDefrag = false;
         }

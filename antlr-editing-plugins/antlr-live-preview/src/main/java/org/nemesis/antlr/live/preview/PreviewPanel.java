@@ -536,7 +536,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 haveGrammarChange = false;
                 forceReparse();
             }
-            System.out.println("TRIGGER");
             realTrigger.run();
         }
     }
@@ -561,7 +560,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 EmbeddedAntlrParserResult res = lookup.lookup(EmbeddedAntlrParserResult.class);
                 ParseTreeProxy prx
                         = res == null ? null : res.proxy();
-                System.out.println("Update breadcrumb has proxy " + (prx != null));
                 if (prx != null) {
                     updateBreadcrumb(caret, prx);
                     updateErrors(res);
@@ -581,7 +579,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private void updateBreadcrumb(Caret caret, ParseTreeProxy prx) {
         StringBuilder sb = new StringBuilder();
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
-        System.out.println("tok at pos; " + tok + " at " + caret.getDot());
         if (tok != null) {
             stringifier.tokenRulePathString(prx, tok, sb, true);
             List<ParseTreeElement> referenceChain = prx.referencedBy(tok); //tok.referencedBy();
@@ -656,7 +653,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     @Override
     public void stateChanged(ChangeEvent e) {
         if (e.getSource() instanceof Caret) {
-            System.out.println("\n\nCARET STATE CHANGE selectingRange " + selectingRange);
             if (!selectingRange) {
                 updateBreadcrumb((Caret) e.getSource());
             }

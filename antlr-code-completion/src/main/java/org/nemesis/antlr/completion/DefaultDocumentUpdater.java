@@ -157,7 +157,7 @@ final class DefaultDocumentUpdater<I> implements ThrowingTriConsumer<I, JTextCom
         doc.runAtomicAsUser(() -> {
             try {
                 String text = stringifier.apply(StringKind.TEXT_TO_INSERT, a);
-                System.out.println("MATCH " + match + " for '" + text + "'");
+//                System.out.println("MATCH " + match + " for '" + text + "'");
                 if (match.isRange()) {
                     doc.replace(match.start(), match.length(), text, null);
                     newCaretPosition[0] = match.start() + text.length();

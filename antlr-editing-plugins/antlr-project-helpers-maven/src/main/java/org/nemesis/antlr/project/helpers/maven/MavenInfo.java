@@ -200,7 +200,6 @@ final class MavenInfo {
 
             info = PomInfo.create(pom);
             if (info == null) {
-                System.out.println("NULL pom info for " + projectDir);
                 knownNonAntlr.put(pom.toString(), currLastModified);
                 info = new PomInfo(Collections.emptyMap());
             }

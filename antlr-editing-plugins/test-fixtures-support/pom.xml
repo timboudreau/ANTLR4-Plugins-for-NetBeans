@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
-        <version>2.0.5</version>
+        <version>2.0.6</version>
     </parent>
     <artifactId>test-fixtures-support</artifactId>
     <scm>
@@ -53,7 +53,7 @@ limitations under the License.
             <scope>compile</scope>
         </dependency>
         <!-- XXX delete the implementation here and use this: -->
-<!--        <dependency>
+        <!--        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mock-named-services</artifactId>
             <scope>compile</scope>

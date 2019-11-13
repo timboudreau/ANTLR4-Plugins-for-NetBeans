@@ -102,7 +102,7 @@ public abstract class AbstractRefactoringContext {
     private static final Map<Class<?>, Logger> loggers = new ConcurrentHashMap<>();
     private static boolean cacheDisabled = Boolean.getBoolean("AbstractRefactoringContext.noCache");
     private static final ThreadLocal<CacheContext> CTX = ThreadLocal.withInitial(CacheContext::new);
-    static boolean debugLog = true;
+    static boolean debugLog = false;
 
     protected static String escapeHtml(String s) {
         return Strings.escape(s, AbstractRefactoringContext::escape);

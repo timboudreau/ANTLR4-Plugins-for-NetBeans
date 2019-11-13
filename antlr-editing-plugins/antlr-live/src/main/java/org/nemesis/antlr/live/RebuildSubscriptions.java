@@ -319,7 +319,6 @@ public final class RebuildSubscriptions {
         @Override
         public void fileRenamed(FileRenameEvent fe) {
             FileObject renamed = fe.getFile();
-            System.out.println("RENAMED: " + renamed);
             new HashSet<>(mappings).stream().filter((m) -> (m.fo.equals(renamed))).forEach((m) -> {
                 try {
                     JFS jfs = mapping.forProject(FileOwnerQuery.getOwner(initialFile));
@@ -333,8 +332,6 @@ public final class RebuildSubscriptions {
                         mappings.remove(m);
                         Mapping nue = map(renamed, owner, newPath);
                         mappings.add(nue);
-                        System.out.println("RENAME - remove " + m.targetPath + " from JFS and replace with " + nue.targetPath
-                                + " for " + renamed.getPath());
                     }
                 } catch (IOException ex) {
                     LOG.log(Level.INFO, null, ex);
@@ -668,7 +665,6 @@ public final class RebuildSubscriptions {
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
                 Debug.runThrowing(this, "RebuildSubscriptions.onReparse-" + extraction.tokensHash(), extraction::toString, () -> {
-                    System.out.println("onReparse called for " + extraction.source());
                     LOG.log(Level.FINER, "onReparse {0}", extraction.source());
                     List<Subscriber> targets = subscribers;
                     synchronized (lastLock) {

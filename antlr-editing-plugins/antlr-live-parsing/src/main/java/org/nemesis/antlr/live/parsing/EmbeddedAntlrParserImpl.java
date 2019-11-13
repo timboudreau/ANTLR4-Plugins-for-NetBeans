@@ -233,7 +233,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     @Override
     public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult) {
         Debug.run(this, logName + "-accept-" + t.tokensHash(), runResult::toString, () -> {
-            System.out.println("ACCEPT " + t.tokensHash() + " w/ " + runResult);
             if (reentry.get()) {
                 LOG.log(Level.INFO, "Attempt to reenter accept for " + t.source(),
                         new IllegalStateException("Attempt to reenter accept for " + t.source()));
@@ -273,7 +272,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     Debug.failure("non-usable", g::toString);
                     LOG.log(Level.FINE, "Non-usable generation result {0} for {1}"
                             + "; will not use", new Object[]{runResult, t.source()});
-                    System.out.println("non-usable run result, not setting");
                 }
             } finally {
                 reentry.set(false);
