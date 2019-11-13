@@ -14,6 +14,10 @@ private static boolean ruleToString(ParserRuleContext ctx, BiPredicate<String, P
                 return bi.test("<b>" + escapeHtml(text) + "</b> <font color=\"!controlShadow\">" + nm, ctx);
             }
         }
+        ParserRuleContext parent = ctx.getParent();
+        if (parent != null && isSameBounds(ctx, parent)) {
+            nm = "<font color=!controlShadow><i>"+ nm + "</i></font>";
+        }
         try {
             return bi.test(nm, ctx);
         } catch (IllegalArgumentException ex) {
@@ -55,4 +59,29 @@ private static boolean ruleToString(ParserRuleContext ctx, BiPredicate<String, P
             }
         }
         return sb.toString();
+    }
+
+    private static boolean isSameBounds(ParserRuleContext child, ParserRuleContext parent) {
+        Token childStart = child.start;
+        Token childStop = child.stop;
+        Token parentStart = parent.start;
+        Token parentStop = parent.stop;
+        if (childStart == parentStart && childStop == parentStop) {
+            return true;
+        }
+        if (java.util.Objects.equals(childStart, parentStart) && java.util.Objects.equals(childStop, parentStop)) {
+            return true;
+        }
+        if (childStart != null && parentStart != null) {
+            if (childStart.getStartIndex() == parentStart.getStartIndex()) {
+                if (childStop != null && parentStop != null) {
+                    if (childStop.getStopIndex() == parentStop.getStopIndex()) {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+            }
+        }
+        return false;
     }

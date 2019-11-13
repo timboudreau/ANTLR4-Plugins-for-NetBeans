@@ -49,6 +49,9 @@ import org.openide.util.Lookup;
  *     &#064;ServiceProvider(service = Refactorability.class, position = 41)
  * })
  * </pre>
+ * Assuming an instance of AntlrRefactoringPluginFactory is installed in some
+ * module, other modules can register additional refactorings by registering
+ * CustomRefactoring instances in the mime lookup for the correct mime type.
  *
  * @author Tim Boudreau
  */
@@ -77,17 +80,17 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
     }
 
     /**
-     * Implementation of Refactorability, used by the refactoring API
-     * to avoid popping up a refactoring dialog on tokens where it
-     * won't be able to do anything.
+     * Implementation of Refactorability, used by the refactoring API to avoid
+     * popping up a refactoring dialog on tokens where it won't be able to do
+     * anything.
      *
-     * @param type The AbstractRefactoring type (it will always be a subtype
-     * of that, but does not specify it to avoid entangling instant rename
-     * with the refactoring API).
+     * @param type The AbstractRefactoring type (it will always be a subtype of
+     * that, but does not specify it to avoid entangling instant rename with the
+     * refactoring API).
      * @param file The file
      * @param lookup A lookup
-     * @return True if the current element might be able to be refactored
-     * using some plugin this factory can create
+     * @return True if the current element might be able to be refactored using
+     * some plugin this factory can create
      */
     public final boolean canRefactor(Class<?> type, FileObject file, Lookup lookup) {
         boolean result = mimeType.equals(file.getMIMEType());
@@ -130,16 +133,19 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
 
     @Override
     public final RefactoringPlugin createInstance(AbstractRefactoring refactoring) {
+        if (!isSupported(refactoring)) {
+            ifLoggable(Level.FINEST, () -> {
+                logFinest("{0} does not support {1}",
+                        this, refactoring);
+            });
+            // Not a refactoring we have a generator for
+            return null;
+        }
         return inParsingContext(() -> { // cache parses
-            if (!isSupported(refactoring)) {
-                ifLoggable(Level.FINEST, () -> {
-                    logFinest("{0} does not support {1}",
-                            this, refactoring);
-                });
-                // Not a refactoring we have a generator for
+            FileObject fo = findFileObject(refactoring);
+            if (fo == null) {
                 return null;
             }
-            FileObject fo = findFileObject(refactoring);
             if (!mimeType.equals(fo.getMIMEType())) {
                 ifLoggable(Level.FINEST, () -> {
                     logFinest("{0} has nothing for {1} of {2} for {3}",

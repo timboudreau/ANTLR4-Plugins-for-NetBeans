@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.navigator;
 
+import java.awt.AWTEvent;
 import java.awt.EventQueue;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -155,21 +156,24 @@ final class CaretTracker implements ChangeListener, PropertyChangeListener {
     }
 
     private void scrollTo(IndexAddressable.IndexAddressableItem region) {
-        ListModel<?> lm = list.getModel();
-        int max = lm.getSize();
-        int index = -1;
-        for (int i = 0; i < max; i++) {
-            Object item = lm.getElementAt(i);
-            if (region.equals(item)) {
-                index = i;
-                break;
+        AWTEvent evt = EventQueue.getCurrentEvent();
+        if (evt.getSource() != list) {
+            ListModel<?> lm = list.getModel();
+            int max = lm.getSize();
+            int index = -1;
+            for (int i = 0; i < max; i++) {
+                Object item = lm.getElementAt(i);
+                if (region.equals(item)) {
+                    index = i;
+                    break;
+                }
             }
-        }
-        if (index != -1) {
-            int curr = list.getSelectedIndex();
-            if (curr != index) {
-                Scroller.get(list).beginScroll(list, index);
-                list.setSelectedIndex(index);
+            if (index != -1) {
+                int curr = list.getSelectedIndex();
+                if (curr != index) {
+                    Scroller.get(list).beginScroll(list, index);
+                    list.setSelectedIndex(index);
+                }
             }
         }
     }

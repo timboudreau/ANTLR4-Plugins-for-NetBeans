@@ -15,13 +15,23 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import com.mastfrog.range.DataIntRange;
+import com.mastfrog.range.Range;
+import com.mastfrog.util.strings.Escaper;
+import com.mastfrog.util.strings.Strings;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.nemesis.antlr.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.BlockContext;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfContext;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
+import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAlternativeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAtomContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
@@ -61,120 +71,111 @@ final class EbnfHintsExtractor {
                 .recordingNamePositionUnder(SOLO_EBNFS)
                 .whereRuleIs(ANTLRv4Parser.ParserRuleIdentifierContext.class)
                 .whenInAncestorRule(ANTLRv4Parser.ParserRuleAlternativeContext.class)
-                .whereParentHierarchy()
-                .withParentType(ParserRuleReferenceContext.class)
-                .withParentType(ParserRuleAtomContext.class)
-                .withParentType(ParserRuleElementContext.class).thatHasOnlyOneChild()
-                .build().derivingNameWith((ParserRuleIdentifierContext pric) -> {
+                .whereParentHierarchy(pb -> {
+                    pb.withParentType(ParserRuleReferenceContext.class)
+                            .withParentType(ParserRuleAtomContext.class)
+                            .withParentType(ParserRuleElementContext.class).thatHasOnlyOneChild();
+                })
+                .derivingNameWith((ParserRuleIdentifierContext pric) -> {
+                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(pric.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+                            + "' in " + Strings.escape(pric.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
                     // Find the pattern
                     // foo : someRule*; or foo : someRule?;
                     ParserRuleAlternativeContext anc = ancestor(pric, ParserRuleAlternativeContext.class);
                     if (anc.getChildCount() > 1) {
+                        System.out.println("    child count too high");
                         return null;
                     }
                     ANTLRv4Parser.EbnfSuffixContext ebnf = ancestor(pric, ParserRuleElementContext.class).ebnfSuffix();
                     if (ebnf != null) {
-                        return createEbnfHintRegionData(ebnf, pric);
+                        NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf, pric);
+                        System.out.println("      result " + result);
+                        return result;
+                    } else {
+                        System.out.println("   no ebnf");
                     }
                     return null;
                 })
                 .whereRuleIs(BlockContext.class)
                 .whenInAncestorRule(EbnfContext.class)
-                .whereParentHierarchy()
-                .withParentType(EbnfContext.class)
-                .withParentType(ParserRuleElementContext.class)
-                .build()
+                .whereParentHierarchy(pb -> {
+                    pb.withParentType(EbnfContext.class).thatMatches((EbnfContext eb) -> {
+                        // Filter the context for only the case where it is *, *? or +
+                        if (eb.ebnfSuffix() != null) {
+                            EbnfSuffixContext suffix = eb.ebnfSuffix();
+                            if (suffix != null) {
+                                boolean result = (suffix.STAR() != null || suffix.QUESTION() != null)
+                                        && suffix.PLUS() == null;
+                                System.out.println("TESTING EBNF '" + suffix.getText() + "' result " + result);
+                            }
+                        }
+                        return false;
+                    }).withParentType(ParserRuleElementContext.class);
+                })
                 .derivingNameWith((BlockContext block) -> {
                     // Find the pattern
                     // foo : (a | b | c)*
                     EbnfContext ebnf = ancestor(block, EbnfContext.class);
-                    if (ebnf.ebnfSuffix() != null) {
-                        return createEbnfHintRegionData(ebnf.ebnfSuffix(), block);
-                    }
-                    return null;
+                    System.out.println("try Block '" + Strings.escape(block.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+                            + "' in " + Strings.escape(block.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
+//                    if (ebnf.ebnfSuffix() != null) {
+                    NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf.ebnfSuffix(), block);
+                    System.out.println("      result " + result);
+                    return result;
+//                    } else {
+//                        System.out.println("  no ebnf");
+//                    }
+//                    return null;
                 })
                 .whereRuleIs(ParserRuleElementContext.class)
-                .whereParentHierarchy()
-                .withParentType(ParserRuleAlternativeContext.class)
-                .skippingParent()
-                .withParentType(ParserRuleDefinitionContext.class)
-                .build()
+                .whenInAncestorRule(ParserRuleDefinitionContext.class)
+                .whereParentHierarchy(pb -> {
+                    pb.withParentType(ParserRuleAlternativeContext.class)
+                            .skippingParent()
+                            .withParentType(ParserRuleDefinitionContext.class);
+
+                })
                 .derivingNameWith((ParserRuleElementContext ctx) -> {
+                    System.out.println("try ParserRuleIdentifierContext '" + Strings.escape(ctx.getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE)
+                            + "' in " + Strings.escape(ctx.getParent().getText(), Escaper.NEWLINES_AND_OTHER_WHITESPACE));
                     // Find the pattern
                     // foo : SomeLexerToken*
                     if (ctx.getChildCount() == 2) {
-                        EbnfSuffixContext ebnf = ctx.ebnfSuffix() != null ? ctx.ebnf() != null ? ctx.ebnf().ebnfSuffix() : null : null;
+                        System.out.println("  has cc 2");
+                        for (int i = 0; i < 2; i++) {
+                            System.out.println("     CHILD " + i + ": '" + ctx.getChild(i).getText() + "' "
+                                    + ctx.getChild(i).getClass().getSimpleName());
+                        }
+                        System.out.println("ebnf suffix: '" + (ctx.ebnfSuffix() == null ? "null'" : ctx.ebnfSuffix().getText() + "'"));
+                        System.out.println("EBNF: '" + (ctx.ebnf() == null ? "null'" : ctx.ebnf().getText() + "'"));
+                        EbnfSuffixContext ebnf = null;
+                        if (ctx.ebnfSuffix() != null) {
+                            ebnf = ctx.ebnfSuffix();
+                            System.out.println("  found on ctx? " + (ebnf != null));
+                        } else {
+                            if (ctx.ebnf() != null) {
+                                ebnf = ctx.ebnf().ebnfSuffix();
+                                System.out.println("  found on ctx.ebnf() " + (ebnf != null));
+                            }
+                        }
+//                        EbnfSuffixContext ebnf = ctx.ebnfSuffix() != null ? ctx.ebnf() != null ? ctx.ebnf().ebnfSuffix() : null : null;
                         if (ebnf != null) {
-                            return createEbnfHintRegionData(ebnf, ctx);
+                            NamedRegionData<EbnfItem> result = createEbnfHintRegionData(ebnf, ctx);
+                            System.out.println("      result " + result);
+                            return result;
+                        } else {
+                            System.out.println("   but no ebnf");
                         }
                     }
                     return null;
                 }).finishNamedRegions();
-/*
-        bldr.extractNamedRegionsKeyedTo(EbnfItem.class)
-                .recordingNamePositionUnder(SOLO_EBNFS)
-                .whereRuleIs(ANTLRv4Parser.ParserRuleIdentifierContext.class)
-                .whenInAncestorRule(ANTLRv4Parser.ParserRuleAlternativeContext.class)
-                // Find the pattern
-                // foo : someRule*; or foo : someRule?;
-                .derivingNameWith((ParserRuleIdentifierContext pric) -> {
-                    return withParentAs(ANTLRv4Parser.ParserRuleReferenceContext.class, pric, ruleRef -> {
-                        return withParentAs(ANTLRv4Parser.ParserRuleAtomContext.class, ruleRef, atom -> {
-                            return withParentAs(ANTLRv4Parser.ParserRuleElementContext.class, atom, elementContext -> {
-                                ANTLRv4Parser.EbnfSuffixContext suffix = elementContext.ebnfSuffix();
-                                if (suffix != null) {
-                                    createEbnfHintRegionData(suffix, pric);
-                                }
-                                return null;
-                            });
-                        });
-                    });
-                })
-                // Find the pattern
-                // foo : (a | b | c)*
-                .whereRuleIs(BlockContext.class)
-                .whenInAncestorRule(EbnfContext.class)
-                .derivingNameWith((BlockContext block) -> {
-                    // Only create hint if there is not some other content
-                    // in this rule which would make it safe with the empty
-                    // string - otherwise we would match foo : bar (x | y)*
-                    // which is perfectly safe
-                    return withAncestorOf(ParserRuleAlternativeContext.class, block, prlac -> {
-                        if (prlac.getChildCount() == 1) {
-                            return withParentAs(EbnfContext.class, block, (EbnfContext ebnf) -> {
-                                ANTLRv4Parser.EbnfSuffixContext suffix = ebnf.ebnfSuffix();
-                                if (suffix != null) {
-                                    return createEbnfHintRegionData(suffix, block);
-                                }
-                                return null;
-                            });
-                        }
-                        return null;
-                    });
-                })
-                // Find the pattern
-                // foo : SomeLexerToken*
-                .whereRuleIs(ParserRuleAtomContext.class)
-                .whenInAncestorRule(ParserRuleAlternativeContext.class)
-                .derivingNameWith((ParserRuleAtomContext atom) -> {
-                    if (atom.getChildCount() == 1) {
-//                        withAncestorOf(ParserRuleAlternativeContext.class, atom, prlac -> {
-//                            if (prlac.getChildCount() == 1) {
-                        return withParentAs(ParserRuleElementContext.class, atom, (ParserRuleElementContext elem) -> {
-                            if (elem.ebnfSuffix() != null && elem.getChildCount() == 2) {
-                                return createEbnfHintRegionData(elem.ebnfSuffix(), elem);
-                            }
-                            return null;
-                        });
-//                            }
-//                            return null;
-//                        });
-                    }
-                    return null;
-                })
-                .finishNamedRegions();
-                */
     }
+
+    private static boolean isIsolatedEbnf(ParserRuleDefinitionContext def) {
+
+        return false;
+    }
+
 
     private static <T extends ParserRuleContext, R> R withAncestorOf(Class<T> type, ParserRuleContext ctx, Function<T, R> c) {
         ctx = ctx.getParent();

@@ -487,7 +487,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             // directive and don't offer to delete those
                             Set<String> revClosure = graph.reverseClosureOf(node);
                             if (!revClosure.contains(firstRuleName)) {
-                                String rc = Strings.join(" -> ", revClosure);
+                                String rc = Strings.join("<-", revClosure);
                                 NamedSemanticRegion<RuleTypes> subBounds
                                         = ruleBounds.regionFor(node);
                                 fixes.addWarning("nr-" + node, subBounds,

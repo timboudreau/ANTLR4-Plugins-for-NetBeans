@@ -7,15 +7,29 @@ Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
-
 InvocationBuilder missing withValueFromNewArray and others
 
-Rename rule refactoring does not work from preview (name reset?)
 
+Move annotations littered into SPI into their own package.
+
+All annotation processors should use TypeName, not literal strings.
+
+Factor out scroller and a few other things into swing utils.
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
+  - Will be needed for complex namespace matching, e.g. com.foo.bar.SomeName equals SomeName in another file - probably scoping is not enough.
 
+
+AntlrKeys should probably be in its own module.  So should the key types in antlr-common - not needed for general Antlr modules, only for
+antlr language support.
+
+JFS and friends should be under antlr-editing-plugins - not used in the general case.
+
+
+ClassBuilder should have importStaticFromSelf.
+
+Font color specifying in html renderer seems to be broken.  Need a fork?
 
 Fix UsageFinder API
 

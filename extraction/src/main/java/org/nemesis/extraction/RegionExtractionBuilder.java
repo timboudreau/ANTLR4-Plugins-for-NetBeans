@@ -21,7 +21,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -178,7 +180,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         private final Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors = new HashSet<>();
         private final Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors = new HashSet<>();
         private final SummingFunction summer;
-        private Predicate<ParseTree> targetQualifier;
+        private Predicate<? super ParseTree> targetQualifier;
 
         RegionExtractionBuilderForRuleIds(ExtractorBuilder<EntryPointType> bldr, RegionsKey<RegionKeyType> key, int[] ruleIds, Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> set, Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors, SummingFunction summer) {
             this(bldr, key, ruleIds, summer);
@@ -203,16 +205,39 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             return this;
         }
 
-        public RuleParentPredicate.Builder<RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType>>
+        public RuleHierarchyPredicateBuilder<RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType>>
                 whereRuleHierarchy() {
             return RuleParentPredicate.builder(rpp -> {
                 return whereRuleMatches(rpp);
             });
         }
 
-        public RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whereRuleMatches(Predicate<ParseTree> pred) {
+        /**
+         * Match only rules which match the predicate assembled by the builder
+         * passed to the passed consumer, which allows you to flexibly specify
+         * what the rule parent hierarchy should look like in order to have a
+         * match. When using a consumer, it is not necessary (but harmless - it
+         * will return null) to call build() on the passed builder.
+         *
+         * @return a builder
+         */
+        public RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whereParentHierarchy(Consumer<? super RuleHierarchyPredicateBuilder<?>> c) {
+            AtomicReference<RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType>> ref = new AtomicReference<>();
+            RuleHierarchyPredicateBuilder<Void> bldr = RuleParentPredicate.builder(predicate -> {
+                whereRuleMatches(predicate);
+                ref.set(this);
+                return null;
+            });
+            c.accept(bldr);
+            if (ref.get() == null) {
+                bldr.build();
+            }
+            return ref.get();
+        }
+
+        public RegionExtractionBuilderForRuleIds<EntryPointType, RegionKeyType> whereRuleMatches(Predicate<? super ParseTree> pred) {
             if (this.targetQualifier != null) {
-                this.targetQualifier = this.targetQualifier.or(pred);
+                this.targetQualifier = ((Predicate<ParseTree>) this.targetQualifier).or(pred);
             } else {
                 this.targetQualifier = pred;
             }
@@ -268,7 +293,7 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         private final Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> extractors = new HashSet<>();
         private final Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors = new HashSet<>();
         private final SummingFunction summer;
-        private Predicate<ParseTree> targetQualifier;
+        private Predicate<? super ParseTree> targetQualifier;
 
         RegionExtractionBuilderForOneRuleType(ExtractorBuilder<EntryPointType> bldr, RegionsKey<RegionKeyType> key, Class<RuleType> ruleType, Set<RegionExtractionStrategy<RegionKeyType, ?, ?>> set, Set<TokenRegionExtractionStrategy<RegionKeyType>> tokenExtractors, SummingFunction summer) {
             this(bldr, key, ruleType, summer);
@@ -283,16 +308,16 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
             this.summer = summer;
         }
 
-        public RuleParentPredicate.Builder<RegionExtractionBuilderForOneRuleType<EntryPointType, RegionKeyType, RuleType>>
+        public RuleHierarchyPredicateBuilder<RegionExtractionBuilderForOneRuleType<EntryPointType, RegionKeyType, RuleType>>
                 whereRuleHierarchy() {
             return RuleParentPredicate.builder(rpp -> {
                 return whereRuleMatches(rpp);
             });
         }
 
-        public RegionExtractionBuilderForOneRuleType<EntryPointType, RegionKeyType, RuleType> whereRuleMatches(Predicate<ParseTree> pred) {
+        public RegionExtractionBuilderForOneRuleType<EntryPointType, RegionKeyType, RuleType> whereRuleMatches(Predicate<? super ParseTree> pred) {
             if (this.targetQualifier != null) {
-                this.targetQualifier = this.targetQualifier.or(pred);
+                this.targetQualifier = ((Predicate<ParseTree>)this.targetQualifier).or(pred);
             } else {
                 this.targetQualifier = pred;
             }

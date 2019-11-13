@@ -18,92 +18,29 @@ package org.nemesis.extraction;
 import static com.mastfrog.util.preconditions.Checks.nonNegative;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.nemesis.data.Hashable;
 
 /**
+ * Factory for predicates which test parse trees / rule nodes / parser rule
+ * context by type or other attributes.
  *
  * @author Tim Boudreau
  */
-public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hashable {
+abstract class RuleParentPredicate<P extends ParseTree> implements Predicate<P>, Hashable {
 
-    public static <T> Builder<T> builder(Function<Predicate<ParseTree>, ? extends T> converter) {
-        return new Builder<>(converter);
+    static <T> RuleHierarchyPredicateBuilder<T> builder(Function<Predicate<? super ParseTree>, T> converter) {
+        return new RuleHierarchyPredicateBuilder<>(converter);
     }
 
     RuleParentPredicate() {
 
     }
 
-    public static class Builder<T> {
-
-        private final Function<Predicate<ParseTree>, ? extends T> converter;
-        private final List<RuleParentPredicate> hierarchy = new LinkedList<>();
-
-        Builder(Function<Predicate<ParseTree>, ? extends T> converter) {
-            this.converter = converter;
-        }
-
-        public Builder<T> withParentType(Class<? extends ParseTree> parentType) {
-            hierarchy.add(new ExactTypeRuleParent(parentType));
-            return this;
-        }
-
-        public Builder<T> withParentType(Class<? extends ParseTree> firstType, Class<? extends ParseTree> secondType, Class<?>... moreTypes) {
-            Set<Class<?>> all = new LinkedHashSet<>();
-            all.add(firstType);
-            all.add(secondType);
-            all.addAll(Arrays.asList(moreTypes));
-            hierarchy.add(new MultiTypeRuleParent(all.toArray(new Class<?>[all.size()])));
-            return this;
-        }
-
-        public Builder<T> skippingParent() {
-            hierarchy.add(new Any());
-            return this;
-        }
-
-        public Builder<T> thatMatches(Predicate<? super ParseTree> additionalTest) {
-            if (hierarchy.isEmpty()) {
-                hierarchy.add(new Any());
-            }
-            hierarchy.set(hierarchy.size() - 1, hierarchy.get(hierarchy.size() - 1).and(additionalTest));
-            return this;
-        }
-
-        public Builder<T> thatHasChildren(int count) {
-            return thatMatches(new ChildCount(count));
-        }
-
-        public Builder<T> thatIsTop() {
-            return thatMatches(new IsTop());
-        }
-
-        public Builder<T> thatHasOnlyOneChild() {
-            return thatMatches(new ChildCount(1));
-        }
-
-        public T build() {
-            Hierarchical top = null;
-            for (RuleParentPredicate pred : hierarchy) {
-                if (top == null) {
-                    top = new Hierarchical(pred, null);
-                } else {
-                    top = new Hierarchical(top, pred);
-                }
-            }
-            return converter.apply(top);
-        }
-    }
-
-    static class IsTop extends RuleParentPredicate {
+    static class IsTop<P extends ParseTree> extends RuleParentPredicate<P> {
 
         @Override
         public boolean test(ParseTree t) {
@@ -121,7 +58,7 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
     }
 
-    static class ChildCount extends RuleParentPredicate {
+    static class ChildCount extends RuleParentPredicate<ParseTree> {
 
         private final int count;
 
@@ -146,21 +83,155 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
     }
 
-    static class Hierarchical extends RuleParentPredicate {
+    static <P extends ParseTree> RuleParentPredicate<P> wrap(Predicate<? super P> pred) {
+        return new Wrap(pred);
+    }
 
-        private final Predicate<? super ParseTree> parentTest;
-        private final Predicate<? super ParseTree> test;
+    static class Wrap<P extends ParseTree> extends RuleParentPredicate<P> {
 
-        public Hierarchical(Predicate<? super ParseTree> test, RuleParentPredicate parentTest) {
+        private final Predicate<? super ParseTree> delegate;
+
+        Wrap(Predicate<? super ParseTree> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean test(P t) {
+            return delegate.test(t);
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.hashObject(delegate);
+        }
+    }
+
+    static class OP extends RuleParentPredicate<ParseTree> {
+
+        Predicate<? super ParseTree> additionalParentTests;
+        Predicate<ParseTree> parentTest;
+        final int n;
+
+        OP(Predicate<ParseTree> parentTest, int n) {
+            this.parentTest = parentTest;
+            this.n = n;
+        }
+
+        @Override
+        public void hashInto(Hasher hasher) {
+            hasher.hashObject(parentTest);
+            hasher.writeInt(n);
+        }
+
+        @Override
+        public boolean test(ParseTree t) {
+            return findPassingAncestor(t) != null;
+        }
+
+        @Override
+        public String toString() {
+            return parentTest + "-within-" + n + "-ancestors";
+        }
+
+        @Override
+        public RuleParentPredicate<ParseTree> and(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).and(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
+        public RuleParentPredicate<ParseTree> or(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).or(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
+        public RuleParentPredicate negate() {
+            parentTest = parentTest.negate();
+            return this;
+        }
+
+        ParseTree findPassingAncestor(ParseTree pt) {
+            ParseTree p = pt;
+            boolean found = false;
+            for (int i = 0; p != null && i < n + 1; i++) {
+                if (parentTest.test(p)) {
+                    if (additionalParentTests != null) {
+                        if (!additionalParentTests.test(p == null ? null : p.getParent())) {
+                            return null;
+                        }
+                    }
+                    found = true;
+                    break;
+                }
+                p = p.getParent();
+            }
+            return found ? p : null;
+        }
+    }
+
+    static class Hierarchical extends RuleParentPredicate<ParseTree> {
+
+        final Predicate<? super ParseTree> parentTest;
+        final Predicate<? super ParseTree> test;
+        Predicate<? super ParseTree> additionalParentTests;
+
+        Hierarchical(Predicate<? super ParseTree> test, RuleParentPredicate parentTest) {
             this.test = test;
             this.parentTest = parentTest;
         }
 
         @Override
+        public RuleParentPredicate<ParseTree> and(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).and(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
+        public RuleParentPredicate<ParseTree> or(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).or(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
         public boolean test(ParseTree t) {
-            boolean result = test.test(t);
+            if (t == null) {
+                return false;
+            }
+            boolean result;
+            if (test instanceof OP) {
+                t = ((OP) test).findPassingAncestor(t);
+                result = t != null;
+            } else {
+                result = test.test(t);
+            }
             if (result && parentTest != null) {
-                return parentTest.test(t.getParent());
+                ParseTree par = t.getParent();
+                result = parentTest.test(par);
+                if (result && additionalParentTests != null) {
+                    result &= additionalParentTests.test(t);
+                }
             }
             return result;
         }
@@ -170,43 +241,23 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
             if (parentTest != null) {
                 hasher.hashObject(parentTest);
             }
+            if (additionalParentTests != null) {
+                hasher.hashObject(additionalParentTests);
+            }
             hasher.hashObject(test);
         }
 
         @Override
         public String toString() {
-            if (true) {
+            if (additionalParentTests != null) {
+                return test.toString() + (parentTest == null ? "<stop>" : " -> and(" + parentTest + "," + additionalParentTests + ")");
+            } else {
                 return test.toString() + (parentTest == null ? "<stop>" : " -> " + parentTest);
             }
-            StringBuilder sb = new StringBuilder();
-            LinkedList<Predicate<? super ParseTree>> pars = new LinkedList<>();
-            Predicate<? super ParseTree> par = parentTest;
-            while (par != null) {
-                if (par instanceof Hierarchical) {
-                    pars.add(0, ((Hierarchical) par).test);
-                    if (((Hierarchical) par).parentTest instanceof Hierarchical) {
-                        par = ((Hierarchical) par).parentTest;
-                    } else {
-                        if (((Hierarchical) par).parentTest != null) {
-                            pars.add(((Hierarchical) par).parentTest);
-                        }
-                        break;
-                    }
-                } else {
-                    pars.add(0, par);
-                    break;
-                }
-            }
-            String indent = "";
-            for (Predicate<? super ParseTree> p : pars) {
-                sb.append(indent).append(p);
-                indent += "\n  ";
-            }
-            return sb.toString();
         }
     }
 
-    static class Any extends RuleParentPredicate {
+    static class Any extends RuleParentPredicate<ParseTree> {
 
         @Override
         public boolean test(ParseTree t) {
@@ -224,11 +275,32 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
     }
 
-    static class ExactTypeRuleParent extends RuleParentPredicate {
+    static class ExactTypeRuleParent<P extends ParseTree> extends RuleParentPredicate<P> {
 
-        private final Class<? extends ParseTree> type;
+        private final Class<? extends P> type;
+        Predicate<? super P> additionalParentTests;
 
-        public ExactTypeRuleParent(Class<? extends ParseTree> type) {
+        @Override
+        public RuleParentPredicate<P> and(Predicate<? super P> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<P>) additionalParentTests).and(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
+        public RuleParentPredicate<P> or(Predicate<? super P> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<P>) additionalParentTests).or(wrap(other));
+            }
+            return this;
+        }
+
+        public ExactTypeRuleParent(Class<? extends P> type) {
             this.type = type;
         }
 
@@ -238,12 +310,21 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
                 return false;
             }
             ParseTree par = t.getParent();
-            return par != null && type.isInstance(par);
+            boolean result = par != null && type.isInstance(par);
+            if (result && additionalParentTests != null) {
+                result &= additionalParentTests.test(t == null ? null : ((P) t.getParent()));
+            }
+            return result;
         }
 
         @Override
         public String toString() {
-            return "has-parent-of-" + type.getSimpleName();
+            if (additionalParentTests != null) {
+                return "and(has-parent-of-" + type.getSimpleName()
+                        + "," + additionalParentTests + ")";
+            } else {
+                return "has-parent-of-" + type.getSimpleName();
+            }
         }
 
         @Override
@@ -253,9 +334,10 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
     }
 
-    static class MultiTypeRuleParent extends RuleParentPredicate {
+    static class MultiTypeRuleParent extends RuleParentPredicate<ParseTree> {
 
         private final Class<?>[] types;
+        Predicate<? super ParseTree> additionalParentTests;
 
         public MultiTypeRuleParent(Class<?>[] types) {
             this.types = types;
@@ -277,6 +359,9 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
             ParseTree par = t.getParent();
             for (Class<?> c : types) {
                 if (c.isInstance(par)) {
+                    if (additionalParentTests != null) {
+                        return additionalParentTests.test(t == null ? null : (t.getParent()));
+                    }
                     return true;
                 }
             }
@@ -293,27 +378,47 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
             }
             return sb.append(']').insert(0, "parent-of-types-[").toString();
         }
+
+        @Override
+        public RuleParentPredicate<ParseTree> and(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).and(wrap(other));
+            }
+            return this;
+        }
+
+        @Override
+        public RuleParentPredicate<ParseTree> or(Predicate<? super ParseTree> other) {
+            if (additionalParentTests == null) {
+                additionalParentTests = other;
+            } else {
+                additionalParentTests = ((Predicate<ParseTree>) additionalParentTests).or(wrap(other));
+            }
+            return this;
+        }
     }
 
     @Override
-    public RuleParentPredicate or(Predicate<? super ParseTree> other) {
+    public RuleParentPredicate<P> or(Predicate<? super P> other) {
         return new LogicalRuleParentPredicate(true, this, other);
     }
 
     @Override
-    public RuleParentPredicate negate() {
-        return new NegatedRuleParentPredicate(this);
+    public RuleParentPredicate<P> negate() {
+        return new NegatedRuleParentPredicate<>(this);
     }
 
     @Override
-    public RuleParentPredicate and(Predicate<? super ParseTree> other) {
+    public RuleParentPredicate<P> and(Predicate<? super P> other) {
         return new LogicalRuleParentPredicate(false, this, other);
     }
 
-    static class LogicalRuleParentPredicate extends RuleParentPredicate {
+    static class LogicalRuleParentPredicate<P extends ParseTree> extends RuleParentPredicate<P> {
 
         private final boolean or;
-        private final List<Predicate<? super ParseTree>> all = new ArrayList<>(4);
+        private final List<Predicate<? super P>> all = new ArrayList<>(4);
 
         LogicalRuleParentPredicate(boolean or, Predicate<? super ParseTree> initial, Predicate<? super ParseTree> next) {
             this.or = or;
@@ -335,8 +440,8 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
 
         @Override
-        public boolean test(ParseTree t) {
-            for (Predicate<? super ParseTree> p : all) {
+        public boolean test(P t) {
+            for (Predicate<? super P> p : all) {
                 if (!p.test(t)) {
                     return false;
                 }
@@ -345,7 +450,7 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
 
         @Override
-        public RuleParentPredicate or(Predicate<? super ParseTree> other) {
+        public RuleParentPredicate<P> or(Predicate<? super P> other) {
             if (or) {
                 all.add(other);
                 return this;
@@ -354,7 +459,7 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
 
         @Override
-        public RuleParentPredicate and(Predicate<? super ParseTree> other) {
+        public RuleParentPredicate<P> and(Predicate<? super P> other) {
             if (!or) {
                 all.add(other);
                 return this;
@@ -363,11 +468,11 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
     }
 
-    static class NegatedRuleParentPredicate extends RuleParentPredicate {
+    static class NegatedRuleParentPredicate<P extends ParseTree> extends RuleParentPredicate<P> {
 
-        private final RuleParentPredicate orig;
+        private final RuleParentPredicate<P> orig;
 
-        public NegatedRuleParentPredicate(RuleParentPredicate orig) {
+        public NegatedRuleParentPredicate(RuleParentPredicate<P> orig) {
             this.orig = orig;
         }
 
@@ -378,7 +483,7 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         }
 
         @Override
-        public boolean test(ParseTree t) {
+        public boolean test(P t) {
             return !orig.test(t);
         }
 
@@ -390,6 +495,5 @@ public abstract class RuleParentPredicate implements Predicate<ParseTree>, Hasha
         public String toString() {
             return "not(" + orig + ")";
         }
-
     }
 }

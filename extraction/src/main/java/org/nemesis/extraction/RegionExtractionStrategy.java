@@ -36,11 +36,11 @@ final class RegionExtractionStrategy<KeyType, RuleType extends RuleNode, TType> 
     final Predicate<RuleNode> ancestorQualifier;
     final BiPredicate<RuleType, BiPredicate<KeyType, TType>> extractor;
     private final RegionExtractType ttype;
-    final Predicate<ParseTree> qualifier;
+    final Predicate<? super ParseTree> qualifier;
 
     RegionExtractionStrategy(Class<RuleType> ruleType, Predicate<RuleNode> ancestorQualifier,
             BiPredicate<RuleType, BiPredicate<KeyType, TType>> tok, RegionExtractType ttype,
-            Predicate<ParseTree> qualifier) {
+            Predicate<? super ParseTree> qualifier) {
         this.ruleType = ruleType;
         this.ancestorQualifier = ancestorQualifier;
         this.extractor = tok;
@@ -77,7 +77,7 @@ final class RegionExtractionStrategy<KeyType, RuleType extends RuleNode, TType> 
     }
 
     static <KeyType> RegionExtractionStrategy<KeyType, ? super ParserRuleContext, ParserRuleContext> forRuleIds(
-            Predicate<RuleNode> ancestorQualifier, int[] ids, Function<ParserRuleContext, KeyType> cvt, Predicate<ParseTree> targetQualifier) {
+            Predicate<RuleNode> ancestorQualifier, int[] ids, Function<ParserRuleContext, KeyType> cvt, Predicate<? super ParseTree> targetQualifier) {
         return new RegionExtractionStrategy<>(ParserRuleContext.class,
                 ancestorQualifier,
                 ids.length == 1 ? new SingleIdFilter(ids[0], cvt) : new IdListFilter(ids, cvt),

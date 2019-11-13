@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -231,36 +232,113 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         return new ReflectionPathFunction<>(ctx, path, kind);
     }
 
+    /**
+     * Builds one case (of potentially many) where you want to match a rule and
+     * extract some region mapped to the extraction key you are currently
+     * working on; allows you to specify the circumstances in which a rule is
+     * a match, and the means of selecting the region and enum key associated
+     * with it.
+     *
+     * @param <R> The rule type
+     * @param <T> The enum type
+     * @param <Ret> The thing this builder will build with its build method
+     */
     public static final class NameExtractorBuilder<R extends ParserRuleContext, T extends Enum<T>, Ret> {
 
         private final NamedRegionExtractorBuilder<T, Ret> bldr;
         private final Class<R> type;
         private Predicate<RuleNode> qualifiers;
-        private Predicate<ParseTree> targetPredicate;
+        private Predicate<? super ParseTree> targetPredicate;
 
         NameExtractorBuilder(NamedRegionExtractorBuilder<T, Ret> bldr, Class<R> type) {
             this.bldr = bldr;
             this.type = type;
         }
 
-        public NameExtractorBuilder<R, T, Ret> whereRuleMatches(Predicate<ParseTree> test) {
+        /**
+         * Narrow the situations this extraction rule will match to those where
+         * the target rule matches the passed test. If a test has already been
+         * set, it and the new test will be <i>logically OR'd</i>
+         * together.
+         *
+         * @param test A test
+         * @return this
+         */
+        public NameExtractorBuilder<R, T, Ret> whereRuleMatches(Predicate<? super ParseTree> test) {
+            // PENDING:  Could and should see if this is a RuleParentPredicate, and if
+            // so, set qualifiers with the topmost rule as an optimization.
             if (this.targetPredicate != null) {
-                this.targetPredicate = this.targetPredicate.or(test);
+                this.targetPredicate = ((Predicate<ParseTree>)this.targetPredicate).or(test);
             } else {
                 this.targetPredicate = test;
             }
             return this;
         }
 
-        public RuleParentPredicate.Builder<NameExtractorBuilder<R,T,Ret>> whereParentHierarchy() {
+        /**
+         * Narrow the situations this extraction rule will match to those where
+         * the target rule matches the passed test. If a test has already been
+         * set, it and the new test will be <i>logically AND'd</i>
+         * together.
+         *
+         * @param test A test
+         * @return this
+         */
+        public NameExtractorBuilder<R, T, Ret> andRuleMatches(Predicate<? super ParseTree> test) {
+            // PENDING:  Could and should see if this is a RuleParentPredicate, and if
+            // so, set qualifiers with the topmost rule as an optimization.
+            if (this.targetPredicate != null) {
+                this.targetPredicate = ((Predicate<ParseTree>)this.targetPredicate).and(test);
+            } else {
+                this.targetPredicate = test;
+            }
+            return this;
+        }
+
+        /**
+         * Match only rules which match the predicate assembled by the returned
+         * builder, which allows you to flexibly specify what the rule parent
+         * hierarchy should look like in order to have a match.
+         *
+         * @return a builder
+         */
+        public RuleHierarchyPredicateBuilder<NameExtractorBuilder<R, T, Ret>> whereParentHierarchy() {
             return RuleParentPredicate.builder(rppb -> {
                 return whereRuleMatches(rppb);
             });
         }
 
         /**
+         * Match only rules which match the predicate assembled by the builder
+         * passed to the passed consumer, which allows you to flexibly specify
+         * what the rule parent hierarchy should look like in order to have a
+         * match. When using a consumer, it is not necessary (but harmless - it
+         * will return null) to call build() on the passed builder.
+         *
+         * @return a builder
+         */
+        public NameExtractorBuilder<R, T, Ret> whereParentHierarchy(Consumer<? super RuleHierarchyPredicateBuilder<?>> c) {
+            AtomicReference<NameExtractorBuilder<R, T, Ret>> ref = new AtomicReference<>();
+            RuleHierarchyPredicateBuilder<Void> bldr = RuleParentPredicate.builder(predicate -> {
+                whereRuleMatches(predicate);
+                ref.set(this);
+                return null;
+            });
+            c.accept(bldr);
+            if (ref.get() == null) {
+                bldr.build();
+            }
+            return ref.get();
+        }
+
+        /**
          * Limit rule detection triggering to only when the current AST node is
-         * a child of the passed ancestor tree node type.
+         * a child of the passed ancestor tree node type. Note that this is
+         * distinct from <i>whereParentHierarchy()</i> as it simply eliminates
+         * detection code from running in any tree which does not contain the
+         * requested rule; its should be used even if you are using that, with
+         * the topmost rule that could eliminate a rule from consideration, as
+         * this improves extraction performance.
          *
          * @param qualifyingAncestorType A rule node type which must be present
          * for this name extraction strategy to be used.
@@ -715,6 +793,13 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
+    /**
+     * Builder for describing to the system how to extract <i>references to
+     * </i> names found by the outer builder.
+     *
+     * @param <T> The enum type
+     * @param <Ret> The thing this builder builds
+     */
     public static final class NameReferenceCollectorBuilder<T extends Enum<T>, Ret> {
 
         private final FinishableNamedRegionExtractorBuilder<T, Ret> bldr;

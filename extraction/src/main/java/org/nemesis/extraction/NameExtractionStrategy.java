@@ -38,9 +38,9 @@ final class NameExtractionStrategy<R extends ParserRuleContext, T extends Enum<T
     final Predicate<RuleNode> ancestorQualifier;
     final T argType;
     final Function<R, List<? extends TerminalNode>> terminalFinder;
-    final Predicate<ParseTree> parseTreePredicate;
+    final Predicate<? super ParseTree> parseTreePredicate;
 
-    NameExtractionStrategy(Class<R> type, Function<R, NamedRegionData<T>> extractor, Predicate<RuleNode> ancestorQualifier, Predicate<ParseTree> parseTreePredicate) {
+    NameExtractionStrategy(Class<R> type, Function<R, NamedRegionData<T>> extractor, Predicate<RuleNode> ancestorQualifier, Predicate<? super ParseTree> parseTreePredicate) {
         this.type = type;
         this.extractor = extractor;
         this.ancestorQualifier = ancestorQualifier;
@@ -49,7 +49,7 @@ final class NameExtractionStrategy<R extends ParserRuleContext, T extends Enum<T
         this.parseTreePredicate = parseTreePredicate;
     }
 
-    NameExtractionStrategy(Class<R> type, Predicate<RuleNode> ancestorQualifier, T argType, Function<R, List<? extends TerminalNode>> terminalFinder, Predicate<ParseTree> parseTreePredicate) {
+    NameExtractionStrategy(Class<R> type, Predicate<RuleNode> ancestorQualifier, T argType, Function<R, List<? extends TerminalNode>> terminalFinder, Predicate<? super ParseTree> parseTreePredicate) {
         this.type = type;
         this.extractor = null;
         this.ancestorQualifier = ancestorQualifier;
