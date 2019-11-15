@@ -7,14 +7,12 @@ Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
-InvocationBuilder missing withValueFromNewArray and others
-
 
 Move annotations littered into SPI into their own package.
 
 All annotation processors should use TypeName, not literal strings.
 
-Factor out scroller and a few other things into swing utils.
+Get easing working.
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
@@ -26,8 +24,8 @@ antlr language support.
 
 JFS and friends should be under antlr-editing-plugins - not used in the general case.
 
+NB filesystem for jfs for debugging?
 
-ClassBuilder should have importStaticFromSelf.
 
 Font color specifying in html renderer seems to be broken.  Need a fork?
 
@@ -39,40 +37,29 @@ Fix UsageFinder API
   * Import finders and project helper sibling search being called WAY too many times per-parse - threadlocal context and cache?
      * Maybe a generalized threadlocal context and cache API?
   * Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
-  * Need better caching for maven project info  * it is reparsing POMs too frequently
-    * Done, but what's there now only checks the timestamp of the local pom - we already have a dependency cache, so we should use that to check all related poms before assuming we don't know - otherwise adding antlr support to a parent project will not be detected
   * Add warning when skip action encountered
-  * Hint for "can match the empty string" is active for things like "desc? S_OPEN_BRACKET L_INT* S_CLOSE_BRACKET;" and
-should not be  * fix the analysis.
-     * Maybe when defining extraction, should be able to specify a sequence of parent rules that must be present
   * Need a JavaSourceForAntlrSourceQuery to implement refactoring of rule names where we actually go ahead and refactor Java code
   * Add array of preferred rules to generic code completion?
   * Split out code to create parser and api for antlr parser results from annotations and
    other stuff in language spi  * does not belong together
-  * Ability to specify a centrality key for Navigator panel annotations  * will have to
-    be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
+  * Ability to specify a centrality key for Navigator panel annotations  
+   * will have to be a Supplier<NamedReferenceSetKey<?>>, so it's not necessary to write implementation
     to enable graph-algorithm facilitated sorting
   * For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
     * Nestable colorations, as in our old ebnf support
   * Sample should be specifiable as a URL / file name
-  * Registration processors:  All FQNs should be constants.
-  * Use @ConvertAsProperties on preview
   * Java embedding for Antlr, general Antlr embedding support
   * Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
     * Could use general support for sets of ranges in the range library
   * Relative should *prefer* but not insist on looking up the same type
   * Keybinding actions still not actually working if not performers for standard netbeans ones
-  * Should keep a cache of resolvable variable names by file, so as not to resolve them
-and parse multiple files and do many graph traversals on every reparse.  Cache should listen
-on target file and dispose on modification.  Can't be in the extraction project due to
-file object type and listening requirement.
   * Resolve via tokens file into other project on classpath via ClassPathProvider
     * Enhance relative resolvers in the nb specialization project to look 
      up tokens files, etc. from the project's ClassPathProvider
-  * Maybe get the parsed grammar object out of the grammar result  * no need to keep it hanging around, 
-   and it's not really used except for update check  * could just keep the JFSFileModifications snapshot
-   and that is enough; those things that actually need the output should get them via the as yet
-   unused antlr output api.
+  * Maybe get the parsed grammar object out of the grammar result
+      * no need to keep it hanging around, and it's not really used except for update check  * could just keep the JFSFileModifications snapshot
+        and that is enough; those things that actually need the output should get them via the as yet
+        unused antlr output api.
   * The pattern matching stuff in antlr-formatters is exactly what is needed for code completion  * extract and generify it
 
 !!! Font color entries not written to layer unless the annotation processor

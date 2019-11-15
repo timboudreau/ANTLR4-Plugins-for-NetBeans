@@ -33,7 +33,7 @@ limitations under the License.
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
-        <mastfrog.version>2.6.0</mastfrog.version>
+        <mastfrog.version>2.6.1</mastfrog.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.1</new.junit.version>
