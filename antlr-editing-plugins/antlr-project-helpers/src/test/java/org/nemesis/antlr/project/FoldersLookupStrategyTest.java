@@ -478,7 +478,7 @@ public class FoldersLookupStrategyTest {
         }
     }
 
-    static class ProjectWithOwnStrategy implements Project {
+    static class ProjectWithOwnStrategy implements org.netbeans.api.project.Project {
 
         private final FileObject dir;
         private final ProjectState state;

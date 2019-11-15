@@ -96,7 +96,6 @@ limitations under the License.
                         <unit.test>true</unit.test>
                     </systemPropertyVariables>
                 </configuration>
-                <!--
                 <dependencies>
                     <dependency>
                         <groupId>org.netbeans.api</groupId>
@@ -109,19 +108,19 @@ limitations under the License.
                         <version>${netbeans.version}</version>
                     </dependency>
                 </dependencies>
-                        -->
             </plugin>
         </plugins>
     </build>
     <dependencies>
         <dependency>
             <groupId>org.netbeans.api</groupId>
-            <artifactId>org-netbeans-api-annotations-common</artifactId>
-            <scope>provided</scope>
+            <artifactId>org-netbeans-modules-projectapi</artifactId>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
-            <artifactId>org-netbeans-modules-projectapi</artifactId>
+            <artifactId>org-netbeans-api-annotations-common</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
