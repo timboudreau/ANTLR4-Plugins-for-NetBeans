@@ -21,6 +21,7 @@
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
                         <publicPackage>org.nemesis.swing</publicPackage>
+                        <publicPackage>org.nemesis.swing.html</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>
