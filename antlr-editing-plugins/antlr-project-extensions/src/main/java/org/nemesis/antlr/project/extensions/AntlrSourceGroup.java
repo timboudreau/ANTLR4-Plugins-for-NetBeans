@@ -17,9 +17,12 @@ package org.nemesis.antlr.project.extensions;
 
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
 import javax.swing.Icon;
+import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.SourceGroup;
@@ -59,12 +62,38 @@ final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, C
         this.owner = owner;
     }
 
-    @Messages("missing_folder=Missing Folder")
+    @Messages({
+        "# We cannot have spaces in the localized name for this name or",
+        "# FileObject.toUri() will throw an exception",
+        "missing_folder=-miising-folder-"
+    })
     @Override
     public synchronized FileObject getRootFolder() {
         int ownerRev = owner.rev();
         if (folder != null && expectedRev == owner.rev()) {
             return folder;
+        }
+        switch (fld) {
+            // Try to load from the antlr configuration, so we don't trigger
+            // pom parsing during startup
+            case ANTLR_GRAMMAR_SOURCES:
+            case ANTLR_IMPORTS:
+                AntlrConfiguration config = AntlrConfiguration.forProject(project);
+                Path pth = fld == Folders.ANTLR_GRAMMAR_SOURCES
+                        ? config.antlrSourceDir() : config.antlrImportDir();
+                if (pth != null && Files.exists(pth)) {
+                    FileObject fld = FileUtil.toFileObject(pth.toFile());
+                    if (fld != null) {
+                        if (!listeningOn.contains(fld)) {
+                            listeningOn.add(fld);
+                            fld.addFileChangeListener(
+                                    FileUtil.weakFileChangeListener(this, fld));
+
+                        }
+                        return this.folder = fld;
+                    }
+                }
+
         }
         FileObject newFolder = fld.findFirstFileObject(project);
         if (newFolder != null) {

@@ -15,14 +15,17 @@
  */
 package org.nemesis.antlr.project.extensions;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.logging.Level;
 import javax.swing.event.ChangeListener;
 import org.nemesis.antlr.project.Folders;
+import org.netbeans.api.project.FileOwnerQuery;
+import org.netbeans.api.project.Project;
 import org.netbeans.api.queries.FileBuiltQuery;
 import org.netbeans.spi.queries.FileBuiltQueryImplementation;
 import org.openide.filesystems.FileChangeAdapter;
@@ -41,6 +44,17 @@ public class AntlrFileBuiltQuery implements FileBuiltQueryImplementation {
     @Override
     public FileBuiltQuery.Status getStatus(FileObject file) {
         if (!"text/x-g4".equals(file.getMIMEType())) {
+            return null;
+        }
+        Project project = FileOwnerQuery.getOwner(file);
+        if (project == null) {
+            return null;
+        }
+        File f = FileUtil.toFile(project.getProjectDirectory());
+        if (f == null) {
+            return null;
+        }
+        if (!KnownAntlrProjectCache.getInstance().isAntlrProject(f.toPath())) {
             return null;
         }
         AntlrProjectLookupProvider.LOG.log(Level.FINEST, "AntlrFileBuiltQuery.getStatus({0})", file.getPath());
@@ -62,11 +76,16 @@ public class AntlrFileBuiltQuery implements FileBuiltQueryImplementation {
 
     static Path[] javaSourcePathFor(FileObject file, Path classDir) {
         String name = file.getName();
-        List<Path> possibleSourcePaths = new ArrayList<>();
+        Set<Path> possibleSourcePaths = new LinkedHashSet<>();
         for (Path path : Folders.CLASS_OUTPUT.find(file)) {
             Path test = path.resolve(classDir.resolve(name + "Lexer.java"));
             possibleSourcePaths.add(test.resolve(classDir).resolve(file.getName() + "Lexer.java"));
             possibleSourcePaths.add(test.resolve(classDir).resolve(file.getName() + "Parser.java"));
+            // lexer grammars that are only fragments sometimes result in just "foo.java" for grammar foo
+            // We encounter the same problem when figuring out the name of the compiled lexer
+            // to call when generating extractors
+            possibleSourcePaths.add(test.resolve(classDir).resolve(file.getName() + ".java"));
+            possibleSourcePaths.add(test.resolve(classDir).resolve(file.getName().toLowerCase() + ".java"));
         }
         return possibleSourcePaths.toArray(new Path[possibleSourcePaths.size()]);
     }
@@ -169,5 +188,4 @@ public class AntlrFileBuiltQuery implements FileBuiltQueryImplementation {
             }
         }
     }
-
 }

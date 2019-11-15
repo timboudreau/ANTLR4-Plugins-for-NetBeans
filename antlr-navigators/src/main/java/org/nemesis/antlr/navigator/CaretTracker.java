@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.navigator;
 
+import org.nemesis.swing.Scroller;
 import java.awt.AWTEvent;
 import java.awt.EventQueue;
 import java.beans.PropertyChangeEvent;

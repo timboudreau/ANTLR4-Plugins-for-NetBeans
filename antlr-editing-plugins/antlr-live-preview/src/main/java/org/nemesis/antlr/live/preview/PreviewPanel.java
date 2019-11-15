@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import org.nemesis.swing.html.SimpleHtmlLabel;
+import org.nemesis.swing.ActivityIndicator;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -64,6 +66,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.swing.Scroller;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -133,7 +136,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final String mimeType;
     private final JEditorPane grammarEditorClone = new JEditorPane();
     private final DataObject sampleFileDataObject;
-    private final Indicator indicator = new Indicator(24);
+    private final ActivityIndicator indicator = new ActivityIndicator(24);
 
     @SuppressWarnings("LeakingThisInConstructor")
     public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject,

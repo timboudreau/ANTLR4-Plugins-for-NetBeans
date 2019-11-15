@@ -1,5 +1,9 @@
 #!/bin/sh
 rm -f $HOME/.antlr/dev/var/cache/all-*
 rm -f $HOME/.antlr/dev/var/cache/package-attrs.dat
+rm -f $HOME/.antlr/dev/var/cache/antlr-project-dependencies.cache
+rm -f $HOME/.antlr/dev/var/cache/antlr-configs.cache
+rm -f $HOME/.antlr/dev/var/cache/known-antlr-projects.cache
+
 mvn clean install && cp src/application/etc/antlr.conf target/antlr/etc/ && ./run
 

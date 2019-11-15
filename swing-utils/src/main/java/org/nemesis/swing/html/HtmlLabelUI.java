@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.preview;
+package org.nemesis.swing.html;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -28,14 +28,14 @@ import java.awt.Toolkit;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
 import javax.swing.plaf.ComponentUI;
 import javax.swing.plaf.LabelUI;
-import org.openide.awt.HtmlRenderer;
-import org.openide.util.Exceptions;
 
 /**
  * Fork of my original Netbeans HtmlLabelUI which works for fixed components,
@@ -299,10 +299,9 @@ class HtmlLabelUI extends LabelUI {
                 //is the culprit
                 icon.paintIcon(r, g, iconX, iconY);
             } catch (NullPointerException npe) {
-                Exceptions.attachMessage(npe,
-                                         "Probably an ImageIcon with a null source image: " +
-                                         icon + " - " + r.getText()); //NOI18N
-                Exceptions.printStackTrace(npe);
+                Logger.getLogger(HtmlLabelUI.class.getName()).log(Level.INFO,
+                        "Probably an ImageIcon with a null source image: " +
+                                         icon + " - " + r.getText(), npe);
             }
 
             txtX = iconX + icon.getIconWidth() + r.getIconTextGap();

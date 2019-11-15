@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListSelectionModel;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
@@ -48,6 +49,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.windows.TopComponent;
 
 /**
@@ -154,11 +156,12 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
 
     static class MERenderer implements ListCellRenderer<ModelEntry> {
 
-        private final HtmlRendererImpl ren = new HtmlRendererImpl();
+        private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
 
         @Override
         public Component getListCellRendererComponent(JList<? extends ModelEntry> list, ModelEntry value, int index, boolean isSelected, boolean cellHasFocus) {
             Component result = ren.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            JLabel r = (JLabel) ren;
             if (value.isError()) {
                 ren.setHtml(true);
                 ren.setText("<font color='!nb.errorColor'>" + value);
@@ -169,14 +172,14 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 ren.setHtml(true);
                 ren.setText(value.toString());
             }
-            ren.setForeground(list.getForeground());
+            r.setForeground(list.getForeground());
             ren.setIndent(5 * value.depth());
             if (list instanceof ParentCheckList) {
                 ren.setParentFocused(((ParentCheckList) list).parentFocused);
             }
-            ren.setToolTipText(value.tooltip());
-            ren.setSelected(isSelected);
-            ren.setLeadSelection(isSelected);
+            r.setToolTipText(value.tooltip());
+//            r.setSelected(isSelected);
+//            r.setLeadSelection(isSelected);
             if (isSelected) {
                 ren.setCellBackground(list.getSelectionBackground());
             } else {

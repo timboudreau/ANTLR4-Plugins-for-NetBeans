@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.7</version>
+    <version>2.0.9</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -210,6 +210,7 @@ limitations under the License.
         <module>mock-named-services</module>
         <module>antlr-instant-rename</module>
         <module>antlr-refactoring</module>
+        <module>swing-utils</module>
     </modules>
     <repositories>
         <repository>
@@ -274,6 +275,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>type-code-generation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>swing-utils</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

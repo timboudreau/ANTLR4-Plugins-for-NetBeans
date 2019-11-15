@@ -280,6 +280,14 @@ public abstract class FoldersHelperTrampoline {
         return impl != null && impl != NONE && !(impl instanceof HeuristicFoldersHelperImplementation);
     }
 
+    public static boolean isKnownImplementation(String name) {
+        Set<String> set = new HashSet<>(10);
+        for (FoldersLookupStrategyImplementationFactory impl : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)){
+            impl.collectImplementationNames(set);
+        }
+        return set.contains(name);
+    }
+
     public abstract FoldersLookupStrategy forImplementation(FolderLookupStrategyImplementation impl);
 
     public Iterable<Path> find(FolderLookupStrategyImplementation spi, Folders folder, FolderQuery query) {

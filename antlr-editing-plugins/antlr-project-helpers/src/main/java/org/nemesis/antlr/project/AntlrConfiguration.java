@@ -15,8 +15,12 @@
  */
 package org.nemesis.antlr.project;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.File;
 import java.io.IOException;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +38,7 @@ import java.util.logging.Logger;
 import org.nemesis.antlr.project.impl.AntlrConfigurationFactory;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
+import org.nemesis.antlr.common.cachefile.CacheFileUtils;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
@@ -49,23 +54,25 @@ import org.openide.filesystems.FileUtil;
  */
 public final class AntlrConfiguration {
 
-    private final Path importDir;
-    private final Path sourceDir;
-    private final Path outputDir;
-    private final boolean listener;
-    private final boolean visitor;
-    private final boolean atn;
-    private final boolean forceATN;
-    private final String includePattern;
-    private final String excludePattern;
-    private final Charset encoding;
-    private final Path buildDir;
-    private final String createdByStrategy;
-    private final boolean isGuessedConfig;
-    private final Path buildOutput;
-    private final Path testOutput;
-    private final Path sources;
-    private final Path testSources;
+    final Path importDir;
+    final Path sourceDir;
+    final Path outputDir;
+    final boolean listener;
+    final boolean visitor;
+    final boolean atn;
+    final boolean forceATN;
+    final String includePattern;
+    final String excludePattern;
+    final Charset encoding;
+    final Path buildDir;
+    final String createdByStrategy;
+    final boolean isGuessedConfig;
+    final Path buildOutput;
+    final Path testOutput;
+    final Path sources;
+    final Path testSources;
+
+    private static int MAGIC = 12903;
 
     AntlrConfiguration(Path importDir, Path sourceDir, Path outDir, boolean listener, boolean visitor,
             boolean atn, boolean forceATN, String includePattern, String excludePattern, Charset encoding,
@@ -175,12 +182,30 @@ public final class AntlrConfiguration {
     };
 
     public static AntlrConfiguration forProject(Project project) {
-        AntlrConfiguration config = CACHE.get(project);
+        if (project == null) {
+            return null;
+        }
+        AntlrConfiguration config = null;//CACHE.get(project);
+        if (config == null) {
+            File file = FileUtil.toFile(project.getProjectDirectory());
+            if (file == null) { // virtual file
+                return null;
+            }
+            config = AntlrConfigurationCache.instance().get(file.toPath(), () -> {
+                return _forProject(project);
+            });
+//            CACHE.put(project, config);
+        }
+        return config;
+    }
+
+    private static AntlrConfiguration _forProject(Project project) {
+        AntlrConfiguration config = null; // CACHE.get(project);
         if (config == null) {
             config = FoldersLookupStrategy.get(project).antlrConfig();
-            if (config != null) {
-                CACHE.put(project, config);
-            }
+//            if (config != null) {
+//                CACHE.put(project, config);
+//            }
             if (!LISTENING) {
                 LISTENING = true;
                 ProjectUpdates.subscribeToChanges(PROJECT_MOD_LISTENER);
@@ -190,11 +215,20 @@ public final class AntlrConfiguration {
     }
 
     public static AntlrConfiguration forFile(FileObject file) {
+        Project project = FileOwnerQuery.getOwner(notNull("file", file));
+        if (project != null) {
+            return forProject(project);
+        }
         return FoldersLookupStrategy.get(FileOwnerQuery.getOwner(file)).antlrConfig();
     }
 
     public static AntlrConfiguration forFile(Path file) {
-        return forFile(FileUtil.toFileObject(FileUtil.normalizeFile(file.toFile())));
+        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(file.toFile()));
+        Project project = fo == null ? null : FileOwnerQuery.getOwner(notNull("file", fo));
+        if (project != null) {
+            return forProject(project);
+        }
+        return fo == null ? null : forFile(fo);
     }
 
     public Path antlrImportDir() {
@@ -350,5 +384,58 @@ public final class AntlrConfiguration {
 
     static {
         FoldersHelperTrampoline.antlrConfigFactory = new DefaultConfigFactory();
+    }
+
+    <C extends WritableByteChannel & SeekableByteChannel> int writeTo(C channel) throws IOException {
+        boolean[] params = new boolean[]{listener, visitor, atn, forceATN, isGuessedConfig};
+        return CacheFileUtils.create(MAGIC).write(channel, w -> {
+            w.writeString(createdByStrategy)
+                    .writeBooleanArray(params)
+                    .writePath(importDir)
+                    .writePath(sourceDir)
+                    .writePath(outputDir)
+                    .writePath(buildDir)
+                    .writePath(buildOutput)
+                    .writePath(testOutput)
+                    .writePath(sources)
+                    .writePath(testSources)
+                    .writeString(includePattern)
+                    .writeString(excludePattern)
+                    .writeString(encoding.name());
+        });
+    }
+
+    static <C extends ReadableByteChannel & SeekableByteChannel> AntlrConfiguration readFrom(C channel) throws IOException {
+        return CacheFileUtils.create(MAGIC).read(channel, r -> {
+            String createdByStrategy = r.readString();
+            if (!FoldersHelperTrampoline.isKnownImplementation(createdByStrategy)) {
+                return null;
+            }
+            boolean[] params = r.readBooleans(5);
+            boolean listener = params[0];
+            boolean visitor = params[1];
+            boolean atn = params[2];
+            boolean forceATN = params[3];
+            boolean isGuessedConfig = params[4];
+            Path importDir = r.readPath();
+            Path sourceDir = r.readPath();
+            Path outputDir = r.readPath();
+            Path buildDir = r.readPath();
+            Path buildOutput = r.readPath();
+            Path testOutput = r.readPath();
+            Path sources = r.readPath();
+            Path testSources = r.readPath();
+
+            String includePattern = r.readString();
+            String excludePattern = r.readString();
+            String encodingName = r.readString();
+            Charset encoding = Charset.forName(encodingName);
+            AntlrConfiguration result = new AntlrConfiguration(importDir, sourceDir, outputDir,
+                    listener, visitor, atn, forceATN, includePattern,
+                    excludePattern, encoding, buildDir, createdByStrategy,
+                    isGuessedConfig, buildOutput, testOutput, sources,
+                    testSources);
+            return result;
+        });
     }
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.preview;
+package org.nemesis.swing.html;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -24,19 +24,19 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
-import org.openide.awt.HtmlRenderer;
+import static org.nemesis.swing.html.HtmlRendererImpl.scratchGraphics;
 
 /**
  * Fork of the original in openide.awt which is broken.
  *
  * @author Tim Boudreau
  */
-final class SimpleHtmlLabel extends JComponent {
+public final class SimpleHtmlLabel extends JComponent {
 
     private String text = " ";
     private Dimension cachedSize;
 
-    SimpleHtmlLabel() {
+    public SimpleHtmlLabel() {
         setOpaque(true);
         setBackground(UIManager.getColor("control"));
         setForeground(UIManager.getColor("textText"));
@@ -69,7 +69,7 @@ final class SimpleHtmlLabel extends JComponent {
         if (cachedSize != null) {
             return cachedSize;
         }
-        Graphics2D g = HtmlRendererImpl.scratchGraphics();
+        Graphics2D g = scratchGraphics();
         Font font = getFont();
         FontMetrics fm = g.getFontMetrics(font);
         Insets ins = getInsets();
@@ -119,5 +119,4 @@ final class SimpleHtmlLabel extends JComponent {
         }
         HtmlRenderer.renderHTML(text, g, x, y, getWidth(), h, font, getForeground(), HtmlRenderer.STYLE_TRUNCATE, true);
     }
-
 }

@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -23,10 +25,12 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.MavenAntlrSourceFactoryPresent;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.maven.spi.nodes.OtherSourcesExclude;
 import org.netbeans.modules.maven.spi.queries.JavaLikeRootProvider;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
 
 /**
@@ -53,6 +57,38 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
         Project project = projectLookup.lookup(Project.class);
         if (project == null) {
             return Collections.emptySet();
+        }
+        if (true) {
+            // Optimization - avoid parsing poms if the cache has the info
+            AntlrConfiguration config = AntlrConfiguration.forProject(project);
+            if (config == null) {
+                return Collections.emptySet();
+            }
+            File file = FileUtil.toFile(project.getProjectDirectory());
+            if (file == null) {
+                return Collections.emptySet();
+            }
+            Path path = file.toPath();
+            Path javaSources = config.javaSources();
+            if (javaSources == null) {
+                javaSources = path.resolve("src/main");
+            }
+            Path antlrSources = config.antlrSourceDir();
+            Path imports = config.antlrImportDir();
+            if (antlrSources == null && imports == null) {
+                return Collections.emptySet();
+            } else if (antlrSources != null && imports == null) {
+                return Collections.singleton(javaSources.relativize(antlrSources));
+            } else if (antlrSources == null && imports != null) {
+                return Collections.singleton(javaSources.relativize(imports));
+            } else {
+                if (imports.startsWith(antlrSources)) {
+                    return Collections.singleton(javaSources.relativize(antlrSources));
+                } else {
+                    return setOf(javaSources.relativize(antlrSources),
+                            javaSources.relativize(imports));
+                }
+            }
         }
         // XXX AntlrConfiguration should provide this?
         // XXX get the project source parent dir from its configuration
@@ -106,6 +142,15 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
         Project project = projectLookup.lookup(Project.class);
         if (project == null) {
             return "antlr4";
+        }
+        // Optimization - use the cache so we don't parse poms unless
+        // we have to
+        if (project.getProjectDirectory().getFileObject("pom.xml") != null) {
+            if (AntlrConfiguration.isAntlrProject(project)) {
+                return "antlr4";
+            } else {
+                return null;
+            }
         }
         MavenInfo info = MavenFolderStrategy.infoForProject(project);
         MavenAntlrConfiguration pluginInfo = info.pluginInfo();

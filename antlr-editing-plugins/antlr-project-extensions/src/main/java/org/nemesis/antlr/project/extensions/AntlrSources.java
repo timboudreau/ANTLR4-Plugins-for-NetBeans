@@ -163,8 +163,8 @@ public final class AntlrSources extends FileChangeAdapter implements Sources, Co
 
     void fire(Object reason) {
         int newRev = rev.incrementAndGet();
-        LOG.log(Level.FINER, "{0} fire change due to {1} has listeners {2}",
-                new Object[]{this, reason, supp.hasListeners()});
+        LOG.log(Level.FINER, "{0} fire change due to {1} has listeners {2} rev {3}",
+                new Object[]{this, reason, supp.hasListeners(), newRev});
         AntlrIconAnnotator.fireIconBadgingChanges();
         supp.fireChange();
     }
@@ -173,7 +173,8 @@ public final class AntlrSources extends FileChangeAdapter implements Sources, Co
         if (config == null) {
             return false;
         }
-        return valid(Folders.ANTLR_GRAMMAR_SOURCES.find(project)) || valid(Folders.ANTLR_IMPORTS.find(project));
+//        return valid(Folders.ANTLR_GRAMMAR_SOURCES.find(project)) || valid(Folders.ANTLR_IMPORTS.find(project));
+        return !config.isGuessedConfig();
     }
 
     private boolean valid(Iterable<? extends Path> it) {
@@ -191,8 +192,29 @@ public final class AntlrSources extends FileChangeAdapter implements Sources, Co
 
     private void createSourceGroups(Project project, AntlrConfiguration config, Set<? super AntlrSourceGroup> groups) {
         if (isLegitAntlrProject(project, config)) {
+//            Path antlrSrc = config.antlrSourceDir();
+//            Path antlrImport = config.antlrImportDir();
+//            if (valid(antlrImport) && !config.isImportDirChildOfSourceDir()) {
+//                groups.add(new AntlrSourceGroup(Folders.ANTLR_GRAMMAR_SOURCES, project, this));
+//                groups.add(new AntlrSourceGroup(Folders.ANTLR_IMPORTS, project, this));
+//            } else if (valid(antlrSrc)) {
+//                groups.add(new AntlrSourceGroup(Folders.ANTLR_GRAMMAR_SOURCES, project, this));
+//            }
             Folders[] flds = config.isImportDirChildOfSourceDir() ? new Folders[]{Folders.ANTLR_GRAMMAR_SOURCES} : new Folders[]{Folders.ANTLR_GRAMMAR_SOURCES, Folders.ANTLR_IMPORTS};
             for (Folders f : flds) {
+                switch (f) {
+                    // for the defaults, avoid parsing POMs during startup:
+                    case ANTLR_GRAMMAR_SOURCES:
+                        if (valid(config.antlrSourceDir())) {
+                            groups.add(new AntlrSourceGroup(f, project, this));
+                        }
+                        continue;
+                    case ANTLR_IMPORTS:
+                        if (valid(config.antlrImportDir())) {
+                            groups.add(new AntlrSourceGroup(f, project, this));
+                        }
+                        continue;
+                }
                 if (valid(f.find(project))) {
                     groups.add(new AntlrSourceGroup(f, project, this));
                 }

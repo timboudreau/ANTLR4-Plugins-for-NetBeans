@@ -20,6 +20,7 @@ import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -30,10 +31,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import org.nemesis.antlr.live.preview.PreviewPanel;
-import org.nemesis.antlr.live.preview.Spinner;
-import org.openide.util.Mutex;
+import org.nemesis.swing.Spinner;
 import org.openide.util.NbBundle.Messages;
-import org.openide.util.RequestProcessor;
 
 /**
  *
@@ -41,15 +40,15 @@ import org.openide.util.RequestProcessor;
  */
 final class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
 
-    private final RequestProcessor threadPool;
+    private final ExecutorService threadPool;
     private final Consumer<Consumer<JComponent>> innerComponentFactory;
-    private final JComponent spinner = new Spinner();
+    private final JComponent spinner = Spinner.create();
     private volatile Future<?> fut;
     private Reference<JComponent> oldInner;
     private boolean showing;
-    private final JLabel status = new JLabel();
+    private final JLabel status = new JLabel("<html>&nbsp;");
 
-    public VeryLazyInitPanel(Consumer<Consumer<JComponent>> innerComponentFactory, RequestProcessor threadPool) {
+    public VeryLazyInitPanel(Consumer<Consumer<JComponent>> innerComponentFactory, ExecutorService threadPool) {
         super(new BorderLayout());
         this.innerComponentFactory = innerComponentFactory;
         this.threadPool = threadPool;
@@ -63,11 +62,19 @@ final class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     }
 
     void status(String status) {
-        Mutex.EVENT.readAccess(() -> {
+        onEq(() -> {
             this.status.setText(status);
             this.status.paintImmediately(0, 0, this.status.getWidth(),
                     this.status.getHeight());
         });
+    }
+
+    private void onEq(Runnable r) {
+        if (EventQueue.isDispatchThread()) {
+            r.run();
+        } else {
+            EventQueue.invokeLater(r);
+        }
     }
 
     @Override

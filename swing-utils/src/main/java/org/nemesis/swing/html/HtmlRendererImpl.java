@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.preview;
+package org.nemesis.swing.html;
 
 
 import java.awt.*;
@@ -31,8 +31,7 @@ import java.util.logging.Logger;
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.event.AncestorListener;
-import static org.nemesis.antlr.live.preview.HtmlRendererImpl.Type.UNKNOWN;
-import org.openide.awt.HtmlRenderer;
+import static org.nemesis.swing.html.HtmlRendererImpl.Type.UNKNOWN;
 
 
 /**
@@ -397,7 +396,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         String check = s.toUpperCase();
         int start = 0;
         int fidx = check.indexOf("<FONT", start); //NOI18N
-        StringBuffer sb = null;
+        StringBuilder sb = null;
 
         if ((fidx != -1) && (fidx <= s.length())) {
             while ((fidx != -1) && (fidx <= s.length())) {
@@ -432,7 +431,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
                                 }
 
                                 if (sb == null) {
-                                    sb = new StringBuffer(s);
+                                    sb = new StringBuilder(s);
                                 }
 
                                 String colorString = s.substring(colorStart, colorEnd);

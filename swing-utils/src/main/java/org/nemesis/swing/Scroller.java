@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.navigator;
+package org.nemesis.swing;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -43,7 +43,7 @@ import javax.swing.WindowConstants;
  *
  * @author Tim Boudreau
  */
-final class Scroller implements ActionListener, ComponentListener, MouseWheelListener {
+public final class Scroller implements ActionListener, ComponentListener, MouseWheelListener {
 
     private final Rectangle target = new Rectangle();
     private final JScrollPane pane;
@@ -51,24 +51,24 @@ final class Scroller implements ActionListener, ComponentListener, MouseWheelLis
     private final Timer timer = new Timer(30, this);
 
     @SuppressWarnings(value = "LeakingThisInConstructor")
-    public Scroller(JComponent comp, JScrollPane pane) {
+    Scroller(JComponent comp, JScrollPane pane) {
         this.pane = pane;
         this.comp = comp;
         comp.putClientProperty(Scroller.class.getName(), this);
         timer.setCoalesce(false);
     }
 
-    static Scroller get(JComponent comp) {
+    public static Scroller get(JComponent comp) {
         Scroller s = (Scroller) comp.getClientProperty(Scroller.class.getName());
         if (s == null) {
             JScrollPane pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, comp);
-            assert pane != null;
+            assert pane != null : "No scroll pane ancestor of " + comp;
             s = new Scroller(comp, pane);
         }
         return s;
     }
 
-    void beginScroll(JList<?> l, int index) {
+    public void beginScroll(JList<?> l, int index) {
         Rectangle r = l.getCellBounds(index, index);
         realTargetHeight = r.height;
         Rectangle viewBounds = SwingUtilities.convertRectangle(pane.getViewport(), pane.getViewport().getViewRect(), comp);
@@ -86,7 +86,7 @@ final class Scroller implements ActionListener, ComponentListener, MouseWheelLis
     int realTargetHeight;
     int tick = 1;
 
-    void beginScroll(Rectangle bounds) {
+    public void beginScroll(Rectangle bounds) {
         if (bounds.height <= 0) {
             bounds.height = 17;
         }
@@ -109,12 +109,6 @@ final class Scroller implements ActionListener, ComponentListener, MouseWheelLis
         timer.start();
     }
 
-    /*
-var easeInOutQuad = function (x, t, b, c, d) {
-    if ((t/=d/2) < 1) return c/2*t*t + b;
-    return -c/2 * ((--t)*(t-2) - 1) + b;
-};
-     */
     interface EasingFunction {
 
         int ease(double percent, int elapsed, int start, int end, int total);

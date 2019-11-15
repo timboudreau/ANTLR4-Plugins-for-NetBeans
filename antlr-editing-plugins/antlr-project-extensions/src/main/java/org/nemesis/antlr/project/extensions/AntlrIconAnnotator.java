@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.project.extensions;
 
+import java.awt.EventQueue;
 import java.awt.Image;
+import java.io.File;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.nio.file.Path;
@@ -26,6 +28,7 @@ import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.netbeans.api.project.Project;
 import org.netbeans.spi.project.ProjectIconAnnotator;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.ChangeSupport;
 import org.openide.util.ImageUtilities;
 import org.openide.util.NbBundle;
@@ -67,13 +70,18 @@ public class AntlrIconAnnotator implements ProjectIconAnnotator, Consumer<Path> 
     }
 
     private void fire() {
-        supp.fireChange();
+        // invokeLater to avoid possibly firing an icon change while holding
+        // ProjectManager.MUTEX, which results in
+        // java.lang.IllegalStateException: Should not acquire Children.MUTEX
+        //    while holding ProjectManager.mutex()
+	// - create unit tests action updates libraries which will trigger a change
+        EventQueue.invokeLater(supp::fireChange);
     }
 
     @Override
     public void accept(Path t) {
         if (!isInInitDelay()) {
-            supp.fireChange();
+            fire();
         }
     }
 
@@ -96,9 +104,21 @@ public class AntlrIconAnnotator implements ProjectIconAnnotator, Consumer<Path> 
         if (isInInitDelay()) {
             return original;
         }
-        if (!AntlrConfiguration.isAntlrProject(p)) {
+        File file = FileUtil.toFile(p.getProjectDirectory());
+        if (file == null) {
             return original;
         }
+        AntlrConfiguration config = AntlrConfiguration.forProject(p);
+        if (config == null || config.isGuessedConfig()) {
+            return original;
+        }
+//        if (!KnownAntlrProjectCache.getInstance().isAntlrProject(file.toPath())) {
+//            return original;
+//        }
+
+//        if (!AntlrConfiguration.isAntlrProject(p)) {
+//            return original;
+//        }
         return ImageUtilities.mergeImages(ImageUtilities.addToolTipToImage(original,
                 NbBundle.getMessage(AntlrIconAnnotator.class, "antlr")),
                 badge(), 0, 12);

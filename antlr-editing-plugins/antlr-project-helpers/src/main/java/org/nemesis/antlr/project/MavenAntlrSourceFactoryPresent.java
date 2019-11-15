@@ -31,6 +31,8 @@ import org.openide.util.Lookup;
  */
 public abstract class MavenAntlrSourceFactoryPresent {
 
+    // XXX put this class somewhere else - it is an implementation detail.
+
     protected abstract boolean isActive();
 
     /**

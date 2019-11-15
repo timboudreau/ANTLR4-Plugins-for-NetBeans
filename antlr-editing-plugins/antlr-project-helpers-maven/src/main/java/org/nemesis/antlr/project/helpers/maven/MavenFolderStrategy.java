@@ -39,6 +39,7 @@ import org.openide.filesystems.FileUtil;
  */
 final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
 
+    static final String MAVEN = "Maven";
     private final Project project;
     private static final Map<Project, MavenInfo> PROJECT_INFO = new WeakHashMap<>();
     private static volatile boolean listening;
@@ -173,6 +174,6 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
 
     @Override
     public String name() {
-        return "Maven";
+        return MAVEN;
     }
 }

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
@@ -70,5 +71,10 @@ public final class MavenFolderStrategyFactory implements FoldersLookupStrategyIm
                     new AddAntlrSupportCallable(project, projectDir, pom, info, fut));
             return fut;
         };
+    }
+
+    @Override
+    public void collectImplementationNames(Set<? super String> into) {
+        into.add(MavenFolderStrategy.MAVEN);
     }
 }

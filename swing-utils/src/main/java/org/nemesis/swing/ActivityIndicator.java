@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.preview;
+package org.nemesis.swing;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -38,7 +38,7 @@ import javax.swing.WindowConstants;
  *
  * @author Tim Boudreau
  */
-public final class Indicator extends JComponent implements ActionListener {
+public final class ActivityIndicator extends JComponent implements ActionListener {
 
     private final Dimension size;
     private final Timer timer = new Timer(35, this);
@@ -46,11 +46,11 @@ public final class Indicator extends JComponent implements ActionListener {
     private int tick;
     private final int[] rgb = new int[3];
 
-    Indicator(int size) {
+    public ActivityIndicator(int size) {
         this.size = new Dimension(size, size);
     }
 
-    Indicator() {
+    public ActivityIndicator() {
         this(24);
         setOpaque(true);
         setBackground(UIManager.getColor("control"));
@@ -59,6 +59,7 @@ public final class Indicator extends JComponent implements ActionListener {
         timer.setRepeats(true);
         setFocusable(false);
     }
+
 //
 //    @Override
 //    public void doLayout() {
@@ -183,7 +184,7 @@ public final class Indicator extends JComponent implements ActionListener {
 
         EventQueue.invokeLater(() -> {
             JPanel pnl = new JPanel(new FlowLayout());
-            Indicator ind = new Indicator(24);
+            ActivityIndicator ind = new ActivityIndicator(24);
             JButton button = new JButton("Trigger");
             pnl.add(ind);
             pnl.add(button);

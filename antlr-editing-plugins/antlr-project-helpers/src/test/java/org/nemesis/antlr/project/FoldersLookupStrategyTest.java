@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -272,6 +273,11 @@ public class FoldersLookupStrategyTest {
                 return new TestStrategy(project, initialQuery);
             }
             return null;
+        }
+
+        @Override
+        public void collectImplementationNames(Set<? super String> into) {
+            into.add("Things");
         }
 
         static class TestStrategy implements FolderLookupStrategyImplementation {

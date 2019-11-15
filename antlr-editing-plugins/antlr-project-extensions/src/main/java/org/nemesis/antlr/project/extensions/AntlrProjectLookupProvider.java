@@ -34,7 +34,7 @@ public class AntlrProjectLookupProvider implements LookupProvider {
 
     static final Logger LOG = Logger.getLogger(AntlrProjectLookupProvider.class.getName());
     private long created = System.currentTimeMillis();
-    private static final long DELAY = 65000;
+    private static final long DELAY = 30000;
     private final RequestProcessor initThreadPool = new RequestProcessor("antlr-project-lookup-init", 3, false);
 
     static {
@@ -49,12 +49,16 @@ public class AntlrProjectLookupProvider implements LookupProvider {
     public Lookup createAdditionalLookup(Lookup baseContext) {
         long delay = remainingDelay();
         InstanceContent content = new InstanceContent();
+
+        // Hrm, it seems that if a Sources appears in the project's lookup
+        // after creation, the UI never notices it.  We attempt to make
+        // it lazy internally.
+        content.add(new LazyAntlrSources(baseContext, initThreadPool, delay));
         Runnable init = () -> {
             Project project = baseContext.lookup(Project.class);
-            LOG.log(Level.FINER, "Create antlr lookup for project {0}",
+            LOG.log(Level.FINER, "Fully populate antlr lookup for project {0}",
                     project.getProjectDirectory().getName());
             content.add(new AntlrFileBuiltQuery());
-            content.add(new AntlrSources(baseContext));
             content.add(AntlrRecommendedTemplates.INSTANCE);
         };
         if (delay > 0) {

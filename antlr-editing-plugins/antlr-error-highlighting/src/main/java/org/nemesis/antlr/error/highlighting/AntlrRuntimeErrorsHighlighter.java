@@ -24,6 +24,11 @@ import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -100,6 +105,8 @@ import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.RequestProcessor;
+import org.openide.util.WeakListeners;
 
 /**
  *
@@ -112,6 +119,9 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     private static final Logger LOG = Logger.getLogger(
             AntlrRuntimeErrorsHighlighter.class.getName());
     private final Context ctx;
+    private final RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
+    private final CompL compl = new CompL();
+    private ComponentListener cl;
 
     @SuppressWarnings("LeakingThisInConstructor")
     AntlrRuntimeErrorsHighlighter(Context ctx) {
@@ -124,13 +134,80 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         if (set == null) {
             set = fcs.getFontColors("errors");
             if (set == null) {
-                set = AttributesUtilities.createImmutable(EditorStyleConstants.WaveUnderlineColor, Color.RED);
+                set = fcs.getFontColors("error");
+                if (set == null) {
+                    set = AttributesUtilities.createImmutable(EditorStyleConstants.WaveUnderlineColor, Color.RED);
+                }
             }
         }
         underlining = set;
-        FileObject fo = NbEditorUtilities.getFileObject(ctx.getDocument());
-        // Will be weakly referenced, so no leak:
-        RebuildSubscriptions.subscribe(fo, this);
+        if (ctx.getComponent().isShowing()) {
+            compl.setActive(true);
+        }
+        JTextComponent c = ctx.getComponent();
+        c.addComponentListener(cl = WeakListeners.create(
+                ComponentListener.class, compl, c));
+        c.addPropertyChangeListener("ancestor",
+                WeakListeners.propertyChange(compl, c));
+        // This can race - double check
+        EventQueue.invokeLater(() -> {
+            if (ctx.getComponent().isShowing()) {
+                compl.setActive(true);
+            }
+        });
+    }
+
+    private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener {
+
+        // Gets subscribing, which can trigger parsing of poms of all
+        // dependencies, out of the critical path of opening an editor,
+        // and turns listening off when the component is not visible
+        private Runnable unsubscriber;
+        private boolean active;
+        private final RequestProcessor.Task task = subscribe.create(this);
+
+        @Override
+        public void componentShown(ComponentEvent e) {
+            setActive(true);
+        }
+
+        @Override
+        public void componentHidden(ComponentEvent e) {
+            setActive(false);
+        }
+
+        @Override
+        public void propertyChange(PropertyChangeEvent evt) {
+            if ("ancestor".equals(evt.getPropertyName())) {
+                setActive(evt.getNewValue() != null);
+            }
+        }
+
+        void setActive(boolean active) {
+            if (active != this.active) {
+                this.active = active;
+                if (active) {
+                    task.schedule(350);
+                } else {
+                    unsubscribe();
+                }
+            }
+        }
+
+        void unsubscribe() {
+            if (unsubscriber != null) {
+                unsubscriber.run();
+                unsubscriber = null;
+            }
+        }
+
+        @Override
+        public void run() {
+            if (active) {
+                FileObject fo = NbEditorUtilities.getFileObject(ctx.getDocument());
+                unsubscriber = RebuildSubscriptions.subscribe(fo, AntlrRuntimeErrorsHighlighter.this);
+            }
+        }
     }
 
     HighlightsContainer bag() {

@@ -143,8 +143,9 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
 
     @Override
     public String name() {
-        return "Heuristic";
+        return HEURISTIC;
     }
+    static final String HEURISTIC = "Heuristic";
 
     @Override
     public String toString() {
@@ -311,6 +312,11 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         @Override
         public void buildFileNames(Collection<? super Path> buildFileNameGatherer) {
             buildFileNameGatherer.addAll(DEFAULT_BUILD_FILES);
+        }
+
+        @Override
+        public void collectImplementationNames(Set<? super String> into) {
+            into.add(HEURISTIC);
         }
     }
 }

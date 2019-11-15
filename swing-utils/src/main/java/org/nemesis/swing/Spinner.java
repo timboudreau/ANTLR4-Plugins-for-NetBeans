@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.preview;
+package org.nemesis.swing;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -50,18 +50,27 @@ public final class Spinner extends JComponent implements ActionListener, Compone
     private double dim = 0;
     private int tick;
 
-    public Spinner() {
+    private Spinner() {
         this(15, 124, 180);
         setOpaque(true);
     }
 
-    public Spinner(int elementCount, int maxDim, int tickMillis) {
+    private Spinner(int elementCount, int maxDim, int tickMillis) {
         this.maxDim = maxDim;
         this.elementCount = elementCount;
         timer = new Timer(tickMillis, this);
         setBackground(UIManager.getColor("control"));
         setForeground(UIManager.getColor("controlShadow"));
         addComponentListener(this);
+    }
+
+    public static JComponent create() {
+        return new Spinner();
+    }
+
+    public static JComponent create(int elementCount, int maxDimension,
+            int tickMillis) {
+        return new Spinner(elementCount, maxDimension, tickMillis);
     }
 
     @Override

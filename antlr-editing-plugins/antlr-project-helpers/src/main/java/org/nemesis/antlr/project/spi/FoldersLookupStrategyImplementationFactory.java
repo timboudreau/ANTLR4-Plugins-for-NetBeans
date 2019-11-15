@@ -18,6 +18,7 @@ package org.nemesis.antlr.project.spi;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import org.netbeans.api.project.Project;
@@ -80,4 +81,12 @@ public interface FoldersLookupStrategyImplementationFactory {
     default Function<NewAntlrConfigurationInfo, CompletionStage<Boolean>> antlrSupportAdder(Project project) throws IOException {
         return null;
     }
+
+    /**
+     * Collect any strings that could be returned by name() on implementations
+     * returned by create().
+     *
+     * @param into
+     */
+    void collectImplementationNames(Set<? super String> into);
 }

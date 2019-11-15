@@ -15,6 +15,8 @@
  */
 package org.nemesis.extraction;
 
+import com.mastfrog.bits.Bits;
+import com.mastfrog.graph.IntGraph;
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -713,8 +715,18 @@ public final class Extraction implements Externalizable {
         return (NamedRegionReferenceSets<T>) result;
     }
 
+    private static final StringGraph EMPTY_GRAPH;
+    static {
+        IntGraph ig = IntGraph.create(new Bits[0]);
+        EMPTY_GRAPH = ig.toStringGraph(new String[0]);
+    }
+
     public StringGraph referenceGraph(NameReferenceSetKey<?> key) {
-        return graphs.get(key);
+        StringGraph g = graphs.get(key);
+        if (g == null) {
+            g = EMPTY_GRAPH;
+        }
+        return g;
     }
 
     @SuppressWarnings("unchecked")

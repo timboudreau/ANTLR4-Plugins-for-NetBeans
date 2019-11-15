@@ -22,6 +22,7 @@ import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
+import org.nemesis.swing.html.HtmlRenderer;
 
 /**
  *
@@ -30,7 +31,7 @@ import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 final class RuleCellRenderer implements ListCellRenderer<String> {
 
     private final AdhocColorings colorings;
-    private final HtmlRendererImpl ren = new HtmlRendererImpl();
+    private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
     private final Function<String, Color> listBackgroundColorFor;
 
     public RuleCellRenderer(AdhocColorings colorings, Function<String, Color> listBackgroundColorFor) {
