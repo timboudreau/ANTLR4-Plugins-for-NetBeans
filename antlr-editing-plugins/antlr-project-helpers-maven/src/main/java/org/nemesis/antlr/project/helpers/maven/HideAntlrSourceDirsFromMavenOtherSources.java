@@ -19,10 +19,7 @@ import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -58,97 +55,42 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
         if (project == null) {
             return Collections.emptySet();
         }
-        if (true) {
-            // Optimization - avoid parsing poms if the cache has the info
-            AntlrConfiguration config = AntlrConfiguration.forProject(project);
-            if (config == null) {
-                return Collections.emptySet();
-            }
-            File file = FileUtil.toFile(project.getProjectDirectory());
-            if (file == null) {
-                return Collections.emptySet();
-            }
-            Path path = file.toPath();
-            Path sourceRoot = config.javaSources();
-            if (sourceRoot == null) {
-                sourceRoot = path.resolve("src/main");
-            } else {
-                sourceRoot = sourceRoot.getParent();
-            }
-            Path antlrSources = validate(config.antlrSourceDir());
-            Path imports = validate(config.antlrImportDir());
-            Set<Path> result;
-            if (antlrSources == null && imports == null) {
-                System.out.println("A.");
-                result = Collections.emptySet();
-            } else if (antlrSources != null && imports == null) {
-                System.out.println("B.");
+        // Optimization - avoid parsing poms if the cache has the info
+        AntlrConfiguration config = AntlrConfiguration.forProject(project);
+        if (config == null) {
+            return Collections.emptySet();
+        }
+        File file = FileUtil.toFile(project.getProjectDirectory());
+        if (file == null) {
+            return Collections.emptySet();
+        }
+        Path path = file.toPath();
+        Path sourceRoot = config.javaSources();
+        if (sourceRoot == null) {
+            sourceRoot = path.resolve("src/main");
+        } else {
+            sourceRoot = sourceRoot.getParent();
+        }
+        Path antlrSources = validate(config.antlrSourceDir());
+        Path imports = validate(config.antlrImportDir());
+        Set<Path> result;
+        if (antlrSources == null && imports == null) {
+            result = Collections.emptySet();
+        } else if (antlrSources != null && imports == null) {
+            result = Collections.singleton(sourceRoot.relativize(antlrSources));
+        } else if (antlrSources == null && imports != null) {
+            result = Collections.singleton(sourceRoot.relativize(imports));
+        } else if (antlrSources != null && imports != null) {
+            if (imports.startsWith(antlrSources)) {
                 result = Collections.singleton(sourceRoot.relativize(antlrSources));
-            } else if (antlrSources == null && imports != null) {
-                System.out.println("C>");
-                result = Collections.singleton(sourceRoot.relativize(imports));
-            } else if (antlrSources != null && imports != null) {
-                System.out.println("D.");
-                if (imports.startsWith(antlrSources)) {
-                    System.out.println("D1.");
-                    result = Collections.singleton(sourceRoot.relativize(antlrSources));
-                } else {
-                    System.out.println("D2.");
-                    result = setOf(sourceRoot.relativize(antlrSources),
-                            sourceRoot.relativize(imports));
-                }
             } else {
-                result = Collections.emptySet();
+                result = setOf(sourceRoot.relativize(antlrSources),
+                        sourceRoot.relativize(imports));
             }
-            System.out.println("EXCLUDE RETURNS: " + result + " for " + sourceRoot
-                + " " + antlrSources + " " + imports);
-            return result;
-        }
-        // XXX AntlrConfiguration should provide this?
-        // XXX get the project source parent dir from its configuration
-        // - PomFileAnalyzer can already retrieve it
-
-        // Probable the OtherSourcesExclude interface should be implemented
-        // in the Antlr module, although it then would need to communicate
-        // with this one, because it should not exclude the folders unless
-        // this module is installed too
-        MavenInfo info = MavenFolderStrategy.infoForProject(project);
-        MavenAntlrConfiguration pluginInfo = info.pluginInfo();
-
-        Path javaSources = pluginInfo.javaSources();
-
-        Path sourceRootDir;
-        if (javaSources == null) {
-            sourceRootDir = info.projectDir().resolve("src/main");
         } else {
-            sourceRootDir = javaSources.getParent();
+            result = Collections.emptySet();
         }
-
-        Path antlrSources = pluginInfo.sourceDir();
-        Path sourcesRelative;
-        if (antlrSources == null) {
-            sourcesRelative = Paths.get("antlr4");
-        } else {
-            sourcesRelative = sourceRootDir.relativize(antlrSources);
-        }
-
-        Path antlrImports = pluginInfo.importDir();
-        Path importsRelative;
-        if (antlrImports == null) {
-            importsRelative = Paths.get("antlr4/imports");
-        } else {
-            importsRelative = sourceRootDir.relativize(antlrImports);
-        }
-
-        if (importsRelative.startsWith(sourcesRelative)) {
-            LOG.log(Level.FINER, "Hidden other sources for {0}: {1}",
-                    new Object[]{info.projectDir().getFileName(), sourcesRelative});
-            return Collections.singleton(sourcesRelative);
-        } else {
-            LOG.log(Level.FINER, "Hidden other sources for {0}: {1}, {2}",
-                    new Object[]{info.projectDir().getFileName(), sourcesRelative, importsRelative});
-            return new HashSet<>(Arrays.asList(sourcesRelative, importsRelative));
-        }
+        return result;
     }
 
     private static Path validate(Path path) {
