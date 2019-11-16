@@ -65,7 +65,7 @@ final class AntlrSourceGroup extends FileChangeAdapter implements SourceGroup, C
     @Messages({
         "# We cannot have spaces in the localized name for this name or",
         "# FileObject.toUri() will throw an exception",
-        "missing_folder=-miising-folder-"
+        "missing_folder=-missing-folder-"
     })
     @Override
     public synchronized FileObject getRootFolder() {

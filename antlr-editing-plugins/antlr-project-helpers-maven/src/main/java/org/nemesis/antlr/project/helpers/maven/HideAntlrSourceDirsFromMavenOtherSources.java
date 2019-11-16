@@ -17,6 +17,7 @@ package org.nemesis.antlr.project.helpers.maven;
 
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -29,7 +30,6 @@ import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.MavenAntlrSourceFactoryPresent;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.maven.spi.nodes.OtherSourcesExclude;
-import org.netbeans.modules.maven.spi.queries.JavaLikeRootProvider;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
 
@@ -39,7 +39,7 @@ import org.openide.util.Lookup;
  */
 //@LookupProvider.Registration(projectTypes = @LookupProvider.Registration.ProjectType(id = "org-netbeans-modules-maven")) //XXX what about ant?
 //@ServiceProvider(service = OtherSourcesExclude.class, path = "Projects/org-netbeans-modules-maven/Lookup")
-public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExclude, JavaLikeRootProvider {
+public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExclude {
 
     private final Lookup projectLookup;
     private static final Logger LOG = Logger.getLogger(HideAntlrSourceDirsFromMavenOtherSources.class.getName());
@@ -69,26 +69,40 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
                 return Collections.emptySet();
             }
             Path path = file.toPath();
-            Path javaSources = config.javaSources();
-            if (javaSources == null) {
-                javaSources = path.resolve("src/main");
-            }
-            Path antlrSources = config.antlrSourceDir();
-            Path imports = config.antlrImportDir();
-            if (antlrSources == null && imports == null) {
-                return Collections.emptySet();
-            } else if (antlrSources != null && imports == null) {
-                return Collections.singleton(javaSources.relativize(antlrSources));
-            } else if (antlrSources == null && imports != null) {
-                return Collections.singleton(javaSources.relativize(imports));
+            Path sourceRoot = config.javaSources();
+            if (sourceRoot == null) {
+                sourceRoot = path.resolve("src/main");
             } else {
-                if (imports.startsWith(antlrSources)) {
-                    return Collections.singleton(javaSources.relativize(antlrSources));
-                } else {
-                    return setOf(javaSources.relativize(antlrSources),
-                            javaSources.relativize(imports));
-                }
+                sourceRoot = sourceRoot.getParent();
             }
+            Path antlrSources = validate(config.antlrSourceDir());
+            Path imports = validate(config.antlrImportDir());
+            Set<Path> result;
+            if (antlrSources == null && imports == null) {
+                System.out.println("A.");
+                result = Collections.emptySet();
+            } else if (antlrSources != null && imports == null) {
+                System.out.println("B.");
+                result = Collections.singleton(sourceRoot.relativize(antlrSources));
+            } else if (antlrSources == null && imports != null) {
+                System.out.println("C>");
+                result = Collections.singleton(sourceRoot.relativize(imports));
+            } else if (antlrSources != null && imports != null) {
+                System.out.println("D.");
+                if (imports.startsWith(antlrSources)) {
+                    System.out.println("D1.");
+                    result = Collections.singleton(sourceRoot.relativize(antlrSources));
+                } else {
+                    System.out.println("D2.");
+                    result = setOf(sourceRoot.relativize(antlrSources),
+                            sourceRoot.relativize(imports));
+                }
+            } else {
+                result = Collections.emptySet();
+            }
+            System.out.println("EXCLUDE RETURNS: " + result + " for " + sourceRoot
+                + " " + antlrSources + " " + imports);
+            return result;
         }
         // XXX AntlrConfiguration should provide this?
         // XXX get the project source parent dir from its configuration
@@ -137,24 +151,13 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
         }
     }
 
-    @Override
-    public String kind() {
-        Project project = projectLookup.lookup(Project.class);
-        if (project == null) {
-            return "antlr4";
+    private static Path validate(Path path) {
+        if (path == null) {
+            return null;
         }
-        // Optimization - use the cache so we don't parse poms unless
-        // we have to
-        if (project.getProjectDirectory().getFileObject("pom.xml") != null) {
-            if (AntlrConfiguration.isAntlrProject(project)) {
-                return "antlr4";
-            } else {
-                return null;
-            }
+        if (!Files.exists(path)) {
+            return null;
         }
-        MavenInfo info = MavenFolderStrategy.infoForProject(project);
-        MavenAntlrConfiguration pluginInfo = info.pluginInfo();
-        Path dir = pluginInfo.sourceDir();
-        return dir == null ? "antlr4" : dir.getFileName().toString();
+        return path;
     }
 }

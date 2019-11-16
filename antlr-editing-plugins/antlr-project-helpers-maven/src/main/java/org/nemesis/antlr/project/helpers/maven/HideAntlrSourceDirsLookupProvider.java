@@ -15,6 +15,11 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.nemesis.antlr.project.AntlrConfiguration;
+import org.netbeans.api.project.Project;
+import org.netbeans.modules.maven.spi.queries.JavaLikeRootProvider;
 import org.netbeans.spi.project.LookupProvider;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
@@ -31,6 +36,32 @@ public class HideAntlrSourceDirsLookupProvider implements LookupProvider {
 
     @Override
     public Lookup createAdditionalLookup(Lookup baseContext) {
-        return Lookups.fixed(new HideAntlrSourceDirsFromMavenOtherSources(baseContext));
+        return Lookups.fixed(new HideAntlrSourceDirsFromMavenOtherSources(baseContext),
+                new HideFolder(baseContext, false), new HideFolder(baseContext, true));
+    }
+
+    private final class HideFolder implements JavaLikeRootProvider {
+
+        private static final String NO_VALUE = "~///~";
+        private boolean isImports;
+        private final Lookup lookup;
+
+        HideFolder(Lookup lookup, boolean isImports) {
+            this.lookup = lookup;
+            this.isImports = isImports;
+        }
+
+        @Override
+        public String kind() {
+            Project p = lookup.lookup(Project.class);
+            if (p != null) {
+                AntlrConfiguration config = AntlrConfiguration.forProject(p);
+                Path path = isImports ? config.antlrImportDir() : config.antlrSourceDir();
+                if (path != null && Files.exists(path)) {
+                    return path.getFileName().toString();
+                }
+            }
+            return NO_VALUE;
+        }
     }
 }
