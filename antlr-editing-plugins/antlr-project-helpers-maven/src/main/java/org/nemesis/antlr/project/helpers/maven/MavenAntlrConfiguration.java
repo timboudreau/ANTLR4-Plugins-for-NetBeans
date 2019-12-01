@@ -16,6 +16,7 @@
 package org.nemesis.antlr.project.helpers.maven;
 
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.nemesis.antlr.project.spi.AntlrConfigurationImplementation;
 
@@ -83,12 +84,12 @@ final class MavenAntlrConfiguration implements AntlrConfigurationImplementation 
     }
 
     @Override
-    public Path importDir() {
+    public Path antlrImportDir() {
         return importDir;
     }
 
     @Override
-    public Path sourceDir() {
+    public Path antlrSourceDir() {
         return sourceDir;
     }
 
@@ -150,6 +151,6 @@ final class MavenAntlrConfiguration implements AntlrConfigurationImplementation 
 
     @Override
     public boolean isGuessedConfig() {
-        return false;
+        return !Files.exists(sourceDir);
     }
 }

@@ -23,6 +23,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import javax.swing.event.ChangeListener;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
@@ -43,23 +45,33 @@ public class AntlrFileBuiltQuery implements FileBuiltQueryImplementation {
 
     @Override
     public FileBuiltQuery.Status getStatus(FileObject file) {
-        if (!"text/x-g4".equals(file.getMIMEType())) {
+        if (!ANTLR_MIME_TYPE.equals(file.getMIMEType())) {
             return null;
         }
         Project project = FileOwnerQuery.getOwner(file);
         if (project == null) {
             return null;
         }
+        AntlrConfiguration config = AntlrConfiguration.forProject(project);
+        if (config == null || config.isGuessedConfig()) {
+            return null;
+        }
         File f = FileUtil.toFile(project.getProjectDirectory());
         if (f == null) {
             return null;
         }
-        if (!KnownAntlrProjectCache.getInstance().isAntlrProject(f.toPath())) {
-            return null;
+
+        Path p = f.toPath();
+        // Optimization - avoid initializing a bunch of stuff in the
+        // case we already have the target folder
+        if (p.startsWith(config.antlrSourceDir())) {
+            return statusFor(file, Folders.ANTLR_GRAMMAR_SOURCES, config.antlrSourceDir().relativize(p));
+        } else if (p.startsWith(config.antlrImportDir())) {
+            return statusFor(file, Folders.ANTLR_IMPORTS, config.antlrImportDir().relativize(p));
         }
         AntlrProjectLookupProvider.LOG.log(Level.FINEST, "AntlrFileBuiltQuery.getStatus({0})", file.getPath());
         Folders owner = Folders.ownerOf(file);
-        if (owner != Folders.ANTLR_GRAMMAR_SOURCES) {
+        if (owner == null || !owner.isAntlrSourceFolder()) {
             return null;
         }
         Path relativePath = Folders.ownerRelativePath(file);

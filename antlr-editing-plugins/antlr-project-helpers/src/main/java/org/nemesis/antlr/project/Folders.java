@@ -44,8 +44,22 @@ public enum Folders {
     ANTLR_GRAMMAR_SOURCES,
     JAVA_TEST_SOURCES,
     JAVA_SOURCES,
+    RESOURCES,
+    TEST_RESOURCES,
     CLASS_OUTPUT,
     TEST_CLASS_OUTPUT;
+
+    public boolean isAntlrSourceFolder() {
+        switch(this) {
+            case ANTLR_GRAMMAR_SOURCES :
+            case ANTLR_TEST_GRAMMAR_SOURCES :
+            case ANTLR_IMPORTS :
+            case ANTLR_TEST_IMPORTS :
+                return true;
+            default :
+                return false;
+        }
+    }
 
     public boolean isSearchSubfolders() {
         switch (this) {
@@ -94,6 +108,8 @@ public enum Folders {
             case ANTLR_IMPORTS:
             case ANTLR_TEST_GRAMMAR_SOURCES:
             case ANTLR_TEST_IMPORTS:
+            case RESOURCES:
+            case TEST_RESOURCES:
                 return ANTLR_MIME;
             case JAVA_GENERATED_SOURCES:
             case JAVA_TEST_SOURCES:
@@ -115,6 +131,8 @@ public enum Folders {
             case ANTLR_IMPORTS:
             case ANTLR_TEST_GRAMMAR_SOURCES:
             case ANTLR_TEST_IMPORTS:
+            case RESOURCES:
+            case TEST_RESOURCES:
                 return ANTLR_EXTS;
             case JAVA_GENERATED_SOURCES:
             case JAVA_TEST_SOURCES:

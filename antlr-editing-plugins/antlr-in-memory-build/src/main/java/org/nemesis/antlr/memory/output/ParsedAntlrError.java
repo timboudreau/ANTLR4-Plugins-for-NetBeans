@@ -29,9 +29,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Wraps an Antlr syntax error, so that if Antlr classes were loaded in
- * an isolating classloader, we do not leak types that were created by
- * it and inadvertently keep it alive.
+ * Wraps an Antlr syntax error, so that if Antlr classes were loaded in an
+ * isolating classloader, we do not leak types that were created by it and
+ * inadvertently keep it alive.
  *
  * @author Tim Boudreau
  */
@@ -43,6 +43,7 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
     private final int lineNumber;
     private final int lineOffset;
     private final String message;
+    private Object info;
     int fileOffset = -1;
     int length = -1;
 
@@ -55,10 +56,22 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
         this.message = message;
     }
 
+    public <T> ParsedAntlrError setInfo(T info) {
+        if (this.info != null) {
+            throw new IllegalStateException("Set info twice");
+        }
+        this.info = info;
+        return this;
+    }
+
+    public <T> T info(Class<T> expectedType) {
+        return info == null ? null : expectedType.isInstance(info)
+                ? expectedType.cast(info) : null;
+    }
+
     /**
-     * Antlr syntax errors typically only have a line and line offset;
-     * where they can be computed, we add character position info
-     * after creation.
+     * Antlr syntax errors typically only have a line and line offset; where
+     * they can be computed, we add character position info after creation.
      *
      * @param offset The offset
      * @param length The length of the region in error
@@ -127,6 +140,10 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
             sb.append(" [").append(fileOffset).append(':').append(length).append(']');
         }
         return sb.toString();
+    }
+
+    public boolean hasFileOffset() {
+        return fileOffset != -1;
     }
 
     public int fileOffset() {

@@ -105,7 +105,12 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                 return scan(folder, query, ANTLR_TEST_IMPORT_DIR_CANDIDATES);
             case JAVA_TEST_SOURCES:
                 return scan(folder, query, TEST_SOURCE_DIR_CANDIDATES);
+            case RESOURCES:
+                return scan(folder, query, RESOURCES_CANDIDATES);
+            case TEST_RESOURCES:
+                return scan(folder, query, TEST_RESOURCES_CANDIDATES);
             case JAVA_TEST_GENERATED_SOURCES:
+
         }
         return empty();
     }
@@ -119,6 +124,10 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                 break;
             case CLASS_OUTPUT:
                 relPath = "src/main/java";
+            case RESOURCES:
+                relPath = "src/main/resources";
+            case TEST_RESOURCES:
+                relPath = "src/test/resources";
             default:
                 return null;
         }
@@ -181,7 +190,17 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         "build/test/classes",
         "target/test-classes"
     };
-
+    private static final String[] TEST_RESOURCES_CANDIDATES = new String[]{
+        "test/resources",
+        "src/test/resources",
+        "src/test-resources",
+        "test-resources"
+    };
+    private static final String[] RESOURCES_CANDIDATES = new String[]{
+        "src/main/resources",
+        "src/resources",
+        "resources"
+    };
     private static final String[] ANTLR_DIR_CANDIDATES = new String[]{
         "src/main/antlr4", "src/main/antlr3", "src/main/antlr",
         "source/main/antlr4", "src/antlr4", "src/antlr3", "src/antlr",

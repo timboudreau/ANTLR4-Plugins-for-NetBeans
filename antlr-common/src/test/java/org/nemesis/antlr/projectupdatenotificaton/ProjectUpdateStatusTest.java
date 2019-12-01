@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.projectupdatenotificaton;
 
+import com.mastfrog.graph.dynamic.DynamicGraph;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.file.FileUtils;

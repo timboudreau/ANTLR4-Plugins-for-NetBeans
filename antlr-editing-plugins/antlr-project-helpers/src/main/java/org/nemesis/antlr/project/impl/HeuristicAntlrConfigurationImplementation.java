@@ -99,7 +99,7 @@ class HeuristicAntlrConfigurationImplementation implements AntlrConfigurationImp
     }
 
     @Override
-    public Path importDir() {
+    public Path antlrImportDir() {
         return first(impl.find(Folders.ANTLR_IMPORTS, impl.initialQuery()));
     }
 
@@ -111,7 +111,7 @@ class HeuristicAntlrConfigurationImplementation implements AntlrConfigurationImp
     }
 
     @Override
-    public Path sourceDir() {
+    public Path antlrSourceDir() {
         return first(impl.find(Folders.ANTLR_GRAMMAR_SOURCES, impl.initialQuery()));
     }
 

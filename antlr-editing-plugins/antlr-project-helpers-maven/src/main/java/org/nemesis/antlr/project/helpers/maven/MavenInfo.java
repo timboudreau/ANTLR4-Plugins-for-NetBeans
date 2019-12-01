@@ -33,6 +33,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.project.AntlrConfiguration;
+import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
@@ -113,24 +115,23 @@ final class MavenInfo {
             "false", //atn
             "forceAtn", //forceAtn
         };
-        PomInfo infoInfo = info.info();
+        PomInfo pomInfo = info.pomInfo();
         Map<String, String> vals = info.getConfigValues(keys, defaults);
-
-        Path buildDir = baseDir.resolve(infoInfo.buildDir);
+        Path buildDir = baseDir.resolve(pomInfo.buildDir);
         Path importDir = baseDir.resolve(vals.get(ANTLR_PROP_LIB_DIRECTORY));
         Path sourceDir = baseDir.resolve(vals.get(ANTLR_PROP_SOURCE_DIRECTORY));
         Path outDir = buildDir.resolve(vals.get(ANTLR_PROP_OUTPUT_DIRECTORY));
-        Path buildOutput = baseDir.resolve(infoInfo.buildOutput);
-        Path testOutput = baseDir.resolve(infoInfo.testOutput);
-        Path sources = baseDir.resolve(infoInfo.sources);
-        Path testSources = baseDir.resolve(infoInfo.testSources);
+        Path buildOutput = baseDir.resolve(pomInfo.buildOutput);
+        Path testOutput = baseDir.resolve(pomInfo.testOutput);
+        Path sources = baseDir.resolve(pomInfo.sources);
+        Path testSources = baseDir.resolve(pomInfo.testSources);
         boolean listener = isTrue(vals.get(ANTLR_PROP_LISTENER));
         boolean visitor = isTrue(vals.get(ANTLR_PROP_VISITOR));
         boolean atn = isTrue(vals.get(ANTLR_PROP_ATN));
         boolean forceATN = isTrue(vals.get(ANTLR_PROP_FORCE_ATN));
         String includePattern = vals.get(ANTLR_PROP_INCLUDES);
         String excludePattern = vals.get(ANTLR_PROP_EXCLUDES);
-        Charset encoding = infoInfo.encoding;
+        Charset encoding = pomInfo.encoding;
         return new MavenAntlrConfiguration(importDir, sourceDir, outDir, listener,
                 visitor, atn, forceATN, includePattern, excludePattern,
                 encoding, buildDir, buildOutput, testOutput, sources, testSources);
@@ -144,7 +145,7 @@ final class MavenInfo {
     public Map<String, String> getConfigValues(String[] keys, String[] defaults) {
         assert keys.length == defaults.length;
         Map<String, String> result = new HashMap<>();
-        PomInfo currentInfo = info();
+        PomInfo currentInfo = pomInfo();
         if (currentInfo != null) {
             for (int i = 0; i < keys.length; i++) {
                 String key = keys[i];
@@ -171,7 +172,7 @@ final class MavenInfo {
         return cachedInfo = createAntlrConfig(this, projectDir);
     }
 
-    public PomInfo info() {
+    public PomInfo pomInfo() {
         if (info != null && info.isUpToDate()) {
             return info;
         }
@@ -213,13 +214,18 @@ final class MavenInfo {
 
     public static void main(String[] args) throws Exception {
 //        Path path = Paths.get("/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/antlr-editing-plugins/tokens-file-grammar/pom.xml");
-//        Path path = Paths.get("/home/tim/work/personal/mastfrog-parent/revision-info-plugin/pom.xml");
-        Path path = Paths.get("/home/tim/work/personal/personal/acteur-native/pom.xml");
+//        Path path = Paths.get("/home/tim/work/personal/mastfrog-parent/revision-pomInfo-plugin/pom.xml");
+        Path path = Paths.get("/home/tim/work/personal/timeseries/crypto/pom.xml");
         PomInfo info = PomInfo.create(path);
         MavenInfo mi = new MavenInfo(path.getParent(), info);
         System.out.println(mi);
         PomInfo pi = mi.createInfo();
         System.out.println("PI: " + pi);
+        MavenAntlrConfiguration pluginInfo = mi.pluginInfo();
+        AntlrConfiguration config = FoldersHelperTrampoline.getDefault().newAntlrConfiguration(pluginInfo.antlrImportDir(), pluginInfo.antlrSourceDir(), pluginInfo.antlrOutputDir()
+                , pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
+
+        System.out.println("FINAL CONFIG:\n" + config);
     }
 
     private static final class PomInfo {
@@ -278,7 +284,7 @@ final class MavenInfo {
         }
 
         static PomInfo create(Path path) throws Exception {
-//            new Exception("Create pom info: " + path).printStackTrace();
+//            new Exception("Create pom pomInfo: " + path).printStackTrace();
             if (Files.exists(path)) {
                 List<PomFileAnalyzer> all = new ArrayList<>();
                 Map<Path, Long> watches = new HashMap<>();
@@ -316,7 +322,7 @@ final class MavenInfo {
                 PropertyResolver props = new PropertyResolver(parents.get(0).pomFile().toFile(), resolv, parents.get(0));
 
                 // Ensure that changes in parent projects will trigger a reread of
-                // antlr info
+                // antlr pomInfo
                 noteDependencies(parents);
 
                 for (PomFileAnalyzer a : CollectionUtils.reversed(parents)) {

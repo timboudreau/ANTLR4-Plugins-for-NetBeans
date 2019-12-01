@@ -122,7 +122,7 @@ public abstract class FoldersHelperTrampoline {
     public AntlrConfiguration antlrConfiguration(FolderLookupStrategyImplementation spi) {
         AntlrConfigurationImplementation config = spi.get(AntlrConfigurationImplementation.class);
         if (config != null) {
-            return newAntlrConfiguration(config.importDir(), config.sourceDir(),
+            return newAntlrConfiguration(config.antlrImportDir(), config.antlrSourceDir(),
                     config.antlrOutputDir(), config.listener(), config.visitor(),
                     config.atn(), config.forceATN(), config.includePattern(),
                     config.excludePattern(), config.encoding(), config.buildDir(),

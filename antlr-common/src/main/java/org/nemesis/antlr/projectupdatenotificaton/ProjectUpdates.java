@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.projectupdatenotificaton;
 
+import com.mastfrog.graph.dynamic.DynamicGraph;
 import org.nemesis.antlr.common.cachefile.CacheFileUtils;
 import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
@@ -144,7 +145,7 @@ public final class ProjectUpdates {
 
     public static void pathDependencies(Path dependee, Path depender) {
         ProjectUpdates inst = instance();
-        if (inst._graph().addDependency(depender, dependee)) {
+        if (inst._graph().addEdge(depender, dependee)) {
             inst.dirty();
         }
     }

@@ -16,6 +16,8 @@
 package org.nemesis.antlr.project.spi;
 
 /**
+ * Used by AntlrSupportAdder to determine the initial configuration to set up in
+ * a project that Antlr support is being added to.
  *
  * @author Tim Boudreau
  */
@@ -25,7 +27,8 @@ public final class NewAntlrConfigurationInfo {
     private final boolean generateVisitor;
     private final String antlrVersion;
 
-    public NewAntlrConfigurationInfo(boolean generateListener, boolean generateVisitor, String antlrVersion) {
+    public NewAntlrConfigurationInfo(boolean generateListener,
+            boolean generateVisitor, String antlrVersion) {
         this.generateListener = generateListener;
         this.generateVisitor = generateVisitor;
         this.antlrVersion = antlrVersion;

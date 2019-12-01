@@ -68,7 +68,6 @@ public abstract class Fixes {
      *
      * @return A builder
      */
-
     public final FixBuilder newError() {
         return new FixBuilder( this, Severity.ERROR );
     }
@@ -364,6 +363,29 @@ public abstract class Fixes {
             throws
             BadLocationException {
         add( null, Severity.WARNING, message, item.start(), item.end(), details, lazyFixes );
+        return this;
+    }
+
+    /**
+     * Ad a hint with Severity.ERROR and a callback which will be invoked to
+     * collect possible fixes.
+     *
+     * @param item      The item the fix relates to
+     * @param message   The message to display in the editor margin
+     * @param lazyFixes A consumer which can create 0 or more "fixes" which
+     *                  alter the document in some way
+     *
+     * @return this
+     *
+     * @throws BadLocationException if the coordinates supplied are outside the
+     *                              document
+     */
+    public final Fixes addError(IntRange<? extends IntRange> item, String message,
+            Supplier<? extends CharSequence> details,
+            Consumer<FixConsumer> lazyFixes )
+            throws
+            BadLocationException {
+        add( null, Severity.ERROR, message, item.start(), item.end(), details, lazyFixes );
         return this;
     }
 

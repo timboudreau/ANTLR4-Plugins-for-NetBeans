@@ -16,6 +16,7 @@
 package org.nemesis.antlr.project.helpers.maven;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -99,9 +100,9 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
         AntlrConfigurationImplementation impl = info().pluginInfo();
         switch (folder) {
             case ANTLR_GRAMMAR_SOURCES:
-                return FolderLookupStrategyImplementation.super.iterable(impl.sourceDir());
+                return FolderLookupStrategyImplementation.super.iterable(impl.antlrSourceDir());
             case ANTLR_IMPORTS:
-                return FolderLookupStrategyImplementation.super.iterable(impl.importDir());
+                return FolderLookupStrategyImplementation.super.iterable(impl.antlrImportDir());
             case CLASS_OUTPUT:
                 return FolderLookupStrategyImplementation.super.iterable(impl.buildDir().resolve("classes"));
             case JAVA_GENERATED_SOURCES:
@@ -112,6 +113,23 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
                 return FolderLookupStrategyImplementation.super.iterable(impl.testSources());
             case TEST_CLASS_OUTPUT:
                 return FolderLookupStrategyImplementation.super.iterable(impl.testOutput());
+            case RESOURCES:
+                // XXX need to capture these in the antlr configuration
+                Path javaSrc = impl.javaSources();
+                if (javaSrc != null) {
+                    Path resources = javaSrc.getParent().resolve("resources");
+                    if (Files.exists(resources)) {
+                        return FolderLookupStrategyImplementation.super.iterable(resources);
+                    }
+                }
+            case TEST_RESOURCES:
+                Path javaTestSrc = impl.testSources();
+                if (javaTestSrc != null) {
+                    Path resources = javaTestSrc.getParent().resolve("resources");
+                    if (Files.exists(resources)) {
+                        return FolderLookupStrategyImplementation.super.iterable(resources);
+                    }
+                }
             case JAVA_TEST_GENERATED_SOURCES:
             case ANTLR_TEST_GRAMMAR_SOURCES:
             case ANTLR_TEST_IMPORTS:

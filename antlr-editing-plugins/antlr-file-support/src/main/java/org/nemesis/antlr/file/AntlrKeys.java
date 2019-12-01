@@ -69,7 +69,7 @@ import org.nemesis.localizers.annotations.Localize;
                 type = ANTLRv4Parser.class,
                 generateSyntaxTreeNavigatorPanel = true,
                 generateExtractionDebugNavigatorPanel = true,
-                //                defaultErrorHighlightingEnabled = false,
+                defaultErrorHighlightingEnabled = false,
                 entryPointRule = ANTLRv4Parser.RULE_grammarFile),
         file = @FileType(extension = "g4",
                 multiview = true,
@@ -120,16 +120,16 @@ import org.nemesis.localizers.annotations.Localize;
                     }, colors = {
                 @Coloration(
                         derivedFrom = "errors",
-                        fg = {255, 200, 200},
-                        bg = {222, 90, 90},
-                        waveUnderline = {255, 200, 200},
+//                        fg = {255, 200, 200},
+                        bg = {222, 90, 90, 32},
+                        waveUnderline = {255, 0, 0},
                         themes = {
                             POPULAR_BRIGHT_THEMES
                         }),
                 @Coloration(
                         derivedFrom = "errors",
-                        fg = {255, 200, 200},
-                        bg = {171, 63, 63},
+//                        fg = {255, 200, 200},
+                        bg = {171, 63, 63, 32},
                         waveUnderline = {255, 200, 200},
                         themes = {
                             POPULAR_DARK_THEMES
@@ -395,6 +395,27 @@ import org.nemesis.localizers.annotations.Localize;
                                 bg = {142, 96, 96},
                                 fg = {245, 245, 245}
                         )
+                    }
+            ),
+            @TokenCategory(name = "warning",
+                    tokenIds = {},
+                    colors = {
+                        @Coloration(
+                                derivedFrom = "warning",
+//                                fg = {255, 255, 200},
+                                bg = {212, 212, 100, 32},
+                                waveUnderline = {210, 120, 0},
+                                themes = {
+                                    POPULAR_BRIGHT_THEMES
+                                }),
+                        @Coloration(
+                                derivedFrom = "warning",
+//                                fg = {200, 200, 200},
+                                bg = {171, 171, 63, 32},
+                                waveUnderline = {240, 130, 0},
+                                themes = {
+                                    POPULAR_DARK_THEMES
+                                })
                     }
             ),
             @TokenCategory(name = "synchronized-text-blocks-ext-slave",

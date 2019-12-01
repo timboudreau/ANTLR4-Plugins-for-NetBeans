@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.memory.tool;
+package org.nemesis.antlr.memory.tool.ext;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -33,31 +33,33 @@ import org.antlr.v4.tool.ErrorType;
  *
  * @author Tim Boudreau
  */
-final class EpsilonRuleInfo implements Comparable<EpsilonRuleInfo> {
+public final class EpsilonRuleInfo implements Comparable<EpsilonRuleInfo> {
 
-    public final String culpritRuleName;
-    public final int culpritRuleStart;
-    public final int culpritRuleEnd;
-    public final int culpritRuleLineOffset;
-    public final boolean isLexerRule;
-    public final String victimRuleName;
-    public final int victimTokenIndex;
-    public final int victimTokenLine;
-    public final int victimLineOffset;
-    public final int culpritRuleLine;
-    public final Kind kind;
-    public final String grammarName;
-    public final String[] rulePath;
-    public final String alternativeLabel;
-    public final int victimStart;
-    public final int victimEnd;
+    private final String culpritRuleName;
+    private final int culpritRuleStart;
+    private final int culpritRuleEnd;
+    private final int culpritRuleLineOffset;
+    private final boolean isLexerRule;
+    private final String victimRuleName;
+    private final int victimTokenIndex;
+    private final int victimTokenLine;
+    private final int victimLineOffset;
+    private final int culpritRuleLine;
+    private final EpsilonErrorKind kind;
+    private final String grammarName;
+    private final String[] rulePath;
+    private final String alternativeLabel;
+    private final int victimStart;
+    private final int victimEnd;
+    private final ProblematicEbnfInfo problem;
 
-    EpsilonRuleInfo(String grammarName, ErrorType errorType, String name,
+    public EpsilonRuleInfo(String grammarName, ErrorType errorType, String name,
             int ruleStart, int ruleEnd, int ruleLine, int ruleLineOffset,
             boolean lexerRule, String ruleName, int tokenIndex,
             int victimStart, int victimEnd,
             int victimLine,
-            int victimLineOffset, List<String> rulePath, String alternativeLabel) {
+            int victimLineOffset, List<String> rulePath, String alternativeLabel,
+            ProblematicEbnfInfo problem) {
         this.culpritRuleLine = ruleLine;
         this.culpritRuleName = name;
         this.culpritRuleStart = ruleStart;
@@ -72,24 +74,32 @@ final class EpsilonRuleInfo implements Comparable<EpsilonRuleInfo> {
         this.rulePath = rulePath.toArray(new String[rulePath.size()]);
         this.alternativeLabel = alternativeLabel;
         this.victimStart = victimStart;
+        this.problem = problem;
         this.victimEnd = victimEnd;
         if (null == errorType) {
             throw new AssertionError("Not a supported ErrorType: " + errorType);
         } else {
             switch (errorType) {
+                case EPSILON_TOKEN:
+                    kind = EpsilonErrorKind.EPSILON_TOKEN;
+                    break;
                 case EPSILON_CLOSURE:
-                    kind = Kind.EPSILON_CLOSURE;
+                    kind = EpsilonErrorKind.EPSILON_CLOSURE;
                     break;
                 case EPSILON_LR_FOLLOW:
-                    kind = Kind.EPSILON_LR_FOLLOW;
+                    kind = EpsilonErrorKind.EPSILON_LR_FOLLOW;
                     break;
                 case EPSILON_OPTIONAL:
-                    kind = Kind.EPSILON_OPTIONAL;
+                    kind = EpsilonErrorKind.EPSILON_OPTIONAL;
                     break;
                 default:
                     throw new AssertionError("Not a supported ErrorType: " + errorType);
             }
         }
+    }
+
+    public ProblematicEbnfInfo problem() {
+        return problem;
     }
 
     public int victimLength() {
@@ -102,12 +112,13 @@ final class EpsilonRuleInfo implements Comparable<EpsilonRuleInfo> {
 
     public String culpritErrorMessage() {
         if (isSelfViolation()) {
-            return "Rule '" + victimRuleName + "' causes itself to be able to "
-                    + "match the empty string - consider "
-                    + "changing wildcards ? or * to +";
+            return "Rule '" + victimRuleName + "' can "
+                    + "match the empty string via '" + problem.text() + "' - consider "
+                    + "changing wildcards ? or * to + - ";
         }
         return "Rule '" + culpritRuleName + "' causes rule '"
-                + victimRuleName + "' to be able to match the empty string"
+                + victimRuleName + "' to be able to match the empty string "
+                + "via '" + problem.text() + "'"
                 + " - consider changing wildcards ? or * to +";
     }
 
@@ -171,25 +182,67 @@ final class EpsilonRuleInfo implements Comparable<EpsilonRuleInfo> {
         return result;
     }
 
-    /**
-     * Avoid exposing Antlr tool types externally.
-     */
-    public enum Kind {
-        EPSILON_CLOSURE,
-        EPSILON_LR_FOLLOW,
-        EPSILON_OPTIONAL;
+    public String victimRuleName() {
+        return victimRuleName;
+    }
 
-        public int antlrErrorCode() {
-            switch (this) {
-                case EPSILON_CLOSURE:
-                    return 153;
-                case EPSILON_LR_FOLLOW:
-                    return 148;
-                case EPSILON_OPTIONAL:
-                    return 154;
-                default:
-                    return -1;
-            }
-        }
+    public String culpritRuleName() {
+        return culpritRuleName;
+    }
+
+    public EpsilonErrorKind kind() {
+        return kind;
+    }
+
+    public boolean isLexerRule() {
+        return isLexerRule;
+    }
+
+    public String grammarName() {
+        return grammarName;
+    }
+
+    public String alternativeLabel() {
+        return alternativeLabel;
+    }
+
+    public List<String> rulePath() {
+        return Arrays.asList(rulePath);
+    }
+
+    public int victimStart() {
+        return victimStart;
+    }
+
+    public int victionEnd() {
+        return victimEnd;
+    }
+
+    public int culpritStart() {
+        return culpritRuleStart;
+    }
+
+    public int culpritEnd() {
+        return culpritRuleEnd;
+    }
+
+    public int victimEnd() {
+        return victimEnd;
+    }
+
+    public int victimLine() {
+        return victimTokenLine;
+    }
+
+    public int victimLineOffset() {
+        return victimLineOffset;
+    }
+
+    public int culpritLine() {
+        return culpritRuleLine;
+    }
+
+    public int culpritLineOffset() {
+        return this.culpritRuleLineOffset;
     }
 }

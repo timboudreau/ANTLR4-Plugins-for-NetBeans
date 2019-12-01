@@ -18,12 +18,12 @@ package org.nemesis.antlr.error.highlighting;
 import com.mastfrog.function.IntBiConsumer;
 import com.mastfrog.graph.StringGraph;
 import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
 import java.awt.EventQueue;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
@@ -45,10 +45,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.Action;
-import javax.swing.Timer;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -59,18 +57,16 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.AntlrConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import static org.nemesis.antlr.error.highlighting.EbnfHintsExtractor.SOLO_EBNFS;
 import org.nemesis.antlr.file.AntlrKeys;
-import static org.nemesis.antlr.file.AntlrKeys.RULE_BOUNDS;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
+import org.nemesis.antlr.memory.tool.ext.EpsilonRuleInfo;
+import org.nemesis.antlr.memory.tool.ext.ProblematicEbnfInfo;
 import org.nemesis.antlr.project.Folders;
 import org.nemesis.antlr.spi.language.ParseResultContents;
-import org.nemesis.antlr.spi.language.fix.DocumentEditBag;
-import org.nemesis.antlr.spi.language.fix.FixImplementation;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
@@ -78,7 +74,6 @@ import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.distance.LevenshteinDistance;
-import org.nemesis.editor.utils.DocumentOperator;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
@@ -86,21 +81,17 @@ import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.attribution.ImportFinder;
 import org.nemesis.source.api.GrammarSource;
-import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
 import org.openide.text.NbDocument;
-import org.openide.text.PositionBounds;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
@@ -115,9 +106,14 @@ import org.openide.util.WeakListeners;
 public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
     protected final OffsetsBag bag;
-    private final AttributeSet underlining;
+    private final AttributeSet errorHighlight;
+    private final AttributeSet warningHighlight;
     private static final Logger LOG = Logger.getLogger(
             AntlrRuntimeErrorsHighlighter.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
     private final Context ctx;
     private final RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
     private final CompL compl = new CompL();
@@ -130,17 +126,26 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         // XXX listen for changes, etc
         MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
         FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
-        AttributeSet set = fcs.getFontColors("errors");
+        AttributeSet set = fcs.getFontColors("error");
         if (set == null) {
             set = fcs.getFontColors("errors");
             if (set == null) {
-                set = fcs.getFontColors("error");
-                if (set == null) {
-                    set = AttributesUtilities.createImmutable(EditorStyleConstants.WaveUnderlineColor, Color.RED);
-                }
+                set = AttributesUtilities.createImmutable(
+                        EditorStyleConstants.WaveUnderlineColor,
+                        Color.RED.darker());
             }
         }
-        underlining = set;
+        errorHighlight = set;
+        set = fcs.getFontColors("warning");
+        if (set == null) {
+            set = fcs.getFontColors("warnings");
+            if (set == null) {
+                set = AttributesUtilities.createImmutable(
+                        EditorStyleConstants.WaveUnderlineColor,
+                        Color.ORANGE);
+            }
+        }
+        warningHighlight = set;
         if (ctx.getComponent().isShowing()) {
             compl.setActive(true);
         }
@@ -155,6 +160,192 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 compl.setActive(true);
             }
         });
+    }
+
+    private IntRange<? extends IntRange<?>> offsets(ProblematicEbnfInfo info, Extraction ext) {
+        /*
+        Optional<StyledDocument> doc = ext.source().lookup(StyledDocument.class);
+        if (doc.isPresent()) {
+            LineDocument ld = LineDocumentUtils.as(doc.get(), LineDocument.class);
+            if (ld != null) {
+
+                int startLineStart = NbDocument.findLineOffset(doc.get(), info.startLine() - 1);
+
+                int startOffset = startLineStart + info.startCharOffsetInLine();
+                System.out.println("  PROBLEM START OFFSET "
+                        + startOffset + " for " + info.startCharOffsetInLine());
+
+                int endLineStart = NbDocument.findLineOffset(doc.get(), info.endLine() - 1);
+                int endOffset = endLineStart + info.endCharOffsetInLine();
+
+                IntRange<? extends IntRange<?>> result = Range.ofCoordinates(startOffset, endOffset);
+                return result;
+            }
+        }
+         */
+        return Range.ofCoordinates(info.start(), info.end());
+    }
+
+    @Messages({
+        "# {0} - ebnf",
+        "canMatchEmpty=Can match the empty string: ''{0}''",
+        "# {0} - replacement",
+        "replaceEbnfWith=Replace with ''{0}''?",
+        "# {0} - ebnf",
+        "# {1} - firstReplacement",
+        "# {2} - secondReplacement",
+        "replaceEbnfWithLong=''{0}'' can match the empty string. \nReplace it with\n"
+        + "''{1}'' or \n''{2}''"
+    })
+    private boolean handleEpsilon(ParsedAntlrError err, Fixes fixes, Extraction ext, EpsilonRuleInfo eps, Set<String> usedErrIds) throws BadLocationException {
+        System.out.println("HANDLE EPSILON " + eps.problem() + " " + err);
+        if (eps.problem() != null) {
+            ProblematicEbnfInfo prob = eps.problem();
+            IntRange<? extends IntRange<?>> problemBlock
+                    = offsets(prob, ext);
+            System.out.println("APPLY PROBLEM " + prob + " to " + err + " loc " + problemBlock);
+            String msg = Bundle.canMatchEmpty(prob.text());
+
+            String pid = prob.text() + "-" + prob.start() + ":" + prob.end();
+
+            fixes.addError(pid, problemBlock, msg, () -> {
+                String repl = computeReplacement(prob.text());
+                String prepl = computePlusReplacement(prob.text());
+                return Bundle.replaceEbnfWithLong(prob.text(), repl, prepl);
+            }, fc -> {
+                String repl = computeReplacement(prob.text());
+                String rmsg = Bundle.replaceEbnfWith(repl);
+                fc.addReplacement(rmsg, problemBlock.start(), problemBlock.stop(), repl);
+                String prepl = computePlusReplacement(prob.text());
+                String rpmsg = Bundle.replaceEbnfWith(prepl);
+                fc.addReplacement(rpmsg, problemBlock.start(), problemBlock.stop(), prepl);
+            });
+            return true;
+        } else {
+            IntRange<? extends IntRange<?>> cr = Range.ofCoordinates(eps.culpritStart(), eps.culpritEnd());
+            IntRange<? extends IntRange<?>> vr = Range.ofCoordinates(eps.victimStart(), eps.victimEnd());
+            String victimErrId = vr + "-" + err.code();
+            if (!usedErrIds.contains(victimErrId)) {
+                fixes.addWarning(victimErrId, vr.start(), vr.end(), eps.victimErrorMessage());
+                usedErrIds.add(victimErrId);
+            }
+            String culpritErrId = cr + "-" + err.code();
+            if (!usedErrIds.contains(culpritErrId)) {
+                fixes.addWarning(culpritErrId, cr, eps.culpritErrorMessage());
+                usedErrIds.add(culpritErrId);
+            }
+        }
+        return false;
+    }
+
+    private String computePlusReplacement(String ebnfString) {
+        String orig = ebnfString;
+        boolean hasStar = false;
+        boolean hasQuestion = false;
+        boolean hasPlus = false;
+        String vn = null;
+        Matcher m = NAME_PATTERN.matcher(ebnfString);
+        if (m.find()) {
+            vn = m.group(1);
+            ebnfString = m.group(2);
+        }
+        loop:
+        for (;;) {
+            switch (ebnfString.charAt(ebnfString.length() - 1)) {
+                case '*':
+                    hasStar = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                case '?':
+                    hasQuestion = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                case '+':
+                    hasPlus = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                default:
+                    break loop;
+            }
+        }
+        String result;
+        if (hasStar) {
+            result = ebnfString + "+" + (hasQuestion ? "?" : "");
+            if (vn != null) {
+                boolean anyWhitespace = ANY_WHITESPACE.matcher(ebnfString).find();
+                if (anyWhitespace) {
+                    result = vn + "=(" + result + ")";
+                } else {
+                    result = vn + '=' + result;
+                }
+            }
+        } else {
+            result = ebnfString;
+            if (vn != null) {
+                result = vn + "=" + result;
+            }
+        }
+        System.out.println("computePlusReplacement " + orig + " -> " + result);
+        return result;
+    }
+
+    private static final Pattern NAME_PATTERN = Pattern.compile("^(.*?)=(.*?)$");
+    private static final Pattern ANY_WHITESPACE = Pattern.compile("\\s");
+
+    private String computeReplacement(String ebnfString) {
+        String orig = ebnfString;
+        boolean hasStar = false;
+        boolean hasQuestion = false;
+        boolean hasPlus = false;
+        String vn = null;
+        Matcher m = NAME_PATTERN.matcher(ebnfString);
+        if (m.find()) {
+            vn = m.group(1);
+            ebnfString = m.group(2);
+        }
+        loop:
+        for (;;) {
+            switch (ebnfString.charAt(ebnfString.length() - 1)) {
+                case '*':
+                    hasStar = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                case '?':
+                    hasQuestion = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                case '+':
+                    hasPlus = true;
+                    ebnfString = ebnfString.substring(0, ebnfString.length() - 1);
+                    break;
+                default:
+                    break loop;
+            }
+        }
+        String result;
+        if (hasStar) {
+            result = ebnfString + " (" + ebnfString + (hasQuestion ? "?" : "") + ")?";
+            if (vn != null) {
+                boolean anyWhitespace = ANY_WHITESPACE.matcher(ebnfString).find();
+                if (anyWhitespace) {
+                    result = vn + "=(" + result + ')';
+                } else {
+                    result = vn + '=' + result;
+                }
+            }
+        } else {
+            result = ebnfString;
+            if (vn != null) {
+                boolean anyWhitespace = ANY_WHITESPACE.matcher(ebnfString).find();
+                if (anyWhitespace) {
+                    result = vn + "=(" + result + ')';
+                } else {
+                    result = vn + '=' + result;
+                }
+            }
+        }
+        System.out.println("computeReplacement " + orig + " -> " + result);
+        return result;
     }
 
     private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener {
@@ -231,7 +422,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             System.out.println("total-lines:\t" + el.getElementCount());
             System.out.println("");
              */
-
             int lineNumber = error.lineNumber() - 1 >= el.getElementCount()
                     ? el.getElementCount() - 1 : error.lineNumber() - 1;
             if (lineNumber < 0) {
@@ -261,18 +451,15 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
-        updateErrorHighlights(res, extraction, fixes);
+        Set<String> usedErrorIds = new HashSet<>();
+        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
+        updateErrorHighlights(res, extraction, fixes, usedErrorIds);
         SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = extraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
-        addHintsForUnresolvableReferences(unknowns, extraction, fixes);
-        addHintsForMissingImports(extraction, fixes);
-        NamedSemanticRegions<EbnfItem> ebnfsThatCanMatchTheEmptyString
-                = extraction.namedRegions(SOLO_EBNFS);
-        if (ebnfsThatCanMatchTheEmptyString != null && !ebnfsThatCanMatchTheEmptyString.isEmpty()) {
-            addEbnfHints(fixes, ebnfsThatCanMatchTheEmptyString);
-        }
-        checkGrammarNameMatchesFile(tree, mimeType, extraction, res, populate, fixes);
-        flagOrphansIfNoImports(tree, mimeType, extraction, res, populate, fixes);
-        flagDuplicateBlocks(tree, mimeType, extraction, res, populate, fixes);
+        addHintsForUnresolvableReferences(unknowns, extraction, fixes, usedErrorIds);
+        addHintsForMissingImports(extraction, fixes, usedErrorIds);
+        checkGrammarNameMatchesFile(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
+        flagOrphansIfNoImports(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
+        flagDuplicateBlocks(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
     }
 
     private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
@@ -312,7 +499,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     private void flagDuplicateBlocks(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes) {
+            Fixes fixes, Set<String> usedErrorIds) {
         ContentsChecksums<SemanticRegion<Void>> checksums = extraction.checksums(AntlrKeys.BLOCKS);
         if (!checksums.isEmpty()) {
             int[] index = new int[1];
@@ -346,133 +533,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 for (PositionBoundsRange r : ranges) {
                     ExtractRule extract = new ExtractRule(ranges, extraction, r, text);
                     String id = "bx-" + index[0] + "-" + r.original().index();
-                    try {
-                        fixes.addHint(id, r, msg, det, fixen -> {
-                            fixen.add(details, extract);
-                        });
-                    } catch (BadLocationException ex) {
-                        Exceptions.printStackTrace(ex);
+                    if (!usedErrorIds.contains(id)) {
+                        try {
+                            fixes.addHint(id, r, msg, det, fixen -> {
+                                fixen.add(details, extract);
+                            });
+                        } catch (BadLocationException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
                     }
                 }
             });
-        }
-    }
-
-    static final class ExtractRule implements FixImplementation, Runnable, DocumentListener, ActionListener {
-
-        private final List<PositionBoundsRange> ranges;
-        private final Extraction ext;
-        private final PositionBoundsRange preferred;
-        private final String text;
-        private final Timer timer;
-        private PositionBounds toSelect;
-        private BaseDocument doc;
-
-        ExtractRule(List<PositionBoundsRange> ranges, Extraction ext, PositionBoundsRange preferred, String text) {
-            this.ranges = ranges;
-            this.ext = ext;
-            this.preferred = preferred;
-            this.text = text;
-            timer = new Timer(75, this);
-            timer.setRepeats(false);
-        }
-
-        private String newRuleText() {
-            return Strings.escape(text, ch -> {
-                switch (ch) {
-                    case '\n':
-                    case '\t':
-                    case 0:
-                        return "";
-                    case ' ':
-                        return "";
-                }
-                return Strings.singleChar(ch);
-            }).replaceAll("\\s+", " ");
-        }
-
-        private String newRuleName() {
-            // XXX scan the references inside the bounds, and figure out if any
-            // are parser rules, if so, lower case, if not upper
-            return "new_rule";
-        }
-
-        private int newRuleInsertPosition() {
-            // XXX get the current caret position and find the rule nearest
-            NamedSemanticRegions<RuleTypes> rules = ext.namedRegions(RULE_BOUNDS);
-            NamedSemanticRegion<RuleTypes> region = rules.at(preferred.original().start());
-            if (region != null) {
-                return region.end() + 1;
-            }
-            for (PositionBoundsRange pb : ranges) {
-                region = rules.at(pb.start());
-                if (region != null) {
-                    return region.end() + 1;
-                }
-            }
-            return ext.source().lookup(Document.class).get().getLength() - 1;
-        }
-
-        @Override
-        public void implement(BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits) throws Exception {
-            doc = document;
-            String name = newRuleName();
-            int pos = newRuleInsertPosition();
-            String newText = newRuleText();
-            toSelect = PositionBoundsRange.createBounds(extraction.source(), pos, pos + name.length());
-            DocumentOperator.builder().disableTokenHierarchyUpdates().readLock().writeLock().singleUndoTransaction()
-                    .blockIntermediateRepaints().acquireAWTTreeLock().build().operateOn((StyledDocument) document)
-                    .operate(() -> {
-                        for (PositionBoundsRange bds : ranges) {
-                            edits.replace(document, bds.start(), bds.end(), name);
-                        }
-                        int newTextStart = toSelect.getBegin().getOffset();
-                        document.addPostModificationDocumentListener(this);
-                        edits.insert(document, newTextStart, '\n' + name + " : " + newText + ";\n");
-                        return null;
-                    });
-        }
-
-        @Override
-        public void run() {
-            if (!timer.isRunning()) {
-                timer.start();
-            }
-        }
-
-        @Override
-        public void insertUpdate(DocumentEvent e) {
-            doc.removePostModificationDocumentListener(this);
-            EventQueue.invokeLater(this);
-        }
-
-        @Override
-        public void removeUpdate(DocumentEvent e) {
-            doc.removePostModificationDocumentListener(this);
-            EventQueue.invokeLater(this);
-        }
-
-        @Override
-        public void changedUpdate(DocumentEvent e) {
-            doc.removePostModificationDocumentListener(this);
-            EventQueue.invokeLater(this);
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            JTextComponent comp = EditorRegistry.findComponent(doc);
-            if (comp != null && toSelect != null) {
-                int caretDest = toSelect.getBegin().getOffset() + 1;
-                comp.getCaret().setDot(caretDest);
-                String mimeType = NbEditorUtilities.getMimeType(doc);
-                if (mimeType != null) {
-                    Action action = FileUtil.getConfigObject("Editors/" + mimeType + "/Actions/in-place-refactoring.instance", Action.class);
-                    if (action != null) {
-                        ActionEvent ae = new ActionEvent(comp, ActionEvent.ACTION_PERFORMED, "in-place-refactoring");
-                        action.actionPerformed(ae);
-                    }
-                }
-            }
         }
     }
 
@@ -491,7 +562,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     private void flagOrphansIfNoImports(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes) {
+            Fixes fixes, Set<String> usedErrorIds) {
+        // XXX use the error ids
         if (extraction.namedRegions(AntlrKeys.IMPORTS).isEmpty()) {
             NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrKeys.RULE_NAMES);
             if (!rules.isEmpty()) {
@@ -507,12 +579,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 Set<String> orphans = new LinkedHashSet<>(graph.topLevelOrOrphanNodes());
                 orphans.remove(firstRuleName);
                 for (String name : orphans) {
+                    String errId = "orphan-" + name;
+                    if (usedErrorIds.contains(errId)) {
+                        continue;
+                    }
                     if (seen.contains(name)) {
                         continue;
                     }
+                    usedErrorIds.add(errId);
                     try {
                         String msg = Bundle.unusedRule(name);
-                        fixes.addWarning("orphan-" + name, rules.regionFor(name), msg, fixen -> {
+                        fixes.addWarning(errId, rules.regionFor(name), msg, fixen -> {
                             NamedSemanticRegion<RuleTypes> bounds = ruleBounds.regionFor(name);
                             // Offer to delete just that rule:
                             if (graph.inboundReferenceCount(name) == 0) {
@@ -585,7 +662,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     private void checkGrammarNameMatchesFile(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes) {
+            Fixes fixes, Set<String> usedErrorIds) {
         SingletonEncounters<GrammarDeclaration> grammarDecls = extraction.singletons(AntlrKeys.GRAMMAR_TYPE);
         if (grammarDecls.hasEncounter()) {
             SingletonEncounters.SingletonEncounter<GrammarDeclaration> decl = grammarDecls.first();
@@ -596,12 +673,16 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 if (!Objects.equals(name, decl.get().name())) {
                     try {
                         String msg = Bundle.fileAndGrammarMismatch(name, decl.get().name());
-                        fixes.addError("bad-name-" + name, decl.start(), decl.end(),
-                                msg, fixen -> {
-                                    fixen.addReplacement(Bundle.replaceGrammarName(
-                                            decl.get().name(), extraction.source().name()),
-                                            decl.start(), decl.end(), name);
-                                });
+                        String errId = "bad-name-" + name;
+                        if (!usedErrorIds.contains(errId)) {
+                            usedErrorIds.add(errId);
+                            fixes.addError(errId, decl.start(), decl.end(),
+                                    msg, fixen -> {
+                                        fixen.addReplacement(Bundle.replaceGrammarName(
+                                                decl.get().name(), extraction.source().name()),
+                                                decl.start(), decl.end(), name);
+                                    });
+                        }
                     } catch (BadLocationException ex) {
                         Exceptions.printStackTrace(ex);
                     }
@@ -610,35 +691,57 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
     }
 
-    private void updateErrorHighlights(AntlrGenerationResult res, Extraction extraction, Fixes fixes) {
+    private List<EpsilonRuleInfo> updateErrorHighlights(AntlrGenerationResult res, Extraction extraction, Fixes fixes, Set<String> usedErrIds) {
         OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), true);
         boolean[] anyHighlights = new boolean[1];
         List<ParsedAntlrError> errors = res.errors();
         Optional<Path> path = extraction.source().lookup(Path.class);
+        List<EpsilonRuleInfo> epsilons = new ArrayList<>(errors.size());
         for (ParsedAntlrError err : errors) {
             boolean shouldAdd = true;
             if (path.isPresent()) {
-                Path p = path.get();
+                // Convert to UnixPath to ensure endsWith test works
+                UnixPath p = UnixPath.get(path.get());
+                // We can have errors in included files, so only
+                // process errors in the one we're really supposed
+                // to show errors for
                 shouldAdd = p.endsWith(err.path());
             }
             if (shouldAdd) {
+                // Special handling for epsilons - these are wildcard
+                // blocks that can match the empty string - we have
+                // hints that will offer to replace
+                EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
+                if (eps != null) {
+                    epsilons.add(eps);
+                    try {
+                        handleEpsilon(err, fixes, extraction, eps, usedErrIds);
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                    continue;
+                }
                 offsetsOf(err, (startOffset, endOffset) -> {
                     try {
-                        if (err.isError() && err.length() > 0) {
+                        if (err.length() > 0) {
                             anyHighlights[0] = true;
-                            brandNewBag.addHighlight(startOffset, endOffset, underlining);
+                            brandNewBag.addHighlight(startOffset, endOffset,
+                                    err.isError() ? errorHighlight : warningHighlight);
                         } else {
                             LOG.log(Level.WARNING, "Got {0} length error {1}", new Object[]{err.length(), err});
                             return;
                         }
-                        if (!handleFix(err, fixes, extraction)) {
+                        if (!handleFix(err, fixes, extraction, usedErrIds)) {
                             String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
-                            if (err.isError()) {
-                                fixes.addError(errId, startOffset, endOffset,
-                                        err.message());
-                            } else {
-                                fixes.addWarning(errId, startOffset, endOffset,
-                                        err.message());
+                            if (!usedErrIds.contains(errId)) {
+                                usedErrIds.add(errId);
+                                if (err.isError()) {
+                                    fixes.addError(errId, startOffset, endOffset,
+                                            err.message());
+                                } else {
+                                    fixes.addWarning(errId, startOffset, endOffset,
+                                            err.message());
+                                }
                             }
                         }
                     } catch (IllegalStateException ex) {
@@ -661,9 +764,10 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             }
             brandNewBag.discard();
         });
+        return epsilons;
     }
 
-    private void addHintsForMissingImports(Extraction extraction, Fixes fixes) {
+    private void addHintsForMissingImports(Extraction extraction, Fixes fixes, Set<String> usedErrorIds) {
         ImportFinder imf = ImportFinder.forMimeType(AntlrConstants.ANTLR_MIME_TYPE);
         Set<NamedSemanticRegion<?>> unresolved = new HashSet<>();
         imf.allImports(extraction, unresolved);
@@ -672,7 +776,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     new Object[]{unresolved, extraction.source()});
             for (NamedSemanticRegion<?> n : unresolved) {
                 try {
-                    addFixImportError(extraction, fixes, n);
+                    addFixImportError(extraction, fixes, n, usedErrorIds);
                 } catch (BadLocationException ble) {
                     LOG.log(Level.WARNING, "Exception adding hint for unresolved: " + n, ble);
                 }
@@ -680,9 +784,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
     }
 
-    private void addHintsForUnresolvableReferences(SemanticRegions<UnknownNameReference<RuleTypes>> unknowns, Extraction extraction, Fixes fixes) throws MissingResourceException {
+    private void addHintsForUnresolvableReferences(SemanticRegions<UnknownNameReference<RuleTypes>> unknowns, Extraction extraction, Fixes fixes, Set<String> usedErrIds) throws MissingResourceException {
         if (!unknowns.isEmpty()) {
-
             Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved
                     = extraction.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
 
@@ -701,14 +804,18 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 }
                 try {
                     String hint = NbBundle.getMessage(AntlrRuntimeErrorsHighlighter.class, "unknown_rule_referenced", text);
-                    fixes.addHint(hint, unk, text, fixConsumer -> {
-                        NamedSemanticRegions<RuleTypes> nameRegions = extraction.namedRegions(AntlrKeys.RULE_NAMES);
-                        for (String sim : nameRegions.topSimilarNames(text, 5)) {
-                            String msg = NbBundle.getMessage(AntlrRuntimeErrorsHighlighter.class,
-                                    "replace", text, sim);
-                            fixConsumer.addReplacement(msg, unk.start(), unk.end(), sim);
-                        }
-                    });
+                    String errId = "unk-" + text + "-" + unk.start() + "-" + unk.end();
+                    if (!usedErrIds.contains(errId)) {
+                        fixes.addError(errId, unk, hint, fixConsumer -> {
+                            NamedSemanticRegions<RuleTypes> nameRegions = extraction.namedRegions(AntlrKeys.RULE_NAMES);
+                            for (String sim : nameRegions.topSimilarNames(text, 5)) {
+                                String msg = NbBundle.getMessage(AntlrRuntimeErrorsHighlighter.class,
+                                        "replace", text, sim);
+                                fixConsumer.addReplacement(msg, unk.start(), unk.end(), sim);
+                            }
+                        });
+                        usedErrIds.add(errId);
+                    }
                 } catch (BadLocationException ex) {
                     LOG.log(Level.WARNING, "Exception adding hint for unknown rule: " + unk, ex);
                 }
@@ -722,12 +829,15 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         "# {0} - replacement grammar name",
         "deleteImport=Delete import of {0}"
     })
-    private <T extends Enum<T>> void addFixImportError(Extraction extraction, Fixes fixes, NamedSemanticRegion<T> reg) throws BadLocationException {
+    private <T extends Enum<T>> void addFixImportError(Extraction extraction, Fixes fixes, NamedSemanticRegion<T> reg, Set<String> usedErrorIds) throws BadLocationException {
         String target = reg.name();
         LOG.log(Level.FINEST, "Try to add import fix of {0} in {1} for {2}",
                 new Object[]{target, extraction.source(), reg});
-
-        fixes.addError("unresolvable:" + target, reg, Bundle.unresolved(reg.name()), fixer -> {
+        String errId = "unresolv:" + target;
+        if (usedErrorIds.contains(errId)) {
+            return;
+        }
+        fixes.addError(errId, reg, Bundle.unresolved(reg.name()), fixer -> {
             Optional<FileObject> ofo = extraction.source().lookup(FileObject.class);
             if (ofo.isPresent()) {
                 FileObject fo = ofo.get();
@@ -776,12 +886,19 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         "# {0} - unresolvable imported grammar name",
         "unresolved=Unresolvable import: {0}"
     })
-    boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext) throws BadLocationException {
+    boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext, Set<String> usedErrIds) throws BadLocationException {
+        EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
+        if (eps != null) {
+            return handleEpsilon(err, fixes, ext, eps, usedErrIds);
+        }
         switch (err.code()) {
             case 51: // rule redefinition
             case 52: // lexer rule in parser grammar
             case 53: // parser rule in lexer grammar
                 String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
+                if (usedErrIds.contains(errId)) {
+                    return false;
+                }
                 NamedSemanticRegion<RuleTypes> region = ext.namedRegions(AntlrKeys.RULE_BOUNDS).at(err.fileOffset());
                 if (region == null) {
                     return false;
@@ -792,42 +909,24 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             region.start(), region.end());
                 });
                 return true;
-            case 148: // epsilon closure
-            case 153: // epsilon lr follow
-            case 154: // epsilon optional
+            case 119:
+                // e.g., "The following sets of rules are mutually left-recursive [foo, baz, koog]"
+                int bstart = err.message().lastIndexOf('[');
+                int bend = err.message().lastIndexOf(']');
+                if (bend > bstart + 1 && bstart > 0) {
+                    String sub = err.message().substring(bstart, bend - 1);
+                    NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
+                    for (String item : sub.split(",")) {
+                        item = item.trim();
+                        NamedSemanticRegion<RuleTypes> reg = regions.regionFor(item);
+                        if (reg != null) {
+                            fixes.addError(reg, err.message());
+                        }
+                    }
+                }
+
             default:
                 return false;
-        }
-    }
-
-    @Messages({
-        "# {0} - the original ebnf expression ending in * or ?",
-        "# {1} - the proposed replacement",
-        "emptyStringMatch={0} can match the empty string. Replace with {1}?"
-    })
-    private void addEbnfHints(Fixes fixes, NamedSemanticRegions<EbnfItem> ebnfs) {
-        for (NamedSemanticRegion<EbnfItem> reg : ebnfs) {
-            String tokenAndEbnf = reg.name();
-            String wildcarded = tokenAndEbnf;
-            for (char c = wildcarded.charAt(wildcarded.length() - 1); c == '?'
-                    || c == '*'; c = wildcarded.charAt(wildcarded.length() - 1)) {
-                wildcarded = wildcarded.substring(0, wildcarded.length() - 1);
-            }
-            EbnfItem replacementEbnf = reg.kind().nonEmptyMatchingReplacement();
-            String replacement;
-            if (replacementEbnf.matchesMultiple()) {
-                replacement = wildcarded + " (" + wildcarded + replacementEbnf + ")?";
-            } else {
-                replacement = wildcarded + replacementEbnf;
-            }
-            String msg = Bundle.emptyStringMatch(tokenAndEbnf, replacement);
-            try {
-                fixes.addHint(reg.toString(), reg, msg, fc -> {
-                    fc.addReplacement(msg, reg.start(), reg.end(), replacement);
-                });
-            } catch (BadLocationException ex) {
-                LOG.log(Level.SEVERE, "Exception adding ebnf hint", ex);
-            }
         }
     }
 }

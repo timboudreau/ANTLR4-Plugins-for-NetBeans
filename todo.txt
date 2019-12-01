@@ -1,5 +1,6 @@
 # Refactoring
 
+All maven projects are getting flagged as antlr-enabled
 
 Need a way to contribute different char filters based on region key
 
@@ -7,6 +8,7 @@ Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
+Epsilon analysis needs to capture the culprit EBNFs not just the rule name.
 
 Move annotations littered into SPI into their own package.
 

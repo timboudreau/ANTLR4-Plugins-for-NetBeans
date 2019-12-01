@@ -26,23 +26,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.CompletionStage;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.nemesis.antlr.project.impl.AntlrConfigurationFactory;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
 import org.nemesis.antlr.common.cachefile.CacheFileUtils;
-import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
-import org.netbeans.api.project.ProjectManager;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 
@@ -54,8 +47,8 @@ import org.openide.filesystems.FileUtil;
  */
 public final class AntlrConfiguration {
 
-    final Path importDir;
-    final Path sourceDir;
+    final Path antlrImportDir;
+    final Path antlrSourceDir;
     final Path outputDir;
     final boolean listener;
     final boolean visitor;
@@ -74,12 +67,12 @@ public final class AntlrConfiguration {
 
     private static int MAGIC = 12903;
 
-    AntlrConfiguration(Path importDir, Path sourceDir, Path outDir, boolean listener, boolean visitor,
+    AntlrConfiguration(Path antlrImportDir, Path antlrSourceDir, Path outDir, boolean listener, boolean visitor,
             boolean atn, boolean forceATN, String includePattern, String excludePattern, Charset encoding,
             Path buildDir, String createdByStrategy, boolean isGuessedConfig,
             Path buildOutput, Path testOutput, Path sources, Path testSources) {
-        this.importDir = importDir;
-        this.sourceDir = sourceDir;
+        this.antlrImportDir = antlrImportDir;
+        this.antlrSourceDir = antlrSourceDir;
         this.outputDir = outDir;
         this.listener = listener;
         this.visitor = visitor;
@@ -98,10 +91,10 @@ public final class AntlrConfiguration {
     }
 
     public boolean isImportDirChildOfSourceDir() {
-        if (sourceDir == null || importDir == null) {
+        if (antlrSourceDir == null || antlrImportDir == null) {
             return false;
         }
-        return importDir.startsWith(sourceDir);
+        return antlrImportDir.startsWith(antlrSourceDir);
     }
 
     public static boolean isAntlrProject(Project project) {
@@ -109,7 +102,7 @@ public final class AntlrConfiguration {
         if (result) {
             AntlrConfiguration config = forProject(project);
             result = config != null && !config.isGuessedConfig
-                    && config.sourceDir != null && Files.exists(config.sourceDir);
+                    && config.antlrSourceDir != null && Files.exists(config.antlrSourceDir);
         }
         return result;
     }
@@ -157,6 +150,19 @@ public final class AntlrConfiguration {
     }
 
     /**
+     * If true, some folders require by this configuration do not actually
+     * exist, so this configuration should be seen as the default configuration
+     * this project <i>would</i> have if it <i>were</i> actually set up as an
+     * Antlr project.
+     *
+     * @return True if the configuration is not actually viable
+     */
+    public boolean isSpeculativeConfig() {
+        Path p = antlrSourceDir();
+        return p == null || !Files.exists(p);
+    }
+
+    /**
      * Name of the project-type plugin that created this config, for logging
      * purposes.
      *
@@ -166,26 +172,11 @@ public final class AntlrConfiguration {
         return createdByStrategy;
     }
 
-    private static final Map<Project, AntlrConfiguration> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
-    private static volatile boolean LISTENING;
-    private static final Consumer<Path> PROJECT_MOD_LISTENER = path -> {
-        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
-        if (fo != null) {
-            Project prj;
-            try {
-                prj = ProjectManager.getDefault().findProject(fo);
-                CACHE.remove(prj);
-            } catch (IOException ioe) {
-                Logger.getLogger(AntlrConfiguration.class.getName()).log(Level.SEVERE, path.toString(), ioe);
-            }
-        }
-    };
-
     public static AntlrConfiguration forProject(Project project) {
         if (project == null) {
             return null;
         }
-        AntlrConfiguration config = null;//CACHE.get(project);
+        AntlrConfiguration config = null;
         if (config == null) {
             File file = FileUtil.toFile(project.getProjectDirectory());
             if (file == null) { // virtual file
@@ -194,49 +185,30 @@ public final class AntlrConfiguration {
             config = AntlrConfigurationCache.instance().get(file.toPath(), () -> {
                 return _forProject(project);
             });
-//            CACHE.put(project, config);
         }
         return config;
     }
 
     private static AntlrConfiguration _forProject(Project project) {
-        AntlrConfiguration config = null; // CACHE.get(project);
-        if (config == null) {
-            config = FoldersLookupStrategy.get(project).antlrConfig();
-//            if (config != null) {
-//                CACHE.put(project, config);
-//            }
-            if (!LISTENING) {
-                LISTENING = true;
-                ProjectUpdates.subscribeToChanges(PROJECT_MOD_LISTENER);
-            }
-        }
-        return config;
+        return FoldersLookupStrategy.get(project).antlrConfig();
     }
 
     public static AntlrConfiguration forFile(FileObject file) {
         Project project = FileOwnerQuery.getOwner(notNull("file", file));
-        if (project != null) {
-            return forProject(project);
-        }
-        return FoldersLookupStrategy.get(FileOwnerQuery.getOwner(file)).antlrConfig();
+        return project == null ? null : forProject(project);
     }
 
     public static AntlrConfiguration forFile(Path file) {
         FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(file.toFile()));
-        Project project = fo == null ? null : FileOwnerQuery.getOwner(notNull("file", fo));
-        if (project != null) {
-            return forProject(project);
-        }
         return fo == null ? null : forFile(fo);
     }
 
     public Path antlrImportDir() {
-        return importDir;
+        return antlrImportDir;
     }
 
     public Path antlrSourceDir() {
-        return sourceDir;
+        return antlrSourceDir;
     }
 
     public Path antlrSourceOutputDir() {
@@ -289,8 +261,8 @@ public final class AntlrConfiguration {
 
     @Override
     public String toString() {
-        return "AntlrPluginInfo{\n" + " importDir\t" + importDir
-                + "\n sourceDir\t" + sourceDir + "\n outputDir\t" + outputDir
+        return "AntlrPluginInfo{\n" + " importDir\t" + antlrImportDir
+                + "\n sourceDir\t" + antlrSourceDir + "\n outputDir\t" + outputDir
                 + "\n listener\t" + listener + "\n visitor\t" + visitor
                 + "\n atn\t" + atn + "\n forceATN\t" + forceATN
                 + "\n includePattern\t" + includePattern
@@ -302,14 +274,15 @@ public final class AntlrConfiguration {
                 + "\n testSources\t" + testSources
                 + "\n buildOutput\t" + buildOutput
                 + "\n testOutput\t" + testOutput
+                + "\n guessed\t" + isGuessedConfig
                 + "\n}";
     }
 
     @Override
     public int hashCode() {
         int hash = 3;
-        hash = 53 * hash + Objects.hashCode(this.importDir);
-        hash = 53 * hash + Objects.hashCode(this.sourceDir);
+        hash = 53 * hash + Objects.hashCode(this.antlrImportDir);
+        hash = 53 * hash + Objects.hashCode(this.antlrSourceDir);
         hash = 53 * hash + Objects.hashCode(this.outputDir);
         hash = 53 * hash + (this.listener ? 1 : 0);
         hash = 53 * hash + (this.visitor ? 1 : 0);
@@ -352,10 +325,10 @@ public final class AntlrConfiguration {
         if (!Objects.equals(this.excludePattern, other.excludePattern)) {
             return false;
         }
-        if (!Objects.equals(this.importDir, other.importDir)) {
+        if (!Objects.equals(this.antlrImportDir, other.antlrImportDir)) {
             return false;
         }
-        if (!Objects.equals(this.sourceDir, other.sourceDir)) {
+        if (!Objects.equals(this.antlrSourceDir, other.antlrSourceDir)) {
             return false;
         }
         if (!Objects.equals(this.outputDir, other.outputDir)) {
@@ -391,8 +364,8 @@ public final class AntlrConfiguration {
         return CacheFileUtils.create(MAGIC).write(channel, w -> {
             w.writeString(createdByStrategy)
                     .writeBooleanArray(params)
-                    .writePath(importDir)
-                    .writePath(sourceDir)
+                    .writePath(antlrImportDir)
+                    .writePath(antlrSourceDir)
                     .writePath(outputDir)
                     .writePath(buildDir)
                     .writePath(buildOutput)

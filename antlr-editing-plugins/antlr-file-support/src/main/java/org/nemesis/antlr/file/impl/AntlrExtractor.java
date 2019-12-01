@@ -138,7 +138,7 @@ public final class AntlrExtractor {
     }
 
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)
-    static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
+    public static void populateBuilder(ExtractorBuilder<? super GrammarFileContext> bldr) {
         // First build code-fold regions - all comments and rules, plus
         // miscellaneous such as action and options blocks
         bldr.extractingRegionsUnder(AntlrKeys.FOLDABLES)
