@@ -121,7 +121,7 @@ final class CaretTracker implements ChangeListener, PropertyChangeListener {
             ext = extraction;
             caret = listeningToCaret;
         }
-        if (ext == null || !list.isDisplayable()) {
+        if (ext == null || !list.isDisplayable() || caret == null) {
             return;
         }
         int pos = caret.getDot();

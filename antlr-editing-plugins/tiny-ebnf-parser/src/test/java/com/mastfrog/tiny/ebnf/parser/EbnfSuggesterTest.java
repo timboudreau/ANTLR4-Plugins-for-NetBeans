@@ -29,7 +29,7 @@ public class EbnfSuggesterTest {
         "DESCRIPTION*",
         "wookie+?",
         "'.'*",
-        "'g'+ 'x'..'y'*? foo+? \"q\"+ 'y'*? booger?",
+        "'g'+ 'x'..'y'*? foo+? \"q\"+ 'm'*? booger? (foo | bar)?",
     };
 
     @Test
