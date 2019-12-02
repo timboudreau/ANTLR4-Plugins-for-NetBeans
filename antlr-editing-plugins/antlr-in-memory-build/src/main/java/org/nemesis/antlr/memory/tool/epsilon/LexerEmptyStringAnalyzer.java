@@ -19,6 +19,8 @@ import java.util.LinkedList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.antlr.v4.automata.ATNOptimizer;
 import org.antlr.v4.automata.LexerATNFactory;
 import org.antlr.v4.runtime.atn.ATN;
@@ -50,7 +52,13 @@ class LexerEmptyStringAnalyzer extends LexerATNFactory {
         assert atn.maxTokenType == g.getMaxTokenType();
         addRuleFollowLinks();
         addEOFTransitionToStartRules();
-        ATNOptimizer.optimize(g, atn);
+        try {
+            ATNOptimizer.optimize(g, atn);
+        } catch (Exception ex) { // broken sources can produce NPEs, etc.
+            Logger.getLogger(LexerEmptyStringAnalyzer.class.getName()).log(
+                    Level.INFO, "Exception processing " + g.name, ex);
+            return null;
+        }
         Consumer<LinkedList<LookInfo>> onEpsilon = anaState.onEpsilon(g);
         for (Triple<Rule, ATNState, ATNState> pair : preventEpsilonClosureBlocks) {
             TrackingLL1Analyzer analyzer = new TrackingLL1Analyzer(atn, onEpsilon);

@@ -96,9 +96,12 @@ final class CaretTracker implements ChangeListener, PropertyChangeListener {
         Mutex.EVENT.readAccess(() -> {
             Document newDoc = ck != null ? ck.getDocument() : null;
             if (newDoc != doc) {
-                if (newDoc != null) {
-                    JTextComponent comp = ck.getOpenedPanes()[0];
-                    updateCaretListening(comp);
+                if (newDoc != null && ck != null) {
+                    JTextComponent[] comps = ck.getOpenedPanes();
+                    if (comps != null) { // it can be on an unopened file selected in explorer
+                        JTextComponent comp = comps[0];
+                        updateCaretListening(comp);
+                    }
                 }
                 doc = newDoc;
             }

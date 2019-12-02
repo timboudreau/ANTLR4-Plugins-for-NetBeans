@@ -37,7 +37,7 @@ final class LookInfo {
 
     @Override
     public String toString() {
-        return "LookInfo{" + "state=" + MatchEmptyStringAnalyzer.s2s(state) + ", stopState=" + MatchEmptyStringAnalyzer.s2s(stopState) + ", ctx=" + ctx + '}';
+        return "LookInfo{" + "state=" + ParserEmptyStringAnalyzer.s2s(state) + ", stopState=" + ParserEmptyStringAnalyzer.s2s(stopState) + ", ctx=" + ctx + '}';
     }
 
 }

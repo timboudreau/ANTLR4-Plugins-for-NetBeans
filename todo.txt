@@ -2,6 +2,13 @@
 
 All maven projects are getting flagged as antlr-enabled
 
+All errors need ids - maybe get rid of non-id methods.
+
+flagOrphansIfNoImports can now use ImportFinder
+
+Should capture channel directives and not flag lexer rules as unused if they 
+are routing tokens to another channel or skip
+
 Need a way to contribute different char filters based on region key
 
 Add option to hints to be added to changes, which will result in selection

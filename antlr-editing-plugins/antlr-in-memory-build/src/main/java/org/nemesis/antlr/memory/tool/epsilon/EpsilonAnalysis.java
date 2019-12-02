@@ -70,7 +70,7 @@ public final class EpsilonAnalysis {
             LexerEmptyStringAnalyzer lana = new LexerEmptyStringAnalyzer(lg, state);
             lana.createATN();
         } else {
-            MatchEmptyStringAnalyzer ana = new MatchEmptyStringAnalyzer(g, state);
+            ParserEmptyStringAnalyzer ana = new ParserEmptyStringAnalyzer(g, state);
             ana.createATN();
             if (g.implicitLexer != null) {
                 LexerEmptyStringAnalyzer lana = new LexerEmptyStringAnalyzer(g.implicitLexer, state);

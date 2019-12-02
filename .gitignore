@@ -4,6 +4,7 @@ ehthumbs.db
 private.xml
 platform-private.properties
 nb-configuration.xml
+*~
 nbproject/private/
 antlr-plugin/nbproject/private/private.xml
 antlr-plugin/nbproject/private/profiler/
@@ -86,3 +87,4 @@ Temporary Items
 /localizers/nbproject/
 /antlr-common/nbproject/
 /antlr-editing-plugins/antlr-error-highlighting/nbproject/
+/antlr-editing-plugins/tiny-ebnf-parser/nbproject/
