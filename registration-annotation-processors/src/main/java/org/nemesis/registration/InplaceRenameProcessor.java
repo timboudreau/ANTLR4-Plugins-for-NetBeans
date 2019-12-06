@@ -305,7 +305,10 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
             return false;
         }
         processItems();
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING, KnownTypes.touchedMessage());
+        if (env.processingOver()) {
+//            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING, KnownTypes.touchedMessage());
+            System.out.println(KnownTypes.touchedMessage(this));
+        }
         return true;
     }
 

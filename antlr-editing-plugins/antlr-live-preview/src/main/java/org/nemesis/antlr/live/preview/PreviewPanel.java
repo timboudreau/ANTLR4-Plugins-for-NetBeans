@@ -450,7 +450,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     void forceReparse() {
-//        reparseTask.schedule(400);
+        reparseTask.schedule(400);
         /*
             if (parser != null) {
             try {

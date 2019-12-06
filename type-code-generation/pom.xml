@@ -42,6 +42,11 @@
             <version>${mastfrog.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-misc</artifactId>
+            <version>${mastfrog.version}</version>
+        </dependency>        
+        <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-classfile</artifactId>
             <version>${netbeans.version}</version>
@@ -63,4 +68,24 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>revision-info-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>revision-info-plugin</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>revision-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <auto>true</auto>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -28,8 +28,13 @@ import static org.nemesis.registration.LanguageFontsColorsProcessor.SEMANTIC_HIG
 import com.mastfrog.annotation.processor.Delegates;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import com.mastfrog.java.vogon.ClassBuilder;
+import java.util.Map;
+import javax.annotation.processing.RoundEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
+import org.nemesis.registration.typenames.KnownTypes;
 import org.nemesis.registration.typenames.TypeName;
 
 /**
@@ -74,5 +79,17 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
         ClassBuilder<String> result = ClassBuilder.forPackage(pkg).named(name);
         TypeName.addImports(result, imports);
         return result;
+    }
+
+    @Override
+    protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws Exception {
+        if (!env.errorRaised() && env.processingOver()) {
+            // Maven seems to swallow many diagnostic messages, so use
+            // good old println which at least works
+            System.out.println(KnownTypes.touchedMessage(this));
+//            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING,
+//                    KnownTypes.touchedMessage());
+        }
+        return super.onRoundCompleted(processed, env);
     }
 }

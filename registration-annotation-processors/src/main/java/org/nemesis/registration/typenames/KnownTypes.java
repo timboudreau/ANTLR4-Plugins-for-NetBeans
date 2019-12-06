@@ -41,20 +41,18 @@ public enum KnownTypes implements TypeName {
         Libraries.ANTLR_LANGUAGE),
     ACTION_BINDINGS("org.nemesis.antlr.spi.language.keybindings.ActionBindings",
         Libraries.ANTLR_LANGUAGE),
+    ACTION_ID("org.openide.awt.ActionID", Libraries.AWT),
     ACTION_REFERENCE("org.openide.awt.ActionReference", Libraries.AWT),
     ACTION_REFERENCES("org.openide.awt.ActionReferences", Libraries.AWT),
     ACTION_REGISTRATION("org.openide.awt.ActionRegistration", Libraries.AWT),
     ACTIVITY_INDICATOR("org.nemesis.swing.ActivityIndicator",
         Libraries.SWING_UTILS),
-    ANTLRERROR_LISTENER("org.antlr.v4.runtime.ANTLRErrorListener",
-        Libraries.ANTLR_WRAPPER),
-    ANTLRINPUT_STREAM("org.antlr.runtime.ANTLRInputStream", Libraries.RUNTIME),
-    ANTLRPARSER("org.antlr.v4.parse.ANTLRParser", Libraries.ANTLR_WRAPPER),
     ANTLR_ACTION("org.nemesis.antlr.spi.language.AntlrAction",
         Libraries.ANTLR_LANGUAGE),
     ANTLR_ANTLR_LANGUAGE_REGISTRATION(
         "org.nemesis.antlr.file.AntlrAntlrLanguageRegistration",
         Libraries.SUPPORT),
+    ANTLR_CHAR_STREAM("org.antlr.runtime.CharStream", Libraries.RUNTIME),
     ANTLR_COMPLETION_PROVIDER(
         "org.nemesis.antlr.completion.AntlrCompletionProvider",
         Libraries.CODE_COMPLETION),
@@ -65,6 +63,8 @@ public enum KnownTypes implements TypeName {
         Libraries.HELPERS),
     ANTLR_CONSTANTS("org.nemesis.antlr.common.AntlrConstants",
         Libraries.ANTLR_COMMON),
+    ANTLR_ERROR_LISTENER("org.antlr.v4.runtime.ANTLRErrorListener",
+        Libraries.ANTLR_WRAPPER),
     ANTLR_FILE_OBJECT_RELATIVE_RESOLVER(
         "org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver",
         Libraries.RESOLVER),
@@ -93,6 +93,7 @@ public enum KnownTypes implements TypeName {
     ANTLR_HIGHLIGHTING_LAYER_FACTORY(
         "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
         Libraries.HIGHLIGHTING),
+    ANTLR_INPUT_STREAM("org.antlr.runtime.ANTLRInputStream", Libraries.RUNTIME),
     ANTLR_KEYS("org.nemesis.antlr.file.AntlrKeys", Libraries.SUPPORT),
     ANTLR_LANGUAGE_REGISTRATION(
         "org.nemesis.antlr.spi.language.AntlrLanguageRegistration",
@@ -104,13 +105,22 @@ public enum KnownTypes implements TypeName {
         "org.nemesis.antlr.navigator.AntlrNavigatorPanelRegistration",
         Libraries.NAVIGATORS),
     ANTLR_NB_PARSER("org.nemesis.antlr.file.AntlrNbParser", Libraries.SUPPORT),
+    ANTLR_PARSER("org.antlr.v4.parse.ANTLRParser", Libraries.ANTLR_WRAPPER),
     ANTLR_PARSE_RESULT("org.nemesis.antlr.spi.language.AntlrParseResult",
         Libraries.ANTLR_LANGUAGE),
+    ANTLR_RECOGNITION_EXCEPTION("org.antlr.runtime.RecognitionException",
+        Libraries.RUNTIME),
     ANTLR_REFACTORING_PLUGIN_FACTORY(
         "org.nemesis.antlr.refactoring.AntlrRefactoringPluginFactory",
         Libraries.REFACTORING),
     ANTLR_TOKEN("org.nemesis.antlr.file.AntlrToken", Libraries.SUPPORT),
     ANTLR_TOKENS("org.nemesis.antlr.file.AntlrTokens", Libraries.SUPPORT),
+    ANTLR_V4_COMMON_TOKEN("org.antlr.v4.runtime.CommonToken",
+        Libraries.ANTLR_WRAPPER),
+    ANTLR_V4_LEXER("org.antlr.v4.runtime.Lexer", Libraries.ANTLR_WRAPPER),
+    ANTLR_V4_PARSER("org.antlr.v4.runtime.Parser", Libraries.ANTLR_WRAPPER),
+    ANTLR_V4_TOKEN("org.antlr.v4.runtime.Token", Libraries.ANTLR_WRAPPER),
+    ANTLR_V4_TOOL("org.antlr.v4.Tool", Libraries.ANTLR_WRAPPER),
     APPEARANCE("org.nemesis.antlr.navigator.Appearance", Libraries.NAVIGATORS),
     ASYNC_COMPLETION_QUERY(
         "org.netbeans.spi.editor.completion.support.AsyncCompletionQuery",
@@ -173,6 +183,8 @@ public enum KnownTypes implements TypeName {
     CLONEABLE_EDITOR_SUPPORT("org.openide.text.CloneableEditorSupport",
         Libraries.TEXT),
     CLOSE_COOKIE("org.openide.cookies.CloseCookie", Libraries.NODES),
+    CLOSE_OPERATION_STATE("org.netbeans.core.spi.multiview.CloseOperationState",
+        Libraries.MULTIVIEW),
     COALESCER("com.mastfrog.range.Coalescer", Libraries.WRAPPER),
     CODE_COMPLETION_CORE(
         "org.nemesis.antlr.completion.grammar.CodeCompletionCore",
@@ -188,7 +200,7 @@ public enum KnownTypes implements TypeName {
     COLORING_CATEGORY(
         "org.nemesis.antlr.spi.language.highlighting.ColoringCategory",
         Libraries.ANTLR_LANGUAGE),
-    COMMON_TOKEN("org.antlr.v4.runtime.CommonToken", Libraries.ANTLR_WRAPPER),
+    COMMON_TOKEN("org.antlr.runtime.CommonToken", Libraries.RUNTIME),
     COMMON_TOKEN_STREAM("org.antlr.v4.runtime.CommonTokenStream",
         Libraries.ANTLR_WRAPPER),
     COMMON_TREE("org.antlr.runtime.tree.CommonTree", Libraries.RUNTIME),
@@ -268,6 +280,16 @@ public enum KnownTypes implements TypeName {
     DOCUMENT_UTILITIES("org.netbeans.lib.editor.util.swing.DocumentUtilities",
         Libraries.EDITOR_UTIL),
     DYNAMIC_GRAPH("com.mastfrog.graph.dynamic.DynamicGraph", Libraries.WRAPPER),
+    EBNF_BASE_LISTENER("com.mastfrog.tiny.ebnf.parser.EbnfBaseListener",
+        Libraries.PARSER),
+    EBNF_BASE_VISITOR("com.mastfrog.tiny.ebnf.parser.EbnfBaseVisitor",
+        Libraries.PARSER),
+    EBNF_LEXER("com.mastfrog.tiny.ebnf.parser.EbnfLexer", Libraries.PARSER),
+    EBNF_LISTENER("com.mastfrog.tiny.ebnf.parser.EbnfListener", Libraries.PARSER),
+    EBNF_PARSER("com.mastfrog.tiny.ebnf.parser.EbnfParser", Libraries.PARSER),
+    EBNF_SUGGESTER("com.mastfrog.tiny.ebnf.parser.EbnfSuggester",
+        Libraries.PARSER),
+    EBNF_VISITOR("com.mastfrog.tiny.ebnf.parser.EbnfVisitor", Libraries.PARSER),
     EDITABLE_PROPERTIES("org.openide.util.EditableProperties", Libraries.UTIL),
     EDITOR_ACTION_NAMES("org.netbeans.api.editor.EditorActionNames",
         Libraries.LIB2),
@@ -402,6 +424,12 @@ public enum KnownTypes implements TypeName {
     HELP_CTX("org.openide.util.HelpCtx", Libraries.UTIL_UI),
     HETERO_GRAPH_VISITOR("org.nemesis.data.graph.hetero.HeteroGraphVisitor",
         Libraries.MODELS),
+    HIGHLIGHTER_KEY_REGISTRATION(
+        "org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration",
+        Libraries.ANTLR_LANGUAGE),
+    HIGHLIGHTER_KEY_REGISTRATIONS(
+        "org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistrations",
+        Libraries.ANTLR_LANGUAGE),
     HIGHLIGHTING_TOKEN_CATEGORY(
         "org.nemesis.antlr.spi.language.highlighting.TokenCategory",
         Libraries.ANTLR_LANGUAGE),
@@ -413,6 +441,12 @@ public enum KnownTypes implements TypeName {
     HIGHLIGHTS_LAYER_FACTORY(
         "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
         Libraries.LIB2),
+    HIGHLIGHT_REFRESH_TRIGGER(
+        "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
+        Libraries.ANTLR_LANGUAGE),
+    HIGHLIGHT_ZORDER(
+        "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightZOrder",
+        Libraries.ANTLR_LANGUAGE),
     HTML_RENDERER("org.nemesis.swing.html.HtmlRenderer", Libraries.SWING_UTILS),
     IMAGE_UTILITIES("org.openide.util.ImageUtilities", Libraries.UTIL_UI),
     IMPORTERS_FINDER("org.nemesis.antlr.refactoring.usages.ImportersFinder",
@@ -425,6 +459,8 @@ public enum KnownTypes implements TypeName {
         Libraries.EXTRACTION),
     IMPORT_KEY_SUPPLIER("org.nemesis.extraction.attribution.ImportKeySupplier",
         Libraries.EXTRACTION),
+    INDENT_CONTEXT("org.netbeans.modules.editor.indent.spi.Context",
+        Libraries.INDENT),
     INDEXED_RESOLVABLE("com.mastfrog.abstractions.list.IndexedResolvable",
         Libraries.WRAPPER),
     INDEXING_MANAGER(
@@ -531,6 +567,16 @@ public enum KnownTypes implements TypeName {
     MULTI_FILE_LOADER("org.openide.loaders.MultiFileLoader", Libraries.LOADERS),
     MULTI_FILE_SYSTEM("org.openide.filesystems.MultiFileSystem",
         Libraries.FILESYSTEMS),
+    MULTI_VIEW_EDITOR_ELEMENT(
+        "org.netbeans.core.spi.multiview.text.MultiViewEditorElement",
+        Libraries.MULTIVIEW),
+    MULTI_VIEW_ELEMENT("org.netbeans.core.spi.multiview.MultiViewElement",
+        Libraries.MULTIVIEW),
+    MULTI_VIEW_ELEMENT_CALLBACK(
+        "org.netbeans.core.spi.multiview.MultiViewElementCallback",
+        Libraries.MULTIVIEW),
+    MULTI_VIEW_FACTORY("org.netbeans.core.spi.multiview.MultiViewFactory",
+        Libraries.MULTIVIEW),
     MUTEX("org.openide.util.Mutex", Libraries.UTIL),
     NAMED("com.mastfrog.abstractions.Named", Libraries.WRAPPER),
     NAMED_EXTRACTION_KEY("org.nemesis.extraction.key.NamedExtractionKey",
@@ -607,16 +653,22 @@ public enum KnownTypes implements TypeName {
     OPEN_ACTION("org.openide.actions.OpenAction", Libraries.ACTIONS),
     OPEN_COOKIE("org.openide.cookies.OpenCookie", Libraries.NODES),
     PARAMETERS("org.openide.util.Parameters", Libraries.UTIL),
-    PARSER("org.antlr.v4.runtime.Parser", Libraries.ANTLR_WRAPPER),
+    PARSER("org.netbeans.modules.parsing.spi.Parser", Libraries.PARSING),
     PARSER_CONTROL(
         "org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl",
         Libraries.ANTLR_LANGUAGE),
+    PARSER_FACTORY("org.netbeans.modules.parsing.spi.ParserFactory",
+        Libraries.PARSING),
     PARSER_INTERPRETER("org.antlr.v4.runtime.ParserInterpreter",
         Libraries.ANTLR_WRAPPER),
     PARSER_MANAGER("org.netbeans.modules.parsing.api.ParserManager",
         Libraries.PARSING),
+    PARSER_RESULT_TASK("org.netbeans.modules.parsing.spi.ParserResultTask",
+        Libraries.PARSING),
     PARSER_RULE_CONTEXT("org.antlr.v4.runtime.ParserRuleContext",
         Libraries.ANTLR_WRAPPER),
+    PARSE_EXCEPTION("org.netbeans.modules.parsing.spi.ParseException",
+        Libraries.PARSING),
     PARSE_RESULT_CONTENTS("org.nemesis.antlr.spi.language.ParseResultContents",
         Libraries.ANTLR_LANGUAGE),
     PARSE_RESULT_HOOK("org.nemesis.antlr.spi.language.ParseResultHook",
@@ -732,6 +784,7 @@ public enum KnownTypes implements TypeName {
         Libraries.EXTRACTION),
     RESOLVER_REGISTRY("org.nemesis.extraction.attribution.ResolverRegistry",
         Libraries.EXTRACTION),
+    RESULT("org.netbeans.modules.parsing.spi.Parser.Result", Libraries.PARSING),
     RESULT_ITERATOR("org.netbeans.modules.parsing.api.ResultIterator",
         Libraries.PARSING),
     RULES_AND_TOKENS_COMPLETIONS(
@@ -742,14 +795,14 @@ public enum KnownTypes implements TypeName {
         "org.nemesis.extraction.RuleHierarchyPredicateBuilder",
         Libraries.EXTRACTION),
     RULE_NODE("org.antlr.v4.runtime.tree.RuleNode", Libraries.ANTLR_WRAPPER),
-    RUNTIME_CHAR_STREAM("org.antlr.runtime.CharStream", Libraries.RUNTIME),
-    RUNTIME_LEXER("org.antlr.v4.runtime.Lexer", Libraries.ANTLR_WRAPPER),
-    RUNTIME_RECOGNITION_EXCEPTION("org.antlr.runtime.RecognitionException",
-        Libraries.RUNTIME),
-    RUNTIME_TOKEN("org.antlr.v4.runtime.Token", Libraries.ANTLR_WRAPPER),
     SAMPLE_FILES("org.nemesis.simple.SampleFiles", Libraries.TEST_LANGUAGE),
     SAVE_ACTION("org.openide.actions.SaveAction", Libraries.ACTIONS),
     SAVE_COOKIE("org.openide.cookies.SaveCookie", Libraries.NODES),
+    SCHEDULER("org.netbeans.modules.parsing.spi.Scheduler", Libraries.PARSING),
+    SCHEDULER_EVENT("org.netbeans.modules.parsing.spi.SchedulerEvent",
+        Libraries.PARSING),
+    SCHEDULER_TASK("org.netbeans.modules.parsing.spi.SchedulerTask",
+        Libraries.PARSING),
     SCROLLER("org.nemesis.swing.Scroller", Libraries.SWING_UTILS),
     SEMANTIC_REGION("org.nemesis.data.SemanticRegion", Libraries.MODELS),
     SEMANTIC_REGIONS("org.nemesis.data.SemanticRegions", Libraries.MODELS),
@@ -813,9 +866,10 @@ public enum KnownTypes implements TypeName {
     SOURCE("org.netbeans.modules.parsing.api.Source", Libraries.PARSING),
     SOURCES("org.netbeans.api.project.Sources", Libraries.PROJECTAPI),
     SOURCE_GROUP("org.netbeans.api.project.SourceGroup", Libraries.PROJECTAPI),
+    SOURCE_MODIFICATION_EVENT(
+        "org.netbeans.modules.parsing.spi.SourceModificationEvent",
+        Libraries.PARSING),
     SPINNER("org.nemesis.swing.Spinner", Libraries.SWING_UTILS),
-    SPI_CONTEXT("org.netbeans.modules.editor.indent.spi.Context",
-        Libraries.INDENT),
     STATIC_RESOURCE("org.netbeans.api.annotations.common.StaticResource",
         Libraries.COMMON),
     STATUS_DISPLAYER("org.openide.awt.StatusDisplayer", Libraries.AWT),
@@ -839,6 +893,8 @@ public enum KnownTypes implements TypeName {
     SYNTAX_SUPPORT("org.netbeans.editor.SyntaxSupport", Libraries.LIB),
     SYSTEM_ACTION("org.openide.util.actions.SystemAction", Libraries.UTIL_UI),
     TASK("org.netbeans.modules.parsing.api.Task", Libraries.PARSING),
+    TASK_FACTORY("org.netbeans.modules.parsing.spi.TaskFactory",
+        Libraries.PARSING),
     TASK_LISTENER("org.openide.util.TaskListener", Libraries.UTIL),
     TERMINAL_NODE("org.antlr.v4.runtime.tree.TerminalNode",
         Libraries.ANTLR_WRAPPER),
@@ -876,11 +932,12 @@ public enum KnownTypes implements TypeName {
         Libraries.FORMATTERS),
     TOKEN_SOURCE("org.antlr.v4.runtime.TokenSource", Libraries.ANTLR_WRAPPER),
     TOKEN_STREAM("org.antlr.v4.runtime.TokenStream", Libraries.ANTLR_WRAPPER),
+    TOKEN_STREAM_REWRITER("org.antlr.v4.runtime.TokenStreamRewriter",
+        Libraries.ANTLR_WRAPPER),
     TOKEN_TRIGGERS_BUILDER("org.nemesis.antlr.completion.TokenTriggersBuilder",
         Libraries.CODE_COMPLETION),
     TOKEN_UTILS("org.nemesis.antlr.completion.TokenUtils",
         Libraries.CODE_COMPLETION),
-    TOOL("org.antlr.v4.Tool", Libraries.ANTLR_WRAPPER),
     TOP_COMPONENT("org.openide.windows.TopComponent", Libraries.WINDOWS),
     TRI_CONSUMER("com.mastfrog.function.TriConsumer", Libraries.WRAPPER),
     TRI_FUNCTION("com.mastfrog.function.TriFunction", Libraries.WRAPPER),
@@ -910,6 +967,9 @@ public enum KnownTypes implements TypeName {
     private final String fqn;
     private final Libraries lib;
     private static final Set<Libraries> TOUCHED = EnumSet.noneOf(
+                Libraries.class);
+
+    private static final Set<Libraries> REPORTED = EnumSet.noneOf(
                 Libraries.class);
 
     KnownTypes(String fqn, Libraries lib) {
@@ -964,7 +1024,9 @@ public enum KnownTypes implements TypeName {
 
     private void touch() {
         if (lib != null) {
-            TOUCHED.add(lib);
+            if (!REPORTED.contains(lib)) {
+                TOUCHED.add(lib);
+            }
         }
     }
 
@@ -977,6 +1039,26 @@ public enum KnownTypes implements TypeName {
         for (Libraries lib : TOUCHED) {
             if (lib != null) {
                 result.append(lib.toXML());
+                REPORTED.add(lib);
+            }
+        }
+        TOUCHED.clear();
+        return result.toString();
+    }
+
+    public static String touchedMessage(Object what) {
+        if (TOUCHED.isEmpty()) {
+            return "";
+        }
+        StringBuilder result = new StringBuilder(1024);
+        result.append("\nCode generated by ");
+        result.append(what.getClass().getSimpleName());
+        result.append(
+            " and other annotation processors requires the following dependencies be set for this project:\n");
+        for (Libraries lib : TOUCHED) {
+            if (lib != null) {
+                result.append(lib.toXML());
+                REPORTED.add(lib);
             }
         }
         TOUCHED.clear();

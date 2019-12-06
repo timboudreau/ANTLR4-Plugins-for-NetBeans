@@ -401,49 +401,41 @@ limitations under the License.
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-core</artifactId>
-            <version>3.6.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-artifact-manager</artifactId>
-            <version>2.2.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-artifact</artifactId>
-            <version>3.6.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-project</artifactId>
-            <version>2.2.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-classworlds</artifactId>
-            <version>2.6.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-container-default</artifactId>
-            <version>1.7.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-interpolation</artifactId>
-            <version>1.26</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-utils</artifactId>
-            <version>3.3.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -61,7 +61,6 @@ import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
@@ -635,9 +634,10 @@ public class LocalizeAnnotationProcessor extends AbstractProcessor implements Pr
             writeBundle(e.getKey().replace('.', '/')
                     + ".properties", e.getValue(), processingEnv.getFiler(), utils, els);
         }
-        if (!env.errorRaised()) {
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING,
-                    KnownTypes.touchedMessage());
+        if (!env.errorRaised() && env.processingOver()) {
+            System.out.println(KnownTypes.touchedMessage(this));
+//            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING,
+//                    KnownTypes.touchedMessage());
         }
         bundlesForBundleNames.clear();
         elementsForBundlePaths.clear();

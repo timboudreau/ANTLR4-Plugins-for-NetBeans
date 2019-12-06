@@ -56,9 +56,11 @@ public class HideAntlrSourceDirsLookupProvider implements LookupProvider {
             Project p = lookup.lookup(Project.class);
             if (p != null) {
                 AntlrConfiguration config = AntlrConfiguration.forProject(p);
-                Path path = isImports ? config.antlrImportDir() : config.antlrSourceDir();
-                if (path != null && Files.exists(path)) {
-                    return path.getFileName().toString();
+                if (config != null) {
+                    Path path = isImports ? config.antlrImportDir() : config.antlrSourceDir();
+                    if (path != null && Files.exists(path)) {
+                        return path.getFileName().toString();
+                    }
                 }
             }
             return NO_VALUE;

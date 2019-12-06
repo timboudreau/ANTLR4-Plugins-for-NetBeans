@@ -16,12 +16,13 @@
 grammar Ebnf;
 
 ebnf_sequence
-    : nameprefix? ebnfitem+
+    : ebnfitem+
+    | ebnfitem+ OR ebnfitem+
     ;
 
 ebnfitem
-    : (value=item ebnf=ebnfsuffix ) #ebnfItem
-    | value=item #plainItem
+    : pfx=nameprefix? (value=item ebnf=ebnfsuffix ) #ebnfItem
+    | pfx=nameprefix? value=item #plainItem
     ;
 
 ebnfsuffix

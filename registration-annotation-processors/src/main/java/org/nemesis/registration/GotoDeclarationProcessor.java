@@ -41,8 +41,19 @@ import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProces
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
-import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import org.nemesis.registration.typenames.KnownTypes;
+import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_EDITOR_ACTION;
+import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
+import static org.nemesis.registration.typenames.KnownTypes.DECLARATION_TOKEN_PROCESSOR;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_REFERENCE_SETS;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION_REFERENCE;
+import static org.nemesis.registration.typenames.KnownTypes.NAME_REFERENCE_SET_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.NB_ANTLR_UTILS;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CONTEXT_PATH;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_ID;
+import static org.nemesis.registration.typenames.KnownTypes.UTIL_EXCEPTIONS;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -57,24 +68,12 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
     static final String GOTO_ANNOTATION = "org.nemesis.antlr.spi.language.Goto";
     private Predicate<? super Element> fieldTest;
     private Predicate<? super AnnotationMirror> annoTest;
-    static final String NAMED_REFERENCE_SEMANTIC_REGION_REFERENCE_TYPE = "org.nemesis.data.named.NamedSemanticRegionReference";
-    static final String NAME_REFERENCE_SET_KEY_TYPE = "org.nemesis.extraction.key.NameReferenceSetKey";
-    static final String REF_SET_KEY_TYPE = NAME_REFERENCE_SET_KEY_TYPE;
-    static final String ABSTRACT_EDITOR_ACTION_TYPE = "org.netbeans.spi.editor.AbstractEditorAction";
-    static final String TOKEN_CONTEXT_PATH_TYPE = "org.netbeans.editor.TokenContextPath";
-    static final String EXTRACTION_TYPE = "org.nemesis.extraction.Extraction";
-    static final String NAMED_REGION_REFERENCE_SETS_TYPE = "org.nemesis.data.named.NamedRegionReferenceSets";
-    static final String NB_ANTLR_UTILS_TYPE = "org.nemesis.antlr.spi.language.NbAntlrUtils";
-    static final String EXCEPTIONS_TYPE = "org.openide.util.Exceptions";
-    static final String DECLARATION_TOKEN_PROCESSOR_TYPE = "org.netbeans.editor.ext.ExtSyntaxSupport.DeclarationTokenProcessor";
-    static final String EDITOR_TOKEN_ID_TYPE = "org.netbeans.editor.TokenID";
-    static final String BASE_DOCUMENT_TYPE = "org.netbeans.editor.BaseDocument";
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         fieldTest = utils.testsBuilder().mustBeFullyReifiedType()
                 .isKind(ElementKind.FIELD)
-                .isSubTypeOf(REF_SET_KEY_TYPE)
+                .isSubTypeOf(NAME_REFERENCE_SET_KEY.qnameNotouch())
                 .hasModifier(STATIC)
                 .doesNotHaveModifier(PRIVATE)
                 .testContainingClass().doesNotHaveModifier(PRIVATE)
@@ -160,6 +159,10 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                 }
                 builtMimeTypes.add(e.getKey());
             }
+            if (env.processingOver()) {
+//            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING, KnownTypes.touchedMessage());
+                System.out.println(KnownTypes.touchedMessage(this));
+            }
         }
         return false;
     }
@@ -189,16 +192,22 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
         String generatedClassName = capitalize(stripMimeType(mimeType)) + "DeclarationTokenProcessor";
         ClassBuilder<String> cb = ClassBuilder.forPackage(targetPackage)
                 .named(generatedClassName)
-                .importing(DECLARATION_TOKEN_PROCESSOR_TYPE, BASE_DOCUMENT_TYPE, EDITOR_TOKEN_ID_TYPE,
-                        EXCEPTIONS_TYPE, NB_ANTLR_UTILS_TYPE, NAMED_REGION_REFERENCE_SETS_TYPE,
-                        NAME_REFERENCE_SET_KEY_TYPE, TOKEN_CONTEXT_PATH_TYPE,
-                        NAMED_REFERENCE_SEMANTIC_REGION_REFERENCE_TYPE,
-                        EXTRACTION_TYPE)
-                .implementing(simpleName(DECLARATION_TOKEN_PROCESSOR_TYPE))
+                .importing(
+                        DECLARATION_TOKEN_PROCESSOR.qname(),
+                        BASE_DOCUMENT.qname(),
+                        TOKEN_ID.qname(),
+                        UTIL_EXCEPTIONS.qname(),
+                        NB_ANTLR_UTILS.qname(),
+                        NAMED_REGION_REFERENCE_SETS.qname(),
+                        NAME_REFERENCE_SET_KEY.qname(),
+                        TOKEN_CONTEXT_PATH.qname(),
+                        NAMED_SEMANTIC_REGION_REFERENCE.qname(),
+                        EXTRACTION.qname())
+                .implementing(DECLARATION_TOKEN_PROCESSOR.simpleName())
                 .withModifier(PUBLIC, FINAL)
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
-                            .initializedAsArrayLiteral(simpleName(REF_SET_KEY_TYPE) + "<?>", ab -> {
+                            .initializedAsArrayLiteral(NAME_REFERENCE_SET_KEY.simpleName() + "<?>", ab -> {
                                 fieldFqns.forEach(ab::add);
                                 ab.closeArrayLiteral();
                             });
@@ -206,13 +215,13 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                 .field("varName").withModifier(PRIVATE, FINAL).ofType("String")
                 .field("startPos").withModifier(PRIVATE, FINAL).ofType("int")
                 .field("endPos").withModifier(PRIVATE, FINAL).ofType("int")
-                .field("doc").withModifier(PRIVATE, FINAL).ofType(simpleName(BASE_DOCUMENT_TYPE))
+                .field("doc").withModifier(PRIVATE, FINAL).ofType(BASE_DOCUMENT.simpleName())
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
                             .addArgument("String", "varName")
                             .addArgument("int", "startPos")
                             .addArgument("int", "endPos")
-                            .addArgument("BaseDocument", "doc")
+                            .addArgument(BASE_DOCUMENT.simpleName(), "doc")
                             .body(bb -> {
                                 bb.statement("this.varName = varName")
                                         .statement("this.startPos = startPos")
@@ -226,24 +235,18 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                 .override("getDeclarationPosition", mb -> {
                     mb.withModifier(PUBLIC).returning("int")
                             .body(bb -> {
-                                bb.declare("result").initializedWith("new int[] {-1}").as("int[]");
+                                bb.declare("result").initializedAsNewArray("int").literal(-1).closeArrayLiteral();
+//                                bb.declare("result").initializedWith("new int[] {-1}").as("int[]");
                                 bb.invoke("parseImmediately").withArgument("doc")
                                         .withLambdaArgument(lb -> {
-                                            lb.withArgument("Extraction", "extraction").withArgument("Exception", "thrown")
+                                            lb.withArgument(EXTRACTION.simpleName(), "extraction").withArgument("Exception", "thrown")
                                                     .body(lbb -> {
                                                         lbb.ifNotNull("thrown", cbb -> {
                                                             cbb.log("Thrown in extracting", Level.FINER)
-                                                                    .statement("Exceptions.printStackTrace(thrown)")
+                                                                    .statement(UTIL_EXCEPTIONS.simpleName() + ".printStackTrace(thrown)")
                                                                     .statement("return");
                                                         });
-//                                                        lbb.ifCondition().variable("thrown").notEquals().literal("null")
-//                                                                .endCondition(cbb -> {
-//                                                                    cbb.log("Thrown in extracting", Level.FINER)
-//                                                                            .statement("Exceptions.printStackTrace(thrown)")
-//                                                                            .statement("return")
-//                                                                            .endBlock();
-//                                                                });
-                                                        lbb.simpleLoop(simpleName(REF_SET_KEY_TYPE) + "<?>", "key")
+                                                        lbb.simpleLoop(NAME_REFERENCE_SET_KEY.parametrizedName("?"), "key")
                                                                 .over("KEYS", loopBody -> {
 
                                                                     loopBody.declare("regions").initializedByInvoking("references")
@@ -253,7 +256,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                                                     // NamedSemanticRegionReference<?> set = x.at( startPos );
                                                                     loopBody.declare("set").initializedByInvoking("at")
                                                                             .withArgument("startPos")
-                                                                            .on("regions").as("NamedSemanticRegionReference<?>");
+                                                                            .on("regions").as(NAMED_SEMANTIC_REGION_REFERENCE.parametrizedName("?"));
 
                                                                     loopBody.log(Level.FINE)
                                                                             .argument("startPos")
@@ -268,31 +271,19 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                                                                             .argument("set.referencing().start()")
                                                                             .logging("Found ref {0} navigating to {1} at {2}")
                                                                             .statement("result[0] = set.referencing().start()");
-
-//                                                                    loopBody.ifCondition().variable("set").notEquals().literal("null")
-//                                                                            .endCondition(doNav -> {
-//                                                                                doNav.log(Level.FINER)
-//                                                                                        .argument("set")
-//                                                                                        .argument("set.referencing()")
-//                                                                                        .argument("set.referencing().start()")
-//                                                                                        .logging("Found ref {0} navigating to {1} at {2}");
-//                                                                                doNav.statement("result[0] = set.referencing().start()");
-//                                                                                doNav.endBlock();
-//                                                                            });
-//                                                                    loopBody.endBlock();
                                                                 }).endBlock();
 
                                                     });
                                         })
-                                        .on("NbAntlrUtils")
+                                        .on(NB_ANTLR_UTILS.simpleName())
                                         .returning("result[0]")
                                         .endBlock();
 
                             });
                 }).override("token", mb -> {
             mb.withModifier(PUBLIC).returning("boolean")
-                    .addArgument(simpleName(EDITOR_TOKEN_ID_TYPE), "tokenId")
-                    .addArgument(simpleName(TOKEN_CONTEXT_PATH_TYPE), "path")
+                    .addArgument(TOKEN_ID.simpleName(), "tokenId")
+                    .addArgument(TOKEN_CONTEXT_PATH.simpleName(), "path")
                     .addArgument("int", "tokenBufferOffset")
                     .addArgument("int", "tokenLength")
                     .body().returning("true").endBlock();
@@ -319,24 +310,24 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
         ClassBuilder<String> cb = ClassBuilder.forPackage(dataObjectPackageForMimeType(mimeType))
                 .named(gotoDeclarationActionClassName)
                 .withModifier(PUBLIC, FINAL)
-                .importing(ABSTRACT_EDITOR_ACTION_TYPE,
-                        REF_SET_KEY_TYPE,
-                        NAMED_REFERENCE_SEMANTIC_REGION_REFERENCE_TYPE,
-                        NAMED_REGION_REFERENCE_SETS_TYPE,
-                        NB_ANTLR_UTILS_TYPE
+                .importing(ABSTRACT_EDITOR_ACTION.qname(),
+                        NAME_REFERENCE_SET_KEY.qname(),
+                        NAMED_SEMANTIC_REGION_REFERENCE.qname(),
+                        NAMED_REGION_REFERENCE_SETS.qname(),
+                        NB_ANTLR_UTILS.qname()
                 )
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
-                            .initializedAsArrayLiteral(simpleName(REF_SET_KEY_TYPE) + "<?>", ab -> {
+                            .initializedAsArrayLiteral(NAME_REFERENCE_SET_KEY.parametrizedName("?"), ab -> {
                                 value.forEach(ab::add);
                                 ab.closeArrayLiteral();
                             });
                 }).field("ACTION", fb -> {
             fb.withModifier(PUBLIC, STATIC, FINAL)
                     .initializedFromInvocationOf("createGotoDeclarationAction", ib -> {
-                        ib.withArgument("KEYS").on("NbAntlrUtils");
-                    }).ofType(ABSTRACT_EDITOR_ACTION_TYPE);
-        }).method("action").withModifier(PUBLIC, STATIC).returning(simpleName(ABSTRACT_EDITOR_ACTION_TYPE))
+                        ib.withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName());
+                    }).ofType(ABSTRACT_EDITOR_ACTION.simpleName());
+        }).method("action").withModifier(PUBLIC, STATIC).returning(ABSTRACT_EDITOR_ACTION.simpleName())
                 .body().returning("ACTION").endBlock();
 
         Element[] els = setsFor(value).toArray(new Element[0]);

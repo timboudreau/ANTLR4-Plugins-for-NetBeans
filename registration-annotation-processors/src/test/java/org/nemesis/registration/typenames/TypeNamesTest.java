@@ -41,7 +41,7 @@ public class TypeNamesTest {
 
         assertEquals("LexerInterpreter", LEXER_INTERPRETER.simpleName());
         
-        String msg = KnownTypes.touchedMessage();
+        String msg = KnownTypes.touchedMessage(this);
 //        System.out.println(msg);
         assertTrue(msg.contains("<artifactId>antlr-language-spi</artifactId>"));
         assertTrue(msg.contains("<artifactId>mastfrog-utils-wrapper</artifactId>"));

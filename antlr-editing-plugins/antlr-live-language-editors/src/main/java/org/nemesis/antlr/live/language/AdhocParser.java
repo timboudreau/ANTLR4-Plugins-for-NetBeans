@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +45,8 @@ import org.openide.util.WeakSet;
 final class AdhocParser extends Parser {
 
     static final Logger LOG = Logger.getLogger(AdhocParser.class.getName());
-    private static Map<Task, AdhocParserResult> RESULT_FOR_TASK = new WeakHashMap<>();
+    private static Map<Task, AdhocParserResult> RESULT_FOR_TASK 
+            = Collections.synchronizedMap(new WeakHashMap<>());
     private final ChangeSupport supp = new ChangeSupport(this);
     static Set<AdhocParser> LIVE_PARSERS = new WeakSet<>();
 

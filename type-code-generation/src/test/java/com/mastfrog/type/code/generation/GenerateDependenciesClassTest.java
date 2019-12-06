@@ -25,7 +25,7 @@ public class GenerateDependenciesClassTest {
 
     @Test
     public void testSomeMethod() throws Exception {
-        GenerateDependenciesClass.main(null);
+        GenerateDependenciesClass.main((String[])null);
     }
 
 }

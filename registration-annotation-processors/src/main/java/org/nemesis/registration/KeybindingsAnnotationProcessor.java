@@ -220,31 +220,14 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 + fqnDashes + ".instance";
         LayerBuilder layer = layer(method);
         layer.file(actionRegistration)
-                .methodvalue("instanceCreate", owningClass.getQualifiedName().toString(), method.getSimpleName().toString())
+                .methodvalue("instanceCreate", owningClass.getQualifiedName().toString(),
+                        method.getSimpleName().toString())
                 .stringvalue("instanceOf", ACTION_TYPE)
                 .intvalue("position", actionPosition).write();
         layer.shadowFile(actionRegistration, "Editors/" + mimeType + "/Actions", fqnDashes)
                 .intvalue("position", actionPosition)
                 .write();
-//        String stubClassName = AnnotationUtils.topLevelType(method).getSimpleName() + "_"
-//                + method.getSimpleName() + "Stub";
-//        ClassBuilder<String> cl = ClassBuilder.forPackage(utils().packageName(method))
-//                .named(stubClassName)
-//                .importing(ANTLR_ACTION_ANNO_TYPE, ACTION_TYPE)
-//                .withModifier(PUBLIC, FINAL)
-//                .publicMethod("actionStub", mb -> {
-//                    mb.withModifier(STATIC)
-//                            .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
-//                            .addArgument("mimeType", mimeType)
-//                            .addExpressionArgument("order", actionPosition)
-//                            .closeAnnotation()
-//                            .returning("Action")
-//                            .body()
-//                            .returningInvocationOf(method.getSimpleName().toString())
-//                            .on(AnnotationUtils.enclosingType(method).getSimpleName().toString())
-//                            .endBlock();
-//                });
-//        writeOne(cl);
+
         super.share(actionsKey(mimeType), owningClass.getQualifiedName() + "." + method.getSimpleName() + "()");
         actionPosition++;
     }

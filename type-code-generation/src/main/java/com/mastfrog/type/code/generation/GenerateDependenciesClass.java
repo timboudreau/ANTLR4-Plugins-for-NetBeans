@@ -98,10 +98,10 @@ public class GenerateDependenciesClass {
     static final Set<String> blacklist = setOf("org.nemesis.antlr.live.language",
             "org.nemesis.antlr.file.G4Resolver_", "org.nemesis.antlr.live.preview",
             "org.nemesis.adhoc.mime.types", "org.nemesis.antlr.memory",
-            "org.openide.awt.ActionID", "com.mastfrog.util.cache",
+            "com.mastfrog.util.cache",
             "org.antlr.v4.tool", "com.mastfrog.util.collections",
             "org.openide.filesystems.FileChangeListener",
-            "org.netbeans.api.editor.caret", "org.netbeans.modules.parsing.spi",
+            "org.netbeans.api.editor.caret",
             "org.nemesis.jfs", "com.mastfrog.bits", "org.nemesis.distance",
             "org.nemesis.antlr.ANTLRv4", "org.nemesis.antlr.common.extractiontypes",
             "com.mastfrog.util.strings.Escaper", "org.openide.filesystems.FileStateInvalidException",
@@ -143,7 +143,6 @@ public class GenerateDependenciesClass {
             "org.netbeans.spi.lexer.MutableTextInput",
             "org.netbeans.lib.editor.util.swing.MutablePositionRegion",
             "org.nemesis.data.impl.MutableEndSupplier",
-            "org.netbeans.core.spi.multiview",
             "org.nemesis.antlr.language.formatting.ui.MockPreferences",
             "org.netbeans.editor.MultiKeymap",
             "org.nemesis.antlr.language.formatting.ui.MaxLineLengthComboBoxModel",
@@ -176,7 +175,6 @@ public class GenerateDependenciesClass {
             "org.nemesis.antlr.project.spi.SingleIterable",
             "org.nemesis.antlr.file.refactoring.SingletonWhereUsedCreationStrategy",
             "org.netbeans.spi.editor.mimelookup.MimeDataProvider",
-            "org.nemesis.antlr.spi.language.highlighting.semantic",
             "org.nemesis.antlr.fold.DocOrFileKey",
             "org.nemesis.antlrformatting.spi.DocumentReformatRunner"
     );
@@ -199,6 +197,10 @@ public class GenerateDependenciesClass {
     );
 
     static final Set<String> swingWhitelist = setOf(
+            "javax.swing.event.ChangeListener",
+            "javax.swing.event.ChangeEvent",
+            "javax.swing.event.ActionListener",
+            "javax.swing.event.ActionEvent",
             "javax.swing.ListModel",
             "javax.swing.Icon",
             "javax.swing.ImageIcon",
@@ -211,6 +213,7 @@ public class GenerateDependenciesClass {
             "javax.swing.TreeModel",
             "javax.swing.SingleSelectionModel",
             "javax.swing.ListSelectionModel",
+            "javax.swing.text.TextAction",
             "javax.swing.text.Document",
             "javax.swing.text.Caret",
             "javax.swing.text.Position",
@@ -334,15 +337,24 @@ public class GenerateDependenciesClass {
                 .overridePublic("origin").docComment("Fetch the library this class is in, if non-JDK").returning("Library").bodyReturning("lib")
                 .privateMethod("touch", mb -> {
                     mb.body(bb -> {
+
                         bb.ifNotNull("lib", ifbb -> {
-                            ifbb.invoke("add")
+
+                            ifbb.iff().booleanExpression("!REPORTED.contains(lib)")
+                                    .invoke("add")
                                     .withArgument("lib")
-                                    .on("TOUCHED");
+                                    .on("TOUCHED").endIf();
                         });
                     });
 
                 })
                 .field("TOUCHED", fb -> {
+                    fb.withModifier(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                            .initializedFromInvocationOf("noneOf")
+                            .withArgument("Libraries.class").on("EnumSet")
+                            .ofType("Set<Libraries>");
+                })
+                .field("REPORTED", fb -> {
                     fb.withModifier(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
                             .initializedFromInvocationOf("noneOf")
                             .withArgument("Libraries.class").on("EnumSet")
@@ -364,6 +376,39 @@ public class GenerateDependenciesClass {
                                         loopBlock.ifNotNull("lib", ifBlock -> {
                                             ifBlock.invoke("append")
                                                     .withArgument("lib.toXML()").on("result");
+                                            ifBlock.invoke("add").withArgument("lib")
+                                                    .on("REPORTED");
+                                        });
+                                    });
+                                });
+                                bb.invoke("clear").on("TOUCHED");
+                                bb.returningInvocationOf("toString").on("result");
+                            });
+                })
+                .publicMethod("touchedMessage", mb -> {
+                    mb.withModifier(Modifier.STATIC)
+                            .addArgument("Object", "what")
+                            .returning("String")
+                            .body(bb -> {
+                                bb.iff(ib -> {
+                                    ib.invokeAsBoolean("isEmpty").on("TOUCHED").returningStringLiteral("");
+                                });
+                                bb.declare("result").initializedWithNew("StringBuilder").withArgument(1024).inScope()
+                                        .as("StringBuilder");
+                                bb.invoke("append").withStringLiteral("\nCode generated by ").on("result");
+//                                bb.invoke("append").withArgument("what.getClass().getSimpleName()");
+                                bb.invoke("append").withArgumentFromInvoking("getSimpleName")
+                                        .onInvocationOf("getClass").on("what").on("result");
+                                bb.invoke("append").withStringLiteral(" and other annotation processors "
+                                        + "requires the following dependencies be set for this project:\n")
+                                        .on("result");
+                                bb.simpleLoop("Libraries", "lib", slb -> {
+                                    slb.over("TOUCHED", loopBlock -> {
+                                        loopBlock.ifNotNull("lib", ifBlock -> {
+                                            ifBlock.invoke("append")
+                                                    .withArgument("lib.toXML()").on("result");
+                                            ifBlock.invoke("add").withArgument("lib")
+                                                    .on("REPORTED");
                                         });
                                     });
                                 });
@@ -432,7 +477,8 @@ public class GenerateDependenciesClass {
                 "Runtime", "Short", "String", "StringBuilder",
                 "Thread", "ThreadLocal", "Throwable", "Void",
                 "System", "IllegalArgumentException", "IllegalStateException",
-                "NullPointerException", "UnsupportedOperationException"
+                "NullPointerException", "UnsupportedOperationException",
+                "SuppressWarnings"
             };
             for (String c : coreClasses) {
                 c = "java.lang." + c;
@@ -643,26 +689,41 @@ public class GenerateDependenciesClass {
         return list;
     }
 
+    static final Pattern V = Pattern.compile("^v\\d+$");
+
     static String minimalName(String fqn, Set<String> used) {
         fqn = fqn.replace("MIME", "Mime")
-                .replace("URL", "Url").replace("URI", "Uri");
+                .replace("URL", "Url").replace("URI", "Uri")
+                .replace("ANTLR", "Antlr");
         String[] parts = fqn.split("\\.");
         StringBuilder sb = new StringBuilder();
+        boolean keepGoing = false;
         for (int i = parts.length - 1; i >= 0; i--) {
             String p = parts[i];
+            // Omit unhelpful package components
+            if ("api".equals(p) || "spi".equals(p) || "runtime".equals(p)) {
+                continue;
+            }
+            if (V.matcher(p).find()) {
+                keepGoing = true;
+            }
+            if (i > 2 && V.matcher(parts[i-1]).find()) {
+                keepGoing = true;
+            }
             if (i == parts.length - 1 && p.length() > 3 && p.startsWith("IO") && Character.isUpperCase(p.charAt(2))) {
                 p = p.substring(0, 2) + "_" + p.substring(2, p.length());
             }
-            if (sb.length() > 0) {
+            if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '_') {
                 sb.insert(0, '_');
             }
             p = camelCaseToUnderscores(p);
             sb.insert(0, p.toUpperCase());
-            if (!used.contains(sb.toString())) {
+            if (!used.contains(sb.toString()) && !keepGoing) {
                 String result = sb.toString();
                 used.add(result);
                 return result;
             }
+            keepGoing = false;
         }
         for (int i = 1;; i++) {
             String suffix = "_" + i;

@@ -25,42 +25,41 @@ import com.mastfrog.java.vogon.ClassBuilder;
 public interface TypeName {
 
     /**
-     * Fetch the fully qualified name of the type.  Calling this method
-     * on some instances causes its originating library to be tracked and
-     * added to the set of libraries the user will be warned to add dependencies on.
+     * Fetch the fully qualified name of the type. Calling this method on some
+     * instances causes its originating library to be tracked and added to the
+     * set of libraries the user will be warned to add dependencies on.
      *
      * @return The qualified name
      */
     String qname();
 
     /**
-     * Fetch the simple name of the type.  Calling this method
-     * on some instances causes its originating library to be tracked and
-     * added to the set of libraries the user will be warned to add dependencies on.
+     * Fetch the simple name of the type. Calling this method on some instances
+     * causes its originating library to be tracked and added to the set of
+     * libraries the user will be warned to add dependencies on.
      *
      * @return The qualified name
      */
     String simpleName();
 
     /**
-     * Get the library this type originated in, if not the JDK and not
-     * a dynamically created instance.
+     * Get the library this type originated in, if not the JDK and not a
+     * dynamically created instance.
      *
      * @return The library this type came from
      */
     Library origin();
 
     /**
-     * Get the qualified name, without updating the set of used
-     * libraries.
+     * Get the qualified name, without updating the set of used libraries.
      *
      * @return The qualified name
      */
     String qnameNotouch();
 
     /**
-     * If this is a parameterized type representation, fetch the
-     * erasure of it - for example, "java.util.Map" for "java.util.Map&lt;Foo,Bar&gt;".
+     * If this is a parameterized type representation, fetch the erasure of it -
+     * for example, "java.util.Map" for "java.util.Map&lt;Foo,Bar&gt;".
      *
      * @return The type's erasure
      */
@@ -81,6 +80,14 @@ public interface TypeName {
             t.importing(erasure().qname());
         }
         return t;
+    }
+
+    default String simpleNameArray() {
+        return simpleName() + "[]";
+    }
+
+    default String simpleNameArray(int dimension) {
+        return simpleName() + "[" + dimension + "]";
     }
 
     /**

@@ -18,30 +18,25 @@ package org.nemesis.registration;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.logging.Level;
-import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import static javax.lang.model.element.Modifier.DEFAULT;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PROTECTED;
@@ -54,29 +49,128 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import javax.tools.Diagnostic;
-import javax.tools.FileObject;
-import javax.tools.StandardLocation;
-import static org.nemesis.registration.GotoDeclarationProcessor.DECLARATION_TOKEN_PROCESSOR_TYPE;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.ANTLR_ACTION_ANNO_TYPE;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.annotation.validation.AnnotationMirrorMemberTestBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
+import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Strings;
+import java.io.OutputStream;
+import java.util.Iterator;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.logging.Logger;
+import javax.annotation.processing.Filer;
+import static javax.lang.model.element.Modifier.DEFAULT;
+import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.StandardLocation;
+import org.nemesis.registration.typenames.JdkTypes;
+import static org.nemesis.registration.typenames.JdkTypes.ACTION;
+import static org.nemesis.registration.typenames.JdkTypes.ARRAYS;
+import static org.nemesis.registration.typenames.JdkTypes.ARRAY_LIST;
+import static org.nemesis.registration.typenames.JdkTypes.ATOMIC_BOOLEAN;
+import static org.nemesis.registration.typenames.JdkTypes.BI_CONSUMER;
 import static org.nemesis.registration.typenames.JdkTypes.BI_PREDICATE;
+import static org.nemesis.registration.typenames.JdkTypes.BOOLEAN_SUPPLIER;
+import static org.nemesis.registration.typenames.JdkTypes.CHANGE_LISTENER;
+import static org.nemesis.registration.typenames.JdkTypes.COLLECTION;
+import static org.nemesis.registration.typenames.JdkTypes.COLLECTIONS;
+import static org.nemesis.registration.typenames.JdkTypes.DOCUMENT;
+import static org.nemesis.registration.typenames.JdkTypes.EDITOR_KIT;
+import static org.nemesis.registration.typenames.JdkTypes.HASH_MAP;
+import static org.nemesis.registration.typenames.JdkTypes.ILLEGAL_ARGUMENT_EXCEPTION;
+import static org.nemesis.registration.typenames.JdkTypes.IO_EXCEPTION;
+import static org.nemesis.registration.typenames.JdkTypes.LIST;
+import static org.nemesis.registration.typenames.JdkTypes.MAP;
+import static org.nemesis.registration.typenames.JdkTypes.OPTIONAL;
+import static org.nemesis.registration.typenames.JdkTypes.SET;
+import static org.nemesis.registration.typenames.JdkTypes.SUPPLIER;
+import static org.nemesis.registration.typenames.JdkTypes.SUPPRESS_WARNINGS;
+import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
+import static org.nemesis.registration.typenames.JdkTypes.WEAK_HASH_MAP;
+import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL;
+import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_LOOKUP;
+import static org.nemesis.registration.typenames.KnownTypes.ACTION_ID;
+import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCE;
+import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCES;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_MIME_TYPE_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_PARSE_RESULT;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_PARSER;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_TOKEN;
+import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
+import static org.nemesis.registration.typenames.KnownTypes.CHANGE_SUPPORT;
+import static org.nemesis.registration.typenames.KnownTypes.CHAR_STREAM;
+import static org.nemesis.registration.typenames.KnownTypes.COMMON_TOKEN_STREAM;
+import static org.nemesis.registration.typenames.KnownTypes.COMPLETION_PROVIDER;
+import static org.nemesis.registration.typenames.KnownTypes.CRITERIA;
+import static org.nemesis.registration.typenames.KnownTypes.DATA_FOLDER;
+import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT;
+import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_EXISTS_EXCEPTION;
+import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_HOOKS;
+import static org.nemesis.registration.typenames.KnownTypes.DECLARATION_TOKEN_PROCESSOR;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR_BUILDER;
+import static org.nemesis.registration.typenames.KnownTypes.EXT_SYNTAX_SUPPORT;
+import static org.nemesis.registration.typenames.KnownTypes.FILE_OBJECT;
+import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_COMPLETION_PROVIDER;
+import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
+import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTER_KEY_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.INSTANCE_CONTENT;
+import static org.nemesis.registration.typenames.KnownTypes.ITERABLE_TOKEN_SOURCE;
+import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE;
+import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_HIERARCHY;
+import static org.nemesis.registration.typenames.KnownTypes.LEXER;
+import static org.nemesis.registration.typenames.KnownTypes.LEXER_RESTART_INFO;
+import static org.nemesis.registration.typenames.KnownTypes.LOOKUP;
+import static org.nemesis.registration.typenames.KnownTypes.MESSAGES;
+import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.MIME_RESOLVER;
+import static org.nemesis.registration.typenames.KnownTypes.MULTI_DATA_OBJECT;
+import static org.nemesis.registration.typenames.KnownTypes.MULTI_FILE_LOADER;
+import static org.nemesis.registration.typenames.KnownTypes.MULTI_VIEW_EDITOR_ELEMENT;
+import static org.nemesis.registration.typenames.KnownTypes.MULTI_VIEW_ELEMENT;
+import static org.nemesis.registration.typenames.KnownTypes.NAVIGATOR_PANEL;
+import static org.nemesis.registration.typenames.KnownTypes.NB_ANTLR_UTILS;
+import static org.nemesis.registration.typenames.KnownTypes.NB_EDITOR_KIT;
+import static org.nemesis.registration.typenames.KnownTypes.NB_LEXER_ADAPTER;
+import static org.nemesis.registration.typenames.KnownTypes.NB_PARSER_HELPER;
+import static org.nemesis.registration.typenames.KnownTypes.NODE;
+import static org.nemesis.registration.typenames.KnownTypes.PARSER;
+import static org.nemesis.registration.typenames.KnownTypes.PARSER_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.PARSER_RULE_CONTEXT;
+import static org.nemesis.registration.typenames.KnownTypes.PARSE_RESULT_CONTENTS;
 import static org.nemesis.registration.typenames.KnownTypes.PARSE_TREE;
+import static org.nemesis.registration.typenames.KnownTypes.PARSING_BAG;
+import static org.nemesis.registration.typenames.KnownTypes.PROXY_LOOKUP;
 import static org.nemesis.registration.typenames.KnownTypes.REGIONS_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
 import static org.nemesis.registration.typenames.KnownTypes.SIMPLE_NAVIGATOR_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.SNAPSHOT;
+import static org.nemesis.registration.typenames.KnownTypes.SOURCE;
+import static org.nemesis.registration.typenames.KnownTypes.SOURCE_MODIFICATION_EVENT;
+import static org.nemesis.registration.typenames.KnownTypes.SYNTAX_ERROR;
+import static org.nemesis.registration.typenames.KnownTypes.SYNTAX_SUPPORT;
+import static org.nemesis.registration.typenames.KnownTypes.TASK;
+import static org.nemesis.registration.typenames.KnownTypes.TASK_FACTORY;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CATEGORIZER;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CATEGORY;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_ID;
+import static org.nemesis.registration.typenames.KnownTypes.TOKEN_STREAM;
+import static org.nemesis.registration.typenames.KnownTypes.TOP_COMPONENT;
+import static org.nemesis.registration.typenames.KnownTypes.UTIL_EXCEPTIONS;
+import static org.nemesis.registration.typenames.KnownTypes.VOCABULARY;
+import static org.nemesis.registration.typenames.KnownTypes.WEAK_SET;
 import org.nemesis.registration.typenames.TypeName;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.annotations.LayerBuilder;
@@ -305,16 +399,16 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String generatedClassName = prefix + "AntlrLanguageRegistration";
         String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
-                .importing(ANTLR_MIME_REG_TYPE, SERVICE_PROVIDER_ANNO_TYPE)
-                .extending(regSimple)
-                .annotatedWith(simpleName(SERVICE_PROVIDER_ANNO_TYPE), ab -> {
+                .importing(ANTLR_MIME_TYPE_REGISTRATION.qname(), SERVICE_PROVIDER.qname())
+                .extending(ANTLR_MIME_TYPE_REGISTRATION.simpleName())
+                .annotatedWith(SERVICE_PROVIDER.simpleName(), ab -> {
                     // should do *something* to provide ordering - hash code will do
                     ab.addClassArgument("service", regSimple)
                             .addArgument("position", Math.abs(generatedClassName.hashCode()));
                 })
                 .withModifier(PUBLIC, FINAL)
                 .docComment("Generated from annotation on ", on.getQualifiedName(), " for MIME type ",
-                        mimeType, " by " + getClass().getName())
+                        mimeType, " by " + getClass().getSimpleName())
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
                             .body(bb -> {
@@ -329,44 +423,56 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String generatedClassName = prefix + "GenericCodeCompletion";
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
                 .importing(lexer.lexerClassFqn(), parser.parserClassFqn(),
-                        "java.io.IOException", "javax.swing.text.Document",
-                        "org.antlr.v4.runtime.CommonTokenStream",
-                        "org.antlr.v4.runtime.Parser",
-                        "org.nemesis.antlr.completion.grammar.GrammarCompletionProvider",
-                        "org.nemesis.source.api.GrammarSource",
-                        "org.netbeans.api.editor.mimelookup.MimeRegistration",
-                        "org.netbeans.spi.editor.completion.CompletionProvider",
-                        "org.nemesis.antlrformatting.api.Criteria"
-                ).extending("GrammarCompletionProvider")
-                .annotatedWith("MimeRegistration", ab -> {
+                        IO_EXCEPTION.qname(),
+                        DOCUMENT.qname(),
+                        COMMON_TOKEN_STREAM.qname(),
+                        TOKEN_STREAM.qname(),
+                        ANTLR_V4_PARSER.qname(),
+                        GRAMMAR_COMPLETION_PROVIDER.qname(),
+                        GRAMMAR_SOURCE.qname(),
+                        MIME_REGISTRATION.qname(),
+                        COMPLETION_PROVIDER.qname(),
+                        CRITERIA.qname()
+                ).extending(GRAMMAR_COMPLETION_PROVIDER.simpleName())
+                .annotatedWith(MIME_REGISTRATION.simpleName(), ab -> {
                     ab.addArgument("mimeType", mimeType)
-                            .addClassArgument("service", "CompletionProvider");
+                            .addClassArgument("service", COMPLETION_PROVIDER.simpleName());
                 })
                 .withModifier(PUBLIC, FINAL)
                 .staticImport(lexer.lexerClassFqn() + ".*")
                 .privateMethod("createParser", mb -> {
                     mb.withModifier(STATIC)
-                            .addArgument("Document", "doc")
-                            .returning("Parser")
-                            .throwing("IOException")
+                            .addArgument(DOCUMENT.simpleName(), "doc")
+                            .returning(ANTLR_V4_PARSER.simpleName())
+                            .throwing(IO_EXCEPTION.simpleName())
                             .body(bb -> {
-                                int streamChannel = 0;
-                                AnnotationMirror parserInfo = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
-                                if (parserInfo != null) {
-                                    streamChannel = utils().annotationValue(parserInfo, "parserStreamChannel", Integer.class, 0);
-                                }
                                 bb.declare("lexer")
                                         .initializedByInvoking("createAntlrLexer")
                                         .withArgumentFromInvoking("stream")
                                         .onInvocationOf("find")
                                         .withArgument("doc")
                                         .withStringLiteral(mimeType)
-                                        .on("GrammarSource")
+                                        .on(GRAMMAR_SOURCE.simpleName())
                                         .on(prefix + "Hierarchy").as(lexer.lexerClassSimple());
-                                bb.declare("stream").initializedByInvoking("new CommonTokenStream")
-                                        .withArgument("lexer").withArgument(streamChannel)
-                                        .inScope().as("CommonTokenStream");
-
+                                bb.declare("stream").initializedWithNew(nb -> {
+                                    int streamChannel = 0;
+                                    AnnotationMirror parserInfo = utils()
+                                            .annotationValue(mirror, "parser", AnnotationMirror.class);
+                                    if (parserInfo != null) {
+                                        streamChannel = utils().annotationValue(parserInfo, "parserStreamChannel", Integer.class, 0);
+                                    }
+                                    if (streamChannel != 0) {
+                                        nb.withArgument("lexer").withArgument(streamChannel)
+                                                .ofType(COMMON_TOKEN_STREAM.simpleName());
+                                    } else {
+                                        nb.withArgument("lexer").ofType(COMMON_TOKEN_STREAM.simpleName());
+                                    }
+                                }).as(TOKEN_STREAM.simpleName());
+//
+//                                bb.declare("stream").initializedByInvoking("new CommonTokenStream")
+//                                        .withArgument("lexer").withArgument(streamChannel)
+//                                        .inScope().as("CommonTokenStream");
+//
                                 bb.returningInvocationOf("new " + parser.parserClassSimple()).withArgument("stream").inScope();
 
                             });
@@ -375,7 +481,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
                             .initializedFromInvocationOf("forVocabulary")
                             .withArgument("VOCABULARY")
-                            .on("Criteria").ofType("Criteria");
+                            .on(CRITERIA.simpleName()).ofType(CRITERIA.simpleName());
                 })
                 .constructor(con -> {
                     con.setModifier(PUBLIC).body(bb -> {
@@ -392,9 +498,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .inScope();
                     });
                 });
-
         writeOne(cb);
-
     }
 
     static ParserProxy createParserProxy(AnnotationMirror parserHelper, AnnotationUtils utils) {
@@ -429,31 +533,44 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         // register it in tests, in order to be able to create a fake DataEditorSupport.Env
         // over it
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage).named(dataObjectClassName)
-                .importing("org.openide.awt.ActionID", "org.openide.awt.ActionReference",
-                        "org.openide.awt.ActionReferences", "org.openide.filesystems.FileObject",
-                        "org.openide.filesystems.MIMEResolver", "org.openide.loaders.DataObject",
-                        "org.openide.loaders.DataObjectExistsException", "org.openide.loaders.MultiDataObject",
-                        "org.openide.loaders.MultiFileLoader", "org.openide.util.Lookup",
-                        //                        "javax.annotation.processing.Generated",
-                        "org.openide.util.NbBundle.Messages"
+                .importing(
+                        ACTION_ID.qname(),
+                        ACTION_REFERENCE.qname(),
+                        ACTION_REFERENCES.qname(),
+                        FILE_OBJECT.qname(),
+                        MIME_RESOLVER.qname(),
+                        DATA_OBJECT.qname(),
+                        DATA_OBJECT_EXISTS_EXCEPTION.qname(),
+                        MULTI_DATA_OBJECT.qname(),
+                        MULTI_FILE_LOADER.qname(),
+                        LOOKUP.qname(),
+                        MESSAGES.qname()
+                //                        "javax.annotation.processing.Generated",
                 ).staticImport(dataObjectFqn + ".ACTION_PATH")
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
-                .extending("MultiDataObject")
+                .extending(MULTI_DATA_OBJECT.simpleName())
                 .withModifier(PUBLIC)/* .withModifier(FINAL) */
                 .field("ACTION_PATH").withModifier(STATIC).withModifier(PUBLIC)
-                .withModifier(FINAL).initializedTo(LinesBuilder.stringLiteral(actionPath)).ofType(STRING);
+                .withModifier(FINAL)
+                .initializedWith(actionPath) //                    .initializedTo(
+                //                        LinesBuilder.stringLiteral(actionPath)).ofType(STRING)
+                ;
 
-        List<String> hooksClass = utils().typeList(fileInfo, "hooks", "org.nemesis.antlr.spi.language.DataObjectHooks");
+        List<String> hooksClass = utils().typeList(fileInfo, "hooks", DATA_OBJECT_HOOKS.qnameNotouch());
         Set<String> hooksMethods
                 = hooksClass.isEmpty()
                 ? Collections.emptySet()
                 : generateHookMethods(fileInfo, type, hooksClass.get(0), cl);
 
         if (multiview) {
-            cl.importing("org.netbeans.core.spi.multiview.MultiViewElement",
-                    "org.netbeans.core.spi.multiview.text.MultiViewEditorElement",
-                    "org.openide.windows.TopComponent"
+            cl.importing(MULTI_VIEW_ELEMENT.qname(),
+                    MULTI_VIEW_EDITOR_ELEMENT.qname(),
+                    TOP_COMPONENT.qname()
             );
+//            cl.importing("org.netbeans.core.spi.multiview.MultiViewElement",
+//                    "org.netbeans.core.spi.multiview.text.MultiViewEditorElement",
+//                    "org.openide.windows.TopComponent"
+//            );
         }
         addActionAnnotations(cl, fileInfo);
         String msgName = "LBL_" + prefix + "_LOADER";
@@ -469,14 +586,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             }
         });
 //        cl.annotatedWith("Messages").addArgument("value", msgName + "=" + prefix + " files\n" + sourceTabName + "=" + prefix + " Source").closeAnnotation();
-        cl.annotatedWith("DataObject.Registration", annoBuilder -> {
+        cl.annotatedWith(DATA_OBJECT.simpleName() + ".Registration", annoBuilder -> {
             annoBuilder.addArgument("mimeType", mimeType)
                     .addArgument("iconBase", iconBase)
                     .addArgument("displayName", "#" + msgName) // xxx localize
                     .addArgument("position", 1536 + dataObjectClassCount)
                     .closeAnnotation();
         });
-        cl.annotatedWith("MIMEResolver.ExtensionRegistration", ab -> {
+        cl.annotatedWith(MIME_RESOLVER.simpleName() + ".ExtensionRegistration", ab -> {
             ab.addArgument("displayName", "#" + msgName)
                     .addArgument("mimeType", mimeType)
                     .addArgument("extension", extension)
@@ -485,31 +602,32 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         });
         cl.constructor(cb -> {
             cb.setModifier(PUBLIC)
-                    .addArgument("FileObject", "pf")
-                    .addArgument("MultiFileLoader", "loader")
-                    .throwing("DataObjectExistsException")
+                    .addArgument(FILE_OBJECT.simpleName(), "pf")
+                    .addArgument(MULTI_FILE_LOADER.simpleName(), "loader")
+                    .throwing(DATA_OBJECT_EXISTS_EXCEPTION.simpleName())
                     .body(bb -> {
                         bb.invoke("super").withArgument("pf").withArgument("loader").inScope();
                         bb.log(Level.FINE).stringLiteral(dataObjectClassName)
                                 .argument("pf.getPath()")
                                 .logging("Create a new {0} for {1}");
 //                    bb.statement("if (pf.getPath().startsWith(\"Editors\")) new Exception(pf.getPath()).printStackTrace(System.out)");
-                        bb.invoke("registerEditor").withArgument(LinesBuilder.stringLiteral(mimeType))
+                        bb.invoke("registerEditor").withStringLiteral(mimeType)
                                 .withArgument(multiview)
-                                .inScope().endBlock();
+                                .inScope();
                         if (hooksMethods.contains("notifyCreated")) {
-                            cb.annotatedWith("SuppressWarnings")
+                            cb.annotatedWith(SUPPRESS_WARNINGS.simpleName())
                                     .addArgument("value", "LeakingThisInConstructor")
                                     .closeAnnotation();
                             bb.invoke("notifyCreated").withArgument("this").on("HOOKS");
                         }
+                        bb.endBlock();
                     });
         });
         cl.override("associateLookup").returning("int").withModifier(PROTECTED).body().returning("1").endBlock();
 
         if (multiview) {
-            cl.method("createEditor").addArgument("Lookup", "lkp").withModifier(PUBLIC).withModifier(STATIC)
-                    .annotatedWith("MultiViewElement.Registration", ab -> {
+            cl.method("createEditor").addArgument(LOOKUP.simpleName(), "lkp").withModifier(PUBLIC).withModifier(STATIC)
+                    .annotatedWith(MULTI_VIEW_ELEMENT.simpleName() + ".Registration", ab -> {
                         ab.addArgument("displayName", '#' + sourceTabName)
                                 .addArgument("iconBase", iconBase)
                                 .addArgument("mimeType", mimeType)
@@ -517,10 +635,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .addArgument("preferredID", prefix)
                                 .addArgument("position", 1000).closeAnnotation();
                     })
-                    .returning("MultiViewEditorElement")
+                    .returning(MULTI_VIEW_EDITOR_ELEMENT.simpleName())
                     .body()
                     .log("Create editor for", Level.FINER, "lkp.lookup(DataObject.class)")
-                    .returning("new MultiViewEditorElement(lkp)").endBlock();
+                    .returningNew().withArgument("lkp").ofType(MULTI_VIEW_EDITOR_ELEMENT.simpleName());
+//                    .returning("new MultiViewEditorElement(lkp)").endBlock();
         }
 
         for (String s : new String[]{"copyAllowed", "renameAllowed", "moveAllowed", "deleteAllowed"}) {
@@ -530,10 +649,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             }
         }
         String editorKitFqn = generateEditorKitClassAndRegistration(dataObjectPackage, mirror, prefix, type, mimeType, parser, lexer, roundEnv);
-        cl.importing(EDITOR_KIT_TYPE)
+        cl.importing(EDITOR_KIT.qname())
                 .method("createEditorKit", mb -> {
-                    mb.returning("EditorKit");
-                    mb.addArgument("FileObject", "file")
+                    mb.returning(EDITOR_KIT.simpleName());
+                    mb.addArgument(FILE_OBJECT.simpleName(), "file")
                             .withModifier(STATIC)
                             .body(bb -> {
                                 bb.log(Level.FINER)
@@ -549,7 +668,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
         layer(type).file(editorKitFile)
                 .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
-                .stringvalue("instanceOf", EDITOR_KIT_TYPE)
+                .stringvalue("instanceOf", EDITOR_KIT.simpleName())
                 .write();
 
         layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
@@ -595,34 +714,43 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     private static final Consumer<ClassBuilder<?>> decorateLookupInvoker = (cb) -> {
-        cb.importing("org.openide.util.Lookup", "org.openide.loaders.DataObject",
-                "java.util.function.Supplier", "org.openide.util.lookup.InstanceContent",
-                "org.openide.util.lookup.AbstractLookup", "org.openide.util.lookup.ProxyLookup")
-                .field("lookupContent").withModifier(PRIVATE, FINAL).initializedTo("new InstanceContent()").ofType("InstanceContent")
-                .field("contributedLookup").withModifier(PRIVATE, FINAL).initializedTo("new AbstractLookup(lookupContent)").ofType("Lookup")
-                .field("lkp").withModifier(PRIVATE).ofType("Lookup")
-                .overridePublic("getLookup").returning("Lookup")
+        cb.importing(LOOKUP.qname(), DATA_OBJECT.qname(),
+                SUPPLIER.qname(), INSTANCE_CONTENT.qname(),
+                ABSTRACT_LOOKUP.qname(), PROXY_LOOKUP.qname())
+                //                .field("lookupContent").withModifier(PRIVATE, FINAL).initializedTo("new InstanceContent()").ofType("InstanceContent")
+                .field("lookupContent").withModifier(PRIVATE, FINAL).initializedWithNew(nb -> {
+            nb.ofType(INSTANCE_CONTENT.simpleName());
+        }).ofType(INSTANCE_CONTENT.simpleName())
+                //                .field("contributedLookup").withModifier(PRIVATE, FINAL).initializedTo("new AbstractLookup(lookupContent)").ofType("Lookup")
+                .field("contributedLookup").withModifier(PRIVATE, FINAL).initializedWithNew(nb -> {
+            nb.withArgument("lookupContent").ofType(ABSTRACT_LOOKUP.simpleName());
+        }).ofType(LOOKUP.simpleName())
+                .field("lkp").withModifier(PRIVATE).ofType(LOOKUP.simpleName())
+                .overridePublic("getLookup").returning(LOOKUP.simpleName())
                 .body(bb -> {
                     bb.synchronizeOn("lookupContent", sbb -> {
                         sbb.ifNotNull("lkp").returning("lkp").endIf();
-//                        sbb.ifCondition().variable("lkp").notEquals().expression("null")
-//                                .endCondition().returning("lkp").endBlock().endIf();
                         sbb.declare("superLookup").initializedByInvoking("getLookup")
                                 .onInvocationOf("getCookieSet").inScope().as("Lookup");
                         sbb.invoke("decorateLookup")
                                 .withArgument("this")
                                 .withArgument("lookupContent")
-                                .withArgument("() -> superLookup")
+                                .withLambdaArgument().body().returning("superLookup").endBlock()
                                 .on("HOOKS");
-                        sbb.returning("lkp = new ProxyLookup(contributedLookup, superLookup)");
+                        sbb.assign("lkp").toNewInstance(nb -> {
+                            nb.withArgument("contributedLookup")
+                                    .withArgument("superLookup")
+                                    .ofType(PROXY_LOOKUP.simpleName());
+                        });
+                        sbb.returning("lkp");
                     });
                 });
     };
 
     private static final Consumer<ClassBuilder<?>> createNodeDelegateInvoker = cb -> {
-        cb.importing("org.openide.nodes.Node")
+        cb.importing(NODE.qname())
                 .overrideProtected("createNodeDelegate", mb -> {
-                    mb.returning("Node")
+                    mb.returning(NODE.simpleName())
                             .body(bb -> {
                                 bb.returningInvocationOf("createNodeDelegate")
                                         .withArgument("this")
@@ -634,9 +762,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleDeleteInvoker = cb -> {
+        cb.importing(IO_EXCEPTION.qname());
         cb.overrideProtected("handleDelete", mb -> {
-
-            mb.throwing("IOException").body(bb -> {
+            mb.throwing(IO_EXCEPTION.simpleName()).body(bb -> {
                 bb.invoke("handleDelete")
                         .withArgument("this")
                         .withLambdaArgument().body()
@@ -647,10 +775,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleRenameInvoker = cb -> {
-        cb.overrideProtected("handleRename")
+        cb.importing(FILE_OBJECT.qname(), IO_EXCEPTION.qname())
+                .overrideProtected("handleRename")
                 .addArgument("String", "name")
-                .returning("FileObject")
-                .throwing("IOException")
+                .returning(FILE_OBJECT.simpleName())
+                .throwing(IO_EXCEPTION.simpleName())
                 .body(bb -> {
                     bb.returningInvocationOf("handleRename")
                             .withArgument("this")
@@ -668,19 +797,22 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleCopyInvoker = cb -> {
-        cb.importing("org.openide.loaders.DataFolder", "org.openide.filesystems.FileObject",
-                "org.openide.loaders.DataObject")
-                .overrideProtected("handleCopy")
-                .throwing("IOException")
-                .addArgument("DataFolder", "fld")
-                .returning("DataObject")
-                .throwing("IOException")
+        cb.importing(
+                DATA_FOLDER.qname(),
+                FILE_OBJECT.qname(),
+                DATA_OBJECT.qname(),
+                IO_EXCEPTION.qname()
+        ).overrideProtected("handleCopy")
+                .throwing(IO_EXCEPTION.simpleName())
+                .addArgument(DATA_FOLDER.simpleName(), "fld")
+                .returning(DATA_OBJECT.simpleName())
+                .throwing(IO_EXCEPTION.simpleName())
                 .body(bb -> {
                     bb.returningInvocationOf("handleCopy")
                             .withArgument("this")
                             .withArgument("fld")
                             .withLambdaArgument(lb -> {
-                                lb.withArgument("DataFolder", "newFld")
+                                lb.withArgument(DATA_FOLDER.simpleName(), "newFld")
                                         .body(lbb -> {
                                             lbb.returningInvocationOf("handleCopy")
                                                     .withArgument("newFld")
@@ -693,19 +825,21 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleMoveInvoker = cb -> {
-        cb.importing("org.openide.loaders.DataFolder",
-                "org.openide.loaders.DataObject",
-                "org.openide.filesystems.FileObject")
+        cb.importing(
+                IO_EXCEPTION.qname(),
+                DATA_FOLDER.qname(),
+                DATA_OBJECT.qname(),
+                FILE_OBJECT.qname())
                 .overrideProtected("handleMove")
-                .returning("FileObject")
-                .addArgument("DataFolder", "target")
-                .throwing("IOException")
+                .returning(FILE_OBJECT.simpleName())
+                .addArgument(DATA_FOLDER.simpleName(), "target")
+                .throwing(IO_EXCEPTION.simpleName())
                 .body(bb -> {
                     bb.returningInvocationOf("handleMove")
                             .withArgument("this")
                             .withArgument("target")
                             .withLambdaArgument(lb -> {
-                                lb.withArgument("DataFolder", "newTarget")
+                                lb.withArgument(DATA_FOLDER.simpleName(), "newTarget")
                                         .body(lbb -> {
                                             lbb.returningInvocationOf("handleMove")
                                                     .withArgument("newTarget")
@@ -719,19 +853,22 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleCreateFromTemplateInvoker = cb -> {
-        cb.importing("org.openide.loaders.DataFolder", "org.openide.loaders.DataObject")
+        cb.importing(
+                IO_EXCEPTION.qname(),
+                DATA_FOLDER.qname(),
+                DATA_OBJECT.qname())
                 .overrideProtected("handleCreateFromTemplate")
-                .addArgument("DataFolder", "in")
+                .addArgument(DATA_FOLDER.simpleName(), "in")
                 .addArgument("String", "name")
-                .returning("DataObject")
-                .throwing("IOException")
+                .returning(DATA_OBJECT.simpleName())
+                .throwing(IO_EXCEPTION.simpleName())
                 .body(bb -> {
                     bb.returningInvocationOf("handleCreateFromTemplate")
                             .withArgument("this")
                             .withArgument("in")
                             .withArgument("name")
                             .withLambdaArgument(lb -> {
-                                lb.withArgument("DataFolder", "newIn")
+                                lb.withArgument(DATA_FOLDER.simpleName(), "newIn")
                                         .withArgument("String", "newName")
                                         .body(lbb -> {
                                             lbb.returningInvocationOf("handleCreateFromTemplate")
@@ -746,13 +883,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     };
 
     private static final Consumer<ClassBuilder<?>> handleCopyRenameInvoker = cb -> {
-        cb.importing("org.openide.loaders.DataFolder", "org.openide.loaders.DataObject")
+        cb.importing(
+                IO_EXCEPTION.qname(), DATA_FOLDER.qname(), DATA_OBJECT.qname())
                 .overrideProtected("handleCopyRename")
-                .addArgument("DataFolder", "in")
+                .addArgument(DATA_FOLDER.simpleName(), "in")
                 .addArgument("String", "name")
                 .addArgument("String", "ext")
-                .returning("DataObject")
-                .throwing("IOException")
+                .returning(DATA_OBJECT.simpleName())
+                .throwing(IO_EXCEPTION.simpleName())
                 .body(bb -> {
                     bb.returningInvocationOf("handleCopyRename")
                             .withArgument("this")
@@ -760,7 +898,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .withArgument("name")
                             .withArgument("ext")
                             .withLambdaArgument(lb -> {
-                                lb.withArgument("DataFolder", "newIn")
+                                lb.withArgument(DATA_FOLDER.simpleName(), "newIn")
                                         .withArgument("String", "newName")
                                         .withArgument("String", "newExt")
                                         .body(lbb -> {
@@ -811,11 +949,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (overridden.isEmpty()) {
             return overridden;
         }
-        cl.importing(hooksClassFqn);
-        cl.importing("java.io.IOException", "org.openide.loaders.DataObject");
+        cl.importing(hooksClassFqn, IO_EXCEPTION.qname(), DATA_OBJECT.qname());
         cl.field("HOOKS")
                 .withModifier(PRIVATE, STATIC, FINAL)
-                .initializedTo("new " + simpleName(hooksClassFqn) + "()")
+                .initializedWithNew(nb -> {
+                    nb.ofType(simpleName(hooksClassFqn));
+                })
+                //                .initializedTo("new " + simpleName(hooksClassFqn) + "()")
                 .ofType(simpleName(hooksClassFqn));
 
         for (String mth : overridden) {
@@ -823,9 +963,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         return overridden;
     }
-
-    private static final String EDITOR_KIT_TYPE = "javax.swing.text.EditorKit";
-    private static final String NB_EDITOR_KIT_TYPE = "org.netbeans.modules.editor.NbEditorKit";
 
     private String generateEditorKitClassAndRegistration(String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType, ParserProxy parser, LexerProxy lexer, RoundEnvironment env) throws Exception {
         String editorKitName = prefix + "EditorKit";
@@ -836,25 +973,32 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         " It adds some custom actions invokable by keyboard.")
                 .withModifier(FINAL)
                 .importing(
+                        NB_EDITOR_KIT.qname(),
                         //                        "javax.annotation.processing.Generated",
-                        NB_EDITOR_KIT_TYPE,
-                        EDITOR_KIT_TYPE, "org.openide.filesystems.FileObject")
-                .extending(simpleName(NB_EDITOR_KIT_TYPE))
+                        EDITOR_KIT.qname(),
+                        FILE_OBJECT.qname())
+                .extending(NB_EDITOR_KIT.simpleName())
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .initializedWith(mimeType)
                 .field("INSTANCE").withModifier(STATIC).withModifier(FINAL)
-                .initializedTo("new " + editorKitName + "()").ofType("EditorKit")
+                .initializedWithNew(nb -> {
+                    nb.ofType(editorKitName);
+                }).ofType(EDITOR_KIT.simpleName())
+                //                .initializedTo("new " + editorKitName + "()").ofType("EditorKit")
                 .constructor().setModifier(PRIVATE).emptyBody()
                 .override("getContentType").withModifier(PUBLIC).returning(STRING).body().returning("MIME_TYPE").endBlock();
         if (syntaxName != null) {
-            cl.importing("org.netbeans.editor.SyntaxSupport", "org.netbeans.editor.BaseDocument")
-                    .override("createSyntaxSupport").returning("SyntaxSupport")
-                    .withModifier(PUBLIC).addArgument("BaseDocument", "doc")
+
+            cl.importing(SYNTAX_SUPPORT.qname(), BASE_DOCUMENT.qname())
+                    .override("createSyntaxSupport").returning(SYNTAX_SUPPORT.simpleName())
+                    .withModifier(PUBLIC).addArgument(BASE_DOCUMENT.simpleName(), "doc")
                     .body(bb -> {
                         bb.log(Level.FINEST).argument("doc").logging(
                                 "Create ExtSyntax " + syntaxName + " for {0}");
-                        bb.returning("new " + syntaxName + "(doc)").endBlock();
+                        bb.returningNew(nb -> {
+                            nb.withArgument("doc").ofType(syntaxName);
+                        });
                     });
         }
 
@@ -865,24 +1009,24 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             actionTypes.add("ToggleCommentAction");
         }
         if (!actionTypes.isEmpty()) {
-            cl.importing("javax.swing.Action", "javax.swing.text.TextAction");
+            cl.importing(ACTION.qname(), TEXT_ACTION.qname());
             for (String actionType : actionTypes) {
                 if (actionType.indexOf('.') > 0) {
                     cl.importing(actionType);
                 }
             }
             cl.overrideProtected("createActions")
-                    .returning("Action[]")
+                    .returning(ACTION.simpleName() + "[]")
                     .body(bb -> {
                         bb.log(Level.FINEST)
                                 .stringLiteral(lineComment)
                                 .logging("Return actions enhanced with ToggleCommentAction for ''{0}''");
 
-                        bb.declare("additionalActions").initializedAsNewArray("Action", alb -> {
+                        bb.declare("additionalActions").initializedAsNewArray(ACTION.simpleName(), (ClassBuilder.ArrayLiteralBuilder<?> alb) -> {
                             if (gotos.containsKey(mimeType)) {
                                 Set<VariableElement> all = gotos.get(mimeType);
                                 if (!all.isEmpty()) {
-                                    cl.importing("org.nemesis.antlr.spi.language.NbAntlrUtils");
+                                    cl.importing(NB_ANTLR_UTILS.qname());
                                     alb.invoke("createGotoDeclarationAction", ib -> {
                                         for (VariableElement el : all) {
                                             Element enc = el.getEnclosingElement();
@@ -893,15 +1037,24 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                                 ib.withArgument(exp);
                                             }
                                         }
-                                        ib.on("NbAntlrUtils");
+                                        ib.on(NB_ANTLR_UTILS.simpleName());
                                     });
                                 }
                             }
                             for (String tp : actionTypes) {
+                                // ToggleCommentAction is an inner class of NbEditorKit,
+                                // which we're subclassing, so no need for an import
                                 if ("ToggleCommentAction".equals(tp)) {
-                                    alb.add("new " + simpleName(tp) + "(" + LinesBuilder.stringLiteral(lineComment) + ")");
+                                    alb.newInstance(nb -> {
+                                        nb.withStringLiteral(lineComment)
+                                                .ofType(tp);
+                                    });
+//                                    alb.add("new " + simpleName(tp) + "(" + LinesBuilder.stringLiteral(lineComment) + ")");
                                 } else {
-                                    alb.add("new " + /*simpleName(tp)*/ tp + "()");
+                                    alb.newInstance(nb -> {
+                                        nb.ofType(tp);
+                                    });
+//                                    alb.add("new " + /*simpleName(tp)*/ tp + "()");
                                 }
                                 List<Element> found = findAntlrActionElements(env, mimeType);
                                 for (Element e : found) {
@@ -910,7 +1063,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         alb.add("new " + e.getSimpleName() + "()");
                                     } else if (e instanceof ExecutableElement) {
                                         TypeElement owner = AnnotationUtils.enclosingType(e);
-                                        cl.importing(owner.getQualifiedName().toString());
+                                        String pkg = utils().packageName(owner);
+                                        if (!pkg.equals(cl.packageName())) {
+                                            cl.importing(owner.getQualifiedName().toString());
+                                        }
                                         alb.add(owner.getSimpleName() + "." + e.getSimpleName() + "()");
                                     }
                                 }
@@ -922,8 +1078,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             alb.closeArrayLiteral();
                         });
 
+                        cl.importing(TEXT_ACTION.qname());
                         bb.returningInvocationOf("augmentList").withArgumentFromInvoking("createActions")
-                                .on("super").withArgument("additionalActions").on("TextAction")
+                                .on("super").withArgument("additionalActions").on(TEXT_ACTION.simpleName())
                                 .endBlock();
                     });
         }
@@ -943,8 +1100,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         return !commentTokens.isEmpty() || !whitespaceTokens.isEmpty() || !bracketSkipTokens.isEmpty();
     }
 
-    private static final String EXT_SYNTAX_TYPE = "org.netbeans.editor.ext.ExtSyntaxSupport";
-    private static final String BASE_DOCUMENT_TYPE = "org.netbeans.editor.BaseDocument";
     private static final String EDITOR_TOKEN_ID_TYPE = "org.netbeans.editor.TokenID";
     private static final String EDITOR_TOKEN_CATEGORY_TYPE = "org.netbeans.editor.TokenCategory";
 
@@ -965,25 +1120,27 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         String generatedClassName = prefix + "ExtSyntax";
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage).named(generatedClassName)
-                .importing(EXT_SYNTAX_TYPE, BASE_DOCUMENT_TYPE, EDITOR_TOKEN_ID_TYPE, "java.util.Arrays",
+                .importing(EXT_SYNTAX_SUPPORT.qname(), BASE_DOCUMENT.qname(), TOKEN_ID.qname(),
+                        JdkTypes.ARRAYS.qname(),
                         pkg.getQualifiedName() + "." + prefix + "Tokens"
                 )
-                .extending(simpleName(EXT_SYNTAX_TYPE))
+                .extending(EXT_SYNTAX_SUPPORT.simpleName())
                 .withModifier(FINAL)
                 .constructor(cb -> {
-                    cb.addArgument(simpleName(BASE_DOCUMENT_TYPE), "doc");
+                    cb.addArgument(BASE_DOCUMENT.simpleName(), "doc");
                     cb.body(bb -> {
                         bb.invoke("super").withArgument("doc").inScope();
                         bb.endBlock();
                     });
                 });
         if (!commentTokens.isEmpty()) {
+            cl.importing(TOKEN_ID.qname());
             cl.field("COMMENT_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
                     .withModifier(FINAL)
                     .docComment("The set of tokens specified to represent "
                             + "comments in the " + registrationAnno.getAnnotationType()
                             + " that generated this class")
-                    .initializedAsArrayLiteral("TokenID", alb -> {
+                    .initializedAsArrayLiteral(TOKEN_ID.simpleName(), alb -> {
                         for (int id : commentTokens) {
                             String fieldName = lexer.toFieldName(id);
                             if (fieldName == null) {
@@ -1000,13 +1157,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             cl.field("BRACKET_SKIP_TOKENS").withModifier(PRIVATE).withModifier(STATIC)
                     .withModifier(FINAL).initializedTo(tokensArraySpec(prefix, bracketSkipTokens, lexer))
                     .ofType("TokenID[]");
-            cl.override("getBracketSkipTokens").withModifier(PROTECTED).returning("TokenID[]")
+            cl.override("getBracketSkipTokens").withModifier(PROTECTED).returning(TOKEN_ID.simpleNameArray())
                     .body(fieldReturner("BRACKET_SKIP_TOKENS"));
         }
         if (!whitespaceTokens.isEmpty()) {
+            cl.importing(TOKEN_ID.qname());
             if (whitespaceTokens.size() == 1) {
                 cl.overridePublic("isWhitespaceToken").returning("boolean")
-                        .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
+                        .addArgument(TOKEN_ID.simpleName(), "tokenId").addArgument("char[]", "buffer")
                         .addArgument("int", "offset").addArgument("int", "tokenLength")
                         .body(bb -> {
                             bb.returning("tokenId.getNumericID() == " + whitespaceTokens.get(0)).endBlock();
@@ -1016,7 +1174,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     fb.withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL);
                     fb.docComment("A sorted and usable for binary search list "
                             + "of token ids");
-                    cl.importing(lexer.lexerClassFqn());
+                    cl.importing(lexer.lexerClassFqn(), TOKEN_ID.qname());
                     fb.initializedAsArrayLiteral("int", alb -> {
                         for (int ws : whitespaceTokens) {
                             String tokenField = lexer.lexerClassSimple()
@@ -1024,16 +1182,24 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             alb.add(tokenField);
                         }
                     });
-                }).overridePublic("isWhitespaceToken").returning("boolean")
-                        .addArgument("TokenID", "tokenId").addArgument("char[]", "buffer")
+                }).importing(ARRAYS.qname())
+                        .overridePublic("isWhitespaceToken").returning("boolean")
+                        .addArgument(TOKEN_ID.simpleName(), "tokenId").addArgument("char[]", "buffer")
                         .addArgument("int", "offset").addArgument("int", "tokenLength")
-                        .body(bb -> {
-                            bb.returning("Arrays.binarySearch(WHITESPACE_TOKEN_IDS, tokenId.getNumericID()) >= 0").endBlock();
+                        .body((ClassBuilder.BlockBuilder<?> bb) -> {
+//                            bb.returningInvocationOf("binarySearch")
+//                                    .withArgumentFromField("WHITESPACE_TOKEN_IDS").ofThis()
+//                                    .withArgument("tokenId.getNumericID()")
+//                                    .on(ARRAYS.simpleName());
+
+                            bb.returning("Arrays.binarySearch(WHITESPACE_TOKEN_IDS, "
+                                    + "tokenId.getNumericID()) >= 0");
                         });
+//
             }
         }
         if (useDeclarationTokenProcessor(mimeType)) {
-            String className = capitalize(stripMimeType(mimeType)) + simpleName(DECLARATION_TOKEN_PROCESSOR_TYPE);
+            String className = capitalize(stripMimeType(mimeType)) + DECLARATION_TOKEN_PROCESSOR.simpleName();
             cl.overridePublic("createDeclarationTokenProcessor").returning(className)
                     .addArgument("String", "varName")
                     .addArgument("int", "startPos")
@@ -1107,7 +1273,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     private void addActionAnnotations(ClassBuilder<String> cl, AnnotationMirror fileInfo) {
         Set<String> excludedActions = new HashSet<>(utils().annotationValues(fileInfo, "excludedActions", String.class));
         int position = 1;
-        ClassBuilder.ArrayValueBuilder<ClassBuilder.AnnotationBuilder<ClassBuilder<String>>> annoBuilder = cl.annotatedWith("ActionReferences").addArrayArgument("value");
+        cl.importing(ACTION_REFERENCES.qname());
+        cl.importing(ACTION_REFERENCE.qname());
+        cl.importing(ACTION_ID.qname());
+        ClassBuilder.ArrayValueBuilder<ClassBuilder.AnnotationBuilder<ClassBuilder<String>>> annoBuilder = cl.annotatedWith(ACTION_REFERENCES.simpleName()).addArrayArgument("value");
         for (int i = 0; i < DEFAULT_ACTIONS.length; i++) {
             String a = DEFAULT_ACTIONS[i];
             boolean separator = a.charAt(0) == '-';
@@ -1126,13 +1295,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             }
             String category = parts[0];
             String actionId = parts[1];
-            ClassBuilder.AnnotationBuilder<?> ab = annoBuilder.annotation("ActionReference")
+            ClassBuilder.AnnotationBuilder<?> ab = annoBuilder.annotation(ACTION_REFERENCE.simpleName())
                     .addExpressionArgument("path", "ACTION_PATH")
                     .addArgument("position", position * 100);
             if (separator) {
                 ab.addArgument("separatorAfter", ++position * 100);
             }
-            ab.addAnnotationArgument("id", "ActionID", aid -> {
+            ab.addAnnotationArgument("id", ACTION_ID.simpleName(), aid -> {
                 aid.addArgument("category", category).addArgument("id", actionId).closeAnnotation();
             });
             ab.closeAnnotation();
@@ -1163,36 +1332,101 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(nbParserName)
                 .withModifier(PUBLIC).withModifier(FINAL)
-                .importing("org.netbeans.modules.parsing.api.Snapshot", "org.netbeans.modules.parsing.api.Task",
-                        "org.netbeans.modules.parsing.spi.Parser", "org.netbeans.modules.parsing.spi.SourceModificationEvent",
+                .importing(
+                        SNAPSHOT.qname(),
+                        TASK.qname(),
+                        PARSER.qname(),
+                        SOURCE_MODIFICATION_EVENT.qname(),
                         //                        "javax.annotation.processing.Generated",
-                        "org.nemesis.source.api.GrammarSource",
-                        "org.nemesis.source.api.ParsingBag", "org.openide.util.Exceptions", "javax.swing.event.ChangeListener",
-                        entryPointType, "org.netbeans.modules.parsing.spi.ParserFactory", "java.util.Collection",
-                        "java.util.concurrent.atomic.AtomicBoolean", "java.util.function.BooleanSupplier",
-                        "org.nemesis.antlr.spi.language.NbParserHelper", "org.nemesis.antlr.spi.language.AntlrParseResult",
-                        "org.nemesis.antlr.spi.language.SyntaxError", "java.util.function.Supplier",
-                        "org.nemesis.extraction.Extractor", "org.nemesis.extraction.Extraction",
-                        "org.antlr.v4.runtime.CommonTokenStream", "java.util.Optional", "java.util.List",
-                        "org.nemesis.antlr.spi.language.IterableTokenSource", lexer.lexerClassFqn(),
+                        GRAMMAR_SOURCE.qname(),
+                        PARSING_BAG.qname(),
+                        UTIL_EXCEPTIONS.qname(),
+                        CHANGE_LISTENER.qname(),
+                        entryPointType,
+                        PARSER_FACTORY.qname(),
+                        //                        "org.netbeans.modules.parsing.spi.ParserFactory",
+                        COLLECTION.qname(),
+                        //                        "java.util.Collection",
+                        ATOMIC_BOOLEAN.qname(),
+                        //                        "java.util.concurrent.atomic.AtomicBoolean",
+                        BOOLEAN_SUPPLIER.qname(),
+                        //                        "java.util.function.BooleanSupplier",
+                        NB_PARSER_HELPER.qname(),
+                        ANTLR_PARSE_RESULT.qname(),
+                        //                        "org.nemesis.antlr.spi.language.NbParserHelper",
+                        //                        "org.nemesis.antlr.spi.language.AntlrParseResult",
+                        SYNTAX_ERROR.qname(),
+                        //                        "org.nemesis.antlr.spi.language.SyntaxError",
+                        SUPPLIER.qname(),
+                        //                        "java.util.function.Supplier",
+                        EXTRACTOR.qname(),
+                        EXTRACTION.qname(),
+                        //                        "org.nemesis.extraction.Extractor",
+                        //                        "org.nemesis.extraction.Extraction",
+                        COMMON_TOKEN_STREAM.qname(),
+                        //                        "org.antlr.v4.runtime.CommonTokenStream",
+                        OPTIONAL.qname(),
+                        //                        "java.util.Optional",
+                        LIST.qname(),
+                        //                        "java.util.List",
+                        //                        "org.nemesis.antlr.spi.language.IterableTokenSource",
+                        ITERABLE_TOKEN_SOURCE.qname(),
+                        lexer.lexerClassFqn(),
                         parser.parserClassFqn()
                 )
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
-                .extending("Parser")
-                .docComment("NetBeans parser wrapping ", parser.parserClassSimple(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()."
+                .extending(PARSER.simpleName())
+                .docComment("NetBeans parser wrapping ", parser.parserClassFqn(), " using entry point method ", parser.parserEntryPoint().getSimpleName(), "()."
                         + "  For the most part, you will not use this class directly, but rather register classes that are interested in processing"
                         + " parse results for this MIME type, and then get passed them when a file is modified, opened, or reparsed for some other reason.");
         if (changeSupport) {
-            cl.importing("java.util.Set", "org.openide.util.WeakSet", "org.openide.util.ChangeSupport")
+            cl.importing(SET.qname(), WEAK_SET.qname(), CHANGE_SUPPORT.qname())
                     .field("INSTANCES").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).initializedTo("new WeakSet<>()").ofType("Set<" + nbParserName + ">")
-                    .field("changeSupport").withModifier(FINAL).withModifier(PRIVATE).initializedTo("new ChangeSupport(this)").ofType("ChangeSupport");
+                    .field("changeSupport").withModifier(FINAL).withModifier(PRIVATE).initializedTo("new ChangeSupport(this)").ofType(CHANGE_SUPPORT.simpleName());
         }
         cl.field("HELPER")
                 .docComment("Helper class which can talk to the NetBeans adapter layer via protected methods which are not otherwise exposed.")
                 .withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).initializedTo("new " + helperClassName + "()").ofType(helperClassName)
-                .field("cancelled").withModifier(FINAL).withModifier(PRIVATE).initializedTo("new AtomicBoolean()").ofType("AtomicBoolean")
+                //                .field("cancelled").withModifier(FINAL).withModifier(PRIVATE).initializedWithNew(
+                //                nb -> {
+                //                    nb.ofType(ATOMIC_BOOLEAN.simpleName());
+                //                }).ofType(ATOMIC_BOOLEAN.simpleName())
+                .field("CANCELLATION_FOR_SOURCE", (FieldBuilder<?> fb) -> {
+                    fb.withModifier(PRIVATE, STATIC, FINAL);
+                    cl.importing(SOURCE.qname(), WEAK_HASH_MAP.qname(), COLLECTIONS.qname());
+                    String mapType = MAP.parameterizedOn(SOURCE, ATOMIC_BOOLEAN).simpleName();
+                    fb.initializedFromInvocationOf("synchronizedMap")
+                            .withNewInstanceArgument().ofType(WEAK_HASH_MAP.parameterizedInferenced())
+                            .on(COLLECTIONS.simpleName()).ofType(mapType);
+                })
+                .field("RESULT_FOR_TASK", (FieldBuilder<?> fb) -> {
+                    cl.importing(MAP.qname());
+                    fb.withModifier(PRIVATE, FINAL);
+                    String mapType = MAP.parameterizedOn(TASK, ANTLR_PARSE_RESULT).simpleName();
+                    fb.initializedFromInvocationOf("synchronizedMap")
+                            .withNewInstanceArgument().ofType(WEAK_HASH_MAP.parameterizedInferenced())
+                            .on(COLLECTIONS.simpleName()).ofType(mapType);
+                })
                 .field("lastResult").withModifier(PRIVATE).ofType(parserResultType)
-                .constructor().annotatedWith("SuppressWarnings").addArgument("value", "LeakingThisInConstructor").closeAnnotation().setModifier(PUBLIC)
+                .method("doCancel", mb -> {
+                    mb.withModifier(PRIVATE).addArgument(SOURCE_MODIFICATION_EVENT.simpleName(), "evt")
+                            .body(bb -> {
+                                bb.ifNotNull("evt", ib -> {
+                                    ib.declare("canceller").initializedByInvoking("get")
+                                            .withArgumentFromInvoking("getModifiedSource").on("evt")
+                                            .on("CANCELLATION_FOR_SOURCE").as(ATOMIC_BOOLEAN.simpleName());
+                                    ib.ifNotNull("canceller", ibb -> {
+                                        ibb.invoke("set").withArgument(true).on("canceller");
+                                    }).orElse(eb -> {
+                                        eb.log("Attempt to cancel a parse not currently being run: {0}", Level.INFO, "evt");
+                                    });
+                                });
+                            });
+                })
+                .staticBlock(sb -> {
+                    sb.invoke("setLevel").withArgument("Level.ALL").on("LOGGER").endBlock();
+                })
+                .constructor().annotatedWith(SUPPRESS_WARNINGS.simpleName()).addArgument("value", "LeakingThisInConstructor").closeAnnotation().setModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
                         bb.lineComment("Languages which have alterable global configuration need to fire changes from their parser;");
@@ -1200,32 +1434,50 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         bb.lineComment("can trigger events from all live parsers for this language");
                         bb.debugLog("Created a new " + nbParserName);
                         bb.invoke("add").withArgument("this").on("INSTANCES").endBlock();
+                        bb.log("Created {0}", Level.FINER, "this");
                     } else {
+                        bb.debugLog("Created a new " + nbParserName);
                         bb.lineComment("To enable support for firing changes, set changeSupport on the")
                                 .lineComment("generating annotation to true").endBlock();
+                        bb.log("Created {0}", Level.FINER, "this");
                     }
                 })
                 .method("parse", (mb) -> {
                     mb.docComment("Parse a document or file snapshot associated with a parser task.");
-                    mb.override().addArgument("Snapshot", "snapshot").addArgument("Task", "task").addArgument("SourceModificationEvent", "event")
+                    mb.override().addArgument(SNAPSHOT.simpleName(), "snapshot")
+                            .addArgument(TASK.simpleName(), "task")
+                            .addArgument(SOURCE_MODIFICATION_EVENT.simpleName(), "event")
                             .withModifier(PUBLIC)
                             .body(block -> {
                                 block.statement("assert snapshot != null")
-                                        .log(nbParserName + ".parse({0})", Level.FINER, "snapshot")
-                                        .debugLog(nbParserName + ".parse on snapshot")
-                                        .invoke("set").withArgument("false").on("cancelled")
+                                        .log("{0}.parse({1}) for {2}", Level.FINER, "this", "snapshot", "task");
+                                block.declare("cancelled").initializedWithNew(nb -> {
+                                    nb.ofType(ATOMIC_BOOLEAN.simpleName());
+                                }).as(ATOMIC_BOOLEAN.simpleName());
+                                block.debugLog("Parse");
+                                block.invoke("put")
+                                        .withArgumentFromInvoking("getSource").on("snapshot")
+                                        .withArgument("cancelled").on("CANCELLATION_FOR_SOURCE")
+                                        //                                        .invoke("set").withArgument("false").on("cancelled")
                                         .declare("snapshotSource").initializedByInvoking("find")
                                         .withArgument("snapshot").withArgument(tokenTypeName + ".MIME_TYPE")
-                                        .on("GrammarSource").as("GrammarSource<Snapshot>")
+                                        .on(GRAMMAR_SOURCE.simpleName()).as(GRAMMAR_SOURCE.parametrizedName("?"))
                                         .declare("bag").initializedByInvoking("forGrammarSource")
                                         .withArgument("snapshotSource")
-                                        .on("ParsingBag").as("ParsingBag")
+                                        .on(PARSING_BAG.simpleName()).as(PARSING_BAG.simpleName())
                                         .trying().declare("result").initializedByInvoking("parse")
                                         .withArgument("bag").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
+                                        .ifNotNull("result")
+
+                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
+                                        .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
                                         .synchronizeOn("this")
-                                        .statement("lastResult = result").endBlock()
+                                        .statement("lastResult = result")
+                                        .endBlock().endIf()
                                         .catching("Exception")
-                                        .statement("Exceptions.printStackTrace(thrown)")
+                                        .invoke("printStackTrace").withArgument("thrown")
+                                        .on(UTIL_EXCEPTIONS.simpleName())
+                                        //                                        .statement("Exceptions.printStackTrace(thrown)")
                                         .endTryCatch().endBlock();
                             });
                 })
@@ -1234,38 +1486,52 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     mb.addArgument("ParsingBag", "bag").throwing("Exception").addArgument("BooleanSupplier", "cancelled").returning("AntlrParseResult")
                             .withModifier(PUBLIC).withModifier(STATIC)
                             .body(bb -> {
-                                bb.declare("lexer").initializedByInvoking("createAntlrLexer").withArgument("bag.source().stream()")
+                                bb.declare("lexer").initializedByInvoking("createAntlrLexer")
+                                        .withArgumentFromInvoking("stream")
+                                        .onInvocationOf("source").on("bag")
+                                        //                                        .withArgument("bag.source().stream()")
                                         .on(prefix + "Hierarchy").as(lexer.lexerClassSimple());
                                 bb.declare("tokenSource").initializedByInvoking("createWrappedTokenSource")
                                         .withArgument("lexer")
-                                        .on(prefix + "Hierarchy").as("IterableTokenSource");
-                                bb.declare("stream").initializedWith("new CommonTokenStream(tokenSource, " + streamChannel + ")")
-                                        .as("CommonTokenStream");
+                                        .on(prefix + "Hierarchy").as(ITERABLE_TOKEN_SOURCE.simpleName());
+                                bb.declare("stream")
+                                        .initializedWithNew(nb -> {
+                                            nb.withArgument("tokenSource")
+                                                    .withArgument(streamChannel)
+                                                    .ofType(COMMON_TOKEN_STREAM.simpleName());
+                                        })
+                                        //                                        .initializedWith("new CommonTokenStream(tokenSource, " + streamChannel + ")")
+                                        .as(COMMON_TOKEN_STREAM.simpleName());
                                 bb.declare("parser").initializedWith("new " + parser.parserClassSimple() + "(stream)").as(parser.parserClassSimple());
                                 bb.blankLine();
                                 bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
                                 bb.lineComment("configure the parser or lexer before using them.");
-                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withArgument("Snapshot.class").onInvocationOf("source").on("bag").as("Optional<Snapshot>");
+                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withArgument("Snapshot.class").onInvocationOf("source").on("bag").as(OPTIONAL.parameterizedOn(SNAPSHOT).simpleName());
                                 bb.blankLine();
                                 bb.lineComment("The registered GrammarSource implementations will synthesize a Snapshot if the GrammarSource");
                                 bb.lineComment("was not created from one (as happens in tests), if a Document or a FileObject is present.");
                                 bb.lineComment("Most code touching extraction does not require a snapshot be present.  So this will only");
                                 bb.lineComment("be null for a GrammarSource created from a String or CharStream.");
-                                bb.declare("snapshot").initializedWith("maybeSnapshot.isPresent() ? maybeSnapshot.get() : null").as("Snapshot");
+                                bb.declare("snapshot").initializedWith("maybeSnapshot.isPresent() ? maybeSnapshot.get() : null").as(SNAPSHOT.simpleName());
+
+                                String suppType = SUPPLIER.parametrizedName(LIST.parametrizedName("? extends " + SYNTAX_ERROR.simpleName()));
 
                                 bb.declare("errors").initializedByInvoking("parserCreated").withArgument("lexer").withArgument("parser")
                                         .withArgument("snapshot")
-                                        .on("HELPER").as("Supplier<List<? extends SyntaxError>>");
+                                        .on("HELPER").as(suppType);
+
                                 bb.blankLine();
                                 bb.lineComment("Here we actually trigger the Antlr parse");
                                 bb.declare("tree").initializedByInvoking(parser.parserEntryPoint().getSimpleName().toString())
                                         .on("parser").as(entryPointSimple);
                                 bb.blankLine();
                                 bb.lineComment("Look up the extrator(s) for this mime type");
+                                String extType = EXTRACTOR.parametrizedName("? super " + entryPointSimple);
+
                                 bb.declare("extractor")
                                         .initializedByInvoking("forTypes").withArgument(prefix + "Token.MIME_TYPE")
-                                        .withArgument(entryPointSimple + ".class").on("Extractor")
-                                        .as("Extractor<? super " + entryPointSimple + ">");
+                                        .withArgument(entryPointSimple + ".class").on(EXTRACTOR.simpleName())
+                                        .as(extType);
                                 bb.blankLine();
                                 bb.lineComment("Run extraction, pulling out data needed to create navigator panels,");
                                 bb.lineComment("code folds, etc.  Anything needing the extracted sets of regions and data");
@@ -1306,24 +1572,43 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .on(prefix + "Hierarchy");
 
                                 bb.ifNotNull("thrown[0]")
-                                        .statement("Exceptions.printStackTrace(thrown[0])").endIf();
-
-//                                bb.ifCondition().variable("thrown[0]").notEquals().expression("null").endCondition()
-//                                        .statement("Exceptions.printStackTrace(thrown[0])").endBlock().endIf();
+                                        .invoke("printStackTrace").withArgument("thrown[0]").on(UTIL_EXCEPTIONS.simpleName()).endIf();
                                 bb.returning("result[0]");
                                 bb.endBlock();
                             });
                 })
-                .method("getResult", (mb) -> {
-                    mb.withModifier(PUBLIC)
-                            .withModifier(SYNCHRONIZED)
-                            .addArgument("Task", "task").override().returning(parserResultType)
-                            .body().returning("lastResult").endBlock();
+                .overridePublic("getResult", (mb) -> {
+                    mb.withModifier(SYNCHRONIZED)
+                            .addArgument(TASK.simpleName(), "task")
+                            .returning(parserResultType)
+                            .body(bb -> {
+                                bb.lineComment("The parser API is nothing if not ambiguous");
+                                bb.lineComment("An instance may be used once and thrown away, or");
+                                bb.lineComment("used multiple times, in which case it needs to");
+                                bb.lineComment("keep some kind of task:result mapping.");
+                                bb.declare("result")
+                                        .initializedByInvoking("getOrDefault")
+                                        .withArgument("task")
+                                        .withArgument("lastResult")
+                                        .on("RESULT_FOR_TASK")
+                                        .as(simpleName(parserResultType));
+
+                                bb.invoke("remove").withArgument("task").on("RESULT_FOR_TASK");
+
+                                bb.log("Get result for {0} on {1} present? {2} isLastResult? {3}", Level.FINEST,
+                                        "task", "this", "(result != null)", "(lastResult == result)");
+                                bb.returning("result");
+//                                bb.returningInvocationOf("getOrDefault")
+//                                        .withArgument("task")
+//                                        .withArgument("lastResult")
+//                                        .on("RESULT_FOR_TASK");
+                            });
                 })
-                .override("addChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC)
+                .override("addChangeListener")
+                    .addArgument("ChangeListener", "l").withModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
-                        bb.statement("changeSupport.addChangeListener(l)").endBlock();
+                        bb.invoke("addChangeListener").withArgument("l").on("changeSupport");
                     } else {
                         bb.lineComment("do nothing").endBlock();
                     }
@@ -1331,7 +1616,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .override("removeChangeListener").addArgument("ChangeListener", "l").withModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
-                        bb.statement("changeSupport.removeChangeListener(l)").endBlock();
+                        bb.invoke("removeChangeListener").withArgument("l").on("changeSupport");
                     } else {
                         bb.lineComment("do nothing").endBlock();
                     }
@@ -1340,17 +1625,20 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .override("cancel")
                 .docComment("Cancel the last parse if it is still running.")
                 .withModifier(PUBLIC).addArgument("CancelReason", "reason")
-                .addArgument("SourceModificationEvent", "event")
+                .addArgument(SOURCE_MODIFICATION_EVENT.simpleName(), "event")
                 .body(bb -> {
-                    bb.log("Parse cancelled due to {0}", Level.FINEST, "reason");
-                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
+                    bb.debugLog("Parse cancelled");
+                    bb.log("Parse cancelled due to {0} on {1}", Level.FINEST, "reason", "this");
+                    bb.invoke("doCancel").withArgument("event").inScope();
+//                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 })
                 .override("cancel")
                 .annotatedWith("SuppressWarnings").addArgument("value", "deprecation").closeAnnotation()
                 .withModifier(PUBLIC)
                 .body(bb -> {
-                    bb.log("Parse cancelled", Level.FINEST);
-                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
+                    bb.debugLog("Deprecated cancel");
+                    bb.log("Deprecated Parser.cancel() method called on {0}, do nothing", Level.INFO, "this");
+//                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 });
         if (changeSupport) {
             cl.method("forceReparse")
@@ -1369,10 +1657,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
 
         if (!hasExplicitHelperClass) {
+            TypeName helperExtends = NB_PARSER_HELPER.parameterizedOn(
+                    TypeName.fromQualifiedName(parser.parserClassFqn()),
+                    TypeName.fromQualifiedName(lexer.lexerClassFqn()),
+                    ANTLR_PARSE_RESULT, TypeName.fromQualifiedName(
+                            entryPointType));
             // <P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
+            cl.importing(entryPointType, lexer.lexerClassFqn(), parser.parserClassFqn(),
+                    ANTLR_PARSE_RESULT.qname());
             ClassBuilder<ClassBuilder<String>> cb = cl.innerClass(helperClassName)
-                    .extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
-                            + ", AntlrParseResult, " + entryPointSimple + ">")
+                    .extending(helperExtends.simpleName())
+                    //                    .extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
+                    //                            + ", AntlrParseResult, " + entryPointSimple + ">")
                     .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC);
 
             boolean useDefaultErrorHandling = utils()
@@ -1386,29 +1682,38 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             cb.build();
         }
 
-        cl.importing("org.netbeans.api.editor.mimelookup.MimeRegistration")
+        cl.importing(MIME_REGISTRATION.qname(), PARSER_FACTORY.qname(), SNAPSHOT.qname(),
+                COLLECTION.qname())
                 .innerClass(prefix + "ParserFactory").publicStaticFinal().extending("ParserFactory")
                 .docComment("Registers our parse with the NetBeans parser infrastructure.")
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
-                .annotatedWith("MimeRegistration").addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
-                .addClassArgument("service", "ParserFactory").closeAnnotation()
+                .annotatedWith(MIME_REGISTRATION.simpleName()).addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
+                .addClassArgument("service", PARSER_FACTORY.simpleName()).closeAnnotation()
                 .method("createParser").override().withModifier(PUBLIC).returning("Parser")
-                .addArgument("Collection<Snapshot>", "snapshots")
-                .body().returning("new " + nbParserName + "()").endBlock()
+                .addArgument(COLLECTION.parameterizedOn(SNAPSHOT).simpleName(), "snapshots")
+                .body(bb -> {
+                    bb.returningNew(nb -> {
+                        nb.ofType(simpleName(nbParserName));
+                    });
+                })
+                //                .body().returning("new " + nbParserName + "()").endBlock()
                 .build();
 
-        cl.importing("org.netbeans.modules.parsing.spi.TaskFactory",
-                "org.nemesis.antlr.spi.language.NbAntlrUtils")
+        cl.importing(TASK_FACTORY.qname(),
+                MIME_REGISTRATION.qname(),
+                NB_ANTLR_UTILS.qname())
                 .method("createErrorHighlighter", mb -> {
                     mb.docComment("Creates a highlighter for source errors from the parser.");
                     mb.withModifier(PUBLIC).withModifier(STATIC)
-                            .annotatedWith("MimeRegistration").addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE").addArgument("position", Integer.MAX_VALUE - 1000)
-                            .addClassArgument("service", "TaskFactory").closeAnnotation()
-                            .returning("TaskFactory")
+                            .annotatedWith(MIME_REGISTRATION.qname())
+                            .addExpressionArgument("mimeType", prefix + "Token.MIME_TYPE")
+                            .addArgument("position", Integer.MAX_VALUE - 1000)
+                            .addClassArgument("service", TASK_FACTORY.simpleName()).closeAnnotation()
+                            .returning(TASK_FACTORY.simpleName())
                             .body(bb -> {
                                 bb.returningInvocationOf("createErrorHighlightingTaskFactory")
                                         .withArgument(prefix + "Token.MIME_TYPE")
-                                        .on("NbAntlrUtils").endBlock();
+                                        .on(NB_ANTLR_UTILS.simpleName()).endBlock();
                             });
                 });
 
@@ -1429,17 +1734,19 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .withModifier(PUBLIC, FINAL)
                 .docComment("Provides a generic navigator panel for the current extraction for plugin debugging")
-                .importing("org.netbeans.spi.navigator.NavigatorPanel",
-                        "org.nemesis.antlr.navigator.AbstractAntlrListNavigatorPanel")
+                .importing(
+                        NAVIGATOR_PANEL.qname(),
+                        ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL.qname()
+                )
                 .method("createExtractorNavigatorPanel", mb -> {
-                    mb.returning("NavigatorPanel")
-                            .annotatedWith("NavigatorPanel.Registration", ab -> {
+                    mb.returning(NAVIGATOR_PANEL.qname())
+                            .annotatedWith(NAVIGATOR_PANEL.simpleName() + ".Registration", ab -> {
                                 ab.addArgument("displayName", "Extraction")
                                         .addArgument("mimeType", mimeType)
                                         .addArgument("position", 1000);
                             }).withModifier(PUBLIC, STATIC)
                             .body().returningInvocationOf("createExtractionDebugPanel")
-                            .on("AbstractAntlrListNavigatorPanel").endBlock();
+                            .on(ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL.simpleName()).endBlock();
                 });
         writeOne(cb);
 
@@ -1460,42 +1767,50 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 SIMPLE_NAVIGATOR_REGISTRATION, EXTRACTION_REGISTRATION, EXTRACTOR_BUILDER,
                 REGIONS_KEY);
 
-        cb.importing("org.antlr.v4.runtime.Token", entryPointType)
+        cb.importing(ANTLR_V4_TOKEN.qname(), entryPointType)
                 .withModifier(PUBLIC)
                 .docComment("Provides a generic Navigator panel which displays the syntax tree of the current file.")
-                .constructor(c -> {
-                    c.setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
-                }).field("TREE_NODES", fb -> {
-            fb.annotatedWith("SimpleNavigatorRegistration", ab -> {
-                if (icon != null) {
-                    ab.addArgument("icon", icon);
-                }
-                ab.addArgument("trackCaret", true);
-                ab.addArgument("mimeType", mimeType)
-                        .addArgument("order", 20000)
-                        .addArgument("displayName", "Syntax Tree").closeAnnotation();
-            });
-            fb.withModifier(STATIC).withModifier(FINAL)
-                    .initializedFromInvocationOf("create").withArgument("String.class").withStringLiteral("tree")
-                    .on("RegionsKey").ofType("RegionsKey<String>");
-            ;
-        }).method("extractTree", mb -> {
+                .utilityClassConstructor()
+                //                .constructor(c -> {
+                //                    c.setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
+                //                })
+                .field("TREE_NODES", fb -> {
+                    fb.annotatedWith(SIMPLE_NAVIGATOR_REGISTRATION.simpleName(), ab -> {
+                        if (icon != null) {
+                            ab.addArgument("icon", icon);
+                        }
+                        ab.addArgument("trackCaret", true);
+                        ab.addArgument("mimeType", mimeType)
+                                .addArgument("order", 20000)
+                                .addArgument("displayName", "Syntax Tree").closeAnnotation();
+                    });
+                    fb.withModifier(STATIC).withModifier(FINAL)
+                            .initializedFromInvocationOf("create").withClassArgument("String").withStringLiteral("tree")
+                            .on(REGIONS_KEY.simpleName()).ofType(REGIONS_KEY.parametrizedName("String"));
+                    ;
+                }).method("extractTree", mb -> {
             mb.withModifier(STATIC)
-                    .annotatedWith("ExtractionRegistration")
+                    .annotatedWith(EXTRACTION_REGISTRATION.simpleName())
                     .addArgument("mimeType", mimeType)
                     .addClassArgument("entryPoint", entryPointSimple)
                     .closeAnnotation()
-                    .addArgument("ExtractorBuilder<? super " + entryPointSimple + ">", "bldr")
+                    //                    .addArgument("ExtractorBuilder<? super " + entryPointSimple + ">", "bldr")
+                    .addArgument(EXTRACTOR_BUILDER.parametrizedName("? super " + entryPointSimple), "bldr")
                     .body(bb -> {
-                        bb.statement("bldr.extractingRegionsUnder( TREE_NODES ).whenRuleType( ParserRuleContext.class )\n"
-                                + "                .extractingKeyAndBoundsFromRuleWith( " + generatedClassName + "::ruleToString ).finishRegionExtractor()")
-                                .endBlock();
+                        bb.invoke("finishRegionExtractor")
+                                .onInvocationOf("extractingKeyAndBoundsFromRuleWith")
+                                .withArgument(simpleName(generatedClassName) + "::ruleToString")
+                                .onInvocationOf("whenRuleType")
+                                .withClassArgument("ParserRuleContext")
+                                .onInvocationOf("extractingRegionsUnder")
+                                .withArgument("TREE_NODES")
+                                .on("bldr");
                     });
-        }).insertText(additionalSyntaxNavigatorMethods());
+        }).insertText(additionalSyntaxNavigatorMethods(cb));
         writeOne(cb);
     }
 
-    private String additionalSyntaxNavigatorMethods() throws IOException {
+    private String additionalSyntaxNavigatorMethods(ClassBuilder<?> cb) throws IOException {
         InputStream in = LanguageRegistrationProcessor.class.getResourceAsStream("additional-syntax-navigator-methods.txt");
         if (in == null) {
             throw new Error("additional-syntax-navigator-methods.txt is not on classpath next to " + LanguageRegistrationProcessor.class);
@@ -1510,22 +1825,25 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             }
             sb.append(line).append('\n');
         }
-        return sb.toString();
+        cb.importing(Logger.class.getName());
+        cb.importing(Level.class.getName());
+        cb.importing(Objects.class.getName());
+        return Strings.literalReplaceAll("TARGET_CLASS", cb.fqn(), sb, false).toString();
     }
 
     private String generateTokenCategoryWrapper(TypeElement on, String prefix) throws IOException {
         String generatedClassName = prefix + "TokenCategory";
         ClassBuilder<String> cb = ClassBuilder.forPackage(processingEnv.getElementUtils().getPackageOf(on).getQualifiedName())
                 .named(generatedClassName)
-                .importing(EDITOR_TOKEN_CATEGORY_TYPE)
-                .implementing("TokenCategory")
+                .importing(TOKEN_CATEGORY.qname())
+                .implementing(TOKEN_CATEGORY.simpleName())
                 .withModifier(FINAL)
                 .field("category").withModifier(PRIVATE, FINAL).ofType(STRING)
                 .constructor(con -> {
                     con.addArgument(STRING, "category").body().statement("this.category = category").endBlock();
                 })
                 .override("getName").withModifier(PUBLIC).returning(STRING).body().returning("category").endBlock()
-                .override("getNumericID").withModifier(PUBLIC).returning("int").body().returning("0").endBlock()
+                .override("getNumericID").withModifier(PUBLIC).returning("int").bodyReturning("0")
                 .override("equals", mb -> {
                     mb.withModifier(PUBLIC).returning("boolean").addArgument("Object", "o")
                             .body(bb -> {
@@ -1535,7 +1853,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .returning("false")
                                         .elseIf().variable("o").instanceOf().expression(generatedClassName).endCondition()
                                         .returningInvocationOf("equals")
-                                        .withArgument("o.toString()")
+                                        .withArgumentFromInvoking("toString").on("o")
+                                        //                                        .withArgument("o.toString()")
                                         .on("category")
                                         .orElse().returning("false").endIf();
                             });
@@ -1610,16 +1929,25 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 //                        + "displayName() != null \n? displayName() \n: Integer.toString(ordinal())").endBlock();
 
         if (tokenWrapperClass != null) {
-            cb.implementing(EDITOR_TOKEN_ID_TYPE);
-            cb.importing(EDITOR_TOKEN_CATEGORY_TYPE);
-            cb.override("getCategory").returning("TokenCategory")
-                    .withModifier(DEFAULT).body()
-                    .returning("new " + tokenWrapperClass + "(primaryCategory())").endBlock();
+            cb.implementing(TOKEN_ID.qname());
+            cb.importing(TOKEN_CATEGORY.qname());
+            cb.override("getCategory").returning(TOKEN_CATEGORY.simpleName())
+                    .withModifier(DEFAULT)
+                    .body(bb -> {
+                        bb.returningNew(nb -> {
+                            nb.withArgumentFromInvoking("primaryCategory").inScope()
+                                    .ofType(tokenWrapperClass);
+                        });
+                    });
+//                    .body().returning("new " + tokenWrapperClass + "(primaryCategory())").endBlock();
+
             cb.override("getName").returning(STRING)
                     .withModifier(DEFAULT).body()
-                    .returning("name()").endBlock();
-            cb.override("getNumericID").returning("int").withModifier(DEFAULT).body()
-                    .returning("ordinal()").endBlock();
+                    .returningInvocationOf("name").inScope().endBlock();
+//                    .returning("name()").endBlock();
+            cb.override("getNumericID").returning("int").withModifier(DEFAULT)
+                    .body().returningInvocationOf("ordinal").inScope().endBlock();
+//                    .body().returning("ordinal()").endBlock();
         }
 
         String tokensImplName = prefix + "TokenImpl";
@@ -1749,34 +2077,64 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .returning(tokenTypeName + "[]").body()
                 .returning("Arrays.copyOf(ALL, ALL.length)").endBlock();
 
-        ClassBuilder.ArrayLiteralBuilder<ClassBuilder<String>> allArray = toks.field("ALL").withModifier(STATIC).withModifier(PRIVATE).withModifier(FINAL).assignedTo().toArrayLiteral(tokenTypeName);
+        ClassBuilder.ArrayLiteralBuilder<ClassBuilder<String>> allArray
+                = toks.field("ALL").withModifier(STATIC)
+                        .withModifier(PRIVATE).withModifier(FINAL)
+                        .assignedTo().toArrayLiteral(tokenTypeName);
+
+        List<Integer> bySize = new ArrayList<>(keys);
+        Collections.sort(bySize);
         // Loop and build cases in the switch statement for each token id, plus EOF,
         // and also populate our static array field which contains all of the token types
-        for (Integer k : keys) {
+        for (Integer k : bySize) {
             String fieldName = proxy.toFieldName(k);
+            String ref;
+
+            if (!proxy.isSynthetic(k)) {
+                ref = proxy.lexerClassSimple() + "." + proxy.tokenName(k);
+            } else {
+                ref = k.toString();
+            }
             toks.field(fieldName).withModifier(STATIC).withModifier(PUBLIC).withModifier(FINAL)
                     .docComment(k.equals(proxy.erroneousTokenId())
                             ? "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable."
                             : "Constant for NetBeans token corresponding to token "
                             + proxy.tokenName(k) + " in " + proxy.lexerClassSimple() + ".VOCABULARY.")
-                    .initializedTo("new " + tokensImplName + "(" + k + ")")
+                    .initializedTo("new " + tokensImplName + "(" + ref + ")")
                     .ofType(tokenTypeName);
-            idSwitch.inCase(k).returning(fieldName).endBlock();
+            idSwitch.inCase(ref).returning(fieldName).endBlock();
             if (k != -1) {
                 allArray.add(fieldName);
             }
         }
-        idSwitch.inDefaultCase().statement("throw new IllegalArgumentException(\"No such id \" + id)").endBlock();
+        idSwitch.inDefaultCase().andThrow(nb -> {
+            nb.withStringConcatentationArgument("No such ID:").with().expression("id").endConcatenation()
+                    .ofType(ILLEGAL_ARGUMENT_EXCEPTION.simpleName());
+        });
         idSwitch.build().endBlock();
         allArray.closeArrayLiteral();
 
         // Create our array and map fields here (so they are placed below the
         // constants in the source file - these are populated in the static block
         // defined above)
-        toks.field("bySymbolicName").initializedTo("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
-        toks.field("byLiteralName").initializedTo("new HashMap<>()").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("Map<String, " + tokenTypeName + ">");
-        toks.field("chars").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType("char[]");
-        toks.field("tokForChar").withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).ofType(tokenTypeName + "[]");
+        toks.importing(HASH_MAP.qname(), MAP.qname());
+        toks.lineComment("Initialize maps to token count (" + proxy.maxToken() + ") for erroneous and eof tokens");
+        toks.field("bySymbolicName")
+                .docComment("Mapping of Antlr vocabulary symbolic name values to token ids")
+                .initializedWithNew(nb -> {
+                    nb.withArgument(proxy.maxToken() + 2).ofType(HASH_MAP.parameterizedInferenced());
+                }).withModifier(FINAL, PRIVATE, STATIC).ofType(MAP.parameterizedOn(JdkTypes.STRING,
+                TypeName.fromQualifiedName(tokenTypeName)).simpleName());
+
+        toks.field("byLiteralName")
+                .docComment("Mapping of Antlr vocabulary literal name values to token ids")
+                .initializedWithNew(nb -> {
+                    nb.withArgument(proxy.maxToken() + 2).ofType(HASH_MAP.parameterizedInferenced());
+                }).withModifier(FINAL, PRIVATE, STATIC).ofType(MAP.parameterizedOn(JdkTypes.STRING,
+                TypeName.fromQualifiedName(tokenTypeName)).simpleName());
+
+        toks.field("chars").withModifier(FINAL, PRIVATE, STATIC).ofType("char[]");
+        toks.field("tokForChar").withModifier(FINAL, PRIVATE, STATIC).ofType(tokenTypeName + "[]");
 
         String adapterClassName = prefix + "LexerAdapter";
 
@@ -1785,17 +2143,22 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         String hierFqn = pkg + "." + hierName;
         String languageMethodName = lc(prefix) + "Language";
         ClassBuilder<String> lh = ClassBuilder.forPackage(pkg).named(hierName)
-                .importing("org.netbeans.api.lexer.Language", "org.netbeans.spi.lexer.LanguageHierarchy",
-                        "org.netbeans.spi.lexer.Lexer", "org.netbeans.spi.lexer.LexerRestartInfo",
-                        "java.util.Collection", "java.util.Arrays", "java.util.Collections",
-                        "org.nemesis.antlr.spi.language.NbAntlrUtils", "org.netbeans.spi.lexer.Lexer",
-                        "org.antlr.v4.runtime.CharStream", "org.nemesis.antlr.spi.language.NbLexerAdapter",
-                        "java.util.Map", "java.util.HashMap", "java.util.ArrayList", "org.antlr.v4.runtime.CharStream",
-                        "java.util.function.BiConsumer", "org.nemesis.antlr.spi.language.ParseResultContents",
-                        "org.netbeans.modules.parsing.api.Snapshot", "org.nemesis.extraction.Extraction",
-                        "org.nemesis.antlr.spi.language.AntlrParseResult", "org.nemesis.antlr.spi.language.IterableTokenSource",
-                        "org.netbeans.api.editor.mimelookup.MimeRegistration",
-                        "org.antlr.v4.runtime.Vocabulary", proxy.lexerClassFqn()
+                .importing(
+                        LANGUAGE.qname(), LANGUAGE_HIERARCHY.qname(),
+                        LEXER.qname(), LEXER_RESTART_INFO.qname(),
+                        COLLECTIONS.qname(), ARRAYS.qname(), COLLECTION.qname(),
+                        NB_ANTLR_UTILS.qname(),
+                        CHAR_STREAM.qname(),
+                        NB_LEXER_ADAPTER.qname(),
+                        MAP.qname(), HASH_MAP.qname(), ARRAY_LIST.qname(),
+                        CHAR_STREAM.qname(), BI_CONSUMER.qname(),
+                        PARSE_RESULT_CONTENTS.qname(),
+                        SNAPSHOT.qname(),
+                        EXTRACTION.qname(), ANTLR_PARSE_RESULT.qname(),
+                        ITERABLE_TOKEN_SOURCE.qname(),
+                        //                        MIME_REGISTRATION.qname(),
+                        proxy.lexerClassFqn(),
+                        VOCABULARY.qname()
                 )
                 .docComment("LanguageHierarchy implementation for ", prefix,
                         ". Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), ".")
@@ -1808,7 +2171,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 /*.initializedTo("new " + hierName + "().language()").*/.ofType("Language<" + tokenTypeName + ">")
                 .field("CATEGORIES").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL).ofType("Map<String, Collection<" + tokenTypeName + ">>")
                 .staticBlock(bb -> {
-                    bb.declare("map").initializedWith("new HashMap<>()").as("Map<String, Collection<" + tokenTypeName + ">>")
+                    bb.declare("map")
+                            .initializedWithNew(nb -> {
+                                nb.ofType(HASH_MAP.parameterizedInferenced());
+                            }).as(MAP.parametrizedName("String", COLLECTION.parametrizedName(simpleName(tokenTypeName))))
+                            //                            .initializedWith("new " + HASH_MAP.parameterizedInferenced()).as("Map<String, Collection<" + tokenTypeName + ">>")
                             .lineComment("Assign fields here to guarantee initialization order")
                             .statement("IDS = Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()));")
                             .simpleLoop(tokenTypeName, "tok").over("IDS")
@@ -1834,7 +2201,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .annotatedWith("Override").closeAnnotation()
                 .withModifier(PROTECTED).withModifier(FINAL).body()
                 .returning(tokenTypeName + ".MIME_TYPE").endBlock()
-                .method(languageMethodName).withModifier(PUBLIC).withModifier(STATIC).returning("Language<" + tokenTypeName + ">")
+                .method(languageMethodName).withModifier(PUBLIC).withModifier(STATIC).returning(LANGUAGE.parametrizedName(simpleName(tokenTypeName)))
                 //                .annotatedWith("MimeRegistration", ab -> {
                 //                    ab.addArgument("mimeType", mimeType)
                 //                            .addArgument("service", "Language")
@@ -1843,8 +2210,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .body().returning("LANGUAGE").endBlock()
                 .method("createTokenIds").returning("Collection<" + tokenTypeName + ">").override().withModifier(PROTECTED).withModifier(FINAL).body().returning("IDS").endBlock()
                 .method("createLexer").override().returning("Lexer<" + tokenTypeName + ">").addArgument("LexerRestartInfo<" + tokenTypeName + ">", "info").withModifier(PROTECTED).withModifier(FINAL)
+                //                .method("createTokenIds").returning(COLLECTION.parametrizedName(simpleName(tokenTypeName))).override().withModifier(PROTECTED).withModifier(FINAL).body().returning("IDS").endBlock()
+                //                .method("createLexer").override().returning(LEXER.parametrizedName(simpleName(tokenTypeName))).addArgument(
+                //                        LEXER_RESTART_INFO.parametrizedName(simpleName(tokenTypeName)), "info").withModifier(PROTECTED).withModifier(FINAL)
+
                 .body(bb -> {
                     bb.debugLog("Create a new " + prefix + " Lexer");
+//                    bb.returningInvocationOf("createLexer")
+//                            .withArgument("info").withArgument("LEXER_ADAPTER")
+//                            .on(NB_ANTLR_UTILS.simpleName());
                     bb.returning("NbAntlrUtils.createLexer(info, LEXER_ADAPTER)").endBlock();
                 })
                 .method("isRetainTokenText")
@@ -1855,14 +2229,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .returning("Map<String, Collection<" + tokenTypeName + ">>").body().returning("CATEGORIES").endBlock()
                 .method("createAntlrLexer")
                 .returning(proxy.lexerClassSimple()).withModifier(PUBLIC).withModifier(STATIC)
-                .addArgument("CharStream", "stream")
+                .addArgument(CHAR_STREAM.simpleName(), "stream")
                 .body().returning("LEXER_ADAPTER.createLexer(stream)").endBlock()
                 .method("newParseResult", mth -> {
                     mth.docComment("Parse a document and pass it to the BiConsumer.");
                     mth.withModifier(STATIC)
-                            .addArgument("Snapshot", "snapshot")
-                            .addArgument("Extraction", "extraction")
-                            .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
+                            .addArgument(SNAPSHOT.simpleName(), "snapshot")
+                            .addArgument(EXTRACTION.simpleName(), "extraction")
+                            //                            .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
+                            .addArgument(BI_CONSUMER.parameterizedOn(ANTLR_PARSE_RESULT, PARSE_RESULT_CONTENTS).simpleName(), "receiver")
                             .body(bb -> {
                                 bb.debugLog("new " + prefix + " parse result");
                                 bb.log("New {0} parse result: {1}", Level.FINE,
@@ -1880,18 +2255,23 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             + "to process it individually without a reparse.");
                     mb.addArgument(proxy.lexerClassSimple(), "lexer")
                             .withModifier(STATIC)
-                            .returning("IterableTokenSource")
+                            .returning(ITERABLE_TOKEN_SOURCE.simpleName())
                             .body(body -> {
                                 body.returningInvocationOf("createWrappedTokenSource")
                                         .withArgument("lexer").on("LEXER_ADAPTER").endBlock();
                             });
                 });
 
+        String adapterExtends = NB_LEXER_ADAPTER.parameterizedOn(TypeName.fromQualifiedName(tokenTypeName), TypeName.fromQualifiedName(proxy.lexerClassFqn())).simpleName();
+        // BiConsumer<AntlrParseResult, ParseResultContents>
+        String callbackType = BI_CONSUMER.parameterizedOn(ANTLR_PARSE_RESULT, PARSE_RESULT_CONTENTS).simpleName();
+
         // Inner implementation of NbLexerAdapter, which allows us toExpression use a generic
         // Lexer class and takes care of creating the Antlr lexer and calling methods
         // that will exist on the lexer implementation class but not on the parent class
         lh.innerClass(adapterClassName).withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
-                .extending("NbLexerAdapter<" + tokenTypeName + ", " + proxy.lexerClassSimple() + ">")
+                .extending(adapterExtends)
+                //                .extending("NbLexerAdapter<" + tokenTypeName + ", " + proxy.lexerClassSimple() + ">")
                 .method("createLexer").override().withModifier(PUBLIC).returning(proxy.lexerClassSimple()).addArgument("CharStream", "stream")
                 .docComment("Creates a NetBeans lexer wrapper for an ANTLR lexer.")
                 .body(bb -> {
@@ -1907,7 +2287,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .body().returningInvocationOf("wrapLexer")
                             .withArgument("lexer").on("super").endBlock();
                 })
-                .override("vocabulary").withModifier(PROTECTED).returning("Vocabulary")
+                .override("vocabulary").withModifier(PROTECTED).returning(VOCABULARY.simpleName())
                 .body().returning(proxy.lexerClassSimple() + ".VOCABULARY").endBlock()
                 .method("tokenId").withModifier(PUBLIC).override().addArgument("int", "ordinal").returning(tokenTypeName)
                 .body().returning(tokensTypeName + ".forId(ordinal)").endBlock()
@@ -1925,7 +2305,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     mth.docComment("Invokes ANTLR and creates a parse result.");
                     mth.addArgument("Snapshot", "snapshot")
                             .addArgument("Extraction", "extraction")
-                            .addArgument("BiConsumer<AntlrParseResult, ParseResultContents>", "receiver")
+                            .addArgument(callbackType, "receiver")
                             .body(bb -> {
                                 bb.invoke("createParseResult")
                                         .withArgument("snapshot")
@@ -2050,30 +2430,31 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             genClassName.append("RuleHighlighting");
             ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(type)).named(genClassName.toString())
                     .makePublic().makeFinal()
-                    .importing("org.nemesis.extraction.ExtractionRegistration",
-                            "org.nemesis.extraction.ExtractorBuilder",
-                            "org.nemesis.extraction.key.RegionsKey",
-                            "org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration",
+                    .importing(
+                            EXTRACTION_REGISTRATION.qname(),
+                            EXTRACTOR_BUILDER.qname(),
+                            REGIONS_KEY.qname(),
+                            HIGHLIGHTER_KEY_REGISTRATION.qname(),
                             parser.parserEntryPointReturnTypeFqn(),
                             parser.parserClassFqn())
                     .field(keyFieldName.toString(), fb -> {
                         fb.withModifier(PUBLIC, STATIC, FINAL)
-                                .annotatedWith("HighlighterKeyRegistration", ab -> {
+                                .annotatedWith(HIGHLIGHTER_KEY_REGISTRATION.simpleName(), ab -> {
                                     ab.addArgument("mimeType", mimeType)
                                             .addArgument("coloringName", categoryName);
                                 })
                                 .initializedFromInvocationOf("create")
-                                .withArgument("String.class")
+                                .withClassArgument("String")
                                 .withStringLiteral(keyFieldName.toString())
-                                .on("RegionsKey")
-                                .ofType("RegionsKey<String>");
+                                .on(REGIONS_KEY.simpleName())
+                                .ofType(REGIONS_KEY.parametrizedName("String"));
                     })
                     .method("extract", mb -> {
-                        mb.annotatedWith("ExtractionRegistration", ab -> {
+                        mb.annotatedWith(EXTRACTION_REGISTRATION.simpleName(), ab -> {
                             ab.addArgument("mimeType", mimeType)
                                     .addClassArgument("entryPoint", parser.parserEntryPointReturnTypeSimple());
                         }).withModifier(PUBLIC, STATIC)
-                                .addArgument("ExtractorBuilder<? super "
+                                .addArgument(EXTRACTOR_BUILDER.simpleName() + "<? super "
                                         + parser.parserEntryPointReturnTypeSimple() + ">", "bldr")
                                 .body(bb -> {
                                     bb.invoke("finishRegionExtractor")
@@ -2127,14 +2508,20 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     private void handleCategories(List<AnnotationMirror> categories, LexerProxy lexer, TypeElement type, AnnotationMirror mirror, TypeMirror tokenCategorizerClass, String catName, Name pkg, String prefix) throws Exception {
         // Create an implementation of TokenCategorizer based on the annotation values
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(catName).withModifier(FINAL)
-                .importing("org.nemesis.antlr.spi.language.highlighting.TokenCategorizer")
-                .implementing("TokenCategorizer")
+                .importing(TOKEN_CATEGORIZER.qname())
+                .implementing(TOKEN_CATEGORIZER.simpleName())
                 .conditionally(tokenCategorizerClass != null, cbb -> {
-                    cbb.field("DEFAULT_CATEGORIZER").initializedTo("new " + tokenCategorizerClass + "()").ofType("TokenCategorizer");
+                    cbb.importing(tokenCategorizerClass.toString());
+                    cbb.field("DECLARATION_CATEGORIZER")
+                            .initializedWithNew(nb -> {
+
+                                nb.ofType(simpleName(tokenCategorizerClass));
+                            }).ofType(TOKEN_CATEGORIZER.simpleName());
+//                    cbb.field("DEFAULT_CATEGORIZER").initializedTo("new " + tokenCategorizerClass + "()").ofType("TokenCategorizer");
                 });
 
         // categoryFor(ordinal(), displayName(), symbolicName(), literalName())
-        cb.publicMethod("categoryFor", catFor -> {
+        cb.overridePublic("categoryFor", catFor -> {
             catFor.docComment("Find the category for a token, either by returning the value "
                     + "specified in an annotation, or using a heuristic.");
             catFor.addArgument("int", "id")

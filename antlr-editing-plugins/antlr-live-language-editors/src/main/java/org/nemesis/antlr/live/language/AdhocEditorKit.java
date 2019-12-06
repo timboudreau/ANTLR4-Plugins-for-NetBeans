@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.language;
 
+import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Dictionary;
@@ -28,6 +30,7 @@ import javax.swing.JLabel;
 import javax.swing.JToolBar;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
+import javax.swing.text.JTextComponent;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.BaseDocument;
@@ -148,14 +151,20 @@ public class AdhocEditorKit extends ExtKit {
 
     @Override
     protected Action[] createActions() {
+        Action[] result = null;
         ExtKit delegate = delegate();
         if (delegate != null) {
-            Action[] result = this.call("createActions");
-            if (result != null) {
-                return result;
+            result = this.call("createActions");
+            if (result == null) {
+                result = super.createActions();
             }
         }
-        return super.createActions();
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] instanceof PasteAction) {
+                result[i] = new AsyncPasteAction(false);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -214,6 +223,21 @@ public class AdhocEditorKit extends ExtKit {
             }
         }
         return null;
+    }
+
+    static final class AsyncPasteAction extends PasteAction {
+
+        public AsyncPasteAction(boolean formatted) {
+            super(formatted);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent evt, JTextComponent target) {
+            EventQueue.invokeLater(() -> {
+                super.actionPerformed(evt, target);
+            });
+        }
+
     }
 
     // We have to subclass this in order to supply a toolbar, or the infrastructure
