@@ -66,10 +66,12 @@ import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.tool.ext.EpsilonRuleInfo;
 import org.nemesis.antlr.memory.tool.ext.ProblematicEbnfInfo;
 import org.nemesis.antlr.project.Folders;
+import org.nemesis.antlr.refactoring.usages.ImportersFinder;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
+import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
@@ -80,6 +82,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.attribution.ImportFinder;
+import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
@@ -87,6 +90,7 @@ import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.netbeans.modules.refactoring.api.Problem;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
@@ -163,26 +167,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     }
 
     private IntRange<? extends IntRange<?>> offsets(ProblematicEbnfInfo info, Extraction ext) {
-        /*
-        Optional<StyledDocument> doc = ext.source().lookup(StyledDocument.class);
-        if (doc.isPresent()) {
-            LineDocument ld = LineDocumentUtils.as(doc.get(), LineDocument.class);
-            if (ld != null) {
-
-                int startLineStart = NbDocument.findLineOffset(doc.get(), info.startLine() - 1);
-
-                int startOffset = startLineStart + info.startCharOffsetInLine();
-                System.out.println("  PROBLEM START OFFSET "
-                        + startOffset + " for " + info.startCharOffsetInLine());
-
-                int endLineStart = NbDocument.findLineOffset(doc.get(), info.endLine() - 1);
-                int endOffset = endLineStart + info.endCharOffsetInLine();
-
-                IntRange<? extends IntRange<?>> result = Range.ofCoordinates(startOffset, endOffset);
-                return result;
-            }
-        }
-         */
         return Range.ofCoordinates(info.start(), info.end());
     }
 
@@ -460,6 +444,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         checkGrammarNameMatchesFile(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         flagOrphansIfNoImports(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         flagDuplicateBlocks(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
+        flagStringLiteralsInParserRules(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
+        flagSkips(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
     }
 
     private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
@@ -487,6 +473,101 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             return s.substring(0, 63) + "\u2026"; // ellipsis
         }
         return s;
+    }
+
+    @Messages({
+        "skipBad=Using skip creates problems for editors which cannot ignore tokens. Replace with a channel directive.",
+        "# {0} - n",
+        "replaceWithChannel=Replace skip with channel({0})?"
+    })
+    private void flagSkips(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Set<String> usedErrorIds) {
+        SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo> all = extraction.regions(ChannelsAndSkipExtractors.CHSKIP);
+        int[] maxUsedChannel = new int[1];
+        List<SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo>> skips = new ArrayList<>();
+        all.forEach(maybeSkip -> {
+            switch (maybeSkip.key().kind()) {
+                case CHANNEL:
+                    System.out.println("CHANNEL: " + maybeSkip);
+                    maxUsedChannel[0] = Math.max(maybeSkip.key().channelNumber(), maxUsedChannel[0]);
+                    return;
+                default:
+                    String errId = "skip-" + maybeSkip.key() + "-" + maybeSkip.index();
+                    if (!usedErrorIds.contains(errId)) {
+                        skips.add(maybeSkip);
+                    }
+            }
+        });
+        if (!skips.isEmpty()) {
+            maxUsedChannel[0]++;
+            for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> region : skips) {
+                String errId = "skip-" + region.key() + "-" + region.index();
+                usedErrorIds.add(errId);
+                try {
+                    fixes.addWarning(errId, region, Bundle.skipBad(), fixen -> {
+                        String replacement = "channel (" + maxUsedChannel[0] + ")";
+                        fixen.addReplacement(Bundle.replaceWithChannel(maxUsedChannel[0]), region.start(), region.end() + 1, replacement);
+                    });
+                } catch (BadLocationException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
+        }
+    }
+
+    @Messages({
+        "# {0} - count",
+        "# {1} - literal",
+        "literalInParserRule=String literal {1} encountered in parser rule {0} times. Replace with lexer rule?",
+        "# {0} - literal",
+        "replaceWithLexerRule=Replace all occurrences of {0} with a lexer rule?"
+    })
+    private void flagStringLiteralsInParserRules(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Set<String> usedErrorIds) {
+        SemanticRegions<ChannelsAndSkipExtractors.TermCtx> terms = extraction.regions(ChannelsAndSkipExtractors.LONELY_TERMINALS);
+        terms.forEach(region -> {
+            String id = region.key().text + "-pbr-" + region.index();
+            if (!usedErrorIds.contains(id)) {
+                PositionBoundsRange base = PositionBoundsRange.create(extraction.source(), region);
+                if (base == null) {
+                    return;
+                }
+                usedErrorIds.add(id);
+                List<PositionBoundsRange> ranges = new ArrayList<>(terms.size());
+                int[] count = new int[1];
+                terms.forEach(region2 -> {
+                    if (region.key().text.equals(region2.key().text)) {
+                        PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), region2);
+                        if (pbr == null) {
+                            return;
+                        }
+                        ranges.add(pbr);
+                        count[0]++;
+                    }
+                });
+                String msg = Bundle.literalInParserRule(count[0], region.key().text);
+                try {
+                    fixes.addHint(id, region, msg, fixen -> {
+                        ExtractRule extract = new ExtractRule(ranges, extraction, base, region.key().text, lexerRuleName(region.key().text));
+                        fixen.add(Bundle.replaceWithLexerRule(region.key().text), extract);
+                    });
+                } catch (BadLocationException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
+        });
+    }
+
+    private static final Pattern QUOTES = Pattern.compile("[\"'](.*)[\"']");
+
+    static String lexerRuleName(String text) {
+        Matcher m = QUOTES.matcher(text);
+        if (m.find()) {
+            text = m.group(1);
+        }
+        text = text.toUpperCase();
+        if (text.length() == 1) {
+            return "LETTER_" + text;
+        }
+        return "TOK_" + text;
     }
 
     @Messages({
@@ -563,89 +644,145 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes, Set<String> usedErrorIds) {
-        // XXX use the error ids
-        if (extraction.namedRegions(AntlrKeys.IMPORTS).isEmpty()) {
-            NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrKeys.RULE_NAMES);
-            if (!rules.isEmpty()) {
-                StringGraph graph = extraction.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
-                NamedSemanticRegions<RuleTypes> ruleBounds = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
-                NamedSemanticRegion<RuleTypes> firstRule = rules.index().first();
-                String firstRuleName = firstRule.name();
-                Set<String> seen = new HashSet<>();
-                Optional<Document> doc = extraction.source().lookup(Document.class);
-                if (!doc.isPresent()) {
-                    return;
+        NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrKeys.RULE_NAMES);
+        if (!rules.isEmpty()) {
+            StringGraph graph = extraction.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
+            NamedSemanticRegions<RuleTypes> ruleBounds = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
+            NamedSemanticRegion<RuleTypes> firstRule = rules.index().first();
+            String firstRuleName = firstRule.name();
+            Set<String> seen = new HashSet<>();
+            Optional<Document> doc = extraction.source().lookup(Document.class);
+            if (!doc.isPresent()) {
+                return;
+            }
+            // Flag orphan nodes for deletion hints
+            Set<String> orphans = new LinkedHashSet<>(graph.topLevelOrOrphanNodes());
+
+            // Find any nodes that have skip or channel directives
+            // and omit them from orphans - they are used to route
+            // comments and whitespace out of the parse tree, but
+            // will look like they are unused
+            SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo> skippedAndSimilar
+                    = extraction.regions(ChannelsAndSkipExtractors.CHSKIP);
+            System.out.println("SKIP AND CHANNELS " + extraction.source() + ": " + skippedAndSimilar);
+            // Build a graph that cross-references the rule that contains a
+            // skip or channel directive with the named rule that contains
+            // it - rules that contain a skip or channel directive will have
+            // an edge to that directive, so we just need to iterate our
+            // rules and exclude the parents
+            BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo>, ?, SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo>> hetero
+                    = ruleBounds.crossReference(skippedAndSimilar);
+            System.out.println("BUILT GRAPH " + hetero + " for " + extraction.source());
+
+            boolean[] hasImporters = new boolean[1];
+            for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> s : skippedAndSimilar) {
+                // Find the owners and remove them
+                for (NamedSemanticRegion<RuleTypes> parent : hetero.rightSlice().parents(s)) {
+                    System.out.println(parent.name() + " has a skip or channel directive - remove from orphans");
+                    orphans.remove(parent.name());
                 }
-                Set<String> orphans = new LinkedHashSet<>(graph.topLevelOrOrphanNodes());
+            }
+            Optional<FileObject> of = extraction.source().lookup(FileObject.class);
+            if (of.isPresent()) {
+                ImportersFinder imf = ImportersFinder.forFile(of.get());
+                System.out.println("USE IMPORTERS FINDER " + imf + " for " + extraction.source());
+                Problem p = imf.usagesOf(() -> false, of.get(), AntlrKeys.IMPORTS,
+                        (IntRange<? extends IntRange<?>> a, String grammarName, FileObject importer, ExtractionKey<?> importerKey, Extraction importerExtraction) -> {
+                            System.out.println(importer.getNameExt() + " / " + grammarName + " imports " + of.get().getNameExt() + " importerExtraction " + importerExtraction.source());
+                            if (importer.equals(of.get())) {
+                                System.out.println("IS SAME FILE, IGNORE");
+                                // self import?
+                                return null;
+                            }
+                            SemanticRegions<UnknownNameReference<RuleTypes>> unknowns = importerExtraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
+                            // XXX could attribute and be sure we're talking about the right references
+                            for (SemanticRegion<UnknownNameReference<RuleTypes>> r : unknowns) {
+                                String name = r.key().name();
+                                System.out.println(name + " is used from " + importer.getNameExt()
+                                        + " - remove from orphans in " + extraction.source());
+                                orphans.remove(name);
+                            }
+                            hasImporters[0] = true;
+                            return null;
+                        });
+                if (p != null && p.isFatal()) {
+                    throw new IllegalStateException("Failed searching for importers: " + p.getMessage());
+                } else if (p != null) {
+                    LOG.log(Level.WARNING, p.getMessage());
+                }
+            }
+            if (!hasImporters[0]) {
+                System.out.println("Have an importer, so don't count first rule "
+                        + firstRuleName + " among orphans");
                 orphans.remove(firstRuleName);
-                for (String name : orphans) {
-                    String errId = "orphan-" + name;
-                    if (usedErrorIds.contains(errId)) {
-                        continue;
-                    }
-                    if (seen.contains(name)) {
-                        continue;
-                    }
-                    usedErrorIds.add(errId);
-                    try {
-                        String msg = Bundle.unusedRule(name);
-                        fixes.addWarning(errId, rules.regionFor(name), msg, fixen -> {
-                            NamedSemanticRegion<RuleTypes> bounds = ruleBounds.regionFor(name);
-                            // Offer to delete just that rule:
-                            if (graph.inboundReferenceCount(name) == 0) {
-                                fixen.addDeletion(Bundle.deleteRule(name), bounds.start(), bounds.end());
+            }
+            for (String name : orphans) {
+                String errId = "orphan-" + name;
+                if (usedErrorIds.contains(errId)) {
+                    continue;
+                }
+                if (seen.contains(name)) {
+                    continue;
+                }
+                usedErrorIds.add(errId);
+                try {
+                    String msg = Bundle.unusedRule(name);
+                    fixes.addWarning(errId, rules.regionFor(name), msg, fixen -> {
+                        NamedSemanticRegion<RuleTypes> bounds = ruleBounds.regionFor(name);
+                        // Offer to delete just that rule:
+                        if (graph.inboundReferenceCount(name) == 0) {
+                            fixen.addDeletion(Bundle.deleteRule(name), bounds.start(), bounds.end());
+                            seen.add(name);
+                        }
+
+                        Set<String> deletableClosure = findDeletableClosureOfOrphan(name, graph);
+                        if (deletableClosure.size() > 1) {
+                            // We can also delete the closure of this rule wherever no other
+                            // rules reference it
+                            Set<IntRange<? extends IntRange<?>>> closureRanges = new HashSet<>();
+                            // We will need to prune some rules out of the closure if they
+                            // would still be referenced by others, as those would become
+                            // syntax errors
+                            for (String cl : deletableClosure) {
+                                closureRanges.add(ruleBounds.regionFor(cl));
+                            }
+                            if (closureRanges.size() > 0) {
+                                // Don't put the name of the rule in its closure
+                                deletableClosure.remove(name);
+                                String closureString
+                                        = "<i>"
+                                        + Strings.join(", ",
+                                                CollectionUtils.reversed(
+                                                        new ArrayList<>(deletableClosure)));
+                                fixen.addDeletions(
+                                        Bundle.deleteRuleAndClosure(name,
+                                                elide(closureString)),
+                                        closureRanges);
                                 seen.add(name);
                             }
-
-                            Set<String> deletableClosure = findDeletableClosureOfOrphan(name, graph);
-                            if (deletableClosure.size() > 1) {
-                                // We can also delete the closure of this rule wherever no other
-                                // rules reference it
-                                Set<IntRange<? extends IntRange<?>>> closureRanges = new HashSet<>();
-                                // We will need to prune some rules out of the closure if they
-                                // would still be referenced by others, as those would become
-                                // syntax errors
-                                for (String cl : deletableClosure) {
-                                    closureRanges.add(ruleBounds.regionFor(cl));
-                                }
-                                if (closureRanges.size() > 0) {
-                                    // Don't put the name of the rule in its closure
-                                    deletableClosure.remove(name);
-                                    String closureString
-                                            = "<i>"
-                                            + Strings.join(", ",
-                                                    CollectionUtils.reversed(
-                                                            new ArrayList<>(deletableClosure)));
-                                    fixen.addDeletions(
-                                            Bundle.deleteRuleAndClosure(name,
-                                                    elide(closureString)),
-                                            closureRanges);
-                                    seen.add(name);
-                                }
-                            }
-                        });
-
-                        Set<String> closure = graph.closureOf(name);
-                        for (String node : closure) {
-                            if (seen.contains(node)) {
-                                continue;
-                            }
-                            seen.add(node);
-                            // XXX at some point, note if there is a channels() or skip
-                            // directive and don't offer to delete those
-                            Set<String> revClosure = graph.reverseClosureOf(node);
-                            if (!revClosure.contains(firstRuleName)) {
-                                String rc = Strings.join("<-", revClosure);
-                                NamedSemanticRegion<RuleTypes> subBounds
-                                        = ruleBounds.regionFor(node);
-                                fixes.addWarning("nr-" + node, subBounds,
-                                        Bundle.notReachableRule(node, firstRuleName,
-                                                rc));
-                            }
                         }
-                    } catch (BadLocationException ex) {
-                        Exceptions.printStackTrace(ex);
+                    });
+
+                    Set<String> closure = graph.closureOf(name);
+                    for (String node : closure) {
+                        if (seen.contains(node)) {
+                            continue;
+                        }
+                        seen.add(node);
+                        // XXX at some point, note if there is a channels() or skip
+                        // directive and don't offer to delete those
+                        Set<String> revClosure = graph.reverseClosureOf(node);
+                        if (!revClosure.contains(firstRuleName)) {
+                            String rc = Strings.join("<-", revClosure);
+                            NamedSemanticRegion<RuleTypes> subBounds
+                                    = ruleBounds.regionFor(node);
+                            fixes.addWarning("nr-" + node, subBounds,
+                                    Bundle.notReachableRule(node, firstRuleName,
+                                            rc));
+                        }
                     }
+                } catch (BadLocationException ex) {
+                    Exceptions.printStackTrace(ex);
                 }
             }
         }
@@ -895,6 +1032,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             case 51: // rule redefinition
             case 52: // lexer rule in parser grammar
             case 53: // parser rule in lexer grammar
+            case 184: // rule overlapped by other rule and will never be used
                 String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
                 if (usedErrIds.contains(errId)) {
                     return false;

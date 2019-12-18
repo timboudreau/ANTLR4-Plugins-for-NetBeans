@@ -16,7 +16,7 @@
 package org.nemesis.antlr.navigator;
 
 import java.util.Set;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 
 /**
  * Sets up the passed HTML renderer with icon, indentation, formatted text when

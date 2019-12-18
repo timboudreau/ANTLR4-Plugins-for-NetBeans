@@ -15,9 +15,11 @@
  */
 package org.nemesis.data.named;
 
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -86,6 +88,11 @@ public class NamedSemanticRegionsTest {
         NamedSemanticRegionPositionIndex<TestRuleTypes> index = n.index();
         assertNotNull(index.regionAt(36));
         assertEquals("items", index.regionAt(36).name());
+
+        Set<String> filteredNames = n.collectNames(reg -> {
+            return reg.name().startsWith("ST");
+        });
+        assertEquals(setOf("STRING", "STRING2"), filteredNames);
     }
 
     @Test

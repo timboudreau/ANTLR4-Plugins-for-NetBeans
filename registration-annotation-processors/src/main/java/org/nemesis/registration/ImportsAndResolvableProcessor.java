@@ -38,6 +38,16 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.RESOLVER_ANNOTATION;
+import static org.nemesis.registration.typenames.JdkTypes.SET;
+import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
+import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
+import static org.nemesis.registration.typenames.KnownTypes.IMPORT_FINDER;
+import static org.nemesis.registration.typenames.KnownTypes.IMPORT_KEY_SUPPLIER;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION;
+import static org.nemesis.registration.typenames.KnownTypes.REGISTERABLE_RESOLVER;
+import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
+import static org.nemesis.registration.typenames.KnownTypes.UNKNOWN_NAME_REFERENCE;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -111,18 +121,18 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(importFinderClassName)
                 .withModifier(PUBLIC, FINAL)
                 .importing(
-                        SERVICE_PROVIDER_ANNOTATION_TYPE,
-                        IMPORT_FINDER_TYPE,
-                        EXTRACTION_TYPE,
-                        GRAMMAR_SOURCE_TYPE,
-                        REGISTERABLE_RESOLVER_TYPE,
-                        NAMED_SEMANTIC_REGION_TYPE,
-                        UNKNOWN_NAME_REFERENCE_TYPE,
-                        NAMED_REGION_KEY_TYPE,
-                        IMPORT_KEY_SUPPLIER_TYPE,
-                        "java.util.Set")
+                        SERVICE_PROVIDER.qname(),
+                        IMPORT_FINDER.qname(),
+                        EXTRACTION.qname(),
+                        GRAMMAR_SOURCE.qname(),
+                        REGISTERABLE_RESOLVER.qname(),
+                        NAMED_SEMANTIC_REGION.qname(),
+                        UNKNOWN_NAME_REFERENCE.qname(),
+                        NAMED_REGION_KEY.qname(),
+                        IMPORT_KEY_SUPPLIER.qname(),
+                        SET.qname())
                 .implementing(simpleName(IMPORT_FINDER_TYPE), simpleName(IMPORT_KEY_SUPPLIER_TYPE))
-                .annotatedWith("ServiceProvider", ab -> {
+                .annotatedWith(SERVICE_PROVIDER.simpleName(), ab -> {
                     ab.addClassArgument("service", simpleName(IMPORT_FINDER_TYPE))
                             .addArgument("path", "antlr/resolvers/" + mimeType);
                 })
@@ -130,8 +140,8 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                     fb.withModifier(STATIC, FINAL)
                             // ImportFinder.forKeys(AntlrKeys.IMPORTS);
                             .initializedFromInvocationOf("forKeys").withArgument(varQName)
-                            .on("ImportFinder")
-                            .ofType(simpleName(IMPORT_FINDER_TYPE));
+                            .on(IMPORT_FINDER.simpleName())
+                            .ofType(IMPORT_FINDER.simpleName());
                 })
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
@@ -140,15 +150,15 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                             });
                 })
                 .overridePublic("allImports", mb -> {
-                    mb.returning("Set<" + simpleName(GRAMMAR_SOURCE_TYPE) + "<?>>")
-                            .addArgument(simpleName(EXTRACTION_TYPE), "importer")
-                            .addArgument("Set<? super " + simpleName(NAMED_SEMANTIC_REGION_TYPE)
+                    mb.returning("Set<" + GRAMMAR_SOURCE.simpleName() + "<?>>")
+                            .addArgument(EXTRACTION.simpleName(), "importer")
+                            .addArgument("Set<? super " + NAMED_SEMANTIC_REGION.simpleName()
                                     + "<? extends Enum<?>>>", "notFound")
                             .body(bb -> {
                                 bb.declare("result")
                                         .initializedByInvoking("allImports")
                                         .withArgument("importer").withArgument("notFound")
-                                        .on("DELEGATE").as("Set<" + simpleName(GRAMMAR_SOURCE_TYPE) + "<?>>");
+                                        .on("DELEGATE").as("Set<" + GRAMMAR_SOURCE.simpleName() + "<?>>");
                                 bb.log("{0} found imports {1} for {2} ", Level.FINE, "DELEGATE",
                                         "result", "importer.source()");
                                 bb.returning("result");
@@ -156,9 +166,9 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                 })
                 .overridePublic("possibleImportersOf", mb -> {
                     mb.withTypeParam("K extends Enum<K>")
-                            .returning("Set<" + simpleName(GRAMMAR_SOURCE_TYPE) + "<?>>")
-                            .addArgument(simpleName(UNKNOWN_NAME_REFERENCE_TYPE) + "<K>", "ref")
-                            .addArgument(simpleName(EXTRACTION_TYPE), "in")
+                            .returning("Set<" + GRAMMAR_SOURCE.simpleName() + "<?>>")
+                            .addArgument(UNKNOWN_NAME_REFERENCE.simpleName() + "<K>", "ref")
+                            .addArgument(EXTRACTION.simpleName(), "in")
                             .body(bb -> {
                                 bb.returningInvocationOf("possibleImportersOf")
                                         .withArgument("ref")
@@ -168,17 +178,23 @@ public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelega
                 })
                 .overridePublic("createReferenceResolver", mb -> {
                     mb.withTypeParam("K extends Enum<K>")
-                            .addArgument(simpleName(NAMED_REGION_KEY_TYPE) + "<K>", "key")
-                            .returning(simpleName(REGISTERABLE_RESOLVER_TYPE) + "<K>")
+                            .addArgument(NAMED_REGION_KEY.simpleName() + "<K>", "key")
+                            .returning(REGISTERABLE_RESOLVER.simpleName() + "<K>")
                             .body().returningInvocationOf("createReferenceResolver")
                             .withArgument("key").on("DELEGATE").endBlock();
                     ;
                 })
                 .overridePublic("get", mb -> {
-                    mb.returning("NamedRegionKey<?>[]")
+                    mb.returning(NAMED_REGION_KEY.simpleName() + "<?>[]")
                             .body()
-                            .returning("new NamedRegionKey<?>[]{" + varQName + "}")
-                            .endBlock();
+                            .returningValue().toArrayLiteral(NAMED_REGION_KEY.simpleName() + "<?>")
+                                .add(varQName).closeArrayLiteral();
+//                            .returning("new NamedRegionKey<?>[]{" + varQName + "}")
+//                            .endBlock();
+//                    mb.returning("NamedRegionKey<?>[]")
+//                            .body()
+//                            .returning("new NamedRegionKey<?>[]{" + varQName + "}")
+//                            .endBlock();
 
                 });
         // implement Key based

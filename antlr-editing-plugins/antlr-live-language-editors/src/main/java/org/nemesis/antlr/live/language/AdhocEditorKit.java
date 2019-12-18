@@ -134,7 +134,7 @@ public class AdhocEditorKit extends ExtKit {
                 return result;
             }
         }
-        return super.getDeclaredActions(); //To change body of generated methods, choose Tools | Templates.
+        return super.getDeclaredActions();
     }
 
     @Override
@@ -146,7 +146,7 @@ public class AdhocEditorKit extends ExtKit {
                 return result;
             }
         }
-        return super.getCustomActions(); //To change body of generated methods, choose Tools | Templates.
+        return super.getCustomActions();
     }
 
     @Override

@@ -57,7 +57,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
         LanguageFontsColorsProcessor proc = new LanguageFontsColorsProcessor();
         HighlighterKeyRegistrationProcessor hkProc = new HighlighterKeyRegistrationProcessor();
         delegates
-                .apply(keys).to(ElementKind.CLASS, ElementKind.METHOD)
+                .apply(keys).to(ElementKind.CLASS, ElementKind.METHOD, ElementKind.FIELD)
                 .whenAnnotationTypes(KEYBINDING_ANNO, GOTO_ANNOTATION)
                 .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
                 .onAnnotationTypesAnd(REGISTRATION_ANNO)

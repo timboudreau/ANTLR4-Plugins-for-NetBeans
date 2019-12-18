@@ -74,6 +74,12 @@ import org.nemesis.data.impl.SizedArrayValueSupplier;
  * the more complex logic for dealing with nesting is only active if nesting is
  * present.
  * </p>
+ * <p>
+ * <b>Note:</b> The <code>SemanticRegion</code> instances emitted are
+ * <i>flyweight objects</i> - they are created on demand, and while they honor
+ * the <code>equals()</code> contract, you will not get the same instance
+ * returned for the same input twice.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -92,7 +98,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     Organizes a nested structure as two arrays, starts and ends.  The starts
     array is sorted, but the search algorithm is duplicate-tolerant (and not
     brute-force).  Regions are added in the order, largestWithChildren,
-    nested, nested;  nested elements can have other nested elements - all it
+    nested, nested;  nested elements can have other nested elements the
+    same size or smaller than themselvs - all it
     means to be nested is to have a start >= the start of the preceding
     element, and an end <= the end of the preceding element.  Out-of-order
     additions throw an exception.
@@ -116,8 +123,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     So we need a duplicate-tolerant variant on a ranged binary search.
 
-    The upside is, the data structure is very small.
-
+    The upside is, the data structure is very small, and scans are typically
+    of 1-3 elements.
      */
     @SuppressWarnings("unchecked")
     public SemanticRegions(Class<T> type) {

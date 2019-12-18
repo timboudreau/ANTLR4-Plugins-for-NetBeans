@@ -21,6 +21,10 @@ import org.nemesis.data.IndexAddressable;
 
 /**
  * A set of references to a particular name in a {@link NamedSemanticRegions}.
+ * This is a secondary collection which typically shares some internal state
+ * with the original, and contains pairs of offsets within the file which have
+ * been added as <i>references to</i> or <i>usages of</i> a particular name defined in
+ * that file.  They belong to a {@link NamedRegionReferenceSets}.
  *
  * @author Tim Boudreau
  */

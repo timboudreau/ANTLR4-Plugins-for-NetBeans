@@ -79,13 +79,17 @@ import org.openide.windows.TopComponent;
  *
  * @author Tim Boudreau
  */
-final class AntlrGotoDeclarationAction extends AbstractEditorAction {
+public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
 
     private static final Logger LOGGER
             = Logger.getLogger(AntlrGotoDeclarationAction.class.getName());
     private final NameReferenceSetKey<?>[] keys;
 
-    AntlrGotoDeclarationAction(NameReferenceSetKey<?>[] keys) {
+    static {
+        LOGGER.setLevel(Level.ALL);
+    }
+
+    AntlrGotoDeclarationAction(String mimeType, NameReferenceSetKey<?>[] keys) {
         this.keys = notNull("keys", keys);
         putValue(ASYNCHRONOUS_KEY, true);
         putValue(NAME, EditorActionNames.gotoDeclaration);
@@ -93,6 +97,9 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
                 = NbBundle.getBundle(BaseKit.class).getString("goto-declaration-trimmed");
         putValue(ExtKit.TRIMMED_TEXT, trimmed);
         putValue(BaseAction.POPUP_MENU_TEXT, trimmed);
+        putValue(MIME_TYPE_KEY, mimeType);
+
+        LOGGER.log( Level.FINE, "Created a goto-decl action for {0}", keys[0]);
     }
 
     @Override
@@ -273,8 +280,17 @@ final class AntlrGotoDeclarationAction extends AbstractEditorAction {
 
         @Override
         public void propertyChange(PropertyChangeEvent evt) {
+            if (evt == null) {
+                // seems to be null on component close
+                timer.stop();
+                return;
+            }
             if (EditorCookie.Observable.PROP_OPENED_PANES.equals(evt.getPropertyName())) {
                 EditorCookie.Observable src = (EditorCookie.Observable) evt.getSource();
+                if (src == null || evt.getNewValue() == null) {
+                    timer.stop();
+                    return;
+                }
                 JTextComponent[] comps = (JTextComponent[]) evt.getNewValue();
                 if (comps.length > 0) {
                     timer.stop();

@@ -16,6 +16,7 @@
 package org.nemesis.antlr.spi.language;
 
 import com.mastfrog.function.throwing.ThrowingSupplier;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -30,6 +31,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.netbeans.api.lexer.TokenId;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
@@ -45,8 +47,8 @@ import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import static javax.swing.text.Document.StreamDescriptionProperty;
-import static org.openide.util.Parameters.notNull;
 
 /**
  * Some utility adapter and convenience methods.
@@ -63,16 +65,45 @@ public final class NbAntlrUtils {
         return new GenericAntlrLexer<>( info, adapter );
     }
 
-    public static AbstractEditorAction createGotoDeclarationAction( NameReferenceSetKey<?>... keys ) {
-        return new AntlrGotoDeclarationAction( keys );
+    public static AbstractEditorAction createGotoDeclarationAction( String mimeType, NameReferenceSetKey<?>... keys ) {
+        return new AntlrGotoDeclarationAction( notNull( "mimeType", mimeType ), keys );
     }
 
     public static TaskFactory createErrorHighlightingTaskFactory( String mimeType ) {
         return AntlrInvocationErrorHighlighter.factory( mimeType );
     }
 
+    private static int lastDocumentIdHash = -1;
+    private static long lastExtractionRev = -1;
+    private static WeakReference<Extraction> lastExtraction;
+
     public static void parseImmediately( Document doc, BiConsumer<Extraction, Exception> consumer ) {
-        parseImmediately( Source.create( doc ), consumer );
+        long ts = DocumentUtilities.getDocumentVersion( doc );
+        Extraction result = null;
+        synchronized ( NbAntlrUtils.class ) {
+            if ( lastExtractionRev == ts && lastExtraction != null ) {
+                if ( lastDocumentIdHash == System.identityHashCode( doc ) ) {
+                    Extraction cached = lastExtraction.get();
+                    if ( cached != null ) {
+                        result = cached;
+                    }
+                }
+            }
+        }
+        if ( result != null ) {
+            consumer.accept( result, null );
+            return;
+        }
+        parseImmediately( Source.create( doc ), ( ext, exp ) -> {
+                      if ( exp == null && ext != null ) {
+                          synchronized ( NbAntlrUtils.class ) {
+                              lastExtractionRev = ts;
+                              lastExtraction = new WeakReference<>( ext );
+                              lastDocumentIdHash = System.identityHashCode( doc );
+                          }
+                      }
+                      consumer.accept( ext, exp );
+                  } );
     }
 
     public static void parseImmediately( FileObject file, BiConsumer<Extraction, Exception> consumer ) {
@@ -105,22 +136,73 @@ public final class NbAntlrUtils {
         return ext[ 0 ];
     }
 
-    private static void parseImmediately( Source src, BiConsumer<Extraction, Exception> consumer ) {
+    /*
+     * private static void parseImmediatelyBypassingParserManager( Source src, BiConsumer<Extraction, Exception>
+     * consumer ) {
+     * // needed for tests to avoid initializing the module system
+     * if ( AntlrMimeTypeRegistration.isAntlrLanguage( src.getMimeType() ) ) {
+     * GrammarSource<Source> gs = GrammarSource.find( src, src.getMimeType() );
+     * try {
+     * CharStream str = gs.stream();
+     * // XXX how to get a lexer?
+     * LanguageHierarchy hier = MimeLookup.getLookup( src.getMimeType() )
+     * .lookup( LanguageHierarchy.class );
+     * if ( hier == null ) {
+     * consumer.accept( null, new IllegalStateException(
+     * "No language hierarchy for " + src.getMimeType() ) );
+     * } else {
+     * // public static ANTLRv4Lexer createAntlrLexer(CharStream stream)
+     * Method meth = hier.getClass().getMethod(
+     * "createAntlrLexer", CharStream.class );
+     * org.antlr.v4.runtime.Lexer lex = ( org.antlr.v4.runtime.Lexer ) meth.invoke( null, str );
+     * CommonTokenStream cts = new CommonTokenStream( lex );
+     *
+     * RulesMapping<?> rm = RulesMapping.forMimeType( src.getMimeType() );
+     * // org.antlr.v4.runtime.Parser
+     * Class<?> parserType = rm.parserType();
+     * // org.antlr.v4.runtime.Parser p = parserType.newInstance(cts);
+     * org.antlr.v4.runtime.Parser parser
+     * = ( org.antlr.v4.runtime.Parser ) parserType.getConstructor(
+     * TokenStream.class ).newInstance(
+     * cts );
+     *
+     *
+     * }
+     * } catch ( Exception ex ) {
+     * consumer.accept( null, ex );
+     * }
+     * } else {
+     * consumer.accept( null, new IllegalStateException(
+     * "Not a registered ANTLR mime type: " + src.getMimeType() ) );
+     * }
+     * }
+     */
+    private static void parseImmediately( Source src,
+            BiConsumer<Extraction, Exception> consumer ) {
         String mime = src.getMimeType();
         if ( mime == null || ParserManager.canBeParsed( mime ) ) {
             try {
                 onBeforeParse( src );
                 ParserManager.parse( Collections.singleton( src ), new UserTask() {
                                  @Override
-                                 public void run( ResultIterator resultIterator ) throws Exception {
+                                 public void run(
+                                         ResultIterator resultIterator ) throws Exception {
                                      Parser.Result res = resultIterator.getParserResult();
                                      if ( res instanceof ExtractionParserResult ) {
                                          consumer.accept( ( ( ExtractionParserResult ) res ).extraction(), null );
                                      } else {
-                                         consumer.accept( null, new IllegalStateException(
-                                                          "Not an ExtractionParserResult: "
-                                                          + res + " (" + res.getClass().getName()
-                                                          + "). Some other parser intercepted it?" ) );
+                                         if ( res == null ) {
+                                             consumer.accept( null, null );
+                                         } else {
+                                             consumer.accept( null, new IllegalStateException(
+                                                              "Not an ExtractionParserResult: "
+                                                              + res + " ("
+                                                              + ( res == null
+                                                                          ? "null"
+                                                                          : res.getClass().getName() )
+                                                              + ") for source " + src
+                                                              + ". Some other parser intercepted it?" ) );
+                                         }
                                      }
                                  }
                              } );
@@ -251,7 +333,7 @@ public final class NbAntlrUtils {
     static Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
     private static void onPostProcessingExit( PostprocessingMode was, PostprocessingMode is ) {
-        if ( is != was && was == PostprocessingMode.DEFERRED) {
+        if ( is != was && was == PostprocessingMode.DEFERRED ) {
             // Force an invalidate and reparse of anything parsed during
             // deferral, so that syntax highlighting is up-to-date and similar -
             // these will not have been called for any parses while suspended

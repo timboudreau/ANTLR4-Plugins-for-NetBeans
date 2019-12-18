@@ -33,6 +33,10 @@ final class QualifierPredicate implements Predicate<RuleNode>, Hashable {
         this.qualifyingType = qualifyingType;
     }
 
+    public String toString() {
+        return "Q(" + qualifyingType.getSimpleName() + ")";
+    }
+
     @Override
     public boolean test(RuleNode t) {
         return qualifyingType.isInstance(t);

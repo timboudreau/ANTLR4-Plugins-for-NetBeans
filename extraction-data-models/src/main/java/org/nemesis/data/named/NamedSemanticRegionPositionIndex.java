@@ -16,17 +16,43 @@
 package org.nemesis.data.named;
 
 /**
+ * Position-based index into a NamedSemanticRegions, allowing lookup based on
+ * start position, end position or containment of a position.
  *
  * @author Tim Boudreau
  */
 public interface NamedSemanticRegionPositionIndex<K extends Enum<K>> extends Iterable<NamedSemanticRegion<K>> {
 
+    /**
+     * Get the region by sort order.
+     *
+     * @param ix The sort order starting from 0
+     * @return A region or null
+     */
     public NamedSemanticRegion<K> regionAt(int ix);
 
+    /**
+     * Get the region, if any, with the passed start position.
+     *
+     * @param start A starting position
+     * @return A region or null
+     */
     public NamedSemanticRegion<K> withStart(int start);
 
+    /**
+     * Get the region, if any, with the passed end position.
+     *
+     * @param start A starting position
+     * @return A region or null
+     */
     public NamedSemanticRegion<K> withEnd(int end);
 
+    /**
+     * Get first region by position, if any.
+     *
+     * @param start A starting position
+     * @return A region or null
+     */
     public NamedSemanticRegion<K> first();
 
 }

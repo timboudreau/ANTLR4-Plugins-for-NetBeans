@@ -151,7 +151,7 @@ tokensSpec :
     ;
 
 tokenList :
-    TOKEN_ID ((COMMA TOKEN_ID)+ | )
+    (tokenRuleIdentifier | fragmentRuleIdentifier) ((COMMA (tokenRuleIdentifier | fragmentRuleIdentifier))+ | )
     ;
 
 channelsSpec :
@@ -222,7 +222,7 @@ actionBlock :
 modeSpec :
     (DOC_COMMENT+ | )
     modeDec
-    (lexerRuleSpec+ | )
+    ((tokenRuleSpec | fragmentRuleSpec)+ | )
     ;
 
 modeDec :
@@ -235,7 +235,8 @@ So we use ruleSpec
 */
 ruleSpec :
     parserRuleSpec |
-    lexerRuleSpec
+    tokenRuleSpec | 
+    fragmentRuleSpec
     ;
 
 /*****************************
@@ -345,18 +346,29 @@ actionBlockArguments :
 /****************************
  * Lexer rule specification *
  ****************************/
-lexerRuleSpec :
+tokenRuleSpec :
     (DOC_COMMENT+ | )
-    (tokenRuleDeclaration | fragmentRuleDeclaration)
+    tokenRuleDeclaration COLON tokenRuleDefinition
+    ;
+
+fragmentRuleSpec :
+    (DOC_COMMENT+ | )
+    fragmentRuleDeclaration COLON fragmentRuleDefinition
     ;
 
 tokenRuleDeclaration :
-    TOKEN_ID COLON lexerRuleBlock SEMI
+    id=tokenRuleIdentifier
     ;
 
+tokenRuleDefinition :
+    lexerRuleBlock SEMI;
+
 fragmentRuleDeclaration :
-    FRAGMENT TOKEN_ID COLON lexerRuleBlock SEMI
+    FRAGMENT id=fragmentRuleIdentifier
     ;
+
+fragmentRuleDefinition :
+    lexerRuleBlock SEMI;
 
 lexerRuleBlock :
     lexerRuleAlt ((OR lexerRuleAlt)+ | )
@@ -444,7 +456,7 @@ blockSet :
     ;
 
 setElement :
-    TOKEN_ID (elementOptions | ) |
+    (tokenRuleIdentifier | fragmentRuleIdentifier) (elementOptions | ) |
     STRING_LITERAL (elementOptions | ) |
     characterRange |
     LEXER_CHAR_SET
@@ -464,7 +476,7 @@ characterRange :
     ;
 
 terminal :
-    TOKEN_ID (elementOptions | ) |
+    (tokenRuleIdentifier | fragmentRuleIdentifier) (elementOptions | ) |
     STRING_LITERAL (elementOptions | )
     ;
 
@@ -500,8 +512,7 @@ identifier :
     ;
 
 ruleElementIdentifier :
-    TOKEN_ID |
-    PARSER_RULE_ID
+    (tokenRuleIdentifier | fragmentRuleIdentifier | parserRuleIdentifier)
     ;
 
 classIdentifier :
@@ -518,4 +529,14 @@ packageIdentifier :
 
 parserRuleIdentifier :
     PARSER_RULE_ID
+    ;
+
+// tdb - added to differentiate when extracting, so generic code
+// completion can do something sensible
+tokenRuleIdentifier :
+    TOKEN_ID
+    ;
+
+fragmentRuleIdentifier :
+    TOKEN_ID
     ;

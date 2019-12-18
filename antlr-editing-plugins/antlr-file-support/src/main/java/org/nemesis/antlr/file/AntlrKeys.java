@@ -20,6 +20,8 @@ import java.util.Set;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleIdentifier;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -35,6 +37,8 @@ import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.fold.FoldTypeSpec;
 import org.nemesis.antlr.instantrename.annotations.InplaceRename;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
+import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.RuleSubstitutions;
+import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.SupplementaryTokenCompletion;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.FileType;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.ParserControl;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.SyntaxInfo;
@@ -92,6 +96,17 @@ import org.nemesis.localizers.annotations.Localize;
                     TYPE_LINE_COMMENT}
         ),
         genericCodeCompletion = @AntlrLanguageRegistration.CodeCompletion(
+//                ignoreTokens = {
+//                    LINE_COMMENT, BLOCK_COMMENT, CHN_BLOCK_COMMENT,
+//                    FRAGDEC_LINE_COMMENT, CHN_LINE_COMMENT, DOC_COMMENT,
+//                    HDR_IMPRT_LINE_COMMENT, HDR_PCKG_LINE_COMMENT,
+//                    HEADER_BLOCK_COMMENT, HEADER_LINE_COMMENT, HEADER_P_BLOCK_COMMENT,
+//                    HEADER_P_LINE_COMMENT, ID_BLOCK_COMMENT, ID_LINE_COMMENT,
+//                    IMPORT_BLOCK_COMMENT, IMPORT_LINE_COMMENT, LEXCOM_BLOCK_COMMENT,
+//                    LEXCOM_LINE_COMMENT, OPT_BLOCK_COMMENT, OPT_LINE_COMMENT, PARDEC_LINE_COMMENT,
+//                    PARDEC_BLOCK_COMMENT, PARDEC_OPT_LINE_COMMENT, PARDEC_OPT_BLOCK_COMMENT,
+//                    TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
+//                    TYPE_LINE_COMMENT},
                 ignoreTokens = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
                     HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
                     OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS,
@@ -104,7 +119,59 @@ import org.nemesis.localizers.annotations.Localize;
                     LEXCOM_LINE_COMMENT, OPT_BLOCK_COMMENT, OPT_LINE_COMMENT, PARDEC_LINE_COMMENT,
                     PARDEC_BLOCK_COMMENT, PARDEC_OPT_LINE_COMMENT, PARDEC_OPT_BLOCK_COMMENT,
                     TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
-                    TYPE_LINE_COMMENT}),
+                    TYPE_LINE_COMMENT},
+                preferredRules = {
+//                    ANTLRv4Parser.RULE_ebnf,
+                    ANTLRv4Parser.RULE_ebnfSuffix,
+                    ANTLRv4Parser.RULE_identifier,
+                    ANTLRv4Parser.RULE_parserRuleIdentifier,
+                    ANTLRv4Parser.RULE_fragmentRuleIdentifier,
+                    ANTLRv4Parser.RULE_tokenRuleIdentifier,
+//                    ANTLRv4Parser.RULE_block,
+//                    ANTLRv4Parser.RULE_parserRuleAtom,
+//                    ANTLRv4Parser.RULE_labeledParserRuleElement,
+                },
+                tokenCompletions = {
+                    @SupplementaryTokenCompletion (
+                        tokenId=OR,
+                        text="|"
+                    ),
+                    @SupplementaryTokenCompletion (
+                        tokenId=BEGIN_ACTION,
+                        text="{}"
+                    ),
+                    @SupplementaryTokenCompletion (
+                        tokenId=STRING_LITERAL,
+                        text="''"
+                    ),
+                    @SupplementaryTokenCompletion (
+                        tokenId=END_ACTION,
+                        text="}"
+                    ),
+//                    @SupplementaryTokenCompletion (
+//                        tokenId=SEMI,
+//                        text=";"
+//                    ),
+//                    @SupplementaryTokenCompletion (
+//                        tokenId=DOT,
+//                        text="."
+//                    ),
+//                    @SupplementaryTokenCompletion (
+//                        tokenId=SHARP,
+//                        text="#"
+//                    ),
+                    @SupplementaryTokenCompletion (
+                        tokenId=NOT,
+                        text="~"
+                    ),
+                },
+                ruleSubstitutions = {
+                    @RuleSubstitutions(
+                            complete = RULE_parserRuleReference,
+                            withCompletionsOf = RULE_parserRuleIdentifier
+                    )
+                }
+        ),
         localizingBundle = "org.nemesis.antlr.file.Bundle",
         sample = ANTLR_SAMPLE,
         lineCommentPrefix = "//",
@@ -578,4 +645,11 @@ public class AntlrKeys {
             + "fragment TS_NUM_OFFSET\n"
             + "    : ( '+' | '-' ) DIGIT DIGIT ':' DIGIT DIGIT;\n"
             + "fragment DIGIT: [0-9];\n";
+
+
+//    @Keybindings(description = "Whatever", displayName = "Whatever", menuPath = "Edit",
+//            name = "whatevs", mimeType = "text/x-g4", popup = true, keybindings = @Keybinding(key = Key.CIRCUMFLEX, modifiers = KeyModifiers.CTRL_OR_COMMAND))
+//    public static void fooz() {
+//        JOptionPane.showMessageDialog(null, "Hello world");
+//    }
 }

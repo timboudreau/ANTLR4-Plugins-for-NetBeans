@@ -115,6 +115,7 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
         }
         // Takes care of setting the relationship in both BitSet arrays
         IntBiConsumer setOne = (contained, container) -> {
+            System.out.println(container + " contains " + contained);
             MutableBits outbound = sets[contained];
             outbound.set(container);
             MutableBits inbound = reverseSets[container];
@@ -150,6 +151,7 @@ public interface IndexAddressable<T extends IndexAddressable.IndexAddressableIte
             }
         }
         IntGraph tree = IntGraph.create(sets, reverseSets);
+        System.out.println("create tree " + tree + " size " + tree.size());
         BitSetHeteroObjectGraph<TI, RI, T, R> result = BitSetHeteroObjectGraph.create(tree, a, b);
         return result;
     }

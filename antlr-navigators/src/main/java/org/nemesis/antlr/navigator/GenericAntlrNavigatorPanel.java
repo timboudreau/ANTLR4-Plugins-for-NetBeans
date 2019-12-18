@@ -41,7 +41,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.data.named.NamedSemanticRegion;
 import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;

@@ -18,6 +18,7 @@ package org.nemesis.antlr.file.impl;
 import com.mastfrog.function.TriConsumer;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -32,12 +33,15 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarTypeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.RuleSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.TokenRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.TokenRuleDefinitionContext;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
 import static org.nemesis.antlr.common.extractiontypes.EbnfProperty.*;
@@ -110,16 +114,17 @@ public final class AntlrExtractor {
             return false;
         }
         String name = null;
-        ANTLRv4Parser.LexerRuleSpecContext lexSpec = ctx.lexerRuleSpec();
+        ANTLRv4Parser.TokenRuleSpecContext lexSpec = ctx.tokenRuleSpec();
+        ANTLRv4Parser.FragmentRuleSpecContext fragSpec = ctx.fragmentRuleSpec();
         if (lexSpec != null) {
-            FragmentRuleDeclarationContext fragDec = lexSpec.fragmentRuleDeclaration();
-            if (fragDec != null) {
-                name = fragDec.getText().trim();
-            } else {
-                TokenRuleDeclarationContext tokDec = lexSpec.tokenRuleDeclaration();
-                if (tokDec != null) {
-                    name = tokDec.getText().trim();
-                }
+            TokenRuleDeclarationContext tokDec = lexSpec.tokenRuleDeclaration();
+            if (tokDec != null) {
+                name = tokDec.getText().trim();
+            }
+        } else if (fragSpec != null) {
+            FragmentRuleDeclarationContext fragDec = fragSpec.fragmentRuleDeclaration();
+            if (fragDec != null && fragDec.id != null) {
+                name = fragDec.id.getText();
             }
         } else {
             ANTLRv4Parser.ParserRuleSpecContext parSpec = ctx.parserRuleSpec();
@@ -193,14 +198,18 @@ public final class AntlrExtractor {
                 // RULE_NAMES in the resulting extractoin
                 .recordingNamePositionUnder(AntlrKeys.RULE_NAMES)
                 // Extracts the rule id from a token declaration
-                .whereRuleIs(ANTLRv4Parser.TokenRuleDeclarationContext.class)
-                .derivingNameWith(AntlrExtractor::deriveIdFromLexerRule)
+                .whereRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
+                .whenInAncestorRule(ANTLRv4Parser.TokenRuleDeclarationContext.class)
+                .derivingNameWith(AntlrExtractor::deriveIdFromTokenRuleIdentifier)
                 // Extracts the rule id from a parser rule declaration, using reflection instead of
                 // a method, to show that works
-                .whereRuleIs(ANTLRv4Parser.ParserRuleSpecContext.class)
-                .derivingNameWith("parserRuleDeclaration().parserRuleIdentifier().PARSER_RULE_ID()", RuleTypes.PARSER)
+                .whereRuleIs(ANTLRv4Parser.ParserRuleIdentifierContext.class)
+                .whenInAncestorRule(ParserRuleDeclarationContext.class)
+                .derivingNameWith(AntlrExtractor::deriveIdFromParserRuleSpec)
+                //                .derivingNameWith("parserRuleDeclaration().parserRuleIdentifier()", RuleTypes.PARSER)
                 // Extracts the rule id from a fragment declaration
-                .whereRuleIs(ANTLRv4Parser.FragmentRuleDeclarationContext.class)
+                .whereRuleIs(ANTLRv4Parser.FragmentRuleIdentifierContext.class)
+                .whenInAncestorRule(FragmentRuleDeclarationContext.class)
                 .derivingNameWith(AntlrExtractor::deriveIdFromFragmentDeclaration)
                 // Generate fake definitions for declared tokens so we don't flag them as errors
                 .whereRuleIs(ANTLRv4Parser.TokenListContext.class)
@@ -214,11 +223,20 @@ public final class AntlrExtractor {
                 // and can resolve the reference, and a bidirectional graph built from arrays of BitSets
                 // which can let us walk the closure of a rule in either direction
                 .collectingReferencesUnder(AntlrKeys.RULE_NAME_REFERENCES)
-                .whereReferenceContainingRuleIs(ANTLRv4Parser.TerminalContext.class)
-                .derivingReferenceOffsetsFromTokenWith(AntlrExtractor::deriveReferencedNameFromTerminalContext)
+                //                .whereReferenceContainingRuleIs(ANTLRv4Parser.TerminalContext.class)
+                //                .derivingReferenceOffsetsFromTokenWith(AntlrExtractor::deriveReferencedNameFromTerminalContext)
                 .whereReferenceContainingRuleIs(ANTLRv4Parser.ParserRuleReferenceContext.class)
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
+                .whenAncestorRuleOf(ParserRuleDefinitionContext.class)
                 .derivingReferenceOffsetsFromTokenWith(RuleTypes.PARSER, AntlrExtractor::deriveReferenceFromParserRuleReference)
+                .whereReferenceContainingRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
+                .whenAncestorRuleOf(TokenRuleDefinitionContext.class)
+                // Include the type hint PARSER so we can detect references that should be parser rules but are not
+                .derivingReferenceOffsetsFromTokenWith(AntlrExtractor::deriveReferenceFromTokenRuleReference)
+                .whereReferenceContainingRuleIs(ANTLRv4Parser.FragmentRuleIdentifierContext.class)
+                .whenAncestorRuleOf(FragmentRuleDefinitionContext.class)
+                // Include the type hint PARSER so we can detect references that should be parser rules but are not
+                .derivingReferenceOffsetsFromTokenWith(AntlrExtractor::deriveReferenceFromFragmentRuleReference)
                 // Done specifying how to collect references
                 .finishReferenceCollector()
                 .finishNamedRegions()
@@ -347,38 +365,42 @@ public final class AntlrExtractor {
         return INSTANCE;
     }
 
-    private static NamedRegionData<RuleTypes> deriveIdFromLexerRule(ANTLRv4Parser.TokenRuleDeclarationContext ctx) {
-        TerminalNode tn = ctx.TOKEN_ID();
+    private static boolean hasAncestor(ParserRuleContext ctx, Class<? extends ParserRuleContext> anc) {
+        boolean found = false;
+        while (ctx != null) {
+            if (anc.isInstance(ctx)) {
+                found = true;
+                break;
+            }
+            ctx = ctx.getParent();
+        }
+        return found;
+    }
+
+    private static NamedRegionData<RuleTypes> deriveIdFromTokenRuleIdentifier(ANTLRv4Parser.TokenRuleIdentifierContext id) {
+        assert hasAncestor(id, TokenRuleDeclarationContext.class) : "Not in a token rule definition";
+        TerminalNode tn = id.TOKEN_ID();
         if (tn != null) {
             org.antlr.v4.runtime.Token tok = tn.getSymbol();
-            if (tok != null) {
-                return NamedRegionData.create(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
+            if (tok != null && !MISSING_ID.equals(tok.getText())) {
+                NamedRegionData<RuleTypes> result = NamedRegionData.create(tok.getText(), RuleTypes.LEXER, tok.getStartIndex(), tok.getStopIndex() + 1);
+                return result;
             }
         }
         return null;
     }
 
-    private static NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
-        ANTLRv4Parser.ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
-        if (decl != null) {
-            ANTLRv4Parser.ParserRuleIdentifierContext ident = decl.parserRuleIdentifier();
-            if (ident != null) {
-                TerminalNode tn = ident.PARSER_RULE_ID();
-                if (tn != null) {
-                    Token id = tn.getSymbol();
-                    if (id != null) {
-                        String ruleId = id.getText();
-                        if (!MISSING_ID.equals(ruleId)) {
-                            return NamedRegionData.create(ruleId, RuleTypes.PARSER, id.getStartIndex(), id.getStopIndex() + 1);
-                        }
-                    }
-                }
-            }
+    private static NamedRegionData<RuleTypes> deriveIdFromParserRuleSpec(ANTLRv4Parser.ParserRuleIdentifierContext ctx) {
+        assert hasAncestor(ctx, ParserRuleDeclarationContext.class) : "Not in a ParserRuleDefinitionContext: " + ctx;
+        if (ctx.PARSER_RULE_ID() != null && !MISSING_ID.equals(ctx.PARSER_RULE_ID().getText())) {
+            return NamedRegionData.create(ctx.PARSER_RULE_ID().getSymbol().getText(), RuleTypes.PARSER, ctx.PARSER_RULE_ID().getSymbol().getStartIndex(),
+                    ctx.PARSER_RULE_ID().getSymbol().getStopIndex() + 1);
         }
         return null;
     }
 
-    private static NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleDeclarationContext ctx) {
+    private static NamedRegionData<RuleTypes> deriveIdFromFragmentDeclaration(ANTLRv4Parser.FragmentRuleIdentifierContext ctx) {
+        assert hasAncestor(ctx, FragmentRuleDeclarationContext.class) : "Not in a fragment rule definition";
         TerminalNode idTN = ctx.TOKEN_ID();
         if (idTN != null) {
             Token idToken = idTN.getSymbol();
@@ -391,11 +413,37 @@ public final class AntlrExtractor {
     }
 
     private static List<? extends TerminalNode> deriveTokenIdFromTokenList(ANTLRv4Parser.TokenListContext ctx) {
-        return ctx.TOKEN_ID();
+//        return ctx.fragmentRuleIdentifier() != null ?
+        List<TerminalNode> result = new ArrayList<>();
+        if (ctx.fragmentRuleIdentifier() != null) {
+            for (ANTLRv4Parser.FragmentRuleIdentifierContext frag : ctx.fragmentRuleIdentifier()) {
+                if (frag.TOKEN_ID() != null) {
+                    result.add(frag.TOKEN_ID());
+                }
+            }
+        }
+        if (ctx.tokenRuleIdentifier() != null) {
+            for (ANTLRv4Parser.TokenRuleIdentifierContext tok : ctx.tokenRuleIdentifier()) {
+                if (tok.TOKEN_ID() != null) {
+                    result.add(tok.TOKEN_ID());
+                }
+            }
+        }
+        Collections.sort(result, (a, b) -> {
+            return Integer.compare(a.getSourceInterval().a, b.getSourceInterval().a);
+        });
+        return result;
     }
 
     private static Token deriveReferencedNameFromTerminalContext(ANTLRv4Parser.TerminalContext ctx) {
-        TerminalNode idTN = ctx.TOKEN_ID();
+        TerminalNode idTN
+                = ctx.fragmentRuleIdentifier() != null
+                && ctx.fragmentRuleIdentifier().TOKEN_ID() != null
+                ? ctx.fragmentRuleIdentifier().TOKEN_ID()
+                : ctx.tokenRuleIdentifier() != null
+                && ctx.tokenRuleIdentifier().TOKEN_ID() != null
+                ? ctx.tokenRuleIdentifier().TOKEN_ID() : null;
+
         if (idTN != null) {
             Token idToken = idTN.getSymbol();
 //            System.out.println("IN TERMINAL CONTEXT '" + ctx.getText() + "' with tok '" + idToken.getText() + "'");
@@ -419,6 +467,28 @@ public final class AntlrExtractor {
 //                        names.onReference(tok.getText(), tok.getStartIndex(), tok.getStopIndex() + 1);
                     return tok;
                 }
+            }
+        }
+        return null;
+    }
+
+    private static Token deriveReferenceFromTokenRuleReference(ANTLRv4Parser.TokenRuleIdentifierContext pric) {
+        TerminalNode pridTN = pric.TOKEN_ID();
+        if (pridTN != null) {
+            Token tok = pridTN.getSymbol();
+            if (tok != null && !MISSING_ID.equals(tok.getText())) {
+                return tok;
+            }
+        }
+        return null;
+    }
+
+    private static Token deriveReferenceFromFragmentRuleReference(ANTLRv4Parser.FragmentRuleIdentifierContext pric) {
+        TerminalNode pridTN = pric.TOKEN_ID();
+        if (pridTN != null) {
+            Token tok = pridTN.getSymbol();
+            if (tok != null && !MISSING_ID.equals(tok.getText())) {
+                return tok;
             }
         }
         return null;

@@ -48,6 +48,13 @@ final class RegionExtractionStrategy<KeyType, RuleType extends RuleNode, TType> 
         this.qualifier = qualifier;
     }
 
+    @Override
+    public String toString() {
+        return "RegionExtractionStrategy(" + ruleType.getSimpleName()
+                + " " + ttype + " " + qualifier + " - " + ancestorQualifier
+                + " " + extractor + ")";
+    }
+
     public boolean extract(RuleType rule, BiPredicate<KeyType, int[]> c) {
         // DO THE CHECKSUM HERE
         BiPredicate<KeyType, TType> wrapped = ttype.wrap(c);

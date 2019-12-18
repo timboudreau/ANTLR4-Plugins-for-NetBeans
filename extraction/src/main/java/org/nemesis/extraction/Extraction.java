@@ -15,6 +15,7 @@
  */
 package org.nemesis.extraction;
 
+import com.mastfrog.antlr.utils.RulesMapping;
 import com.mastfrog.bits.Bits;
 import com.mastfrog.graph.IntGraph;
 import java.io.Externalizable;
@@ -50,7 +51,17 @@ import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
 import com.mastfrog.graph.StringGraph;
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.collections.IntSet;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.PrimitiveIterator;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.extraction.attribution.ResolverRegistry;
@@ -89,6 +100,8 @@ public final class Extraction implements Externalizable {
     private String tokensHash;
     private Class<? extends ParserRuleContext> documentRootType;
     private String mimeType;
+    private final IntSet availableRuleIds = IntSet.create(5);
+    private final List<RuleIdMapping<?>> ruleIdMappings = new ArrayList<>(3);
 
     Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash, Class<? extends ParserRuleContext> documentRootType, String mimeType) {
         this.extractorsHash = extractorsHash;
@@ -716,6 +729,7 @@ public final class Extraction implements Externalizable {
     }
 
     private static final StringGraph EMPTY_GRAPH;
+
     static {
         IntGraph ig = IntGraph.create(new Bits[0]);
         EMPTY_GRAPH = ig.toStringGraph(new String[0]);
@@ -911,5 +925,215 @@ public final class Extraction implements Externalizable {
         public <T extends Enum<T>> void addNameAndBoundsKeyPair(NameAndBoundsPair<T> pair) {
             nameAndBoundsKeyRelationships.add(pair);
         }
+
+        @Override
+        public <T extends Enum<T>> void noteRuleIdMapping(Class<T> enumType, EnumMap<T, IntSet> ruleIdsForKeys) {
+            boolean handled = false;
+            for (RuleIdMapping<?> m : ruleIdMappings) {
+                if (enumType == m.enumType) {
+                    m.addAll(ruleIdsForKeys);
+                    handled = true;
+                    break;
+                }
+            }
+            if (!handled) {
+                ruleIdMappings.add(new RuleIdMapping<>(enumType, ruleIdsForKeys));
+            }
+            /*
+            StringBuilder sb = new StringBuilder(enumType.getSimpleName() + "\t");
+            for (Map.Entry<T, IntSet> e : ruleIdsForKeys.entrySet()) {
+                sb.append(e.getKey()).append(" -> ");
+                PrimitiveIterator.OfInt it = e.getValue().iterator();
+                while (it.hasNext()) {
+                    int i = it.next();
+                    sb.append(RulesMapping.forMimeType(mimeType).nameForRuleId(i));
+                    if (it.hasNext()) {
+                        sb.append(", ");
+                    }
+                }
+                sb.append("\n\t");
+            }
+            System.out.println("ADD " + sb);
+            */
+            ruleIdsForKeys.values().forEach(availableRuleIds::addAll);
+//            System.out.println("ALL mappings now " + ruleIdMappings);
+        }
     };
+
+    /**
+     * Used by generic code completion - find all extraction key values that map
+     * named regions for the passed parser rule id.
+     *
+     * @param parserRuleId The rule id
+     * @param optionalPrefix A prefix string, which will limit the returned
+     * names, or null
+     * @param maxResultsPerKey The maximum matches per key <i>if a prefix is
+     * passed</i>, to limit results to the best matches
+     * @param names A consumer for the results
+     */
+    public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix, BiConsumer<String, Enum<?>> names) {
+//        System.out.println("NamesForRule " + RulesMapping.forMimeType(mimeType).nameForRuleId(parserRuleId) + "(" + parserRuleId + ") in " + ruleIdMappings);
+        if (!availableRuleIds.contains(parserRuleId) || ruleIdMappings.isEmpty()) {
+//            System.out.println("Available rule ids does not contain " + parserRuleId + " - " + availableRuleIds);
+            return;
+        }
+        for (RuleIdMapping<?> mapping : ruleIdMappings) {
+            mapping.visitNames(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, names);
+        }
+    }
+
+    /**
+     * Maps one enum type to the rule ids extracted for it.
+     *
+     * @param <T> The enum type
+     */
+    class RuleIdMapping<T extends Enum<T>> {
+
+        private final Class<T> enumType;
+        private final EnumMap<T, IntSet> ruleIdsForKey;
+        private final IntMap<Set<T>> cache = CollectionUtils.intMap(10);
+
+        public RuleIdMapping(Class<T> enumType, EnumMap<T, IntSet> ruleIdsForKey) {
+            this.enumType = enumType;
+            this.ruleIdsForKey = ruleIdsForKey;
+        }
+
+        void addAll(EnumMap<?, IntSet> all) {
+            for (Map.Entry<?, IntSet> e : all.entrySet()) {
+                if (enumType.isInstance(e.getKey())) {
+                    T key = enumType.cast(e.getKey());
+                    IntSet vals = ruleIdsForKey.get(key);
+                    if (vals == null) {
+                        ruleIdsForKey.put(key, e.getValue());
+                    } else {
+                        vals.addAll(e.getValue());
+                    }
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder(RuleIdMapping.class.getSimpleName())
+                    .append('(').append(enumType.getSimpleName()).append(' ');
+            RulesMapping rm = RulesMapping.forMimeType(mimeType);
+            for (Iterator<Map.Entry<T, IntSet>> i1 = ruleIdsForKey.entrySet().iterator(); i1.hasNext();) {
+                Map.Entry<T, IntSet> e = i1.next();
+                sb.append(e.getKey()).append(" -> ");
+                for (PrimitiveIterator.OfInt it = e.getValue().iterator(); it.hasNext();) {
+                    int i = it.next();
+                    sb.append(rm.nameForRuleId(i));
+                    if (it.hasNext()) {
+                        sb.append(", ");
+                    }
+                }
+                if (i1.hasNext()) {
+                    sb.append(" / ");
+                }
+            }
+
+            return sb.append(')').toString();
+        }
+
+        public void visitNames(int ruleId, String optionalPrefix,
+                int maxPer, String optionalSuffix, BiConsumer<String, Enum<?>> c) {
+            String fullText = (optionalPrefix == null ? "" : optionalPrefix)
+                    + (optionalSuffix == null ? "" : optionalSuffix);
+            if (optionalPrefix != null && optionalPrefix.trim().isEmpty()) {
+                optionalPrefix = null;
+            }
+            String prefix = optionalPrefix;
+            Set<T> kinds = find(ruleId);
+            if (kinds.isEmpty()) {
+//                System.out.println("Found no kinds for " + RulesMapping.forMimeType(mimeType).nameForRuleId(ruleId) + "(" + ruleId + ") in " + this
+//                        + " with prefix '" + optionalPrefix + "'");
+                return;
+            }
+            boolean isAll = EnumSet.allOf(enumType).equals(kinds);
+            Set<NamedRegionKey<T>> seen = new HashSet<>();
+            for (NamedRegionKey<?> nameExtractionKey : regionKeys()) {
+                if (nameExtractionKey.type() == enumType) {
+                    NamedRegionKey<T> typed = (NamedRegionKey<T>) nameExtractionKey;
+                    NamedRegionKey<T> nameKey = nameKeyFor(typed);
+                    if (!seen.contains(nameKey)) {
+                        seen.add(nameKey);
+                        NamedSemanticRegions<T> regs = namedRegions(nameKey);
+                        if (isAll) {
+                            if (prefix != null) {
+                                List<String> tops = regs.topSimilarNames(optionalPrefix, maxPer);
+                                System.out.println("  TOPS: " + tops);
+                                for (String top : tops) {
+                                    if (top.startsWith(prefix) && !fullText.equals(top)) {
+                                        T key = regs.kind(top);
+                                        c.accept(top, key);
+                                    }
+                                }
+                            } else {
+                                for (NamedSemanticRegion<T> reg : regs) {
+                                    if (kinds.contains(reg.kind())) {
+                                        c.accept(reg.name(), reg.kind());
+                                    }
+                                }
+                            }
+                        } else {
+                            if (prefix != null) {
+                                Set<String> all = new TreeSet<>(regs.collectNames(reg -> {
+                                    boolean result = kinds.contains(reg.kind())
+                                            && reg.name().startsWith(prefix)
+                                            && !fullText.equals(reg.name());
+                                    return result;
+                                }));
+//                                System.out.println("Names starting with '" + prefix
+//                                        + "': " + all + " in " + Arrays.toString(regs.nameArray())
+//                                        + " for kinds " + kinds);
+
+                                for (String name : all) {
+                                    c.accept(name, regs.kind(name));
+                                }
+                            } else {
+//                                System.out.println("Collect all: "
+//                                        + regs.collectNames(reg -> kinds.contains(reg.kind()))
+//                                        + " for no prefix, " + kinds + " in "
+//                                        + Arrays.toString(regs.nameArray()));
+////                                regs.collectNames(keys::contains).forEach(c);
+                                regs.forEach(reg -> {
+                                    if (kinds.contains(reg.kind()) && !fullText.equals(reg.name())) {
+                                        c.accept(reg.name(), reg.kind());
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public Set<T> find(int ruleId) {
+            Set<T> result = cache.get(ruleId);
+            boolean add = false;
+            if (result == null) {
+                EnumMap<T, IntSet> item = ruleIdsForKey;
+                for (Map.Entry<T, IntSet> e : item.entrySet()) {
+                    if (e.getValue().contains(ruleId)) {
+                        if (result == null) {
+                            result = EnumSet.noneOf(enumType);
+                            add = true;
+                        }
+                        result.add(e.getKey());
+                    }
+                }
+            }
+            if (result == null) {
+                result = Collections.emptySet();
+                add = true;
+            }
+            if (add) {
+                cache.put(ruleId, result);
+            }
+            System.out.println("Find " + RulesMapping.forMimeType(mimeType)
+                    .nameForRuleId(ruleId) + "(" + ruleId + ") in "
+                    + ruleIdsForKey + " gets " + result);
+            return result;
+        }
+    }
 }

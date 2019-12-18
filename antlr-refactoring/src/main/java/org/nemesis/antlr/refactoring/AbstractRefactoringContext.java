@@ -350,7 +350,7 @@ public abstract class AbstractRefactoringContext {
      * @param run The thing to run
      * @return Whatever the supplier returns
      */
-    static <T> T inParsingContext(Supplier<T> run) {
+    protected static <T> T inParsingContext(Supplier<T> run) {
         CacheContext ctx = context();
         boolean isNew = !ctx.isActive();
         try {
@@ -445,7 +445,9 @@ public abstract class AbstractRefactoringContext {
                 return parse(doc);
             } else {
                 Extraction result = NbAntlrUtils.parseImmediately(fo);
-                foMap.put(fo, result);
+                if (result != null) {
+                    foMap.put(fo, result);
+                }
                 return result;
             }
         });

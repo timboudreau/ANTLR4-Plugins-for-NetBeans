@@ -48,7 +48,7 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder(super.toString()).append('<');
+        StringBuilder sb = new StringBuilder(super.toString()).append('(');
         sb.append(ruleType == null ? null : ruleType.getSimpleName());
         if (ancestorQualifier != null) {
             sb.append("q=").append(ancestorQualifier).append(", ");
@@ -57,7 +57,7 @@ final class ReferenceExtractionStrategy<R extends ParserRuleContext, T extends E
             sb.append("typeHint=").append(typeHint);
         }
         sb.append("extractor=").append(offsetsExtractor);
-        return sb.append('>').toString();
+        return sb.append(')').toString();
     }
 
     @Override

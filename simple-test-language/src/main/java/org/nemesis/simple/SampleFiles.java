@@ -40,13 +40,17 @@ public enum SampleFiles implements SampleFile<SimpleLanguageLexer, SimpleLanguag
     MUCH_NESTING_UNFORMATTED("much-nesting-unformatted.sim"),
     MINIMAL_MULTILINE("minimal-with-multiline-comments.sim"),
     LONG_ITEMS("minimal_with_long_items.sim"),
-    FORMATTING_TUTORIAL("formatting-tutorial.sim")
-    ;
+    FORMATTING_TUTORIAL("formatting-tutorial.sim");
 
     private final String name;
 
     SampleFiles(String name) {
         this.name = name;
+    }
+
+    @Override
+    public String fileName() {
+        return name;
     }
 
     @Override
@@ -81,17 +85,16 @@ public enum SampleFiles implements SampleFile<SimpleLanguageLexer, SimpleLanguag
     }
 
     @Override
+    public CharStream charStream() throws IOException {
+        return CharStreams.fromReader(new InputStreamReader(inputStream(),
+                UTF_8), name);
+    }
+
+    @Override
     public InputStream inputStream() {
         InputStream result = SampleFiles.class.getResourceAsStream(name);
         assert result != null : name + " not found in " + SampleFiles.class.getPackage().getName().replace('.', '/');
         return result;
-    }
-
-    @Override
-    public CharStream charStream() throws IOException {
-        InputStream in = inputStream();
-        return CharStreams.fromReader(new InputStreamReader(in,
-                UTF_8), name);
     }
 
     @Override
@@ -117,5 +120,4 @@ public enum SampleFiles implements SampleFile<SimpleLanguageLexer, SimpleLanguag
         result.removeErrorListeners();
         return result;
     }
-
 }

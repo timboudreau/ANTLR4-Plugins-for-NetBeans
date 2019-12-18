@@ -39,7 +39,7 @@ import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.data.SemanticRegion;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.cookies.EditorCookie;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;

@@ -23,10 +23,11 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.refactoring.AbstractRefactoringContext;
 import org.nemesis.antlr.refactoring.AntlrRefactoringPluginFactory;
-import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
@@ -124,19 +125,71 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
     public final Problem usagesOf(BooleanSupplier cancelled, FileObject file,
             NamedRegionKey<?> optionalImportKey,
             PetaFunction<IntRange<? extends IntRange<?>>, String, FileObject, ExtractionKey<?>, Extraction> usageConsumer) {
-        Problem result = null;
-        ImportFinder imports = ImportFinder.forMimeType(file.getMIMEType());
-        if (imports.isAlwaysEmpty()) {
-            return result;
-        }
-        if (!(imports instanceof ImportKeySupplier)) {
-            if (optionalImportKey == null) {
-                Logger.getLogger(AntlrRefactoringPluginFactory.class.getName()).log(Level.WARNING, "Import finder for {0} does not " + "implement {1}, so import names cannot be " + "tied to specific keys", new Object[]{file.getMIMEType(), ImportKeySupplier.class.getName()});
-            } else {
-                Iterable<FileObject> all = possibleImportersOf(cancelled, file);
-                if (cancelled.getAsBoolean()) {
-                    return result;
+        Contextish ctxi = new Contextish();
+        return ctxi.ctx(() -> {
+            Problem result = null;
+            ImportFinder imports = ImportFinder.forMimeType(file.getMIMEType());
+            if (imports.isAlwaysEmpty()) {
+                return result;
+            }
+            if (!(imports instanceof ImportKeySupplier)) {
+                if (optionalImportKey == null) {
+                    Logger.getLogger(AntlrRefactoringPluginFactory.class.getName()).log(Level.WARNING, "Import finder for {0} does not " + "implement {1}, so import names cannot be " + "tied to specific keys", new Object[]{file.getMIMEType(), ImportKeySupplier.class.getName()});
+                } else {
+                    Iterable<FileObject> all = possibleImportersOf(cancelled, file);
+                    if (cancelled.getAsBoolean()) {
+                        return result;
+                    }
+                    Set<FileObject> seen = new HashSet<>();
+                    seen.add(file);
+                    for (FileObject fo : all) {
+                        if (seen.contains(fo)) {
+                            continue;
+                        }
+                        if (cancelled.getAsBoolean()) {
+                            return result;
+                        }
+                        if (fo.getMIMEType().equals(file.getMIMEType())) {
+                            try {
+                                Extraction ext = parse(fo);
+                                if (ext == null) {
+                                    result = chainProblems(result, new Problem(false, "Null extraction for " + fo));
+                                    continue;
+                                }
+                                NamedSemanticRegions<?> imported = ext.namedRegions(optionalImportKey);
+                                if (!imported.isEmpty()) {
+                                    for (GrammarSource<?> src : imports.allImports(ext, CollectionUtils.blackHoleSet())) {
+                                        if (cancelled.getAsBoolean()) {
+                                            return result;
+                                        }
+                                        Optional<FileObject> importedFile = src.lookup(FileObject.class);
+                                        if (importedFile.isPresent() && file.equals(importedFile.get())) {
+                                            String importName = src.name();
+                                            NamedSemanticRegion<?> region = imported.regionFor(importName);
+                                            if (region != null) {
+                                                Problem p = usageConsumer.accept(region, region.name(), fo, optionalImportKey, ext);
+                                                result = chainProblems(result, p);
+                                                if (cancelled.getAsBoolean() || (p != null && p.isFatal())) {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                Exceptions.printStackTrace(ex);
+                                return chainProblems(result, new Problem(true, ex.getMessage()));
+                            }
+                        }
+                    }
                 }
+            } else {
+                ImportKeySupplier kimports = (ImportKeySupplier) imports;
+                Set<NamedRegionKey<?>> keys = new HashSet<>(Arrays.asList(kimports.get()));
+                if (optionalImportKey != null) {
+                    keys.add(optionalImportKey);
+                }
+                Iterable<FileObject> all = possibleImportersOf(cancelled, file);
                 Set<FileObject> seen = new HashSet<>();
                 seen.add(file);
                 for (FileObject fo : all) {
@@ -146,77 +199,52 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                     if (cancelled.getAsBoolean()) {
                         return result;
                     }
-                    if (fo.getMIMEType().equals(file.getMIMEType())) {
-                        try {
-                            Extraction ext = parse(fo);
-                            NamedSemanticRegions<?> imported = ext.namedRegions(optionalImportKey);
-                            if (!imported.isEmpty()) {
-                                for (GrammarSource<?> src : imports.allImports(ext, CollectionUtils.blackHoleSet())) {
-                                    if (cancelled.getAsBoolean()) {
-                                        return result;
+                    for (NamedRegionKey<?> key : keys) {
+                        if (fo.getMIMEType().equals(file.getMIMEType())) {
+                            try {
+                                Extraction ext = parse(fo);
+                                if (ext == null) {
+                                    ext = parse(fo);
+                                    if (ext == null) {
+                                        result = chainProblems(result, new Problem(false, "Null extraction for " + fo));
+                                        continue;
+                                    } else {
+                                        System.out.println("SECOND TRY WORKD FOR " + fo);
                                     }
-                                    Optional<FileObject> importedFile = src.lookup(FileObject.class);
-                                    if (importedFile.isPresent() && file.equals(importedFile.get())) {
-                                        String importName = src.name();
-                                        NamedSemanticRegion<?> region = imported.regionFor(importName);
-                                        if (region != null) {
-                                            Problem p = usageConsumer.accept(region, region.name(), fo, optionalImportKey, ext);
-                                            result = chainProblems(result, p);
-                                            if (cancelled.getAsBoolean() || (p != null && p.isFatal())) {
-                                                break;
+                                }
+                                NamedSemanticRegions<?> imported = ext.namedRegions(key);
+                                if (!imported.isEmpty()) {
+                                    for (GrammarSource<?> src : imports.allImports(ext, CollectionUtils.blackHoleSet())) {
+                                        Optional<FileObject> importedFile = src.lookup(FileObject.class);
+                                        if (importedFile.isPresent() && file.equals(importedFile.get())) {
+                                            String importName = src.name();
+                                            NamedSemanticRegion<?> region = imported.regionFor(importName);
+                                            if (region != null) {
+                                                usageConsumer.accept(region, region.name(), fo, key, ext);
                                             }
                                         }
                                     }
                                 }
-                            }
-                        } catch (Exception ex) {
-                            Exceptions.printStackTrace(ex);
-                            return chainProblems(result, new Problem(true, ex.getMessage()));
-                        }
-                    }
-                }
-            }
-        } else {
-            ImportKeySupplier kimports = (ImportKeySupplier) imports;
-            Set<NamedRegionKey<?>> keys = new HashSet<>(Arrays.asList(kimports.get()));
-            if (optionalImportKey != null) {
-                keys.add(optionalImportKey);
-            }
-            Iterable<FileObject> all = possibleImportersOf(cancelled, file);
-            Set<FileObject> seen = new HashSet<>();
-            seen.add(file);
-            for (FileObject fo : all) {
-                if (seen.contains(fo)) {
-                    continue;
-                }
-                if (cancelled.getAsBoolean()) {
-                    return result;
-                }
-                for (NamedRegionKey<?> key : keys) {
-                    if (fo.getMIMEType().equals(file.getMIMEType())) {
-                        try {
-                            Extraction ext = NbAntlrUtils.parseImmediately(fo);
-                            NamedSemanticRegions<?> imported = ext.namedRegions(key);
-                            if (!imported.isEmpty()) {
-                                for (GrammarSource<?> src : imports.allImports(ext, CollectionUtils.blackHoleSet())) {
-                                    Optional<FileObject> importedFile = src.lookup(FileObject.class);
-                                    if (importedFile.isPresent() && file.equals(importedFile.get())) {
-                                        String importName = src.name();
-                                        NamedSemanticRegion<?> region = imported.regionFor(importName);
-                                        if (region != null) {
-                                            usageConsumer.accept(region, region.name(), fo, key, ext);
-                                        }
-                                    }
+                            } catch (Exception ex) {
+                                Exceptions.printStackTrace(ex);
+                                String msg = ex.getMessage();
+                                if (msg == null) {
+                                    msg = ex.toString();
                                 }
+                                result = chainProblems(result, new Problem(true, msg));
                             }
-                        } catch (Exception ex) {
-                            Exceptions.printStackTrace(ex);
-                            result = chainProblems(result, new Problem(true, ex.getMessage()));
                         }
                     }
                 }
             }
+            return result;
+        });
+    }
+
+    static class Contextish extends AbstractRefactoringContext {
+
+        <T> T ctx(Supplier<T> supp) {
+            return AbstractRefactoringContext.inParsingContext(supp);
         }
-        return result;
     }
 }

@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -58,6 +58,10 @@ limitations under the License.
             <artifactId>antlr-wrapper</artifactId>
         </dependency>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-grammar</artifactId>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
@@ -65,6 +69,67 @@ limitations under the License.
     </dependencies>
     <build>
         <plugins>
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-resources</id>
+                        <!-- here the phase you need -->
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${basedir}/target/classes/org/nemesis/antlr/sample</outputDirectory>
+                            <resources>          
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/antlr-live-parsing/src/main/antlr4/ignoreme/placeholder/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/antlr-language-grammar/src/main/antlr4/imports/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/antlr-language-grammar/src/main/antlr4/org/nemesis/antlr/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/antlr-language-formatting/src/main/resources/org/nemesis/antlr/language/formatting/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/antlr-in-memory-build/src/test/resources/org/nemesis/antlr/memory/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${basedir}/../antlr-editing-plugins/tiny-ebnf-parser/src/main/antlr4/com/mastfrog/tiny/ebnf/parser/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
+                            </resources>              
+                        </configuration>            
+                    </execution>
+                </executions>
+            </plugin>            
             <plugin>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-maven-plugin</artifactId>
@@ -94,6 +159,7 @@ limitations under the License.
                     <moduleType>autoload</moduleType>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <publicPackages>
+                        <publicPackage>org.nemesis.antlr.sample</publicPackage>
                         <publicPackage>org.nemesis.simple</publicPackage>
                         <publicPackage>org.nemesis.simple.language</publicPackage>
                     </publicPackages>

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.completion;
 
+import com.mastfrog.util.search.Bias;
 import java.util.List;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.Token;
@@ -36,8 +37,86 @@ public final class TokenUtils {
     }
 
     /**
-     * Binary search over the token stream for the token containing or
-     * abutting the caret.
+     * Binary search over the token stream for the token containing or abutting
+     * the caret, and return a CaretTokenInfo for it.
+     *
+     * @param caret The caret position
+     * @param stream The tokens
+     * @return A CaretTokenInfo
+     */
+    public static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream) {
+        return caretTokenInfo(caret, stream, Bias.NONE);
+    }
+
+    /**
+     * Binary search over the token stream for the token containing or abutting
+     * the caret, and return a CaretTokenInfo for it.
+     *
+     * @param caret The caret position
+     * @param stream The tokens
+     * @param bias If FORWARD and the caret position is the end of the token
+     * @return A CaretTokenInfo
+     */
+    public static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream, Bias bias) {
+        if (stream.isEmpty()) {
+            System.out.println("Empty token list");
+            return CaretTokenInfo.EMPTY;
+        }
+        if (stream.size() == 1) {
+            System.out.println("One token in list.");
+            Token t = stream.get(0);
+            int tokenIndex = caret >= t.getStartIndex() && caret <= t.getStopIndex()
+                    ? t.getTokenIndex() : -1;
+            if (tokenIndex >= 0) {
+                CaretTokenInfo result = new CaretTokenInfo(t, caret, stream);
+                return result.biasedBy(bias);
+            }
+            System.out.println("single token on-match");
+            return CaretTokenInfo.EMPTY;
+        }
+        Token first = stream.get(0);
+        Token last = stream.get(stream.size() - 1);
+        if (caret >= first.getStartIndex() && caret <= last.getStopIndex()) {
+            return caretTokenInfo(caret, stream, first.getTokenIndex(), last.getTokenIndex())
+                    .biasedBy(bias);
+        }
+        System.out.println("first "+ first + " last " + last + " non-match for " + caret);
+        return CaretTokenInfo.EMPTY;
+    }
+
+    /**
+     * Binary search over the token stream for the token containing or abutting
+     * the caret; note that this method assumes a 1:1 correspondence between
+     * stream.indexOf(someToken) and someToken.getTokenIndex(), and may give
+     * unpredictable results if the list was constructed from a
+     * CommonTokenStream which hides tokens on some channels. Get your tokens
+     * directly from a lexer, not from a TokenStream to be sure that is not
+     * happening.
+     *
+     * @param caret The caret position
+     * @param stream The tokens
+     * @return The token id
+     */
+    public static int findCaretToken(int caret, List<? extends Token> stream) {
+        if (stream.isEmpty()) {
+            return -1;
+        }
+        if (stream.size() == 1) {
+            Token t = stream.get(0);
+            return caret >= t.getStartIndex() && caret <= t.getStopIndex()
+                    ? t.getTokenIndex() : -1;
+        }
+        Token first = stream.get(0);
+        Token last = stream.get(stream.size() - 1);
+        if (caret >= first.getStartIndex() && caret <= last.getStopIndex()) {
+            return findCaretToken(caret, stream, first.getTokenIndex(), last.getTokenIndex());
+        }
+        return -1;
+    }
+
+    /**
+     * Binary search over the token stream for the token containing or abutting
+     * the caret.
      *
      * @param caret The caret position
      * @param stream The tokens
@@ -45,7 +124,36 @@ public final class TokenUtils {
      * @param stop Search end
      * @return The token id
      */
-    public static int findCaretToken(int caret, List<Token> stream, int start, int stop) {
+    public static int findCaretToken(int caret, List<? extends Token> stream, int start, int stop) {
+        // We must add 1, or for single char tokens, we will offer completions that
+        // could come *after* the token the caret is before
+        return _findCaretToken(caret, stream, Math.max(0, start), Math.min(stream.size() - 1, stop));
+    }
+
+    private static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream, int start, int stop) {
+        if (stream.isEmpty()) {
+            System.out.println("empty stream");
+            return CaretTokenInfo.EMPTY;
+        }
+        int tok = findCaretToken(caret, stream, start, stop);
+        System.out.println("  findCaretToken gets " + tok + " for " + start + ":" + stop);
+        if (tok < 0) {
+            System.out.println("caret token for " + caret + " < 0 w/ startstop " + start + ":" + stop);
+            return CaretTokenInfo.EMPTY;
+        }
+        if (tok == stream.size() - 1 && stream.size() > 1) {
+            Token t = stream.get(tok);
+            if (Token.EOF == t.getType()) {
+                System.out.println("  is eof, back up");
+                t = stream.get(tok - 1);
+                return new CaretTokenInfo(t, caret, stream).after();
+            }
+        }
+        System.out.println("  returning info for " + stream.get(tok));
+        return new CaretTokenInfo(stream.get(tok), caret, stream);
+    }
+
+    private static int _findCaretToken(int caret, List<? extends Token> stream, int start, int stop) {
         // binary search
         Token first = stream.get(start);
         if (contains(first, caret)) {
@@ -73,13 +181,13 @@ public final class TokenUtils {
             if (middle < 0) {
                 return -1;
             }
-            return findCaretToken(caret, stream, start, middle);
+            return _findCaretToken(caret, stream, start, middle);
         } else {
             middle++;
             if (middle > stream.size()) {
                 return -1;
             }
-            return findCaretToken(caret, stream, middle, stop);
+            return _findCaretToken(caret, stream, middle, stop);
         }
     }
 
@@ -159,5 +267,4 @@ public final class TokenUtils {
         }
         return -1;
     }
-
 }

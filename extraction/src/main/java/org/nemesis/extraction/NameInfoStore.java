@@ -22,6 +22,8 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import com.mastfrog.graph.StringGraph;
+import com.mastfrog.util.collections.IntSet;
+import java.util.EnumMap;
 import org.nemesis.data.named.ContentsChecksums;
 import org.netbeans.api.annotations.common.NullAllowed;
 
@@ -44,4 +46,6 @@ interface NameInfoStore {
     <T extends Enum<T>> void addNameAndBoundsKeyPair(NameAndBoundsPair<T> pair);
 
     <T extends Enum<T>> void addChecksums(NamedRegionKey<T> key, ContentsChecksums<NamedSemanticRegion<T>> checksums);
+
+    <T extends Enum<T>> void noteRuleIdMapping(Class<T> enumType, EnumMap<T, IntSet> ruleIdsForKeys);
 }

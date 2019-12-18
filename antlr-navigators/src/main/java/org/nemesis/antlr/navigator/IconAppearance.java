@@ -17,7 +17,7 @@ package org.nemesis.antlr.navigator;
 
 import java.util.Set;
 import javax.swing.ImageIcon;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.util.ImageUtilities;
 
 /**

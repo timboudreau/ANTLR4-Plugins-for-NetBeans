@@ -20,11 +20,13 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.ArrayList;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -34,7 +36,11 @@ import java.util.prefs.Preferences;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CommonToken;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,6 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.nemesis.antlr.ANTLRv4Lexer;
+import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrHierarchy;
 import org.nemesis.antlr.file.AntlrKeys;
@@ -59,17 +69,15 @@ import org.nemesis.antlr.nbinput.DocumentGrammarSourceFactory;
 import org.nemesis.antlr.nbinput.FileObjectGrammarSourceImplementationFactory;
 import org.nemesis.antlr.nbinput.RelativeResolverRegistryImpl;
 import org.nemesis.antlr.nbinput.SnapshotGrammarSource;
-import org.nemesis.antlr.spi.language.AntlrParseResult;
-import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Attributions;
+import org.nemesis.extraction.Extractor;
 import org.nemesis.extraction.Extractors;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.source.api.GrammarSource;
-import org.nemesis.source.api.ParsingBag;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
@@ -82,6 +90,8 @@ import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.impl.TaskProcessor;
 import org.netbeans.modules.parsing.nb.DataObjectEnvFactory;
+import org.netbeans.modules.parsing.nb.EditorMimeTypesImpl;
+import org.netbeans.modules.projectapi.nb.NbProjectManager;
 import org.netbeans.spi.editor.document.DocumentFactory;
 import org.netbeans.spi.queries.FileEncodingQueryImplementation;
 import org.openide.cookies.EditorCookie;
@@ -134,11 +144,7 @@ public class AntlrExtractorTest {
 
     @Test
     public void testAttribution() throws Throwable {
-        if (true) {
-            // WTF - we keep initializing the entire module system
-            // and trying to start the whole IDE after one trivial change.
-            return;
-        }
+        System.out.println("PROJECT: " + project.allFiles());
         FileObject fo = project.file("NestedMaps.g4");
         assertNotNull(fo);
         DataObject dob = DataObject.find(fo);
@@ -149,25 +155,11 @@ public class AntlrExtractorTest {
         assertNotNull(doc);
         doc.putProperty("Tools-Options->Editor->Formatting->Preview - Preferences", Preferences.userRoot()); // don't ask.
 
-        Extraction[] ers = new Extraction[1];
-        // if we use parser manager here, we accidentally start
-        // trying to load and start the entire IDE.
-//        Source src = Source.create(doc);
-//        ParserManager.parse(Collections.singleton(src), new UserTask() {
-//            @Override
-//            public void run(ResultIterator resultIterator) throws Exception {
-//                Parser.Result res = resultIterator.getParserResult();
-//                assertNotNull(res);
-//                assertTrue(res instanceof ExtractionParserResult);
-//                ers[0] = ((ExtractionParserResult) res).extraction();
-//            }
-//        });
-//        ers[0] = NbAntlrUtils.parseImmediately(fo);
-        AntlrParseResult res = AntlrNbParser.parse(ParsingBag.get(doc, "text/x-g4"), () -> false);
-        assertNotNull(res);
-        ers[0] = res.extraction();
-        assertNotNull(ers[0]);
-        Extraction ext = ers[0];
+        System.out.println("TEXT: --------------------"
+                + "\n" + doc.getText(0, doc.getLength()) + "\n---------------\n");
+
+
+        Extraction ext = parseImmediately(doc);
         assertNotNull(ext);
         SemanticRegions<UnknownNameReference<RuleTypes>> unks = ext.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
         System.out.println("UNKNOWN: "
@@ -181,9 +173,42 @@ public class AntlrExtractorTest {
             }
         });
         System.out.println("UNKNOWN: " + unknownNames);
-        assertFalse(unknownNames.isEmpty());
 
+        if (true) {
+            return;
+        }
+        assertFalse(unknownNames.isEmpty());
         assertFalse(unks.isEmpty());
+
+        // While we're in here, test that the new code for
+        // mapping extracted items back to parser rules, which
+        // is needed for generic code completion
+        List<String> parserRuleIdentifiers = new ArrayList<>();
+        ext.namesForRule(ANTLRv4Parser.RULE_parserRuleIdentifier, "", Integer.MAX_VALUE, "", (s, e) -> {
+            System.out.println("parser id '" + s + "' " + e);
+            parserRuleIdentifiers.add(s);
+        });
+        List<String> lexerRuleIdentifiers = new ArrayList<>();
+        ext.namesForRule(ANTLRv4Parser.RULE_tokenRuleIdentifier, "", Integer.MAX_VALUE, "", (s, e) -> {
+            System.out.println("lexer id '" + s + "' " + e);
+            lexerRuleIdentifiers.add(s);
+        });
+//        List<String> fragmentRuleIdentifiers = new ArrayList<>();
+//        ext.namesForRule(ANTLRv4Parser.RULE_fragmentRuleIdentifier, "", Integer.MAX_VALUE, (s, e) -> {
+//            System.out.println("fragment id '" + s + "' " + e);
+//            fragmentRuleIdentifiers.add(s);
+//        });
+        assertFalse(parserRuleIdentifiers.isEmpty(), "No parser rule names");
+//        assertFalse(lexerRuleIdentifiers.isEmpty(), "No lexer rule names");
+//        assertFalse(fragmentRuleIdentifiers.isEmpty(), "No fragement rule names");
+
+
+        if (true) {
+            // Somewhere in here, something tries to initialize the entire
+            // module system from the wrong entry point, throws an exception
+            // and dies, and takes the import finder with it
+            return;
+        }
 
         Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> attributions
                 = ext.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
@@ -203,10 +228,6 @@ public class AntlrExtractorTest {
         Thread.sleep(2000);
 
         assertEquals(unknownNames, attributedNames);
-    }
-
-    static {
-        System.setProperty("java.awt.headless", "true");
     }
 
     @BeforeEach
@@ -235,20 +256,19 @@ public class AntlrExtractorTest {
                         SnapshotGrammarSource.Factory.class,
                         RelativeResolverRegistryImpl.class,
                         CharStreamGrammarSourceFactory.class,
-//                        NbProjectManager.class,
+                        NbProjectManager.class,
                         NbJFSUtilities.class,
                         NioNotifier.class,
                         NbLoaderPool.class,
                         DataObjectEnvFactory.class,
-//                        EditorMimeTypesImpl.class,
-                        //                        NbExtractors.class,
+                        EditorMimeTypesImpl.class,
                         DF.class,
                         FQ.class,
                         FakeExtractors.class
                 )
                 .addToMimeLookup("", new DF())
                 .addToMimeLookup("text/x-g4", new DF(), new FakePrefs(""),
-//                        kit,
+                        kit,
                         new PlainKit(),
                         AntlrParserFactory.class,
                         AntlrHierarchy.antlrLanguage(), FQ.class)
@@ -358,18 +378,22 @@ public class AntlrExtractorTest {
 
         @Override
         public <P extends ParserRuleContext> Extraction extract(String mimeType, GrammarSource<?> src, Class<P> type) {
+            System.out.println("fake extractors extract " + src);
             // Avoid accidentally initializing the modules system
             try {
                 if (src.source() instanceof FileObject) {
                     FileObject fo = (FileObject) src.source();
-                    return NbAntlrUtils.parseImmediately(fo);
+                    return parseImmediately(fo);
+//                    return NbAntlrUtils.parseImmediately(fo);
                 } else if (src.source() instanceof Document) {
                     Document doc = (Document) src.source();
-                    return NbAntlrUtils.parseImmediately(doc);
+                    return parseImmediately(doc);
+//                    return NbAntlrUtils.parseImmediately(doc);
                 }
                 Optional<Document> doc = src.lookup(Document.class);
                 if (doc.isPresent()) {
-                    return NbAntlrUtils.parseImmediately(doc.get());
+//                    return NbAntlrUtils.parseImmediately(doc.get());
+                    return parseImmediately(doc.get());
                 }
                 throw new IllegalStateException("No doc for " + src + " with " + src.source());
             } catch (IOException ex) {
@@ -378,6 +402,38 @@ public class AntlrExtractorTest {
                 return com.mastfrog.util.preconditions.Exceptions.chuck(ex);
             }
         }
+    }
+
+    private static Extraction parseImmediately(Document doc) throws IOException, BadLocationException {
+        return parse(GrammarSource.find(doc, ANTLR_MIME_TYPE), doc);
+    }
+
+    private static Extraction parseImmediately(FileObject doc) throws IOException, BadLocationException {
+        return parse(GrammarSource.find(doc, ANTLR_MIME_TYPE), doc);
+    }
+
+    private static Extraction parse(GrammarSource<?> src, Object o) throws IOException {
+        CharStream str = src.stream();
+        Extractor<? super GrammarFileContext> ext = Extractor.forTypes(ANTLR_MIME_TYPE, GrammarFileContext.class);
+//        System.out.println("EXTRACTOR: " + ext);
+        ANTLRv4Lexer lex = new ANTLRv4Lexer(str);
+        List<Token> tokens = new ArrayList<>();
+        Token t;
+        int ix = 0;
+        while ((t = lex.nextToken()) != null && t.getType() != Token.EOF) {
+            CommonToken ct = new CommonToken(t);
+            ct.setTokenIndex(ix++);
+        }
+        lex.reset();
+//        lex.removeErrorListeners();
+        CommonTokenStream cts = new CommonTokenStream(lex);
+        ANTLRv4Parser parser = new ANTLRv4Parser(cts);
+        GrammarFileContext ctx = parser.grammarFile();
+        System.out.println("SRC: " + src);
+        System.out.println("GRAMMAR FILE: " + ctx);
+        Extraction result = ext.extract(ctx, src, tokens);
+        System.out.println("GOT EXTRACTION\n" + result);
+        return result;
     }
 
     static class FakePrefs extends AbstractPreferences {

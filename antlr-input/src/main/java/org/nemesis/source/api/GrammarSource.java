@@ -133,6 +133,19 @@ public final class GrammarSource<T> implements Serializable {
         return Objects.equals(this.impl, other.impl);
     }
 
+    /**
+     * Entry point for creating a GrammarSource, which is a factory for Antlr
+     * char streams and allows related/referenced grammar sources to be
+     * resolved. The types that are supported depend on the set of factories
+     * registered in META-INF/namedServices for the given mime type, and the
+     * returned grammar source may proxy to a derived object (such as the open
+     * document for a file).
+     *
+     * @param <T> The document type
+     * @param document The document
+     * @param mimeType The mime type
+     * @return A grammar source or null
+     */
     public static <T> GrammarSource<T> find(T document, String mimeType) {
         return GSAccessor.getDefault().newGrammarSource(mimeType, document);
     }
@@ -267,7 +280,6 @@ public final class GrammarSource<T> implements Serializable {
         GSAccessor.DEFAULT = new GSAccessorImpl();
     }
 
-
     private static final class None extends GrammarSourceImplementation<Object> {
 
         None() {
@@ -308,6 +320,7 @@ public final class GrammarSource<T> implements Serializable {
     // Copy of BaseUtilities from NetBeans to avoid dependency
     private static final Logger LOG = Logger.getLogger(GrammarSource.class.getName());
     private static Boolean pathURIConsistent;
+
     private static boolean pathToURISupported() {
         Boolean res = pathURIConsistent;
         if (res == null) {
@@ -327,10 +340,11 @@ public final class GrammarSource<T> implements Serializable {
     }
 
     /**
-     * Converts a file to a URI while being safe for UNC paths.
-     * Uses {@link File f}.{@link File#toPath() toPath}().{@link java.nio.file.Path#toUri() toUri}()
+     * Converts a file to a URI while being safe for UNC paths. Uses
+     * {@link File f}.{@link File#toPath() toPath}().{@link java.nio.file.Path#toUri() toUri}()
      * which results into {@link URI} that works with {@link URI#normalize()}
      * and {@link URI#resolve(URI)}.
+     *
      * @param f a file
      * @return a {@code file}-protocol URI which may use the host field
      * @see java.nio.file.Path.toUri
@@ -352,10 +366,10 @@ public final class GrammarSource<T> implements Serializable {
             try {
                 // #214131 workaround
                 return new URI(
-                    /* "file" */u.getScheme(), /* null */u.getUserInfo(),
-                    /* null (!) */u.getHost(), /* -1 */u.getPort(),
-                    /* "/..." */u.getPath(), /* null */u.getQuery(),
-                    /* null */u.getFragment()
+                        /* "file" */u.getScheme(), /* null */ u.getUserInfo(),
+                        /* null (!) */ u.getHost(), /* -1 */ u.getPort(),
+                        /* "/..." */ u.getPath(), /* null */ u.getQuery(),
+                        /* null */ u.getFragment()
                 );
             } catch (URISyntaxException ex) {
                 LOG.log(Level.FINE, "could not convert " + f + " to URI", ex);

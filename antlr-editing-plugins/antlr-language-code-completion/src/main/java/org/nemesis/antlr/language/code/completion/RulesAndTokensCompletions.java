@@ -40,7 +40,6 @@ import org.nemesis.antlr.completion.annos.InsertAction;
 import org.nemesis.antlr.file.AntlrHierarchy;
 import org.nemesis.antlr.language.code.completion.RulesAndTokensCompletions.AntlrCompletionItem;
 import org.nemesis.source.api.GrammarSource;
-import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.spi.editor.completion.CompletionProvider;
 
 /**
@@ -53,7 +52,7 @@ public class RulesAndTokensCompletions implements CompletionItemProvider<AntlrCo
     private static final String AT_PARSER_RULE_COLON = "parserRules";
     private static final String IN_NO_RULE = "noRule";
 
-    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = CompletionProvider.class)
+//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = CompletionProvider.class)
     public static CompletionProvider get() {
         RulesAndTokensCompletions c = new RulesAndTokensCompletions();
 
@@ -156,15 +155,15 @@ public class RulesAndTokensCompletions implements CompletionItemProvider<AntlrCo
         public String kind() {
             switch (type) {
                 case FRAGDEC_ID:
-                    return "(fragment)";
+                    return "<font color='!controlShadow'> (fragment)</font>";
                 case TOKDEC_ID:
                 case TOKEN_ID:
-                    return "(lexer)";
+                    return "<font color='!controlShadow'> (lexer)</font>";
                 case PARSER_RULE_ID:
                 case PARDEC_ID:
-                    return "(parser)";
+                    return "<font color='!controlShadow'> (parser)<font>";
             }
-            return "Token";
+            return "<font color='!controlShadow'> (token)";
         }
 
         @Override
@@ -214,15 +213,15 @@ public class RulesAndTokensCompletions implements CompletionItemProvider<AntlrCo
         public String kind() {
             switch (type) {
                 case FRAGDEC_ID:
-                    return "(fragment)";
+                    return "<font color='!controlShadow'> (fragment)";
                 case TOKDEC_ID:
                 case TOKEN_ID:
-                    return "(lexer)";
+                    return "<font color='!controlShadow'> (lexer)";
                 case PARSER_RULE_ID:
                 case PARDEC_ID:
-                    return "(parser)";
+                    return "<font color='!controlShadow'> (parser)";
             }
-            return "Token";
+            return "<font color='!controlShadow'> (token)";
         }
 
         @Override

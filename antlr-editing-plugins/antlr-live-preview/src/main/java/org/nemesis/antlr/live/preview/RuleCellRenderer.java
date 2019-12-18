@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
 import java.util.function.Function;
@@ -44,10 +45,11 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
     public Component getListCellRendererComponent(JList list, String value, int index, boolean isSelected, boolean cellHasFocus) {
         Component result = ren.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
         ren.setHtml(true);
+        value = Escaper.BASIC_HTML.escape(value);
         String prefix = "";
         AdhocColoring col = colorings.get(value);
         if (!col.isActive()) {
-            prefix += "<font color=#aaaaaa>";
+            prefix += "<font color='#aaaaaa'>";
         }
         if (col.isBackgroundColor()) {
             prefix += "<b>";
@@ -65,5 +67,4 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         ren.setIndent(5);
         return result;
     }
-
 }

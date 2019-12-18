@@ -39,7 +39,7 @@ import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.NbPreferences;

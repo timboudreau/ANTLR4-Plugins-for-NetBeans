@@ -122,6 +122,7 @@ public enum JdkTypes implements TypeName {
     NO_SUCH_ELEMENT_EXCEPTION("java.util.NoSuchElementException"),
     OBJECTS("java.util.Objects"),
     OPTIONAL("java.util.Optional"),
+    PRIMITIVE_ITERATOR("java.util.PrimitiveIterator"),
     SCANNER("java.util.Scanner"),
     SERVICE_LOADER("java.util.ServiceLoader"),
     SET("java.util.Set"),

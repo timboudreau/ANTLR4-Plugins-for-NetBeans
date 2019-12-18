@@ -59,6 +59,8 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.TreeSet;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.xml.XMLUtil;
@@ -75,7 +77,7 @@ import org.xml.sax.SAXParseException;
  *
  * @author Tim Boudreau
  */
-//@SupportedAnnotationTypes({KEYBINDING_ANNO, GOTO_ANNOTATION})
+@SupportedAnnotationTypes({KEYBINDING_ANNO, GOTO_ANNOTATION})
 //@SupportedOptions(AnnotationUtils.AU_LOG)
 //@ServiceProvider(service = Processor.class)
 public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
@@ -118,6 +120,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
+        System.out.println("KEYBINDING PROCESSOR ON INIT");
         validator = utils.multiAnnotations().whereAnnotationType(KEYBINDING_ANNO, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType()
                     .build()
@@ -157,10 +160,13 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        System.out.println("KEYB proc field " + mimeType + " var " + var);
         if (mimeType != null) {
             updateTargetElement(mimeType, var);
             KeysFile keysFile = keysFile(mimeType, "NetBeans", false);
             keysFile.add(new KeybindingInfo("D-B", false, "goto-declaration"), var);
+        } else {
+            System.out.println("No mime type in " + mirror);
         }
         return false;
     }
@@ -195,7 +201,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 files.add(file);
                 elementForFile.put(file, method);
                 profileForKeysFile.put(file, p);
-                writeLayerEntriesForKeysFile(file, p, method, mimeType);
+//                writeLayerEntriesForKeysFile(file, p, method, mimeType);
             }
         }
         generateActionImplementation(actionName, method, mimeType, mirror);
@@ -204,6 +210,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws IOException {
+        System.out.println("KEYB on round complete with " + files);
         for (KeysFile file : files.values()) {
             writeOneKeysFileAndActions(file, elementForFile.get(file));
         }
@@ -407,9 +414,11 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     private void writeOneKeysFileAndActions(KeysFile file, Element method) throws IOException {
         Filer filer = processingEnv.getFiler();
         String path = packagePath(file.mimeType()) + file.name;
+        System.out.println("Write keys file and actions " + file.mimeType + " to " + path);
         FileObject resource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path, method);
         try (OutputStream out = resource.openOutputStream()) {
             out.write(file.toString().getBytes(UTF_8));
+            writeLayerEntriesForKeysFile(file, file.profile, method, file.mimeType);
         }
     }
 
@@ -447,7 +456,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         String keysFileName = keysFileName(mimeType, profile, mac);
         KeysFile file = files.get(keysFileName);
         if (file == null) {
-            file = new KeysFile(keysFileName, mimeType);
+            file = new KeysFile(keysFileName, mimeType, profile);
             files.put(keysFileName, file);
             String path = packagePath(mimeType) + keysFileName;
             Filer filer = processingEnv.getFiler();
@@ -468,11 +477,13 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         final String name;
         private final Set<String> bindings = new TreeSet<>();
         private final Map<String, Element> elements = new HashMap<>();
-        private final String mimeType;
+        final String mimeType;
+        final String profile;
 
-        public KeysFile(String name, String mimeType) {
+        public KeysFile(String name, String mimeType, String profile) {
             this.name = name;
             this.mimeType = mimeType;
+            this.profile = profile;
         }
 
         String mimeType() {

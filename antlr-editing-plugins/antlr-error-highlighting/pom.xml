@@ -113,6 +113,10 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-refactoring-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-document</artifactId>
         </dependency>
         <dependency>
@@ -127,6 +131,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>localizers</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -159,6 +167,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-refactoring</artifactId>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

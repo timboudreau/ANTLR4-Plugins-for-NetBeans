@@ -15,13 +15,11 @@
  */
 package org.nemesis.swing.html;
 
-
 import java.awt.*;
 import java.awt.event.*;
 
 import java.beans.PropertyChangeListener;
 import java.beans.VetoableChangeListener;
-
 
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -33,27 +31,33 @@ import javax.swing.border.Border;
 import javax.swing.event.AncestorListener;
 import static org.nemesis.swing.html.HtmlRendererImpl.Type.UNKNOWN;
 
-
 /**
- * Html renderer component implementation.  The actual painting is done by HtmlLabelUI, which uses
- * HtmlRenderer.renderString().  What this class does:   Provide some methods for resetting its state
- * between uses (see HtmlRenderer.createLabel() for why), overrides for a bunch of things for performance
- * reasons, and some conversions to handle the case that the lightweight html renderer is disabled
- * (-J-Dnb.useSwingHtmlRendering=true), to convert our minor extensions to html syntax to standard
- * syntax for the swing renderer.
+ * Html renderer component implementation. The actual painting is done by
+ * HtmlLabelUI, which uses HtmlRenderer.renderString(). What this class does:
+ * Provide some methods for resetting its state between uses (see
+ * HtmlRenderer.createLabel() for why), overrides for a bunch of things for
+ * performance reasons, and some conversions to handle the case that the
+ * lightweight html renderer is disabled (-J-Dnb.useSwingHtmlRendering=true), to
+ * convert our minor extensions to html syntax to standard syntax for the swing
+ * renderer.
  * <p>
- * Mainly this class provides an implementation of the various cell renderer interfaces which
- * HtmlRenderer.Renderer aggregates, and the convenience methods it provides.
+ * Mainly this class provides an implementation of the various cell renderer
+ * interfaces which HtmlRenderer.Renderer aggregates, and the convenience
+ * methods it provides.
  *
  * @author Tim Boudreau
  * @since 4.30
  *
  */
 class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
+
     private static final Rectangle bounds = new Rectangle();
     private static final boolean swingRendering = Boolean.getBoolean("nb.useSwingHtmlRendering"); //NOI18N
     private final Insets EMPTY_INSETS = new Insets(0, 0, 0, 0);
-    enum Type {UNKNOWN, TREE, LIST, TABLE}
+
+    enum Type {
+        UNKNOWN, TREE, LIST, TABLE
+    }
 
     //For experimentation - holding the graphics object may be the source of some
     //strange painting problems on Apple
@@ -79,7 +83,21 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         this(Type.UNKNOWN);
     }
 
-    /** Restore the renderer to a pristine state */
+    private static Font controlFont;
+
+    private static Font controlFont() {
+        if (controlFont == null) {
+            controlFont = UIManager.getFont("controlFont");
+            if (controlFont == null) {
+                controlFont = new Font("Sans Serif", Font.PLAIN, 14);
+            }
+        }
+        return controlFont;
+    }
+
+    /**
+     * Restore the renderer to a pristine state
+     */
     public void reset() {
         assert SwingUtilities.isEventDispatchThread();
         parentFocused = false;
@@ -94,7 +112,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         prefSize = null;
         type = Type.UNKNOWN;
         renderStyle = HtmlRenderer.STYLE_CLIP;
-        setFont(UIManager.getFont("controlFont")); //NOI18N
+        setFont(controlFont()); //NOI18N
         setIconTextGap(3);
         setEnabled(true);
         border = null;
@@ -108,7 +126,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     public Component getTableCellRendererComponent(
-        JTable table, Object value, boolean selected, boolean leadSelection, int row, int column
+            JTable table, Object value, boolean selected, boolean leadSelection, int row, int column
     ) {
         reset();
         configureFrom(value, table, selected, leadSelection);
@@ -124,7 +142,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     public Component getTreeCellRendererComponent(
-        JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean leadSelection
+            JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean leadSelection
     ) {
         reset();
         configureFrom(value, tree, selected, leadSelection);
@@ -143,7 +161,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Component getListCellRendererComponent(
-        JList list, Object value, int index, boolean selected, boolean leadSelection
+            JList list, Object value, int index, boolean selected, boolean leadSelection
     ) {
         reset();
         configureFrom(value, list, selected, leadSelection);
@@ -154,7 +172,7 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
             setForeground(list.getSelectionForeground());
             setOpaque(true);
         }
-        
+
         // ##93658: In GTK we have to paint borders in combo boxes 
         if (HtmlLabelUI.isGTK()) {
             if (index == -1) {
@@ -171,8 +189,10 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return this;
     }
 
-    /** Generic code to set properties appropriately from any of the renderer
-     * fetching methods */
+    /**
+     * Generic code to set properties appropriately from any of the renderer
+     * fetching methods
+     */
     private void configureFrom(Object value, JComponent target, boolean selected, boolean leadSelection) {
         if (value == null) {
             value = "";
@@ -206,13 +226,15 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return result;
     }
 
-    public @Override void addNotify() {
+    public @Override
+    void addNotify() {
         if (swingRendering || type == Type.UNKNOWN) {
             super.addNotify();
         }
     }
 
-    public @Override void removeNotify() {
+    public @Override
+    void removeNotify() {
         if (swingRendering || type == Type.UNKNOWN) {
             super.removeNotify();
         }
@@ -231,8 +253,10 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     Color cellBackground;
+
     public void setCellBackground(Color col) {
         this.cellBackground = col;
+        setOpaque(col != null);
     }
 
     public void setCentered(boolean val) {
@@ -327,7 +351,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return type;
     }
 
-    public @Override Dimension getPreferredSize() {
+    public @Override
+    Dimension getPreferredSize() {
         if (type == UNKNOWN) {
             return getUI().getPreferredSize(this);
         }
@@ -343,12 +368,15 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     /**
-     * Overridden for the case that we're running with the lightweight html renderer disabled, to convert
-     * any less-than-legal html to legal html for purposes of Swing's html rendering.
+     * Overridden for the case that we're running with the lightweight html
+     * renderer disabled, to convert any less-than-legal html to legal html for
+     * purposes of Swing's html rendering.
      *
-     * @return The text - unless the renderer is disabled, this just return super.getText()
+     * @return The text - unless the renderer is disabled, this just return
+     * super.getText()
      */
-    public @Override String getText() {
+    public @Override
+    String getText() {
         String result = super.getText();
 
         if (swingRendering && Boolean.TRUE.equals(html)) {
@@ -368,13 +396,14 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     /**
-     * Converts our extended html syntax (allowing UIManager color keys and omitting opening html tags
-     * into standard html.  Only called if the lightweight html renderer is disabled and we're running with
-     * a standard JLabel UI
+     * Converts our extended html syntax (allowing UIManager color keys and
+     * omitting opening html tags into standard html. Only called if the
+     * lightweight html renderer is disabled and we're running with a standard
+     * JLabel UI
      *
      * @param s The string that is the text of the label
-     * @return The same string converted to standard HTML Swing's rendering infrastructure will know what to do
-     *         with
+     * @return The same string converted to standard HTML Swing's rendering
+     * infrastructure will know what to do with
      */
     private String ensureHtmlTags(String s) {
         s = ensureLegalFontColorTags(s);
@@ -387,7 +416,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     /**
-     * Converts extended UI manager color tags into legal html in the case that we're using swing rendering
+     * Converts extended UI manager color tags into legal html in the case that
+     * we're using swing rendering
      *
      * @param s string to convert if it has questionable font tags
      * @return The converted string
@@ -457,11 +487,12 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     /**
-     * Creates a standard html #nnnnnn string from a string representing a UIManager key.  If the color is not found,
-     * black will be used.  Only used if the lightweight html renderer is disabled.
+     * Creates a standard html #nnnnnn string from a string representing a
+     * UIManager key. If the color is not found, black will be used. Only used
+     * if the lightweight html renderer is disabled.
      *
-     * @param colorString  A string found after a ! character in a color definition, which needs to be converted to
-     *        standard HTML
+     * @param colorString A string found after a ! character in a color
+     * definition, which needs to be converted to standard HTML
      * @return A hex number string
      */
     private static String convertToStandardColor(String colorString) {
@@ -481,8 +512,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     /**
-     * Gets a hex string for an integer.  Ensures the result is always two characters long, which is not
-     * true of Integer.toHexString().
+     * Gets a hex string for an integer. Ensures the result is always two
+     * characters long, which is not true of Integer.toHexString().
      *
      * @param r an integer < 255
      * @return a 2 character hexadecimal string
@@ -497,9 +528,13 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return s;
     }
 
-    /** Overridden to do nothing under normal circumstances.  If the boolean flag to <strong>not</strong> use the
-     * internal HTML renderer is in effect, this will fire changes normally */
-    protected @Override final void firePropertyChange(String name, Object old, Object nue) {
+    /**
+     * Overridden to do nothing under normal circumstances. If the boolean flag
+     * to <strong>not</strong> use the internal HTML renderer is in effect, this
+     * will fire changes normally
+     */
+    protected @Override
+    final void firePropertyChange(String name, Object old, Object nue) {
         if (type == UNKNOWN) {
             super.firePropertyChange(name, old, nue);
             return;
@@ -514,7 +549,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         }
     }
 
-    public @Override Border getBorder() {
+    public @Override
+    Border getBorder() {
         Border result;
         if (type == UNKNOWN) {
             return border == null ? super.getBorder() : border;
@@ -529,7 +565,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return result;
     }
 
-    public @Override void setBorder(Border b) {
+    public @Override
+    void setBorder(Border b) {
         Border old = border;
         border = b;
 
@@ -538,11 +575,13 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         }
     }
 
-    public @Override Insets getInsets() {
+    public @Override
+    Insets getInsets() {
         return getInsets(null);
     }
 
-    public @Override Insets getInsets(Insets insets) {
+    public @Override
+    Insets getInsets(Insets insets) {
         Insets result;
 
         //Call getBorder(), not just read the field - if swingRendering, the border will be constructed, and the
@@ -556,19 +595,20 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
             //workaround for open jdk bug, see issue #192388
             try {
                 result = b.getBorderInsets(this);
-            } catch( NullPointerException e ) {
+            } catch (NullPointerException e) {
                 Logger.getLogger(HtmlRendererImpl.class.getName()).log(Level.FINE, null, e);
                 result = EMPTY_INSETS;
             }
         }
-        if( null != insets ) {
-            insets.set( result.top, result.left, result.bottom, result.right);
+        if (null != insets) {
+            insets.set(result.top, result.left, result.bottom, result.right);
             return insets;
         }
         return result;
     }
 
-    public @Override void setEnabled(boolean b) {
+    public @Override
+    void setEnabled(boolean b) {
         //OptimizeIt shows about 12Ms overhead calling back to Component.enable(), so avoid it if possible
         enabled = b;
 
@@ -577,11 +617,13 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         }
     }
 
-    public @Override boolean isEnabled() {
+    public @Override
+    boolean isEnabled() {
         return enabled;
     }
 
-    public @Override void updateUI() {
+    public @Override
+    void updateUI() {
         if (swingRendering || type == UNKNOWN) {
             super.updateUI();
         } else {
@@ -589,11 +631,14 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         }
     }
 
-    /** Overridden to produce a graphics object even when isDisplayable() is
+    /**
+     * Overridden to produce a graphics object even when isDisplayable() is
      * false, so that calls to getPreferredSize() will return accurate
-     * dimensions (presuming the font and text are set correctly) even when
-     * not onscreen. */
-    public @Override Graphics getGraphics() {
+     * dimensions (presuming the font and text are set correctly) even when not
+     * onscreen.
+     */
+    public @Override
+    Graphics getGraphics() {
         Graphics result = null;
 
         if (isDisplayable()) {
@@ -607,8 +652,10 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return result;
     }
 
-    /** Fetch a scratch graphics object for calculating preferred sizes while
-     * offscreen */
+    /**
+     * Fetch a scratch graphics object for calculating preferred sizes while
+     * offscreen
+     */
     static final Graphics2D scratchGraphics() {
         Graphics2D result = null;
 
@@ -635,7 +682,8 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
         return result;
     }
 
-    public @Override void setBounds(int x, int y, int w, int h) {
+    public @Override
+    void setBounds(int x, int y, int w, int h) {
         if (swingRendering || type == UNKNOWN) {
             super.setBounds(x, y, w, h);
         }
@@ -644,109 +692,151 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
     }
 
     @Deprecated
-    public @Override void reshape(int x, int y, int w, int h) {
+    public @Override
+    void reshape(int x, int y, int w, int h) {
         if (swingRendering || type == UNKNOWN) {
             super.reshape(x, y, w, h);
         }
     }
 
-    public @Override int getWidth() {
+    public @Override
+    int getWidth() {
         return bounds.width;
     }
 
-    public @Override int getHeight() {
+    public @Override
+    int getHeight() {
         return bounds.height;
     }
 
-    public @Override Point getLocation() {
+    public @Override
+    Point getLocation() {
         return bounds.getLocation();
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addAncestorListener(AncestorListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addAncestorListener(AncestorListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addAncestorListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addComponentListener(ComponentListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addComponentListener(ComponentListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addComponentListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addContainerListener(ContainerListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addContainerListener(ContainerListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addContainerListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addHierarchyListener(HierarchyListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addHierarchyListener(HierarchyListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addHierarchyListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addHierarchyBoundsListener(HierarchyBoundsListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addHierarchyBoundsListener(HierarchyBoundsListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addHierarchyBoundsListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addInputMethodListener(InputMethodListener l) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addInputMethodListener(InputMethodListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addInputMethodListener(l);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addFocusListener(FocusListener fl) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addFocusListener(FocusListener fl) {
         if (swingRendering || type == UNKNOWN) {
             super.addFocusListener(fl);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addMouseListener(MouseListener ml) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addMouseListener(MouseListener ml) {
         if (swingRendering || type == UNKNOWN) {
             super.addMouseListener(ml);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addMouseWheelListener(MouseWheelListener ml) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addMouseWheelListener(MouseWheelListener ml) {
         if (swingRendering || type == UNKNOWN) {
             super.addMouseWheelListener(ml);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addMouseMotionListener(MouseMotionListener ml) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addMouseMotionListener(MouseMotionListener ml) {
         if (swingRendering || type == UNKNOWN) {
             super.addMouseMotionListener(ml);
         }
     }
 
-    /** Overridden to do nothing for performance reasons */
-    public @Override void addVetoableChangeListener(VetoableChangeListener vl) {
+    /**
+     * Overridden to do nothing for performance reasons
+     */
+    public @Override
+    void addVetoableChangeListener(VetoableChangeListener vl) {
         if (swingRendering || type == UNKNOWN) {
             super.addVetoableChangeListener(vl);
         }
     }
 
-    /** Overridden to do nothing for performance reasons, unless using standard swing rendering */
-    public @Override void addPropertyChangeListener(String s, PropertyChangeListener l) {
+    /**
+     * Overridden to do nothing for performance reasons, unless using standard
+     * swing rendering
+     */
+    public @Override
+    void addPropertyChangeListener(String s, PropertyChangeListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addPropertyChangeListener(s, l);
         }
     }
 
-    public @Override void addPropertyChangeListener(PropertyChangeListener l) {
+    public @Override
+    void addPropertyChangeListener(PropertyChangeListener l) {
         if (swingRendering || type == UNKNOWN) {
             super.addPropertyChangeListener(l);
         }

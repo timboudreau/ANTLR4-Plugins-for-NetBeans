@@ -46,7 +46,14 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
+import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import java.util.Comparator;
+import org.nemesis.registration.typenames.KnownTypes;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_HIGHLIGHTING_LAYER_FACTORY;
+import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTS_LAYER;
+import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTS_LAYER_FACTORY;
+import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHT_REFRESH_TRIGGER;
+import static org.nemesis.registration.typenames.KnownTypes.ZORDER;
 import org.openide.filesystems.annotations.LayerBuilder;
 
 /**
@@ -200,8 +207,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
         }
 
         void generateConstructorCode(ClassBuilder<?> classBuilder, BlockBuilder<?> bb, String builderVar) {
-            classBuilder.importing("org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
-                    "org.netbeans.spi.editor.highlighting.ZOrder");
+            classBuilder.importing(HIGHLIGHT_REFRESH_TRIGGER.qname(), ZORDER.qname());
             int ix = 0;
             for (Entry en : this) {
                 log("generateConstructorCode", en);
@@ -251,12 +257,12 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 int positionInZOrder, String mimeType,
                  */
                 bb.lineComment(mirror.toString());
-                ClassBuilder.InvocationBuilder<?> iv = bb.invoke("add")
+                InvocationBuilder<?> iv = bb.invoke("add")
                         .withArgument(refreshTrigger()).withArgument(zOrder())
                         .withArgument(fixedSize()).withArgument(positionInZOrder(entryIndex)) //                        .withStringLiteral(mimeType)
                         ;
                 kind.generateColorCode(this, builderVar, var, coloringName(), functionClassName(), iv, mimeType,
-                    hasColorFinder(), utils() );
+                        hasColorFinder(), utils());
                 iv.on(builderVar);
             }
 
@@ -305,7 +311,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             }
 
             String refreshTrigger() {
-                return "HighlightRefreshTrigger."
+                return HIGHLIGHT_REFRESH_TRIGGER.simpleName() + "."
                         + utils().enumConstantValue(mirror, "trigger", "DOCUMENT_CHANGED");
             }
 
@@ -392,6 +398,9 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 generateForMimeType(e.getKey(), e.getValue(), false, true, e.getValue().order());
             }
         }
+        if (!roundEnv.errorRaised() && roundEnv.processingOver()) {
+            System.out.println(KnownTypes.touchedMessage(this));
+        }
         return false;
     }
 
@@ -476,49 +485,39 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
 
             if (saveClass) {
                 ClassBuilder<String> cl = ClassBuilder.forPackage(pkg).named(generatedClassName)
-//                        .generateDebugLogCode()
+                        //                        .generateDebugLogCode()
                         .staticImport(info.fieldFqns())
                         .importing(
-//                                "javax.annotation.processing.Generated",
-                                "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory",
-                                "org.netbeans.spi.editor.highlighting.HighlightsLayer", "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
-                                "org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger",
-                                "org.netbeans.api.editor.mimelookup.MimeRegistrations", "org.netbeans.api.editor.mimelookup.MimeRegistration")
-                        //                .annotatedWith("MimeRegistrations", mrOuter -> {
-                        //                    mrOuter.addAnnotationArgument("value", "MimeRegistration", mrInner -> {
-                        //                        mrInner.addArgument("mimeType", mimeType)
-                        //                                .addArgument("service", "HighlightsLayerFactory")
-                        //                                .addExpressionArgument("position", 1000)
-                        //                                .closeAnnotation();
-                        //                    }).closeAnnotation();
-                        //                })
-                        //                .annotatedWith("MimeRegistration", mrOuter -> {
-                        //                    mrOuter.addArgument("mimeType", mimeType)
-                        //                            .addArgument("service", "HighlightsLayerFactory")
-                        //                            .addExpressionArgument("position", 1000)
-                        //                            .closeAnnotation();
-                        //                })
-//                        .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                                //                                "javax.annotation.processing.Generated",
+                                HIGHLIGHTS_LAYER.qname(),
+                                HIGHLIGHTS_LAYER_FACTORY.qname(),
+                                HIGHLIGHT_REFRESH_TRIGGER.qname(),
+                                ANTLR_HIGHLIGHTING_LAYER_FACTORY.qname()
+                        //                        .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                        )
                         .withModifier(PUBLIC).withModifier(FINAL)
-                        .implementing("HighlightsLayerFactory")
-                        .field("delegate").withModifier(PRIVATE).withModifier(FINAL).ofType("HighlightsLayerFactory");
+                        .implementing(HIGHLIGHTS_LAYER_FACTORY.simpleName())
+                        .field("delegate").withModifier(PRIVATE).withModifier(FINAL)
+                        .ofType(HIGHLIGHTS_LAYER_FACTORY.simpleName());
                 cl.docComment(info.entries.toArray());
                 cl.constructor(cb -> {
                     cb.setModifier(PUBLIC).body(bb -> {
                         bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
-                        bb.declare("bldr").initializedByInvoking("builder")
-                                .on("AntlrHighlightingLayerFactory")
-                                .as("AntlrHighlightingLayerFactory.Builder");
-                        info.generateConstructorCode(cl, bb, "bldr");
-                        bb.statement("delegate = bldr.build()");
-                        bb.endBlock();
+                        bb.declare("builder").initializedByInvoking("builder")
+                                .on(ANTLR_HIGHLIGHTING_LAYER_FACTORY.simpleName())
+                                .as(ANTLR_HIGHLIGHTING_LAYER_FACTORY.simpleName() + ".Builder");
+                        info.generateConstructorCode(cl, bb, "builder");
+                        bb.assign("delegate").toInvocation("build").on("builder");
+//                        bb.statement("delegate = bldr.build()");
+//                        bb.endBlock();
                     });
                 }).overridePublic("createLayers", mb -> {
-                    mb.returning("HighlightsLayer[]").addArgument("HighlightsLayerFactory.Context", "ctx")
+                    mb.returning(HIGHLIGHTS_LAYER.simpleNameArray()).addArgument(HIGHLIGHTS_LAYER_FACTORY.simpleName() + ".Context", "ctx")
                             .body(bb -> {
                                 bb.debugLog("Create " + info);
                                 bb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));
-                                bb.statement("return delegate.createLayers(ctx)").endBlock();
+                                bb.returningInvocationOf("createLayers").withArgument("ctx").on("delegate");
+//                                bb.statement("return delegate.createLayers(ctx)").endBlock();
                             });
                 });
                 writeOne(cl);

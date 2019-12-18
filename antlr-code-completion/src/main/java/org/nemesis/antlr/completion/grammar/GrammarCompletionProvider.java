@@ -23,6 +23,8 @@ import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Parser;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.function.throwing.io.IOFunction;
+import java.util.function.Function;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.netbeans.spi.editor.completion.CompletionProvider;
 import org.netbeans.spi.editor.completion.CompletionTask;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
@@ -33,15 +35,38 @@ import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
  */
 public class GrammarCompletionProvider implements CompletionProvider {
 
-    private final IOFunction<Document, Parser> parserForDoc;
+    private final String mimeType;
+
+    private final ParserAndRuleContextProvider<?, ?> parserForDoc;
     private final IntPredicate preferredRules;
     private final IntPredicate ignoredRules;
     private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache = new HashMap<>(3);
+    private final IntMap<String> supplemental;
+    private final IntIntMap ruleSubstitutions;
 
-    protected GrammarCompletionProvider(IOFunction<Document,Parser> parserForDoc, IntPredicate preferredRules, IntPredicate ignoredRules) {
-        this.parserForDoc = parserForDoc;
+    protected <P extends Parser, R extends ParserRuleContext> GrammarCompletionProvider(
+            String mimeType,
+            IOFunction<Document, P> parserForDoc, IntPredicate preferredRules,
+            IntPredicate ignoredRules, int[] supplementalTokenKeys,
+            String[] supplementalTokenTexts,
+            int[] ruleSubstitutionKeys, int[] ruleSubstitutionValues) {
+        this(mimeType, parserForDoc, preferredRules, ignoredRules, null,
+                supplementalTokenKeys, supplementalTokenTexts,
+                ruleSubstitutionKeys, ruleSubstitutionValues);
+    }
+
+    protected <P extends Parser, R extends ParserRuleContext> GrammarCompletionProvider(
+            String mimeType,
+            IOFunction<Document, P> parserForDoc, IntPredicate preferredRules,
+            IntPredicate ignoredRules, Function<P, R> rootRuleFinder,
+            int[] supplementalTokenKeys, String[] supplementalTokenTexts,
+            int[] ruleSubstitutionKeys, int[] ruleSubstitutionValues) {
+        this.mimeType = mimeType;
+        this.parserForDoc = new ParserAndRuleContextProvider<>(parserForDoc, rootRuleFinder);
         this.preferredRules = preferredRules;
         this.ignoredRules = ignoredRules;
+        supplemental = IntMap.of(supplementalTokenKeys, supplementalTokenTexts);
+        ruleSubstitutions = new IntIntMap(ruleSubstitutionKeys, ruleSubstitutionValues);
     }
 
     @Override
@@ -49,13 +74,12 @@ public class GrammarCompletionProvider implements CompletionProvider {
         if (queryType != COMPLETION_QUERY_TYPE) {
             return null;
         }
-        return new AsyncCompletionTask(new GrammarCompletionQuery(parserForDoc, preferredRules,
-                ignoredRules, cache), component);
+        return new AsyncCompletionTask(new GrammarCompletionQuery(mimeType, parserForDoc, preferredRules,
+                ignoredRules, cache, supplemental, ruleSubstitutions), component);
     }
 
     @Override
     public int getAutoQueryTypes(JTextComponent component, String typedText) {
         return 0;
     }
-
 }

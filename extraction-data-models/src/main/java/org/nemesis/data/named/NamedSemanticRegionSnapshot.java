@@ -18,6 +18,9 @@ package org.nemesis.data.named;
 import java.util.Objects;
 
 /**
+ * Snapshot of a NamedSemanticRegion which does not retain a
+ * reference to the regions object it belongs to, unlike flyweight
+ * instances created on the fly by it.
  *
  * @author Tim Boudreau
  */
@@ -39,6 +42,11 @@ final class NamedSemanticRegionSnapshot<T extends Enum<T>> implements NamedSeman
         end = orig.end();
         ref = orig.isReference();
         index = orig.index();
+    }
+
+    @Override
+    public NamedSemanticRegion<T> snapshot() {
+        return this;
     }
 
     @Override

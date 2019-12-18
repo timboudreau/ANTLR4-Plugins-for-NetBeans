@@ -1,13 +1,35 @@
+
+Would a better option be to implement TokenSource over nb document TokenHierarchy?
+
+Perhaps enum of Rules - would be more useful for code completion
+
+Need a "when in ancestor rule" for collecting references.
+ 
+All html renderer stuff should be using the fork.
+ - It is now - selection highlighting in syntax tree nav is broken
+ 
+Need ignore inserted : after : in rule.
+
+Code sample should be able to be a file.
+
+Keybindings for instant rename and goto declaration are broken
+ - Problem is in the keybinding registration - Editors/text/x-g4/Keybindings has the file - ??
+
+Add hint to turn terminal nodes in parser rules into lexer rules or fragments
+
+We are capturing 'skip' directives - should capture channels and offer to change a skip to an unused channel number > 0
+
+Hint to unwrap blocks which are solo w/o any EBNF, e.g. foo: (bar baz); or a : b (c)?)
+
+Factor out a simple error highlighter from AntlrRuntimeErrorsHighlighter
+
+Finish ebnf suggestions parser - generated text is broken
+
+Error 184 for overlapped rules - should offer to consolidate.
+
+
+
 # Refactoring
-
-All maven projects are getting flagged as antlr-enabled
-
-All errors need ids - maybe get rid of non-id methods.
-
-flagOrphansIfNoImports can now use ImportFinder
-
-Should capture channel directives and not flag lexer rules as unused if they 
-are routing tokens to another channel or skip
 
 Need a way to contribute different char filters based on region key
 
@@ -15,13 +37,9 @@ Add option to hints to be added to changes, which will result in selection
 
 Combined undo for refactoring	 
 
-Epsilon analysis needs to capture the culprit EBNFs not just the rule name.
-
 Move annotations littered into SPI into their own package.
 
 All annotation processors should use TypeName, not literal strings.
-
-Get easing working.
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
@@ -37,6 +55,7 @@ NB filesystem for jfs for debugging?
 
 
 Font color specifying in html renderer seems to be broken.  Need a fork?
+  - Have the fork, need to fix the same bug in it.
 
 Fix UsageFinder API
 

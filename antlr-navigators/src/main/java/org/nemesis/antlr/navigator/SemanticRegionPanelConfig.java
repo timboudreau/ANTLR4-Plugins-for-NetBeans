@@ -25,8 +25,8 @@ import javax.swing.JPopupMenu;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.RegionsKey;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.netbeans.spi.navigator.NavigatorPanel;
-import org.openide.awt.HtmlRenderer;
 
 /**
  * Configuration object which aggregates the various bits of code that go into

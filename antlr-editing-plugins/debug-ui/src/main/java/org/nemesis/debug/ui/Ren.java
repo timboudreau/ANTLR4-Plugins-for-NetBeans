@@ -22,8 +22,7 @@ import java.util.Map;
 import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
-import org.openide.awt.HtmlRenderer;
-
+import org.nemesis.swing.html.HtmlRenderer;
 /**
  *
  * @author Tim Boudreau

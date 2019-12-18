@@ -29,7 +29,7 @@ import org.nemesis.antlr.navigator.SortTypes;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.openide.util.NbBundle.Messages;
 
 /**

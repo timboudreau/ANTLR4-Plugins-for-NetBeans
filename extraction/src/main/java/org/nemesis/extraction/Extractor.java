@@ -15,6 +15,7 @@
  */
 package org.nemesis.extraction;
 
+import com.mastfrog.antlr.utils.RulesMapping;
 import java.nio.ByteBuffer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.security.MessageDigest;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -282,7 +284,8 @@ public final class Extractor<T extends ParserRuleContext> {
     private static final BooleanSupplier FALSE = () -> false;
 
     private <L extends Enum<L>> void runNames(T ruleNode, NamesAndReferencesExtractionStrategy<L> x, Extraction into, BooleanSupplier cancelled) {
-        x.invoke(ruleNode, into.store, cancelled);
+        ToIntFunction<? super ParserRuleContext> idConverter = RulesMapping.ruleIdMapper(mimeType);
+        x.invoke(ruleNode, into.store, cancelled, idConverter);
     }
 
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {

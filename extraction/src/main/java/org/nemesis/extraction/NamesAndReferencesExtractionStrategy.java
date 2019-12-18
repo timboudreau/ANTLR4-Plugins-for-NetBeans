@@ -35,6 +35,9 @@ import org.nemesis.data.named.NamedSemanticRegionsBuilder;
 import org.nemesis.extraction.key.NamedRegionKey;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.StringGraph;
+import com.mastfrog.util.collections.IntSet;
+import java.util.EnumMap;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import org.nemesis.data.named.ContentsChecksums;
 
@@ -91,9 +94,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         return sb.append('>').toString();
     }
 
-    void invoke(ParserRuleContext ctx, NameInfoStore store, BooleanSupplier cancelled) {
+    void invoke(ParserRuleContext ctx, NameInfoStore store, BooleanSupplier cancelled, ToIntFunction<? super ParserRuleContext> ruleIdMapper) {
         ContentsChecksums.Builder sumBuilder = summer != null ? ContentsChecksums.builder() : null;
-        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor(cancelled, sumBuilder, summer);
+        RuleNameAndBoundsVisitor v = new RuleNameAndBoundsVisitor(cancelled, sumBuilder, summer, ruleIdMapper);
         ctx.accept(v);
         NamedSemanticRegions<T> names = v.namesBuilder == null ? null : v.namesBuilder.build();
         NamedSemanticRegions<T> ruleBounds = v.ruleBoundsBuilder.build();
@@ -123,6 +126,7 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         if (ruleRegionKey != null && this.namePositionKey != null) {
             store.addNameAndBoundsKeyPair(new NameAndBoundsPair<>(ruleRegionKey, namePositionKey));
         }
+        store.noteRuleIdMapping(keyType, v.ruleIdsForKinds);
     }
 
     @Override
@@ -268,12 +272,15 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
         final LinkedList<String>[] nameStacks;
         private final ContentsChecksums.Builder sums;
         private final SummingFunction summer;
+        private final ToIntFunction<? super ParserRuleContext> ruleIdMapper;
+        private final EnumMap<T, IntSet> ruleIdsForKinds = new EnumMap<>(keyType);
 
         @SuppressWarnings("unchecked")
-        RuleNameAndBoundsVisitor(BooleanSupplier cancelled, ContentsChecksums.Builder sums, SummingFunction summer) {
+        RuleNameAndBoundsVisitor(BooleanSupplier cancelled, ContentsChecksums.Builder sums, SummingFunction summer, ToIntFunction<? super ParserRuleContext> ruleIdMapper) {
             this.cancelled = cancelled;
             this.sums = sums;
             this.summer = summer;
+            this.ruleIdMapper = ruleIdMapper;
             activations = new int[nameExtractors.length];
             nameStacks = (LinkedList<String>[]) new LinkedList<?>[nameExtractors.length];
             for (int i = 0; i < activations.length; i++) {
@@ -316,8 +323,10 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             boolean[] activationScratch = new boolean[nameExtractors.length];
             for (int i = 0; i < nameExtractors.length; i++) {
                 if (nameExtractors[i].ancestorQualifier != null) {
-                    activationScratch[i] = nameExtractors[i].ancestorQualifier.test(node);
-                    activations[i]++;
+                    if (nameExtractors[i].ancestorQualifier.test(node)) {
+                        activationScratch[i] = true;
+                        activations[i]++;
+                    }
                 }
             }
             try {
@@ -359,6 +368,23 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
             return null;
         }
 
+        private <R extends ParserRuleContext> void mapKindToRuleId(R ruleNode, NamedRegionData<T> nm) {
+            int ruleId = ruleNode.getRuleIndex();  //ruleIdMapper.applyAsInt(ruleNode);
+//            System.out.println("RuleIDMapper gets " + ruleId + " real ruleId "
+//                    + ruleNode.getRuleIndex() + " for " + nm.name + " " + nm.kind
+//                    + " " + nm.start + ":" + nm.end + " for "
+//                    + ruleNode.getClass().getSimpleName());
+            if (ruleId >= 0) {
+                IntSet set = ruleIdsForKinds.get(nm.kind);
+                if (set == null) {
+                    set = IntSet.create(40);
+                    ruleIdsForKinds.put(nm.kind, set);
+                }
+//                System.out.println("  add to set for " + nm.kind + " " + set);
+                set.add(ruleId);
+            }
+        }
+
         private <R extends ParserRuleContext> String[] doRunOne(R node, NameExtractionStrategy<R, T> e, int nameExtractorIndex) {
             String[] result = new String[2];
             int count = e.find(node, (NamedRegionData<T> nm, TerminalNode tn) -> {
@@ -370,6 +396,9 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                 // of the names to the same spot
                 boolean added = false;
                 if (nm != null) {
+                    if (nm.kind != null) {
+                        mapKindToRuleId(node, nm);
+                    }
                     String name = nm.name(nameStacks == null ? null : nameStacks[nameExtractorIndex], scopingDelimiter);
                     result[0] = name;
                     result[1] = nm.name();

@@ -27,7 +27,7 @@ import javax.swing.UIManager;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.localizers.api.Localizers;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 
 /**
  *

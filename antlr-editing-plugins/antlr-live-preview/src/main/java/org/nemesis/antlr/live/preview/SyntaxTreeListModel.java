@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.preview;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.EventQueue;
@@ -164,13 +165,13 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             JLabel r = (JLabel) ren;
             if (value.isError()) {
                 ren.setHtml(true);
-                ren.setText("<font color='!nb.errorColor'>" + value);
+                ren.setText("<font color='!nb.errorForeground'>" + Escaper.BASIC_HTML.escape(value.toString()));
             } else if (value.isParserRule()) {
                 ren.setHtml(true);
-                ren.setText("<b>" + value);
+                ren.setText("<b>" + Escaper.BASIC_HTML.escape(value.toString()));
             } else {
                 ren.setHtml(true);
-                ren.setText(value.toString());
+                ren.setText(Escaper.BASIC_HTML.escape(value.toString()));
             }
             r.setForeground(list.getForeground());
             ren.setIndent(5 * value.depth());
@@ -178,8 +179,6 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 ren.setParentFocused(((ParentCheckList) list).parentFocused);
             }
             r.setToolTipText(value.tooltip());
-//            r.setSelected(isSelected);
-//            r.setLeadSelection(isSelected);
             if (isSelected) {
                 ren.setCellBackground(list.getSelectionBackground());
             } else {

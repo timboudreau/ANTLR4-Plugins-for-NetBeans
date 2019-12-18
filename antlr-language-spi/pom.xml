@@ -123,6 +123,10 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
             <artifactId>org-openide-util-ui</artifactId>
         </dependency>
         <dependency>
@@ -162,10 +166,12 @@ limitations under the License.
             <artifactId>misc-utils</artifactId>
         </dependency>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-utils</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>character-filters</artifactId>
-            <version>2.0.5</version>
-            <type>jar</type>
         </dependency>
     </dependencies>
 </project>

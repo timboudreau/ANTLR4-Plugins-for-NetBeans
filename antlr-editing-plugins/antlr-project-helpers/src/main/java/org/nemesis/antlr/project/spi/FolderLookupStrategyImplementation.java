@@ -18,6 +18,7 @@ package org.nemesis.antlr.project.spi;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -285,6 +286,8 @@ public interface FolderLookupStrategyImplementation {
                     str.filter(pth -> {
                         return !Files.isDirectory(pth);
                     }).filter(filter).forEach(all::add);
+                } catch (NoSuchFileException ex) {
+                    // ok
                 } catch (IOException ex) {
                     Logger.getLogger(HeuristicFoldersHelperImplementation.class.getName())
                             .log(Level.INFO, "Failed walking " + p, ex);

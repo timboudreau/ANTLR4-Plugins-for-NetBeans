@@ -31,8 +31,8 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.swing.html.HtmlRenderer;
 import org.netbeans.spi.navigator.NavigatorPanel;
-import org.openide.awt.HtmlRenderer;
 
 /**
  * Configuration object which aggregates the various bits of code that go into

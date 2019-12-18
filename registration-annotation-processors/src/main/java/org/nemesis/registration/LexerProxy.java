@@ -28,6 +28,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import com.mastfrog.annotation.AnnotationUtils;
+import javax.lang.model.element.ExecutableElement;
 
 /**
  *
@@ -47,6 +48,40 @@ class LexerProxy {
         this.tokenNameForIndex = tokenNameForIndex;
         this.indexForTokenName = indexForTokenName;
         this.last = last;
+    }
+
+    boolean hasInitialStackedModeNumberMethods(AnnotationUtils utils) {
+        // Some defunct (?) stuff from the original module for lexer restart
+        // info
+        ExecutableElement getterMethod = null;
+        ExecutableElement setterMethod = null;
+        for (Element e : lexerClassElement.getEnclosedElements()) {
+            switch (e.getKind()) {
+                case METHOD:
+                    if (e instanceof ExecutableElement) {
+                        ExecutableElement ex = (ExecutableElement) e;
+                        if ("getInitialStackedModeNumber".equals(ex.getSimpleName().toString())) {
+                            if ("int".equals(ex.getReturnType().toString()) && ex.getParameters().isEmpty()) {
+                                getterMethod = ex;
+                                if (setterMethod != null) {
+                                    break;
+                                }
+                            }
+                        } else if ("setInitialStackedModeNumber".equals(ex.getSimpleName().toString())) {
+                            List<? extends VariableElement> params = ex.getParameters();
+                            if (params.size() == 1 && "int".equals(params.get(0).asType().toString())) {
+                                if ("void".equals(ex.getReturnType().toString())) {
+                                    setterMethod = ex;
+                                    if (getterMethod != null) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+            }
+        }
+        return getterMethod != null && setterMethod != null;
     }
 
     static LexerProxy create(AnnotationMirror mirror, Element target, AnnotationUtils utils) {

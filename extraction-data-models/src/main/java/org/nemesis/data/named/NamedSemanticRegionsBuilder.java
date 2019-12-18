@@ -44,11 +44,29 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
         offsetsForName = new TreeMap<>();
     }
 
+    /**
+     * Mark this instance as needing array-based end position storage. If a
+     * NamedSemanticRegions represents reference to the string coordinates of
+     * the names it provides, then none is needed, since the length of the
+     * region will always be the character count of the name. If the named
+     * region represents a larger or smaller region named by the name, then it
+     * will need an array for end positions. Adding an element with an end
+     * offset different from the name will trigger this automatically.
+     *
+     * @return this
+     */
     public NamedSemanticRegionsBuilder<K> arrayBased() {
         needArrayBased = true;
         return this;
     }
 
+    /**
+     * A NamedSemanticRegions can contain only one occurrence of any name; if
+     * more than one occurrence is added to the builder, (typically because the
+     * parsed source is broken) the duplicates can be retrieved here.
+     *
+     * @param bc A consumer for name and duplicate regions added
+     */
     public void retrieveDuplicates(BiConsumer<String, Iterable<? extends NamedSemanticRegion<K>>> bc) {
         for (Map.Entry<String, Duplicates<K>> e : duplicates.entrySet()) {
             bc.accept(e.getKey(), e.getValue());
@@ -65,6 +83,15 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
         dups.add(start, end, kind);
     }
 
+    /**
+     * Add an element - may not overlap with others.
+     *
+     * @param name The name
+     * @param kind The kind to apply to it
+     * @param start The start offset, inclusive
+     * @param end The end offset, exclusive
+     * @return true if the passed element was not a duplicate
+     */
     public boolean add(String name, K kind, int start, int end) {
         assert name != null;
         assert kind != null;
@@ -100,6 +127,11 @@ public final class NamedSemanticRegionsBuilder<K extends Enum<K>> {
         return this;
     }
 
+    /**
+     * Complete creating the regions.
+     *
+     * @return A NamedSemanticRegions
+     */
     public NamedSemanticRegions<K> build() {
         String[] names = typeForName.keySet().toArray(new String[typeForName.size()]);
         K[] kinds = ArrayUtil.genericArray(type, names.length);

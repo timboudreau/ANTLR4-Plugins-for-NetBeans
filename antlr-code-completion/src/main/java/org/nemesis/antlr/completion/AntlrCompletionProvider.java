@@ -109,16 +109,18 @@ public final class AntlrCompletionProvider implements CompletionProvider {
         int[] frequencies = new int[lexer.getVocabulary().getMaxTokenType() + 1];
         int ix = 0;
         CommonToken caretToken = null;
-        for (Token t = lexer.nextToken(); t.getType() != -1; t = lexer.nextToken()) {
+        for (Token t = lexer.nextToken(); t.getType() != Token.EOF; t = lexer.nextToken()) {
             CommonToken ct = t instanceof CommonToken ? (CommonToken) t
                     : new CommonToken(t);
-            ct.setTokenIndex(ix++);
+            if (ct.getTokenIndex() == -1) {
+                ct.setTokenIndex(ix++);
+            }
             tokens.add(ct);
             frequencies[t.getType()]++;
             if (caretToken == null && TokenUtils.contains(ct, caretPosition)) {
                 System.out.println("TARGET TOKEN " + lexer.getVocabulary().getSymbolicName(t.getType())
-                    + " " + lexer.getVocabulary().getDisplayName(t.getType()) + " " +
-                        lexer.getVocabulary().getLiteralName(t.getType()));
+                        + " " + lexer.getVocabulary().getDisplayName(t.getType()) + " "
+                        + lexer.getVocabulary().getLiteralName(t.getType()));
 
                 try {
                     System.out.println("CARET WORD: " + CompletionItemProvider.wordAtCaretPosition(doc, caretPosition));

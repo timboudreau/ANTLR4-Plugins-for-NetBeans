@@ -38,14 +38,20 @@ import org.antlr.v4.runtime.atn.RuleTransition;
 import org.antlr.v4.runtime.atn.Transition;
 import org.antlr.v4.runtime.misc.IntervalSet;
 import com.mastfrog.util.collections.IntMap;
-import com.mastfrog.util.collections.IntMap.IntMapAbortableConsumer;
-import com.mastfrog.util.collections.IntMap.IntMapConsumer;
 import com.mastfrog.util.collections.IntSet;
 import com.mastfrog.util.collections.IntList;
+import java.util.ArrayList;
+import java.util.Collections;
+import org.antlr.v4.runtime.misc.IntegerList;
+import org.antlr.v4.runtime.misc.Interval;
+import org.nemesis.antlr.completion.CaretTokenInfo;
 
 /**
  * Borrowed from
  * https://raw.githubusercontent.com/mike-lischke/antlr4-c3/master/ports/java/src/main/java/com/vmware/antlr4c3/CodeCompletionCore.java
+ * and heavily modified for performance - in a benchmark of 1000 runs on
+ * different requests, performance is 3.4x that of the original with a much
+ * smaller memory footprint / lower gc pressure.
  *
  * Port of antlr-c3 javascript library to java
  * <p>
@@ -79,71 +85,13 @@ public class CodeCompletionCore {
          */
         public IntArrayMapping rulePositions = new IntArrayMapping();
 
+        public boolean isEmpty() {
+            return tokens.isEmpty() && rules.isEmpty() && rulePositions.isEmpty();
+        }
+
         @Override
         public String toString() {
             return "CandidatesCollection{" + "tokens=" + tokens + ", rules=" + rules + ", ruleStrings=" + rulePositions + '}';
-        }
-    }
-
-    static class IntArrayMapping {
-
-        private final IntMap<IntList> values = CollectionUtils.intMap(() -> IntList.create(16));
-
-        void put(int key, List<Integer> vals) {
-            values.get(key).addAll(vals);
-        }
-
-        void put(int key, int... vals) {
-            values.get(key).addArray(vals);
-        }
-
-        void clear() {
-            values.clear();
-        }
-
-        void forEach(IntMapConsumer<? super IntList> c) {
-            values.forEach(c);
-        }
-
-        boolean forSome(IntMapAbortableConsumer<? super IntList> c) {
-            return values.forSomeKeys(c);
-        }
-
-        public String toString() {
-            return values.toString();
-        }
-    }
-
-    static class IntSetMapping {
-
-        private final IntMap<IntSet> values = CollectionUtils.intMap(() -> IntSet.create(5));
-
-        boolean containsKey(int key) {
-            return values.containsKey(key);
-        }
-
-        void forEach(IntMapConsumer<? super IntSet> cons) {
-            values.forEach(cons);
-        }
-
-        void clear() {
-            values.clear();
-        }
-
-        void put(int key, IntSet all) {
-            values.get(key).addAll(all);
-        }
-
-        void put(int key, int... vals) {
-            values.get(key).addAll(vals);
-        }
-
-        public IntSet get(int key) {
-            return values.get(key);
-        }
-
-        public String toString() {
-            return values.toString();
         }
     }
 
@@ -151,30 +99,44 @@ public class CodeCompletionCore {
 
         public IntervalSet intervals;
         public IntList path;
-        public IntSet following;
+        public IntList following;
+
+        public String toString() {
+            return "FSWithPath(" + intervals + " / " + path + " / " + following + ")";
+        }
     }
 
     public static class FollowSetsHolder {
 
         public List<FollowSetWithPath> sets;
         public IntervalSet combined;
+
+        public String toString() {
+            return "FSHolder(" + sets + " / " + combined + ")";
+        }
     }
 
     public static class PipelineEntry {
 
-        public PipelineEntry(ATNState state, Integer tokenIndex) {
+        public PipelineEntry(ATNState state, int tokenIndex) {
             this.state = state;
             this.tokenIndex = tokenIndex;
         }
 
-        ATNState state;
-        Integer tokenIndex;
+        final ATNState state;
+        final int tokenIndex;
+
+        @Override
+        public String toString() {
+            return "PE(" + tokenIndex + " - " + state.ruleIndex + ":" + state.stateNumber + ":" + state.nextTokenWithinRule + ")";
+        }
     }
 
-    private boolean showResult = false;
-    private boolean showDebugOutput = false;
-    private boolean debugOutputWithTransitions = false;
-    private boolean showRuleStack = false;
+    private static final int ITERATION_LIMIT = 15000;
+    private final boolean showResult = false;
+    private final boolean showDebugOutput = false;
+    private final boolean debugOutputWithTransitions = false;
+    private final boolean showRuleStack = false;
 
     private final IntPredicate ignoredTokens;
     private final IntPredicate preferredRules;
@@ -183,15 +145,15 @@ public class CodeCompletionCore {
     private final ATN atn;
     private final Vocabulary vocabulary;
     private final String[] ruleNames;
-    private List<Token> tokens;
+    private List<? extends Token> tokens;
 
     private int tokenStartIndex = 0;
     private int statesProcessed = 0;
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
-    private final IntMap<IntMap<IntSet>> shortcutMap = CollectionUtils.intMap(() -> {
-        return CollectionUtils.intMap(IntSet::create);
+    private final IntMap<IntMap<IntSet>> shortcutMap = CollectionUtils.intMap(50, true, () -> {
+        return CollectionUtils.intMap(30, true, IntSet::create);
     });
 
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
@@ -199,7 +161,9 @@ public class CodeCompletionCore {
     // XXX this should be held by the completion provider
     private final Map<String, IntMap<FollowSetsHolder>> cache;
 
-    public CodeCompletionCore(Parser parser, IntPredicate preferredRules, IntPredicate ignoredTokens, Map<String, IntMap<FollowSetsHolder>> followSetsByATN) {
+    public CodeCompletionCore(Parser parser, IntPredicate preferredRules,
+            IntPredicate ignoredTokens,
+            Map<String, IntMap<FollowSetsHolder>> followSetsByATN) {
         this.parser = parser;
         this.cache = followSetsByATN;
         this.atn = parser.getATN();
@@ -217,6 +181,31 @@ public class CodeCompletionCore {
         }
     }
 
+    private static int highestNonEmptyKey(IntMap<IntSet> m) {
+        if (m.isEmpty()) {
+            return -1;
+        } else if (m.size() == 1) {
+            if (m.get(m.lowestKey()).isEmpty()) {
+                return -1;
+            } else {
+                return m.lowestKey();
+            }
+        }
+        int ix = m.highestKey();
+        while (ix >= 0) {
+            IntSet is = m.get(ix);
+            if (!is.isEmpty()) {
+                return ix;
+            }
+            ix = m.nearest(ix - 1, true);
+        }
+        return -1;
+    }
+
+    public CandidatesCollection collectCandidates(CaretTokenInfo info, ParserRuleContext context) {
+        return collectCandidates(info.tokenIndex(), context);
+    }
+
     /**
      * This is the main entry point. The caret token index specifies the token
      * stream index for the token which currently covers the caret (or any other
@@ -227,29 +216,55 @@ public class CodeCompletionCore {
      * context).
      */
     public CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context) {
+        return collectCandidates(caretTokenIndex, context, null);
+    }
+
+    public CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context, List<? extends Token> tks) {
+        context = null;
+
         this.shortcutMap.clear();
         this.candidates.rules.clear();
         this.candidates.tokens.clear();
         this.statesProcessed = 0;
 
-        this.tokenStartIndex = context != null && context.start != null ? context.start.getTokenIndex() : 0;
+//        this.tokenStartIndex = context != null && context.start != null ? context.start.getTokenIndex() : 0;
+//        if (tokens == null) {
+        this.tokenStartIndex = context != null ? context.start.getTokenIndex() : 0;
+        parser.reset();
         TokenStream tokenStream = this.parser.getInputStream();
 
         int currentIndex = tokenStream.index();
-        tokenStream.seek(Math.max(0, this.tokenStartIndex));
-        this.tokens = new LinkedList<>();
+        System.out.println("token stream " + tokenStream + " current index " + currentIndex + " tokenStartIndex " + this.tokenStartIndex
+                + " caretTokenIndex " + caretTokenIndex);
+
+        if (currentIndex != 0) {
+            tokenStream.seek(Math.max(0, this.tokenStartIndex));
+        }
+
+        List<Token> toks = new ArrayList<>(caretTokenIndex + 1);
+        this.tokens = toks;
+        int negativeIndicesSeen = 0;
         int offset = 1;
-        while (true) {
+        for(;;) {
             Token token = tokenStream.LT(offset++);
-            this.tokens.add(token);
+            CCLog.log(this, token);
+            toks.add(token);
             if (token.getTokenIndex() >= caretTokenIndex || token.getType() == Token.EOF) {
+                System.out.println("  STOP LOOKING FOR TOKEN AT " + token + " offset " + offset);
                 break;
             }
         }
+        if (negativeIndicesSeen > 1) {
+            throw new IllegalStateException("Saw " + negativeIndicesSeen + " tokens "
+                    + "with a token index < 0 - this stream is not composed of "
+                    + "CommonToken instances, and completion will not work.");
+        }
         tokenStream.seek(Math.max(0, currentIndex));
-
-        IntList callStack = IntList.create(24);
+        assert this.tokens != null : "null tokens";
+        CCLog.log(this, "Start", (this.tokens.isEmpty() ? "emptytokens" : this.tokens.get(this.tokens.size() - 1)), " toks ", this.tokens.size());
+        IntList callStack = IntList.create(64);
         int startRule = context != null ? context.getRuleIndex() : 0;
+        System.out.println("START RULE " + startRule);
         this.processRule(this.atn.ruleToStartState[startRule], 0, callStack, "\n");
 
         tokenStream.seek(Math.max(0, currentIndex));
@@ -261,17 +276,22 @@ public class CodeCompletionCore {
                 continue;
             }
             final IntMap<IntSet> shortcut = shortcutMap.get(ruleId);
+            if (shortcut == null || shortcut.isEmpty()) {
+                continue;
+            }
 
             // select the right-most occurrence
-            final int startToken = shortcut.highestKey();
+            final int startToken = highestNonEmptyKey(shortcut);
+            if (startToken == -1) {
+                continue;
+            }
             final IntSet endSet = shortcut.get(startToken);
             final int endToken;
             if (endSet.isEmpty()) {
                 endToken = tokens.size() - 1;
             } else {
-                endToken = shortcut.get(startToken).last();
+                endToken = endSet.last();
             }
-
             final int startOffset = tokens.get(startToken).getStartIndex();
             final int endOffset;
             if (tokens.get(endToken).getType() == Token.EOF) {
@@ -281,8 +301,11 @@ public class CodeCompletionCore {
                 // if last token is not EOF, limit to matching tokens which excludes trailing whitespace
                 endOffset = tokens.get(endToken - 1).getStopIndex() + 1;
             }
-
             candidates.rulePositions.put(ruleId, startOffset, endOffset);
+            assert candidates.rulePositions.containsKey(ruleId);
+            assert candidates.rulePositions.get(ruleId) != null : "" + ruleId + " in " + candidates.rulePositions.get(ruleId);
+            assert candidates.rulePositions.get(ruleId).contains(startOffset);
+            assert candidates.rulePositions.get(ruleId).contains(endOffset);
         }
 
         if (this.showResult && logger.isLoggable(Level.FINE)) {
@@ -318,7 +341,7 @@ public class CodeCompletionCore {
             });
             logger.log(Level.FINE, logMessage.toString());
         }
-
+        this.tokens = Collections.emptyList();
         return this.candidates;
     }
 
@@ -343,25 +366,29 @@ public class CodeCompletionCore {
                 // Add the rule to our candidates list along with the current rule path,
                 // but only if there isn't already an entry like that.
                 IntList path = ruleStack.subList(0, i);
-                boolean[] addNew = new boolean[]{true};
-
+                boolean[] an = new boolean[]{true};
                 final int ix = i;
-                this.candidates.rules.forSome((key, list) -> {
-                    boolean result = true;
+                this.candidates.rules.forSome((int key, IntList list) -> {
                     if (key != ruleStack.get(ix) || list.size() != path.size()) {
                         return true;
                     }
                     if (path.equals(list)) {
-                        addNew[0] = false;
+                        an[0] = false;
                         return false;
                     }
-                    return result;
+                    return true;
                 });
+                final boolean addNew = an[0];
+                if (addNew) {
+                    int rule = ruleStack.get(i);
+                    this.candidates.rules.put(rule, path);
+                    assert this.candidates.rules.containsKey(rule) : "absent key " + rule;
+                    assert this.candidates.rules.get(rule) != null : "absent after put: " + rule + " with " + path;
+                    assert this.candidates.rules.get(rule).containsAll(path) : "items for " + rule + " absent after put which should add all: "
+                            + this.candidates.rules.get(rule) + " missing some of " + path;
 
-                if (addNew[0]) {
-                    this.candidates.rules.put(ruleStack.get(i), path);
                     if (showDebugOutput && logger.isLoggable(Level.FINE)) {
-                        logger.fine("=====> collected: " + this.ruleNames[i]);
+                        logger.log(Level.FINE, "=====> collected: {0}", this.ruleNames[i]);
                     }
                 }
                 return true;
@@ -376,8 +403,8 @@ public class CodeCompletionCore {
      * the same rule that directly follow it without intermediate transitions to
      * other rules and only if there is a single symbol for a transition.
      */
-    private IntSet getFollowingTokens(Transition initialTransition) {
-        IntSet result = IntSet.create(5);
+    private IntList getFollowingTokens(Transition initialTransition) {
+        IntList result = IntList.create(5);
         LinkedList<ATNState> pipeline = new LinkedList<>();
         pipeline.add(initialTransition.target);
 
@@ -387,9 +414,10 @@ public class CodeCompletionCore {
             for (Transition transition : state.getTransitions()) {
                 if (transition.getSerializationType() == Transition.ATOM) {
                     if (!transition.isEpsilon()) {
-                        List<Integer> list = transition.label().toList();
-                        if (list != null && list.size() == 1 && !this.ignoredTokens.test(list.get(0))) {
-                            result.add(list.get(0));
+                        IntegerList list = transition.label().toIntegerList();
+                        int first = list.get(0);
+                        if (list.size() == 1 && !ignoredTokens.test(first)) {
+                            result.add(first);
                             pipeline.addLast(transition.target);
                         }
                     } else {
@@ -398,7 +426,6 @@ public class CodeCompletionCore {
                 }
             }
         }
-
         return result;
     }
 
@@ -409,9 +436,7 @@ public class CodeCompletionCore {
         LinkedList<FollowSetWithPath> result = new LinkedList<>();
         Set<ATNState> seen = new HashSet<>();
         IntList ruleStack = IntList.create(5);
-
         this.collectFollowSets(start, stop, result, seen, ruleStack);
-
         return result;
     }
 
@@ -425,17 +450,19 @@ public class CodeCompletionCore {
             Set<ATNState> seen, IntList ruleStack) {
 
         if (seen.contains(s)) {
+            CCLog.log(this, "seen", s, stopState);
             return;
         }
+        CCLog.log(this, "cfs", s, stopState, ruleStack);
 
         seen.add(s);
 
         if (s.equals(stopState) || s.getStateType() == ATNState.RULE_STOP) {
             FollowSetWithPath set = new FollowSetWithPath();
             set.intervals = IntervalSet.of(Token.EPSILON);
-//            set.path = new LinkedList<Integer>(ruleStack);
-            set.path = IntList.create(ruleStack);
+            set.path = ruleStack.copy();
             followSets.addLast(set);
+            CCLog.log(this, "epstop", set.path);
             return;
         }
 
@@ -458,7 +485,7 @@ public class CodeCompletionCore {
             } else if (transition.getSerializationType() == Transition.WILDCARD) {
                 FollowSetWithPath set = new FollowSetWithPath();
                 set.intervals = IntervalSet.of(Token.MIN_USER_TOKEN_TYPE, this.atn.maxTokenType);
-                set.path = IntList.create(ruleStack);
+                set.path = ruleStack.copy();
                 followSets.addLast(set);
             } else {
                 IntervalSet label = transition.label();
@@ -468,8 +495,8 @@ public class CodeCompletionCore {
                     }
                     FollowSetWithPath set = new FollowSetWithPath();
                     set.intervals = label;
-                    set.path = IntList.create(ruleStack);
-                    set.following = IntSet.create(this.getFollowingTokens(transition));
+                    set.path = ruleStack.copy();
+                    set.following = this.getFollowingTokens(transition);
                     followSets.addLast(set);
                 }
             }
@@ -483,7 +510,9 @@ public class CodeCompletionCore {
      * the current input or if we hit the caret position.
      */
     private IntSet processRule(ATNState startState, int tokenIndex, IntList callStack, String indentation) {
+        CCLog.log(this, "pr", tokenIndex, ": ", callStack);
         // Start with rule specific handling before going into the ATN walk.
+
         // Check first if we've taken this path with the same input before.
         IntMap<IntSet> positionMap = this.shortcutMap.get(startState.ruleIndex);
 
@@ -495,7 +524,9 @@ public class CodeCompletionCore {
             return test;
         }
 
-        IntSet result = IntSet.create(5);
+        IntSet result = test;
+//        this.shortcutMap.put(startState.ruleIndex, positionMap);
+//        positionMap.put(tokenIndex, test);
 
         // For rule start states we determine and cache the follow set, which gives us 3 advantages:
         // 1) We can quickly check if a symbol would be matched when we follow that rule. We can so check in advance
@@ -516,7 +547,7 @@ public class CodeCompletionCore {
             setsPerState.put(startState.stateNumber, followSets);
             RuleStopState stop = this.atn.ruleToStopState[startState.ruleIndex];
             followSets.sets = this.determineFollowSets(startState, stop);
-
+            CCLog.log(this, "fs", followSets.sets);
             // Sets are split by path to allow translating them to preferred rules. But for quick hit tests
             // it is also useful to have a set with all symbols combined.
             IntervalSet combined = new IntervalSet();
@@ -537,32 +568,37 @@ public class CodeCompletionCore {
                 // Convert all follow sets to either single symbols or their associated preferred rule and add
                 // the result to our candidates list.
                 for (FollowSetWithPath set : followSets.sets) {
-                    IntList fullPath = IntList.create(callStack);
+                    IntList fullPath = callStack.copy();
                     fullPath.addAll(set.path);
                     if (!this.translateToRuleIndex(fullPath)) {
-                        for (int symbol : set.intervals.toList()) {
-                            if (!this.ignoredTokens.test(symbol)) {
-                                if (showDebugOutput && logger.isLoggable(Level.FINE)) {
-                                    logger.log(Level.FINE, "=====> collected: {0}", this.vocabulary.getDisplayName(symbol));
-                                }
-                                if (!this.candidates.tokens.containsKey(symbol) && set.following != null) {
-                                    this.candidates.tokens.put(symbol, set.following); // Following is empty if there is more than one entry in the set.
-                                } else {
-                                    // More than one following list for the same symbol.
-                                    if (!this.candidates.tokens.get(symbol).equals(set.following)) { // XXX js uses !=
-                                        this.candidates.tokens.put(symbol, IntSet.create(5));
-                                    }
-                                }
+                        // For the fairly common case where we will only process one
+                        // int, we can avoid several allocations with a small optimization:
+                        if (set.intervals.size() == 1) {
+                            Interval ival = set.intervals.getIntervals().get(0);
+                            if (ival.a == ival.b) {
+                                handleFollowSet(ival.a, set);
                             } else {
-                                logger.log(Level.FINE, "====> collection: Ignoring token: {0}", symbol);
+                                handleFollowSet(ival.a, set);
+                                handleFollowSet(ival.b, set);
                             }
+                            continue;
+                        }
+                        IntegerList l = set.intervals.toIntegerList();
+                        for (int i = 0; i < l.size(); i++) {
+                            int symbol = l.get(i);
+                            handleFollowSet(symbol, set);
                         }
                     }
                 }
             }
-
             callStack.removeLast();
+            if (!result.isEmpty()) {
+                positionMap.put(tokenIndex, result);
+            } else {
+                positionMap.remove(tokenIndex);
+            }
             return result;
+
         } else {
             // Process the rule if we either could pass it without consuming anything (epsilon transition)
             // or if the current input symbol will be matched somewhere after this entry point.
@@ -570,6 +606,11 @@ public class CodeCompletionCore {
             if (followSets.combined != null) {
                 if (!followSets.combined.contains(Token.EPSILON) && !followSets.combined.contains(currentSymbol)) {
                     callStack.removeLast();
+                    if (!result.isEmpty()) {
+                        positionMap.put(tokenIndex, result);
+                    } else {
+                        positionMap.remove(tokenIndex);
+                    }
                     return result;
                 }
             }
@@ -578,14 +619,22 @@ public class CodeCompletionCore {
         // The current state execution pipeline contains all yet-to-be-processed ATN states in this rule.
         // For each such state we store the token index + a list of rules that lead to it.
         LinkedList<PipelineEntry> statePipeline = new LinkedList<>();
-        PipelineEntry currentEntry;
+        PipelineEntry currentEntry = null;
 
         // Bootstrap the pipeline.
         statePipeline.add(new PipelineEntry(startState, tokenIndex));
 
+        PipelineEntry lastEntry = null;
+        int count = 0;
         while (!statePipeline.isEmpty()) {
+            lastEntry = currentEntry;
             currentEntry = statePipeline.removeLast();
             ++this.statesProcessed;
+
+            if (++count > ITERATION_LIMIT) {
+                System.err.println(ITERATION_LIMIT + " iterations - assuming an endless loop with pipeline " + statePipeline + " at " + currentEntry + " prev " + lastEntry);
+                break;
+            }
 
             currentSymbol = this.tokens.get(currentEntry.tokenIndex).getType();
 
@@ -633,9 +682,12 @@ public class CodeCompletionCore {
                     case Transition.WILDCARD: {
                         if (atCaret) {
                             if (!this.translateToRuleIndex(callStack)) {
-                                for (Integer token : IntervalSet.of(Token.MIN_USER_TOKEN_TYPE, this.atn.maxTokenType).toList()) {
+                                IntegerList il = IntervalSet.of(Token.MIN_USER_TOKEN_TYPE, this.atn.maxTokenType).toIntegerList();
+                                for (int i = 0; i < il.size(); i++) {
+                                    int token = il.get(i);
                                     if (!this.ignoredTokens.test(token)) {
-                                        this.candidates.tokens.put(token, IntSet.create(5));
+                                        this.candidates.tokens.putReplace(token, IntSet.create(3));
+                                        assert candidates.tokens.containsKey(token) : "no " + token + " in " + candidates.tokens.keySet();
                                     }
                                 }
                             }
@@ -647,9 +699,6 @@ public class CodeCompletionCore {
 
                     default: {
                         if (transition.isEpsilon()) {
-                            if (atCaret) {
-                                this.translateToRuleIndex(callStack);
-                            }
                             // Jump over simple states with a single outgoing epsilon transition.
                             statePipeline.addLast(new PipelineEntry(transition.target, currentEntry.tokenIndex));
                             continue;
@@ -662,17 +711,30 @@ public class CodeCompletionCore {
                             }
                             if (atCaret) {
                                 if (!this.translateToRuleIndex(callStack)) {
-                                    List<Integer> list = set.toList();
+                                    IntegerList list = set.toIntegerList();
+//                                    List<Integer> list = set.toList();
                                     boolean addFollowing = list.size() == 1;
-                                    for (Integer symbol : list) {
+                                    for (int i = 0; i < list.size(); i++) {
+                                        int symbol = list.get(i);
                                         if (!this.ignoredTokens.test(symbol)) {
                                             if (showDebugOutput && logger.isLoggable(Level.FINE)) {
                                                 logger.log(Level.FINE, "=====> collected: {0}", this.vocabulary.getDisplayName(symbol));
                                             }
                                             if (addFollowing) {
-                                                this.candidates.tokens.put(symbol, this.getFollowingTokens(transition));
+                                                IntList foll = this.getFollowingTokens(transition);
+                                                this.candidates.tokens.putReplace(symbol, foll);
+                                                assert candidates.tokens.containsKey(symbol);
+                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "" + symbol;
+                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() == foll.isEmpty() : "sym " + symbol
+                                                        + " " + foll + " " + this.candidates.tokens.getIfPresent(symbol);
+                                                assert ((this.candidates.tokens.getIfPresent(symbol).isEmpty() && foll.isEmpty())
+                                                        || this.candidates.tokens.getIfPresent(symbol).containsAll(foll)) : " non-match "
+                                                        + this.candidates.tokens.getIfPresent(symbol) + " expected " + foll;
                                             } else {
                                                 this.candidates.tokens.put(symbol, IntSet.create(5));
+                                                assert this.candidates.tokens.containsKey(symbol) : "no key " + symbol;
+                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "no " + symbol;
+                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() : "no " + symbol;
                                             }
                                         } else {
                                             logger.log(Level.FINE, "====> collected: Ignoring token: {0}", symbol);
@@ -696,8 +758,37 @@ public class CodeCompletionCore {
         callStack.removeLast();
 
         // Cache the result, for later lookup to avoid duplicate walks.
-        positionMap.put(tokenIndex, result);
+        if (!result.isEmpty()) {
+            positionMap.put(tokenIndex, result);
+        } else {
+            positionMap.remove(tokenIndex);
+        }
+
         return result;
+    }
+
+    private void handleFollowSet(int symbol, FollowSetWithPath set) {
+        if (!this.ignoredTokens.test(symbol)) {
+            if (showDebugOutput && logger.isLoggable(Level.FINE)) {
+                logger.log(Level.FINE, "=====> collected: {0}", this.vocabulary.getDisplayName(symbol));
+            }
+            if (!this.candidates.tokens.containsKey(symbol)) {
+                if (set.following == null) {
+                    set.following = IntList.create(5);
+                }
+                this.candidates.tokens.put(symbol, set.following); // Following is empty if there is more than one entry in the set.
+                assert candidates.tokens.containsKey(symbol);
+            } else {
+                // More than one following list for the same symbol.
+                if (!this.candidates.tokens.get(symbol).equals(set.following)) { // XXX js uses !=
+                    this.candidates.tokens.putReplace(symbol, IntSet.create(5));
+                    assert candidates.tokens.containsKey(symbol);
+                    assert candidates.tokens.getIfPresent(symbol).isEmpty();
+                }
+            }
+        } else {
+            logger.log(Level.FINE, "====> collection: Ignoring token: {0}", symbol);
+        }
     }
 
     private String[] atnStateTypeMap = new String[]{

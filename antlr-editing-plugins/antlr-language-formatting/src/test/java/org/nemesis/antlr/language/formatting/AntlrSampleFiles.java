@@ -119,4 +119,13 @@ public enum AntlrSampleFiles implements SampleFile {
                 throw new AssertionError(file);
         }
     }
+
+    @Override
+    public String fileName() {
+        try {
+            return path(this).getFileName().toString();
+        } catch (Exception ex) {
+            throw new AssertionError(name(), ex);
+        }
+    }
 }

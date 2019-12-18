@@ -149,7 +149,7 @@ ranges
     :   range (',' range)*
     ;
 
-    range
+range
     :   IntLit
     |   IntLit 'to' IntLit
     ;

@@ -53,6 +53,12 @@ import static org.nemesis.distance.LevenshteinDistance.sortByDistance;
  * overlapping ranges. This is the right data structure for an Antlr parse, but
  * not a general-purpose thing. It specifically uses shared arrays of names,
  * start and end positions to minimize memory and disk-cache consumption.
+ * <p>
+ * <b>Note:</b> The <code>NamedSemanticRegion</code> instances emitted are
+ * <i>flyweight objects</i> - they are created on demand, and while they honor
+ * the <code>equals()</code> contract, you will not get the same instance
+ * returned for the same input twice.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -238,7 +244,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 set.set(r.index());
             }
         }
-        return new BitSetSet<>(new IndexedStringAdapter());
+        return new BitSetSet<>(new IndexedStringAdapter(), set);
     }
 
     class IndexedStringAdapter implements IndexedResolvable<String> {
@@ -257,7 +263,6 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         public int size() {
             return NamedSemanticRegions.this.size();
         }
-
     }
 
     /**

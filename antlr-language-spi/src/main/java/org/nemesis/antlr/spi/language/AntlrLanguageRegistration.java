@@ -115,10 +115,122 @@ public @interface AntlrLanguageRegistration {
      */
     String lineCommentPrefix() default "";
 
+    /**
+     * If configured, generic code completion will be generated,
+     * which uses Antlr's internal ability to predict what tokens
+     * or rules can possibly come next to decide what completions
+     * are possible. It can do basic keyword completion with minimal
+     * configuration, and complete names from configured extracted
+     * NamedSemanticRegions if the grammar is written so it is amenable
+     * to that, and the extraction captures names for those rules which
+     * are predicted. What that means, specifically, is:
+     * <ul>
+     * <li>Your grammar uses separate parser rules for different kinds
+     * of identifier you want to capture. In other words, if you capture
+     * a lot names of things that have different purposes simply using
+     * a lexer token ID, no completion will be offered, because your
+     * extracted tokens won't be mapped internally to any lexer rule;
+     * and if you use a generic "identifier" rule, every known identifier
+     * will be offered as code completion, whether it is legal or not.
+     * SO... if you have a generic "identifier" rule used for heterogenous
+     * things that should not be completions of each other, turn those
+     * into separate rules.
+     * </li>
+     * <li>When defining an extractor, make sure <i>those</i> rules
+     * are the ones you use in your ExtractionBuilder (test on an ancestor
+     * rule if you use the same rule of <i>definitions</i> and
+     * <i>references to</i> that rule, to only capture as names those
+     * things that are <i>definitions</i>).</li>
+     * </ul>
+     *
+     * @return A code completion configuration
+     */
     CodeCompletion genericCodeCompletion() default @CodeCompletion;
 
+    /**
+     * Defines properties for generic code completion. At a minimum,
+     * one of <code>ignoreTokens()</code> or <code>preferredRules</code>
+     * must be set, or nothing will be generated.
+     */
     public @interface CodeCompletion {
+
+        /**
+         * An array of token ids (constants defined on your
+         * Antlr-generated Lexer) that are irrelevant for code
+         * completion - things like comment markers, whitespace,
+         * and punctuation that isn't terribly useful in code
+         * completion.
+         *
+         * @return An array of token ids.
+         */
         int[] ignoreTokens() default {};
+
+        /**
+         * An array of rule ids (constants defined on your
+         * Antlr-generated parser with names that start with
+         * <code>RULE_</code>) which you are interested in
+         * completions for - and <i>for which your extraction
+         * will capture names</i>. If you are not directly
+         * capturing names, you can also implement CompletionsSupplier
+         * and it will be used in place of looking up names from
+         * your extraction.
+         *
+         * @return The set of rules to complete
+         */
+        int[] preferredRules() default {};
+
+        /**
+         * Generic code completion automatically completes tokens which
+         * have predefined content (in the Lexer's Vocabulary, its
+         * <i>symbolic name</i> is non-null). Completion items for these will
+         * be generated automatically (unless they are in the ignore set).
+         * However, if you use the same fragment in multiple places in
+         * a grammar using the
+         * <a href="https://github.com/antlr/antlr4/blob/master/doc/lexer-rules.md#type">type lexer command</a>, you
+         * will wind up with tokens which have a fixed,
+         * always-the-same value, but have no symbolic name reported by the
+         * vocabulary. This (rarely needed) method allows you to fill those
+         * back in.
+         *
+         * @return A set of supplementary token completions
+         */
+        SupplementaryTokenCompletion[] tokenCompletions() default {};
+
+        public @interface SupplementaryTokenCompletion {
+            /**
+             * The token identifier (constant on your lexer).
+             *
+             * @return The token id
+             */
+            int tokenId();
+
+            /**
+             * The text to use in completion.
+             *
+             * @return The text
+             */
+            String text();
+        }
+
+        /**
+         * In the case that you are using one parser rule for names of
+         * things, and a different parser rule for <i>references to</i>
+         * that name.  Generic code completion looks for names that were
+         * extracted inside a rule ID and offers completions when
+         * <i>that exact rule ID is one of those that could follow the
+         * caret token</i>.  In the case that the token at the caret uses
+         * a different rule ID, use &#064;RuleSubstitutions to request
+         * names for the rule ID you collected them under instead.
+         * 
+         * @return An array of substitution token pairs
+         */
+        RuleSubstitutions[] ruleSubstitutions() default {};
+
+        public @interface RuleSubstitutions {
+            int complete();
+
+            int withCompletionsOf();
+        }
     }
 
     public @interface SyntaxInfo {

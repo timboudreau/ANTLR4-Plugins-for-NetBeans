@@ -42,10 +42,13 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import static org.nemesis.registration.typenames.JdkTypes.ACTION;
+import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_EDITOR_ACTION;
 import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
 import static org.nemesis.registration.typenames.KnownTypes.DECLARATION_TOKEN_PROCESSOR;
+import static org.nemesis.registration.typenames.KnownTypes.EDITOR_ACTION_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
 import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_REFERENCE_SETS;
 import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION_REFERENCE;
@@ -314,31 +317,76 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                         NAME_REFERENCE_SET_KEY.qname(),
                         NAMED_SEMANTIC_REGION_REFERENCE.qname(),
                         NAMED_REGION_REFERENCE_SETS.qname(),
+                        ACTION.qname(),
+                        EDITOR_ACTION_REGISTRATION.qname(),
                         NB_ANTLR_UTILS.qname()
                 )
+                .staticBlock(lb -> {
+                    lb.statement("LOGGER.setLevel(Level.ALL)").endBlock();
+                })
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
                             .initializedAsArrayLiteral(NAME_REFERENCE_SET_KEY.parametrizedName("?"), ab -> {
                                 value.forEach(ab::add);
                                 ab.closeArrayLiteral();
                             });
-                }).field("ACTION", fb -> {
+                })
+                /*.field("ACTION", fb -> {
             fb.withModifier(PUBLIC, STATIC, FINAL)
                     .initializedFromInvocationOf("createGotoDeclarationAction", ib -> {
                         ib.withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName());
                     }).ofType(ABSTRACT_EDITOR_ACTION.simpleName());
-        }).method("action").withModifier(PUBLIC, STATIC).returning(ABSTRACT_EDITOR_ACTION.simpleName())
-                .body().returning("ACTION").endBlock();
+        })*/.method("action", mb -> {
+            mb
+                    /*
+                    .annotatedWith(EDITOR_ACTION_REGISTRATION.simpleName(), ab -> {
+                ab.addArgument("name", "goto-declaration")
+                        .addArgument("mimeType", mimeType)
+                        .addArgument("category", "Refactoring")
+                        .addArgument("menuPath", "Menu/Refactoring")
+                        .addArgument("menuPosition", 10)
+                        .addArgument("noIconInMenu", true)
+                        .addArgument("noKeyBinding", false)
+                        .addArgument("popupPosition", 10);
+            }).annotatedWith(MESSAGES.qname(), ab -> {
+                ab.addArgument("value", "goto-declaration=&Go to Declaration");
+            })
+                    */
+                    .withModifier(PUBLIC, STATIC).returning(ACTION.simpleName())
+                    .body(bb -> {
+                        bb.log("Create a " + mimeType + " inplace editor action", Level.INFO);
+                        bb.debugLog("Create " + mimeType + " inplace editor action");
+                        bb.declare("result").initializedByInvoking("createGotoDeclarationAction")
+                                .withStringLiteral(mimeType)
+                                .withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName())
+                                .as(ABSTRACT_EDITOR_ACTION.simpleName());
+                        bb.log("Returning {0}", Level.INFO, "result");
+                        bb.returning("result");
+                    });
+//                    .bodyReturning("ACTION");
+        });
+        /*
+    @EditorActionRegistration(name = "goto-declaration",
+        mimeType = "text/x-g4", popupPosition = 10,
+            category = "Antlr",
+        menuPath="Menu/Refactoring", menuPosition = 10)
+
+         */
 
         Element[] els = setsFor(value).toArray(new Element[0]);
         LayerBuilder layer = layer(els);
         String layerPath = "Editors/" + mimeType + "/Actions/"
-                + "goto-declaration" /* cb.fqn().replace('.', '-') */ + ".instance";
+                + "goto-declaration.instance";
         layer.file(layerPath)
-                .stringvalue("instanceCreate", cb.fqn() + ".action")
-                .stringvalue("instanceOf", "javax.swing.Action")
-                .intvalue("position", 1)
+                .methodvalue("instanceCreate", cb.fqn(), "action")
+                .stringvalue("instanceClass", "org.nemesis.antlr.spi.language.AntlrGotoDeclarationAction")
+                .stringvalue("instanceOf", ACTION.qname())
+                .stringvalue("instanceOf", ABSTRACT_EDITOR_ACTION.qname())
+                .stringvalue("instanceOf", TEXT_ACTION.qname())
+                .stringvalue("Name", "goto-declaration")
+                .intvalue("position", gotoCount++)
                 .write();
         return cb;
     }
+    static volatile int gotoCount = 1;
 }

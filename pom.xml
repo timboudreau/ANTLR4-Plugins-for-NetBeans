@@ -25,6 +25,7 @@ limitations under the License.
     <description>NetBeans ANTLR modules parent POM</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <headlessTests>true</headlessTests>
         <netbeans.version>RELEASE112</netbeans.version>
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/../license-notice-apache-2.txt</netbeans.hint.licensePath>
@@ -155,6 +156,7 @@ limitations under the License.
                         <trimStackTrace>false</trimStackTrace>
                         <argline>--illegal-access=permit</argline>
                         <systemPropertyVariables>
+                            <java.awt.headless>${headlessTests}</java.awt.headless>
                             <unit.test>true</unit.test>
                             <forkNumber>${surefire.forkNumber}</forkNumber>
                             <netbeans.moduleitem.dontverifyclassloader>true</netbeans.moduleitem.dontverifyclassloader>
@@ -279,6 +281,7 @@ limitations under the License.
         <module>antlr-instant-rename</module>
         <module>antlr-refactoring</module>
         <module>swing-utils</module>
+        <module>antlr-utils</module>
     </modules>
     <repositories>
         <repository>
@@ -334,6 +337,11 @@ limitations under the License.
                 <groupId> org.netbeans.api</groupId>
                 <artifactId>org-netbeans-spi-navigator</artifactId>
                 <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-utils</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>

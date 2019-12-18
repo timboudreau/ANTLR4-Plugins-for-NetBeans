@@ -15,18 +15,28 @@
  */
 package org.nemesis.antlr.memory.tool.epsilon;
 
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.antlr.runtime.RecognitionException;
+import org.antlr.runtime.tree.CommonTreeNodeStream;
 import org.antlr.v4.automata.ATNOptimizer;
 import org.antlr.v4.automata.LexerATNFactory;
+import org.antlr.v4.parse.ANTLRParser;
+import org.antlr.v4.parse.ATNBuilder;
+import org.antlr.v4.parse.GrammarASTAdaptor;
 import org.antlr.v4.runtime.atn.ATN;
 import org.antlr.v4.runtime.atn.ATNState;
+import org.antlr.v4.runtime.atn.BasicState;
+import org.antlr.v4.runtime.atn.RuleStartState;
+import org.antlr.v4.runtime.atn.RuleStopState;
 import org.antlr.v4.runtime.misc.IntervalSet;
 import org.antlr.v4.runtime.misc.Triple;
+import org.antlr.v4.tool.ErrorManager;
 import org.antlr.v4.tool.ErrorType;
 import org.antlr.v4.tool.LeftRecursiveRule;
 import org.antlr.v4.tool.LexerGrammar;
@@ -44,6 +54,17 @@ class LexerEmptyStringAnalyzer extends LexerATNFactory {
     public LexerEmptyStringAnalyzer(LexerGrammar g, EpsilonAnalysis anaState) {
         super(g);
         this.anaState = anaState;
+    }
+
+    public ATNState newState(GrammarAST node) {
+        // overridden to avoid NPE if currentRule is null,
+        // which it can be on a broken source
+        ATNState n = new BasicState();
+        if (currentRule != null) {
+            n.setRuleIndex(currentRule.index);
+        }
+        atn.addState(n);
+        return n;
     }
 
     @Override
@@ -89,6 +110,45 @@ class LexerEmptyStringAnalyzer extends LexerATNFactory {
             }
         }
         return atn;
+    }
+
+    /**
+     * Define all the rule begin/end ATNStates to solve forward reference
+     * issues.
+     */
+    void createRuleStartAndStopATNStates() {
+        atn.ruleToStartState = new RuleStartState[g.rules.size()];
+        atn.ruleToStopState = new RuleStopState[g.rules.size()];
+        for (Rule r : g.rules.values()) {
+            RuleStartState start = newState(RuleStartState.class, r.ast);
+            RuleStopState stop = newState(RuleStopState.class, r.ast);
+            start.stopState = stop;
+            start.isLeftRecursiveRule = r instanceof LeftRecursiveRule;
+            start.setRuleIndex(r.index);
+            stop.setRuleIndex(r.index);
+            atn.ruleToStartState[r.index] = start;
+            atn.ruleToStopState[r.index] = stop;
+        }
+    }
+
+    protected void _createATN(Collection<Rule> rules) {
+        createRuleStartAndStopATNStates();
+
+        GrammarASTAdaptor adaptor = new GrammarASTAdaptor();
+        for (Rule r : rules) {
+            currentRule = r;
+            // find rule's block
+            GrammarAST blk = (GrammarAST) r.ast.getFirstChildWithType(ANTLRParser.BLOCK);
+            CommonTreeNodeStream nodes = new CommonTreeNodeStream(adaptor, blk);
+            ATNBuilder b = new ATNBuilder(nodes, this);
+            try {
+                setCurrentRuleName(r.name);
+                Handle h = b.ruleBlock(null);
+                rule(r.ast, r.name, h);
+            } catch (RecognitionException re) {
+                ErrorManager.fatalInternalError("bad grammar AST structure", re);
+            }
+        }
     }
 
     @Override

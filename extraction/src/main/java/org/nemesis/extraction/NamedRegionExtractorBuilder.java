@@ -611,7 +611,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    static final class TokenAndKindConvertFunction<R, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
+    static final class TokenAndKindConvertFunction<R extends ParserRuleContext, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
 
         private final BiConsumer<R, BiConsumer<T, Token>> cons;
 
@@ -638,7 +638,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    static final class TerminalNodeAndKindConvertFunction<R, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
+    static final class TerminalNodeAndKindConvertFunction<R extends ParserRuleContext, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
 
         private final BiConsumer<R, BiConsumer<T, TerminalNode>> cons;
 
@@ -668,7 +668,7 @@ public final class NamedRegionExtractorBuilder<T extends Enum<T>, Ret> {
         }
     }
 
-    static final class TerminalNodeConvertFunction<R, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
+    static final class TerminalNodeConvertFunction<R extends ParserRuleContext, T extends Enum<T>> implements Function<R, NamedRegionData<T>>, Hashable {
 
         private final T kind;
         private final BiConsumer<R, Consumer<TerminalNode>> cons;

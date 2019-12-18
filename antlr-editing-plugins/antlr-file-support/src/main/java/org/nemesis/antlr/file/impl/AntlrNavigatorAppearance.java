@@ -23,7 +23,7 @@ import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.navigator.Appearance;
 import org.nemesis.antlr.navigator.SortTypes;
 import org.nemesis.data.named.NamedSemanticRegion;
-import org.openide.awt.HtmlRenderer;
+import org.nemesis.swing.html.HtmlRenderer;
 
 /**
  *

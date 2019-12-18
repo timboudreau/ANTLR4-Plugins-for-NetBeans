@@ -15,10 +15,7 @@
  */
 package org.nemesis.registration;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,10 +39,8 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PROTECTED;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
-import static javax.lang.model.element.Modifier.SYNCHRONIZED;
 import javax.lang.model.element.Name;
 import javax.lang.model.element.NestingKind;
-import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
@@ -60,16 +55,23 @@ import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.strings.Strings;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.logging.Logger;
 import javax.annotation.processing.Filer;
 import static javax.lang.model.element.Modifier.DEFAULT;
+import static javax.lang.model.element.Modifier.SYNCHRONIZED;
+import javax.lang.model.element.PackageElement;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
@@ -87,6 +89,7 @@ import static org.nemesis.registration.typenames.JdkTypes.COLLECTIONS;
 import static org.nemesis.registration.typenames.JdkTypes.DOCUMENT;
 import static org.nemesis.registration.typenames.JdkTypes.EDITOR_KIT;
 import static org.nemesis.registration.typenames.JdkTypes.HASH_MAP;
+import static org.nemesis.registration.typenames.JdkTypes.HASH_SET;
 import static org.nemesis.registration.typenames.JdkTypes.ILLEGAL_ARGUMENT_EXCEPTION;
 import static org.nemesis.registration.typenames.JdkTypes.IO_EXCEPTION;
 import static org.nemesis.registration.typenames.JdkTypes.LIST;
@@ -127,6 +130,7 @@ import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_COMPLETION_P
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
 import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTER_KEY_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.INSTANCE_CONTENT;
+import static org.nemesis.registration.typenames.KnownTypes.INT_PREDICATES;
 import static org.nemesis.registration.typenames.KnownTypes.ITERABLE_TOKEN_SOURCE;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_HIERARCHY;
@@ -163,6 +167,7 @@ import static org.nemesis.registration.typenames.KnownTypes.SYNTAX_ERROR;
 import static org.nemesis.registration.typenames.KnownTypes.SYNTAX_SUPPORT;
 import static org.nemesis.registration.typenames.KnownTypes.TASK;
 import static org.nemesis.registration.typenames.KnownTypes.TASK_FACTORY;
+import static org.nemesis.registration.typenames.KnownTypes.TERMINAL_NODE;
 import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CATEGORIZER;
 import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CATEGORY;
 import static org.nemesis.registration.typenames.KnownTypes.TOKEN_ID;
@@ -366,6 +371,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 return true;
             }
             generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
+            writeOne(parser.createRuleTypeMapper(utils().packageName(type), prefix, mimeType));
         }
         generateRegistration(prefix, mirror, mimeType, type);
 
@@ -419,8 +425,43 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         writeOne(cb);
     }
 
-    private void generateCodeCompletion(String prefix, AnnotationMirror mirror, AnnotationMirror codeCompletion, TypeElement on, String mimeType, LexerProxy lexer, ParserProxy parser) throws IOException {
+    private void generateCodeCompletion(String prefix, AnnotationMirror mirror,
+            AnnotationMirror codeCompletion, TypeElement on, String mimeType, LexerProxy lexer,
+            ParserProxy parser) throws IOException {
         String generatedClassName = prefix + "GenericCodeCompletion";
+        List<AnnotationMirror> list = utils().annotationValues(codeCompletion, "tokenCompletions", AnnotationMirror.class);
+        // In case of duplicates, use a map
+        IntMap<String> tokenCompletions = CollectionUtils.intMap(Math.max(1, list.size()));
+        for (AnnotationMirror am : list) {
+            Integer tokenId = utils().annotationValue(am, "tokenId", Integer.class);
+            String text = utils().annotationValue(am, "text", String.class);
+            if (tokenId != null && text != null) {
+                if (tokenCompletions.containsKey(tokenId.intValue())) { // broken source
+                    utils().fail("The token id " + tokenId
+                            + "(" + lexer.tokenName(tokenId) + ")"
+                            + " appears more than once in "
+                            + "supplementary token completions of " + codeCompletion);
+                    return;
+                }
+                tokenCompletions.put(tokenId.intValue(), text);
+            }
+        }
+        List<AnnotationMirror> substs = utils().annotationValues(codeCompletion, "ruleSubstitutions", AnnotationMirror.class);
+        IntMap<Integer> ruleSubstitutions = CollectionUtils.intMap(Math.max(1, substs.size()));
+        for (AnnotationMirror am : substs) {
+            Integer ruleId = utils().annotationValue(am, "complete", Integer.class);
+            Integer with = utils().annotationValue(am, "withCompletionsOf", Integer.class);
+            if (ruleId != null && with != null) { // broken source
+                if (ruleSubstitutions.containsKey(ruleId.intValue())) {
+                    utils().fail("The rule id " + ruleId
+                            + "(" + parser.nameForRule(ruleId) + ")"
+                            + " appears more than once in "
+                            + "supplementary rule substitutions of " + codeCompletion);
+                }
+                ruleSubstitutions.put(ruleId, with);
+            }
+        }
+
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
                 .importing(lexer.lexerClassFqn(), parser.parserClassFqn(),
                         IO_EXCEPTION.qname(),
@@ -432,6 +473,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         GRAMMAR_SOURCE.qname(),
                         MIME_REGISTRATION.qname(),
                         COMPLETION_PROVIDER.qname(),
+                        INT_PREDICATES.qname(),
+                        parser.parserClassFqn(),
                         CRITERIA.qname()
                 ).extending(GRAMMAR_COMPLETION_PROVIDER.simpleName())
                 .annotatedWith(MIME_REGISTRATION.simpleName(), ab -> {
@@ -440,6 +483,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 })
                 .withModifier(PUBLIC, FINAL)
                 .staticImport(lexer.lexerClassFqn() + ".*")
+                .generateDebugLogCode()
                 .privateMethod("createParser", mb -> {
                     mb.withModifier(STATIC)
                             .addArgument(DOCUMENT.simpleName(), "doc")
@@ -467,6 +511,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                     } else {
                                         nb.withArgument("lexer").ofType(COMMON_TOKEN_STREAM.simpleName());
                                     }
+//                                    nb.withArgument(parser.parserClassFqn()+"::"+parser.parserEntryPoint().getSimpleName());
                                 }).as(TOKEN_STREAM.simpleName());
 //
 //                                bb.declare("stream").initializedByInvoking("new CommonTokenStream")
@@ -485,17 +530,95 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 })
                 .constructor(con -> {
                     con.setModifier(PUBLIC).body(bb -> {
-                        bb.invoke("super")
-                                .withArgument(generatedClassName + "::createParser")
-                                .withArgument(("ignored -> false"))
-                                .withArgumentFromInvoking("anyOf", ib -> {
-                                    Set<Integer> ignore = new TreeSet<>(utils().annotationValues(codeCompletion, "ignoreTokens", Integer.class));
+                        Consumer<InvocationBuilder<?>> c = sup -> {
+                            sup = sup.withStringLiteral(mimeType);
+                            sup = sup.withArgument(generatedClassName + "::createParser");
+                            Set<Integer> preferredRules = new TreeSet<>(utils().annotationValues(codeCompletion, "preferredRules", Integer.class));
+                            if (!preferredRules.isEmpty()) {
+                                sup = sup.withArgumentFromInvoking("anyOf", ib -> {
+                                    for (Integer i : preferredRules) {
+                                        String fieldName
+                                                = parser.ruleFieldForRuleId(i.intValue());
+                                        if (fieldName == null) {
+                                            utils().fail("No parser rule exists for " + i);
+                                            return;
+                                        }
+                                        String fieldQual
+                                                = parser.parserClassSimple() + "." + parser.ruleFieldForRuleId(i.intValue());
+                                        ib = ib.withArgument(fieldQual);
+                                    }
+                                    ib.on(INT_PREDICATES.simpleName());
+                                });
+                            } else {
+                                sup = sup.withArgumentFromInvoking("alwaysFalse", ib -> {
+                                    ib.on(INT_PREDICATES.simpleName());
+                                });
+                            }
+                            Set<Integer> ignore = new TreeSet<>(utils().annotationValues(codeCompletion, "ignoreTokens", Integer.class));
+                            if (!ignore.isEmpty()) {
+                                sup.withArgumentFromInvoking("anyOf", ib -> {
                                     for (Integer i : ignore) {
-                                        ib.withArgument(lexer.lexerClassSimple() + "." + lexer.tokenName(i));
+                                        ib = ib.withArgument(lexer.lexerClassSimple()
+                                                + "." + lexer.tokenName(i));
                                     }
                                     ib.on("CRITERIA");
-                                })
-                                .inScope();
+                                });
+                            } else {
+                                sup.withArgumentFromInvoking("alwaysFalse", ib -> {
+                                    ib.on(INT_PREDICATES.simpleName());
+                                });
+                            }
+                            sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
+                                int[] keys = tokenCompletions.keysArray();
+                                for (int i = 0; i < keys.length; i++) {
+                                    avb.number(keys[i]);
+                                }
+                            });
+                            sup.withNewArrayArgument("String", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
+                                Object[] vals = tokenCompletions.valuesArray();
+                                for (int i = 0; i < vals.length; i++) {
+                                    avb.literal((String) vals[i]);
+                                }
+                            });
+                            sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
+                                int[] keys = ruleSubstitutions.keysArray();
+                                for (int i = 0; i < keys.length; i++) {
+                                    avb.number(keys[i]);
+                                }
+                            });
+                            sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
+                                Object[] vals = ruleSubstitutions.valuesArray();
+                                for (int i = 0; i < vals.length; i++) {
+                                    avb.number((Integer) vals[i]);
+                                }
+                            });
+                        };
+                        InvocationBuilder<?> ib = bb.invoke("super");
+                        c.accept(ib);
+                        ib.inScope();
+
+//                        bb.invoke("super")
+//                                .withArgument(generatedClassName + "::createParser")
+//                                .withArgumentFromInvoking("anyOf", ib -> {
+//                                    Set<Integer> preferredRules = new TreeSet<>(utils().annotationValues(codeCompletion, "preferredRules", Integer.class));
+//                                    if (preferredRules.isEmpty()) {
+//
+//                                    }
+//                                    for (Integer i : preferredRules) {
+//                                        String fieldName = parser.ruleFieldForRuleId(i.intValue());
+//                                        String fieldQual = parser.parserClassSimple() + "." + fieldName;
+//                                        ib.withArgument(fieldQual);
+//                                    }
+//                                    ib.on(INT_PREDICATES.simpleName());
+//                                })
+//                                .withArgumentFromInvoking("anyOf", ib -> {
+//                                    Set<Integer> ignore = new TreeSet<>(utils().annotationValues(codeCompletion, "ignoreTokens", Integer.class));
+//                                    for (Integer i : ignore) {
+//                                        ib.withArgument(lexer.lexerClassSimple() + "." + lexer.tokenName(i));
+//                                    }
+//                                    ib.on("CRITERIA");
+//                                })
+//                                .inScope();
                     });
                 });
         writeOne(cb);
@@ -1028,6 +1151,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 if (!all.isEmpty()) {
                                     cl.importing(NB_ANTLR_UTILS.qname());
                                     alb.invoke("createGotoDeclarationAction", ib -> {
+                                        ib.withStringLiteral(mimeType);
                                         for (VariableElement el : all) {
                                             Element enc = el.getEnclosingElement();
                                             if (enc instanceof TypeElement) {
@@ -1468,7 +1592,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .trying().declare("result").initializedByInvoking("parse")
                                         .withArgument("bag").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
                                         .ifNotNull("result")
-
                                         .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
                                         .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
                                         .synchronizeOn("this")
@@ -1605,7 +1728,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             });
                 })
                 .override("addChangeListener")
-                    .addArgument("ChangeListener", "l").withModifier(PUBLIC)
+                .addArgument("ChangeListener", "l").withModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
                         bb.invoke("addChangeListener").withArgument("l").on("changeSupport");
@@ -1719,7 +1842,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         writeOne(cl);
         if (utils().annotationValue(parserInfo, "generateSyntaxTreeNavigatorPanel", Boolean.class, false)) {
-            generateSyntaxTreeNavigatorPanel(type, mirror, parser.parserEntryPoint());
+            generateSyntaxTreeNavigatorPanel(type, mirror, parser.parserEntryPoint(), lexer);
         }
         if (utils().annotationValue(parserInfo, "generateExtractionDebugNavigatorPanel", Boolean.class, false)) {
             generateExtractionDebugPanel(type, mirror, parser.parserEntryPoint());
@@ -1752,7 +1875,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     }
 
-    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
+    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod, LexerProxy lexer) throws IOException {
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
 
@@ -1765,12 +1888,17 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         TypeName.addImports(cb, BI_PREDICATE, PARSER_RULE_CONTEXT, PARSE_TREE,
                 SIMPLE_NAVIGATOR_REGISTRATION, EXTRACTION_REGISTRATION, EXTRACTOR_BUILDER,
-                REGIONS_KEY);
+                REGIONS_KEY, TERMINAL_NODE, VOCABULARY, SET, HASH_SET);
 
         cb.importing(ANTLR_V4_TOKEN.qname(), entryPointType)
                 .withModifier(PUBLIC)
                 .docComment("Provides a generic Navigator panel which displays the syntax tree of the current file.")
                 .utilityClassConstructor()
+                .field("VOCABULARY", fb -> {
+                    fb.withModifier(PRIVATE, STATIC, FINAL)
+                            .initializedTo(lexer.lexerClassFqn() + ".VOCABULARY")
+                            .ofType(VOCABULARY.simpleName());
+                })
                 //                .constructor(c -> {
                 //                    c.setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
                 //                })
@@ -2095,11 +2223,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             } else {
                 ref = k.toString();
             }
+            String docComment = k.intValue() == proxy.erroneousTokenId()
+                    ? "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable."
+                    : "Constant for NetBeans token corresponding to token "
+                    + proxy.tokenName(k) + " in " + proxy.lexerClassSimple() + ".VOCABULARY.";
+
             toks.field(fieldName).withModifier(STATIC).withModifier(PUBLIC).withModifier(FINAL)
-                    .docComment(k.equals(proxy.erroneousTokenId())
-                            ? "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable."
-                            : "Constant for NetBeans token corresponding to token "
-                            + proxy.tokenName(k) + " in " + proxy.lexerClassSimple() + ".VOCABULARY.")
+                    .docComment(docComment)
                     .initializedTo("new " + tokensImplName + "(" + ref + ")")
                     .ofType(tokenTypeName);
             idSwitch.inCase(ref).returning(fieldName).endBlock();
@@ -2292,15 +2422,43 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .method("tokenId").withModifier(PUBLIC).override().addArgument("int", "ordinal").returning(tokenTypeName)
                 .body().returning(tokensTypeName + ".forId(ordinal)").endBlock()
                 .method("setInitialStackedModeNumber").override().withModifier(PUBLIC).addArgument(proxy.lexerClassSimple(), "lexer")
-                .addArgument("int", "modeNumber").body()
-                .lineComment("This method will be exposed on the implementation type")
-                .lineComment("but is not exposed in the parent class Lexer")
-                .statement("lexer.setInitialStackedModeNumber(modeNumber)").endBlock()
+                .addArgument("int", "modeNumber").body(
+                bb -> {
+                    if (proxy.hasInitialStackedModeNumberMethods(utils())) {
+                        bb.lineComment("This method will be exposed on the implementation type")
+                                .lineComment("but is not exposed in the parent class Lexer")
+                                .statement("lexer.setInitialStackedModeNumber(modeNumber)");
+                    } else {
+                        bb.lineComment("If the lexer contains a @lexer::members block defining a getter/setter pair for initialStackedModeNumber");
+                        bb.lineComment("an implementation will be generated for this method to call it, e.g.");
+                        bb.lineComment("protected int initialStackedModeNumber = -1;");
+                        bb.lineComment("public int getInitialStackedModeNumber() {");
+                        bb.lineComment("    return initialStackedModeNumber;");
+                        bb.lineComment("}");
+                        bb.lineComment("public void setInitialStackedModeNumber(int initialStackedModeNumber) {");
+                        bb.lineComment("    this.initialStackedModeNumber = initialStackedModeNumber;");
+                        bb.lineComment("}");
+                    }
+                })
                 .overridePublic("getInitialStackedModeNumber").returning("int").addArgument(proxy.lexerClassSimple(), "lexer")
-                .body()
-                .lineComment("This method will be exposed on the implementation type")
-                .lineComment("but is not exposed in the parent class Lexer")
-                .returning("lexer.getInitialStackedModeNumber()").endBlock()
+                .body(bb -> {
+                    if (proxy.hasInitialStackedModeNumberMethods(utils())) {
+                        bb.lineComment("This method will be exposed on the implementation type")
+                                .lineComment("but is not exposed in the parent class Lexer")
+                                .returning("lexer.getInitialStackedModeNumber()").endBlock();
+                    } else {
+                        bb.lineComment("If the lexer contains a @lexer::members block defining a getter/setter pair for initialStackedModeNumber");
+                        bb.lineComment("an implementation will be generated for this method to call it, e.g.");
+                        bb.lineComment("protected int initialStackedModeNumber = -1;");
+                        bb.lineComment("public int getInitialStackedModeNumber() {");
+                        bb.lineComment("    return initialStackedModeNumber;");
+                        bb.lineComment("}");
+                        bb.lineComment("public void setInitialStackedModeNumber(int initialStackedModeNumber) {");
+                        bb.lineComment("    this.initialStackedModeNumber = initialStackedModeNumber;");
+                        bb.lineComment("}");
+                        bb.returning(-1);
+                    }
+                })
                 .method("newParseResult", mth -> {
                     mth.docComment("Invokes ANTLR and creates a parse result.");
                     mth.addArgument("Snapshot", "snapshot")
