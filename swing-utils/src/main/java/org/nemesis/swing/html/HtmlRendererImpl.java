@@ -171,6 +171,9 @@ class HtmlRendererImpl extends JLabel implements HtmlRenderer.Renderer {
             setBackground(list.getSelectionBackground());
             setForeground(list.getSelectionForeground());
             setOpaque(true);
+        } else if (selected) {
+            setCellBackground(list.getSelectionBackground());
+            setForeground(list.getSelectionForeground());
         }
 
         // ##93658: In GTK we have to paint borders in combo boxes 
