@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,23 +15,18 @@
  */
 package org.nemesis.antlr.file.editor.ext;
 
+import java.util.function.BiFunction;
+
 /**
+ * Sub-processor that can intercept text insertion or deletion
+ * and create an EditProcessor that can intervene to change the
+ * edit the user is performing.
  *
  * @author Tim Boudreau
  */
-public enum OpType {
-    ON_BEFORE_TYPING_INSERT,
-    ON_TYPING_INSERT,
-    ON_AFTER_TYPING_INSERT,
-    ON_TYPING_CANCELLED,
+interface EditProcessorFactory<T> extends BiFunction<EditPhase, ContextWrapper, EditProcessor> {
 
-    ON_BEFORE_REMOVE,
-    ON_REMOVE,
-    ON_AFTER_REMOVE,
-    ON_REMOVE_CANCELLED,
+    Class<T> type();
 
-    ON_BEFORE_BREAK_INSERT,
-    ON_BREAK_INSERT,
-    ON_AFTER_BREAK_INSERT,
-    ON_BREAK_INSERT_CANCELLED
+    EditPhase initiatesFrom();
 }

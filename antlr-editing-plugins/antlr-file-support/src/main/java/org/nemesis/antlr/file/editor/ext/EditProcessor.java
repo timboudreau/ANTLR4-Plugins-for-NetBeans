@@ -16,10 +16,12 @@
 package org.nemesis.antlr.file.editor.ext;
 
 /**
+ * Unifies the operations the various editor api text processors
+ * can call.  Not all methods will be called for all types.
  *
  * @author Tim Boudreau
  */
-interface TextOperation {
+interface EditProcessor {
 
     default void onInsert(ContextWrapper ctx) {
         // do nothing

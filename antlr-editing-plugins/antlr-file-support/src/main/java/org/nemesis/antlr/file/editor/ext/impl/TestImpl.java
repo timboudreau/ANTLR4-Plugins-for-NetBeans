@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.file.editor.ext;
+package org.nemesis.antlr.file.editor.ext.impl;
 
 import com.mastfrog.util.collections.ArrayUtils;
 import org.nemesis.antlr.ANTLRv4Lexer;
+import org.nemesis.antlr.file.editor.ext.EditorFeatures;
 import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.CHN_BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.CHN_LINE_COMMENT;
@@ -64,6 +65,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlrformatting.api.Criteria;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
+import org.netbeans.spi.options.OptionsPanelController;
 
 /**
  *
@@ -106,6 +108,10 @@ public class TestImpl extends EditorFeatures {
                     )
                     .orDocumentStartOrEnd().ignoring(CRIT.anyOf(IGNORABLE_TOKEN_IDS))
                     .stoppingOn(CRIT.matching(ANTLRv4Lexer.COLON))
+                    .setName("Insert colon after rule name")
+                    .setDescription("Causes a : and ; to automatically be inserted "
+                            + "when you type a new rule name on a blank line, and places "
+                            + "the caret before the ;")
                     .whenKeyTyped(' ');
 
             b.insertBoilerplate("(^)")
@@ -114,6 +120,7 @@ public class TestImpl extends EditorFeatures {
                             ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
                             ANTLRv4Lexer.FRAGDEC_WS
                     ))
+                    .setName("Insert closing ) after (")
                     .whenKeyTyped('(');
 
             b.insertBoilerplate("{^}")
@@ -123,6 +130,7 @@ public class TestImpl extends EditorFeatures {
                             ANTLRv4Lexer.LEXCOM_WS, ANTLRv4Lexer.PARDEC_OPT_WS,
                             ANTLRv4Lexer.FRAGDEC_WS
                     ))
+                    .setName("Insert closing { after }")
                     .whenKeyTyped('{');
 
         });
@@ -133,5 +141,24 @@ public class TestImpl extends EditorFeatures {
             position = 10)
     public static TypedTextInterceptor.Factory typingFactoryRegistration() {
         return INSTANCE.typingFactory();
+    }
+
+    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, position = 171, service = EditorFeatures.class)
+    public static EditorFeatures instance() {
+        return INSTANCE;
+    }
+
+    @OptionsPanelController.SubRegistration(
+            location = "Editor",
+            displayName = "#AdvancedOption_DisplayName_AntlrOptions",
+            keywords = "#AdvancedOption_Keywords_AntlrOptions",
+            keywordsCategory = "Editor/AntlrOptions"
+    )
+    @org.openide.util.NbBundle.Messages({
+        "AdvancedOption_DisplayName_AntlrOptions=Antlr",
+        "AdvancedOption_Keywords_AntlrOptions=antlr"
+    })
+    public static OptionsPanelController optionsPanelRegistration() {
+        return INSTANCE.optionsPanelController();
     }
 }

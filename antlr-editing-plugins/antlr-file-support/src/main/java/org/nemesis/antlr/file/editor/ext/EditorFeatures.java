@@ -18,19 +18,24 @@ package org.nemesis.antlr.file.editor.ext;
 import com.mastfrog.predicates.integer.IntPredicates;
 import com.mastfrog.util.collections.ArrayUtils;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
+import java.util.prefs.Preferences;
 import javax.swing.text.BadLocationException;
 import org.nemesis.charfilter.CharPredicate;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedBreakInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
+import org.netbeans.spi.options.OptionsPanelController;
 import org.openide.util.Exceptions;
+import org.openide.util.NbPreferences;
 
 /**
  *
@@ -38,51 +43,98 @@ import org.openide.util.Exceptions;
  */
 public class EditorFeatures {
 
-    private final Set<Op<?>> ops = new HashSet<>();
+    private final Set<EnableableEditProcessorFactory<?>> ops = new HashSet<>();
     private final Interceptor interceptor = new Interceptor(this);
-    private final Set<OpType> types = EnumSet.noneOf(OpType.class);
+    private final Set<EditPhase> types = EnumSet.noneOf(EditPhase.class);
+    private final String mimeType;
 
     protected EditorFeatures(String mimeType, Consumer<EditorFeatures.Builder> configurer) {
-        Builder b = new Builder(notNull("mimeType", mimeType));
+        this.mimeType = mimeType;
+        Builder b = new Builder(notNull("mimeType", mimeType), getClass());
         configurer.accept(b);
         ops.addAll(b.ops);
         types.addAll(b.triggers);
     }
 
+    public List<EditorFeatureEnablementModel> enablableItems() {
+        List<EditorFeatureEnablementModel> descs = new ArrayList<>(ops.size());
+        for (EnableableEditProcessorFactory<?> d : ops) {
+            if (d.name() != null) {
+                descs.add(new EditorFeatureEnablementModelImpl(mimeType, d));
+            }
+        }
+        return descs;
+    }
+
+    /**
+     * The DeletedTextInterceptor.Factory for this instance; to register, create
+     * an instance as a static variable and return a call to this method on it
+     * from a static method annotated with &#064;MimeRegistration.
+     *
+     * @return The factory
+     */
     protected final DeletedTextInterceptor.Factory deletionFactory() {
         return interceptor;
     }
 
+    /**
+     * The TypedTextInterceptor.Factory for this instance; to register, create
+     * an instance as a static variable and return a call to this method on it
+     * from a static method annotated with &#064;MimeRegistration.
+     *
+     * @return The factory
+     */
     protected final TypedTextInterceptor.Factory typingFactory() {
         return interceptor;
     }
 
+    /**
+     * The TypedBreakInterceptor.Factory for this instance; to register, create
+     * an instance as a static variable and return a call to this method on it
+     * from a static method annotated with &#064;MimeRegistration.
+     *
+     * @return The factory
+     */
     protected final TypedBreakInterceptor.Factory breakFactory() {
         return interceptor;
     }
 
-    protected static class Builder {
+    /**
+     * Options panel controller for this instance; to register, create your
+     * instance as a static variable and return a call to this method on it from
+     * a static method annotated with
+     * &#064;OptionsPanelController.SubRegistration
+     *
+     * @return The controller
+     */
+    protected final OptionsPanelController optionsPanelController() {
+        return new EnablementOptionsPanelController(mimeType);
+    }
 
-        private Set<Op<?>> ops = new HashSet<>();
-        private Set<OpType> triggers = EnumSet.noneOf(OpType.class);
+    public static class Builder {
+
+        private Set<EnableableEditProcessorFactory<?>> ops = new HashSet<>();
+        private Set<EditPhase> triggers = EnumSet.noneOf(EditPhase.class);
+        private final Class<? extends EditorFeatures> ownerType;
         final String mimeType;
 
-        private Builder(String mimeType) {
+        private Builder(String mimeType, Class<? extends EditorFeatures> ownerType) {
             this.mimeType = mimeType;
+            this.ownerType = ownerType;
         }
 
         public BoilerplateInsertionBuilder insertBoilerplate(String txt) {
             return new BoilerplateInsertionBuilder(this, txt);
         }
 
-        private Builder add(Op<?> op) {
+        private Builder add(EnableableEditProcessorFactory<?> op) {
             ops.add(op);
             triggers.add(op.initiatesFrom());
             System.out.println("ADD OP " + op);
             return this;
         }
 
-        protected static class BoilerplateInsertionBuilder {
+        public static class BoilerplateInsertionBuilder {
 
             private final Builder owner;
             private final String toInsert;
@@ -90,13 +142,25 @@ public class EditorFeatures {
             IntPredicate precedingTokenTest;
             TokenPattern precedingPattern;
             TokenPattern followingPattern;
-            private final int caretBackup;
+            String name;
+            String description;
+            final int caretBackup;
 
             private BoilerplateInsertionBuilder(Builder owner, String toInsert) {
                 this.owner = owner;
                 CaretPositionAndInsertText cpait = CaretPositionAndInsertText.parse(notNull("toInsert", toInsert));
                 this.toInsert = cpait.insertText;
                 this.caretBackup = cpait.caretBackup;
+            }
+
+            public BoilerplateInsertionBuilder setName(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public BoilerplateInsertionBuilder setDescription(String description) {
+                this.description = description;
+                return this;
             }
 
             public BoilerplateInsertionBuilder onlyWhenAtLineEnd() {
@@ -156,7 +220,7 @@ public class EditorFeatures {
                     precedingTokenTest = IntPredicates.anyOf(first, more);
                 }
                 return new FinishableBoilerplateInsertionBuilder(owner, toInsert, requireLineEnd, precedingTokenTest,
-                        precedingPattern, followingPattern, caretBackup);
+                        precedingPattern, followingPattern, caretBackup, name, description);
             }
 
             public FinishableBoilerplateInsertionBuilder whenPrecedingToken(IntPredicate pred) {
@@ -166,10 +230,10 @@ public class EditorFeatures {
                     precedingTokenTest = pred;
                 }
                 return new FinishableBoilerplateInsertionBuilder(owner, toInsert, requireLineEnd, precedingTokenTest,
-                        precedingPattern, followingPattern, caretBackup);
+                        precedingPattern, followingPattern, caretBackup, name, description);
             }
 
-            protected static final class FinishableBoilerplateInsertionBuilder {
+            public static final class FinishableBoilerplateInsertionBuilder {
 
                 private final Builder owner;
                 private final String toInsert;
@@ -180,11 +244,14 @@ public class EditorFeatures {
                 private TokenPattern preceding;
                 private TokenPattern following;
                 private final int caretBackup;
+                private String name;
+                private String description;
 
                 public FinishableBoilerplateInsertionBuilder(Builder owner,
                         String toInsert, Boolean requireLineEnd,
                         IntPredicate precedingTokenTest, TokenPattern preceding,
-                        TokenPattern following, int caretBackup) {
+                        TokenPattern following, int caretBackup,
+                        String name, String description) {
                     this.owner = owner;
                     this.toInsert = toInsert;
                     this.requireLineEnd = requireLineEnd;
@@ -192,6 +259,18 @@ public class EditorFeatures {
                     this.preceding = preceding;
                     this.following = following;
                     this.caretBackup = caretBackup;
+                    this.name = name;
+                    this.description = description;
+                }
+
+                public FinishableBoilerplateInsertionBuilder setName(String name) {
+                    this.name = name;
+                    return this;
+                }
+
+                public FinishableBoilerplateInsertionBuilder setDescription(String description) {
+                    this.description = description;
+                    return this;
                 }
 
                 public TokenPatternBuilder<FinishableBoilerplateInsertionBuilder> whenPrecededByPattern(int... pattern) {
@@ -250,14 +329,55 @@ public class EditorFeatures {
                             = new InsertBoilerplateOp(owner.mimeType, pred,
                                     toInsert, precedingTokenTest,
                                     requireLineEnd, preceding, following,
-                                    caretBackup);
+                                    caretBackup, name, description,
+                                    owner.ownerType);
                     return owner.add(op);
                 }
             }
         }
     }
 
-    private static final class InsertBoilerplateOp implements BiPredicate<OpType, ContextWrapper>, Op<TypedTextInterceptor.Context> {
+    static abstract class EnableableEditProcessorFactory<T> implements EditProcessorFactory<T> {
+
+        protected final Class<?> ownerType;
+        protected final String name;
+        protected final String description;
+        private Preferences prefs;
+
+        protected EnableableEditProcessorFactory(Class<?> ownerType, String name, String description) {
+            this.ownerType = ownerType;
+            this.name = name;
+            this.description = description;
+        }
+
+        private Preferences prefs() {
+            if (prefs == null) {
+                prefs = NbPreferences.forModule(ownerType);
+            }
+            return prefs;
+        }
+
+        public final boolean isEnabled() {
+            return prefs().getBoolean("ef-" + id(), true);
+        }
+
+        public final void setEnabled(boolean enabled) {
+            prefs().putBoolean("ef-" + id(), enabled);
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String description() {
+            return description;
+        }
+
+        protected abstract String id();
+    }
+
+    private static final class InsertBoilerplateOp extends EnableableEditProcessorFactory<TypedTextInterceptor.Context>
+            implements BiPredicate<EditPhase, ContextWrapper>, EditProcessorFactory<TypedTextInterceptor.Context> {
 
         private final CharPredicate keyTest;
         private final String toInsert;
@@ -271,7 +391,9 @@ public class EditorFeatures {
         public InsertBoilerplateOp(String mimeType, CharPredicate keyTest,
                 String toInsert, IntPredicate precedingToken,
                 Boolean requireLineEnd, TokenPattern precedingPattern,
-                TokenPattern followingPattern, int caretBackup) {
+                TokenPattern followingPattern, int caretBackup,
+                String name, String description, Class<?> ownerType) {
+            super(ownerType, name, description);
             this.utils = new EditorFeatureUtils(mimeType);
             this.keyTest = keyTest;
             this.toInsert = toInsert;
@@ -282,50 +404,61 @@ public class EditorFeatures {
             this.caretBackup = caretBackup;
         }
 
+        public String id() {
+            StringBuilder sb = new StringBuilder("i-");
+            for (int i = 0; i < toInsert.length(); i++) {
+                char c = toInsert.charAt(i);
+                sb.append(Integer.toHexString(c));
+            }
+            return sb.toString();
+        }
+
         @Override
-        public OpType initiatesFrom() {
-            return OpType.ON_TYPING_INSERT;
+        public EditPhase initiatesFrom() {
+            return EditPhase.ON_TYPING_INSERT;
         }
 
         @Override
         public String toString() {
             return "InsertBoilerplateOp('" + toInsert + "' prec "
                     + precedingToken + " char " + keyTest
-                    + " rle " + requireLineEnd + " for " + utils.mimeType() + ")";
+                    + " rle " + requireLineEnd + " for " + utils.mimeType()
+                    + (name == null ? "" : " - " + name)
+                    + ")";
         }
 
         @Override
-        public boolean test(OpType op, ContextWrapper t) {
+        public boolean test(EditPhase op, ContextWrapper t) {
             System.out.println("TEST " + op + " " + t + " for '" + toInsert + "'");
-            if (op != OpType.ON_TYPING_INSERT) {
+            if (op != EditPhase.ON_TYPING_INSERT) {
                 System.out.println("  wrong op type");
             }
-            boolean result = op == OpType.ON_TYPING_INSERT;
+            boolean result = op == EditPhase.ON_TYPING_INSERT;
             if (result) {
-                System.out.println("boilerplate op '" + toInsert + " where " + precedingToken + " and " + keyTest);
+//                System.out.println("boilerplate op '" + toInsert + " where " + precedingToken + " and " + keyTest);
                 try {
                     if (requireLineEnd != null) {
                         boolean atLineENd = utils.isAtRowEnd(t.document(), t.getOffset());
                         result = requireLineEnd.booleanValue()
                                 == atLineENd;
-                        System.out.println("At line end? " + atLineENd + " require " + requireLineEnd + " result " + result);
+//                        System.out.println("At line end? " + atLineENd + " require " + requireLineEnd + " result " + result);
                     }
                     if (result) {
                         char c = t.getText().charAt(0);
-                        System.out.println("TEXT IS '" + c + "'");
+//                        System.out.println("TEXT IS '" + c + "'");
                         result = keyTest.test(c);
                     }
                     if (result) {
                         result = utils.previousTokenMatches(t.document(), t.getOffset(), precedingToken);
-                        System.out.println("PREV TOKEN MATCHES " + precedingToken + "? " + result);
+//                        System.out.println("PREV TOKEN MATCHES " + precedingToken + "? " + result);
                     }
                     if (result && precedingPattern != null) {
                         result = precedingPattern.test(utils, t, t.getOffset());
-                        System.out.println("Preceding pattern matches? " + result + " for " + precedingPattern);
+//                        System.out.println("Preceding pattern matches? " + result + " for " + precedingPattern);
                     }
                     if (result && followingPattern != null) {
                         result = followingPattern.test(utils, t, t.getOffset());
-                        System.out.println("Following pattern matches? " + result + " for " + followingPattern);
+//                        System.out.println("Following pattern matches? " + result + " for " + followingPattern);
                     }
                 } catch (BadLocationException ex) {
                     Exceptions.printStackTrace(ex);
@@ -341,14 +474,14 @@ public class EditorFeatures {
         }
 
         @Override
-        public TextOperation apply(OpType op, ContextWrapper ctx) {
+        public EditProcessor apply(EditPhase op, ContextWrapper ctx) {
             if (test(op, ctx)) {
                 return new IbOp();
             }
             return null;
         }
 
-        class IbOp implements TextOperation {
+        class IbOp implements EditProcessor {
 
             int caretTo = -1;
 
@@ -368,13 +501,13 @@ public class EditorFeatures {
         }
     }
 
-    private <T> TextOperation find(OpType ot, T ctx) {
+    private <T> EditProcessor find(EditPhase ot, T ctx) {
         if (!this.types.contains(ot)) {
             return null;
         }
-        for (Op<?> op : ops) {
-            if (op.initiatesFrom() == ot) {
-                TextOperation result = tryOne(ot, op, ctx);
+        for (EnableableEditProcessorFactory<?> op : ops) {
+            if (op.initiatesFrom() == ot && op.isEnabled()) {
+                EditProcessor result = tryOne(ot, op, ctx);
                 if (result != null) {
                     return result;
                 }
@@ -384,7 +517,7 @@ public class EditorFeatures {
     }
 
     @SuppressWarnings("unchecked")
-    private <T, R> TextOperation tryOne(OpType ot, Op<T> op, R obj) {
+    private <T, R> EditProcessor tryOne(EditPhase ot, EnableableEditProcessorFactory<T> op, R obj) {
         if (op.type().isInstance(obj)) {
             T cast = op.type().cast(obj);
             return op.apply(ot, ContextWrapper.wrap(cast));
@@ -420,11 +553,11 @@ public class EditorFeatures {
 
         private final class Typing implements TypedTextInterceptor {
 
-            TextOperation currentOp;
+            EditProcessor currentOp;
 
             @Override
             public boolean beforeInsert(Context cntxt) throws BadLocationException {
-                currentOp = features.find(OpType.ON_BEFORE_TYPING_INSERT, cntxt);
+                currentOp = features.find(EditPhase.ON_BEFORE_TYPING_INSERT, cntxt);
                 if (currentOp != null) {
                     currentOp.onBeforeInsert((ContextWrapper.wrap(cntxt)));
                 }
@@ -434,7 +567,7 @@ public class EditorFeatures {
             @Override
             public void insert(MutableContext mc) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_TYPING_INSERT, mc);
+                    currentOp = features.find(EditPhase.ON_TYPING_INSERT, mc);
                 }
                 if (currentOp != null) {
                     currentOp.onInsert((ContextWrapper.wrap(mc)));
@@ -444,7 +577,7 @@ public class EditorFeatures {
             @Override
             public void afterInsert(Context cntxt) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_AFTER_TYPING_INSERT, cntxt);
+                    currentOp = features.find(EditPhase.ON_AFTER_TYPING_INSERT, cntxt);
                 }
                 if (currentOp != null) {
                     currentOp.onAfterInsert((ContextWrapper.wrap(cntxt)));
@@ -463,11 +596,11 @@ public class EditorFeatures {
 
         private final class Deletions implements DeletedTextInterceptor {
 
-            TextOperation currentOp;
+            EditProcessor currentOp;
 
             @Override
             public boolean beforeRemove(Context cntxt) throws BadLocationException {
-                currentOp = features.find(OpType.ON_BEFORE_REMOVE, cntxt);
+                currentOp = features.find(EditPhase.ON_BEFORE_REMOVE, cntxt);
                 if (currentOp != null) {
                     currentOp.onBeforeRemove((ContextWrapper.wrap(cntxt)));
                 }
@@ -477,7 +610,7 @@ public class EditorFeatures {
             @Override
             public void remove(Context cntxt) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_REMOVE, cntxt);
+                    currentOp = features.find(EditPhase.ON_REMOVE, cntxt);
                 }
                 if (currentOp != null) {
                     currentOp.onRemove((ContextWrapper.wrap(cntxt)));
@@ -487,7 +620,7 @@ public class EditorFeatures {
             @Override
             public void afterRemove(Context cntxt) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_AFTER_REMOVE, cntxt);
+                    currentOp = features.find(EditPhase.ON_AFTER_REMOVE, cntxt);
                 }
                 if (currentOp != null) {
                     currentOp.onAfterRemove(ContextWrapper.wrap(cntxt));
@@ -506,11 +639,11 @@ public class EditorFeatures {
 
         private final class Breaks implements TypedBreakInterceptor {
 
-            TextOperation currentOp;
+            EditProcessor currentOp;
 
             @Override
             public boolean beforeInsert(Context cntxt) throws BadLocationException {
-                currentOp = features.find(OpType.ON_BEFORE_BREAK_INSERT, cntxt);
+                currentOp = features.find(EditPhase.ON_BEFORE_BREAK_INSERT, cntxt);
                 if (currentOp != null) {
                     currentOp.onBeforeInsert((ContextWrapper.wrap(cntxt)));
                 }
@@ -520,7 +653,7 @@ public class EditorFeatures {
             @Override
             public void insert(MutableContext mc) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_BREAK_INSERT, mc);
+                    currentOp = features.find(EditPhase.ON_BREAK_INSERT, mc);
                 }
                 if (currentOp != null) {
                     currentOp.onBeforeInsert((ContextWrapper.wrap(mc)));
@@ -530,7 +663,7 @@ public class EditorFeatures {
             @Override
             public void afterInsert(Context cntxt) throws BadLocationException {
                 if (currentOp == null) {
-                    currentOp = features.find(OpType.ON_AFTER_BREAK_INSERT, cntxt);
+                    currentOp = features.find(EditPhase.ON_AFTER_BREAK_INSERT, cntxt);
                 }
                 if (currentOp != null) {
                     currentOp.onAfterInsert((ContextWrapper.wrap(cntxt)));

@@ -21,7 +21,8 @@ import java.util.function.IntPredicate;
 
 /**
  * Matches a pattern of tokens if a stop token is not encountered before or
- * while processing it.
+ * while processing it, iterating forward or backward from the passed
+ * caret position.
  *
  * @author Tim Boudreau
  */

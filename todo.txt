@@ -1,15 +1,10 @@
 
+Need tests for hetero object graph
+
 Would a better option be to implement TokenSource over nb document TokenHierarchy?
 
 Perhaps enum of Rules - would be more useful for code completion
-
-Need a "when in ancestor rule" for collecting references.
  
-All html renderer stuff should be using the fork.
- - It is now - selection highlighting in syntax tree nav is broken
- 
-Need ignore inserted : after : in rule.
-
 Code sample should be able to be a file.
 
 Keybindings for instant rename and goto declaration are broken
