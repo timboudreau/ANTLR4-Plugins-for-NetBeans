@@ -373,7 +373,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
             writeOne(parser.createRuleTypeMapper(utils().packageName(type), prefix, mimeType));
         }
-        generateRegistration(prefix, mirror, mimeType, type);
+        generateRegistration(prefix, mirror, mimeType, type, lexerProxy);
 
         generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
 
@@ -399,9 +399,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     private static final String ANTLR_MIME_REG_TYPE = "org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration";
-    private static final String SERVICE_PROVIDER_ANNO_TYPE = "org.openide.util.lookup.ServiceProvider";
 
-    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on) throws IOException {
+    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on, LexerProxy lexer) throws IOException {
         String generatedClassName = prefix + "AntlrLanguageRegistration";
         String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
@@ -418,7 +417,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
                             .body(bb -> {
-                                bb.invoke("super").withStringLiteral(mimeType).inScope();
+                                bb.invoke("super")
+                                        .withStringLiteral(mimeType)
+                                        .withArgument(lexer.lexerClassFqn() + ".VOCABULARY")
+                                        .inScope();
                             });
                 });
         ;
@@ -2160,8 +2162,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         toks.method("stripQuotes").addArgument("String", "name").returning("String")
                 .docComment("ANTLR Vocabulary instances return text content in quotes, which need to be removed.")
                 .withModifier(STATIC)/*.withModifier(PRIVATE)*/.body()
-                .iff().variable("name").notEquals().expression("null").and().invoke("isEmpty").on("name").equals().expression("false").and()
-                .invoke("charAt").withArgument("0").on("name").equals().literal('\'').and().invoke("charAt").withArgument("name.length()-1")
+                .iff().variable("name").notEquals().expression("null")
+                .and().invoke("isEmpty").on("name").equals().expression("false")
+                .and().invoke("length").on("name").greaterThan().literal(1)
+                .and().invoke("charAt").withArgument("0").on("name").equals().literal('\'')
+                .and().invoke("charAt").withArgument("name.length()-1")
                 .on("name").equals().literal('\'').endCondition().returning("name.substring(1, name.length()-1)").endIf()
                 .returning("name").endBlock();
 

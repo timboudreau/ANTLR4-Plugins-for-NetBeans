@@ -16,6 +16,7 @@
 package org.nemesis.antlr.file.editor.ext;
 
 import java.awt.EventQueue;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -23,14 +24,21 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.UIManager;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import static org.nemesis.antlr.file.editor.ext.EditorFeatureEnablementModelImpl.NO_CATEGORY;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.spi.options.OptionsPanelController;
 import org.openide.awt.Mnemonics;
@@ -124,36 +132,81 @@ final class EnablementOptionsPanelController extends OptionsPanelController {
                 Collections.sort(all, (a, b) -> {
                     return a.name().compareToIgnoreCase(b.name());
                 });
+                Map<String, List<EditorFeatureEnablementModel>> byCategory
+                        = new TreeMap<>();
+                for (EditorFeatureEnablementModel em : all) {
+                    String cat = em.category();
+                    if (cat == null) {
+                        cat = NO_CATEGORY;
+                    }
+                    List<EditorFeatureEnablementModel> l = byCategory.get(cat);
+                    if (l == null) {
+                        l = new ArrayList<>(all.size());
+                        byCategory.put(cat, l);
+                    }
+                    l.add(em);
+                }
                 GridBagConstraints c = new GridBagConstraints();
                 c.anchor = GridBagConstraints.BASELINE_LEADING;
                 c.weightx = 1;
+                c.fill = GridBagConstraints.BOTH;
                 c.gridwidth = 1;
                 c.gridheight = 1;
                 c.gridx = 0;
                 c.gridy = 0;
                 int ins = Utilities.isMac() ? 12 : 5;
                 c.insets = new Insets(ins, ins, ins, 0);
-                for (Iterator<EditorFeatureEnablementModel> it = all.iterator(); it.hasNext();) {
-                    EditorFeatureEnablementModel e = it.next();
-                    JCheckBox box = new JCheckBox();
-                    box.setSelected(e.isEnabled());
-                    Mnemonics.setLocalizedText(box, e.name());
-                    String desc = e.description();
-                    if (desc != null) {
-                        box.setToolTipText(desc);
-                    }
-                    if (!it.hasNext()) {
-                        c.insets.bottom = ins;
-                    }
-                    pnl.add(box, c);
-                    c.gridy++;
-                    box.addActionListener(new L(e, this));
-                    if (!it.hasNext()) {
-                        c.weighty = 1;
+                int cumulativeComps = 0;
+                for (Map.Entry<String, List<EditorFeatureEnablementModel>> en : byCategory.entrySet()) {
+                    boolean uncategorized = NO_CATEGORY.equals(en.getKey());
+                    boolean firstInCategory = true;
+                    for (Iterator<EditorFeatureEnablementModel> it = en.getValue().iterator(); it.hasNext();) {
+                        c.weightx = 0;
+                        c.insets.bottom = 0;
+                        c.insets.left = ins;
+                        if (!uncategorized && firstInCategory) {
+                            firstInCategory = false;
+                            JLabel label = new JLabel(en.getKey());
+                            Font f = label.getFont();
+                            if (f != null) {
+                                f = UIManager.getFont("controlFont");
+                                if (f != null) {
+                                    label.setFont(f.deriveFont(Font.BOLD));
+                                }
+                            }
+                            label.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, label.getForeground()));
+                            pnl.add(label, c);
+                            cumulativeComps++;
+                            c.gridy++;
+                            c.insets.left = ins * 2;
+                        }
+                        
+                        EditorFeatureEnablementModel e = it.next();
+                        JCheckBox box = new JCheckBox();
+                        box.setSelected(e.isEnabled());
+                        Mnemonics.setLocalizedText(box, e.name());
+                        String desc = e.description();
+                        if (desc != null) {
+                            box.setToolTipText(desc);
+                        }
+                        if (!it.hasNext()) {
+                            c.insets.bottom = ins;
+                        }
+                        pnl.add(box, c);
+                        cumulativeComps++;
                         c.gridy++;
-                        // Spacer to force items to the top
-                        // of the layout
-                        pnl.add(new JPanel(), c);
+                        box.addActionListener(new L(e, this));
+                        if (!it.hasNext()) {
+                            c.weighty = 1;
+                            c.gridy++;
+                            // Spacer to force items to the top
+                            // of the layout
+                            pnl.add(new JPanel(), c);
+                            if (cumulativeComps > all.size() / 2) {
+                                c.gridy = 0;
+                                c.gridx += 1;
+                            }
+                        }
                     }
                 }
                 changedTest = () -> {
@@ -168,6 +221,10 @@ final class EnablementOptionsPanelController extends OptionsPanelController {
                     for (EditorFeatureEnablementModel e : all) {
                         e.commit();
                     }
+                };
+            } else {
+                changedTest = () -> false;
+                commit = () -> {
                 };
             }
         }

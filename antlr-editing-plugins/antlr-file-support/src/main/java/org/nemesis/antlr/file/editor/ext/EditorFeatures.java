@@ -26,16 +26,18 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
-import java.util.prefs.Preferences;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.Position;
 import org.nemesis.charfilter.CharPredicate;
 import org.netbeans.api.editor.mimelookup.MimePath;
+import org.netbeans.api.lexer.Token;
+import org.netbeans.editor.BaseDocument;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedBreakInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
 import org.netbeans.spi.options.OptionsPanelController;
 import org.openide.util.Exceptions;
-import org.openide.util.NbPreferences;
 
 /**
  *
@@ -43,14 +45,14 @@ import org.openide.util.NbPreferences;
  */
 public class EditorFeatures {
 
-    private final Set<EnableableEditProcessorFactory<?>> ops = new HashSet<>();
+    private final Set<EnablableEditProcessorFactory<?>> ops = new HashSet<>();
     private final Interceptor interceptor = new Interceptor(this);
     private final Set<EditPhase> types = EnumSet.noneOf(EditPhase.class);
     private final String mimeType;
 
-    protected EditorFeatures(String mimeType, Consumer<EditorFeatures.Builder> configurer) {
+    protected EditorFeatures(String mimeType, Consumer<EditorFeatures.EditorFeaturesBuilder> configurer) {
         this.mimeType = mimeType;
-        Builder b = new Builder(notNull("mimeType", mimeType), getClass());
+        EditorFeaturesBuilder b = new EditorFeaturesBuilder(notNull("mimeType", mimeType), getClass());
         configurer.accept(b);
         ops.addAll(b.ops);
         types.addAll(b.triggers);
@@ -58,11 +60,9 @@ public class EditorFeatures {
 
     public List<EditorFeatureEnablementModel> enablableItems() {
         List<EditorFeatureEnablementModel> descs = new ArrayList<>(ops.size());
-        for (EnableableEditProcessorFactory<?> d : ops) {
-            if (d.name() != null) {
-                descs.add(new EditorFeatureEnablementModelImpl(mimeType, d));
-            }
-        }
+        ops.stream().filter((d) -> (d.name() != null)).forEach((d) -> {
+            descs.add(new EditorFeatureEnablementModelImpl(mimeType, d));
+        });
         return descs;
     }
 
@@ -111,14 +111,14 @@ public class EditorFeatures {
         return new EnablementOptionsPanelController(mimeType);
     }
 
-    public static class Builder {
+    public static class EditorFeaturesBuilder {
 
-        private Set<EnableableEditProcessorFactory<?>> ops = new HashSet<>();
+        private Set<EnablableEditProcessorFactory<?>> ops = new HashSet<>();
         private Set<EditPhase> triggers = EnumSet.noneOf(EditPhase.class);
         private final Class<? extends EditorFeatures> ownerType;
         final String mimeType;
 
-        private Builder(String mimeType, Class<? extends EditorFeatures> ownerType) {
+        private EditorFeaturesBuilder(String mimeType, Class<? extends EditorFeatures> ownerType) {
             this.mimeType = mimeType;
             this.ownerType = ownerType;
         }
@@ -127,16 +127,118 @@ public class EditorFeatures {
             return new BoilerplateInsertionBuilder(this, txt);
         }
 
-        private Builder add(EnableableEditProcessorFactory<?> op) {
+        public DelimiterTokenPairDeletionBuilder deleteMateOf(int openingTokenId) {
+            return new DelimiterTokenPairDeletionBuilder(this, openingTokenId);
+        }
+
+        private EditorFeaturesBuilder add(EnablableEditProcessorFactory<?> op) {
             ops.add(op);
             triggers.add(op.initiatesFrom());
-            System.out.println("ADD OP " + op);
             return this;
+        }
+
+        public ElideBuilder elide(char typed) {
+            return new ElideBuilder(this, typed, false);
+        }
+
+        public ElideBuilder elidePreceding(char typed) {
+            return new ElideBuilder(this, typed, true);
+        }
+
+        public static final class ElideBuilder {
+
+            private final char typed;
+            private final EditorFeaturesBuilder owner;
+            private String name;
+            private String description;
+            private String category;
+            private final boolean backwards;
+
+            private ElideBuilder(EditorFeaturesBuilder owner, char typed, boolean backwards) {
+                this.owner = owner;
+                this.typed = typed;
+                this.backwards = backwards;
+            }
+
+            public ElideBuilder setName(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public ElideBuilder setDescription(String description) {
+                this.description = description;
+                return this;
+            }
+
+            public ElideBuilder setCategory(String category) {
+                this.category = category;
+                return this;
+            }
+
+            public EditorFeaturesBuilder whenCurrentTokenNot(int first, int... more) {
+                return whenCurrentTokenNot(IntPredicates.anyOf(first, more));
+            }
+
+            public EditorFeaturesBuilder whenCurrentTokenNot(IntPredicate currentTokenNot) {
+                return owner.add(new CharacterElisionEditProcessorFactory(owner.mimeType,
+                        backwards, typed, currentTokenNot, owner.ownerType, name,
+                        description, category));
+            }
+        }
+
+        public static final class DelimiterTokenPairDeletionBuilder {
+
+            private final EditorFeaturesBuilder owner;
+
+            private final int openingTokenId;
+            private IntPredicate ignore;
+            private String name;
+            private String description;
+            private String category;
+
+            private DelimiterTokenPairDeletionBuilder(EditorFeaturesBuilder owner, int openingTokenId) {
+                this.owner = owner;
+                this.openingTokenId = openingTokenId;
+            }
+
+            public DelimiterTokenPairDeletionBuilder setName(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public DelimiterTokenPairDeletionBuilder setCategory(String category) {
+                this.category = category;
+                return this;
+            }
+
+            public DelimiterTokenPairDeletionBuilder setDescription(String desc) {
+                this.description = desc;
+                return this;
+            }
+
+            public DelimiterTokenPairDeletionBuilder ignoring(IntPredicate ignore) {
+                if (this.ignore != null) {
+                    this.ignore = this.ignore.or(ignore);
+                } else {
+                    this.ignore = ignore;
+                }
+                return this;
+            }
+
+            public DelimiterTokenPairDeletionBuilder ignoring(int first, int... more) {
+                return ignoring(IntPredicates.anyOf(first, more));
+            }
+
+            public EditorFeaturesBuilder closingPairWith(int closingTokenId) {
+                DelimiterTokenPairDeletion d = new DelimiterTokenPairDeletion(owner.mimeType,
+                        openingTokenId, closingTokenId, name, description, owner.ownerType, ignore, category);
+                return owner.add(d);
+            }
         }
 
         public static class BoilerplateInsertionBuilder {
 
-            private final Builder owner;
+            private final EditorFeaturesBuilder owner;
             private final String toInsert;
             Boolean requireLineEnd;
             IntPredicate precedingTokenTest;
@@ -144,9 +246,10 @@ public class EditorFeatures {
             TokenPattern followingPattern;
             String name;
             String description;
+            String category;
             final int caretBackup;
 
-            private BoilerplateInsertionBuilder(Builder owner, String toInsert) {
+            private BoilerplateInsertionBuilder(EditorFeaturesBuilder owner, String toInsert) {
                 this.owner = owner;
                 CaretPositionAndInsertText cpait = CaretPositionAndInsertText.parse(notNull("toInsert", toInsert));
                 this.toInsert = cpait.insertText;
@@ -160,6 +263,11 @@ public class EditorFeatures {
 
             public BoilerplateInsertionBuilder setDescription(String description) {
                 this.description = description;
+                return this;
+            }
+
+            public BoilerplateInsertionBuilder setCategory(String category) {
+                this.category = category;
                 return this;
             }
 
@@ -220,7 +328,7 @@ public class EditorFeatures {
                     precedingTokenTest = IntPredicates.anyOf(first, more);
                 }
                 return new FinishableBoilerplateInsertionBuilder(owner, toInsert, requireLineEnd, precedingTokenTest,
-                        precedingPattern, followingPattern, caretBackup, name, description);
+                        precedingPattern, followingPattern, caretBackup, name, description, category);
             }
 
             public FinishableBoilerplateInsertionBuilder whenPrecedingToken(IntPredicate pred) {
@@ -230,14 +338,15 @@ public class EditorFeatures {
                     precedingTokenTest = pred;
                 }
                 return new FinishableBoilerplateInsertionBuilder(owner, toInsert, requireLineEnd, precedingTokenTest,
-                        precedingPattern, followingPattern, caretBackup, name, description);
+                        precedingPattern, followingPattern, caretBackup, name, description, category);
             }
 
             public static final class FinishableBoilerplateInsertionBuilder {
 
-                private final Builder owner;
+                private final EditorFeaturesBuilder owner;
                 private final String toInsert;
                 Boolean requireLineEnd;
+                IntPredicate currentTokenNot;
                 IntPredicate precedingTokenTest;
                 TokenPattern precedingPattern;
                 TokenPattern followingPattern;
@@ -246,13 +355,15 @@ public class EditorFeatures {
                 private final int caretBackup;
                 private String name;
                 private String description;
+                private String category;
 
-                public FinishableBoilerplateInsertionBuilder(Builder owner,
+                public FinishableBoilerplateInsertionBuilder(EditorFeaturesBuilder owner,
                         String toInsert, Boolean requireLineEnd,
                         IntPredicate precedingTokenTest, TokenPattern preceding,
                         TokenPattern following, int caretBackup,
-                        String name, String description) {
+                        String name, String description, String category) {
                     this.owner = owner;
+                    this.category = category;
                     this.toInsert = toInsert;
                     this.requireLineEnd = requireLineEnd;
                     this.precedingTokenTest = precedingTokenTest;
@@ -261,6 +372,11 @@ public class EditorFeatures {
                     this.caretBackup = caretBackup;
                     this.name = name;
                     this.description = description;
+                }
+
+                public FinishableBoilerplateInsertionBuilder setCategory(String category) {
+                    this.category = category;
+                    return this;
                 }
 
                 public FinishableBoilerplateInsertionBuilder setName(String name) {
@@ -323,60 +439,148 @@ public class EditorFeatures {
                     return this;
                 }
 
-                public Builder whenKeyTyped(char first, char... more) {
-                    CharPredicate pred = CharPredicate.anyOf(ArrayUtils.prepend(first, more));
-                    InsertBoilerplateOp op
-                            = new InsertBoilerplateOp(owner.mimeType, pred,
+                public EditorFeaturesBuilder whenKeyTyped(CharPredicate predicate) {
+                    InsertBoilerplateEditProcessorFactory op
+                            = new InsertBoilerplateEditProcessorFactory(owner.mimeType,
+                                    predicate,
                                     toInsert, precedingTokenTest,
                                     requireLineEnd, preceding, following,
                                     caretBackup, name, description,
-                                    owner.ownerType);
+                                    owner.ownerType, category,
+                                    currentTokenNot);
                     return owner.add(op);
+                }
+
+                public EditorFeaturesBuilder whenKeyTyped(char first, char... more) {
+                    CharPredicate pred = CharPredicate.anyOf(ArrayUtils.prepend(first, more));
+                    return whenKeyTyped(pred);
+                }
+
+                public FinishableBoilerplateInsertionBuilder whenCurrentTokenNot(IntPredicate anyOf) {
+                    if (currentTokenNot != null) {
+                        currentTokenNot = currentTokenNot.and(anyOf);
+                    } else {
+                        currentTokenNot = anyOf;
+                    }
+                    return this;
                 }
             }
         }
     }
 
-    static abstract class EnableableEditProcessorFactory<T> implements EditProcessorFactory<T> {
+    private static final class DelimiterTokenPairDeletion extends EnablableEditProcessorFactory<DeletedTextInterceptor.Context> {
 
-        protected final Class<?> ownerType;
-        protected final String name;
-        protected final String description;
-        private Preferences prefs;
+        private final int openingTokenId;
+        private final int closingTokenId;
+        private final EditorFeatureUtils utils;
+        private final IntPredicate ignore;
 
-        protected EnableableEditProcessorFactory(Class<?> ownerType, String name, String description) {
-            this.ownerType = ownerType;
-            this.name = name;
-            this.description = description;
+        private DelimiterTokenPairDeletion(String mimeType, int openingTokenId, int closingTokenId, String name, String description, Class<?> ownerType, IntPredicate ignore, String category) {
+            super(ownerType, name, description, category);
+            this.openingTokenId = openingTokenId;
+            this.closingTokenId = closingTokenId;
+            utils = new EditorFeatureUtils(mimeType);
+            this.ignore = ignore == null ? IntPredicates.alwaysFalse() : ignore;
         }
 
-        private Preferences prefs() {
-            if (prefs == null) {
-                prefs = NbPreferences.forModule(ownerType);
+        @Override
+        protected String id() {
+            return "dt" + Integer.toHexString(openingTokenId)
+                    + Integer.toHexString(closingTokenId);
+        }
+
+        @Override
+        public Class<DeletedTextInterceptor.Context> type() {
+            return DeletedTextInterceptor.Context.class;
+        }
+
+        @Override
+        public EditPhase initiatesFrom() {
+            return EditPhase.ON_BEFORE_REMOVE;
+        }
+
+        @Override
+        @SuppressWarnings("empty-statement")
+        public EditProcessor apply(EditPhase t, ContextWrapper u) {
+            boolean result = t == EditPhase.ON_BEFORE_REMOVE;
+            if (result) {
+//                System.out.println("HAVE A DELETION " + t
+//                        + " deleted text '" + u.getText() + "' openHint " + openHint + "");
+                BaseDocument doc = u.document();
+                DeleteToken[] res = new DeleteToken[1];
+                doc.readLock();
+                try {
+                    int bal = utils.tokenBalance(doc, openingTokenId, closingTokenId);
+//                    System.out.println("TRY DELET TOK BAL " + openingTokenId + " " + closingTokenId + " is " + bal);
+                    if (bal != 0 || bal == Integer.MAX_VALUE) {
+                        return null;
+                    }
+                    boolean bwd = u.isBackwardDelete();
+                    utils.withTokenSequence(doc, u.getOffset(), bwd, ts -> {
+//                        System.out.println("DELETION on token '" + ts.token().text() + "' " + ts.token().id() + " backward? " + bwd);
+                        if (ts.token().id().ordinal() == openingTokenId) {
+//                            System.out.println("  is a match");
+                            int tokId = -1;
+                            while (ts.moveNext() && ignore.test(tokId = ts.token().id().ordinal()));
+//                            System.out.println("NOW ON '" + ts.token().text() + "' " + ts.token().id());
+                            if (closingTokenId == tokId) {
+//                                System.out.println("CLOSING TOKEN ID MATCHES");
+                                try {
+                                    Token<?> tok = ts.token();
+                                    int off = ts.offset();
+                                    int len = tok.length();
+                                    Position startPos = doc.createPosition(off, Position.Bias.Backward);
+                                    Position endPos = doc.createPosition(off + len, Position.Bias.Forward);
+//                                    System.out.println("   WILL DELETE " + len + " at " + off
+//                                            + " text '" + doc.getText(off, len) + "'");
+                                    res[0] = new DeleteToken(startPos, endPos);
+                                } catch (BadLocationException ex) {
+                                    Exceptions.printStackTrace(ex);
+                                }
+                            }
+                        }
+                        return true;
+                    });
+                } finally {
+                    doc.readUnlock();
+                }
+                return res[0];
             }
-            return prefs;
+            return null;
         }
 
-        public final boolean isEnabled() {
-            return prefs().getBoolean("ef-" + id(), true);
-        }
+        static class DeleteToken implements EditProcessor {
 
-        public final void setEnabled(boolean enabled) {
-            prefs().putBoolean("ef-" + id(), enabled);
-        }
+            private final Position start;
+            private final Position end;
 
-        public String name() {
-            return name;
-        }
+            public DeleteToken(Position start, Position end) {
+                this.start = start;
+                this.end = end;
+            }
 
-        public String description() {
-            return description;
-        }
+            @Override
+            public String toString() {
+                return "Delete token " + start.getOffset() + ":"
+                        + end.getOffset();
+            }
 
-        protected abstract String id();
+            @Override
+            public void onRemove(ContextWrapper ctx) {
+                int st = start.getOffset();
+                int en = end.getOffset();
+                if (st != en) {
+                    try {
+                        ctx.document().remove(st, en - st);
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
+        }
     }
 
-    private static final class InsertBoilerplateOp extends EnableableEditProcessorFactory<TypedTextInterceptor.Context>
+    private static final class InsertBoilerplateEditProcessorFactory extends EnablableEditProcessorFactory<TypedTextInterceptor.Context>
             implements BiPredicate<EditPhase, ContextWrapper>, EditProcessorFactory<TypedTextInterceptor.Context> {
 
         private final CharPredicate keyTest;
@@ -387,13 +591,15 @@ public class EditorFeatures {
         private final TokenPattern precedingPattern;
         private final TokenPattern followingPattern;
         private final int caretBackup;
+        private final IntPredicate currentTokenNot;
 
-        public InsertBoilerplateOp(String mimeType, CharPredicate keyTest,
+        InsertBoilerplateEditProcessorFactory(String mimeType, CharPredicate keyTest,
                 String toInsert, IntPredicate precedingToken,
                 Boolean requireLineEnd, TokenPattern precedingPattern,
                 TokenPattern followingPattern, int caretBackup,
-                String name, String description, Class<?> ownerType) {
-            super(ownerType, name, description);
+                String name, String description, Class<?> ownerType, String category,
+                IntPredicate currentTokenNot) {
+            super(ownerType, name, description, category);
             this.utils = new EditorFeatureUtils(mimeType);
             this.keyTest = keyTest;
             this.toInsert = toInsert;
@@ -402,6 +608,7 @@ public class EditorFeatures {
             this.precedingPattern = precedingPattern;
             this.followingPattern = followingPattern;
             this.caretBackup = caretBackup;
+            this.currentTokenNot = currentTokenNot;
         }
 
         public String id() {
@@ -429,24 +636,32 @@ public class EditorFeatures {
 
         @Override
         public boolean test(EditPhase op, ContextWrapper t) {
-            System.out.println("TEST " + op + " " + t + " for '" + toInsert + "'");
-            if (op != EditPhase.ON_TYPING_INSERT) {
-                System.out.println("  wrong op type");
-            }
+//            System.out.println("TEST " + op + " " + t + " for '" + toInsert + "'");
             boolean result = op == EditPhase.ON_TYPING_INSERT;
             if (result) {
 //                System.out.println("boilerplate op '" + toInsert + " where " + precedingToken + " and " + keyTest);
                 try {
                     if (requireLineEnd != null) {
-                        boolean atLineENd = utils.isAtRowEnd(t.document(), t.getOffset());
+                        boolean atLineEnd = utils.isAtRowEnd(t.document(), t.getOffset());
                         result = requireLineEnd.booleanValue()
-                                == atLineENd;
+                                == atLineEnd;
 //                        System.out.println("At line end? " + atLineENd + " require " + requireLineEnd + " result " + result);
                     }
                     if (result) {
                         char c = t.getText().charAt(0);
 //                        System.out.println("TEXT IS '" + c + "'");
                         result = keyTest.test(c);
+                    }
+                    if (result && currentTokenNot != null) {
+                        result = utils.withTokenSequence(t.document(), t.getOffset(), true, ts -> {
+                            ts.move(t.getOffset());
+                            if (ts.moveNext()) {
+                                int type = ts.token().id().ordinal();
+                                boolean mismatch = currentTokenNot.test(type);
+                                return !mismatch;
+                            }
+                            return true;
+                        });
                     }
                     if (result) {
                         result = utils.previousTokenMatches(t.document(), t.getOffset(), precedingToken);
@@ -489,7 +704,6 @@ public class EditorFeatures {
             public void onInsert(ContextWrapper ctx) {
                 caretTo = ctx.getOffset() + toInsert.length();
                 ctx.setText(toInsert, 0, true);
-                System.out.println("IBOP on insert " + caretTo + " inserted '" + toInsert + "'");
             }
 
             @Override
@@ -501,11 +715,111 @@ public class EditorFeatures {
         }
     }
 
+    static final class CharacterElisionEditProcessorFactory extends EnablableEditProcessorFactory<TypedTextInterceptor.Context> {
+
+        private final boolean backwards;
+        private final char what;
+        private final IntPredicate currentTokenNot;
+        private final EditorFeatureUtils utils;
+
+        public CharacterElisionEditProcessorFactory(String mimeType, boolean backwards, char what, IntPredicate currentTokenNot, Class<?> ownerType, String name, String desc, String category) {
+            super(ownerType, name, desc, category);
+            this.backwards = backwards;
+            this.what = what;
+            this.currentTokenNot = currentTokenNot;
+            this.utils = new EditorFeatureUtils(mimeType);
+        }
+
+        @Override
+        protected String id() {
+            return "eld-" + what + (backwards ? "B":"F");
+        }
+
+        @Override
+        public Class<TypedTextInterceptor.Context> type() {
+            return TypedTextInterceptor.Context.class;
+        }
+
+        @Override
+        public EditPhase initiatesFrom() {
+            return EditPhase.ON_BEFORE_TYPING_INSERT;
+        }
+
+        @Override
+        public EditProcessor apply(EditPhase t, ContextWrapper u) {
+            String txt = u.getText();
+            if (txt.charAt(0) != what) {
+                return null;
+            }
+            if (utils.nextTokenMatches(u.document(), u.getOffset(), currentTokenNot)) {
+                return null;
+            }
+            return new Elision();
+        }
+
+        class Elision implements EditProcessor {
+
+            int caretPos = -1;
+
+            @Override
+            public void onBeforeInsert(ContextWrapper ctx) {
+                int ix = ctx.getOffset();
+                BaseDocument doc = ctx.document();
+                doc.readLock();
+                try {
+                    int len = doc.getLength();
+                    try {
+                        if (backwards) {
+                            CharSequence seq = DocumentUtilities.getText(doc, 0, ix);
+                            int max = seq.length();
+                            for (int i = max - 1; i >= 0; i--) {
+                                char c = seq.charAt(i);
+                                if (what == c) {
+                                    caretPos = 0;
+                                    break;
+                                } else if (!Character.isWhitespace(c)) {
+                                    break;
+                                }
+                            }
+                        } else {
+                            CharSequence seq = DocumentUtilities.getText(doc, ix, len - ix);
+                            int max = seq.length();
+                            for (int i = 0; i < max; i++) {
+                                char c = seq.charAt(i);
+                                if (c == what) {
+                                    caretPos = ix + i + 1;
+                                    break;
+                                } else if (!Character.isWhitespace(c)) {
+                                    break;
+                                }
+                            }
+                            if (caretPos != -1) {
+                                ctx.component().getCaret().setDot(caretPos);
+                            }
+                        }
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                } finally {
+                    doc.readUnlock();
+                }
+
+            }
+
+            @Override
+            public boolean consumesInitialEvent() {
+                return caretPos != -1;
+            }
+
+        }
+
+    }
+
     private <T> EditProcessor find(EditPhase ot, T ctx) {
         if (!this.types.contains(ot)) {
             return null;
         }
-        for (EnableableEditProcessorFactory<?> op : ops) {
+        for (EnablableEditProcessorFactory<?> op : ops) {
             if (op.initiatesFrom() == ot && op.isEnabled()) {
                 EditProcessor result = tryOne(ot, op, ctx);
                 if (result != null) {
@@ -517,7 +831,7 @@ public class EditorFeatures {
     }
 
     @SuppressWarnings("unchecked")
-    private <T, R> EditProcessor tryOne(EditPhase ot, EnableableEditProcessorFactory<T> op, R obj) {
+    private <T, R> EditProcessor tryOne(EditPhase ot, EnablableEditProcessorFactory<T> op, R obj) {
         if (op.type().isInstance(obj)) {
             T cast = op.type().cast(obj);
             return op.apply(ot, ContextWrapper.wrap(cast));
@@ -525,7 +839,7 @@ public class EditorFeatures {
         return null;
     }
 
-    private static class Interceptor implements TypedTextInterceptor.Factory, DeletedTextInterceptor.Factory, TypedBreakInterceptor.Factory {
+    private static final class Interceptor implements TypedTextInterceptor.Factory, DeletedTextInterceptor.Factory, TypedBreakInterceptor.Factory {
 
         private final Typing typing = new Typing();
         private final Deletions deletions = new Deletions();
@@ -559,9 +873,15 @@ public class EditorFeatures {
             public boolean beforeInsert(Context cntxt) throws BadLocationException {
                 currentOp = features.find(EditPhase.ON_BEFORE_TYPING_INSERT, cntxt);
                 if (currentOp != null) {
-                    currentOp.onBeforeInsert((ContextWrapper.wrap(cntxt)));
+                    currentOp.onBeforeInsert(ContextWrapper.wrap(cntxt));
                 }
-                return currentOp != null;
+                boolean result = currentOp != null ? currentOp.consumesInitialEvent() : false;
+                if (result) {
+                    // other methods will never be called, we are consuming
+                    // the event and taking over from here
+                    currentOp = null;
+                }
+                return result;
             }
 
             @Override
@@ -570,7 +890,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_TYPING_INSERT, mc);
                 }
                 if (currentOp != null) {
-                    currentOp.onInsert((ContextWrapper.wrap(mc)));
+                    currentOp.onInsert(ContextWrapper.wrap(mc));
                 }
             }
 
@@ -580,7 +900,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_AFTER_TYPING_INSERT, cntxt);
                 }
                 if (currentOp != null) {
-                    currentOp.onAfterInsert((ContextWrapper.wrap(cntxt)));
+                    currentOp.onAfterInsert(ContextWrapper.wrap(cntxt));
                 }
                 currentOp = null;
             }
@@ -588,7 +908,7 @@ public class EditorFeatures {
             @Override
             public void cancelled(Context cntxt) {
                 if (currentOp != null) {
-                    currentOp.cancelled((ContextWrapper.wrap(cntxt)));
+                    currentOp.cancelled(ContextWrapper.wrap(cntxt));
                 }
                 currentOp = null;
             }
@@ -602,9 +922,10 @@ public class EditorFeatures {
             public boolean beforeRemove(Context cntxt) throws BadLocationException {
                 currentOp = features.find(EditPhase.ON_BEFORE_REMOVE, cntxt);
                 if (currentOp != null) {
-                    currentOp.onBeforeRemove((ContextWrapper.wrap(cntxt)));
+                    currentOp.onBeforeRemove(ContextWrapper.wrap(cntxt));
                 }
-                return currentOp != null;
+                // If we return true, that stops keystroke processing entirely - 
+                return currentOp != null ? currentOp.consumesInitialEvent() : false;
             }
 
             @Override
@@ -613,7 +934,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_REMOVE, cntxt);
                 }
                 if (currentOp != null) {
-                    currentOp.onRemove((ContextWrapper.wrap(cntxt)));
+                    currentOp.onRemove(ContextWrapper.wrap(cntxt));
                 }
             }
 
@@ -645,9 +966,9 @@ public class EditorFeatures {
             public boolean beforeInsert(Context cntxt) throws BadLocationException {
                 currentOp = features.find(EditPhase.ON_BEFORE_BREAK_INSERT, cntxt);
                 if (currentOp != null) {
-                    currentOp.onBeforeInsert((ContextWrapper.wrap(cntxt)));
+                    currentOp.onBeforeInsert(ContextWrapper.wrap(cntxt));
                 }
-                return currentOp != null;
+                return currentOp != null ? currentOp.consumesInitialEvent() : false;
             }
 
             @Override
@@ -666,7 +987,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_AFTER_BREAK_INSERT, cntxt);
                 }
                 if (currentOp != null) {
-                    currentOp.onAfterInsert((ContextWrapper.wrap(cntxt)));
+                    currentOp.onAfterInsert(ContextWrapper.wrap(cntxt));
                 }
                 currentOp = null;
             }
@@ -674,7 +995,7 @@ public class EditorFeatures {
             @Override
             public void cancelled(Context cntxt) {
                 if (currentOp != null) {
-                    currentOp.cancelled((ContextWrapper.wrap(cntxt)));
+                    currentOp.cancelled(ContextWrapper.wrap(cntxt));
                 }
                 currentOp = null;
             }

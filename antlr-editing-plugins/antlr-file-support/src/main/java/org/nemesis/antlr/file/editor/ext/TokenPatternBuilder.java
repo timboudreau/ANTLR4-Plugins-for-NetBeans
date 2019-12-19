@@ -21,7 +21,13 @@ import java.util.function.Function;
 import java.util.function.IntPredicate;
 
 /**
- * Describes a pattern of tokens to look for.
+ * Describes a pattern of tokens to look for - will look backwards or forwards
+ * from the current position in the token sequence, and looks for a sequence of
+ * tokens which may be interrupted by those tokens specified to ignore; if a
+ * stop token is encountered before the pattern is satisfied then the test
+ * fails; if the file end or beginning is encountered before the pattern is
+ * satisfied then it may succeed or fail based on whether startOrEndOk has been
+ * called; if the pattern is satisfied, the test succeeds.
  *
  * @author Tim Boudreau
  */
@@ -53,11 +59,25 @@ public final class TokenPatternBuilder<T> {
         return new TokenPattern(forward, pattern, stop, startOrEndOk, ignore);
     }
 
+    /**
+     * Call this if the pattern should be considered satisfied if the document
+     * end or beginning (depending on direction) is encountered before the
+     * pattern has been satisfied.
+     *
+     * @return this
+     */
     public TokenPatternBuilder<T> orDocumentStartOrEnd() {
         startOrEndOk = true;
         return this;
     }
 
+    /**
+     * Ignore token ids which match this predicate.
+     *
+     * @param ign A predicate which will return true for those token ids which
+     * should be ignored
+     * @return this
+     */
     public TokenPatternBuilder<T> ignoring(IntPredicate ign) {
         if (ignore != null) {
             ignore = ignore.or(notNull("ign", ign));
@@ -67,6 +87,13 @@ public final class TokenPatternBuilder<T> {
         return this;
     }
 
+    /**
+     * Ignore the passed token ids.
+     *
+     * @param ign A predicate which will return true for those token ids which
+     * should be ignored
+     * @return this
+     */
     public TokenPatternBuilder<T> ignoring(int... items) {
         if (ignore != null) {
             ignore = ignore.or(IntPredicates.anyOf(items));
@@ -76,11 +103,26 @@ public final class TokenPatternBuilder<T> {
         return this;
     }
 
+    /**
+     * Stop trying to match the pattern and fail if one of the passed tokens is
+     * encountered before the pattern is satisfied.
+     *
+     * @param ign A predicate which will return true for those token ids which
+     * should be ignored
+     * @return this
+     */
     public T stoppingOn(int... items) {
         stop = IntPredicates.anyOf(items);
         return convert.apply(this);
     }
 
+    /**
+     * Stop trying to match the pattern and fail a token which matches this
+     * predicate is encountered before the pattern is satisfied.
+     *
+     * @param pred A predicate
+     * @return this
+     */
     public T stoppingOn(IntPredicate pred) {
         stop = pred;
         return convert.apply(this);

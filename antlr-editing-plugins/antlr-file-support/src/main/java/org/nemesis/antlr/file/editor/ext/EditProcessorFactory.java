@@ -29,4 +29,5 @@ interface EditProcessorFactory<T> extends BiFunction<EditPhase, ContextWrapper, 
     Class<T> type();
 
     EditPhase initiatesFrom();
+
 }

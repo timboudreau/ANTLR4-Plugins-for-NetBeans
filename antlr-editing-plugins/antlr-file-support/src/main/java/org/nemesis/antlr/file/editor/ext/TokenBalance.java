@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.nemesis.antlr.file.editor;
+package org.nemesis.antlr.file.editor.ext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,9 +38,9 @@ import org.netbeans.api.lexer.TokenSequence;
 final class TokenBalance implements TokenHierarchyListener {
 
     // Borrowed from the Java module
-
+    // TDB - and borrowed again from CSL
     public static <T extends TokenId> TokenBalance get(Document doc) {
-        TokenBalance tb = (TokenBalance)doc.getProperty(TokenBalance.class);
+        TokenBalance tb = (TokenBalance) doc.getProperty(TokenBalance.class);
         if (tb == null) {
             tb = new TokenBalance(doc);
             doc.putProperty(TokenBalance.class, tb);
@@ -50,7 +50,7 @@ final class TokenBalance implements TokenHierarchyListener {
 
     private final Document doc;
 
-    private final Map<Language<?>,LanguageHandler<?>> lang2handler;
+    private final Map<Language<?>, LanguageHandler<?>> lang2handler;
 
     private boolean scanDone;
 
@@ -68,6 +68,31 @@ final class TokenBalance implements TokenHierarchyListener {
     public boolean isTracked(String mimeType) {
         Language<? extends TokenId> lang = Language.find(mimeType);
         return isTracked(lang);
+    }
+
+    public boolean ensureTracked(String mimeType, int leftId, int rightId) {
+        Language<? extends TokenId> lang = Language.find(mimeType);
+//        boolean result = isTracked(lang);
+//        if (result) {
+        boolean result = ensureTokensTracked(lang, leftId, rightId);
+//        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends TokenId> boolean ensureTokensTracked(Language<T> l, int left, int right) {
+        T ltok = l.tokenId(left);
+        T rtok = left == right ? ltok : l.tokenId(right);
+        System.out.println("ENSURE TOKENS TRACKED " + ltok + " and " + rtok + " for " + l.mimeType());
+        synchronized (lang2handler) {
+            LanguageHandler<T> handler = handler(l, true);
+            if (!handler.id2Pair.containsKey(ltok) || !handler.id2Pair.containsKey(rtok)) {
+                System.out.println("  ADDING TOKEN PAIR ");
+                handler.addTokenPair(ltok, rtok);
+                return true;
+            }
+        }
+        return false;
     }
 
     public void addTokenPair(String mime, int left, int right) {
@@ -90,9 +115,8 @@ final class TokenBalance implements TokenHierarchyListener {
 
     public void tokenHierarchyChanged(TokenHierarchyEvent evt) {
         synchronized (lang2handler) {
-            if (evt.type() == TokenHierarchyEventType.ACTIVITY ||
-                    evt.type() == TokenHierarchyEventType.REBUILD)
-            {
+            if (evt.type() == TokenHierarchyEventType.ACTIVITY
+                    || evt.type() == TokenHierarchyEventType.REBUILD) {
                 scanDone = false;
             } else {
                 if (scanDone) { // Only update if the full scan was already done
@@ -108,18 +132,38 @@ final class TokenBalance implements TokenHierarchyListener {
      * Get balance for the given left id.
      *
      * @param left left-id
-     * @return balance value above zero means more lefts than rights and vice versa.
-     *  Returns Integer.MAX_VALUE if the particular id is not tracked (or is tracked
-     *  as non-left id e.g. '[' would return balance but ']' would return Integer.MAX_VALUE).
+     * @return balance value above zero means more lefts than rights and vice
+     * versa. Returns Integer.MAX_VALUE if the particular id is not tracked (or
+     * is tracked as non-left id e.g. '[' would return balance but ']' would
+     * return Integer.MAX_VALUE).
      */
     public <T extends TokenId> int balance(Language<T> language, T left) {
+        LanguageHandler<T> handler;
         synchronized (lang2handler) {
             checkScanDone();
-            LanguageHandler<T> handler = handler(language, false);
-            return (handler != null) ? handler.balance(left) : Integer.MAX_VALUE;
+            handler = handler(language, false);
         }
+        return (handler != null) ? handler.balance(left) : Integer.MAX_VALUE;
     }
-    
+
+    public int balance(String mimeType, int left) {
+        Language<?> lang = Language.find(mimeType);
+        return _balance(lang, left);
+    }
+
+    private <T extends TokenId> int _balance(Language<T> lang, int left) {
+        T id = lang.tokenId(left);
+        LanguageHandler<T> handler;
+        synchronized (lang2handler) {
+            checkScanDone();
+            handler = handler(lang, false);
+        }
+        if (handler == null) {
+            System.out.println("  NO HANDLER FOR " + lang.mimeType());
+        }
+        return (handler != null) ? handler.balance(id) : Integer.MAX_VALUE;
+    }
+
     private <T extends TokenId> LanguageHandler<T> handler(Language<T> language, boolean forceCreation) {
         // Should always be called under lang2handler sync section
         @SuppressWarnings("unchecked")
@@ -142,9 +186,9 @@ final class TokenBalance implements TokenHierarchyListener {
             }
         }
     }
-    
+
     private static final class LanguageHandler<T extends TokenId> {
-        
+
         private final Language<T> language;
 
         private final Map<T, TokenIdPair<T>> id2Pair;
@@ -153,7 +197,7 @@ final class TokenBalance implements TokenHierarchyListener {
             this.language = language;
             id2Pair = new HashMap<T, TokenIdPair<T>>();
         }
-        
+
         public final Language<T> language() {
             return language;
         }
@@ -175,16 +219,16 @@ final class TokenBalance implements TokenHierarchyListener {
             if (ts != null) {
                 processTokenSequence(ts, ts.tokenCount(), true, +1);
             }
-
         }
 
         @SuppressWarnings("unchecked")
-        public void processTokenSequence(TokenSequence<?> ts, int tokenCount, boolean checkEmbedded, int diff) {
+        public void processTokenSequence(TokenSequence<?> ts, int tokenCount,
+                boolean checkEmbedded, int diff) {
             while (--tokenCount >= 0) {
                 boolean moved = ts.moveNext();
                 assert (moved);
                 if (ts.language() == language) {
-                    T id = (T)ts.token().id();
+                    T id = (T) ts.token().id();
                     TokenIdPair pair = id2Pair.get(id);
                     if (pair != null) {
                         pair.updateBalance(id, diff);
@@ -192,8 +236,10 @@ final class TokenBalance implements TokenHierarchyListener {
                 }
                 if (checkEmbedded) {
                     TokenSequence<?> embeddedTS = ts.embedded();
-                    if (embeddedTS != null)
-                        processTokenSequence(embeddedTS, embeddedTS.tokenCount(), true, diff);
+                    if (embeddedTS != null) {
+                        processTokenSequence(embeddedTS, embeddedTS.tokenCount(),
+                                true, diff);
+                    }
                 }
             }
         }
@@ -211,19 +257,22 @@ final class TokenBalance implements TokenHierarchyListener {
 
         public int balance(T left) {
             TokenIdPair pair = id2Pair.get(left);
+            System.out.println("PAIR " + pair + " balance " + pair.balance
+                    + " is correct token? " + (pair.left == left));
             return (pair.left == left) ? pair.balance : Integer.MAX_VALUE;
         }
 
         @SuppressWarnings("unchecked")
         private List<TokenChange<T>> collectTokenChanges(TokenChange<?> change, List<TokenChange<T>> changes) {
-            if (change.language() == language)
-                changes.add((TokenChange<T>)change);
+            if (change.language() == language) {
+                changes.add((TokenChange<T>) change);
+            }
             for (int i = 0; i < change.embeddedChangeCount(); i++) {
                 collectTokenChanges(change.embeddedChange(i), changes);
             }
             return changes;
         }
-    } 
+    }
 
     private static final class TokenIdPair<T extends TokenId> {
 

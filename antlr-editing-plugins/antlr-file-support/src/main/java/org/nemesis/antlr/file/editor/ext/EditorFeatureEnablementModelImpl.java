@@ -23,12 +23,13 @@ import java.util.Objects;
  */
 final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementModel {
 
+    static final String NO_CATEGORY = "_";
     private final String mimeType;
 
-    private final EditorFeatures.EnableableEditProcessorFactory<?> item;
+    private final EnablableEditProcessorFactory<?> item;
     private boolean state;
 
-    EditorFeatureEnablementModelImpl(String mimeType, EditorFeatures.EnableableEditProcessorFactory<?> item) {
+    EditorFeatureEnablementModelImpl(String mimeType, EnablableEditProcessorFactory<?> item) {
         this.mimeType = mimeType;
         this.item = item;
         state = item.isEnabled();
@@ -47,6 +48,11 @@ final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementM
     @Override
     public String id() {
         return item.id();
+    }
+
+    public String category() {
+        String result = item.category();
+        return result == null ? NO_CATEGORY : result;
     }
 
     @Override

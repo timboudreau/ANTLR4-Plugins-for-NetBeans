@@ -16,8 +16,8 @@
 package org.nemesis.antlr.file.editor.ext;
 
 /**
- * Unifies the operations the various editor api text processors
- * can call.  Not all methods will be called for all types.
+ * Unifies the operations the various editor api text processors can call. Not
+ * all methods will be called for all types.
  *
  * @author Tim Boudreau
  */
@@ -51,4 +51,15 @@ interface EditProcessor {
         // do nothing
     }
 
+    /**
+     * Only relevant to processor factories that handle BEFORE_* phases and want
+     * to entirely take over the edit, causing the original keys stroke not to
+     * be processed by anything else.
+     *
+     * @return True if this factory either ignores the keystroke or handles it
+     * entirely itself
+     */
+    default boolean consumesInitialEvent() {
+        return false;
+    }
 }

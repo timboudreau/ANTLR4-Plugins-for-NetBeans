@@ -64,6 +64,7 @@ import static org.nemesis.antlr.ANTLRv4Lexer.WS;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlrformatting.api.Criteria;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
+import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
 import org.netbeans.spi.options.OptionsPanelController;
 
@@ -71,7 +72,7 @@ import org.netbeans.spi.options.OptionsPanelController;
  *
  * @author Tim Boudreau
  */
-public class TestImpl extends EditorFeatures {
+public final class TestImpl extends EditorFeatures {
 
     private static final int[] WHITESPACE_TOKEN_IDS = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
         HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
@@ -112,15 +113,25 @@ public class TestImpl extends EditorFeatures {
                     .setDescription("Causes a : and ; to automatically be inserted "
                             + "when you type a new rule name on a blank line, and places "
                             + "the caret before the ;")
+                    .setCategory("Boilerplate")
                     .whenKeyTyped(' ');
 
             b.insertBoilerplate("(^)")
                     .whenPrecedingToken(CRIT.anyOf(ANTLRv4Lexer.COLON,
                             ANTLRv4Lexer.PARSER_RULE_ID, ANTLRv4Lexer.TOKEN_ID,
                             ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
-                            ANTLRv4Lexer.FRAGDEC_WS
+                            ANTLRv4Lexer.FRAGDEC_WS,
+                            ANTLRv4Lexer.END_ACTION
                     ))
+                    .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.LINE_COMMENT, ANTLRv4Lexer.BLOCK_COMMENT,
+                            ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.PARDEC_LINE_COMMENT,
+                            ANTLRv4Lexer.CHN_BLOCK_COMMENT,
+                            ANTLRv4Lexer.CHN_LINE_COMMENT,
+                            ANTLRv4Lexer.PARDEC_BLOCK_COMMENT))
                     .setName("Insert closing ) after (")
+                    .setCategory("Boilerplate")
                     .whenKeyTyped('(');
 
             b.insertBoilerplate("{^}")
@@ -128,11 +139,76 @@ public class TestImpl extends EditorFeatures {
                             ANTLRv4Lexer.PARSER_RULE_ID, ANTLRv4Lexer.TOKEN_ID,
                             ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
                             ANTLRv4Lexer.LEXCOM_WS, ANTLRv4Lexer.PARDEC_OPT_WS,
-                            ANTLRv4Lexer.FRAGDEC_WS
+                            ANTLRv4Lexer.FRAGDEC_WS,
+                            ANTLRv4Lexer.TOKENS
                     ))
+                    .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.LINE_COMMENT, ANTLRv4Lexer.BLOCK_COMMENT,
+                            ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.PARDEC_LINE_COMMENT,
+                            ANTLRv4Lexer.CHN_BLOCK_COMMENT,
+                            ANTLRv4Lexer.CHN_LINE_COMMENT,
+                            ANTLRv4Lexer.PARDEC_BLOCK_COMMENT))
                     .setName("Insert closing { after }")
+                    .setCategory("Boilerplate")
                     .whenKeyTyped('{');
 
+            b.insertBoilerplate("'^'")
+                    .whenPrecedingToken(CRIT.anyOf(ANTLRv4Lexer.COLON,
+                            ANTLRv4Lexer.PARSER_RULE_ID, ANTLRv4Lexer.TOKEN_ID,
+                            ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
+                            ANTLRv4Lexer.LEXCOM_WS, ANTLRv4Lexer.PARDEC_OPT_WS,
+                            ANTLRv4Lexer.FRAGDEC_WS, ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.TOKEN_ID, ANTLRv4Lexer.PARSER_RULE_ID
+                    ))
+                    .setName("Insert closing quote after '")
+                    .setCategory("Boilerplate")
+                    .whenKeyTyped('\'');
+
+            b.deleteMateOf(ANTLRv4Lexer.LPAREN)
+                    .setName("Delete matching ) on ( deletion if no contents")
+                    .setDescription("Causes deleting a ( character to remove the "
+                            + "corresponding ) character if there is nothing, or only"
+                            + " whitespace or comments in between.")
+                    .setCategory("Brace and Parens Handling")
+                    .ignoring(CRIT.anyOf(IGNORABLE_TOKEN_IDS))
+                    .closingPairWith(ANTLRv4Lexer.RPAREN);
+
+            b.deleteMateOf(ANTLRv4Lexer.BEGIN_ACTION)
+                    .setName("Delete matching } on { deletion in action blocks, if no contents")
+                    .setDescription("Causes deleting a { character to remove the "
+                            + "corresponding } character if there is nothing, or only"
+                            + " whitespace or comments in between and the text is in "
+                            + " a rule.")
+                    .setCategory("Brace and Parens Handling")
+                    .ignoring(CRIT.anyOf(IGNORABLE_TOKEN_IDS))
+                    .closingPairWith(ANTLRv4Lexer.END_ACTION);
+
+            b.elide(':')
+                    .setCategory("Convenience")
+                    .setName("Elide : when typed before an existing :")
+                    .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.LINE_COMMENT,
+                            ANTLRv4Lexer.BLOCK_COMMENT, ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT,
+                            ANTLRv4Lexer.PARDEC_OPT_LINE_COMMENT,
+                            ANTLRv4Lexer.ACTION_CONTENT
+                    ));
+
+            b.elidePreceding(':')
+                    .setCategory("Convenience")
+                    .setName("Elide : when typed after an existing :")
+                    .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.LINE_COMMENT,
+                            ANTLRv4Lexer.BLOCK_COMMENT, ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT,
+                            ANTLRv4Lexer.PARDEC_OPT_LINE_COMMENT,
+                            ANTLRv4Lexer.ACTION_CONTENT
+                    ));
+
+            b.elide(';')
+                    .setCategory("Convenience")
+                    .setName("Elide ; when typed next to an existing ;")
+                    .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.LINE_COMMENT,
+                            ANTLRv4Lexer.BLOCK_COMMENT, ANTLRv4Lexer.STRING_LITERAL));
         });
     }
 
@@ -141,6 +217,13 @@ public class TestImpl extends EditorFeatures {
             position = 10)
     public static TypedTextInterceptor.Factory typingFactoryRegistration() {
         return INSTANCE.typingFactory();
+    }
+
+    @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
+            service = DeletedTextInterceptor.Factory.class,
+            position = 11)
+    public static DeletedTextInterceptor.Factory deletionFactoryRegistration() {
+        return INSTANCE.deletionFactory();
     }
 
     @MimeRegistration(mimeType = ANTLR_MIME_TYPE, position = 171, service = EditorFeatures.class)
@@ -159,6 +242,8 @@ public class TestImpl extends EditorFeatures {
         "AdvancedOption_Keywords_AntlrOptions=antlr"
     })
     public static OptionsPanelController optionsPanelRegistration() {
-        return INSTANCE.optionsPanelController();
+        OptionsPanelController result = INSTANCE.optionsPanelController();
+        System.out.println("CREATE options panel controller " + result);
+        return result;
     }
 }

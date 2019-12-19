@@ -124,13 +124,13 @@ public class BracesHandling {
                 case '(':
                 case '[':
                     if (isCompletionSettingEnabled()) {
-                        removeBrackets(context);
+//                        removeBrackets(context);
                     }
                     break;
                 case '\"':
                 case '\'':
                     if (isCompletionSettingEnabled()) {
-                        removeCompletedQuote(context);
+//                        removeCompletedQuote(context);
                     }
                     break;
             }

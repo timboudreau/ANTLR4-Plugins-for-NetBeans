@@ -18,6 +18,7 @@ package org.nemesis.antlr.spi.language;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.antlr.v4.runtime.Vocabulary;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
@@ -37,9 +38,11 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 public abstract class AntlrMimeTypeRegistration {
 
     private final String type;
+    private final Vocabulary vocabulary;
 
-    protected AntlrMimeTypeRegistration( String type ) {
+    protected AntlrMimeTypeRegistration( String type, Vocabulary vocabulary ) {
         this.type = notNull( "type", type );
+        this.vocabulary = vocabulary;
     }
 
     @Override
@@ -101,6 +104,17 @@ public abstract class AntlrMimeTypeRegistration {
         return registry().types().contains( mimeType );
     }
 
+    /**
+     * Get the Antlr 4 Vocabulary for a mime type. If not present,
+     * a dummy instance is returned.
+     *
+     * @param mimeType A mime type
+     * @return a vocabulary
+     */
+    public static Vocabulary vocabulary( String mimeType ) {
+        return registry().vocabularyFor( notNull("mimeType", mimeType) );
+    }
+
     static class Registry implements LookupListener {
         private final Lookup.Result<AntlrMimeTypeRegistration> result;
         private final Set<String> allMimeTypes = ConcurrentHashMap.newKeySet( 10 );
@@ -109,6 +123,15 @@ public abstract class AntlrMimeTypeRegistration {
         public Registry() {
             result = Lookup.getDefault().lookupResult( AntlrMimeTypeRegistration.class );
             result.addLookupListener( this );
+        }
+
+        Vocabulary vocabularyFor( String mimeType ) {
+            for ( AntlrMimeTypeRegistration reg : result.allInstances() ) {
+                if ( mimeType.equals( reg.type ) ) {
+                    return reg.vocabulary;
+                }
+            }
+            return NoVocabulary.INSTANCE;
         }
 
         String[] typesArray() {
@@ -138,6 +161,30 @@ public abstract class AntlrMimeTypeRegistration {
             synchronized ( this ) {
                 typesArray = null;
             }
+        }
+    }
+
+    private static final class NoVocabulary implements Vocabulary {
+        private static final NoVocabulary INSTANCE = new NoVocabulary();
+
+        @Override
+        public int getMaxTokenType() {
+            return 0;
+        }
+
+        @Override
+        public String getLiteralName( int tokenType ) {
+            return Integer.toString( tokenType );
+        }
+
+        @Override
+        public String getSymbolicName( int tokenType ) {
+            return Integer.toString( tokenType );
+        }
+
+        @Override
+        public String getDisplayName( int tokenType ) {
+            return Integer.toString( tokenType );
         }
     }
 }

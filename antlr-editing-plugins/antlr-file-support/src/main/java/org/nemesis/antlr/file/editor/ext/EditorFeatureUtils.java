@@ -16,6 +16,7 @@
 package org.nemesis.antlr.file.editor.ext;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import javax.swing.text.BadLocationException;
@@ -82,6 +83,20 @@ final class EditorFeatureUtils {
         return false;
     }
 
+    boolean nearbyTokenMatches(int distance, BaseDocument doc, int position, IntPredicate tokenIdTest) {
+        TokenSequence<?> seq = tokenSequence(mimeType, doc, position, false);
+        BooleanSupplier move = distance < 0 ? seq::movePrevious : seq::moveNext;
+        int abs = Math.abs(distance);
+        for (int i = 0; i < abs; i++) {
+            if (!move.getAsBoolean()) {
+                return false;
+            }
+        }
+        Token<?> tok = seq.token();
+        int ord = tok.id().ordinal();
+        return tokenIdTest.test(ord);
+    }
+
     boolean withTokenSequence(Document doc, int caretPosition, boolean backwardBias, Predicate<TokenSequence<?>> p) {
         TokenSequence<?> seq = tokenSequence(mimeType, doc, caretPosition, backwardBias);
         if (seq == null) {
@@ -89,6 +104,19 @@ final class EditorFeatureUtils {
         }
         return p.test(seq);
     }
+
+    int tokenBalance(Document doc, int leftTokenId, int rightTokenId) {
+        TokenBalance tb = TokenBalance.get(doc);
+        System.out.println("ENSURE PAIR TRACKED " + leftTokenId + " and " + rightTokenId + " for " + mimeType);
+        tb.ensureTracked(mimeType, leftTokenId, rightTokenId);
+        int balance = tb.balance(mimeType, leftTokenId);
+        if (balance == Integer.MAX_VALUE) {
+            System.out.println("  BALANCE IS MAX VALUE for " + leftTokenId + " in " + mimeType + " for " + doc);
+        }
+//        assert (balance != Integer.MAX_VALUE);
+        return balance;
+    }
+
 
     static TokenSequence<?> tokenSequence(String mimeType, Document doc, int caretOffset, boolean backwardBias) {
         TokenHierarchy<?> hi = TokenHierarchy.get(doc);

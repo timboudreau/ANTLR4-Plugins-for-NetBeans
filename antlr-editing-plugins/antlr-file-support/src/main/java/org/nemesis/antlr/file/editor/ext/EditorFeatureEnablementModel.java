@@ -28,6 +28,8 @@ public interface EditorFeatureEnablementModel {
 
     String id();
 
+    String category();
+
     boolean isEnabled();
 
     void setEnabled(boolean val);

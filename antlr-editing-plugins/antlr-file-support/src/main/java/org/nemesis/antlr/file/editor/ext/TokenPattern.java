@@ -45,6 +45,83 @@ final class TokenPattern {
         }
     }
 
+    /*
+
+    Use a microformat something like this:
+     > or < forward or backwards
+    | allow end of doc
+    LIST OF TOKENS IN PATTERN
+    ! LIST OF STOP TOKENS
+    ? LIST OF IGNORE TOKENS
+
+    >| RPAREN {TOK_A, TOK_B} * LPAREN SEMI ! STOP_TOK_1 STOP_TOK_2 ? WHITESPACE BLOCK_COMMENT
+
+    public static final TokenPattern parse(String val, ToIntFunction<String> converter) {
+        val = val.trim();
+        if (val.length() < 4) {
+            throw new IllegalArgumentException("Pattern string too short");
+        }
+        if (val.charAt(0) == '>' || val.charAt(0) == '<') {
+            boolean forward = val.charAt(0) == '>';
+            boolean endOk = val.charAt(1) == '|';
+            val = val.substring(endOk ? 2 : 1).trim();
+            int bangIx = val.indexOf('!');
+            if (bangIx < 0) {
+                throw new IllegalArgumentException("! not found - stop tokens not specified");
+            }
+            String patternTokenList = val.substring(0, bangIx).trim();
+            Set<String> patternTokens = new HashSet<>(5);
+            for (String s : patternTokenList.split("\\s+")) {
+                patternTokens.add(s);
+            }
+            if (patternTokens.isEmpty()) {
+                throw new IllegalArgumentException("Pattern token sequence '"
+                        + patternTokenList + " is impty in '" + val + "'");
+            }
+            String remainder = val.substring(bangIx+1, val.length());
+            String stopTokenList;
+
+            int qix = remainder.indexOf('?');
+            if (qix < 0) {
+                stopTokenList = remainder;
+                remainder = "";
+            } else {
+                stopTokenList = remainder.substring(0, qix);
+                remainder = remainder.substring(qix+1, remainder.length());
+            }
+            Set<String> stopTokens = new HashSet<>(5);
+            for (String stop : stopTokenList.split("\\s+")) {
+                stopTokens.add(stop);
+            }
+            Set<String> ignoreTokens = new HashSet<>(5);
+            if (!remainder.isEmpty()) {
+                for (String ign : remainder.split("\\s+")) {
+                    ignoreTokens.add(ign);
+                }
+            }
+
+            Function<Set<String>, int[]> intsForString = set -> {
+                int[] result = new int[set.size()];
+                int ix = 0;
+                for (String s : set) {
+                    int tokenId = converter.applyAsInt(s);
+                    if (tokenId < -1) {
+                        throw new IllegalArgumentException("Could not convert '"
+                                + s + "' to a token id - got " + tokenId);
+                    }
+                }
+                return result;
+            };
+
+
+        } else {
+            throw new IllegalArgumentException("Pattern must start with > or "
+                    + "< to indicate forward or backward search");
+        }
+        return null;
+    }
+    */
+
     @Override
     public String toString() {
         return Arrays.toString(pattern) + (forward ? " after " : " before ")
