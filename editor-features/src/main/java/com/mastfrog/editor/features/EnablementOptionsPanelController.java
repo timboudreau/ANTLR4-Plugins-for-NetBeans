@@ -232,22 +232,6 @@ final class EnablementOptionsPanelController extends OptionsPanelController {
         }
     }
 
-    /*
-    public static void main(String[] args) {
-        System.setProperty("swing.aatext", "true");
-        System.setProperty("awt.useSystemAAFontSettings", "lcd_hrgb");
-        JFrame jf = new JFrame();
-        jf.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        JPanel pnl = EnablementOptionsPanelController.populatePanel(TestImpl.instance(), () -> {
-        }, (a, b) -> {
-        });
-//        jf.setContentPane(new JScrollPane(pnl));
-        jf.setContentPane(pnl);
-        jf.pack();
-        jf.setVisible(true);
-    }
-     */
-
     private static final class ColumnarLayout implements LayoutManager {
 
         private final int indent = Utilities.isMac() ? 16 : 12;
@@ -284,7 +268,6 @@ final class EnablementOptionsPanelController extends OptionsPanelController {
                 maxW = Math.max(w, maxW);
                 h += d.height + adjustHeight;
             }
-            System.out.println("hey");
             if (!curr.isEmpty()) {
                 compGroups.add(curr);
                 groupBounds.add(new Rectangle(ins.left, ins.top, w, h));
@@ -378,7 +361,6 @@ final class EnablementOptionsPanelController extends OptionsPanelController {
             for (Rectangle r : groupBounds) {
                 result.add(r);
             }
-            System.out.println("PLS " + result);
             return result.getSize();
         }
 
