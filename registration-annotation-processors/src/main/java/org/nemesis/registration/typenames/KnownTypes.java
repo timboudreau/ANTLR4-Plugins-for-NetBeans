@@ -165,9 +165,6 @@ public enum KnownTypes implements TypeName {
         Libraries.LIB2),
     CARET_TOKEN_INFO("org.nemesis.antlr.completion.CaretTokenInfo",
         Libraries.CODE_COMPLETION),
-    CARET_TOKEN_RELATION(
-        "org.nemesis.antlr.completion.CaretTokenInfo.CaretTokenRelation",
-        Libraries.CODE_COMPLETION),
     CHANGE_INFO("org.netbeans.spi.editor.hints.ChangeInfo", Libraries.HINTS),
     CHANGE_SUPPORT("org.openide.util.ChangeSupport", Libraries.UTIL),
     CHAR_FILTER("org.nemesis.charfilter.CharFilter", Libraries.FILTERS),
@@ -217,6 +214,8 @@ public enum KnownTypes implements TypeName {
     COMPARABLE_REFACTORING_ELEMENT_IMPLEMENTATION(
         "org.nemesis.antlr.refactoring.ComparableRefactoringElementImplementation",
         Libraries.REFACTORING),
+    COMPLETER("com.mastfrog.antlr.utils.CompletionsSupplier.Completer",
+        Libraries.UTILS),
     COMPLETIONS_BUILDER("org.nemesis.antlr.completion.CompletionsBuilder",
         Libraries.CODE_COMPLETION),
     COMPLETIONS_SUPPLIER("com.mastfrog.antlr.utils.CompletionsSupplier",
@@ -245,8 +244,8 @@ public enum KnownTypes implements TypeName {
     CONVERTERS("com.mastfrog.converters.Converters", Libraries.WRAPPER),
     COOKIE_SET("org.openide.nodes.CookieSet", Libraries.NODES),
     COPY_ACTION("org.openide.actions.CopyAction", Libraries.ACTIONS),
-    CRITERIA("org.nemesis.antlrformatting.api.Criteria", Libraries.FORMATTERS),
-    CRITERION("org.nemesis.antlrformatting.api.Criterion", Libraries.FORMATTERS),
+    CRITERIA("com.mastfrog.antlr.utils.Criteria", Libraries.UTILS),
+    CRITERION("com.mastfrog.antlr.utils.Criterion", Libraries.UTILS),
     CUSTOM_REFACTORING("org.nemesis.antlr.refactoring.CustomRefactoring",
         Libraries.REFACTORING),
     CUT_ACTION("org.openide.actions.CutAction", Libraries.ACTIONS),
@@ -315,6 +314,10 @@ public enum KnownTypes implements TypeName {
     EDITOR_DOCUMENT_UTILS(
         "org.netbeans.api.editor.document.EditorDocumentUtils",
         Libraries.DOCUMENT),
+    EDITOR_FEATURES("com.mastfrog.editor.features.EditorFeatures",
+        Libraries.FEATURES),
+    EDITOR_FEATURES_BUILDER(
+        "com.mastfrog.editor.features.EditorFeaturesBuilder", Libraries.FEATURES),
     EDITOR_REGISTRY("org.netbeans.api.editor.EditorRegistry", Libraries.LIB2),
     EDITOR_STYLE_CONSTANTS(
         "org.netbeans.api.editor.settings.EditorStyleConstants",
@@ -348,6 +351,8 @@ public enum KnownTypes implements TypeName {
         Libraries.EXTRACTION),
     EXT_KIT("org.netbeans.editor.ext.ExtKit", Libraries.LIB),
     EXT_SYNTAX_SUPPORT("org.netbeans.editor.ext.ExtSyntaxSupport", Libraries.LIB),
+    FEATURES_TOKEN_PATTERN_BUILDER(
+        "com.mastfrog.editor.features.TokenPatternBuilder", Libraries.FEATURES),
     FILE_CHANGE_ADAPTER("org.openide.filesystems.FileChangeAdapter",
         Libraries.FILESYSTEMS),
     FILE_ENCODING_QUERY("org.netbeans.api.queries.FileEncodingQuery",
@@ -420,6 +425,7 @@ public enum KnownTypes implements TypeName {
         Libraries.SUPPORT),
     G4REFACTORING_PLUGIN_FACTORY(
         "org.nemesis.antlr.file.G4RefactoringPluginFactory", Libraries.SUPPORT),
+    GCI("org.nemesis.antlr.completion.grammar.GCI", Libraries.CODE_COMPLETION),
     GOTO("org.nemesis.antlr.spi.language.Goto", Libraries.ANTLR_LANGUAGE),
     GRAMMAR_ASTADAPTOR("org.antlr.v4.parse.GrammarASTAdaptor",
         Libraries.ANTLR_WRAPPER),
@@ -671,6 +677,8 @@ public enum KnownTypes implements TypeName {
         Libraries.LIB2),
     OPEN_ACTION("org.openide.actions.OpenAction", Libraries.ACTIONS),
     OPEN_COOKIE("org.openide.cookies.OpenCookie", Libraries.NODES),
+    OPTIONS_PANEL_CONTROLLER("org.netbeans.spi.options.OptionsPanelController",
+        Libraries.OPTIONS),
     PARAMETERS("org.openide.util.Parameters", Libraries.UTIL),
     PARSER("org.netbeans.modules.parsing.spi.Parser", Libraries.PARSING),
     PARSER_CONTROL(
@@ -816,6 +824,9 @@ public enum KnownTypes implements TypeName {
         "org.nemesis.extraction.RuleHierarchyPredicateBuilder",
         Libraries.EXTRACTION),
     RULE_NODE("org.antlr.v4.runtime.tree.RuleNode", Libraries.ANTLR_WRAPPER),
+    RULE_SUBSTITUTIONS(
+        "org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.RuleSubstitutions",
+        Libraries.ANTLR_LANGUAGE),
     SAMPLE_FILES("org.nemesis.simple.SampleFiles", Libraries.TEST_LANGUAGE),
     SAVE_ACTION("org.openide.actions.SaveAction", Libraries.ACTIONS),
     SAVE_COOKIE("org.openide.cookies.SaveCookie", Libraries.NODES),
@@ -904,6 +915,9 @@ public enum KnownTypes implements TypeName {
         Libraries.WRAPPER),
     SUMMING_FUNCTION("org.nemesis.extraction.SummingFunction",
         Libraries.EXTRACTION),
+    SUPPLEMENTARY_TOKEN_COMPLETION(
+        "org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.SupplementaryTokenCompletion",
+        Libraries.ANTLR_LANGUAGE),
     SYNC_DOCUMENT_REGION("org.nemesis.antlr.instantrename.SyncDocumentRegion",
         Libraries.RENAME),
     SYNTAX_ERROR("org.nemesis.antlr.spi.language.SyntaxError",

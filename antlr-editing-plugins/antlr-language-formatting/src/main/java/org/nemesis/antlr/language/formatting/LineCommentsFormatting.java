@@ -31,7 +31,7 @@ import static org.nemesis.antlr.language.formatting.AntlrCounters.LINE_COMMENT_C
 import static org.nemesis.antlr.language.formatting.AntlrCounters.LINE_COMMENT_INDENT;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingState;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;

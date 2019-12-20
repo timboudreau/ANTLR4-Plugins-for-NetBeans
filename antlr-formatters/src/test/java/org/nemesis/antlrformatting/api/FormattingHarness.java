@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criteria;
+import com.mastfrog.antlr.utils.Criterion;
 import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.strings.Escaper;

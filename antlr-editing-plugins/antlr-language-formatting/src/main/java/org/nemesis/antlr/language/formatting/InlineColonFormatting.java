@@ -19,7 +19,7 @@ import com.mastfrog.function.IntBiPredicate;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_DOUBLE_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE;

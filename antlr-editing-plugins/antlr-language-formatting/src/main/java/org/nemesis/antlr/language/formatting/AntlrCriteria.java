@@ -35,7 +35,7 @@ import static org.nemesis.antlr.ANTLRv4Lexer.OPT_BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.TOK_BLOCK_COMMENT;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 
 /**
  *

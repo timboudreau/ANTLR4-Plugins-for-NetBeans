@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import com.mastfrog.function.IntBiPredicate;
 import com.mastfrog.predicates.integer.IntPredicates;
 import com.mastfrog.predicates.string.StringPredicates;
@@ -72,7 +73,6 @@ import java.util.function.Predicate;
  * populating the LexingStateBuilder passed to you when you set up your
  * formatter).</li>
  * </ul>
- *
  * <p>
  * The methods of this class modify the instance and do not create new
  * instances.

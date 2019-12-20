@@ -17,7 +17,7 @@ package org.nemesis.antlr.file.editor.ext.impl;
 
 import com.mastfrog.util.collections.ArrayUtils;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import org.nemesis.antlr.file.editor.ext.EditorFeatures;
+import com.mastfrog.editor.features.EditorFeatures;
 import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.CHN_BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.CHN_LINE_COMMENT;
@@ -62,7 +62,7 @@ import static org.nemesis.antlr.ANTLRv4Lexer.TYPE_LINE_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.TYPE_WS;
 import static org.nemesis.antlr.ANTLRv4Lexer.WS;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import org.nemesis.antlrformatting.api.Criteria;
+import com.mastfrog.antlr.utils.Criteria;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
@@ -208,7 +208,14 @@ public final class TestImpl extends EditorFeatures {
                     .setCategory("Convenience")
                     .setName("Elide ; when typed next to an existing ;")
                     .whenCurrentTokenNot(CRIT.anyOf(ANTLRv4Lexer.LINE_COMMENT,
-                            ANTLRv4Lexer.BLOCK_COMMENT, ANTLRv4Lexer.STRING_LITERAL));
+                            ANTLRv4Lexer.BLOCK_COMMENT, ANTLRv4Lexer.STRING_LITERAL,
+                            ANTLRv4Lexer.CHN_BLOCK_COMMENT, ANTLRv4Lexer.FRAGDEC_LINE_COMMENT,
+                            ANTLRv4Lexer.HDR_IMPRT_LINE_COMMENT,
+                            ANTLRv4Lexer.HEADER_BLOCK_COMMENT, ANTLRv4Lexer.HEADER_P_LINE_COMMENT,
+                            ANTLRv4Lexer.HEADER_P_BLOCK_COMMENT, ANTLRv4Lexer.HEADER_LINE_COMMENT,
+                            ANTLRv4Lexer.ID_BLOCK_COMMENT, ANTLRv4Lexer.ID_LINE_COMMENT,
+                            ANTLRv4Lexer.LEXCOM_BLOCK_COMMENT, ANTLRv4Lexer.LEXCOM_LINE_COMMENT
+                            ));
         });
     }
 

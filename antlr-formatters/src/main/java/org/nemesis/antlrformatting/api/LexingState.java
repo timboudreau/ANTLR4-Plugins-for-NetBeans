@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

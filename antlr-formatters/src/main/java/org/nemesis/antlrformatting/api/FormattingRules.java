@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import com.mastfrog.predicates.integer.IntPredicates;
 import com.mastfrog.predicates.string.StringPredicates;
 import java.util.ArrayList;
@@ -28,10 +29,10 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.Vocabulary;
-import static org.nemesis.antlrformatting.api.Criterion.anyOf;
-import static org.nemesis.antlrformatting.api.Criterion.matching;
-import static org.nemesis.antlrformatting.api.Criterion.noneOf;
-import static org.nemesis.antlrformatting.api.Criterion.notMatching;
+import static com.mastfrog.antlr.utils.Criterion.anyOf;
+import static com.mastfrog.antlr.utils.Criterion.matching;
+import static com.mastfrog.antlr.utils.Criterion.noneOf;
+import static com.mastfrog.antlr.utils.Criterion.notMatching;
 import static org.nemesis.antlrformatting.api.FormattingRule.notMode;
 
 /**

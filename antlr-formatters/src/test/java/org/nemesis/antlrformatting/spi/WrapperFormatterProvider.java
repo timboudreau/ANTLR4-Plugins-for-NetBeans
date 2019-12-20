@@ -24,7 +24,7 @@ import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.RuleNode;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import org.netbeans.modules.editor.indent.spi.Context;

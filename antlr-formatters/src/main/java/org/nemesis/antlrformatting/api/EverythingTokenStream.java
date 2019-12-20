@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -24,7 +25,6 @@ import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.RuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.misc.Interval;
 
 /**

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.IOException;

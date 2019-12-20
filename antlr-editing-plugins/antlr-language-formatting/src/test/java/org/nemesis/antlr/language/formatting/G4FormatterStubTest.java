@@ -63,7 +63,7 @@ import org.nemesis.antlr.language.formatting.G4FormatterStubTest.CombinatoricCon
 import org.nemesis.antlr.language.formatting.G4FormatterStubTest.CombinatoricConfigurer.IntSetter;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlr.language.formatting.config.ColonHandling;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.spi.AntlrFormatterProvider;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;

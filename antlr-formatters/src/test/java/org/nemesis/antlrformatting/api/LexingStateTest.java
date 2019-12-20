@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import com.github.difflib.algorithm.DiffException;
 import com.mastfrog.util.collections.IntList;
 import java.io.IOException;

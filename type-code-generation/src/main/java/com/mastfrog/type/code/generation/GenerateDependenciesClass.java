@@ -840,7 +840,19 @@ public class GenerateDependenciesClass {
         Map<String, DepVer> libraryForType = new HashMap<>(20000);
         for (DepVer dv : nonLocal) {
             File repoPom = repo.resolve(dv.groupId, dv.artifactId, dv.version);
-            String jarName = repoPom.getName().toString();
+            if (repoPom == null) {
+                StringBuilder sb = new StringBuilder();
+                for (ProjectInfo info : result) {
+                    if (info.dependencies.contains(dv)) {
+                        if (sb.length() > 0) {
+                            sb.append(", ");
+                        }
+                        sb.append(info.coordinates);
+                    }
+                }
+                throw new IllegalStateException("Could not resolve pom for " + dv + " occurring in " + sb);
+            }
+            String jarName = repoPom.getName();
             jarName = jarName.substring(0, jarName.length() - 4) + ".jar";
             File jarFile = new File(repoPom.getParent(), jarName);
             if (!jarFile.exists()) {

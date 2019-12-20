@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import java.io.IOException;
 import org.antlr.v4.runtime.Token;
 import static org.junit.jupiter.api.Assertions.assertEquals;

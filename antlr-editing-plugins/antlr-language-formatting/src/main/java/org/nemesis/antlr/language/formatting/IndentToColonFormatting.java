@@ -22,7 +22,7 @@ import static org.nemesis.antlr.language.formatting.AntlrCounters.COLON_POSITION
 import static org.nemesis.antlr.language.formatting.AntlrCounters.PARENS_DEPTH;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlr.language.formatting.config.ColonHandling;
-import org.nemesis.antlrformatting.api.Criterion;
+import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingAction;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_DOUBLE_NEWLINE;

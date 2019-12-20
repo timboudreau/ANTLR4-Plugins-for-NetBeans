@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.antlr.utils.Criterion;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.prefs.Preferences;
