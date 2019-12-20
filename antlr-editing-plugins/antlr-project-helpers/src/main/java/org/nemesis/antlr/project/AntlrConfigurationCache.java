@@ -224,7 +224,10 @@ final class AntlrConfigurationCache {
         }
 
         public <C extends WritableByteChannel & SeekableByteChannel> int store(C channel) throws IOException {
-            return upToDate.store(channel) + config.writeTo(channel);
+            if (upToDate != null && config != null) {
+                return upToDate.store(channel) + config.writeTo(channel);
+            }
+            return 0;
         }
     }
 }

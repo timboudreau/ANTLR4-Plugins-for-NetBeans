@@ -182,12 +182,10 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         + "''{1}'' or \n''{2}''"
     })
     private boolean handleEpsilon(ParsedAntlrError err, Fixes fixes, Extraction ext, EpsilonRuleInfo eps, Set<String> usedErrIds) throws BadLocationException {
-        System.out.println("HANDLE EPSILON " + eps.problem() + " " + err);
         if (eps.problem() != null) {
             ProblematicEbnfInfo prob = eps.problem();
             IntRange<? extends IntRange<?>> problemBlock
                     = offsets(prob, ext);
-            System.out.println("APPLY PROBLEM " + prob + " to " + err + " loc " + problemBlock);
             String msg = Bundle.canMatchEmpty(prob.text());
 
             String pid = prob.text() + "-" + prob.start() + ":" + prob.end();
@@ -269,7 +267,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 result = vn + "=" + result;
             }
         }
-        System.out.println("computePlusReplacement " + orig + " -> " + result);
         return result;
     }
 
@@ -328,7 +325,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 }
             }
         }
-        System.out.println("computeReplacement " + orig + " -> " + result);
         return result;
     }
 
@@ -487,7 +483,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         all.forEach(maybeSkip -> {
             switch (maybeSkip.key().kind()) {
                 case CHANNEL:
-                    System.out.println("CHANNEL: " + maybeSkip);
                     maxUsedChannel[0] = Math.max(maybeSkip.key().channelNumber(), maxUsedChannel[0]);
                     return;
                 default:
@@ -664,7 +659,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             // will look like they are unused
             SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo> skippedAndSimilar
                     = extraction.regions(ChannelsAndSkipExtractors.CHSKIP);
-            System.out.println("SKIP AND CHANNELS " + extraction.source() + ": " + skippedAndSimilar);
             // Build a graph that cross-references the rule that contains a
             // skip or channel directive with the named rule that contains
             // it - rules that contain a skip or channel directive will have
@@ -672,7 +666,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             // rules and exclude the parents
             BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo>, ?, SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo>> hetero
                     = ruleBounds.crossReference(skippedAndSimilar);
-            System.out.println("BUILT GRAPH " + hetero + " for " + extraction.source());
 
             boolean[] hasImporters = new boolean[1];
             for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> s : skippedAndSimilar) {
@@ -685,12 +678,10 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             Optional<FileObject> of = extraction.source().lookup(FileObject.class);
             if (of.isPresent()) {
                 ImportersFinder imf = ImportersFinder.forFile(of.get());
-                System.out.println("USE IMPORTERS FINDER " + imf + " for " + extraction.source());
                 Problem p = imf.usagesOf(() -> false, of.get(), AntlrKeys.IMPORTS,
                         (IntRange<? extends IntRange<?>> a, String grammarName, FileObject importer, ExtractionKey<?> importerKey, Extraction importerExtraction) -> {
                             System.out.println(importer.getNameExt() + " / " + grammarName + " imports " + of.get().getNameExt() + " importerExtraction " + importerExtraction.source());
                             if (importer.equals(of.get())) {
-                                System.out.println("IS SAME FILE, IGNORE");
                                 // self import?
                                 return null;
                             }
@@ -698,8 +689,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             // XXX could attribute and be sure we're talking about the right references
                             for (SemanticRegion<UnknownNameReference<RuleTypes>> r : unknowns) {
                                 String name = r.key().name();
-                                System.out.println(name + " is used from " + importer.getNameExt()
-                                        + " - remove from orphans in " + extraction.source());
                                 orphans.remove(name);
                             }
                             hasImporters[0] = true;
@@ -712,8 +701,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 }
             }
             if (!hasImporters[0]) {
-                System.out.println("Have an importer, so don't count first rule "
-                        + firstRuleName + " among orphans");
                 orphans.remove(firstRuleName);
             }
             for (String name : orphans) {
