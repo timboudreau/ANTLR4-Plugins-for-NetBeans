@@ -63,7 +63,6 @@ import static org.nemesis.antlr.ANTLRv4Lexer.TYPE_WS;
 import static org.nemesis.antlr.ANTLRv4Lexer.WS;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import com.mastfrog.antlr.utils.Criteria;
-import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
 import org.netbeans.spi.options.OptionsPanelController;
@@ -101,7 +100,8 @@ public final class TestImpl extends EditorFeatures {
 
     private TestImpl() {
         super(ANTLR_MIME_TYPE, b -> {
-            b.insertBoilerplate(" : ^;").onlyWhenAtLineEnd()
+            b.insertBoilerplate(" : ^;")
+                    .onlyWhenAtLineEnd()
                     .whenPrecedingToken(CRIT.anyOf(ANTLRv4Lexer.PARSER_RULE_ID, ANTLRv4Lexer.TOKEN_ID))
                     .whenPrecededByPattern(
                             CRIT.matching(ANTLRv4Lexer.SEMI),
@@ -219,35 +219,35 @@ public final class TestImpl extends EditorFeatures {
         });
     }
 
-    @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
-            service = TypedTextInterceptor.Factory.class,
-            position = 10)
+//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
+//            service = TypedTextInterceptor.Factory.class,
+//            position = 10)
     public static TypedTextInterceptor.Factory typingFactoryRegistration() {
         return INSTANCE.typingFactory();
     }
 
-    @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
-            service = DeletedTextInterceptor.Factory.class,
-            position = 11)
+//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
+//            service = DeletedTextInterceptor.Factory.class,
+//            position = 11)
     public static DeletedTextInterceptor.Factory deletionFactoryRegistration() {
         return INSTANCE.deletionFactory();
     }
 
-    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, position = 171, service = EditorFeatures.class)
+//    @MimeRegistration(mimeType = ANTLR_MIME_TYPE, position = 171, service = EditorFeatures.class)
     public static EditorFeatures instance() {
         return INSTANCE;
     }
 
-    @OptionsPanelController.SubRegistration(
-            location = "Editor",
-            displayName = "#AdvancedOption_DisplayName_AntlrOptions",
-            keywords = "#AdvancedOption_Keywords_AntlrOptions",
-            keywordsCategory = "Editor/AntlrOptions"
-    )
-    @org.openide.util.NbBundle.Messages({
-        "AdvancedOption_DisplayName_AntlrOptions=Antlr",
-        "AdvancedOption_Keywords_AntlrOptions=antlr"
-    })
+//    @OptionsPanelController.SubRegistration(
+//            location = "Editor",
+//            displayName = "#AdvancedOption_DisplayName_AntlrOptions",
+//            keywords = "#AdvancedOption_Keywords_AntlrOptions",
+//            keywordsCategory = "Editor/AntlrOptions"
+//    )
+//    @org.openide.util.NbBundle.Messages({
+//        "AdvancedOption_DisplayName_AntlrOptions=Antlr",
+//        "AdvancedOption_Keywords_AntlrOptions=antlr"
+//    })
     public static OptionsPanelController optionsPanelRegistration() {
         OptionsPanelController result = INSTANCE.optionsPanelController();
         System.out.println("CREATE options panel controller " + result);

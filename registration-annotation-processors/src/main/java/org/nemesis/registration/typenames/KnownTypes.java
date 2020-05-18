@@ -152,6 +152,8 @@ public enum KnownTypes implements TypeName {
         Libraries.MODELS),
     BIT_SET_UTILS("com.mastfrog.graph.BitSetUtils", Libraries.WRAPPER),
     BOOLEAN_CONSUMER("com.mastfrog.function.BooleanConsumer", Libraries.WRAPPER),
+    BRACE_GROUP_SCANNER("com.mastfrog.editor.features.BraceGroupScanner",
+        Libraries.FEATURES),
     BUFFERED_TOKEN_STREAM("org.antlr.v4.runtime.BufferedTokenStream",
         Libraries.ANTLR_WRAPPER),
     CACHE_FILE_READER("org.nemesis.antlr.common.cachefile.CacheFileReader",
@@ -318,6 +320,9 @@ public enum KnownTypes implements TypeName {
         Libraries.FEATURES),
     EDITOR_FEATURES_BUILDER(
         "com.mastfrog.editor.features.EditorFeaturesBuilder", Libraries.FEATURES),
+    EDITOR_FEATURES_REGISTRATION(
+        "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration",
+        Libraries.FEATURES),
     EDITOR_REGISTRY("org.netbeans.api.editor.EditorRegistry", Libraries.LIB2),
     EDITOR_STYLE_CONSTANTS(
         "org.netbeans.api.editor.settings.EditorStyleConstants",

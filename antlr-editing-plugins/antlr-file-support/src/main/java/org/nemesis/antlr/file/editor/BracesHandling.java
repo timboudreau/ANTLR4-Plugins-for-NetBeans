@@ -31,7 +31,6 @@ import org.nemesis.antlr.file.AntlrToken;
 import org.nemesis.antlr.file.AntlrTokens;
 import org.netbeans.api.annotations.common.NullAllowed;
 import org.netbeans.api.editor.mimelookup.MimePath;
-import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.PartType;
 import org.netbeans.api.lexer.TokenHierarchy;
@@ -99,8 +98,8 @@ public class BracesHandling {
             // do nothing
         }
 
-        @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
-                service = TypedTextInterceptor.Factory.class)
+//        @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
+//                service = TypedTextInterceptor.Factory.class)
         public static class Factory implements TypedTextInterceptor.Factory {
 
             @Override
@@ -144,7 +143,7 @@ public class BracesHandling {
         public void cancelled(Context context) {
         }
 
-        @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = DeletedTextInterceptor.Factory.class)
+//        @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = DeletedTextInterceptor.Factory.class)
         public static class Factory implements DeletedTextInterceptor.Factory {
 
             @Override
@@ -225,7 +224,7 @@ public class BracesHandling {
             context.getComponent().getCaret().setDot(dotPos);
         }
 
-        @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = TypedBreakInterceptor.Factory.class)
+//        @MimeRegistration(mimeType = ANTLR_MIME_TYPE, service = TypedBreakInterceptor.Factory.class)
         public static class AntlrFactory implements TypedBreakInterceptor.Factory {
 
             @Override

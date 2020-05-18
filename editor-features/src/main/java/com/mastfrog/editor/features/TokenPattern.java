@@ -15,14 +15,20 @@
  */
 package com.mastfrog.editor.features;
 
+import com.mastfrog.predicates.integer.IntPredicates;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.ToIntFunction;
 
 /**
  * Matches a pattern of tokens if a stop token is not encountered before or
- * while processing it, iterating forward or backward from the passed
- * caret position.
+ * while processing it, iterating forward or backward from the passed caret
+ * position.
  *
  * @author Tim Boudreau
  */
@@ -45,6 +51,43 @@ final class TokenPattern {
         }
     }
 
+    private static List<IntPredicate> toPredicates(List<Object> items, ToIntFunction<String> cvt) {
+        List<IntPredicate> result = new ArrayList<>();
+        for (Object o : items) {
+            result.add(toPredicate(o, cvt));
+        }
+        return result;
+    }
+
+    private static IntPredicate toPredicate(Object o, ToIntFunction<String> cvt) {
+        if (o instanceof String) {
+            String s = (String) o;
+            int ix = cvt.applyAsInt(s);
+            if (ix < 0) {
+                throw new IllegalArgumentException("Got " + ix + " for '" + s + "'");
+            }
+            return IntPredicates.matching(ix);
+        } else if (o instanceof List<?>) {
+            List<Object> l = (List<Object>) o;
+            IntPredicate result = IntPredicates.alwaysFalse();
+            for (Object o1 : l) {
+                result = result.or(toPredicate(o1, cvt));
+            }
+            return result;
+        } else {
+            throw new AssertionError(o);
+        }
+    }
+
+    public static void main(String[] args) {
+        int[] ix = new int[1];
+        TokenPattern tp = TokenPattern.parse(">| RPAREN {TOK_A, TOK_B, {TOK_C, TOK_D}} FOO {BAR BAX} LPAREN SEMI ! STOP_TOK_1 STOP_TOK_2 ? WHITESPACE", s -> {
+            System.out.println("'" + s + "' = " + (ix[0]));
+            return ix[0]++;
+        });
+        System.out.println("TP: " + tp);
+    }
+
     /*
 
     Use a microformat something like this:
@@ -55,6 +98,20 @@ final class TokenPattern {
     ? LIST OF IGNORE TOKENS
 
     >| RPAREN {TOK_A, TOK_B} * LPAREN SEMI ! STOP_TOK_1 STOP_TOK_2 ? WHITESPACE BLOCK_COMMENT
+
+     */
+    private static IntPredicate toPredicate(Set<String> items, ToIntFunction<String> cvt) {
+        IntPredicate result = IntPredicates.alwaysFalse();
+        System.out.println("ITEMS " + items);
+        for (String item : items) {
+            int val = cvt.applyAsInt(item);
+            if (val < 0) {
+                throw new IllegalArgumentException("Unknown name " + item + " got " + val);
+            }
+            result = result.or(IntPredicates.matching(val));
+        }
+        return result;
+    }
 
     public static final TokenPattern parse(String val, ToIntFunction<String> converter) {
         val = val.trim();
@@ -67,18 +124,22 @@ final class TokenPattern {
             val = val.substring(endOk ? 2 : 1).trim();
             int bangIx = val.indexOf('!');
             if (bangIx < 0) {
-                throw new IllegalArgumentException("! not found - stop tokens not specified");
+                throw new IllegalArgumentException("! not found - "
+                        + "stop tokens not specified");
             }
             String patternTokenList = val.substring(0, bangIx).trim();
-            Set<String> patternTokens = new HashSet<>(5);
-            for (String s : patternTokenList.split("\\s+")) {
-                patternTokens.add(s);
-            }
+            System.out.println("PATTERN '" + patternTokenList + "'");
+            List<Object> patternTokens = scanGroup(patternTokenList);
             if (patternTokens.isEmpty()) {
                 throw new IllegalArgumentException("Pattern token sequence '"
-                        + patternTokenList + " is impty in '" + val + "'");
+                        + patternTokenList + " is empty in '" + val + "'");
             }
-            String remainder = val.substring(bangIx+1, val.length());
+            List<IntPredicate> predicates = toPredicates(patternTokens, converter);
+
+            assert predicates.size() == patternTokens.size() : patternTokens
+                    + " vs " + predicates;
+
+            String remainder = val.substring(bangIx + 1, val.length());
             String stopTokenList;
 
             int qix = remainder.indexOf('?');
@@ -87,40 +148,38 @@ final class TokenPattern {
                 remainder = "";
             } else {
                 stopTokenList = remainder.substring(0, qix);
-                remainder = remainder.substring(qix+1, remainder.length());
+                remainder = remainder.substring(qix + 1, remainder.length());
             }
+            System.out.println("STOPS: " + stopTokenList);
             Set<String> stopTokens = new HashSet<>(5);
-            for (String stop : stopTokenList.split("\\s+")) {
-                stopTokens.add(stop);
+            for (String stop : stopTokenList.split("\\s")) {
+                if (!stop.isEmpty()) {
+                    stopTokens.add(stop);
+                }
             }
+            System.out.println("IGNORE: " + remainder);
             Set<String> ignoreTokens = new HashSet<>(5);
             if (!remainder.isEmpty()) {
-                for (String ign : remainder.split("\\s+")) {
-                    ignoreTokens.add(ign);
-                }
-            }
-
-            Function<Set<String>, int[]> intsForString = set -> {
-                int[] result = new int[set.size()];
-                int ix = 0;
-                for (String s : set) {
-                    int tokenId = converter.applyAsInt(s);
-                    if (tokenId < -1) {
-                        throw new IllegalArgumentException("Could not convert '"
-                                + s + "' to a token id - got " + tokenId);
+                for (String ign : remainder.split("\\s")) {
+                    if (!ign.isEmpty()) {
+                        ignoreTokens.add(ign);
                     }
                 }
-                return result;
-            };
-
-
+            }
+            IntPredicate stop = toPredicate(stopTokens, converter);
+            IntPredicate ignore = toPredicate(ignoreTokens, converter);
+            return new TokenPattern(forward,
+                    predicates.toArray(new IntPredicate[predicates.size()]),
+                    stop, endOk, ignore);
         } else {
             throw new IllegalArgumentException("Pattern must start with > or "
                     + "< to indicate forward or backward search");
         }
-        return null;
     }
-    */
+
+    private static List<Object> scanGroup(String s) {
+        return new BraceGroupScanner(s).listify();
+    }
 
     @Override
     public String toString() {

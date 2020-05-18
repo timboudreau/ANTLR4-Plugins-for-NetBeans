@@ -2228,10 +2228,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             } else {
                 ref = k.toString();
             }
-            String docComment = k.intValue() == proxy.erroneousTokenId()
-                    ? "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable."
-                    : "Constant for NetBeans token corresponding to token "
-                    + proxy.tokenName(k) + " in " + proxy.lexerClassSimple() + ".VOCABULARY.";
+            String docComment;
+            if (k.intValue() == proxy.erroneousTokenId()) {
+                docComment
+                        = "Placeholder token used by the NetBeans lexer for content which the lexer parses as erroneous or unparseable.";
+            } else {
+                docComment = "Constant for NetBeans token corresponding to token "
+                        + proxy.tokenName(k) + " in " + proxy.lexerClassSimple()
+                        + ".VOCABULARY.";
+            }
 
             toks.field(fieldName).withModifier(STATIC).withModifier(PUBLIC).withModifier(FINAL)
                     .docComment(docComment)

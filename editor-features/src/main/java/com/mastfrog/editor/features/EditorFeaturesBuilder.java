@@ -199,7 +199,9 @@ public final class EditorFeaturesBuilder {
          * @return The owning builder - this feature is completed here
          */
         public EditorFeaturesBuilder whenCurrentTokenNot(IntPredicate currentTokenNot) {
-            return owner.add(new CharacterElisionEditProcessorFactory(owner.mimeType, backwards, typed, currentTokenNot, owner.ownerType, name, description, category));
+            return owner.add(new CharacterElisionEditProcessorFactory(
+                    owner.mimeType, backwards, typed, currentTokenNot,
+                    owner.ownerType, name, description, category));
         }
     }
 

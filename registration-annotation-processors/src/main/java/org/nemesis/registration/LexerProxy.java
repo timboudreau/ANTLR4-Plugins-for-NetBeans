@@ -34,7 +34,7 @@ import javax.lang.model.element.ExecutableElement;
  *
  * @author Tim Boudreau
  */
-class LexerProxy {
+class LexerProxy implements LexerInfo {
 
     private final TypeMirror lexerClass;
     private final TypeElement lexerClassElement;
@@ -48,6 +48,23 @@ class LexerProxy {
         this.tokenNameForIndex = tokenNameForIndex;
         this.indexForTokenName = indexForTokenName;
         this.last = last;
+    }
+
+    @Override
+    public String tokenFieldReference(int tokenId) {
+        String nm = tokenNameForIndex.get(tokenId);
+        if (nm == null) {
+            throw new IllegalArgumentException("No such token id " + tokenId);
+        }
+        return lexerClassSimple() + "." + nm;
+    }
+
+    @Override
+    public String tokenFieldReference(String tokenName) {
+        if (!indexForTokenName.containsKey(tokenName)) {
+            throw new IllegalArgumentException("No token named '" + tokenName + "'");
+        }
+        return lexerClassSimple() + "." + tokenName;
     }
 
     boolean hasInitialStackedModeNumberMethods(AnnotationUtils utils) {
@@ -138,14 +155,17 @@ class LexerProxy {
         return new TreeSet<>(tokenNameForIndex.keySet());
     }
 
+    @Override
     public String tokenName(int type) {
         return tokenNameForIndex.get(type);
     }
 
+    @Override
     public Integer tokenIndex(String name) {
         return indexForTokenName.get(name);
     }
 
+    @Override
     public String lexerClassFqn() {
         return lexerClass.toString();
     }
@@ -159,6 +179,7 @@ class LexerProxy {
     }
     String lcs;
 
+    @Override
     public String lexerClassSimple() {
         return lcs == null ? lcs = AnnotationUtils.simpleName(lexerClassFqn()) : lcs;
     }
