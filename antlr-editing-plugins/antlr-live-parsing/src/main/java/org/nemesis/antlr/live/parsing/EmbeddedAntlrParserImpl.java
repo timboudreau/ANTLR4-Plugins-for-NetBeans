@@ -113,6 +113,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 + ")";
     }
 
+    @Override
     boolean isUpToDate() {
         return environment.get().isUpToDate();
     }
@@ -131,8 +132,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         if (!info.isUpToDate()) {
             LOG.log(Level.FINE, "{0} force reparse due to {2}",
                     new Object[]{path.getFileName(), info});
-            forceGrammarFileReparse(info);
-            return true;
+            return forceGrammarFileReparse(info);
         }
         return false;
     }
@@ -182,13 +182,21 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         });
     }
 
-    private void forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
-        Debug.runThrowing(this, logName + "-force-reparse-" + info.grammarTokensHash, () -> {
+    private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
+        return Debug.runBooleanThrowing(this, logName + "-force-reparse-" + info.grammarTokensHash, () -> {
             FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
-            INVALIDATOR.accept(fo);
-            LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
-            Source src = Source.create(fo);
-            ParserManager.parse(Collections.singleton(src), new UT());
+            if (fo != null) {
+                INVALIDATOR.accept(fo);
+                LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
+                Source src = Source.create(fo);
+                ParserManager.parse(Collections.singleton(src), new UT());
+                return true;
+            } else {
+                EmbeddedAntlrParsers.onAtteptToParseNonExistentFile(this);
+                LOG.log(Level.INFO, "File object for {0} disappeared when "
+                        + "attempting to force a reparse.", path);
+                return false;
+            }
         });
     }
 

@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
-import com.mastfrog.util.collections.CollectionUtils;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -152,8 +151,8 @@ public class CodeCompletionCore {
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
-    private final IntMap<IntMap<IntSet>> shortcutMap = CollectionUtils.intMap(50, true, () -> {
-        return CollectionUtils.intMap(30, true, IntSet::create);
+    private final IntMap<IntMap<IntSet>> shortcutMap = IntMap.create(50, true, () -> {
+        return IntMap.create(30, true, IntSet::create);
     });
 
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
@@ -185,19 +184,19 @@ public class CodeCompletionCore {
         if (m.isEmpty()) {
             return -1;
         } else if (m.size() == 1) {
-            if (m.get(m.lowestKey()).isEmpty()) {
+            if (m.get(m.leastKey()).isEmpty()) {
                 return -1;
             } else {
-                return m.lowestKey();
+                return m.leastKey();
             }
         }
-        int ix = m.highestKey();
+        int ix = m.greatestKey();
         while (ix >= 0) {
             IntSet is = m.get(ix);
             if (!is.isEmpty()) {
                 return ix;
             }
-            ix = m.nearest(ix - 1, true);
+            ix = m.nearestKey(ix - 1, true);
         }
         return -1;
     }
@@ -537,7 +536,7 @@ public class CodeCompletionCore {
         //    multiple times.
         IntMap<FollowSetsHolder> setsPerState = cache.get(this.parser.getClass().getName());
         if (setsPerState == null) {
-            setsPerState = CollectionUtils.intMap(16);
+            setsPerState = IntMap.create(16);
             cache.put(this.parser.getClass().getName(), setsPerState);
         }
 

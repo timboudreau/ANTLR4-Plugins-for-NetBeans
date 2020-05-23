@@ -414,7 +414,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             int errorStartOffset = Math.max(0, lineOffsetInDocument + error.lineOffset());
             int errorEndOffset = Math.min(docLength - 1, errorStartOffset + error.length());
             if (errorStartOffset < errorEndOffset) {
-                startEnd.accept(errorStartOffset, errorEndOffset);
+                startEnd.accept(Math.min(docLength - 1, errorStartOffset), Math.min(docLength - 1, errorEndOffset));
             } else {
                 LOG.log(Level.INFO, "Computed nonsensical error start offsets "
                         + "{0}:{1} for line {2} of {3} for error {4}",
@@ -431,6 +431,20 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
+        try {
+            long lm = extraction.source().lastModified();
+            if (lm > res.grammarFileLastModified) {
+                LOG.log(Level.INFO, "Discarding error highlight pass for {0} "
+                        + " - source last modified date is {1}ms newer "
+                        + "than at the time of parsing. It should be reparsed "
+                        + "again presently.", new Object[]{
+                            extraction.source(), (lm - res.grammarFileLastModified)});
+                return;
+            }
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+
         Set<String> usedErrorIds = new HashSet<>();
         LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
         updateErrorHighlights(res, extraction, fixes, usedErrorIds);
@@ -846,6 +860,14 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     continue;
                 }
                 offsetsOf(err, (startOffset, endOffset) -> {
+                    if (startOffset == endOffset) {
+                        LOG.log(Level.INFO, "Got silly start and end offsets "
+                                + "{0}:{1} - probably we are compuing fixes for "
+                                + " an old revision of {2}.",
+                                new Object[]{startOffset, endOffset,
+                                    res.grammarName});
+                        return;
+                    }
                     try {
                         if (err.length() > 0) {
                             anyHighlights[0] = true;

@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.parsing;
 import com.mastfrog.util.collections.CollectionUtils;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -50,6 +51,37 @@ public final class EmbeddedAntlrParsers {
 
     private static EmbeddedAntlrParsers instance() {
         return INSTANCE_SUPPLIER.get();
+    }
+
+    static void onAtteptToParseNonExistentFile(EmbeddedAntlrParserImpl impl) {
+        instance().onDeadFile(impl);
+    }
+
+    void onDeadFile(EmbeddedAntlrParserImpl parser) {
+        // Called if the associated file no longer exists - try
+        // to dispose class loaders, etc.
+        Set<FileObject> dead = new HashSet<>();
+        for (Map.Entry<FileObject, Set<EmbeddedAntlrParserImpl>> e : liveParsersForFile.entrySet()) {
+            boolean removed = e.getValue().remove(parser);
+            if (e.getValue().isEmpty()) {
+                dead.add(e.getKey());
+            }
+            if (!e.getKey().isValid()) {
+                for (EmbeddedAntlrParserImpl ee : e.getValue()) {
+                    if (ee != parser) {
+                        ee.dispose();
+                    }
+                }
+                e.getValue().clear();
+                dead.add(e.getKey());
+            }
+            if (removed) {
+                parser.dispose();
+            }
+        }
+        for (FileObject fo : dead) {
+            liveParsersForFile.remove(fo);
+        }
     }
 
     /**

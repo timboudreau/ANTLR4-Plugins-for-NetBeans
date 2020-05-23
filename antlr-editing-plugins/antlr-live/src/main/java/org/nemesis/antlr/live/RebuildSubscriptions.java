@@ -261,8 +261,19 @@ public final class RebuildSubscriptions {
                     });
             if (!subscribed.contains(subscribeTo)) {
                 Folders owner = Folders.ownerOf(subscribeTo);
-                mappings.add(map(subscribeTo, owner));
-                subscribed.add(subscribeTo);
+                if (owner != null) {
+                    Mapping newMapping = map(subscribeTo, owner);
+                    if (newMapping != null) {
+                        mappings.add(newMapping);
+                        subscribed.add(subscribeTo);
+                    } else {
+                        LOG.log(Level.WARNING, "Could not create a mapping for "
+                                + "{0} in {1} - either it resides in an "
+                                + "unusual location relative to the project, "
+                                + "or this is a bug.", new Object[]{subscribeTo,
+                                    owner});
+                    }
+                }
             }
             // Listen on folders to ensure we detect new file creation
             // and set up mapping for newly created files
@@ -354,11 +365,18 @@ public final class RebuildSubscriptions {
         private UnixPath pathFor(FileObject fo, Folders owner) {
             Path relativePath = owner == Folders.ANTLR_IMPORTS
                     ? Paths.get("imports/" + fo.getNameExt()) : Folders.ownerRelativePath(fo);
-            return UnixPath.get(relativePath);
+            return relativePath == null ? null : UnixPath.get(relativePath);
         }
 
         Mapping map(FileObject fo, Folders owner) {
             UnixPath mappingPath = pathFor(fo, owner);
+            if (mappingPath == null) {
+                LOG.log(Level.INFO, "Got null owner mapping path for {0} with {1}",
+                        new Object[]{owner, fo});
+                // File was refactord, or lives in the wrong place,
+                // such as the golden-files dir for tests
+                return null;
+            }
             return map(fo, owner, mappingPath);
         }
 

@@ -47,7 +47,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final String grammarName;
     public final Grammar mainGrammar;
     public final List<ParsedAntlrError> errors;
-    private final long grammarFileLastModified;
+    public final long grammarFileLastModified;
     public final List<String> infoMessages;
     public final Set<JFSFileObject> newlyGeneratedFiles;
     public final Map<JFSFileObject, Long> modifiedFiles;
