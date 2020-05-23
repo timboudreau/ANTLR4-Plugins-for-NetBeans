@@ -41,7 +41,8 @@ public enum AntlrSampleFiles implements SampleFile {
     TOKENS_LEXER,
     TOKENS_PARSER,
     SENSORS_PARSER,
-    RUST_PARSER;
+    RUST_PARSER,
+    MARKDOWN_LEXER;
 
     @Override
     public CharStream charStream() throws IOException {
@@ -115,6 +116,9 @@ public enum AntlrSampleFiles implements SampleFile {
             case RUST_PARSER:
                 return helper.projectBaseDir().resolve(
                         "src/main/resources/org/nemesis/antlr/language/formatting/Rust.g4");
+            case MARKDOWN_LEXER:
+                return helper.projectBaseDir().resolve(
+                        "src/test-golden/MarkdownLexer.g4");
             default:
                 throw new AssertionError(file);
         }

@@ -1,3 +1,7 @@
+mode declarations get mangled by default reformatting.
+
+Various BadLocationExceptions thrown after copy/paste in documents when preview active.  Should really just destroy the model with prejudice and rebuild at that point.
+
 
 Need tests for hetero object graph
 

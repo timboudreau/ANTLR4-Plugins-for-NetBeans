@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.language.formatting;
 
+import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.COLON_POSITION;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.IN_OPTIONS;
@@ -83,6 +84,21 @@ public class BasicFormatting extends AbstractFormatter {
                     .format(PREPEND_SPACE.and(APPEND_SPACE));
         });
 
+        rules.onTokenType(LEXCOM_MODE, MODE)
+                .format(APPEND_SPACE);
+
+        rules.onTokenType(LEXCOM_MODE, MODE)
+                .wherePreviousTokenType(SEMI)
+                .format(PREPEND_NEWLINE.and(APPEND_SPACE));
+
+        rules.onTokenType(ID)
+                .wherePreviousTokenType(LEXCOM_MODE, MODE)
+                .format(spaceOrWrap);
+
+        rules.onTokenType(MORE, LEXCOM_MORE, LEXCOM_PUSHMODE, LEXCOM_POPMODE, LEXCOM_TYPE, LEXCOM_SKIP)
+                .wherePreviousTokenType(ANTLRv4Lexer.COMMA)
+                .format(spaceOrWrap);
+
         rules.onTokenType(RARROW)
                 .named("spaces-channel-arrow")
                 .format(spaceOrWrap.and(APPEND_SPACE));
@@ -101,8 +117,7 @@ public class BasicFormatting extends AbstractFormatter {
                 .named("block-comments-on-newline")
                 .wherePreviousTokenType(SEMI)
                 .priority(100)
-                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_NEWLINE))
-                ;
+                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_NEWLINE));
 
         // Put a blank line before a line comment if it starts the line
         // in the original source, and if it was not preceded by another

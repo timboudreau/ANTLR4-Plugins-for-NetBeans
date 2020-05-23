@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
@@ -89,6 +90,8 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
 
     List<SyntaxError> checkReformattedTextForLexingErrors(String reformatted, Lexer lexer) {
         ErrL errors = new ErrL();
+        lexer.setInputStream(CharStreams.fromString(reformatted));
+
         lexer.addErrorListener(errors);
         for (Token tok = lexer.nextToken(); tok.getType() != -1;
                 tok = lexer.nextToken());
@@ -112,6 +115,12 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
         String reformatted = harn.reformat(config);
         Lexer lexer = harn.lex(reformatted);
         List<SyntaxError> errors = checkReformattedTextForLexingErrors(reformatted, lexer);
+        if (!errors.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            syntaxErrors(errors, sb);
+            fail(sb.toString());
+            return null;
+        }
         if (Files.exists(goldenFile) && !update) {
             String expectedText = FileUtils.readUTF8String(goldenFile);
             if (!expectedText.equals(reformatted)) {
@@ -126,11 +135,6 @@ public class GoldenFiles<E extends Enum<E>, T extends AntlrFormatterStub<E, L>, 
                     fail(sb.toString());
                     return null;
                 }
-            } else if (!errors.isEmpty()) {
-                StringBuilder sb = new StringBuilder();
-                syntaxErrors(errors, sb);
-                fail(sb.toString());
-                return null;
             }
         } else {
             if (errors.isEmpty()) {
