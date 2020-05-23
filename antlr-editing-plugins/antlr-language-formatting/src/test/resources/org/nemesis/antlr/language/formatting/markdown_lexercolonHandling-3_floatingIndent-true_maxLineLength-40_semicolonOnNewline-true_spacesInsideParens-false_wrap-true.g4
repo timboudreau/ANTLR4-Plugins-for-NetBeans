@@ -38,6 +38,7 @@ DoubleUnderline :
                 NEWLINE EQUALS EQUALS
                     EQUALS+ NEWLINE
                 ;
+
 mode BLOCKQUOTE;
 
 BlockQuote :
@@ -46,6 +47,7 @@ BlockQuote :
 BlockQuoteBody :
                (LETTER | DIGIT) -> more,
                    pushMode(PARAGRAPH);
+
 mode LIST;
 
 ListItem :
@@ -81,6 +83,7 @@ NumberHeader :
 
  System.out.println("Number header"); }
              ;
+
 mode LIST_ITEM;
 
 ListItemContent :

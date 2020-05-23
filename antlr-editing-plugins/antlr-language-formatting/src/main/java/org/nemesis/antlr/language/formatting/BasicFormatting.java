@@ -85,11 +85,11 @@ public class BasicFormatting extends AbstractFormatter {
         });
 
         rules.onTokenType(LEXCOM_MODE, MODE)
-                .format(APPEND_SPACE);
+                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
 
         rules.onTokenType(LEXCOM_MODE, MODE)
                 .wherePreviousTokenType(SEMI)
-                .format(PREPEND_NEWLINE.and(APPEND_SPACE));
+                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
 
         rules.onTokenType(ID)
                 .wherePreviousTokenType(LEXCOM_MODE, MODE)
