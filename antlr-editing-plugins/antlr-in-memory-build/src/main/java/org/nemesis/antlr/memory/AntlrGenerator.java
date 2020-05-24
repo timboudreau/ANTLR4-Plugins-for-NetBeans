@@ -34,6 +34,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.JavaFileManager;
 import org.antlr.v4.parse.ANTLRParser;
+import org.antlr.v4.tool.ANTLRMessage;
+import org.antlr.v4.tool.ErrorType;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.debug.api.Debug;
@@ -308,7 +310,16 @@ public final class AntlrGenerator {
             if (g.implicitLexer != null) {
                 tool.process(g.implicitLexer, generate);
             }
-            tool.process(g, generate);
+            try {
+                tool.process(g, generate);
+            } catch (RuntimeException ex) {
+                if ("set is empty".equals(ex.getMessage())) {
+                    // bad source - a partially written
+                    // character set, e.g. fragment FOO : [\p{...];
+                    LOG.log(Level.INFO, "Bad character set", ex);
+                    tool.error(new ANTLRMessage(ErrorType.ERROR_READING_IMPORTED_GRAMMAR, ex, null));
+                }
+            }
             if (g.isCombined()) {
                 String suffix = Grammar.getGrammarTypeToFileNameSuffix(ANTLRParser.LEXER);
                 String lexer = g.name + suffix + ".g4";

@@ -278,7 +278,6 @@ final class FixesImpl extends Fixes {
 
             // Three days of searching to find that THIS is the culprit on why running a bunch
             // of deletions would result in the caret randomly moving around.
-
 //            changes.add( fileMayBeNull.isPresent() ? fileMayBeNull.get() : null,
 //                         document.createPosition( start ), document.createPosition( end ) );
             return this;

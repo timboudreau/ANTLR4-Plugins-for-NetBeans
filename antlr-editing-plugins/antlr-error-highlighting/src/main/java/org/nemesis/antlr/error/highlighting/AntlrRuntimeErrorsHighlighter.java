@@ -385,7 +385,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         return bag;
     }
 
-    private void offsetsOf(ParsedAntlrError error, IntBiConsumer startEnd) {
+    private int offsetsOf(ParsedAntlrError error, IntBiConsumer startEnd) {
         Document doc = ctx.getDocument();
         if (doc instanceof StyledDocument) { // always will be outside some tests
             StyledDocument sdoc = (StyledDocument) doc;
@@ -410,7 +410,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     lineNumber = 0;
                 }
             }
-            int lineOffsetInDocument = NbDocument.findLineOffset((StyledDocument) doc, lineNumber);
+            int lineOffsetInDocument = NbDocument.findLineOffset(sdoc, lineNumber);
             int errorStartOffset = Math.max(0, lineOffsetInDocument + error.lineOffset());
             int errorEndOffset = Math.min(docLength - 1, errorStartOffset + error.length());
             if (errorStartOffset < errorEndOffset) {
@@ -423,7 +423,9 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             lineNumber, el.getElementCount(), error
                         });
             }
+            return docLength;
         }
+        return 0;
     }
 
     @Override
@@ -829,7 +831,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
     }
 
-    private List<EpsilonRuleInfo> updateErrorHighlights(AntlrGenerationResult res, Extraction extraction, Fixes fixes, Set<String> usedErrIds) {
+    private List<EpsilonRuleInfo> updateErrorHighlights(AntlrGenerationResult res,
+            Extraction extraction, Fixes fixes, Set<String> usedErrIds) {
         OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), true);
         boolean[] anyHighlights = new boolean[1];
         List<ParsedAntlrError> errors = res.errors();
@@ -893,11 +896,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     } catch (IllegalStateException ex) {
                         LOG.log(Level.FINE, "No line offsets in {0}", err);
                     } catch (BadLocationException | IndexOutOfBoundsException ex) {
+                        Document doc = ctx.getDocument();
                         LOG.log(Level.WARNING, "Error line " + err.lineNumber()
                                 + " position in line " + err.lineOffset()
                                 + " file offset " + err.fileOffset()
                                 + " err length " + err.length()
-                                + " computed start:end: " + startOffset + ":" + endOffset, ex);
+                                + " computed start:end: " + startOffset + ":" + endOffset
+                                + " document length " + doc.getLength()
+                                + " extraction source " + extraction.source()
+                                + " as file " + extraction.source().lookup(FileObject.class)
+                                + " my context file " + NbEditorUtilities.getFileObject(ctx.getDocument())
+                                + " err was " + err, ex);
                     }
                 });
             }

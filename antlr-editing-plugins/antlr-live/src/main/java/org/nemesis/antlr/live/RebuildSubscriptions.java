@@ -286,7 +286,7 @@ public final class RebuildSubscriptions {
                 }
             }
             Folders owner = Folders.ownerOf(subscribeTo);
-            if (owner != ANTLR_IMPORTS && owner != ANTLR_GRAMMAR_SOURCES) {
+            if (owner != ANTLR_IMPORTS && owner != ANTLR_GRAMMAR_SOURCES && owner != null) {
                 for (FileObject dir : owner.findFileObject(subscribeTo)) {
                     if (!listeningToDirs.contains(dir)) {
                         FileUtil.addRecursiveListener(this, FileUtil.toFile(dir));
