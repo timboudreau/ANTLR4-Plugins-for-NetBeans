@@ -24,8 +24,8 @@ import org.antlr.v4.runtime.Vocabulary;
 /**
  * Factory for Criterion instances which uses a shared instance of Vocabulary
  * for the convenience of not needing to pass it to every invocation of static
- * methods on Criterion; these are effectively just loggable IntPredicates
- * which show the token names rather than numbers.
+ * methods on Criterion; these are effectively just loggable IntPredicates which
+ * show the token names rather than numbers.
  *
  * @author Tim Boudreau
  */
@@ -141,6 +141,34 @@ public final class Criteria {
         }
     }
 
+    static int[] sortAndDedup(int[] arr) {
+        if (arr.length > 1) {
+            Arrays.sort(arr);
+            int dupCount = 0;
+            for (int i = 1; i < arr.length; i++) {
+                int prev = arr[i - 1];
+                int curr = arr[i];
+                if (prev == curr) {
+                    dupCount++;
+                }
+            }
+            if (dupCount == 0) {
+                return arr;
+            }
+            int[] finalResult = new int[arr.length - dupCount];
+            int prev;
+            int cursor = 1;
+            finalResult[0] = prev = arr[0];
+            for (int i = 1; i < arr.length; i++) {
+                if (prev != arr[i]) {
+                    finalResult[cursor++] = prev = arr[i];
+                }
+            }
+            return finalResult;
+        }
+        return arr;
+    }
+
     static final class ArrayCriterion implements Criterion {
 
         private final int[] ints;
@@ -149,7 +177,14 @@ public final class Criteria {
         private final boolean negated;
 
         ArrayCriterion(int[] ints, Vocabulary vocab, boolean negated) {
-            this.ints = ints;
+            // XXX we should be policing this somewhere else, but
+            // some piece of code is causing Arrays.binarySearch to
+            // go into an endless loop with an unsorted array here.
+
+            // Should be fixed eventually to throw an AssertionError
+            // instead of fixing it, but not when in the stabilization
+            // phase for a release
+            this.ints = sortAndDedup(ints);
             this.vocab = vocab;
             this.negated = negated;
         }
