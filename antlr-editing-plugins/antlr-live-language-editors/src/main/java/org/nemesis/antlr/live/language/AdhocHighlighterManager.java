@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import java.awt.EventQueue;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.awt.event.ComponentAdapter;
@@ -195,6 +196,7 @@ final class AdhocHighlighterManager {
                     addNotify(comp);
                     AdhocLanguageHierarchy.onNewEnvironment(mimeType, this);
                     AdhocReparseListeners.listen(mimeType, dd, xc);
+                    
                     DocumentUtilities.addPriorityDocumentListener(dd, this,
                             DocumentListenerPriority.LEXER);
                     colorings.addChangeListener(this);
@@ -331,6 +333,14 @@ final class AdhocHighlighterManager {
     }
 
     void documentReparse() {
+        // Trying to get out of the way of a complex deadlock,
+        // and this is the one case where any code other than AdhocEditorKit$Doc.render()
+        // is participating - invokeLater at least guarantees that one of the most
+        // likely threads to participate for other reasons can't
+        EventQueue.invokeLater(this::doDocumentReparse);
+    }
+
+    void doDocumentReparse() {
         Debug.run(this, "adhoc-hlmgr-doc-reparse " + AdhocMimeTypes.loggableMimeType(mimeType), () -> {
             Document d = ctx.getDocument();
             HighlightingInfo info = lastInfo();
@@ -375,7 +385,6 @@ final class AdhocHighlighterManager {
                                                 .append('\n');
                                     }
                                     sb.append("\nGRAMMAR TEXT:\n").append(g.text).append("\n\n");
-
 
                                     return sb.toString();
                                 });

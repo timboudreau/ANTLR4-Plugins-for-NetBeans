@@ -196,7 +196,7 @@ public class AdhocEditorKit extends ExtKit {
     }
 
     // Give the lexer a way to find out what document it's lexing
-    private static final ThreadLocal<Document> RENDERING_DOCUMENT
+    private static final ThreadLocal<Doc> RENDERING_DOCUMENT
             = new ThreadLocal<>();
 
     public static Document currentDocument() {
@@ -330,19 +330,40 @@ public class AdhocEditorKit extends ExtKit {
 
         @Override
         public void render(Runnable r) {
-            super.render(wrap(r));
+            // This is just evil, but may help diagnose things
+            Runnable removeThisThreadFromDeadlockBreaker = DocumentDeadlockBreaker.enqueue();
+            try {
+                super.render(wrap(r));
+            } finally {
+                removeThisThreadFromDeadlockBreaker.run();
+            }
         }
 
         private Runnable wrap(Runnable r) {
-            return () -> {
-                Document old = RENDERING_DOCUMENT.get();
+            return new Wrap(this, r);
+        }
+
+        static class Wrap implements Runnable {
+
+            private final Doc doc;
+            private final Runnable r;
+
+            public Wrap(Doc doc, Runnable r) {
+                this.doc = doc;
+                this.r = r;
+            }
+
+            @Override
+            public void run() {
+                Doc old = RENDERING_DOCUMENT.get();
                 try {
-                    RENDERING_DOCUMENT.set(this);
+                    RENDERING_DOCUMENT.set(doc);
                     r.run();
                 } finally {
                     RENDERING_DOCUMENT.set(old);
                 }
-            };
+            }
+
         }
 
 //        private final DefaultComboBoxModel<String> rulesModel = new DefaultComboBoxModel<>();

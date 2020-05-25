@@ -182,7 +182,7 @@ public final class RebuildSubscriptions {
         }
         Project project = FileOwnerQuery.getOwner(fo);
         if (project == null) {
-            LOG.log(Level.WARNING, "Not a disk file, cannot subscribe to {0}", fo.getPath());
+            LOG.log(Level.WARNING, "Not owned by a project; cannot subscribe to {0}", fo.getPath());
             return null;
         }
         File file = FileUtil.toFile(project.getProjectDirectory());

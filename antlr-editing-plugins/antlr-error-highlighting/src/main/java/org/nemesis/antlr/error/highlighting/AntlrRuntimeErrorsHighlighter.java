@@ -119,7 +119,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         LOG.setLevel(Level.ALL);
     }
     private final Context ctx;
-    private final RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
+    private final static RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
     private final CompL compl = new CompL();
     private ComponentListener cl;
 
@@ -433,6 +433,15 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
+        Optional<Document> doc = extraction.source().lookup(Document.class);
+        if (!doc.isPresent()) {
+            return;
+        }
+        if (!doc.equals(ctx.getDocument())) {
+            // Currently we can be notified about any document in the
+            // project
+            return;
+        }
         try {
             long lm = extraction.source().lastModified();
             if (lm > res.grammarFileLastModified) {
