@@ -29,12 +29,6 @@ import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.STRING_LITERAL;
 import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_ID;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import org.nemesis.antlr.spi.language.keybindings.ActionBinding;
-import org.nemesis.antlr.spi.language.keybindings.ActionBindings;
-import org.nemesis.antlr.spi.language.keybindings.BuiltInAction;
-import org.nemesis.antlr.spi.language.keybindings.Key;
-import org.nemesis.antlr.spi.language.keybindings.KeyModifiers;
-import org.nemesis.antlr.spi.language.keybindings.Keybinding;
 
 /**
  *
@@ -143,11 +137,11 @@ import org.nemesis.antlr.spi.language.keybindings.Keybinding;
             )
         }
 )
-@ActionBindings(mimeType = "text/x-g4", bindings = {
-    @ActionBinding(action = BuiltInAction.ToggleComment, bindings = {
-        @Keybinding(modifiers = KeyModifiers.CTRL_OR_COMMAND, key = Key.SLASH)
-    })
-})
+//@ActionBindings(mimeType = "text/x-g4", bindings = {
+//    @ActionBinding(action = BuiltInAction.ToggleComment, bindings = {
+//        @Keybinding(modifiers = KeyModifiers.CTRL_OR_COMMAND, key = Key.SLASH)
+//    })
+//})
 public class Foo {
 
 }

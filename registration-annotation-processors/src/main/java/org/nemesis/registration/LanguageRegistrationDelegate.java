@@ -103,6 +103,8 @@ import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.WEAK_HASH_MAP;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_LOOKUP;
+import static org.nemesis.registration.typenames.KnownTypes.ACTION_BINDING;
+import static org.nemesis.registration.typenames.KnownTypes.ACTION_BINDINGS;
 import static org.nemesis.registration.typenames.KnownTypes.ACTION_ID;
 import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCE;
 import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCES;
@@ -111,6 +113,7 @@ import static org.nemesis.registration.typenames.KnownTypes.ANTLR_PARSE_RESULT;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_PARSER;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_TOKEN;
 import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
+import static org.nemesis.registration.typenames.KnownTypes.BUILT_IN_ACTION;
 import static org.nemesis.registration.typenames.KnownTypes.CHANGE_SUPPORT;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_STREAM;
 import static org.nemesis.registration.typenames.KnownTypes.COMMON_TOKEN_STREAM;
@@ -133,6 +136,9 @@ import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTER_KEY_REGI
 import static org.nemesis.registration.typenames.KnownTypes.INSTANCE_CONTENT;
 import static org.nemesis.registration.typenames.KnownTypes.INT_PREDICATES;
 import static org.nemesis.registration.typenames.KnownTypes.ITERABLE_TOKEN_SOURCE;
+import static org.nemesis.registration.typenames.KnownTypes.KEY;
+import static org.nemesis.registration.typenames.KnownTypes.KEYBINDING;
+import static org.nemesis.registration.typenames.KnownTypes.KEY_MODIFIERS;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_HIERARCHY;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER;
@@ -1138,9 +1144,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             // XXX this is the right way to do it, but is causing
             // layer builders to reread generated-layer.xml more than
             // once, which wreaks some nasty havoc and crashes javac
-            /*
             cl.importing(ACTION_BINDINGS.qname(), ACTION_BINDING.qname(),
-                    KEY_MODIFIERS.qname(), KnownTypes.KEY.qname(),
+                    KEY_MODIFIERS.qname(), KEY.qname(),
                     KEYBINDING.qname(), BUILT_IN_ACTION.qname())
                     .annotatedWith(ACTION_BINDINGS.simpleName(), ab -> {
                         ab.addArgument("mimeType", mimeType)
@@ -1158,7 +1163,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             actB.closeAnnotation();
                                 });
                     });
-             */
         }
         if (!actionTypes.isEmpty()) {
             cl.importing(ACTION.qname(), TEXT_ACTION.qname());

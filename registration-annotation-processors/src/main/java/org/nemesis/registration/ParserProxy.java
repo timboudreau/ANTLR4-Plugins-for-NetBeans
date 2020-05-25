@@ -109,8 +109,6 @@ class ParserProxy {
                 }
             }
         }
-        System.out.println("NAMES FOR RULE IDS: " + nameForRuleId);
-        System.out.println("RULE IDS FOR NAME: " + ruleIdForName);
         if (parserEntryPointMethod == null) {
             utils.fail("Could not find entry point method for rule id " + entryPointRuleId + " in " + parserClass);
             return null;

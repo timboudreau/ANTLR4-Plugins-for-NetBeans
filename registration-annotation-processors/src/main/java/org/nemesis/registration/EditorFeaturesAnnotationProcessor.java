@@ -96,7 +96,6 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
         List<AnnotationMirror> elisions = utils.annotationValues(mirror, "elideTypedChars", AnnotationMirror.class);
         List<AnnotationMirror> delimiterPairs = utils.annotationValues(mirror, "deleteMatchingDelimiter", AnnotationMirror.class);
 
-        System.out.println("HANDLE ANNO " + mirror + " with " + boilerplates.size() + " elisions " + elisions.size() + " " + delimiterPairs.size());
         boolean hasNames = false;
         for (AnnotationMirror m : CollectionUtils.concatenate(boilerplates, elisions, delimiterPairs)) {
             String nm = utils.annotationValue(m, "name", String.class);
@@ -446,7 +445,6 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
         if (sb.charAt(sb.length() - 1) == '_') {
             sb.setLength(sb.length() - 1);
         }
-        System.out.println("NAMIFY '" + s + "' to '" + sb + "'");
         return sb.toString();
     }
 
@@ -628,7 +626,6 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
                         + "stop tokens not specified");
             }
             String patternTokenList = val.substring(0, bangIx).trim();
-            System.out.println("PATTERN '" + patternTokenList + "'");
             List<Object> patternTokens = scanGroup(patternTokenList);
             if (patternTokens.isEmpty()) {
                 throw new IllegalArgumentException("Pattern token sequence '"
@@ -646,14 +643,12 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
                 stopTokenList = remainder.substring(0, qix);
                 remainder = remainder.substring(qix + 1, remainder.length());
             }
-            System.out.println("STOPS: " + stopTokenList);
             Set<String> stopTokens = new HashSet<>(5);
             for (String stop : stopTokenList.split("\\s")) {
                 if (!stop.isEmpty()) {
                     stopTokens.add(stop);
                 }
             }
-            System.out.println("IGNORE: " + remainder);
             Set<String> ignoreTokens = new HashSet<>(5);
             if (!remainder.isEmpty()) {
                 for (String ign : remainder.split("\\s")) {

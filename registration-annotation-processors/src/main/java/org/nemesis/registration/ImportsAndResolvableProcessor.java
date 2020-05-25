@@ -202,6 +202,9 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
     private ClassBuilder<String> handleResolverAnnotation(String pkg, VariableElement var, AnnotationMirror mirror, AnnotationUtils utils, String mimeType) {
         String resolverClassName = capitalize(AnnotationUtils.stripMimeType(mimeType) + "Resolver_" + var.getSimpleName());
         TypeMirror mir = utils.getTypeParameter(0, var);
+        if (mir == null) {
+            utils.fail("Could not find a type parameter on " + var);
+        }
 
         String rcType = simpleName(RESOLUTION_CONSUMER_TYPE) + "<"
                 + simpleName(GRAMMAR_SOURCE_TYPE) + "<?>,"
@@ -210,12 +213,8 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                 + simpleName(mir) + ",X>";
 
         // ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c
-        System.out.println("RC TYPE: '" + rcType + "'");
         String varQName = AnnotationUtils.enclosingType(var).getQualifiedName() + "."
                 + var.getSimpleName();
-        if (mir == null) {
-            utils.fail("Could not find a type parameter on " + varQName);
-        }
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(resolverClassName)
                 .withModifier(PUBLIC, FINAL)
                 .importing(

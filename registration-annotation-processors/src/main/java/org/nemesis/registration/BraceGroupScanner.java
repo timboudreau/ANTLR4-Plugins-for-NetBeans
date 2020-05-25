@@ -23,7 +23,7 @@ import java.util.List;
  *
  * @author Tim Boudreau
  */
-public class BraceGroupScanner {
+final class BraceGroupScanner {
 
     private final String txt;
 
@@ -35,7 +35,6 @@ public class BraceGroupScanner {
         if (txt.length() > 0 && txt.charAt(0) != '{') {
             txt = '{' + txt + '}';
         }
-        System.out.println("txt is " + txt);
         this.txt = txt;
     }
 
@@ -54,40 +53,6 @@ public class BraceGroupScanner {
             }
         }
         return openCount == closeCount;
-    }
-
-    public static void main(String[] args) {
-        String t = "{foo bar {baz quux } whee {woo {hoo har} vah}}";
-        System.out.println("DOING '" + t + "'");
-        List<Object> test = new BraceGroupScanner(t).listify();
-        System.out.println("GOT: \n" + test);
-        System.out.println("SIZE " + test.size());
-        assert test.equals(new BraceGroupScanner("foo bar {baz quux } whee {woo {hoo har} vah}").listify());
-
-        System.out.println("");
-        test = new BraceGroupScanner("{bug gum} {woo hoo} thing").listify();
-        System.out.println("NOW: " + test);
-
-        System.out.println("");
-
-        test = new BraceGroupScanner("foo").listify();
-        System.out.println("SINGLE: " + test);
-
-        test = new BraceGroupScanner("{moo} {bar} {woo}").listify();
-        System.out.println("SINGLES: " + test);
-
-        test = new BraceGroupScanner("{moo} woo {bar} far {woo} goo").listify();
-        System.out.println("SINGLES2: " + test);
-
-
-        test = new BraceGroupScanner("{moo} woo {{{bar}}} far {{woo soo}} goo {{coo roo} snoo}").listify();
-        System.out.println("SINGLES2: " + test);
-        test = new BraceGroupScanner("{moo} car {} woo {{{bar}}} far {{woo soo}} goo {{coo {roo}}}").listify();
-        System.out.println("SINGLES2: " + test);
-
-        test = new BraceGroupScanner("  bub    gug  koo   { flu roo { snoo snee} x {whee blee } { moo goo } flee }    sroo   ").listify();
-        System.out.println("SPACES: " + test);
-
     }
 
     public List<Object> listify() {
