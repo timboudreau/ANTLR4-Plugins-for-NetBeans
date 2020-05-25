@@ -60,6 +60,7 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -73,7 +74,6 @@ import javax.annotation.processing.Filer;
 import static javax.lang.model.element.Modifier.DEFAULT;
 import static javax.lang.model.element.Modifier.SYNCHRONIZED;
 import javax.lang.model.element.PackageElement;
-import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import org.nemesis.registration.typenames.JdkTypes;
@@ -354,6 +354,17 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     @Override
     protected boolean processTypeAnnotation(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        // System.err is the only way for output to actually escape Maven's
+        // swallowing of javac output, so we can debug processor failures
+        try {
+            return doProcessTypeAnnotation(type, mirror, roundEnv);
+        } catch (Exception | Error ex) {
+            ex.printStackTrace(System.err);
+            return Exceptions.chuck(ex);
+        }
+    }
+
+    protected boolean doProcessTypeAnnotation(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (ANTLR_ACTION_ANNO_TYPE.equals(mirror.getAnnotationType().toString())) {
             return false;
         }
@@ -1152,15 +1163,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 .addAnnotationArgument("bindings", ACTION_BINDING.simpleName(), actB -> {
                                     actB.addExpressionArgument("action", "BuiltInAction.ToggleComment")
                                             .addAnnotationArgument("bindings", KEYBINDING.simpleName(), keyb -> {
-                                        keyb.addExpressionArgument("modifiers", "KeyModifiers.CTRL_OR_COMMAND")
-                                                .addExpressionArgument("key", "Key.SLASH");
-                                        // XXX this call should not be necessaary - fix in
-                                        // ClassBuilder
-                                        keyb.closeAnnotation();
-                                    });
-                            // XXX this call should not be necessaary - fix in
-                            // ClassBuilder
-                            actB.closeAnnotation();
+                                                keyb.addExpressionArgument("modifiers", "KeyModifiers.CTRL_OR_COMMAND")
+                                                        .addExpressionArgument("key", "Key.SLASH");
+                                                // XXX this call should not be necessaary - fix in
+                                                // ClassBuilder
+                                                keyb.closeAnnotation();
+                                            });
+                                    // XXX this call should not be necessaary - fix in
+                                    // ClassBuilder
+                                    actB.closeAnnotation();
                                 });
                     });
         }
@@ -2804,9 +2815,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                     + "were not given a category in the annotation that "
                                     + "generated this class:\n");
                             int ix = 0;
+                            System.err.println("UNHANDLED: " + unhandled);
                             for (Iterator<Integer> it = unhandled.iterator(); it.hasNext();) {
                                 Integer unh = it.next();
                                 String name = lexer.tokenName(unh);
+                                System.out.println("  tok " + name);
                                 sb.append(name).append('(').append(unh).append(')');
                                 if (it.hasNext()) {
                                     if (++ix % 3 == 0) {
@@ -2817,8 +2830,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 }
                             }
                             meth.lineComment(sb.toString());
-                            processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING,
-                                    sb, type, mirror);
+                            System.out.println(sb);
+//                            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
+//                                    sb, type, mirror);
                         } else {
                             meth.lineComment("All token types defined in "
                                     + lexer.lexerClassSimple() + " have categories");;

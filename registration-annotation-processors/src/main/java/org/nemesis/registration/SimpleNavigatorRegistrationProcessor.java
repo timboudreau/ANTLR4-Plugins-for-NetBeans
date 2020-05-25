@@ -42,6 +42,8 @@ import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProce
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -51,6 +53,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes(SimpleNavigatorRegistrationProcessor.SIMPLE_ANNOTATION_CLASS)
 @SupportedOptions(AU_LOG)
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProcessor {
 
     private static final String APPEARANCE_TYPE = "org.nemesis.antlr.navigator.Appearance";

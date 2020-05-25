@@ -160,7 +160,7 @@ class ParserProxy {
                     .body((BlockBuilder<?> bb) -> {
                         bb.switchingOn("type.getName()", (ClassBuilder.SwitchBuilder<?> sw) -> {
                             for (Map.Entry<String, TypeMirror> e : classForRuleName.entrySet()) {
-                                sw.inStringLiteralCase(e.getValue().toString() + ".class")
+                                sw.inStringLiteralCase(e.getValue().toString())
                                         .returningStringLiteral(e.getKey()).endBlock();
                             }
                             sw.inDefaultCase().returningNull().endBlock();
@@ -177,7 +177,7 @@ class ParserProxy {
                                 Integer val = this.ruleId(e.getKey());
                                 if (val != null) {
 
-                                    sw.inStringLiteralCase(e.getValue().toString() + ".class")
+                                    sw.inStringLiteralCase(e.getValue().toString())
                                             .returning(val).endBlock();
                                 }
                             }

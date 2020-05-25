@@ -158,10 +158,11 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         }).build();
     }
 
-    Element targetElement(String mimeType) {
+    Element targetElement(String mimeType, Element defaultElement) {
         Element result = targetElementForMimeType.get(mimeType);
         if (result == null) {
-            throw new IllegalArgumentException("No element recorded for " + mimeType);
+            result = defaultElement;
+            targetElementForMimeType.put(mimeType, defaultElement);
         }
         return result;
     }
@@ -575,7 +576,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     }
 
     private String packagePath(String mimeType, Element element) {
-        Element el = targetElement(mimeType);
+        Element el = targetElement(mimeType, element);
         if (el == null) {
             el = element;
         }

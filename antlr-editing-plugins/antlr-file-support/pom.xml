@@ -432,7 +432,7 @@ limitations under the License.
             <artifactId>org-netbeans-modules-masterfs-nio2</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- This bathtub of dependencies allows tests to be run in Maven 3.6.2
+        <!-- This bathtub of dependencies allows tests to be run in Maven 3.6.x
         and forces the maven-embedder module to link against that, so it doesn't
         detonate on contact.  No, useSystemClassloader doesn't help.
         -->

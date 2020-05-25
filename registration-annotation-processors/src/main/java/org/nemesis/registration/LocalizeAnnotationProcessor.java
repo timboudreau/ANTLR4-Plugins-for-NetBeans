@@ -48,6 +48,8 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -84,6 +86,7 @@ import org.openide.util.lookup.ServiceProvider;
  */
 @SupportedAnnotationTypes(LOCALIZE_ANNO_TYPE)
 @ServiceProvider(service = Processor.class)
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class LocalizeAnnotationProcessor extends AbstractProcessor implements Processor {
 
     public static final String LOCALIZER_TYPE = "org.nemesis.antlr.refactoring.common.Localizer";

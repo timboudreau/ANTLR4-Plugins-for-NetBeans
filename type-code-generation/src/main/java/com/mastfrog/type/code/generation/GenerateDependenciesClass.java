@@ -850,7 +850,8 @@ public class GenerateDependenciesClass {
                         sb.append(info.coordinates);
                     }
                 }
-                throw new IllegalStateException("Could not resolve pom for " + dv + " occurring in " + sb);
+                new IllegalStateException("Could not resolve pom for " + dv + " occurring in " + sb).printStackTrace(System.err);
+                continue;
             }
             String jarName = repoPom.getName();
             jarName = jarName.substring(0, jarName.length() - 4) + ".jar";

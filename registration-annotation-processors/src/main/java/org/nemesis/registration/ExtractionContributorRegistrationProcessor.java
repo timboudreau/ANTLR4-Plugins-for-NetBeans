@@ -41,19 +41,20 @@ import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import org.openide.util.lookup.ServiceProvider;
+import static org.nemesis.registration.ExtractionContributorRegistrationProcessor.EXTRACTION_REGISTRATION_ANNO;
 
 /**
  *
  * @author Tim Boudreau
  */
 @ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes("org.nemesis.extraction.ExtractionRegistration")
+@SupportedAnnotationTypes(EXTRACTION_REGISTRATION_ANNO)
 @SupportedOptions(AU_LOG)
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class ExtractionContributorRegistrationProcessor extends AbstractDelegatingProcessor {
 
     private static final String PKG = "org.nemesis.extraction.";
-    static final String ANNO = PKG + "ExtractionRegistration";
+    static final String EXTRACTION_REGISTRATION_ANNO = PKG + "ExtractionRegistration";
     private Predicate<? super AnnotationMirror> mirrorCheck;
     private static final String EC_NAME = "ExtractionContributor";
     private static final String EC_TYPE = PKG + EC_NAME;
@@ -73,11 +74,11 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
     @Override
     protected boolean processMethodAnnotation(ExecutableElement method, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (!method.getModifiers().contains(STATIC)) {
-            utils().fail("Method annotated with " + ANNO + " must be static");
+            utils().fail("Method annotated with " + EXTRACTION_REGISTRATION_ANNO + " must be static");
             return true;
         }
         if (method.getModifiers().contains(PROTECTED) || method.getModifiers().contains(PRIVATE)) {
-            utils().fail("Method annotated with " + ANNO + " may not be private or protected");
+            utils().fail("Method annotated with " + EXTRACTION_REGISTRATION_ANNO + " may not be private or protected");
             return true;
         }
         TypeMirror entryPointType = utils().typeForSingleClassAnnotationMember(mirror, "entryPoint");

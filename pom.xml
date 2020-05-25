@@ -98,6 +98,7 @@ limitations under the License.
                         <licenseFile>${project.parent.relativePath}/../LICENSE</licenseFile>
                         <requiresRestart>false</requiresRestart>
                         <finalName>${project.artifactId}</finalName>
+                        <distributionUrl>https://timboudreau.com/antlr</distributionUrl>
                     </configuration>
                 </plugin>
                 <plugin>
