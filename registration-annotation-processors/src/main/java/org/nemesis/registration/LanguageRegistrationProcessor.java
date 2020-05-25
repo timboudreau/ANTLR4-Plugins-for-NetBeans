@@ -72,8 +72,6 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
         ImportsAndResolvableProcessor imports = new ImportsAndResolvableProcessor();
         InplaceRenameProcessor renames = new InplaceRenameProcessor();
         delegates
-                .apply(main).to(ElementKind.CLASS)
-                .whenAnnotationTypes(REGISTRATION_ANNO)
                 .apply(features)
                 .to(ElementKind.CLASS, ElementKind.FIELD, ElementKind.CONSTRUCTOR, ElementKind.METHOD)
                 .whenAnnotationTypes(EDITOR_FEATURES_ANNO)
@@ -105,7 +103,10 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
                 .whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
                 .apply(hkProc)
                 .to(ElementKind.FIELD)
-                .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO);
+                .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO)
+                .apply(main).to(ElementKind.CLASS)
+                .whenAnnotationTypes(REGISTRATION_ANNO)
+                ;
     }
 
     static ClassBuilder<String> newClassBuilder(String pkg, String name, TypeName... imports) {

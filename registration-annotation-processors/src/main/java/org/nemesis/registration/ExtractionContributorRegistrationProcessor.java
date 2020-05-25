@@ -38,6 +38,8 @@ import javax.lang.model.type.TypeMirror;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -47,6 +49,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes("org.nemesis.extraction.ExtractionRegistration")
 @SupportedOptions(AU_LOG)
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class ExtractionContributorRegistrationProcessor extends AbstractDelegatingProcessor {
 
     private static final String PKG = "org.nemesis.extraction.";

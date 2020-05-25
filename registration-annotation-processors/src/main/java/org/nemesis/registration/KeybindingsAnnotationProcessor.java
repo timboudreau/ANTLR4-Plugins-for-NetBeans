@@ -60,12 +60,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeSet;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
-import org.openide.filesystems.annotations.XMLUtil;
+import org.openide.xml.XMLUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -183,7 +184,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
             String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
             if (mimeType != null) {
                 updateTargetElement(mimeType, var);
-                KeysFile keysFile = keysFile(mimeType, "NetBeans", false);
+                KeysFile keysFile = keysFile(mimeType, "NetBeans", false, var);
                 keysFile.add(new KeybindingInfo("D-B", false, "goto-declaration"), var);
 //                keysFile.add(new KeybindingInfo("D-SLASH", false, TOGGLE_COMMENT_ACTION), var);
             }
@@ -218,7 +219,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 profiles = new ArrayList<>(Arrays.asList("NetBeans"));
             }
             for (String p : profiles) {
-                KeysFile file = keysFile(mimeType, p, mac);
+                KeysFile file = keysFile(mimeType, p, mac, method);
                 String keybinding = keybinding(key, modifiers, method);
                 file.add(new KeybindingInfo(keybinding, mac, actionName), method);
                 files.add(file);
@@ -269,7 +270,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 //                System.out.println("KB ANNO BIND " + actionName + " to " + bindingDescriptor);
                 for (String profile : profiles) {
                     boolean mac = utils().annotationValue(keybinding, "appleSpeific", Boolean.class, Boolean.FALSE);
-                    KeysFile file = keysFile(mimeType, profile, mac);
+                    KeysFile file = keysFile(mimeType, profile, mac, on);
                     KeybindingInfo info = new KeybindingInfo(bindingDescriptor, mac, actionName);
                     file.add(info, on);
                 }
@@ -423,7 +424,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                     typeToVar.put(ACTION_EVENT_TYPE, "evt");
                     typeToVar.put(J_TEXT_COMPONENT_TYPE, "target");
                     typeToVar.put(EXTRACTION_TYPE, "extraction");
-            Consumer<BlockBuilderBase<?, ?>> invokeTheMethod = bb -> {
+                    Consumer<BlockBuilderBase<?, ?>> invokeTheMethod = bb -> {
                         if (argumentTypes.contains(DOCUMENT_TYPE)) {
                             bb.declare("doc").initializedByInvoking("getDocument").on("target").as(simpleName(DOCUMENT_TYPE));
                             typeToVar.put(DOCUMENT_TYPE, "doc");
@@ -537,7 +538,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     private void writeOneKeysFileAndActions(KeysFile file, Element method) throws IOException {
         Filer filer = processingEnv.getFiler();
-        String path = packagePath(file.mimeType()) + file.name;
+        String path = packagePath(file.mimeType(), method) + file.name;
 //        System.out.println("Write keys file and actions " + file.mimeType + " to " + path);
         FileObject resource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path, method);
         try (OutputStream out = resource.openOutputStream()) {
@@ -551,7 +552,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     private void writeLayerEntriesForKeysFile(KeysFile file, String profile, Element method, String mimeType) throws IOException {
         String layerDir = "Editors/" + mimeType + "/Keybindings";
         String layerPath = layerDir + "/" + profile + "/Defaults/" + file.name;
-        String path = packagePath(file.mimeType()) + file.name;
+        String path = packagePath(file.mimeType(), method) + file.name;
         layer(method).file(layerPath).url("nbres:/" + path).write();
     }
 
@@ -573,9 +574,13 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         return (mac ? base + "-mac" : base) + ".xml";
     }
 
-    private String packagePath(String mimeType) {
-        PackageElement el = processingEnv.getElementUtils().getPackageOf(targetElement(mimeType));
-        return el.getQualifiedName().toString().replace('.', '/') + '/';
+    private String packagePath(String mimeType, Element element) {
+        Element el = targetElement(mimeType);
+        if (el == null) {
+            el = element;
+        }
+        PackageElement pkg = processingEnv.getElementUtils().getPackageOf(el);
+        return pkg.getQualifiedName().toString().replace('.', '/') + '/';
     }
 
     private Map<String, byte[]> bytes = new HashMap<>();
@@ -616,24 +621,22 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         return result == null ? null : new ByteArrayInputStream(result);
     }
 
-    private KeysFile keysFile(String mimeType, String profile, boolean mac) throws IOException, SAXException {
+    private KeysFile keysFile(String mimeType, String profile, boolean mac, Element forElement) throws IOException, SAXException {
         String keysFileName = keysFileName(mimeType, profile, mac);
         KeysFile file = files.get(keysFileName);
-//        Optional<String> commentAction = super.get(LanguageRegistrationDelegate.COMMENT_STRING);
-//        if (commentAction.isPresent()) {
-//            String key = "D-SLASH";
-//            String entry = "<bind actionName=\"" + TOGGLE_COMMENT_ACTION + "\" key=\"" + key + "\"/>";
-////            System.out.println("Including " + TOGGLE_COMMENT_ACTION + " as " + entry);
-//            file.bindings.add(entry);
-//        }
+        Optional<String> commentAction = super.get(LanguageRegistrationDelegate.COMMENT_STRING);
         if (file == null) {
             file = new KeysFile(keysFileName, mimeType, profile);
             files.put(keysFileName, file);
-            String path = packagePath(mimeType) + keysFileName;
+            String path = packagePath(mimeType, forElement) + keysFileName;
             InputStream existingBytes = existingFileBytes(path);
             if (existingBytes != null) {
                 file.loadExisting(existingBytes);
             }
+        }
+        if (commentAction.isPresent()) {
+            String entry = "<bind actionName=\"toggle-comment\" key=\"D-SLASH\"/>";
+            file.bindings.add(entry);
         }
         return file;
     }
