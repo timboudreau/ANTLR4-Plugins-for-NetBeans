@@ -29,6 +29,12 @@ import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.STRING_LITERAL;
 import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_ID;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.antlr.spi.language.keybindings.ActionBinding;
+import org.nemesis.antlr.spi.language.keybindings.ActionBindings;
+import org.nemesis.antlr.spi.language.keybindings.BuiltInAction;
+import org.nemesis.antlr.spi.language.keybindings.Key;
+import org.nemesis.antlr.spi.language.keybindings.KeyModifiers;
+import org.nemesis.antlr.spi.language.keybindings.Keybinding;
 
 /**
  *
@@ -123,7 +129,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                         ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
                         ANTLRv4Lexer.LEXCOM_WS, ANTLRv4Lexer.PARDEC_OPT_WS,
                         ANTLRv4Lexer.FRAGDEC_WS, ANTLRv4Lexer.STRING_LITERAL,
-                        ANTLRv4Lexer.TOKEN_ID, ANTLRv4Lexer.PARSER_RULE_ID},
+                        ANTLRv4Lexer.PARSER_RULE_ID},
                     inserting = "'^'",
                     whenCurrentTokenNot = {
                         ANTLRv4Lexer.LINE_COMMENT, ANTLRv4Lexer.BLOCK_COMMENT,
@@ -137,6 +143,11 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
             )
         }
 )
+@ActionBindings(mimeType = "text/x-g4", bindings = {
+    @ActionBinding(action = BuiltInAction.ToggleComment, bindings = {
+        @Keybinding(modifiers = KeyModifiers.CTRL_OR_COMMAND, key = Key.SLASH)
+    })
+})
 public class Foo {
 
 }

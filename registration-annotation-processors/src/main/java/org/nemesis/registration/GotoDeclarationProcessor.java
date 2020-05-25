@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.element.AnnotationMirror;
@@ -37,11 +36,12 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
-import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
+import com.mastfrog.util.preconditions.Exceptions;
 import static org.nemesis.registration.typenames.JdkTypes.ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import org.nemesis.registration.typenames.KnownTypes;
@@ -58,15 +58,14 @@ import static org.nemesis.registration.typenames.KnownTypes.TOKEN_CONTEXT_PATH;
 import static org.nemesis.registration.typenames.KnownTypes.TOKEN_ID;
 import static org.nemesis.registration.typenames.KnownTypes.UTIL_EXCEPTIONS;
 import org.openide.filesystems.annotations.LayerBuilder;
-import org.openide.util.lookup.ServiceProvider;
 
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = Processor.class)
+//@ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes({GOTO_ANNOTATION, REGISTRATION_ANNO})
-public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
+public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
 
     static final String GOTO_ANNOTATION = "org.nemesis.antlr.spi.language.Goto";
     private Predicate<? super Element> fieldTest;
@@ -351,7 +350,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
             }).annotatedWith(MESSAGES.qname(), ab -> {
                 ab.addArgument("value", "goto-declaration=&Go to Declaration");
             })
-                    */
+                     */
                     .withModifier(PUBLIC, STATIC).returning(ACTION.simpleName())
                     .body(bb -> {
                         bb.log("Create a " + mimeType + " inplace editor action", Level.INFO);
@@ -364,7 +363,7 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
                         bb.returning("result");
                     });
 //                    .bodyReturning("ACTION");
-        });
+                });
         /*
     @EditorActionRegistration(name = "goto-declaration",
         mimeType = "text/x-g4", popupPosition = 10,
@@ -374,19 +373,24 @@ public class GotoDeclarationProcessor extends AbstractLayerGeneratingDelegatingP
          */
 
         Element[] els = setsFor(value).toArray(new Element[0]);
-        LayerBuilder layer = layer(els);
-        String layerPath = "Editors/" + mimeType + "/Actions/"
-                + "goto-declaration.instance";
-        layer.file(layerPath)
-                .methodvalue("instanceCreate", cb.fqn(), "action")
-                .stringvalue("instanceClass", "org.nemesis.antlr.spi.language.AntlrGotoDeclarationAction")
-                .stringvalue("instanceOf", ACTION.qname())
-                .stringvalue("instanceOf", ABSTRACT_EDITOR_ACTION.qname())
-                .stringvalue("instanceOf", TEXT_ACTION.qname())
-                .stringvalue("Name", "goto-declaration")
-                .intvalue("position", gotoCount++)
-                .write();
-        return cb;
+        try {
+            LayerBuilder layer = layer(els);
+            String layerPath = "Editors/" + mimeType + "/Actions/"
+                    + "goto-declaration.instance";
+            layer.file(layerPath)
+                    .methodvalue("instanceCreate", cb.fqn(), "action")
+                    .stringvalue("instanceClass", "org.nemesis.antlr.spi.language.AntlrGotoDeclarationAction")
+                    .stringvalue("instanceOf", ACTION.qname())
+                    .stringvalue("instanceOf", ABSTRACT_EDITOR_ACTION.qname())
+                    .stringvalue("instanceOf", TEXT_ACTION.qname())
+                    .stringvalue("Name", "goto-declaration")
+                    .intvalue("position", gotoCount++)
+                    .write();
+            return cb;
+        } catch (Exception ex) {
+            ex.printStackTrace(System.err);
+            return Exceptions.chuck(ex);
+        }
     }
     static volatile int gotoCount = 1;
 }

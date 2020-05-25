@@ -25,10 +25,8 @@ import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -45,23 +43,21 @@ import javax.lang.model.type.TypeKind;
 import static javax.lang.model.type.TypeKind.DECLARED;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
-import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.ANNO;
-import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
 import com.mastfrog.java.vogon.ClassBuilder;
-import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
-import org.openide.util.lookup.ServiceProvider;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
+import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.FOLD_REGISTRATION_ANNO;
 
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = Processor.class)
-@SupportedAnnotationTypes(ANNO)
-@SupportedOptions(AU_LOG)
-public class FoldRegistrationAnnotationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
+//@ServiceProvider(service = Processor.class)
+@SupportedAnnotationTypes(FOLD_REGISTRATION_ANNO)
+//@SupportedOptions(AU_LOG)
+public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate {
 
     public static final String PKG = "org.nemesis.antlr.fold";
-    public static final String ANNO = PKG + ".AntlrFoldsRegistration";
+    public static final String FOLD_REGISTRATION_ANNO = PKG + ".AntlrFoldsRegistration";
     private static final String REGIONS_KEY_TYPE = "org.nemesis.extraction.key.RegionsKey";
     private static final String NAMED_REGION_KEY_TYPE = "org.nemesis.extraction.key.NamedRegionKey";
     private static final String FOLD_MANAGER_FACTORY_TYPE = "org.netbeans.spi.editor.fold.FoldManagerFactory";

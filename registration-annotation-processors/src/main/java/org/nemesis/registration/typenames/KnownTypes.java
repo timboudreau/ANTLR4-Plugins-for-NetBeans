@@ -151,11 +151,16 @@ public enum KnownTypes implements TypeName {
         "org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph",
         Libraries.MODELS),
     BIT_SET_UTILS("com.mastfrog.graph.BitSetUtils", Libraries.WRAPPER),
+    BOILERPLATE(
+        "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Boilerplate",
+        Libraries.FEATURES),
     BOOLEAN_CONSUMER("com.mastfrog.function.BooleanConsumer", Libraries.WRAPPER),
     BRACE_GROUP_SCANNER("com.mastfrog.editor.features.BraceGroupScanner",
         Libraries.FEATURES),
     BUFFERED_TOKEN_STREAM("org.antlr.v4.runtime.BufferedTokenStream",
         Libraries.ANTLR_WRAPPER),
+    BUILT_IN_ACTION("org.nemesis.antlr.spi.language.keybindings.BuiltInAction",
+        Libraries.ANTLR_LANGUAGE),
     CACHE_FILE_READER("org.nemesis.antlr.common.cachefile.CacheFileReader",
         Libraries.ANTLR_COMMON),
     CACHE_FILE_UTILS("org.nemesis.antlr.common.cachefile.CacheFileUtils",
@@ -273,6 +278,9 @@ public enum KnownTypes implements TypeName {
     DELETE_ACTION("org.openide.actions.DeleteAction", Libraries.ACTIONS),
     DELETION_POLICY("org.nemesis.antlr.completion.annos.DeletionPolicy",
         Libraries.CODE_COMPLETION),
+    DELIMITER_PAIR(
+        "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.DelimiterPair",
+        Libraries.FEATURES),
     DIALOG_DESCRIPTOR("org.openide.DialogDescriptor", Libraries.DIALOGS),
     DIALOG_DISPLAYER("org.openide.DialogDisplayer", Libraries.DIALOGS),
     DOCUMENT_ADAPTER("org.nemesis.source.spi.DocumentAdapter", Libraries.INPUT),
@@ -329,6 +337,9 @@ public enum KnownTypes implements TypeName {
         Libraries.SETTINGS),
     EDITOR_UI("org.netbeans.editor.EditorUI", Libraries.LIB),
     EDITOR_UTILITIES("org.netbeans.editor.Utilities", Libraries.LIB),
+    ELISION(
+        "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Elision",
+        Libraries.FEATURES),
     EMBEDDING_PRESENCE("org.netbeans.spi.lexer.EmbeddingPresence",
         Libraries.LEXER),
     ENHANCED_TOKEN_STREAM("org.nemesis.antlrformatting.api.EnhancedTokenStream",
@@ -416,6 +427,7 @@ public enum KnownTypes implements TypeName {
         Libraries.SETTINGS),
     FONT_COLOR_SETTINGS("org.netbeans.api.editor.settings.FontColorSettings",
         Libraries.SETTINGS),
+    FOO("org.nemesis.antlr.file.Foo", Libraries.SUPPORT),
     FORMATTING_ACTION("org.nemesis.antlrformatting.api.FormattingAction",
         Libraries.FORMATTERS),
     FORMATTING_CONTEXT("org.nemesis.antlrformatting.api.FormattingContext",
@@ -426,6 +438,8 @@ public enum KnownTypes implements TypeName {
         Libraries.FORMATTERS),
     FORMATTING_RULES("org.nemesis.antlrformatting.api.FormattingRules",
         Libraries.FORMATTERS),
+    G4FOO_EDITOR_FEATURES("org.nemesis.antlr.file.G4FooEditorFeatures",
+        Libraries.SUPPORT),
     G4INPLACE_RENAME_ACTION("org.nemesis.antlr.file.G4InplaceRenameAction",
         Libraries.SUPPORT),
     G4REFACTORING_PLUGIN_FACTORY(
@@ -571,6 +585,9 @@ public enum KnownTypes implements TypeName {
         Libraries.DOCUMENT),
     LINE_DOCUMENT_UTILS("org.netbeans.api.editor.document.LineDocumentUtils",
         Libraries.DOCUMENT),
+    LINE_POSITION(
+        "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.LinePosition",
+        Libraries.FEATURES),
     LIST_MODEL_POPULATOR("org.nemesis.antlr.navigator.ListModelPopulator",
         Libraries.NAVIGATORS),
     LOCALIZE("org.nemesis.localizers.annotations.Localize", Libraries.LOCALIZERS),
@@ -669,9 +686,6 @@ public enum KnownTypes implements TypeName {
     NB_PARSER_HELPER("org.nemesis.antlr.spi.language.NbParserHelper",
         Libraries.ANTLR_LANGUAGE),
     NB_PREFERENCES("org.openide.util.NbPreferences", Libraries.UTIL),
-    NET_BEANS_ACTIONS(
-        "org.nemesis.antlr.spi.language.keybindings.NetBeansActions",
-        Libraries.ANTLR_LANGUAGE),
     NEW_ANTLR_CONFIGURATION_INFO(
         "org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo",
         Libraries.HELPERS),

@@ -54,6 +54,7 @@ import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
+import com.mastfrog.annotation.processor.Key;
 import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
@@ -177,8 +178,6 @@ import static org.nemesis.registration.typenames.KnownTypes.UTIL_EXCEPTIONS;
 import static org.nemesis.registration.typenames.KnownTypes.VOCABULARY;
 import static org.nemesis.registration.typenames.KnownTypes.WEAK_SET;
 import org.nemesis.registration.typenames.TypeName;
-import org.openide.filesystems.FileUtil;
-import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 
 /**
@@ -195,6 +194,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     public static final int MIN_CHAR_VALUE = 0;
     public static final int MAX_CHAR_VALUE = 1114111;
     private BiPredicate<? super AnnotationMirror, ? super Element> mirrorTest;
+
+    static final Key<String> COMMENT_STRING = key(String.class, "comment");
+    static final String TOGGLE_COMMENT_ACTION = "ToggleCommentAction";
 
     private static Map<String, Integer> lexerClassConstants() {
         Map<String, Integer> result = new HashMap<>();
@@ -788,16 +790,16 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             });
                 });
 
-        LayerBuilder layer = layer(type);
+        withLayer(layer -> {
+            String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
+            layer(type).file(editorKitFile)
+                    .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
+                    .stringvalue("instanceOf", EDITOR_KIT.simpleName())
+                    .write();
 
-        String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
-        layer(type).file(editorKitFile)
-                .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
-                .stringvalue("instanceOf", EDITOR_KIT.simpleName())
-                .write();
-
-        layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
-                .stringvalue("displayName", prefix).write();
+            layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
+                    .stringvalue("displayName", prefix).write();
+        }, type);
         writeOne(cl);
     }
 
@@ -1131,7 +1133,32 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         List<String> actionTypes = new ArrayList<>();
         if (lineComment != null) {
-            actionTypes.add("ToggleCommentAction");
+            share(LanguageRegistrationDelegate.COMMENT_STRING, lineComment);
+            actionTypes.add(TOGGLE_COMMENT_ACTION);
+            // XXX this is the right way to do it, but is causing
+            // layer builders to reread generated-layer.xml more than
+            // once, which wreaks some nasty havoc and crashes javac
+            /*
+            cl.importing(ACTION_BINDINGS.qname(), ACTION_BINDING.qname(),
+                    KEY_MODIFIERS.qname(), KnownTypes.KEY.qname(),
+                    KEYBINDING.qname(), BUILT_IN_ACTION.qname())
+                    .annotatedWith(ACTION_BINDINGS.simpleName(), ab -> {
+                        ab.addArgument("mimeType", mimeType)
+                                .addAnnotationArgument("bindings", ACTION_BINDING.simpleName(), actB -> {
+                                    actB.addExpressionArgument("action", "BuiltInAction.ToggleComment")
+                                            .addAnnotationArgument("bindings", KEYBINDING.simpleName(), keyb -> {
+                                        keyb.addExpressionArgument("modifiers", "KeyModifiers.CTRL_OR_COMMAND")
+                                                .addExpressionArgument("key", "Key.SLASH");
+                                        // XXX this call should not be necessaary - fix in
+                                        // ClassBuilder
+                                        keyb.closeAnnotation();
+                                    });
+                            // XXX this call should not be necessaary - fix in
+                            // ClassBuilder
+                            actB.closeAnnotation();
+                                });
+                    });
+             */
         }
         if (!actionTypes.isEmpty()) {
             cl.importing(ACTION.qname(), TEXT_ACTION.qname());
@@ -1946,7 +1973,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             throw new Error("additional-syntax-navigator-methods.txt is not on classpath next to " + LanguageRegistrationProcessor.class);
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        FileUtil.copy(in, out);
+        KeybindingsAnnotationProcessor.copy(in, out);
         StringBuilder sb = new StringBuilder();
         for (String line : new String(out.toByteArray(), UTF_8).split("\n")) {
             String l = line.trim();
@@ -2520,7 +2547,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             props.store(out, getClass().getName());
         }
 
-        addLayerTask(lb -> {
+        withLayer(lb -> {
             log("Run layer task to create bundle info");
             // For some reason, the generated @MimeRegistration annotation is resulting
             // in an attempt toExpression load a *class* named with the fqn + method name.

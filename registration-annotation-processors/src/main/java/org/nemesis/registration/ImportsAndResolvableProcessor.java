@@ -18,12 +18,11 @@ package org.nemesis.registration;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
-import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
 import java.util.function.BiPredicate;
 import java.util.logging.Level;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.element.AnnotationMirror;
@@ -48,15 +47,14 @@ import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGIO
 import static org.nemesis.registration.typenames.KnownTypes.REGISTERABLE_RESOLVER;
 import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
 import static org.nemesis.registration.typenames.KnownTypes.UNKNOWN_NAME_REFERENCE;
-import org.openide.util.lookup.ServiceProvider;
 
 /**
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = Processor.class)
+//@ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes({IMPORTS_ANNOTATION, RESOLVER_ANNOTATION})
-public class ImportsAndResolvableProcessor extends AbstractLayerGeneratingDelegatingProcessor {
+public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
 
     static final String IMPORTS_ANNOTATION = "org.nemesis.antlr.spi.language.Imports";
     static final String RESOLVER_ANNOTATION = "org.nemesis.antlr.spi.language.ReferenceableFromImports";

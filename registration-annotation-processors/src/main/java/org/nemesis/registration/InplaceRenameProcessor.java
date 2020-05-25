@@ -19,7 +19,7 @@ import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
-import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.annotation.processor.LayerTask;
 import com.mastfrog.annotation.validation.AnnotationMirrorTestBuilder;
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.element.AnnotationMirror;
@@ -82,7 +81,6 @@ import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDERS;
 import static org.nemesis.registration.typenames.KnownTypes.SINGLETON_KEY;
 import org.nemesis.registration.typenames.TypeName;
 import org.openide.filesystems.annotations.LayerBuilder;
-import org.openide.util.lookup.ServiceProvider;
 
 /**
  * Generates inplace rename refactoring support for extraction keys annotated
@@ -90,9 +88,9 @@ import org.openide.util.lookup.ServiceProvider;
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(service = Processor.class)
+//@ServiceProvider(service = Processor.class)
 @SupportedAnnotationTypes({INPLACE_RENAME_ANNO_TYPE, IMPORTS_ANNOTATION})
-public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingProcessor {
+public class InplaceRenameProcessor extends LayerGeneratingDelegate {
 
     private final Map<InplaceKey, List<InplaceInfo>> infos = supplierMap(ArrayList::new);
     public static final String INPLACE_RENAME_ANNO_TYPE
@@ -647,7 +645,13 @@ public class InplaceRenameProcessor extends AbstractLayerGeneratingDelegatingPro
                 }
             }
             if (!allElements.isEmpty()) {
-                addLayerTask(new GenerateLayerRefactoringActions(key), allElements.toArray(new Element[allElements.size()]));
+                try {
+//                    addLayerTask(new GenerateLayerRefactoringActions(key), allElements.toArray(new Element[allElements.size()]));
+                    new GenerateLayerRefactoringActions(key).run(layer(allElements.toArray(new Element[allElements.size()])));
+                } catch (Exception ex) {
+                    ex.printStackTrace(System.err);
+                    com.mastfrog.util.preconditions.Exceptions.chuck(ex);
+                }
             }
         }
     }

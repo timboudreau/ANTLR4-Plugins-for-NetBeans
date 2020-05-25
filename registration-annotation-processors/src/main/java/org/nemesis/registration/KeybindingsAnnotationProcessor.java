@@ -52,6 +52,8 @@ import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.validation.MethodTestBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -63,7 +65,7 @@ import javax.annotation.processing.SupportedAnnotationTypes;
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
-import org.openide.xml.XMLUtil;
+import org.openide.filesystems.annotations.XMLUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -83,6 +85,7 @@ import org.xml.sax.SAXParseException;
 public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     static final String KEYBINDING_ANNO = "org.nemesis.antlr.spi.language.keybindings.Keybindings";
+    static final String ACTION_BINDINGS_ANNO = "org.nemesis.antlr.spi.language.keybindings.ActionBindings";
 
     private static final String ABSTRACT_ACTION_TYPE = "javax.swing.AbstractAction";
     private static final String ACTION_TYPE = "javax.swing.Action";
@@ -120,7 +123,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-        System.out.println("KEYBINDING PROCESSOR ON INIT");
         validator = utils.multiAnnotations().whereAnnotationType(KEYBINDING_ANNO, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType()
                     .build()
@@ -146,6 +148,12 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
             });
         }).whereAnnotationType(GOTO_ANNOTATION, bldr -> {
             bldr.testMember("mimeType").validateStringValueAsMimeType().build();
+        }).whereAnnotationType(ACTION_BINDINGS_ANNO, bldr -> {
+            bldr.testMember("mimeType").validateStringValueAsMimeType().build()
+                    .testMemberAsAnnotation("bindings")
+                    .atLeastOneMemberMayBeSet("actionName", "action")
+                    .onlyOneMemberMayBeSet("actionName", "action")
+                    .build();
         }).build();
     }
 
@@ -158,21 +166,36 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     }
 
     @Override
-    protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        System.out.println("KEYB proc field " + mimeType + " var " + var);
-        if (mimeType != null) {
-            updateTargetElement(mimeType, var);
-            KeysFile keysFile = keysFile(mimeType, "NetBeans", false);
-            keysFile.add(new KeybindingInfo("D-B", false, "goto-declaration"), var);
+    protected boolean processTypeAnnotation(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        if (mirror.getAnnotationType().toString().equals(ACTION_BINDINGS_ANNO)) {
+            return handleActionBinding(type, mirror, roundEnv);
         } else {
-            System.out.println("No mime type in " + mirror);
+            logException(new Exception("Keybinding on types not yet implemented"), true);
+        }
+        return false;
+    }
+
+    @Override
+    protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        if (mirror.getAnnotationType().toString().equals(ACTION_BINDINGS_ANNO)) {
+            return handleActionBinding(var, mirror, roundEnv);
+        } else {
+            String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+            if (mimeType != null) {
+                updateTargetElement(mimeType, var);
+                KeysFile keysFile = keysFile(mimeType, "NetBeans", false);
+                keysFile.add(new KeybindingInfo("D-B", false, "goto-declaration"), var);
+//                keysFile.add(new KeybindingInfo("D-SLASH", false, TOGGLE_COMMENT_ACTION), var);
+            }
         }
         return false;
     }
 
     @Override
     protected boolean processMethodAnnotation(ExecutableElement method, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
+        if (mirror.getAnnotationType().toString().equals(ACTION_BINDINGS_ANNO)) {
+            return handleActionBinding(method, mirror, roundEnv);
+        }
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if (mimeType == null) {
             return true;
@@ -204,28 +227,128 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
 //                writeLayerEntriesForKeysFile(file, p, method, mimeType);
             }
         }
-        generateActionImplementation(actionName, method, mimeType, mirror);
+//        addLayerTask(layer -> {
+        generateActionImplementation(layer(method), actionName, method, mimeType, mirror);
+//        });
         return false;
+    }
+
+    private boolean handleActionBinding(Element on, AnnotationMirror anno, RoundEnvironment env) throws IOException, SAXException {
+        String mimeType = utils().annotationValue(anno, "mimeType", String.class);
+        List<AnnotationMirror> bindings = utils().annotationValues(anno, "bindings", AnnotationMirror.class);
+        if (bindings.isEmpty()) {
+            utils().warn("ActionBindings annotation does not specify any "
+                    + "bindings", on, anno);
+            return false;
+        }
+        for (AnnotationMirror binding : bindings) {
+            List<AnnotationMirror> keyBindings = utils().annotationValues(binding, "bindings", AnnotationMirror.class);
+            if (keyBindings.isEmpty()) {
+                utils().warn("Empty keybindings for " + mimeType, on, binding);
+            }
+            for (AnnotationMirror keybinding : keyBindings) {
+                List<String> profiles = utils().annotationValues(keybinding, "profiles", String.class);
+                if (profiles.isEmpty()) {
+                    profiles = Arrays.asList("NetBeans");
+                }
+                String actionName = utils().enumConstantValue(binding, "action", "NONE");
+                if ("NONE".equals(actionName)) {
+                    actionName = utils().annotationValue(binding, "actionName", String.class);
+                } else {
+                    // Translate the enum constant to the actual action name
+                    // from ExtKit et. al.
+                    actionName = nameForBuiltInActionEnumConstant(actionName);
+                }
+
+                if (actionName == null) {
+                    utils().fail("No action name specified", on, keybinding);
+                }
+                String keyName = utils().enumConstantValue(keybinding, "key");
+                Set<String> modifiers = utils().enumConstantValues(keybinding, "modifiers");
+                String bindingDescriptor = keybinding(keyName, modifiers, on);
+//                System.out.println("KB ANNO BIND " + actionName + " to " + bindingDescriptor);
+                for (String profile : profiles) {
+                    boolean mac = utils().annotationValue(keybinding, "appleSpeific", Boolean.class, Boolean.FALSE);
+                    KeysFile file = keysFile(mimeType, profile, mac);
+                    KeybindingInfo info = new KeybindingInfo(bindingDescriptor, mac, actionName);
+                    file.add(info, on);
+                }
+            }
+        }
+        return false;
+    }
+
+    private static String nameForBuiltInActionEnumConstant(String enumConstantName) {
+        // Generated by BuiltInAction.main()
+        // Regenerate if the set of enum constants changes there
+        switch (enumConstantName) {
+            case "ToggleToolbar":
+                return "toggle-toolbar";
+            case "ToggleLineNumbers":
+                return "toggle-line-numbers";
+            case "ToggleNonPrintableCharacters":
+                return "toggle-non-printable-characters";
+            case "GotoDeclaration":
+                return "goto-declaration";
+            case "ZoomTextIn":
+                return "zoom-text-in";
+            case "ZoomTextOut":
+                return "zoom-text-out";
+            case "ToggleRectangularSelection":
+                return "toggle-rectangular-selection";
+            case "TransposeLetters":
+                return "transpose-letters";
+            case "MoveCodeElementUp":
+                return "move-code-element-up";
+            case "MoveCodeElementDown":
+                return "move-code-element-down";
+            case "RemoveSurroundingCode":
+                return "remove-surrounding-code";
+            case "OrganizeImports":
+                return "organize-imports";
+            case "OrganizeMembers":
+                return "organize-members";
+            case "ToggleTypingMode":
+                return "toggle-typing-mode";
+            case "RemoveLastCaret":
+                return "remove-last-caret";
+            case "GotoPrevOccurrence":
+                return "prev-marked-occurrence";
+            case "GotoNextOccurrence":
+                return "next-marked-occurrence";
+            case "AddCaretUp":
+                return "add-caret-up";
+            case "AddCaretDown":
+                return "add-caret-down";
+            case "ToggleComment":
+                return "toggle-comment";
+        }
+        return null;
     }
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws IOException {
-        System.out.println("KEYB on round complete with " + files);
-        for (KeysFile file : files.values()) {
-            writeOneKeysFileAndActions(file, elementForFile.get(file));
+        if (env.processingOver()) {
+//            System.out.println("KEYB on round complete with " + files.size()
+//                    + " files: " + files);
+            List<KeysFile> all = new ArrayList<>(files.values());
+            files.clear();
+            for (KeysFile file : all) {
+                writeOneKeysFileAndActions(file, elementForFile.get(file));
+            }
+            elementForFile.clear();
         }
-        files.clear();
-        return false;
+        return true;
     }
 
-    private void generateActionRegistrationForMethodReturningAction(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException {
+    private void generateActionRegistrationForMethodReturningAction(LayerBuilder layer, String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException {
         TypeElement owningClass = AnnotationUtils.enclosingType(method);
         String fqn = owningClass.getQualifiedName() + "." + method.getSimpleName();
 //        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
         String fqnDashes = fqn.replace('.', '-');
         String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
                 + fqnDashes + ".instance";
-        LayerBuilder layer = layer(method);
+//        LayerBuilder layer = layer(method);
         layer.file(actionRegistration)
                 .methodvalue("instanceCreate", owningClass.getQualifiedName().toString(),
                         method.getSimpleName().toString())
@@ -239,14 +362,15 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         actionPosition++;
     }
 
-    private void generateActionImplementation(String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException, LayerGenerationException {
+    private void generateActionImplementation(LayerBuilder layer, String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException, LayerGenerationException {
+//        System.out.println("generateActionImplementation " + actionName + " mime " + mimeType);
         // check return type
         if (utils().isAssignable(method.getReturnType(), ACTION_TYPE)) {
             if (!method.getParameters().isEmpty()) {
                 utils().fail("Methods which return an action may not take parameters", method);
                 return;
             }
-            generateActionRegistrationForMethodReturningAction(actionName, method, mimeType, mirror);
+            generateActionRegistrationForMethodReturningAction(layer, actionName, method, mimeType, mirror);
             return;
         }
         String displayName = utils().annotationValue(mirror, "displayName", String.class);
@@ -299,7 +423,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                     typeToVar.put(ACTION_EVENT_TYPE, "evt");
                     typeToVar.put(J_TEXT_COMPONENT_TYPE, "target");
                     typeToVar.put(EXTRACTION_TYPE, "extraction");
-                    Consumer<BlockBuilderBase<?,?>> invokeTheMethod = bb -> {
+            Consumer<BlockBuilderBase<?, ?>> invokeTheMethod = bb -> {
                         if (argumentTypes.contains(DOCUMENT_TYPE)) {
                             bb.declare("doc").initializedByInvoking("getDocument").on("target").as(simpleName(DOCUMENT_TYPE));
                             typeToVar.put(DOCUMENT_TYPE, "doc");
@@ -382,7 +506,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         }
         super.share(actionsKey(mimeType), "new " + clazz.fqn() + "()");
         writeOne(clazz);
-        LayerBuilder layer = layer(method);
+//        LayerBuilder layer = layer(method);
         String fqnDashes = programmaticName == null ? clazz.fqn().replace('.', '-') : programmaticName;
         String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
                 + fqnDashes + ".instance";
@@ -414,10 +538,12 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     private void writeOneKeysFileAndActions(KeysFile file, Element method) throws IOException {
         Filer filer = processingEnv.getFiler();
         String path = packagePath(file.mimeType()) + file.name;
-        System.out.println("Write keys file and actions " + file.mimeType + " to " + path);
+//        System.out.println("Write keys file and actions " + file.mimeType + " to " + path);
         FileObject resource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path, method);
         try (OutputStream out = resource.openOutputStream()) {
-            out.write(file.toString().getBytes(UTF_8));
+            byte[] outBytes = file.toString().getBytes(UTF_8);
+            out.write(outBytes);
+            bytes.put(path, outBytes);
             writeLayerEntriesForKeysFile(file, file.profile, method, file.mimeType);
         }
     }
@@ -452,21 +578,61 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         return el.getQualifiedName().toString().replace('.', '/') + '/';
     }
 
+    private Map<String, byte[]> bytes = new HashMap<>();
+
+    public static void copy(InputStream is, OutputStream os)
+            throws IOException {
+        final byte[] BUFFER = new byte[65536];
+        int len;
+
+        for (;;) {
+            len = is.read(BUFFER);
+
+            if (len == -1) {
+                return;
+            }
+
+            os.write(BUFFER, 0, len);
+        }
+    }
+
+    private InputStream existingFileBytes(String packagePath) throws IOException {
+        // We get into trouble if multiple things try to reread the bytes
+        // on disk, so we need to cache them Filer will not allow us to
+        // read a file more than once
+        byte[] result = bytes.get(packagePath);
+        Filer filer = processingEnv.getFiler();
+        if (result == null) {
+            FileObject existing = filer.getResource(StandardLocation.CLASS_OUTPUT, "", packagePath);
+            try (InputStream in = existing.openInputStream()) {
+                ByteArrayOutputStream outBytes = new ByteArrayOutputStream();
+                copy(in, outBytes);
+                result = outBytes.toByteArray();
+                bytes.put(packagePath, result);
+            } catch (FileNotFoundException | NoSuchFileException e) {
+                // ok
+            }
+        }
+        return result == null ? null : new ByteArrayInputStream(result);
+    }
+
     private KeysFile keysFile(String mimeType, String profile, boolean mac) throws IOException, SAXException {
         String keysFileName = keysFileName(mimeType, profile, mac);
         KeysFile file = files.get(keysFileName);
+//        Optional<String> commentAction = super.get(LanguageRegistrationDelegate.COMMENT_STRING);
+//        if (commentAction.isPresent()) {
+//            String key = "D-SLASH";
+//            String entry = "<bind actionName=\"" + TOGGLE_COMMENT_ACTION + "\" key=\"" + key + "\"/>";
+////            System.out.println("Including " + TOGGLE_COMMENT_ACTION + " as " + entry);
+//            file.bindings.add(entry);
+//        }
         if (file == null) {
             file = new KeysFile(keysFileName, mimeType, profile);
             files.put(keysFileName, file);
             String path = packagePath(mimeType) + keysFileName;
-            Filer filer = processingEnv.getFiler();
-            try {
-                FileObject existing = filer.getResource(StandardLocation.CLASS_OUTPUT, "", path);
-                try (InputStream in = existing.openInputStream()) {
-                    file.loadExisting(in);
-                }
-            } catch (FileNotFoundException | NoSuchFileException e) {
-                // ok
+            InputStream existingBytes = existingFileBytes(path);
+            if (existingBytes != null) {
+                file.loadExisting(existingBytes);
             }
         }
         return file;
@@ -528,7 +694,8 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         }
 
         private String elementToComment(Element el) {
-            TypeElement type = AnnotationUtils.enclosingType(el);
+            TypeElement type = el instanceof TypeElement
+                    ? (TypeElement) el : AnnotationUtils.enclosingType(el);
             return "    <!-- " + type.getQualifiedName() + "." + el + " -->\n";
         }
 
@@ -569,7 +736,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                         if ((actionName == null || actionName.isEmpty()) || (key == null || key.isEmpty())) {
                             continue;
                         }
-                        String entry = "<bind actionName=\"" + name + "\" key=\"" + key + "\"/>";
+                        String entry = "<bind actionName=\"" + actionName + "\" key=\"" + key + "\"/>";
                         bindings.add(entry);
                     }
                 }

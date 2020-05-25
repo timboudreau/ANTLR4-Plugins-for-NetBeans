@@ -32,6 +32,13 @@ import java.util.Map;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
+import static org.nemesis.registration.EditorFeaturesAnnotationProcessor.EDITOR_FEATURES_ANNO;
+import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.FOLD_REGISTRATION_ANNO;
+import static org.nemesis.registration.FormattingRegistrationProcessor.FORMATTER_REGISTRATION_ANNO_TYPE;
+import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
+import static org.nemesis.registration.ImportsAndResolvableProcessor.RESOLVER_ANNOTATION;
+import static org.nemesis.registration.InplaceRenameProcessor.INPLACE_RENAME_ANNO_TYPE;
+import static org.nemesis.registration.KeybindingsAnnotationProcessor.ACTION_BINDINGS_ANNO;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 import org.nemesis.registration.typenames.KnownTypes;
@@ -55,10 +62,36 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
         LanguageRegistrationDelegate main = new LanguageRegistrationDelegate();
         KeybindingsAnnotationProcessor keys = new KeybindingsAnnotationProcessor();
         LanguageFontsColorsProcessor proc = new LanguageFontsColorsProcessor();
+        EditorFeaturesAnnotationProcessor features = new EditorFeaturesAnnotationProcessor();
         HighlighterKeyRegistrationProcessor hkProc = new HighlighterKeyRegistrationProcessor();
+        FoldRegistrationAnnotationProcessor foldProc = new FoldRegistrationAnnotationProcessor();
+        FormattingRegistrationProcessor formatting = new FormattingRegistrationProcessor();
+        GotoDeclarationProcessor gotos = new GotoDeclarationProcessor();
+        ImportsAndResolvableProcessor imports = new ImportsAndResolvableProcessor();
+        InplaceRenameProcessor renames = new InplaceRenameProcessor();
         delegates
+                .apply(main).to(ElementKind.CLASS)
+                .whenAnnotationTypes(REGISTRATION_ANNO)
+                .apply(features)
+                .to(ElementKind.CLASS, ElementKind.FIELD, ElementKind.CONSTRUCTOR, ElementKind.METHOD)
+                .whenAnnotationTypes(EDITOR_FEATURES_ANNO)
+                .apply(foldProc)
+                .to(ElementKind.FIELD)
+                .whenAnnotationTypes(FOLD_REGISTRATION_ANNO)
+                .apply(formatting)
+                .to(ElementKind.CLASS)
+                .whenAnnotationTypes(FORMATTER_REGISTRATION_ANNO_TYPE, REGISTRATION_ANNO)
+                .apply(gotos)
+                .to(ElementKind.FIELD, ElementKind.CLASS)
+                .whenAnnotationTypes(GOTO_ANNOTATION, REGISTRATION_ANNO)
+                .apply(imports)
+                .to(ElementKind.FIELD)
+                .whenAnnotationTypes(IMPORTS_ANNOTATION, RESOLVER_ANNOTATION)
+                .apply(renames)
+                .to(ElementKind.FIELD)
+                .whenAnnotationTypes(INPLACE_RENAME_ANNO_TYPE, IMPORTS_ANNOTATION)
                 .apply(keys).to(ElementKind.CLASS, ElementKind.METHOD, ElementKind.FIELD)
-                .whenAnnotationTypes(KEYBINDING_ANNO, GOTO_ANNOTATION)
+                .whenAnnotationTypes(KEYBINDING_ANNO, GOTO_ANNOTATION, ACTION_BINDINGS_ANNO)
                 .apply(proc).to(ElementKind.CLASS, ElementKind.INTERFACE)
                 .onAnnotationTypesAnd(REGISTRATION_ANNO)
                 .to(ElementKind.FIELD).whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
@@ -70,9 +103,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
                 .whenAnnotationTypes(SEMANTIC_HIGHLIGHTING_ANNO)
                 .apply(hkProc)
                 .to(ElementKind.FIELD)
-                .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO)
-                .apply(main).to(ElementKind.CLASS)
-                .whenAnnotationTypes(REGISTRATION_ANNO);
+                .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO);
     }
 
     static ClassBuilder<String> newClassBuilder(String pkg, String name, TypeName... imports) {

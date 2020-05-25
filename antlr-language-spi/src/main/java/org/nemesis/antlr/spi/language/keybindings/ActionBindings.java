@@ -21,11 +21,30 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 import java.lang.annotation.Target;
 
 /**
+ * Bind an existing action by name to a set of keystrokes in the
+ * editor kit for a particular mime type - this annotation is just
+ * for tying <i>preexisting actions</i> to a particular MIME type's
+ * editor kit. To generate new actions with code you write, use
+ * the {@link Keybindings} and {@link KeyBinding} annotations; this
+ * annotation may then be used to associate them with a particular
+ * editor kit, as opposed to just popup and main menu bindings.
  *
  * @author Tim Boudreau
  */
-@Retention(SOURCE)
-@Target({FIELD, TYPE, METHOD, CONSTRUCTOR})
+@Retention( SOURCE )
+@Target( { FIELD, TYPE, METHOD, CONSTRUCTOR } )
 public @interface ActionBindings {
+    /**
+     * The mime type these bindings apply to.
+     *
+     * @return The mime type
+     */
+    String mimeType();
 
+    /**
+     * The set of action bindings you want to bind.
+     *
+     * @return The bindings
+     */
+    ActionBinding[] bindings();
 }

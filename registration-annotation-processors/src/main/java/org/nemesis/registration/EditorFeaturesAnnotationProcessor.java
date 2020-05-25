@@ -17,7 +17,7 @@ package org.nemesis.registration;
 
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
-import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
+import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.function.throwing.io.IOConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.element.AnnotationMirror;
@@ -46,6 +45,7 @@ import static javax.lang.model.element.Modifier.STATIC;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
+import static org.nemesis.registration.EditorFeaturesAnnotationProcessor.EDITOR_FEATURES_ANNO;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.CRITERIA;
 import static org.nemesis.registration.typenames.KnownTypes.DELETED_TEXT_INTERCEPTOR;
@@ -55,16 +55,17 @@ import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.NB_BUNDLE;
 import static org.nemesis.registration.typenames.KnownTypes.OPTIONS_PANEL_CONTROLLER;
 import static org.nemesis.registration.typenames.KnownTypes.TYPED_TEXT_INTERCEPTOR;
-import org.openide.util.lookup.ServiceProvider;
 
 /**
  *
  * @author Tim Boudreau
  */
 //@SupportedSourceVersion(SourceVersion.RELEASE_8)
-@SupportedAnnotationTypes("com.mastfrog.editor.features.annotations.EditorFeaturesRegistration")
-@ServiceProvider(service = Processor.class, position = 100)
-public final class EditorFeaturesAnnotationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
+@SupportedAnnotationTypes(EDITOR_FEATURES_ANNO)
+//@ServiceProvider(service = Processor.class, position = 100)
+public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDelegate {
+
+    public static final String EDITOR_FEATURES_ANNO = "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration";
 
     /*
     Boilerplate[] insertBoilerplate() default {};
@@ -523,7 +524,6 @@ public final class EditorFeaturesAnnotationProcessor extends AbstractLayerGenera
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
-        System.out.println("INIT " + getClass().getSimpleName());
         test = utils.testMirror()
                 .testMember("mimeType")
                 .validateStringValueAsMimeType()

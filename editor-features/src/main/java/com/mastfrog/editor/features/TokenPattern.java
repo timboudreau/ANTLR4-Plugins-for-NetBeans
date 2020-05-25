@@ -198,13 +198,16 @@ final class TokenPattern {
 
     public boolean test(EditorFeatureUtils utils, ContextWrapper wrapper, int position) {
         return utils.withTokenSequence(wrapper.document(), position, !forward, (ts) -> {
+            // FIXME: We have some cases where the loop never exits, so place
+            // an artificial limit
+            final int loopMax = 500;
             if (forward) {
                 boolean moveSuccess = true;
-                for (int type = ts.token().id().ordinal(), patternPos = 0;
-                        !stop.test(type);
+                for (int type = ts.token().id().ordinal(), patternPos = 0, loopCount = 0;
+                        !stop.test(type) && loopCount < loopMax;
                         moveSuccess = ts.moveNext(), type = moveSuccess
                         ? ts.token().id().ordinal()
-                        : -1) {
+                        : -1, loopCount++) {
                     if (!ignore.test(type)) {
                         if (pattern[patternPos].test(type)) {
                             patternPos++;
@@ -219,11 +222,11 @@ final class TokenPattern {
                 return !moveSuccess ? startOrEndOk : false;
             } else {
                 boolean moveSuccess = true;
-                for (int type = ts.token().id().ordinal(), patternPos = pattern.length - 1;
-                        !stop.test(type);
+                for (int type = ts.token().id().ordinal(), patternPos = pattern.length - 1, loopCount = 0;
+                        !stop.test(type) && loopCount < loopMax;
                         moveSuccess = ts.movePrevious(), type = moveSuccess
                         ? ts.token().id().ordinal()
-                        : -1) {
+                        : -1, loopCount++) {
                     if (!ignore.test(type)) {
                         if (pattern[patternPos].test(type)) {
                             patternPos--;

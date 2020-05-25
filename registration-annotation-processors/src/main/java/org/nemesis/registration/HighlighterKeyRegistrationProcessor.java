@@ -227,12 +227,12 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             return sb.append('}').toString();
         }
 
-        public VariableElement[] allVars() {
+        public Element[] allVars() {
             Set<VariableElement> els = new HashSet<>();
             for (Entry e : this) {
                 els.add(e.var);
             }
-            return els.toArray(new VariableElement[els.size()]);
+            return els.toArray(new Element[els.size()]);
         }
 
         final class Entry implements Comparable<Entry> {
@@ -469,7 +469,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     private boolean generateForMimeType(String mimeType, HighlightingInfo master, boolean saveLayer, boolean saveClass, int position) throws IOException {
         // Highlights clobber each other if the same factory generates instances
         // that belong at different z-orders
-        int ct = 0;
+        int[] ct = new int[1];
         for (HighlightingInfo info : master.splitByZOrder()) {
             String generatedClassName = info.generatedClassName();
             String pkg = info.packageName();
@@ -528,12 +528,15 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 savedToLayer.add(fqn);
                 String layerFileName = fqn.replace('.', '-');
                 String registrationFile = "Editors/" + info.mimeType + "/" + layerFileName + ".instance";
-                LayerBuilder layer = layer(info.allVars());
-                layer.file(registrationFile)
-                        .stringvalue("instanceClass", fqn)
-                        .stringvalue("instanceOf", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory")
-                        .intvalue("position", position + ct++)
-                        .write();
+                int pos = position;
+                withLayer((LayerBuilder layer) -> {
+                    layer.file(registrationFile)
+                            .stringvalue("instanceClass", fqn)
+                            .stringvalue("instanceOf", "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory")
+                            .intvalue("position", pos + ct[0]++)
+                            .write();
+
+                }, info.allVars());
             }
         }
         return false;

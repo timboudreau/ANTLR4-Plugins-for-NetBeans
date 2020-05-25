@@ -17,14 +17,37 @@ package org.nemesis.antlr.spi.language.keybindings;
 
 /**
  * Allows a custom keybinding to be set up for an existing NetBeans action
- * for a particular mime type and profile.
+ * for a particular mime type and profile. One of <code>
+ * actionName()</code> or <code>action()</code> must be specified
+ * (but not both or neither) to indicate what action the keybindings
+ * should trigger.
  *
  * @author Tim Boudreau
  */
 public @interface ActionBinding {
 
-    NetBeansActions action() default NetBeansActions.NONE;
+    /**
+     * One of the set of predefined actions (mostly defined on ExtKit
+     * in the editor api).
+     *
+     * @return A built in action
+     */
+    BuiltInAction action() default BuiltInAction.NONE;
+
+    /**
+     * The name of an action you have defined or know is defined in
+     * the application.
+     *
+     * @return The action name
+     */
     String actionName() default "";
+
+    /**
+     * The set of (at least one) keybindings to associate; there may be multiple
+     * ones (for example, some keyboards have a Find key in addition
+     * to CTRL-F, and both should be bound).
+     *
+     * @return An array of keybindings
+     */
     Keybinding[] bindings();
-    String mimeType();
 }

@@ -26,7 +26,7 @@ limitations under the License.
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <headlessTests>true</headlessTests>
-        <netbeans.version>RELEASE112</netbeans.version>
+        <netbeans.version>RELEASE113</netbeans.version>
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/../license-notice-apache-2.txt</netbeans.hint.licensePath>
         <!--<netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>-->
