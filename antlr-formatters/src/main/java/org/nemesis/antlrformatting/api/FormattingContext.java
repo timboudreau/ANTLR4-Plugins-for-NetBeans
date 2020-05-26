@@ -142,4 +142,10 @@ public abstract class FormattingContext {
      * @param replacement The replacement text.
      */
     public abstract void replace(String replacement);
+
+    public abstract void prependTripleNewline();
+
+    public abstract void prependTripleNewlineAndIndentBy(int i);
+
+    public abstract void prependTripleNewlineAndIndent();
 }

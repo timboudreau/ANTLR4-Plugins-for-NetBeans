@@ -23,7 +23,6 @@ import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
-import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_SPACE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
 
 /**
@@ -41,7 +40,7 @@ final class ParenthesesSpacing extends AbstractFormatter {
         rules.onTokenType(LPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.matching(LPAREN)))
                 .whereNextTokenTypeNot(LPAREN)
                 .priority(100)
-                .format(APPEND_SPACE);
+                .format(spaceOrWrap);
         rules.onTokenType(LPAREN).wherePreviousTokenType(COLON).format(PREPEND_SPACE);
         rules.onTokenType(ID)
                 .wherePreviousTokenType(COLON)

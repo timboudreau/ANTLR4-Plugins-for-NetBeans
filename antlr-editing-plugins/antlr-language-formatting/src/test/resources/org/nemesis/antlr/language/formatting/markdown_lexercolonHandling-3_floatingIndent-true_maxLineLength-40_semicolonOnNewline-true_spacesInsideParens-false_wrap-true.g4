@@ -1,121 +1,84 @@
 lexer grammar MarkdownLexer;
 
-/*
-A work in progress, far from usable, but showed up some formatting
-problems with formatting mode names, so including it here.
-*/
- OpenHeading :
-             POUND+ INLINE_WHITESPACE* -> pushMode(HEADING);
+OpenHeading :
+            POUND+ INLINE_WHITESPACE* -> pushMode(HEADING);
 
 OpenPara :
-         (LETTER | DIGIT) -> more,
+         (LETTER | DIGIT | OPEN_BRACE |
+             OPEN_PAREN) -> more,
              pushMode(PARAGRAPH);
 
 OpenBulletList :
                INLINE_WHITESPACE+
-                   ASTERISK
-                   INLINE_WHITESPACE -> more,
+                   ASTERISK -> more,
                    pushMode(LIST);
 
 OpenNumberedList :
                  INLINE_WHITESPACE+ DIGIT+
-                     DOT
-                     INLINE_WHITESPACE -> more,
+                     DOT -> more,
                      pushMode(LIST);
 
 OpenBlockQuote :
-               GT -> pushMode(BLOCKQUOTE);
+               INLINE_WHITESPACE* GT -> pushMode(BLOCKQUOTE);
 
 Whitespace :
            ALL_WS
            ;
 
-Underline :
-          NEWLINE DASH DASH DASH+ NEWLINE
-          ;
-
-DoubleUnderline :
-                NEWLINE EQUALS EQUALS
-                    EQUALS+ NEWLINE
-                ;
-
-mode BLOCKQUOTE;
-
-BlockQuote :
-           BlockQuoteBody -> popMode;
-
-BlockQuoteBody :
-               (LETTER | DIGIT) -> more,
-                   pushMode(PARAGRAPH);
-
-mode LIST;
-
-ListItem :
-         (ListItemBulletHead |
-             ListItemNumberedHead)
-             ListItemBody
-         ;
-
-ListItemBody :
-             (LETTER | DIGIT) -> more,
-                 pushMode(LIST_ITEM);
-
-ListItemBulletHead :
-                   BulletHeader
-                       INLINE_WHITESPACE
-                   ;
-
-ListItemNumberedHead :
-                     NumberHeader DOT
-                         INLINE_WHITESPACE
-                     ;
-
-BulletHeader :
-             INLINE_WHITESPACE+ ASTERISK {
-
-
- System.out.println("Bullet header"); }
-             ;
-
-NumberHeader :
-             INLINE_WHITESPACE+ DIGIT+ {
-
-
- System.out.println("Number header"); }
-             ;
-
-mode LIST_ITEM;
-
-ListItemContent :
-                ListItemInnerContent -> popMode;
-
-ListItemInnerContent :
-                     (LETTER | DIGIT) -> more,
-                         pushMode(PARAGRAPH);
-
-// Heaading Mode
-mode HEADING;
-
-HeadingContent :
-               HeadingWordLike
-                   INLINE_WHITESPACE*
-                   PUNCTUATION*
-                   INLINE_WHITESPACE* (HeadingWordLike
-                   INLINE_WHITESPACE*
-                   PUNCTUATION*
-                   INLINE_WHITESPACE*)
+HorizontalRule :
+               (DASH DASH DASH+ NEWLINE)
+               | (ASTERISK ASTERISK
+                   ASTERISK+ NEWLINE)
+               | (DASH SPACE DASH SPACE (DASH
+                   SPACE)+ NEWLINE)
+               | (ASTERISK SPACE ASTERISK
+                   SPACE (ASTERISK SPACE)+
+                   SPACE? NEWLINE)
                ;
 
-HeadingClose :
-             NEWLINE -> popMode;
+/*
+Underline
+    : NEWLINE DASH DASH DASH+ NEWLINE;
 
-HeadingWordLike :
-                (LETTER | DIGIT)(LETTER |
-                    DIGIT)+
-                ;
-
-// Paragraph mode
+DoubleUnderline
+    : NEWLINE EQUALS EQUALS EQUALS+ NEWLINE;
+*/
 mode PARAGRAPH;
+
+ParaLink :
+         LINK_TEXT+ COLON SLASH SLASH?
+             LINK_TEXT+
+         ;
+
+ParaWords :
+          WORD_LIKE PUNC2? (INLINE_WHITESPACE*?
+              WORD_LIKE PUNC2?)*
+          ;
+
+ParaNextBullet :
+               (ParaDoubleNewline |
+                   ParaNewLine)?
+                   INLINE_WHITESPACE
+                   ASTERISK -> more, mode(LIST);
+
+ParaBreak :
+          ParaDoubleNewline -> popMode;
+
+ParaDoubleNewline :
+                  INLINE_WHITESPACE*
+                      NEWLINE
+                      INLINE_WHITESPACE*
+                      NEWLINE (INLINE_WHITESPACE*?
+                      NEWLINE)*
+                  ;
+
+ParaInlineWhitespace :
+                     INLINE_WHITESPACE+
+                     ;
+
+ParaNewLine :
+            NEWLINE
+            ;
 
 ParaItalic :
            UNDERSCORE
@@ -141,11 +104,6 @@ ParaBracketClose :
                  CLOSE_BRACKET
                  ;
 
-ParaLink :
-         LINK_TEXT+ COLON SLASH SLASH?
-             LINK_TEXT+
-         ;
-
 ParaOpenParen :
               OPEN_PAREN
               ;
@@ -154,19 +112,73 @@ ParaCloseParen :
                CLOSE_PAREN
                ;
 
-ParaWords :
-          ParaWhitespace? WORDS+
-              ParaWhitespace?
-          ;
+ParaEof :
+        EOF -> more, popMode;
 
-ParaWhitespace :
-               INLINE_WHITESPACE
-               ;
 
-ParaClose :
-          (INLINE_WHITESPACE? (EOF |
-              DOUBLE_NEWLINE | NEWLINE))
-              -> popMode;
+mode BLOCKQUOTE;
+
+BlockQuotePrologue :
+                   INLINE_WHITESPACE
+                   ;
+
+BlockQuote :
+           NON_WHITESPACE -> more, mode(PARAGRAPH);
+
+BlockquoteDoubleNewline :
+                        INLINE_WHITESPACE*
+                            NEWLINE
+                            INLINE_WHITESPACE*
+                            NEWLINE (INLINE_WHITESPACE*?
+                            NEWLINE)* -> popMode;
+
+
+mode LIST;
+
+ListPrologue :
+             DOUBLE_NEWLINE?
+                 INLINE_WHITESPACE
+             ;
+
+ListItem :
+         (LETTER | DIGIT) -> more,
+             pushMode(PARAGRAPH);
+
+NestedListItemHead :
+                   ((INLINE_WHITESPACE+
+                       ASTERISK) | (INLINE_WHITESPACE+
+                       DIGIT+ DOT))
+                       INLINE_WHITESPACE
+                   ;
+
+CloseList :
+          DOUBLE_NEWLINE -> popMode;
+
+//    : DOUBLE_NEWLINE -> mode(DEFAULT_MODE);
+CloseList2 :
+           NEWLINE NON_WHITESPACE -> more,
+               popMode;
+
+
+mode HEADING;
+
+/*
+HeadingContent
+    : HeadingWordLike INLINE_WHITESPACE* PUNCTUATION* INLINE_WHITESPACE* ( HeadingWordLike
+        INLINE_WHITESPACE* PUNCTUATION* INLINE_WHITESPACE* )+;
+*/
+ HeadingContent :
+                WORD_LIKE PUNCTUATION? (INLINE_WHITESPACE*?
+                    WORD_LIKE PUNCTUATION?)*
+                ;
+
+HeadingClose :
+             NEWLINE -> mode(DEFAULT_MODE);
+
+HeadingWordLike :
+                (LETTER | DIGIT)(LETTER |
+                    DIGIT)+
+                ;
 
 /*
 Heading : (POUND WS Words (NEWLINE | DOUBLE_NEWLINE));
@@ -175,35 +187,18 @@ Words : WordLike WS* PUNCTUATION* WS* (WordLike WS* PUNCTUATION* WS*) ;
 
 */
 fragment WORDS :
-               WORD_LIKE PUNC2?
+               INLINE_WHITESPACE?
+                   WORD_LIKE PUNC2?
                    INLINE_WHITESPACE??
                ;
 
 fragment WORD_LIKE :
                    (LETTER | DIGIT)(LETTER
-                       | DIGIT | PUNC2)+
+                       | DIGIT | PUNC2)*
                    ;
 
 fragment PUNC2 :
-               COLON
-               | SEMICOLON
-               | PLUS
-               | BANG
-               | AT
-               | DOT
-               | COMMA
-               | DOLLARS
-               | PERCENT
-               | CAREN
-               | AMPERSAND
-               | DASH
-               | EQUALS
-               | OPEN_BRACE
-               | CLOSE_BRACE
-               | SQUOTE
-               | DQUOTE
-               | OPEN_BRACE
-               | CLOSE_BRACE
+               [><{}/\\:;+!@.,$%^&\-='"?]
                ;
 
 fragment PUNCTUATION :
@@ -211,24 +206,22 @@ fragment PUNCTUATION :
                      ;
 
 fragment LETTER :
-                [a-zA-Z\u0080-\u00FF]
+                [\p{Alphabetic}]
                 ;
 
 fragment DIGIT :
-               '0'..'9'
+               [\p{Digit}]
                ;
 
+//    : '0'..'9';
 fragment ALL_WS :
                 INLINE_WHITESPACE
                 | NEWLINE
                 ;
 
 fragment DOUBLE_NEWLINE :
-                        INLINE_WHITESPACE*
-                            NEWLINE
-                            INLINE_WHITESPACE*
-                            NEWLINE (INLINE_WHITESPACE*
-                            NEWLINE+)?
+                        NEWLINE NEWLINE
+                            NEWLINE*?
                         ;
 
 fragment NEWLINE :
@@ -236,11 +229,18 @@ fragment NEWLINE :
                  ;
 
 fragment SPECIAL_CHARS :
-                       (ASTERISK | STRIKE
-                           | BACKTICK |
-                           POUND | STRIKE)
+                       ASTERISK
+                       | STRIKE
+                       | BACKTICK
+                       | POUND
+                       | STRIKE
                        ;
 
+fragment NON_WHITESPACE :
+                        ~[ \r\n\t]
+                        ;
+
+//    :~[\p{White_Space}];
 fragment LINK_TEXT :
                    [a-zA-Z0-9]
                    | '/'
@@ -252,9 +252,23 @@ fragment PRE :
              ;
 
 fragment INLINE_WHITESPACE :
-                           (' ' | '\t' |
-                               '\r')
+                           SPACE
+                           | TAB
+                           |
+                               CARRIAGE_RETURN
                            ;
+
+fragment SPACE :
+               ' '
+               ;
+
+fragment TAB :
+             '\t'
+             ;
+
+fragment CARRIAGE_RETURN :
+                         '\r'
+                         ;
 
 fragment BACKSLASH :
                    '\\'

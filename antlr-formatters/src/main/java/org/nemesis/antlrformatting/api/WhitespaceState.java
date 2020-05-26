@@ -148,6 +148,10 @@ final class WhitespaceState {
         return this;
     }
 
+    WhitespaceState tripleNewLine() {
+        return newlines(3);
+    }
+
     WhitespaceState flip() {
         usingA = !usingA;
         curr().clear();

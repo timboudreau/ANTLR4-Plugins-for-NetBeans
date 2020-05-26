@@ -61,6 +61,11 @@ public enum SimpleFormattingAction implements FormattingAction {
      * Prepend a newline and two tab stops to the current token.
      */
     PREPEND_NEWLINE_AND_DOUBLE_INDENT,
+
+    /**
+     * Prepend two blank lines and start a new line.
+     */
+    PREPEND_TRIPLE_NEWLINE,
     /**
      * Append a space after the current token (unless the subsequent token
      * prepends newlines or a greater number of spaces).
@@ -217,6 +222,21 @@ public enum SimpleFormattingAction implements FormattingAction {
                         }
                     }
                     break;
+                case PREPEND_TRIPLE_NEWLINE :
+                    if (spacesNotStops) {
+                        ctx.prependTripleNewline();
+                        if (amount > 0) {
+                            ctx.indentBySpaces(amount);
+                        }
+                    } else {
+                        if (amount > 0) {
+                            ctx.prependTripleNewlineAndIndentBy(amount + 1);
+                        } else {
+                            ctx.prependTripleNewlineAndIndent();
+                        }
+                    }
+                    break;
+
                 default:
                     throw new AssertionError(base + " not an indenting formatter");
             }
@@ -536,8 +556,11 @@ public enum SimpleFormattingAction implements FormattingAction {
             case PREPEND_DOUBLE_NEWLINE_AND_INDENT:
                 t.prependDoubleNewlineAndIndent();
                 break;
+            case PREPEND_TRIPLE_NEWLINE :
+                t.prependTripleNewline();;
+                break;
             default:
-                throw new AssertionError();
+                throw new AssertionError(this);
         }
     }
 }

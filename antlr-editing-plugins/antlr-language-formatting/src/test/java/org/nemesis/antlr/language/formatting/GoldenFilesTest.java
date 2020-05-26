@@ -125,6 +125,20 @@ public class GoldenFilesTest {
         testOne(AntlrSampleFiles.MARKDOWN_LEXER, prefs);
     }
 
+    @Test
+    public void testLexerWithModes4() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.STANDALONE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, false,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER, prefs);
+    }
+
     private void testOne(AntlrSampleFiles f, MockPreferences prefs) throws IOException, DiffException, org.antlr.runtime.RecognitionException {
         String fileName = prefs.filename(f.name().toLowerCase(), "g4");
         String s = gf.test(f, prefs, fileName, false);

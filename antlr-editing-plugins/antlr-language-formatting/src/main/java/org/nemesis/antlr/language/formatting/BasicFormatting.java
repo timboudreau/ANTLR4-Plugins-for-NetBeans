@@ -39,6 +39,7 @@ import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_DOU
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
+import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_TRIPLE_NEWLINE;
 
 /**
  *
@@ -84,19 +85,26 @@ public class BasicFormatting extends AbstractFormatter {
                     .format(PREPEND_SPACE.and(APPEND_SPACE));
         });
 
-        rules.onTokenType(LEXCOM_MODE, MODE)
-                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
+        rules.onTokenType(MODE)
+                .format(PREPEND_TRIPLE_NEWLINE.and(APPEND_SPACE));
 
-        rules.onTokenType(LEXCOM_MODE, MODE)
-                .wherePreviousTokenType(SEMI)
-                .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_SPACE));
+        rules.onTokenType(LEXCOM_MODE)
+                .wherePreviousTokenType(SEMI | END_ACTION)
+                .format(PREPEND_NEWLINE);
 
-        rules.onTokenType(ID)
-                .wherePreviousTokenType(LEXCOM_MODE, MODE)
+        rules.onTokenType(LEXCOM_MODE)
+                .format(spaceOrWrap);
+
+        rules.onTokenType(ID, FRAGDEC_ID, TOKEN_ID, PARSER_RULE_ID)
+                .wherePreviousTokenType(LEXCOM_MODE, MODE, RPAREN)
                 .format(spaceOrWrap);
 
         rules.onTokenType(MORE, LEXCOM_MORE, LEXCOM_PUSHMODE, LEXCOM_POPMODE, LEXCOM_TYPE, LEXCOM_SKIP)
                 .wherePreviousTokenType(ANTLRv4Lexer.COMMA)
+                .format(spaceOrWrap);
+
+        rules.onTokenType(LPAREN)
+                .wherePreviousTokenType(ID, FRAGDEC_ID, TOKEN_ID, PARSER_RULE_ID)
                 .format(spaceOrWrap);
 
         rules.onTokenType(RARROW)

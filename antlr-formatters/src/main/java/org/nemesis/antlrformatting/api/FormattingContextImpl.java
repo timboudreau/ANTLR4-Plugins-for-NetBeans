@@ -472,6 +472,21 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     }
 
     @Override
+    public void prependTripleNewline() {
+        lineState.prepend().tripleNewLine();
+    }
+
+    @Override
+    public void prependTripleNewlineAndIndentBy(int amt) {
+        lineState.prepend().tripleNewLine().indentBy(amt);
+    }
+
+    @Override
+    public void prependTripleNewlineAndIndent() {
+        lineState.prepend().tripleNewLine().indent();
+    }
+
+    @Override
     public void appendNewlineAndIndentBy(int amt) {
         lineState.append().newline().indentBy(amt);
     }
