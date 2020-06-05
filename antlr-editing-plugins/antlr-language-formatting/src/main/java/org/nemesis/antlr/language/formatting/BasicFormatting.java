@@ -213,6 +213,7 @@ public class BasicFormatting extends AbstractFormatter {
                     .onTokenType(COLON)
                     .clearingOnTokenType(-1);
         }
+
         bldr
                 .recordPosition(LINE_COMMENT_INDENT)
                 .beforeProcessingToken()

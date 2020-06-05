@@ -20,6 +20,14 @@ import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Boile
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.DelimiterPair;
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Elision;
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.LinePosition;
+import java.awt.BorderLayout;
+import javax.swing.Action;
+import javax.swing.JEditorPane;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.KeyStroke;
+import javax.swing.text.EditorKit;
+import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
 import static org.nemesis.antlr.ANTLRv4Lexer.LINE_COMMENT;
@@ -29,6 +37,14 @@ import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.STRING_LITERAL;
 import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_ID;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.antlr.spi.language.keybindings.Key;
+import org.nemesis.antlr.spi.language.keybindings.KeyModifiers;
+import org.nemesis.antlr.spi.language.keybindings.Keybinding;
+import org.nemesis.antlr.spi.language.keybindings.Keybindings;
+import org.netbeans.editor.BaseKit;
+import org.netbeans.editor.MultiKeymap;
+import static org.netbeans.editor.Utilities.keyStrokeToString;
+import org.openide.windows.TopComponent;
 
 /**
  *
@@ -86,7 +102,11 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                     inserting = "(^)",
                     whenCurrentTokenNot = {
                         ANTLRv4Lexer.STRING_LITERAL,
-                        ANTLRv4Lexer.LINE_COMMENT, ANTLRv4Lexer.BLOCK_COMMENT,
+                        ANTLRv4Lexer.ID,
+                        ANTLRv4Lexer.PARSER_RULE_ID,
+                        ANTLRv4Lexer.TOKEN_ID,
+                        ANTLRv4Lexer.LINE_COMMENT,
+                        ANTLRv4Lexer.BLOCK_COMMENT,
                         ANTLRv4Lexer.STRING_LITERAL,
                         ANTLRv4Lexer.PARDEC_LINE_COMMENT,
                         ANTLRv4Lexer.CHN_BLOCK_COMMENT,
@@ -144,4 +164,50 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 //})
 public class Foo {
 
+    @Keybindings(mimeType = ANTLR_MIME_TYPE, description = "Dump the editor kit", displayName = "Dump Editor Kit", name = "dumpEditorKit",
+            popup = true, menuPath = "Edit", keybindings = @Keybinding(key = Key.EIGHT, modifiers = KeyModifiers.CTRL_OR_COMMAND))
+    public static void dumpEditorKit(JTextComponent comp) {
+        EditorKit kit = ((JEditorPane) comp).getEditorKit();
+        StringBuilder sb = new StringBuilder("Editor Kit: ").append(kit.getClass().getName()).append('\n');
+        if (kit instanceof BaseKit) {
+            BaseKit bk = (BaseKit) kit;
+            sb.append(bk.getContentType()).append("\n\n");
+            MultiKeymap map = bk.getKeymap();
+            sb.append("KeymapClass\t" + map.getClass().getName()).append("\n");
+            Action[] actions = map.getBoundActions();
+            KeyStroke[] keys = map.getBoundKeyStrokes();
+            sb.append(actions.length).append(" actions ").append(keys.length).append(" keys").append('\n');
+            sb.append("Locally Defined:\n");
+            for (int i = 0; i < keys.length; i++) {
+                KeyStroke key = keys[i];
+                if (map.isLocallyDefined(key)) {
+                    Action a = map.getAction(key);
+                    sb.append('\t').append(i).append(keyStrokeToString(key))
+                            .append('\t').append(a.getValue(Action.NAME)).append(" (").append(a.getClass().getName()).append(")\n");
+                }
+            }
+            sb.append("\nInherited: \n");
+            for (int i = 0; i < keys.length; i++) {
+                KeyStroke key = keys[i];
+                if (!map.isLocallyDefined(key)) {
+                    Action a = map.getAction(key);
+                    sb.append('\t').append(i).append(keyStrokeToString(key))
+                            .append('\t').append(a.getValue(Action.NAME)).append(" (").append(a.getClass().getName()).append(")\n");
+                }
+            }
+            Action tk = bk.getActionByName("toggle-comment");
+            sb.append("\nToggle Comment Action:\t").append(tk);
+        } else {
+            sb.append("Not a BaseKit: ").append(kit.getClass().getName()).append("\t").append(kit);
+        }
+
+        TopComponent tc = new TopComponent();
+        tc.setLayout(new BorderLayout());
+        JTextArea a = new JTextArea(sb.toString());
+        a.setEditable(false);
+        tc.add(new JScrollPane(a), BorderLayout.CENTER);
+        tc.setDisplayName("Editor Kit");
+        tc.open();
+        tc.requestActive();
+    }
 }

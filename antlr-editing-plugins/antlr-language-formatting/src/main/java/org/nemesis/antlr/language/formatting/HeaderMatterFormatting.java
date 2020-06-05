@@ -16,11 +16,14 @@
 package org.nemesis.antlr.language.formatting;
 
 import com.mastfrog.function.IntBiPredicate;
+import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AbstractFormatter.MODE_OPTIONS;
+import static org.nemesis.antlr.language.formatting.AntlrCounters.DISTANCE_TO_LBRACE;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.SEMICOLON_COUNT;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlrformatting.api.FormattingRules;
+import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_DOUBLE_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_SPACE;
@@ -78,13 +81,35 @@ class HeaderMatterFormatting extends AbstractFormatter {
         rules.whenInMode(AntlrCriteria.mode(MODE_ACTION), rls -> {
             rls.onTokenType(BEGIN_ACTION)
                     .when(AntlrCounters.LEFT_BRACES_PASSED).isEqualTo(1)
+                    .whereNextTokenTypeNot(AntlrCriteria.whitespace())
+                    .when(AntlrCounters.SEMICOLON_COUNT).isLessThanOrEqualTo(1)
                     //                    .wherePreviousTokenType(MEMBERS)
-                    .format(PREPEND_SPACE.and(APPEND_NEWLINE));
+                    .format(PREPEND_SPACE);
         });
+        rules.whenInMode(AntlrCriteria.mode(MODE_ACTION), rls -> {
+            rls.onTokenType(BEGIN_ACTION)
+                    .when(AntlrCounters.LEFT_BRACES_PASSED).isEqualTo(1)
+                    .whereNextTokenTypeNot(AntlrCriteria.whitespace())
+                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    //                    .wherePreviousTokenType(MEMBERS)
+                    .format(PREPEND_SPACE);
+//                    .format(PREPEND_SPACE.and(APPEND_NEWLINE.APPEND_NEWLINE_AND_INDENT));
+        });
+
         rules.whenInMode(grammarRuleModes, rls -> {
             rls.onTokenType(keywordsOrIds).wherePreviousTokenType(END_ACTION)
                     .priority(100)
                     .format(PREPEND_DOUBLE_NEWLINE);
         });
     }
+
+    @Override
+    protected void state(LexingStateBuilder<AntlrCounters, ?> stateBuilder) {
+        stateBuilder.computeTokenDistance(DISTANCE_TO_LBRACE)
+                .onEntering(ANTLRv4Lexer.BEGIN_ACTION)
+                .toNext(LBRACE, BEGIN_ACTION)
+                .ignoringWhitespace();
+    }
+
+
 }

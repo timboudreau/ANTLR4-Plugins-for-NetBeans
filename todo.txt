@@ -2,6 +2,8 @@ mode declarations get mangled by default reformatting.
 
 Various BadLocationExceptions thrown after copy/paste in documents when preview active.  Should really just destroy the model with prejudice and rebuild at that point.
 
+Should add a build listener which can make antlr error lines clickable in output window.
+
 
 Need tests for hetero object graph
 

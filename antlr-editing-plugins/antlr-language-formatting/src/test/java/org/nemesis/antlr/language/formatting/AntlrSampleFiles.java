@@ -42,7 +42,8 @@ public enum AntlrSampleFiles implements SampleFile {
     TOKENS_PARSER,
     SENSORS_PARSER,
     RUST_PARSER,
-    MARKDOWN_LEXER;
+    MARKDOWN_LEXER,
+    MARKDOWN_LEXER_2;
 
     @Override
     public CharStream charStream() throws IOException {
@@ -119,6 +120,9 @@ public enum AntlrSampleFiles implements SampleFile {
             case MARKDOWN_LEXER:
                 return helper.projectBaseDir().resolve(
                         "src/test-golden/MarkdownLexer.g4");
+            case MARKDOWN_LEXER_2:
+                return helper.projectBaseDir().resolve(
+                        "src/test-golden/MarkdownLexerV2.g4");
             default:
                 throw new AssertionError(file);
         }

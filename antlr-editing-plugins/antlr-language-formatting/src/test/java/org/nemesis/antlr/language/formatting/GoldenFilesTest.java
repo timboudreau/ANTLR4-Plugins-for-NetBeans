@@ -139,6 +139,63 @@ public class GoldenFilesTest {
         testOne(AntlrSampleFiles.MARKDOWN_LEXER, prefs);
     }
 
+
+    @Test
+    public void testLexerWithModes5() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_AFTER,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, true,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_MAX_LINE, 40
+        );
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER_2, prefs);
+    }
+
+    @Test
+    public void testLexerWithModes6() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.INLINE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, true,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER_2, prefs);
+    }
+
+    @Test
+    public void testLexerWithModes7() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, true,
+                AntlrFormatterConfig.KEY_WRAP, false,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER_2, prefs);
+    }
+
+    @Test
+    public void testLexerWithModes8() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.STANDALONE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, false,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER_2, prefs);
+    }
+
+
     private void testOne(AntlrSampleFiles f, MockPreferences prefs) throws IOException, DiffException, org.antlr.runtime.RecognitionException {
         String fileName = prefs.filename(f.name().toLowerCase(), "g4");
         String s = gf.test(f, prefs, fileName, false);

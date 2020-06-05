@@ -17,7 +17,6 @@ package org.nemesis.registration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,6 +58,7 @@ import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
@@ -113,6 +113,7 @@ import static org.nemesis.registration.typenames.KnownTypes.ANTLR_PARSE_RESULT;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_PARSER;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_TOKEN;
 import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
+import static org.nemesis.registration.typenames.KnownTypes.BASE_KIT;
 import static org.nemesis.registration.typenames.KnownTypes.BUILT_IN_ACTION;
 import static org.nemesis.registration.typenames.KnownTypes.CHANGE_SUPPORT;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_STREAM;
@@ -806,12 +807,12 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.returning(simpleName(editorKitFqn) + ".INSTANCE").endBlock();
                             });
                 });
-
         withLayer(layer -> {
             String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
             layer(type).file(editorKitFile)
                     .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
-                    .stringvalue("instanceOf", EDITOR_KIT.simpleName())
+                    .stringvalue("instanceOf", EDITOR_KIT.qname() + "," +  editorKitFqn + ','
+                            + NB_EDITOR_KIT.qname() + ',' + BASE_KIT.qname())
                     .write();
 
             layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
@@ -820,7 +821,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         writeOne(cl);
     }
 
-    static final Set<String> EXPECTED_HOOK_METHODS = new HashSet<>(Arrays.asList(
+    static final Set<String> EXPECTED_HOOK_METHODS = setOf(
             "notifyCreated",
             "decorateLookup",
             "createNodeDelegate",
@@ -829,7 +830,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             "handleCopy",
             "handleMove",
             "handleCreateFromTemplate",
-            "handleCopyRename"));
+            "handleCopyRename");
 
     static final Consumer<ClassBuilder<?>> hookMethodGenerator(String hookMethod) {
         switch (hookMethod) {
@@ -1267,9 +1268,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         List<Integer> bracketSkipTokens = utils().annotationValues(syntax, "bracketSkipTokens", Integer.class);
         return !commentTokens.isEmpty() || !whitespaceTokens.isEmpty() || !bracketSkipTokens.isEmpty();
     }
-
-    private static final String EDITOR_TOKEN_ID_TYPE = "org.netbeans.editor.TokenID";
-    private static final String EDITOR_TOKEN_CATEGORY_TYPE = "org.netbeans.editor.TokenCategory";
 
     private String generateSyntaxSupport(String mimeType, Element on, String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, LexerProxy lexer) throws IOException {
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(on);

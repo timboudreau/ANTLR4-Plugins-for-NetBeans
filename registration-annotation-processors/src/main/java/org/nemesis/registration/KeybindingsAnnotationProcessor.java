@@ -490,7 +490,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                         } else {
                             bb.invoke("putValue").withArgument("Action.NAME")
                                     .withStringLiteral(programmaticName == null
-                                            ? displayName : programmaticName);
+                                            ? displayName : programmaticName).inScope();
                             bb.invoke("putValue").withArgument("Action.SHORT_DESCRIPTION")
                                     .withStringLiteral(displayName).inScope();
                         }
