@@ -15,14 +15,22 @@
  */
 package org.nemesis.antlr.language.formatting;
 
+import static org.nemesis.antlr.ANTLRv4Lexer.ASSIGN;
 import static org.nemesis.antlr.ANTLRv4Lexer.COLON;
 import static org.nemesis.antlr.ANTLRv4Lexer.ID;
+import static org.nemesis.antlr.ANTLRv4Lexer.LANGUAGE;
 import static org.nemesis.antlr.ANTLRv4Lexer.LPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
+import static org.nemesis.antlr.ANTLRv4Lexer.SEMI;
+import static org.nemesis.antlr.ANTLRv4Lexer.SUPER_CLASS;
+import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_LABEL_TYPE;
+import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_VOCAB;
+import static org.nemesis.antlr.language.formatting.AbstractFormatter.MODE_OPTIONS;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
+import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
 
 /**
@@ -52,6 +60,17 @@ final class ParenthesesSpacing extends AbstractFormatter {
         rules.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
                 .priority(100)
                 .format(PREPEND_SPACE);
+
+        rules.whenInMode(AntlrCriteria.mode(MODE_OPTIONS), fr -> {
+            fr.onTokenType(ASSIGN).wherePreviousTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE))
+                    .format(spaceOrWrap);
+            fr.onTokenType(ID).wherePreviousTokenType(ASSIGN)
+                    .format(spaceOrWrap);
+            fr.onTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE))
+                    .wherePreviousTokenType(SEMI)
+                    .when(AntlrCounters.SEMICOLON_COUNT).isGreaterThan(1)
+                    .format(PREPEND_NEWLINE_AND_INDENT);
+        });
     }
 
     @Override

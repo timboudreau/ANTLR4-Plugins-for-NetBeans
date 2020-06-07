@@ -24,6 +24,7 @@ import com.mastfrog.antlr.utils.Criterion;
 import org.nemesis.antlrformatting.api.FormattingAction;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
+import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_SPACE;
 
@@ -57,6 +58,7 @@ abstract class AbstractFormatter {
 
     final AntlrFormatterConfig config;
     protected final FormattingAction doubleIndentForWrappedLines;
+    protected final FormattingAction appendDoubleIndent;
     protected final FormattingAction indentCurrent;
     protected final FormattingAction indentToColonPosition;
     protected final FormattingAction spaceOrWrap;
@@ -93,6 +95,10 @@ abstract class AbstractFormatter {
 
             doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
                     .bySpaces(config.getIndent() + 1, COLON_POSITION);
+
+            appendDoubleIndent = APPEND_NEWLINE_AND_DOUBLE_INDENT
+                    .bySpaces(config.getIndent() + 1, COLON_POSITION);
+
             if (config.isWrap()) {
                 indentCurrent = PREPEND_NEWLINE_AND_INDENT
                         .bySpaces(1, COLON_POSITION)
@@ -109,6 +115,8 @@ abstract class AbstractFormatter {
             prependNewlineAndDoubleIndent
                     = PREPEND_NEWLINE_AND_INDENT.bySpaces(config.getIndent() * 2);
             doubleIndentForWrappedLines = PREPEND_NEWLINE_AND_INDENT
+                    .bySpaces(config.getIndent() * 2);
+            appendDoubleIndent = APPEND_NEWLINE_AND_DOUBLE_INDENT
                     .bySpaces(config.getIndent() * 2);
             if (config.isWrap()) {
                 indentCurrent = PREPEND_NEWLINE_AND_INDENT

@@ -18,6 +18,7 @@ package org.nemesis.antlr.language.formatting;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.COLON_POSITION;
+import static org.nemesis.antlr.language.formatting.AntlrCounters.DISTANCE_TO_PRECEDING_SHARP;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.IN_OPTIONS;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.LEFT_BRACES_PASSED;
 import static org.nemesis.antlr.language.formatting.AntlrCounters.LEFT_BRACE_POSITION;
@@ -156,7 +157,20 @@ public class BasicFormatting extends AbstractFormatter {
                     .priority(20)
                     .format(PREPEND_SPACE);
 
+//            rules.onTokenType(ID).wherePreviousTokenType(SHARP)
+//                    .whereNextTokenType(OR)
+//                    .priority(1500)
+//                    .format(appendDoubleIndent);
         });
+
+        rules.onTokenType(OR)
+//                .whenInParserRule(ANTLRv4Parser.RULE_parserRuleLabeledAlternative)
+                .wherePreviousTokenType(ANTLRv4Lexer.ID)
+                .when(DISTANCE_TO_PRECEDING_SHARP)
+                .isEqualTo(-1) //XXX should be 2!
+                .priority(1500)
+                .named("newline-double-indent-after-alternative-label")
+                .format(prependNewlineAndDoubleIndent);
 
         rules.onTokenType(lineComments()).wherePreviousTokenType(
                 criteria.anyOf(ALL_BLOCK_COMMENTS))
@@ -197,6 +211,10 @@ public class BasicFormatting extends AbstractFormatter {
 
     @Override
     protected void state(LexingStateBuilder<AntlrCounters, ?> bldr) {
+        bldr.computeTokenDistance(DISTANCE_TO_PRECEDING_SHARP)
+                .onEntering(ID, OR).toPreceding(SHARP)
+                .ignoringWhitespace();
+
         bldr
                 // For indenting ors
                 .pushPosition(OR_POSITION)

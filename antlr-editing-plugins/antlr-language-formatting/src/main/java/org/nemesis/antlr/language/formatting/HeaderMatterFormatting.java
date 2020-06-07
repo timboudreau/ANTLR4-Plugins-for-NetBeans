@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.language.formatting;
 
+import com.mastfrog.antlr.utils.Criterion;
 import com.mastfrog.function.IntBiPredicate;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
@@ -67,6 +68,13 @@ class HeaderMatterFormatting extends AbstractFormatter {
                     .anyOf(AntlrCriteria.ALL_BLOCK_COMMENTS)).format(APPEND_NEWLINE);
         });
 
+        rules.whenInMode(AntlrCriteria.mode(MODE_OPTIONS), fr -> {
+            fr.onTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE)).wherePreviousTokenType(criteria.matching(LBRACE))
+                    .format(spaceOrWrap);
+            fr.onTokenType(LBRACE).wherePreviousTokenType(OPTIONS)
+                    .format(PREPEND_SPACE);
+        });
+
         rules.onTokenType(ID).wherePreviousTokenType(GRAMMAR, IMPORT)
                 .format(PREPEND_SPACE);
 
@@ -74,6 +82,13 @@ class HeaderMatterFormatting extends AbstractFormatter {
                 .whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_DEFAULT, MODE_IMPORT),
                         AntlrCriteria.mode(MODE_DEFAULT)))
                 .format(APPEND_DOUBLE_NEWLINE);
+
+//        rules.whenInMode(AntlrCriteria.mode(MODE_OPTIONS), fr -> {
+//
+//        });
+        rules.onTokenType(RBRACE).whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_OPTIONS), Criterion.ALWAYS))
+                .format(APPEND_DOUBLE_NEWLINE);
+
 
 //        rules.onTokenType(SEMI).wherePreviousTokenType(ID).format(prependNewlineAndDoubleIndent);
 //        rules.onTokenType(ID).whenEnteringMode(Arrays.asList(modeNames).indexOf(MODE_IDENTIFIER))
