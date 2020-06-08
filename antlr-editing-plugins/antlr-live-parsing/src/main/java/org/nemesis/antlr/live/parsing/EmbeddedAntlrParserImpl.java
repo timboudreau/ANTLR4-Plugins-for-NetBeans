@@ -84,6 +84,9 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     private static final Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
+    static {
+        LOG.setLevel(Level.ALL);
+    }
 
     private Runnable unsubscriber;
     private final String logName;
@@ -157,7 +160,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 info = newInfo;
             }
             LastParseInfo lpi = this.lastParseInfo;
-            if (lpi.canReuse(toParse)) {
+            if (false && lpi.canReuse(toParse)) {
                 LOG.log(Level.FINEST, "Reuse previous parser result {0} "
                         + "for same or null text", lpi);
                 Debug.message(logName + "-reuse-" + info.grammarTokensHash,
@@ -234,12 +237,17 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 }
                 return rev.get();
             });
+        } else {
+            LOG.log(Level.WARNING, "Set an unusable runner on " + path, new Exception());
         }
         return rev.get();
     }
 
     @Override
     public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult) {
+        System.out.println("Accept/Set " + runResult.generationOutput());
+        System.out.println("  " + runResult.diagnostics());
+        System.out.println("  " + runResult.genResult().grammarGenerationErrors());
         Debug.run(this, logName + "-accept-" + t.tokensHash(), runResult::toString, () -> {
             if (reentry.get()) {
                 LOG.log(Level.INFO, "Attempt to reenter accept for " + t.source(),
@@ -297,6 +305,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             unsubscriber.run();
             unsubscriber = null;
         }
+        LOG.log(Level.WARNING, "Dispose embedded parser for " + path + " / " + grammarName, new Exception());
         environment.set(new EmbeddedParsingEnvironment(path, grammarName));
     }
 

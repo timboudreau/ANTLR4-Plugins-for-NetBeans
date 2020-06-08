@@ -100,6 +100,7 @@ public class FakeG4DataObject extends AntlrDataObject {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public static class FakeG4MimeResolve extends MIMEResolver {
 
         @Override

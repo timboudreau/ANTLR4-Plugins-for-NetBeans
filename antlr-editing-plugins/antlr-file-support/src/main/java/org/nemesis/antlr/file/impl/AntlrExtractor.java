@@ -37,6 +37,8 @@ import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarTypeContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexComModeContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexComPushModeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDeclarationContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.RuleSpecContext;
@@ -52,6 +54,7 @@ import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
+import org.nemesis.antlr.common.extractiontypes.LexerModes;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.Extractor;
@@ -229,13 +232,10 @@ public final class AntlrExtractor {
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
                 .whenAncestorRuleOf(ParserRuleDefinitionContext.class)
                 .derivingReferenceOffsetsFromTokenWith(RuleTypes.PARSER, AntlrExtractor::deriveReferenceFromParserRuleReference)
-
                 .whereReferenceContainingRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
                 .whenAncestorRuleOf(ParserRuleDefinitionContext.class)
                 .derivingReferenceOffsetsFromTokenWith(RuleTypes.LEXER, AntlrExtractor::deriveReferenceFromTokenRuleReference)
-
-
                 .whereReferenceContainingRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
                 .whenAncestorRuleOf(TokenRuleDefinitionContext.class)
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
@@ -288,7 +288,22 @@ public final class AntlrExtractor {
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.IMPORT)
                 .whenRuleType(ANTLRv4Parser.AnalyzerDirectiveSpecContext.class)
                 .extractingBoundsFromRuleUsingKey(HeaderMatter.DIRECTIVE)
-                .finishRegionExtractor();
+                .finishRegionExtractor()
+                .extractNamedRegionsKeyedTo(LexerModes.class)
+                .recordingNamePositionUnder(AntlrKeys.MODES)
+                .whereRuleIs(ANTLRv4Parser.ModeDecContext.class)
+                .derivingNameFromTerminalNodeWith(LexerModes.MODE, decl -> {
+                    return decl.identifier() == null ? null : decl.identifier().ID();
+                })
+                .collectingReferencesUnder(AntlrKeys.MODE_REFS)
+                .whereReferenceContainingRuleIs(LexComModeContext.class)
+                .derivingReferenceOffsetsFromTerminalNodeWith(LexerModes.MODE, lcmc -> {
+                    return lcmc.identifier() == null ? null : lcmc.identifier().ID();
+                })
+                .whereReferenceContainingRuleIs(LexComPushModeContext.class)
+                .derivingReferenceOffsetsFromTerminalNodeWith(lcpmc -> {
+                    return lcpmc.identifier() == null ? null : lcpmc.identifier().ID();
+                }).finishReferenceCollector().finishNamedRegions();
     }
 
     AntlrExtractor() {

@@ -207,11 +207,13 @@ public class AntlrProxies {
         }
 
         public String loggingInfo() {
-            return (isUnparsed() ? "UNPARSED" : "PTP-") + id() 
+            String errString = syntaxErrors.isEmpty() ? "" :
+                    syntaxErrors.iterator().next().toString();
+            return (isUnparsed() ? "UNPARSED-" : "PTP-") + id()
                     + " errs " + syntaxErrors.size()
                     + " tokens " + tokens.size() 
                     + " textLength " + (text == null ? -1 : text.length())
-                    + " for " + grammarName
+                    + " for " + grammarName + ": " + errString
                     ;
         }
 

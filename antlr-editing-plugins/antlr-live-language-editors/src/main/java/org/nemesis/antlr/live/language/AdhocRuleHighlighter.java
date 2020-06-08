@@ -15,12 +15,14 @@
  */
 package org.nemesis.antlr.live.language;
 
+import java.util.List;
 import java.util.logging.Level;
 import javax.swing.text.Document;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.language.coloring.AdhocHighlightsContainer;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
@@ -68,7 +70,13 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
     protected void refresh(HighlightingInfo info) {
         LOG.log(Level.FINEST, "Refresh {0} with {1}", new Object[]{this, info});
         if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
-            LOG.log(Level.INFO, "Unusable parse", new Object[]{info.semantics.loggingInfo()});
+            LOG.log(Level.INFO, "Unusable parse: {0}", new Object[]{info.semantics.loggingInfo()});
+            List<AntlrProxies.ProxySyntaxError> errs = info.semantics.syntaxErrors();
+            if (errs != null) {
+                for (AntlrProxies.ProxySyntaxError err : errs) {
+                    LOG.log(Level.INFO, "Error: {0}", err);
+                }
+            }
             return;
         }
         bag.update(mgr.colorings(), info.semantics, info.semantics.text().length());

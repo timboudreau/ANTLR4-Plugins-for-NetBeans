@@ -61,6 +61,7 @@ import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
@@ -413,7 +414,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         grammarEditorClone.getDocument().addDocumentListener(this);
         FileObject grammarFileObject = NbEditorUtilities.getFileObject(grammarEditorClone.getDocument());
         if (grammarFileObject != null) {
-//            parser = EmbeddedAntlrParsers.forGrammar("preview-" + sampleFileDataObject, grammarFileObject);
+            parser = EmbeddedAntlrParsers.forGrammar("preview-" + sampleFileDataObject, grammarFileObject);
         }
         asyncUpdateOutputWindowPool.post(() -> {
             try {
@@ -431,6 +432,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 Exceptions.printStackTrace(ex);
             }
         });
+        try {
+            EmbeddedAntlrParserResult res = parser.parse(editorPane.getText());
+            accept(editorPane.getDocument(), res);
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        }
     }
 
     final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);

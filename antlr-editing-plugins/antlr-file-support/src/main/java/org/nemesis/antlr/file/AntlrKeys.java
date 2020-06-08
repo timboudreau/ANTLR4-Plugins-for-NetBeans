@@ -28,6 +28,7 @@ import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
 import org.nemesis.antlr.common.extractiontypes.FoldableRegion;
 import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
+import org.nemesis.antlr.common.extractiontypes.LexerModes;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.file.AntlrKeys.ANTLR_SAMPLE;
 import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
@@ -612,6 +613,66 @@ public class AntlrKeys {
     @AntlrFoldsRegistration(mimeType = ANTLR_MIME_TYPE, foldType = FoldTypeName.MEMBER)
     @Localize(displayName = "Code Folds")
     public static final RegionsKey<FoldableRegion> FOLDABLES = RegionsKey.create(FoldableRegion.class, "folds");
+
+
+    @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE, colors = @ColoringCategory(name = "mode",
+            colors = {
+                @Coloration(
+                        themes = POPULAR_BRIGHT_THEMES,
+                        fg = {0, 0, 200},
+                        bold = true,
+                        italic = true
+                ),
+                @Coloration(
+                        themes = POPULAR_DARK_THEMES,
+                        bg = {180, 180, 250},
+                        bold = true,
+                        italic=true
+                )
+            }))
+    public static final NamedRegionKey<LexerModes> MODES = NamedRegionKey.create("lexer-modes", LexerModes.class);
+
+    @HighlighterKeyRegistrations(value = {
+        @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
+                fixedSize = true,
+                trigger = HighlightRefreshTrigger.CARET_MOVED,
+                zOrder = HighlightZOrder.SHOW_OFF_RACK,
+                order = 1000,
+                positionInZOrder = 1000,
+                colors = @ColoringCategory(name = "mark-occurrences",
+                        colors = {
+                            @Coloration(
+                                    themes = POPULAR_BRIGHT_THEMES,
+                                    bg = {220, 220, 190}
+                            ),
+                            @Coloration(
+                                    themes = POPULAR_DARK_THEMES,
+                                    bg = {92, 89, 145})})
+        ),
+        @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
+                fixedSize = true,
+                trigger = HighlightRefreshTrigger.DOCUMENT_CHANGED,
+                order = 2000,
+                zOrder = HighlightZOrder.SYNTAX_RACK,
+                positionInZOrder = 1990,
+                coloringName = "mode"
+        )
+    })
+
+    @Goto(mimeType = ANTLR_MIME_TYPE)
+    @InplaceRename(mimeType = ANTLR_MIME_TYPE,
+            filter = @CharFilterSpec(
+                    initialCharacter = @CharPredicateSpec(
+                            include = CharPredicates.JAVA_IDENTIFIER_START
+                    ),
+                    subsequentCharacters = @CharPredicateSpec(
+                            include = CharPredicates.JAVA_IDENTIFIER_PART
+                    )
+            )
+    )
+    @Localize(displayName="Lexer Mode References")
+    public static final NameReferenceSetKey<LexerModes> MODE_REFS = MODES.createReferenceKey("mode-refs");
+
 
     static final String ANTLR_SAMPLE = "grammar Timestamps;\n"
             + "\n"

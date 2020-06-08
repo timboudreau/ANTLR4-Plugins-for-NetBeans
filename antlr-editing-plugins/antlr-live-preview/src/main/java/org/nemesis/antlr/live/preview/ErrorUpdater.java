@@ -142,8 +142,8 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                     boolean wasGenerate = !buildResult.genResult().isUsable();
                     if (wasGenerate) {
                         ioPrint(io, Bundle.generationFailed(), IOColors.OutputType.LOG_DEBUG);
-                        buildResult.genResult().grammarGenerationErrors();
-                        for (ParsedAntlrError err : buildResult.genResult().grammarGenerationErrors()) {
+                        List<ParsedAntlrError> errors = buildResult.genResult().grammarGenerationErrors();
+                        for (ParsedAntlrError err : errors) {
                             ioPrint(io, err.message(), IOColors.OutputType.ERROR, new OutputListener() {
                                 @Override
                                 public void outputLineSelected(OutputEvent oe) {
@@ -154,7 +154,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                                 public void outputLineAction(OutputEvent oe) {
                                     Path pth = err.path();
                                     GrammarSource<?> src = GrammarSource.find(pth, "text/x-g4");
-                                    Optional<Document> doc= src.lookup(Document.class);
+                                    Optional<Document> doc = src.lookup(Document.class);
                                     if (doc.isPresent()) {
                                         Document d = doc.get();
                                         JTextComponent comp = EditorRegistry.findComponent(d);
@@ -173,28 +173,42 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                                 }
                             });
                         }
-                    } else {
-                        boolean wasCompile = !buildResult.genResult().compileFailed() && !buildResult.genResult().compiledSourceFiles().isEmpty();
-                        if (wasCompile) {
-                            if (!buildResult.diagnostics().isEmpty()) {
-                                for (JavacDiagnostic diag : buildResult.diagnostics()) {
-                                    if (!diag.isError()) {
-                                        continue;
-                                    }
-                                    ioPrint(io, diag.toString(), IOColors.OutputType.LOG_FAILURE);
-                                    writer.println();
+                        String genOut = buildResult.generationOutput();
+                        if (genOut != null) {
+                            ioPrint(io, genOut, IOColors.OutputType.LOG_WARNING);
+                        }
+                        List<JavacDiagnostic> diags = buildResult.diagnostics();
+                        if (diags != null) {
+                            for (JavacDiagnostic d : diags) {
+                                ioPrint(io, d.toString(), IOColors.OutputType.LOG_FAILURE);
+                            }
+                        }
+                        Optional<Throwable> thrown = info.runResult().thrown();
+                        if (thrown.isPresent()) {
+                            thrown.get().printStackTrace(io.getOut());
+                        }
+                    }
+                    boolean wasCompile = !buildResult.genResult().compileFailed() && !buildResult.genResult().compiledSourceFiles().isEmpty();
+                    if (wasCompile) {
+                        if (!buildResult.diagnostics().isEmpty()) {
+                            for (JavacDiagnostic diag : buildResult.diagnostics()) {
+                                if (!diag.isError()) {
+                                    continue;
                                 }
+                                ioPrint(io, diag.toString(), IOColors.OutputType.LOG_FAILURE);
+                                writer.println();
                             }
                         }
                     }
-                    if (buildResult.thrown().isPresent()) {
-                        ioPrint(io, Bundle.exception(), IOColors.OutputType.LOG_FAILURE);
-                        buildResult.thrown().get().printStackTrace(writer);
-                    }
                 }
-            } else if (proxy.syntaxErrors().isEmpty()) {
+                if (buildResult != null && buildResult.thrown() != null && buildResult.thrown().isPresent()) {
+                    ioPrint(io, Bundle.exception(), IOColors.OutputType.LOG_FAILURE);
+                    buildResult.thrown().get().printStackTrace(writer);
+                }
+            } else if (proxy != null && proxy.syntaxErrors().isEmpty()) {
                 ioPrint(io, Bundle.success(), IOColors.OutputType.LOG_SUCCESS);
-            } else {
+            }
+            if (proxy != null && proxy.syntaxErrors() != null) {
                 FoldHandle fold = null;
                 if (folds) {
                     fold = IOFolding.startFold(io, true);
