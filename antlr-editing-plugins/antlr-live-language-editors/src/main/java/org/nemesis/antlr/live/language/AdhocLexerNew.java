@@ -201,9 +201,9 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
     private Token<AdhocTokenId> token(AdhocTokenId targetId, int length) {
         boolean broken = false;
         try {
-            if (targetId.canBeFlyweight()) {
-                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
-            }
+//            if (targetId.canBeFlyweight()) {
+//                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
+//            }
             return info.tokenFactory().createToken(targetId, length);
         } catch (ArrayIndexOutOfBoundsException ex) {
             List<AdhocTokenId> ids = ids();

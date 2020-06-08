@@ -34,12 +34,54 @@ import org.nemesis.jfs.JFSFileObject;
 final class AlternateTokenVocabParser {
 
     /**
+     * Ensure if there is .tokens file needed, and the lexer grammar that produces
+     * it is uncompiled, that we generate it.
+     *
+     * @param tool The tool
+     * @param g The grammar requesting it
+     * @param filePath The expected file path to the tokens file
+     * @return true if it was generated
+     */
+    private boolean precreateMissingLexer(MemoryTool tool, Grammar g, Path filePath) {
+        ToolContext ctx = ToolContext.get(tool);
+        try {
+            JFSFileObject fo = ctx.getImportedVocabFile(g, tool);
+            return true;
+        } catch (FileNotFoundException fnfe) {
+            // ok
+        }
+        Path fn = filePath.getFileName();
+        String name = fn.toString();
+        int extIx = name.lastIndexOf('.');
+        if (extIx > 0) {
+            name = name.substring(0, extIx);
+        }
+        name += ".g4";
+
+        Path adjacent = filePath.getParent().resolve(name);
+        JFSFileObject fo = tool.getImportedGrammarFileObject(g, adjacent.toString());
+        if (fo == null) {
+            fo = tool.getImportedGrammarFileObject(g, name + ".g4");
+        }
+
+        if (fo != null) {
+            Grammar pre = tool.readOneGrammar(fo, adjacent.getFileName().toString(), ctx);
+            if (pre != null) {
+                tool.process(pre, true);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Load a vocab file {@code <vocabName>.tokens} and return mapping.
      */
     public Map<String, Integer> load(MemoryTool tool, Grammar g) {
         ToolContext ctx = ToolContext.get(tool);
         Map<String, Integer> tokens = new LinkedHashMap<String, Integer>();
         Path filePath = ctx.importedFilePath(g, tool);
+        precreateMissingLexer(tool, g, filePath);
         String vocabName = g.getOptionString("tokenVocab");
         try {
             JFSFileObject fullFile = ctx.getImportedVocabFile(g, tool);

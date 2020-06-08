@@ -180,6 +180,9 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
             }
             if (value instanceof LazyTreeNode) {
                 value = ((LazyTreeNode) value).userObject;
+                if (((LazyTreeNode) value).title != null) {
+                    value = ((LazyTreeNode) value).title;
+                }
             }
             Icon icon = Localizers.icon(value);
             if (icon.getIconWidth() > 0) {
@@ -259,10 +262,18 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
                 if (!refs.isEmpty()) {
                     kids.add(new LazyTreeNode(parent, refKey, true));
                 }
-                for (SemanticRegion<?> unk : ext.unknowns(refKey)) {
-                    kids.add(new LazyTreeNode(parent, unk.key(), true));
+                SemanticRegions<?> unks = ext.unknowns(refKey);
+                if (!unks.isEmpty()) {
+                    kids.add(new LazyTreeNode(parent, unks, true).withTitle("Unknowns: " + refKey));
                 }
             }
+        } else if (userObject instanceof SemanticRegions<?>) {
+            SemanticRegions<?> sems = (SemanticRegions<?>) userObject;
+            for (SemanticRegion<?> reg : sems) {
+                kids.add(new LazyTreeNode(parent, reg, true));
+            }
+        } else if (userObject instanceof SemanticRegion<?>) {
+            kids.add(new LazyTreeNode(parent, ((SemanticRegion<?>) userObject).key(), true));
         } else if (userObject instanceof UnknownNameReference<?>) {
             UnknownNameReference<?> unk = (UnknownNameReference<?>) userObject;
             kids.add(new LazyTreeNode(parent, unk, false));
@@ -353,13 +364,19 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
         private final Object userObject;
         private volatile boolean initialized;
         private final boolean allowsKids;
+        private String title;
 
         LazyTreeNode(Object userObject) {
             this(null, userObject, true);
         }
 
         public String toString() {
-            return Objects.toString(userObject);
+            return title == null ? Objects.toString(userObject) : title;
+        }
+
+        public LazyTreeNode withTitle(String title) {
+            this.title = title;
+            return this;
         }
 
         private Extraction extraction() {

@@ -55,6 +55,7 @@ import org.antlr.v4.tool.ANTLRMessage;
 import org.antlr.v4.tool.ErrorManager;
 import org.antlr.v4.tool.ErrorSeverity;
 import org.antlr.v4.tool.ErrorType;
+import static org.antlr.v4.tool.ErrorType.CANNOT_FIND_TOKENS_FILE_REFD_IN_GRAMMAR;
 import org.antlr.v4.tool.Grammar;
 import org.antlr.v4.tool.GrammarTransformPipeline;
 import org.antlr.v4.tool.LexerGrammar;
@@ -562,6 +563,7 @@ public final class MemoryTool extends Tool {
     @Override
     public Grammar loadImportedGrammar(Grammar g, GrammarAST nameNode) throws IOException {
         String name = nameNode.getText();
+        System.out.println("load imported grammar " + name);
         if (name.equals(g.name)) {
             // Avoid a StaackOverflowError if the grammar imports itself
             this.errMgr.emit(ErrorType.INVALID_IMPORT, new ANTLRMessage(ErrorType.INVALID_IMPORT, nameNode.token, name, name));
@@ -599,6 +601,7 @@ public final class MemoryTool extends Tool {
     }
 
     public Grammar loadDependentGrammar(String name, JFSFileObject fo) throws IOException {
+        System.out.println("TRY TO LOAD DEP " + name + " rel to " + fo.getName());
         return withCurrentPathThrowing(Paths.get(fo.getName()), () -> {
             try (InputStream inStream = fo.openInputStream()) {
                 ANTLRInputStream in = new ANTLRInputStream(inStream, fo.length());
@@ -723,6 +726,9 @@ public final class MemoryTool extends Tool {
                 case EPSILON_LR_FOLLOW:
                     hasEpsilonIssues = true;
                     break;
+            }
+            if (etype == CANNOT_FIND_TOKENS_FILE_REFD_IN_GRAMMAR) {
+                new Exception("Bingo " + msg).printStackTrace();
             }
             msg.fileName = replaceWithPath(msg.fileName);
             Path supplied = currentFile.get();

@@ -51,7 +51,6 @@ import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
 import com.mastfrog.graph.StringGraph;
-import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import java.util.ArrayList;
@@ -991,7 +990,7 @@ public final class Extraction implements Externalizable {
 
         private final Class<T> enumType;
         private final EnumMap<T, IntSet> ruleIdsForKey;
-        private final IntMap<Set<T>> cache = CollectionUtils.intMap(10);
+        private final IntMap<Set<T>> cache = IntMap.create(10);
 
         public RuleIdMapping(Class<T> enumType, EnumMap<T, IntSet> ruleIdsForKey) {
             this.enumType = enumType;

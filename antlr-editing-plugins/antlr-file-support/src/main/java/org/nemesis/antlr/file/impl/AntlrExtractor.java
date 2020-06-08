@@ -229,6 +229,13 @@ public final class AntlrExtractor {
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
                 .whenAncestorRuleOf(ParserRuleDefinitionContext.class)
                 .derivingReferenceOffsetsFromTokenWith(RuleTypes.PARSER, AntlrExtractor::deriveReferenceFromParserRuleReference)
+
+                .whereReferenceContainingRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
+                // Include the type hint PARSER so we can detect references that should be parser rules but are not
+                .whenAncestorRuleOf(ParserRuleDefinitionContext.class)
+                .derivingReferenceOffsetsFromTokenWith(RuleTypes.LEXER, AntlrExtractor::deriveReferenceFromTokenRuleReference)
+
+
                 .whereReferenceContainingRuleIs(ANTLRv4Parser.TokenRuleIdentifierContext.class)
                 .whenAncestorRuleOf(TokenRuleDefinitionContext.class)
                 // Include the type hint PARSER so we can detect references that should be parser rules but are not
@@ -473,6 +480,7 @@ public final class AntlrExtractor {
     }
 
     private static Token deriveReferenceFromTokenRuleReference(ANTLRv4Parser.TokenRuleIdentifierContext pric) {
+        System.out.println("DERIVE REF FROM TI: '" + pric.getText() + "'");
         TerminalNode pridTN = pric.TOKEN_ID();
         if (pridTN != null) {
             Token tok = pridTN.getSymbol();
