@@ -480,7 +480,6 @@ public final class AntlrExtractor {
     }
 
     private static Token deriveReferenceFromTokenRuleReference(ANTLRv4Parser.TokenRuleIdentifierContext pric) {
-        System.out.println("DERIVE REF FROM TI: '" + pric.getText() + "'");
         TerminalNode pridTN = pric.TOKEN_ID();
         if (pridTN != null) {
             Token tok = pridTN.getSymbol();

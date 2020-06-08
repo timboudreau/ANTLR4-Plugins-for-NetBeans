@@ -236,7 +236,6 @@ class NamesAndReferencesExtractionStrategy<T extends Enum<T>> implements Hashabl
                                     reverseReferences[i][referenceIndex].set(referencedIndex);
                                 }
                             } else {
-                                System.out.println("ADD AN UNKNOWN: " + referenceOffsets.name + " @ " + referenceOffsets.start + ":" + referenceOffsets.end);
                                 T kind = referenceOffsets instanceof NamedRegionData<?> && ((NamedRegionData<?>) referenceOffsets).kind != null ? (T) ((NamedRegionData<?>) referenceOffsets).kind : null;
                                 if (kind != null) {
                                     unknown.add(new UnknownNameReferenceImpl(kind, referenceOffsets.start, referenceOffsets.end, referenceOffsets.name, unknownCount++), referenceOffsets.start, referenceOffsets.end);
