@@ -179,9 +179,10 @@ final class ExtractionTreeNavigatorPanel extends AbstractAntlrTreeNavigatorPanel
                 value = escapeHtml((String) value);
             }
             if (value instanceof LazyTreeNode) {
-                value = ((LazyTreeNode) value).userObject;
                 if (((LazyTreeNode) value).title != null) {
                     value = ((LazyTreeNode) value).title;
+                } else {
+                    value = ((LazyTreeNode) value).userObject;
                 }
             }
             Icon icon = Localizers.icon(value);
