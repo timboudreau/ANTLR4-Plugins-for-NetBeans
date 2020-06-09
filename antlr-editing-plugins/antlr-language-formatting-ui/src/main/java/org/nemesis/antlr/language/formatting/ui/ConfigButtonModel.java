@@ -43,17 +43,17 @@ abstract class ConfigButtonModel<T> extends DefaultButtonModel {
     private final Lis lis = new Lis();
 
     ConfigButtonModel(AntlrFormatterConfig config, String property, Supplier<T> fetcher) {
-        this.config = config;
         this.property = property;
+        this.config = config;
         this.fetcher = fetcher;
         oldValue = fetcher.get();
     }
 
-    private void maybeAddNotify() {
+    void maybeAddNotify() {
         if (!listening) {
             listening = true;
             addActionListener(lis);
-            config.addPropertyChangeListener(AntlrFormatterConfig.KEY_COLON_HANDLING, WeakListeners.propertyChange(lis, AntlrFormatterConfig.KEY_COLON_HANDLING, config));
+            config.addPropertyChangeListener(property, WeakListeners.propertyChange(lis, property, config));
         }
     }
 

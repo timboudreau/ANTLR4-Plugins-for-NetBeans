@@ -42,6 +42,7 @@ import javax.swing.WindowConstants;
 import javax.swing.event.ChangeListener;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.*;
+import org.nemesis.antlr.language.formatting.config.OrHandling;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle;
 import org.openide.util.Utilities;
@@ -106,6 +107,14 @@ class UIModel {
         return result;
     }
 
+    public ButtonModel orHandlingButtonModel(OrHandling type) {
+        DefaultButtonModel result = new OrHandlingRadioButtonModel(config, type);
+        if (type.equals(config.getOrHandling())) {
+            result.setSelected(true);
+        }
+        return result;
+    }
+
     @NbBundle.Messages({
         "wrap=&Wrap Text",
         "maxLength=Ma&x Line Length",
@@ -116,7 +125,8 @@ class UIModel {
         "blankLineBeforeRules=Empty Line &Before Each Rule",
         "spacesInParens=Spaces Inside Innermost &Parentheses",
         "reflowLineComments=&Reflow Line Comments",
-        "semicolonOnNewline=&Semicolon On New Line"
+        "semicolonOnNewline=&Semicolon On New Line",
+        "orHandling=Or Handling"
     })
     public JPanel createFormattingPanel() {
 
@@ -225,6 +235,41 @@ class UIModel {
         gbc.insets = standardInsets;
 
         gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 1;
+        JLabel orHandlingLabel = new JLabel();
+        Mnemonics.setLocalizedText(orHandlingLabel, Bundle.orHandling());
+        pnl.add(orHandlingLabel, gbc);
+        orHandlingLabel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, UIManager.getColor("textText")));
+
+        gbc.gridwidth = 3;
+        gbc.gridy++;
+        gbc.insets = indentedInsets;
+
+        ButtonGroup grp2 = new ButtonGroup();
+        OrHandling[] allOrs = OrHandling.values();
+        List<JRadioButton> orHandlingButtons = new ArrayList<>(ColonHandling.values().length);
+        for (int i = 0; i < allOrs.length; i++) {
+            OrHandling h = allOrs[i];
+            if (i == allOrs.length - 1) {
+                gbc.insets = new Insets(indentedInsets.top, indentedInsets.left, indentedInsets.right, indentedInsets.bottom * 3);
+            }
+            ButtonModel mdl = orHandlingButtonModel(h);
+            JRadioButton button = new JRadioButton();
+            orHandlingButtons.add(button);
+            button.setModel(mdl);
+            grp2.add(button);
+            Mnemonics.setLocalizedText(button, h.toString());
+            pnl.add(button, gbc);
+            gbc.gridy++;
+            if (i == 0) {
+                orHandlingLabel.setLabelFor(button);
+            }
+        }
+        gbc.insets = standardInsets;
+
+
+        gbc.gridy++;
         JCheckBox spacesInParensCheckbox = new JCheckBox();
         spacesInParensCheckbox.setModel(spacesInsideParensModel());
         Mnemonics.setLocalizedText(spacesInParensCheckbox, Bundle.spacesInParens());
@@ -277,5 +322,4 @@ class UIModel {
             jf.setVisible(true);
         });
     }
-
 }

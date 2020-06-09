@@ -45,6 +45,7 @@ import org.openide.util.Exceptions;
 public class AntlrFormatterConfig {
 
     public static final String KEY_COLON_HANDLING = "colonHandling";
+    public static final String KEY_OR_HANDLING = "orHandling";
     public static final String KEY_FLOATING_INDENT = "floatingIndent";
     public static final String KEY_MAX_LINE = "maxLineLength";
     public static final String KEY_INDENT = PREFS_KEY_INDENT_BY;
@@ -63,6 +64,7 @@ public class AntlrFormatterConfig {
     public static final ColonHandling DEFAULT_COLON_HANDLING
             = ColonHandling.NEWLINE_BEFORE;
     public static final boolean DEFAULT_BLANK_LINE_BEFORE_RULES = true;
+    public static final OrHandling DEFAULT_OR_HANDLING = OrHandling.NO_HANDLING;
 
     public static String[] BOOLEAN_KEYS = new String[]{
         KEY_WRAP,
@@ -176,6 +178,19 @@ public class AntlrFormatterConfig {
         }
     }
 
+    public OrHandling getOrHandling() {
+        int val = config.getInt(KEY_OR_HANDLING, DEFAULT_OR_HANDLING.ordinal());
+        OrHandling result = OrHandling.values()[val];
+        return result;
+    }
+
+    public void setOrHandling(OrHandling ors) {
+        OrHandling old = getOrHandling();
+        if (ors != old) {
+            config.putInt(KEY_OR_HANDLING, ors.ordinal());
+        }
+    }
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + "("
@@ -187,6 +202,7 @@ public class AntlrFormatterConfig {
                 + " reflowLineComments=" + isReflowLineComments()
                 + " indent=" + getIndent()
                 + " maxLineLength=" + getMaxLineLength()
+                + " orHandling=" + getOrHandling()
                 + ")";
     }
 
@@ -198,7 +214,7 @@ public class AntlrFormatterConfig {
             case STANDALONE:
             case NEWLINE_BEFORE:
                 return false;
-            default :
+            default:
                 throw new AssertionError(getColonHandling());
         }
     }
@@ -208,10 +224,10 @@ public class AntlrFormatterConfig {
     }
 
     public boolean canEnableSemicolonOnNewLine() {
-        switch(getColonHandling()) {
-            case INLINE :
+        switch (getColonHandling()) {
+            case INLINE:
                 return false;
-            default :
+            default:
                 return true;
         }
     }

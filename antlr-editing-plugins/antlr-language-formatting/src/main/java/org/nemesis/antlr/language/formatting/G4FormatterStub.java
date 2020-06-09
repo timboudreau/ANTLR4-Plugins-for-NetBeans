@@ -119,6 +119,7 @@ public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv
         if (config.isSpacesInsideParens()) {
             l.add(new ParenthesesSpacing(config));
         }
+        l.add(new OrIndentationFormatting(config));
         return l;
     }
 }
