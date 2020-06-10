@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.parsing.extract;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
+import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,6 +34,7 @@ import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 
 /**
  * Takes ParserExtractor.template (symlink to ParserExtractor.java in this
@@ -218,7 +220,17 @@ public class ExtractionCodeGenerator {
 
         UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
         Debug.message("Generated source code " + realSourceFile + " in " + pkg, () -> code + genInfo);
-        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code + genInfo));
+
+        JFSFileObject fo = fs.get(SOURCE_PATH, extractorPath);
+        if (fo != null && Strings.charSequencesEqual(fo.getCharContent(true), code, false)) {
+            // Avoid touching the file if we would regenerate the same content - it will
+            // cause the test whether files have been modified and the parser should be
+            // regenerated to always return true, making every keystroke lead to a furious
+            // amount of work
+            return result.setResult(fo);
+        }
+
+        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
 
     public static String getLexerExtractorSourceCode(Path originalGrammarFile, String pkg,

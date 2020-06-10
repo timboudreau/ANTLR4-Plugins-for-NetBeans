@@ -25,6 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -128,13 +129,14 @@ public final class EmbeddedAntlrParsers {
     private EmbeddedAntlrParser _subscribe(String logName, FileObject grammar) {
         Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(grammar);
         EmbeddedAntlrParserImpl p;
+        String mt = AdhocMimeTypes.mimeTypeForPath(FileUtil.toFile(grammar).toPath());
 //        EmbeddedAntlrParser p = find(set);
 //        if (p != null) {
 //            return p;
 //        }
 
         Path path = FileUtil.toFile(grammar).toPath();
-        p = new EmbeddedAntlrParserImpl(logName, path, grammar.getName());
+        p = new EmbeddedAntlrParserImpl(logName, path, grammar.getName(), mt);
 
         LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
                 + " {1} subscribers",

@@ -45,7 +45,7 @@ import org.openide.util.WeakSet;
 final class AdhocParser extends Parser {
 
     static final Logger LOG = Logger.getLogger(AdhocParser.class.getName());
-    private static Map<Task, AdhocParserResult> RESULT_FOR_TASK 
+    private static Map<Task, AdhocParserResult> RESULT_FOR_TASK
             = Collections.synchronizedMap(new WeakHashMap<>());
     private final ChangeSupport supp = new ChangeSupport(this);
     static Set<AdhocParser> LIVE_PARSERS = new WeakSet<>();
@@ -109,46 +109,50 @@ final class AdhocParser extends Parser {
 
     @Override
     public void parse(Snapshot snapshot, Task task, SourceModificationEvent event) throws ParseException {
-        if (!snapshot.getMimeType().equals(mimeType)) {
-            String msg = "AdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
-                    + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
-                    + task + "\nEvent source:" + event.getModifiedSource();
-            LOG.log(Level.SEVERE, msg, new Exception(msg));
-        }
-        if (!snapshot.getSource().getMimeType().equals(mimeType)) {
-            String msg = "Snapshot mime type and snapshot source mime type do not match: "
-                    + "\nSnp  mime type: " + snapshot.getMimeType()
-                    + "\nSrc  mime type: " + snapshot.getSource().getMimeType()
-                    + "\nThis mime type: " + mimeType
-                    + "\nAdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
-                    + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
-                    + task + "\nEvent source:" + event.getModifiedSource();
-            LOG.log(Level.SEVERE, msg, new Exception(msg));
-        }
+        // We can be passing no snapshot, just using ParserManager.parse() to get our
+        // paws on the parser manager lock
+        if (snapshot != null) {
+            if (!snapshot.getMimeType().equals(mimeType)) {
+                String msg = "AdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
+                        + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
+                        + task + "\nEvent source:" + event.getModifiedSource();
+                LOG.log(Level.SEVERE, msg, new Exception(msg));
+            }
+            if (!snapshot.getSource().getMimeType().equals(mimeType)) {
+                String msg = "Snapshot mime type and snapshot source mime type do not match: "
+                        + "\nSnp  mime type: " + snapshot.getMimeType()
+                        + "\nSrc  mime type: " + snapshot.getSource().getMimeType()
+                        + "\nThis mime type: " + mimeType
+                        + "\nAdhocParser asked to parse snapshot for wrong mime type.\n Pars Mime: " + mimeType
+                        + "\nSnap Mime: " + snapshot.getMimeType() + "\n" + " for task "
+                        + task + "\nEvent source:" + event.getModifiedSource();
+                LOG.log(Level.SEVERE, msg, new Exception(msg));
+            }
 
-        parses++;
-        try {
-            Debug.runThrowing(this, "adhoc-parser " + AdhocMimeTypes.loggableMimeType(snapshot.getMimeType()), () -> {
-                return snapshot.getSource().getDocument(false) + "\n\nTEXT:\n"
-                        + snapshot.getText() + "\n\n"
-                        + snapshot.getSource().getFileObject();
-            }, () -> {
-                EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-                EmbeddedAntlrParserResult rp = parser.parse(snapshot.getText());
-                AntlrProxies.ParseTreeProxy res = rp.proxy();
-                if (!res.mimeType().equals(mimeType)) {
-                    String msg = "Bad ParseTreeProxy mime type from EmbeddedAntlrParser\n"
-                            + "Exp: " + mimeType + "\nGot: " + res.mimeType() + "\n"
-                            + "From: " + parser;
-                    LOG.log(Level.SEVERE, msg, new Exception(msg));
-                }
-                AdhocParserResult result = new AdhocParserResult(snapshot, rp, inv);
-                last = result;
-                RESULT_FOR_TASK.put(task, result);
-                AdhocReparseListeners.reparsed(mimeType, snapshot.getSource(), rp);
-            });
-        } catch (Exception ex) {
-            throw new ParseException("Exception parsing " + snapshot, ex);
+            parses++;
+            try {
+                Debug.runThrowing(this, "adhoc-parser " + AdhocMimeTypes.loggableMimeType(snapshot.getMimeType()), () -> {
+                    return snapshot.getSource().getDocument(false) + "\n\nTEXT:\n"
+                            + snapshot.getText() + "\n\n"
+                            + snapshot.getSource().getFileObject();
+                }, () -> {
+                    EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+                    EmbeddedAntlrParserResult rp = parser.parse(snapshot.getText());
+                    AntlrProxies.ParseTreeProxy res = rp.proxy();
+                    if (!res.mimeType().equals(mimeType)) {
+                        String msg = "Bad ParseTreeProxy mime type from EmbeddedAntlrParser\n"
+                                + "Exp: " + mimeType + "\nGot: " + res.mimeType() + "\n"
+                                + "From: " + parser;
+                        LOG.log(Level.SEVERE, msg, new Exception(msg));
+                    }
+                    AdhocParserResult result = new AdhocParserResult(snapshot, rp, inv);
+                    last = result;
+                    RESULT_FOR_TASK.put(task, result);
+                    AdhocReparseListeners.reparsed(mimeType, snapshot.getSource(), rp);
+                });
+            } catch (Exception ex) {
+                throw new ParseException("Exception parsing " + snapshot, ex);
+            }
         }
     }
 

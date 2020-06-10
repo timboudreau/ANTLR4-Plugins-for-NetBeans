@@ -74,6 +74,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
 //        AttributeSet result = fcs.getFontColors("nested_blocks");
 //        assert result != null : "nested_block missing from colors";
 //        return result;
+        // XXX fixme
         if (errorColoring != null) {
             return errorColoring;
         }
@@ -81,6 +82,18 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         StyleConstants.setUnderline(set, true);
         StyleConstants.setForeground(set, Color.red);
         return errorColoring = set;
+    }
+
+    private static AttributeSet warning;
+    public static AttributeSet warning() {
+        // XXX fixme
+        if (warning != null) {
+            return warning;
+        }
+        SimpleAttributeSet set = new SimpleAttributeSet();
+        StyleConstants.setUnderline(set, true);
+        StyleConstants.setBackground(set, Color.yellow.darker());
+        return warning = set;
     }
 
     @Override
@@ -115,6 +128,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                     }
                 }
             }
+        }
+        for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
+            bag.addHighlight(amb.startOffset, amb.stopOffset, warning());
         }
         this.bag.setHighlights(bag);
         this.refreshErrorsTask.schedule(100);

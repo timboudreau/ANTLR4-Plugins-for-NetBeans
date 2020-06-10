@@ -436,5 +436,9 @@ public class JFSFileModifications {
             this.timestamps = timestamps;
             this.hash = hash;
         }
+
+        public String toString() {
+            return "FilesInfo(" + timestamps.keySet() + ": " + Strings.toPaddedHex(hash) + ")";
+        }
     }
 }
