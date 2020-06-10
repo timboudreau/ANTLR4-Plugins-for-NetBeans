@@ -56,15 +56,15 @@ public class ExtractionCodeGenerationResult {
     @Override
     public String toString() {
         if (generatedFile != null) {
-            return grammarName + " -> " + generatedFile.getName();
+            return grammarName + " in " + pkg + " -> " + generatedFile.getName();
         }
         StringBuilder sb = new StringBuilder();
-        for (String p : examined) {
+        examined.forEach(p -> {
             if (sb.length() != 0) {
                 sb.append(", ");
             }
             sb.append(p);
-        }
+        });
         sb.insert(0, " - tried: ");
         sb.insert(0, pkg);
         sb.insert(0, " in ");

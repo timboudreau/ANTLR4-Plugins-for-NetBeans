@@ -126,6 +126,7 @@ final class ToolContext {
             }
         }
         if (fo == null) {
+            System.out.println("Did not find " + fileNameOnly + " in " + attempts);
             throw new FileNotFoundException(attempts.toString());
         }
         return fo;

@@ -42,6 +42,7 @@ import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
@@ -169,7 +170,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 }
             }
         }
-        return new AdhocLexerNew(mimeType, info, hinfo.parser(), this);
+        return new AdhocLexerNew(mimeType, info, this);
     }
 
     @Override
@@ -354,13 +355,23 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         public void accept(Extraction ext, GrammarRunResult<?> res) {
             LOG.log(Level.FINE, "{0} notified new env - notifying {1} listeners {2}",
                     new Object[]{this, onReplaces.size(), onReplaces});
-            for (BiConsumer<Extraction, GrammarRunResult<?>> r : onReplaces) {
-                try {
-                    r.accept(ext, res);
-                } catch (Exception ex) {
-                    Exceptions.printStackTrace(ex);
+            Debug.run(this, "New extraction " + ext.source() + " notifying " + onReplaces.size() + " listeners", () -> {
+                StringBuilder sb = new StringBuilder("RunResult ").append(res)
+                        .append(" Usable? ").append(res.isUsable()).append('\n');
+                sb.append("Extraction - placeholder?").append(ext.isPlaceholder())
+                        .append('\n')
+                        .append(ext.logString().get());
+                return sb.toString();
+            }, () -> {
+                for (BiConsumer<Extraction, GrammarRunResult<?>> r : onReplaces) {
+                    try {
+                        Debug.message("notify", r::toString);
+                        r.accept(ext, res);
+                    } catch (Exception ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
                 }
-            }
+            });
         }
 
         private EmbeddedAntlrParser parser() {
@@ -376,6 +387,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 if (parser.isDisposed()) {
                     Exception ex = new Exception("Parser was unexpectedly disposed");
                     LOG.log(Level.SEVERE, "Disposed " + this, ex);
+                    parser = null;
                 }
             }
             return parser;

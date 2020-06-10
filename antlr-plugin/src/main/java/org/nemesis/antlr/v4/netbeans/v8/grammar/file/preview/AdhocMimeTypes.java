@@ -110,10 +110,6 @@ public class AdhocMimeTypes {
 
     private static final Logger LOG = Logger.getLogger(AdhocMimeTypes.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     static TimedBidiCache<Path, String, RuntimeException> typeForPath
             = TimedCache.create(30000, AdhocMimeTypes::_mimeTypeForGrammarFilePath)
                     .toBidiCache(AdhocMimeTypes::_pathForMimeType);

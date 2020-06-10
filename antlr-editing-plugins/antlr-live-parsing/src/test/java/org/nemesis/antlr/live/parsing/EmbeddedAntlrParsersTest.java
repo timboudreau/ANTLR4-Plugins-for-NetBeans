@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,6 +70,8 @@ public class EmbeddedAntlrParsersTest {
         EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test", gen.file("NestedMaps.g4"));
         AntlrProxies.ParseTreeProxy ptp = p.parse(TEXT_1).proxy();
         assertNotNull(ptp);
+        assertFalse(ptp.isUnparsed());
+        assertNotNull(ptp);
         ptp.rethrow();
         assertTrue(p.isUpToDate());
         assertFalse(ptp.hasErrors());
@@ -80,10 +81,10 @@ public class EmbeddedAntlrParsersTest {
 
         AntlrProxies.ParseTreeProxy ptp1 = p.parse(TEXT_1).proxy();
         // XXX disabled caching for now
-        assertSame(ptp, ptp1);
+//        assertSame(ptp, ptp1);
         assertEquals(ptp, ptp1);
         assertEquals(1, p.rev());
-        assertSame(ptp, p.parse(null).proxy());
+//        assertSame(ptp, p.parse(null).proxy());
         assertNotSame(ptp, p.parse(TEXT_1 + "  ").proxy());
 
         assertTrue(p.isUpToDate());

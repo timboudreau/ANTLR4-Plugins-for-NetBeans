@@ -84,16 +84,13 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     private static final Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     private Runnable unsubscriber;
     private final String logName;
     private final Path path;
     private final String grammarName;
     private volatile boolean disposed;
-    private LastParseInfo lastParseInfo;
+    private AtomicReference<LastParseInfo> lastParseInfo;
     private final LastParseInfo placeholderInfo;
     private final ThreadLocal<Boolean> reentry = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -102,7 +99,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         this.path = path;
         this.grammarName = grammarName;
         environment.set(new EmbeddedParsingEnvironment(path, grammarName));
-        lastParseInfo = placeholderInfo = new LastParseInfo(path, grammarName);
+        lastParseInfo = new AtomicReference<>(placeholderInfo = new LastParseInfo(path, grammarName));
     }
 
     @Override
@@ -132,10 +129,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             + " Nothing should be using this."));
             return false;
         }
-        if (!info.isUpToDate()) {
-            LOG.log(Level.FINE, "{0} force reparse due to {2}",
+        if (!info.isUpToDate() || info.parser instanceof DeadEmbeddedParser) {
+            LOG.log(Level.FINE, "{0} force reparse due to {1}",
                     new Object[]{path.getFileName(), info});
-            return forceGrammarFileReparse(info);
+            forceGrammarFileReparse(info);
+            return true;
         }
         return false;
     }
@@ -159,14 +157,15 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 Debug.message("Replace env " + (info != newInfo), newInfo::toString);
                 info = newInfo;
             }
-            LastParseInfo lpi = this.lastParseInfo;
-            if (false && lpi.canReuse(toParse)) {
+            LastParseInfo lpi = lastParseInfo.get();
+            if (lpi.canReuse(toParse)) { // XXX
                 LOG.log(Level.FINEST, "Reuse previous parser result {0} "
                         + "for same or null text", lpi);
                 Debug.message(logName + "-reuse-" + info.grammarTokensHash,
                         lpi::toString);
                 return lpi.parserResult;
             }
+            Debug.message("Will parse with", info.parser::toString);
             AntlrProxies.ParseTreeProxy res = info.parser.parse(logName, toParse);
             LOG.log(Level.FINEST, "Parsed to {0} by {1}",
                     new Object[]{res.loggingInfo(), info.parser});
@@ -174,7 +173,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(res,
                     info.runResult, info.grammarTokensHash);
             if (toParse != null) {
-                lastParseInfo = new LastParseInfo(result, toParse);
+                lastParseInfo.set(new LastParseInfo(result, toParse));
                 Trackables.track(AntlrProxies.ParseTreeProxy.class, res, () -> {
                     return res.loggingInfo() + "\t" + gth + "\n" + logName;
                 });
@@ -217,9 +216,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     + " listeners " + listeners.size(), runner::toString, () -> {
                 EmbeddedParsingEnvironment current = environment.get();
                 if (current.shouldReplace(extraction, runner)) {
-                    synchronized (this) {
-                        lastParseInfo = placeholderInfo;
-                    }
+                    lastParseInfo.set(placeholderInfo);
                     environment.set(new EmbeddedParsingEnvironment(extraction.tokensHash(), runner));
                     Set<BiConsumer<? super Extraction, ? super GrammarRunResult<?>>> ll = new HashSet<>(listeners);
                     Debug.message("Pass to " + listeners.size() + " listeners", listeners::toString);
@@ -238,6 +235,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 return rev.get();
             });
         } else {
+            Debug.failure("Handed an unusable GrammarRunResult", runner::toString);
             LOG.log(Level.WARNING, "Set an unusable runner on " + path, new Exception());
         }
         return rev.get();
@@ -245,9 +243,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
     @Override
     public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult) {
-        System.out.println("Accept/Set " + runResult.generationOutput());
-        System.out.println("  " + runResult.diagnostics());
-        System.out.println("  " + runResult.genResult().grammarGenerationErrors());
         Debug.run(this, logName + "-accept-" + t.tokensHash(), runResult::toString, () -> {
             if (reentry.get()) {
                 LOG.log(Level.INFO, "Attempt to reenter accept for " + t.source(),

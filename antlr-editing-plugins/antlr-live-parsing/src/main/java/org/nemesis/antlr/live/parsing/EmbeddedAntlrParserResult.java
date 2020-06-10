@@ -38,6 +38,10 @@ public final class EmbeddedAntlrParserResult {
         return proxy;
     }
 
+    public boolean isUsable() {
+        return runResult != null && runResult.isUsable();
+    }
+
     public GrammarRunResult<?> runResult() {
         return runResult;
     }

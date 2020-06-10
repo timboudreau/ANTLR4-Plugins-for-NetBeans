@@ -112,6 +112,10 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         KNOWN.add(pf);
     }
 
+    public String toString() {
+        return "AdhocDO(" + getPrimaryFile().getPath() + ")";
+    }
+
     private static final Consumer<FileObject> INV = SourceInvalidator.create();
 
     /**

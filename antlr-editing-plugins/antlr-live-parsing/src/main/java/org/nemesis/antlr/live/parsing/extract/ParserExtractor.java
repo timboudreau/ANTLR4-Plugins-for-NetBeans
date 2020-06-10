@@ -17,6 +17,7 @@ package org.nemesis.antlr.live.parsing.extract;
 
 import ignoreme.placeholder.DummyLanguageLexer;
 import ignoreme.placeholder.DummyLanguageParser; //parser
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,6 +33,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
+import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ErrorNode;
@@ -43,7 +45,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 /**
  * This class is not called directly by the module; rather, it is used as a
  * template (the symlink named ParserExtractor.template will be included in the
- * JAR as source). CompileAntlrSources will modify its contents for the right
+ * JAR as source). ExtractionCodeGenerator will modify its contents for the right
  * class and package names, and remove parser class references in the case that
  * only a lexer was generated, and copy it next to the generated Antlr lexer and
  * parser before compiling. This class is then called reflectively in an
@@ -53,12 +55,13 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * out of the isolating classloader, so all objects (including exception types)
  * representing the grammar and parse are copied into proxy objects defined in
  * AntlrProxies, which is loaded via the module's, not the isolation
- * environment's classloader.  Must not reference any non-JDK, non-ANTLR
- * classes, and any lines which could reference a parser that does not exist for
+ * environment's classloader. Must not reference any non-JDK, non-ANTLR classes,
+ * and any lines which could reference a parser that does not exist for
  * lexer-only grammars should be postfixed with a comment so they can be
- * automatically removed during generation.  Classes from the same package
- * as this class must be referenced by FQN or they will not be resolvable when
- * repackaged during generation.
+ * automatically removed during generation. Classes from the same package as
+ * this class must be referenced by FQN or they will not be resolvable when
+ * repackaged during generation.  If classes from the module are needed, they
+ * must be added to the classloader in ProxiesInvocationRunner.
  *
  * @author Tim Boudreau
  */
@@ -96,7 +99,19 @@ public class ParserExtractor {
                 proxies.addTokenType(tokenType, dn, sn, ln);
             }
             // The channel names are simply a string array - safe enough
-            proxies.channelNames(DummyLanguageLexer.channelNames);
+//            proxies.channelNames(DummyLanguageLexer.channelNames);
+            try {
+                // Turns out, if a grammar doesn't use channels, this field
+                // does not exist.  So, find it reflectively.
+                Field f = DummyLanguageLexer.class.getField("channelNames");
+                Object o = f.get(null);
+                if (o instanceof String[]) {
+                    proxies.channelNames((String[]) o);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                proxies.channelNames(new String[]{"default"});
+            }
             // Same for the rule names
             proxies.setParserRuleNames(DummyLanguageLexer.ruleNames); //parser
             // We may have been called just to build a lexer vocabulary w/o text
@@ -105,8 +120,6 @@ public class ParserExtractor {
                 // Use deprecated ANTLRInputStream rather than 4.7's CharStreams,
                 // since we may be running against an older version of Antlr where
                 // that call would fail
-//                DummyLanguageLexer lex = new DummyLanguageLexer(new org.antlr.v4.runtime.ANTLRInputStream(
-//                        text.toCharArray(), text.length()));
                 DummyLanguageLexer lex = new DummyLanguageLexer(new CharSequenceCharStream(text));
                 lex.removeErrorListeners();
                 // Collect all of the tokens
@@ -149,6 +162,7 @@ public class ParserExtractor {
                 lex.reset();
                 // Now lex again to run the parser
                 DummyLanguageParser parser = new DummyLanguageParser(new CommonTokenStream(lex, 0)); //parser
+                parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION); //parser
                 parser.removeErrorListeners(); //parser
                 parser.addErrorListener(errorListener); //parser
                 org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //parser
@@ -180,24 +194,58 @@ public class ParserExtractor {
                 int charPositionInLine, String message, RecognitionException re) {
             if (offendingSymbol instanceof Token) {
                 Token t = (Token) offendingSymbol;
-                proxies.onSyntaxError(message, line, charPositionInLine, t.getTokenIndex(), t.getType(), t.getStartIndex(), t.getStopIndex());
+                proxies.onSyntaxError(message, line, charPositionInLine, t.getTokenIndex(),
+                        t.getType(), t.getStartIndex(), t.getStopIndex());
             } else {
                 proxies.onSyntaxError(message, line, charPositionInLine);
             }
         }
 
         @Override
-        public void reportAmbiguity(Parser parser, DFA dfa, int i, int i1, boolean bln, BitSet bitset, ATNConfigSet atncs) {
-//            System.out.println("AMBIGUITY at " + i + ":" + i1 + " " + dfa.toLexerString() + " cs " + atncs.toString());
+        public void reportAmbiguity(Parser parser, DFA dfa, int startIndex, int stopIndex,
+                boolean exact, BitSet conflictingAlternatives, ATNConfigSet atncs) {
+            int decision = dfa.decision;
+            int ruleIndex = dfa.atnStartState.ruleIndex;
+            String[] ruleNames = parser.getRuleNames();
+            String ruleName = null;
+            if (ruleIndex < 0 || ruleIndex >= ruleNames.length) {
+                ruleName = String.valueOf(decision);
+            } else {
+                ruleName = ruleNames[ruleIndex];
+                if (ruleName == null || ruleName.isEmpty()) {
+                    ruleName = String.valueOf(decision);
+                }
+            }
+            if (conflictingAlternatives == null) {
+                conflictingAlternatives = atncs.getAlts();
+            }
+            org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity ambig
+                    = new org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity(
+                            decision, ruleIndex, ruleName, conflictingAlternatives,
+                            startIndex, stopIndex);
+            proxies.onAmbiguity(ambig);
         }
 
         @Override
         public void reportAttemptingFullContext(Parser parser, DFA dfa, int i, int i1, BitSet bitset, ATNConfigSet atncs) {
-//            System.out.println("ATTEMPT FULL at " + i + ":" + i1 + " " + dfa.toLexerString() + " cs " + atncs.toString());
         }
 
         @Override
         public void reportContextSensitivity(Parser parser, DFA dfa, int i, int i1, int i2, ATNConfigSet atncs) {
+        }
+
+        protected String getDecisionDescription(Parser recognizer, DFA dfa) {
+            int decision = dfa.decision;
+            int ruleIndex = dfa.atnStartState.ruleIndex;
+            String[] ruleNames = recognizer.getRuleNames();
+            if (ruleIndex < 0 || ruleIndex >= ruleNames.length) {
+                return String.valueOf(decision);
+            }
+            String ruleName = ruleNames[ruleIndex];
+            if (ruleName == null || ruleName.isEmpty()) {
+                return String.valueOf(decision);
+            }
+            return String.format("rule '%s' (%d)", ruleName, decision);
         }
     }
 

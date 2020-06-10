@@ -30,6 +30,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -479,6 +480,20 @@ public final class MemoryTool extends Tool {
     }
 
     private Map<String, Grammar> importedGrammars = null;
+
+    void noteImportedGrammar(String name, Grammar grammar) {
+        Map<String, Grammar> all = importedGrammars();
+        all.put(name, grammar);
+    }
+
+    public Collection<? extends Grammar> allGrammars() {
+        try {
+            return importedGrammars().values();
+        } catch (IllegalStateException ex) {
+            Logger.getLogger(MemoryTool.class.getName()).log(Level.WARNING, "Failed to look up imported grammars", ex);
+            return Collections.emptySet();
+        }
+    }
 
     @SuppressWarnings("unchecked")
     private Map<String, Grammar> importedGrammars() {

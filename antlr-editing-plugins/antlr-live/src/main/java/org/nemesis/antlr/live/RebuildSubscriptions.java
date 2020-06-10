@@ -616,8 +616,9 @@ public final class RebuildSubscriptions {
                         Debug.message("ON EQ - POSTPONE");
                         RP.post(doParse);
                     } else {
-                        LOG.log(Level.FINER, "Run parse of {0} synchronously", to.getName());
-                        doParse.run();
+                        LOG.log(Level.FINER, "Run parse of {0} synchronously (not)", to.getName());
+//                        doParse.run();
+                        RP.post(doParse);
                     }
                 } else {
                     LOG.log(Level.FINE, "Add subscriber {0} to {1} - not first "
@@ -682,7 +683,7 @@ public final class RebuildSubscriptions {
 
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
-                Debug.runThrowing(this, "RebuildSubscriptions.onReparse-" + extraction.tokensHash(), extraction::toString, () -> {
+                Debug.runThrowing(this, "RebuildSubscriptions.onReparse-" + extraction.tokensHash() + "-" + extraction.source(), extraction::toString, () -> {
                     LOG.log(Level.FINER, "onReparse {0}", extraction.source());
                     List<Subscriber> targets = subscribers;
                     synchronized (lastLock) {
@@ -733,7 +734,7 @@ public final class RebuildSubscriptions {
                 PrintStream output = outputFor(extraction);
                 // Build the message here so the UI doesn't hold a reference to the extraction
                 // indefinitiely
-                String msg = "Regenerate Antlr Grammar " + mimeType + " for " + extraction.source().lookup(Path.class);
+                String msg = "Regenerate Antlr Grammar " + mimeType + " for " + extraction.source();
                 AntlrGenerationResult result = Debug.runObjectThrowing(this, "generate " + extraction.source(), () -> {
                     return msg;
                 }, () -> {
@@ -746,7 +747,14 @@ public final class RebuildSubscriptions {
                         }
                     });
                 });
+                if (result.isUsable()) {
+                    Debug.success("Successful gen " + extraction.source(), result::toString);
+                } else {
+                    Debug.failure("Failed gen " + extraction.source(), result::toString);
+                }
                 if (Thread.interrupted()) {
+                    Debug.failure("Thread interrupted, not passing to " + subscribers.size()
+                            + " subscribers", result::toString);
                     return true;
                 }
                 LOG.log(Level.FINER, "Reparse received by generator {0} for "

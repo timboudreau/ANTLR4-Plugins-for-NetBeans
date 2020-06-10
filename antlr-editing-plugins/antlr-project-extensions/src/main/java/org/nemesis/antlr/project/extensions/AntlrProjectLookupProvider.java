@@ -37,10 +37,6 @@ public class AntlrProjectLookupProvider implements LookupProvider {
     private static final long DELAY = 30000;
     private final RequestProcessor initThreadPool = new RequestProcessor("antlr-project-lookup-init", 3, false);
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     public AntlrProjectLookupProvider() {
         LOG.log(Level.FINE, "Created an {0}", AntlrProjectLookupProvider.class.getName());
     }

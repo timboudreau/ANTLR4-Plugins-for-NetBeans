@@ -22,6 +22,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -31,6 +32,7 @@ import javax.tools.StandardLocation;
 import org.antlr.runtime.misc.IntArray;
 import org.antlr.v4.Tool;
 import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.tool.Grammar;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.live.execution.InvocationRunner;
@@ -39,6 +41,7 @@ import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerationResult;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner.GenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
@@ -68,40 +71,116 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         LOG.log(Level.FINE, "Created {0}", this);
     }
 
-    @Override
-    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
-        GrammarKind kind = GrammarKind.forTree(tree);
-        Optional<Path> realSourceFile = extraction.source().lookup(Path.class);
-        if (realSourceFile.isPresent()) {
-            Path path = realSourceFile.get();
-            ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs, res.packageName, res.grammarName());
-            LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
-            bldr.addToClasspath(AntlrProxies.class);
-            bldr.addToClasspath(ANTLRErrorListener.class);
-            bldr.addToClasspath(Tool.class);
-            bldr.addToClasspath(IntArray.class);
-            bldr.addToClasspath(Interpreter.class);
-            bldr.addToClasspath(AdhocMimeTypes.class);
-//            bldr.addToClasspath(CharSequenceCharStream.class);
-            bldr.addSourceLocation(StandardLocation.SOURCE_PATH);
-            bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
-            csc.accept(CLASSLOADER_FACTORY);
-            return new GenerationResult(genResult, res.packageName, path, res.grammarName);
-        } else {
-            LOG.log(Level.WARNING, "No source file for extraction {0}", extraction.logString());
+    private static Supplier<String> compileMessage(AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName) {
+        return () -> {
+            StringBuilder sb = new StringBuilder("GrammarPackage: ").append(grammarPackageName)
+                    .append("\nExtraction Source:").append(extraction.source())
+                    .append("\nJFS:\n");
+            jfs.listAll((loc, fo) -> {
+                sb.append(loc).append(": ").append(fo.getName()).append('\n');
+            });
+            if (res.infoMessages != null && !res.infoMessages.isEmpty()) {
+                sb.append("\n").append("Generation info:\n");
+                for (String msg : res.infoMessages) {
+                    sb.append(msg).append('\n');
+                }
+            }
+            sb.append("\n").append("ExitCode: ").append(res.code);
+            if (res.errors != null && !res.errors.isEmpty()) {
+                sb.append("\nAntlr Generation Errors:\n");
+                for (ParsedAntlrError err : res.errors) {
+                    sb.append(err).append("\n");
+                }
+            }
+            if (res.allGrammars != null && !res.allGrammars.isEmpty()) {
+                sb.append("\nGrammars:\n");
+                for (Grammar g : res.allGrammars) {
+                    sb.append("Grammar " + g.name + " @ " + g.fileName);
+                }
+            }
+            if (res.thrown != null) {
+                Debug.thrown(res.thrown);
+            }
+            sb.append("CompileBuilder: ").append(bldr);
+            return sb.toString();
+        };
+    }
+
+    public static Grammar findLexerGrammar(AntlrGenerationResult res) {
+        Grammar main = res.mainGrammar;
+        if (main.implicitLexer != null) {
+            return main.implicitLexer;
+        }
+        if (main.importedGrammars != null) {
+            for (Grammar imp : main.importedGrammars) {
+                if (imp.isLexer()) {
+                    return imp;
+                }
+            }
+        }
+        // If it was imported via tokenVocab, it may not be in
+        // importedGrammars, but we ensure it is here:
+        for (Grammar g : res.allGrammars) {
+            if (g.isLexer()) {
+                return g;
+            }
         }
         return null;
     }
 
     @Override
+    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
+        return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
+            GrammarKind kind = GrammarKind.forTree(tree);
+            Optional<Path> realSourceFile = extraction.source().lookup(Path.class);
+            if (realSourceFile.isPresent()) {
+                Path path = realSourceFile.get();
+                Grammar lexerGrammar = findLexerGrammar(res);
+
+                ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs,
+                        res.packageName, res.grammarName(), lexerGrammar == null ? null : lexerGrammar.name);
+                LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
+                bldr.addToClasspath(AntlrProxies.class);
+                bldr.addToClasspath(AntlrProxies.Ambiguity.class);
+                bldr.addToClasspath(ANTLRErrorListener.class);
+                bldr.addToClasspath(Tool.class);
+                bldr.addToClasspath(IntArray.class);
+                bldr.addToClasspath(Interpreter.class);
+                bldr.addToClasspath(AdhocMimeTypes.class);
+                bldr.addSourceLocation(StandardLocation.SOURCE_PATH);
+                bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+                return Debug.runObject(this, "Generate extractor source", () -> {;
+                    csc.accept(CLASSLOADER_FACTORY);
+                    GenerationResult gr = new GenerationResult(genResult, res.packageName, path, res.grammarName);
+                    Debug.message("Generation result", gr::toString);
+                    return gr;
+                });
+            } else {
+                Debug.message("No source file for extraction {0}", extraction.logString());
+                LOG.log(Level.WARNING, "No source file for extraction {0}", extraction.logString());
+            }
+            return null;
+        });
+    }
+
+    @Override
     public EmbeddedParser apply(GenerationResult res) throws Exception {
-        if (!res.res.isSuccess()) {
-            LOG.log(Level.WARNING, "Failed to generate extractor: {0}", res);
-            return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
-        }
-        ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
-        return env;
+        return Debug.runObjectThrowing(this, "Create new embedded parser", () -> "", () -> {
+            if (!res.res.isSuccess()) {
+                Debug.message("Generation Failure", () -> {
+                    return res.res.toString();
+                });
+                LOG.log(Level.WARNING, "Failed to generate extractor: {0}", res);
+                Debug.message("Return a dead embedded parser for " + res.grammarPath);
+                return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
+            }
+            ClassLoader loader = Thread.currentThread().getContextClassLoader();
+            PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
+            Debug.message("Use new PreservedInvocationEnvironment", () -> {
+                return env.toString();
+            });
+            return env;
+        });
     }
 
     static class GenerationResult {
@@ -116,6 +195,12 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             this.packageName = packageName;
             this.grammarPath = grammarPath;
             this.grammarName = grammarName;
+        }
+
+        public String toString() {
+            return "ProxiesInvocationRunner.GenerationResult("
+                    + packageName + " " + grammarName + " on " + grammarPath + ": "
+                    + res + ")";
         }
     }
 
@@ -141,17 +226,19 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             if (discarded) {
                 return;
             }
-            discarded = true;
-            LOG.log(Level.FINEST, "Discard a classloader {0}", ldr);
-            try {
-                if (ldr instanceof AutoCloseable) {
-                    ((AutoCloseable) ldr).close();
-                } else if (ldr instanceof Closeable) {
-                    ((Closeable) ldr).close();
+            Debug.run(this, "Discard classloader", () -> {
+                discarded = true;
+                LOG.log(Level.FINEST, "Discard a classloader {0}", ldr);
+                try {
+                    if (ldr instanceof AutoCloseable) {
+                        ((AutoCloseable) ldr).close();
+                    } else if (ldr instanceof Closeable) {
+                        ((Closeable) ldr).close();
+                    }
+                } catch (Exception ex) {
+                    LOG.log(Level.INFO, "Exception closing classloader " + ldr, ex);
                 }
-            } catch (Exception ex) {
-                LOG.log(Level.INFO, "Exception closing classloader " + ldr, ex);
-            }
+            });
         }
     }
 
@@ -204,19 +291,23 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
-            return Debug.runObjectThrowing(this, "enter-embedded-parser " + typeName + " " + ref, () -> {
-                return ref.toString(); // ldr.toString().replace(',', '\n');
-            }, () -> {
-                ClassLoader old = Thread.currentThread().getContextClassLoader();
-                Thread.currentThread().setContextClassLoader(ldr);
-                try {
-                    return th.get();
-                } finally {
-                    if (old != ldr) {
-                        Thread.currentThread().setContextClassLoader(old);
-                    }
-                }
-            });
+            return Debug.runObjectThrowing(this, "enter-embedded-parser-classloader " + typeName + " " + ref, ref::toString,
+                    () -> {
+                        ClassLoader old = Thread.currentThread().getContextClassLoader();
+                        Thread.currentThread().setContextClassLoader(ldr);
+                        T result = null;
+                        Object[] res = new Object[1];
+                        try {
+                            result = th.get();
+                            res[0] = result;
+                        } finally {
+                            if (old != ldr) {
+                                Thread.currentThread().setContextClassLoader(old);
+                            }
+                            Debug.message("Invocation result", Objects.toString(res[0]));
+                        }
+                        return result;
+                    });
         }
 
         @Override

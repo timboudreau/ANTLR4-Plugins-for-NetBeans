@@ -30,6 +30,7 @@ import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ReparseListeners;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -58,6 +59,7 @@ public final class EmbeddedAntlrParsers {
     }
 
     void onDeadFile(EmbeddedAntlrParserImpl parser) {
+        Debug.message("onDeadFile", parser::toString);
         // Called if the associated file no longer exists - try
         // to dispose class loaders, etc.
         Set<FileObject> dead = new HashSet<>();

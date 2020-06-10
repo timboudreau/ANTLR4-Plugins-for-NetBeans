@@ -115,9 +115,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     private static final Logger LOG = Logger.getLogger(
             AntlrRuntimeErrorsHighlighter.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
     private final Context ctx;
     private final static RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
     private final CompL compl = new CompL();

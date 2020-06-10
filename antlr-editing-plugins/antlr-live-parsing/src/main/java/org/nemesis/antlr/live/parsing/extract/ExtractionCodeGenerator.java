@@ -27,9 +27,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.EnumSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
+import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
 
 /**
@@ -56,28 +58,12 @@ public class ExtractionCodeGenerator {
      * @param prefix The class name prefix, typically the name of the grammar
      * but may differ in character case
      * @param dir The destination directory
-     * @return A path to the created file
-     * @throws IOException If reading the template fails or writing fails
-     */
-    public static Path saveExtractorSourceTo(Path originalGrammarFile, String pkg, String prefix, Path dir) throws IOException {
-        return saveExtractorSourceTo(originalGrammarFile, pkg, prefix, dir, false);
-    }
-
-    /**
-     * Save to disk.
-     *
-     * @param originalGrammarFile The original grammar file it should be
-     * relative to
-     * @param pkg The package name in the destination location
-     * @param prefix The class name prefix, typically the name of the grammar
-     * but may differ in character case
-     * @param dir The destination directory
      * @param lexerOnly If true, omit any code relating to dealing with a parser
      * java class which will not exist for lexer grammars
      * @return A path to the created file
      * @throws IOException If reading the template fails or writing fails
      */
-    public static Path saveExtractorSourceTo(Path originalGrammarFile, String pkg, String prefix, Path dir, boolean lexerOnly) throws IOException {
+    public static Path saveExtractorSourceTo(Path originalGrammarFile, String pkg, String prefix, Path dir, boolean lexerOnly, String lexerGrammarName) throws IOException {
         if (Files.exists(dir.getParent().resolve("CompileResult.java"))) {
             throw new AssertionError("Writing extractor over itself: " + dir);
         }
@@ -92,13 +78,13 @@ public class ExtractionCodeGenerator {
                 lexerSuffix = "lexer";
             }
             LOG.log(Level.FINER, "Save extractor to {0} wih lexer fn {1}, lexer only? {2}", new Object[]{dest, lexerFile, lexerOnly});
-            String javaCode = getLexerExtractorSourceCode(originalGrammarFile, pkg, prefix, lexerOnly, lexerSuffix);
+            String javaCode = getLexerExtractorSourceCode(originalGrammarFile, pkg, prefix, lexerOnly, lexerSuffix, lexerGrammarName);
             Files.write(dest, javaCode.getBytes(StandardCharsets.UTF_8), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
         }
         return dest;
     }
 
-    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName) throws IOException {
+    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName, String lexerGrammarName) throws IOException {
         ExtractionCodeGenerationResult result = new ExtractionCodeGenerationResult(grammarName, pkg);
         // We presume antlr generation has been done here
 //        Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
@@ -106,18 +92,18 @@ public class ExtractionCodeGenerator {
         Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
         generated = CollectionUtils.concatenate(generated, fs.list(SOURCE_PATH, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false));
 
-        JavaFileObject candidateLexer = null;
-        JavaFileObject foundParser = null;
-        JavaFileObject foundLexer = null;
+        FileObject candidateLexer = null;
+        FileObject foundParser = null;
+        FileObject foundLexer = null;
         String lexerSuffix = "Lexer";
         String realPrefix = grammarName; // case may not match, so prefer values derived from actual file names
         // A bit of black magic here:
         // 1.  Though not documented, case difference between grammar name and grammar file name
         //     are tolerated by Antlr.  We have the grammar name from source generation, but we do not
-        //     actually know the exact file name.  So we parse all generated files and try to find the
+        //     actually know the exact file name.  So we iterate all generated files and try to find the
         //     parser and lexer
         // 2.  If you run Antlr against a file with fragments only - a partial lexer grammer,
-        //     you get a file named "grammarfile.java" which *is* the lexer but does not have Lexer
+        //     you get a file named "grammarfile.java" which *is* a lexer but does not have Lexer
         //     as its suffix (or maybe this has to do with grammar file name case?).  So if we didn't
         //     find fooLexer.java or FooLexer.java, we also look for foo.java as a fallback
         // 3.  Depending on what all we're generating, we may have generated parsers and lexers for
@@ -126,39 +112,85 @@ public class ExtractionCodeGenerator {
         // 4.  If we compiled a lexer grammar, there will not *be* a parser source file, and we need to
         //     know that to remove all the lines from ParserExtractor.java which are suffixed with //parser
         //     so it will be compilable.
+        // 5.  If your grammar and .g4 file are named FooParser, you will not get a parser class named
+        //     FooParserParser as you might expect, but just FooParser.
+        //
+        //     Are we having fun yet?
+        if (grammarName != null) {
+            foundParser = fs.get(SOURCE_PATH, UnixPath.get(grammarName + ".java"));
+            if (foundLexer == null) {
+                foundParser = fs.get(SOURCE_OUTPUT, UnixPath.get(grammarName + ".java"));
+            }
 
-        for (JavaFileObject fo : generated) {
+        }
+        if (lexerGrammarName != null) {
+            foundLexer = fs.get(SOURCE_PATH, UnixPath.get(lexerGrammarName + ".java"));
+            if (foundLexer == null) {
+                foundLexer = fs.get(SOURCE_PATH, UnixPath.get(lexerGrammarName + ".java"));
+            }
+        }
+        StringBuilder genInfo = new StringBuilder("\n/*\n");
+        genInfo.append("Looking for '").append(grammarName).append("'\n\n");
+        genInfo.append("Passed lexer grammar name '").append(lexerGrammarName).append("'\n");
+        String pfx = grammarName.endsWith("Parser") ? grammarName.substring(0, grammarName.length() - 6) : grammarName;
+        genInfo.append("Expected prefix for lexer: '").append(pfx).append("'\n");
+        for (FileObject fo : generated) {
+            if (foundParser != null && foundLexer != null) {
+                genInfo.append("  Have lexer ").append(foundLexer).append(" and parser ").append(foundParser).append(" - done\n");
+                break;
+            }
             String fn = Paths.get(fo.getName()).getFileName().toString();
             if (fn.endsWith(".java")) {
+                genInfo.append("examine ").append(fo.getName()).append(" as name ").append(fn).append('\n');
                 String nm = fn.substring(0, fn.length() - 5);
+
                 if (nm.toLowerCase().endsWith("lexer") || nm.toLowerCase().endsWith("parser") || grammarName.equalsIgnoreCase(nm)) {
+                    genInfo.append("  ends with lexer or parser - marking examined\n");
                     result.examined(nm);
                 }
                 // Look for GrammarNameParser.java - if it is not present,
                 // we probably have a lexer grammar
                 if (foundParser == null && nm.endsWith("Parser") && nm.length() > 6) {
                     String prefix = nm.substring(0, nm.length() - 6);
-                    if (prefix.equalsIgnoreCase(grammarName)) {
+                    genInfo.append("  is a parser, prefix ").append(prefix).append('\n');
+                    if (prefix.equalsIgnoreCase(grammarName) || prefix.equalsIgnoreCase(pfx) || prefix.equals(nm)) {
                         realPrefix = prefix;
                         foundParser = fo;
+                        genInfo.append("  bingo, got the parser: ").append(fo.getName()).append('\n');
                         continue;
+                    }
+                }
+                if (foundLexer == null && lexerGrammarName != null && nm.equals(lexerGrammarName)) {
+                    genInfo.append("  lexerGrammarName ").append(lexerGrammarName).append(" matches ").append(nm).append(" - it is the lexer\n");
+                    foundLexer = fo;
+                    if (foundParser != null) {
+                        break;
                     }
                 }
                 // Look for a lexer class; for *some* grammars, we wind
                 // up with just GrammarName.java, so we check for that too
                 if (foundLexer == null && (nm.endsWith("Lexer") || nm.endsWith("lexer"))) {
                     String prefix = nm.substring(0, nm.length() - 5);
-                    if (prefix.equalsIgnoreCase(grammarName)) {
+                    genInfo.append("  looks like a lexer - ").append(prefix).append(" matches grammarName ")
+                            .append(grammarName).append("? ").append(prefix.equalsIgnoreCase(grammarName))
+                            .append(" matches computed prefix '").append(pfx).append("'?")
+                            .append(pfx.equals(prefix))
+                            .append("\n");
+                    if (prefix.equalsIgnoreCase(grammarName) || pfx.equalsIgnoreCase(prefix)) {
                         realPrefix = prefix;
                         lexerSuffix = nm.substring(prefix.length());
                         foundLexer = fo;
+                        genInfo.append("Determining ").append(fo.getName())
+                                .append(" to be the lexer; lexerSuffix '").append(lexerSuffix).append("'\n");
                         continue;
                     }
                 }
                 if (foundParser != null && foundLexer != null) {
+                    genInfo.append("  Have lexer ").append(foundLexer).append(" and parser ").append(foundParser).append(" - done\n");
                     break;
                 }
-                if (grammarName.equalsIgnoreCase(nm)) {
+                if (grammarName.equalsIgnoreCase(nm) && !nm.endsWith("Parser")) {
+                    genInfo.append("  Partial name match '").append(nm).append("' marking ").append(fo.getName()).append(" as fallback lexer candidate\n");
                     candidateLexer = fo;
                 }
             }
@@ -169,23 +201,34 @@ public class ExtractionCodeGenerator {
             lexerSuffix = "";
         }
         if (foundLexer == null && candidateLexer != null) {
+            genInfo.append("Using candidate partial-name-match lexer as the lexer ").append(candidateLexer.getName());
             foundLexer = candidateLexer;
         }
         // If we found nothing, we're not going to generate anything compilable,
         // so bail here so we don't leave behind either a class missing parts
         // needed when generation is fixed, or an uncompilable turd
         if (foundLexer == null && candidateLexer == null && foundParser == null) {
+            LOG.log(Level.WARNING, "Did not find a parser or a lexer: {0}", genInfo);
             return result;
         }
-        String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix);
+
+        genInfo.append(" \n*/\n");
+        String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix,
+                lexerGrammarName);
+
         UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
-        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
+        Debug.message("Generated source code " + realSourceFile + " in " + pkg, () -> code + genInfo);
+        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code + genInfo));
     }
 
     public static String getLexerExtractorSourceCode(Path originalGrammarFile, String pkg,
-            String classNamePrefix, boolean lexerOnly, String lexerSuffix) throws IOException {
+            String classNamePrefix, boolean lexerOnly, String lexerSuffix, String passedLexerName) throws IOException {
         String result = Streams.readResourceAsUTF8(ParserExtractor.class, PARSER_EXTRACTOR_TEMPLATE);
         assert result != null : PARSER_EXTRACTOR_TEMPLATE + " not adjacent to " + ExtractionCodeGenerator.class;
+
+        String lexerFinalName = passedLexerName == null ? classNamePrefix + lexerSuffix
+                : passedLexerName;
+
         String extractorPackage = AntlrProxies.class.getPackage().getName();
         // Change the package statement
         result = result.replace("package org.nemesis.antlr.live.parsing.extract;",
@@ -194,14 +237,13 @@ public class ExtractionCodeGenerator {
         // the same package ordinarily - this could be generated into wherever and an import
         // from the same package is harmless)
         result = result.replace("import ignoreme.placeholder.DummyLanguageLexer;",
-                "\nimport " + pkg + "." + classNamePrefix + lexerSuffix + ";" + "import " + extractorPackage + ".AntlrProxies;\n");
+                "\nimport " + pkg + "." + lexerFinalName + ";" + "import " + extractorPackage + ".AntlrProxies;\n");
 
         // Same for the parser, if lexerOnly is false
         result = result.replace("import ignoreme.placeholder.DummyLanguageParser;",
                 lexerOnly ? "" : "\nimport " + pkg + "." + classNamePrefix + "Parser;//parser\n");
-        String lexerName = classNamePrefix + lexerSuffix;
         // Replace class name occurrences in source
-        result = result.replaceAll("DummyLanguageLexer", lexerName);
+        result = result.replaceAll("DummyLanguageLexer", lexerFinalName);
         result = result.replaceAll("DummyLanguageParser", classNamePrefix + "Parser");
         // Replace the string constant that provides the name for the ParseTreeProxy
         result = result.replaceAll("\"DummyLanguage\"", '"' + classNamePrefix + '"');

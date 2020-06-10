@@ -255,6 +255,12 @@ public class AdhocEditorKit extends ExtKit {
             putProperty(InputAttributes.class, new LangPropertyEvaluator(this));
         }
 
+        @Override
+        public String toString() {
+            return "AdhocEditorDoc(" + System.identityHashCode(this)
+                    + " for " + getProperty(StreamDescriptionProperty) + ")";
+        }
+
         static final class LangPropertyEvaluator implements PropertyEvaluator {
             // Looking up the language during Document creation can deadlock
             // by reentering LanguageHierarchy.language(), so initialize that

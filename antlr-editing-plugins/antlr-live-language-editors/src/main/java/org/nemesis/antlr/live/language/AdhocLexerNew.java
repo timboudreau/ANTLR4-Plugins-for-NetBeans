@@ -45,16 +45,14 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
 
     private static final Logger LOG = Logger.getLogger(AdhocLexerNew.class.getName());
     private final LexerRestartInfo<AdhocTokenId> info;
-    private final EmbeddedAntlrParser parser;
     private final String mimeType;
     private final Supplier<? extends TokensInfo> supp;
     private List<ProxyToken> tokens;
     private int cursor;
 
-    AdhocLexerNew(String mimeType, LexerRestartInfo<AdhocTokenId> info, EmbeddedAntlrParser antlrParser, Supplier<? extends TokensInfo> supp) {
+    AdhocLexerNew(String mimeType, LexerRestartInfo<AdhocTokenId> info, Supplier<? extends TokensInfo> supp) {
         this.mimeType = mimeType;
         this.info = info;
-        this.parser = antlrParser;
         this.supp = supp;
         if (info.state() instanceof Integer) {
             System.out.println("Create lexer with state " + info.state());
@@ -103,6 +101,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         try {
             return Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
                     + currentLexedName(), "", () -> {
+                        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
                         EmbeddedAntlrParserResult pres = parser.parse(text);
                         ParseTreeProxy result = pres.proxy();
                         LOG.log(Level.FINE, "Lexer gets new mime {0}", result.loggingInfo());
@@ -112,7 +111,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                             AdhocReparseListeners.reparsed(mimeType, doc, pres);
                         }
                         if (result.isUnparsed()) {
-                            Debug.failure("unparsed", () -> result.text().toString());
+                            Debug.failure("unparsed", parser::toString);
                             LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
                         }
                         return result;

@@ -66,6 +66,7 @@ public class AntlrProxies {
 
     private final List<ProxyToken> tokens = new ArrayList<>();
     private final List<ProxyTokenType> tokenTypes = new ArrayList<>(50);
+    private final List<Ambiguity> ambiguities = new ArrayList<>(10);
     private ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
     private final ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
     private final List<ParseTreeElement> treeElements = new ArrayList<>(50);
@@ -86,6 +87,10 @@ public class AntlrProxies {
         tokenTypes.add(EOF_TYPE);
         newHash();
         this.text = text;
+    }
+
+    public void onAmbiguity(Ambiguity ambiguity) {
+        ambiguities.add(ambiguity);
     }
 
     public void onThrown(Throwable thrown) {
@@ -118,7 +123,7 @@ public class AntlrProxies {
         newHash();
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
-                grammarName, grammarPath, text, thrown, ruleReferences);
+                grammarName, grammarPath, text, thrown, ruleReferences, ambiguities);
     }
 
     /**
@@ -149,7 +154,7 @@ public class AntlrProxies {
         ParseTreeProxy prox = new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE, Arrays.asList(root, child),
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
-                grammarName, pth, text, null, new BitSet[1]);
+                grammarName, pth, text, null, new BitSet[1], Collections.emptyList());
         prox.isUnparsed = true;
         return prox;
     }
@@ -165,6 +170,7 @@ public class AntlrProxies {
 
         private final List<ProxyToken> tokens;
         private final List<ProxyTokenType> tokenTypes;
+        private final List<Ambiguity> ambiguities;
         private final ParseTreeElement root;
         private final ProxyTokenType eofType;
         private final List<ParseTreeElement> treeElements;
@@ -188,7 +194,7 @@ public class AntlrProxies {
                 Set<ProxySyntaxError> errors, String[] parserRuleNames,
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
                 Path grammarPath, CharSequence text, RuntimeException thrown,
-                BitSet[] ruleReferencesForToken) {
+                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities) {
             this.tokens = tokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
@@ -204,17 +210,25 @@ public class AntlrProxies {
             this.text = text;
             this.thrown = thrown;
             this.ruleReferencesForToken = ruleReferencesForToken;
+            this.ambiguities = ambiguities;
+        }
+
+        public boolean hasAmbiguities() {
+            return !ambiguities.isEmpty();
+        }
+
+        public List<? extends Ambiguity> ambiguities() {
+            return ambiguities;
         }
 
         public String loggingInfo() {
-            String errString = syntaxErrors.isEmpty() ? "" :
-                    syntaxErrors.iterator().next().toString();
+            String errString = syntaxErrors.isEmpty() ? ""
+                    : syntaxErrors.iterator().next().toString();
             return (isUnparsed() ? "UNPARSED-" : "PTP-") + id()
                     + " errs " + syntaxErrors.size()
-                    + " tokens " + tokens.size() 
+                    + " tokens " + tokens.size()
                     + " textLength " + (text == null ? -1 : text.length())
-                    + " for " + grammarName + ": " + errString
-                    ;
+                    + " for " + grammarName + ": " + errString;
         }
 
         public CharSequence textOf(ProxyToken tok) {
@@ -376,7 +390,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             if (!Objects.equals(this.thrown, other.thrown)) {
                 return false;
             }
-            return true;
+            return Objects.equals(this.ambiguities, other.ambiguities);
         }
 
         /**
@@ -394,7 +408,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
-                    Paths.get(grammarPath), whitespace, null, null);
+                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList());
         }
 
         public RuntimeException thrown() {
@@ -1713,6 +1727,89 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         @Override
         public String toString() {
             return origType + ": " + getMessage();
+        }
+    }
+
+    public static final class Ambiguity {
+
+        public final int decision;
+        public final int ruleIndex;
+        public final String ruleName;
+        public final BitSet conflictingAlternatives;
+        public final int startOffset;
+        public final int stopOffset;
+
+        public Ambiguity(int decision, int ruleIndex, String ruleName, BitSet conflictingAlternatives,
+                int startOffset, int stopOffset) {
+            this.decision = decision;
+            this.ruleIndex = ruleIndex;
+            this.ruleName = ruleName;
+            this.conflictingAlternatives = conflictingAlternatives;
+            this.startOffset = startOffset;
+            this.stopOffset = stopOffset;
+        }
+
+        public int start() {
+            return startOffset;
+        }
+
+        public int end() {
+            return stopOffset + 1;
+        }
+
+        public int stop() {
+            return stopOffset;
+        }
+
+        public String toString() {
+            return "Ambiguity(" + ruleName + " / " + ruleIndex + " / " + decision
+                    + " @ " + startOffset + ":" + stopOffset + " alts: "
+                    + conflictingAlternatives + ")";
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 59 * hash + this.decision;
+            hash = 59 * hash + this.ruleIndex;
+            hash = 59 * hash + Objects.hashCode(this.ruleName);
+            hash = 59 * hash + Objects.hashCode(this.conflictingAlternatives);
+            hash = 59 * hash + this.startOffset;
+            hash = 59 * hash + this.stopOffset;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final Ambiguity other = (Ambiguity) obj;
+            if (this.decision != other.decision) {
+                return false;
+            }
+            if (this.ruleIndex != other.ruleIndex) {
+                return false;
+            }
+            if (this.startOffset != other.startOffset) {
+                return false;
+            }
+            if (this.stopOffset != other.stopOffset) {
+                return false;
+            }
+            if (!Objects.equals(this.ruleName, other.ruleName)) {
+                return false;
+            }
+            if (!Objects.equals(this.conflictingAlternatives, other.conflictingAlternatives)) {
+                return false;
+            }
+            return true;
         }
     }
 }

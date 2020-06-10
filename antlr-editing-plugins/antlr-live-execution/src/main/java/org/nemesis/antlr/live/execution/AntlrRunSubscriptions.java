@@ -16,8 +16,13 @@
 package org.nemesis.antlr.live.execution;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.path.UnixPath;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.ref.WeakReference;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -58,8 +63,10 @@ import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Exceptions;
 import org.openide.util.Utilities;
 import org.openide.util.lookup.Lookups;
 
@@ -247,6 +254,7 @@ public class AntlrRunSubscriptions {
         void run(Extraction ex, GrammarRunResult<T> res) {
             Optional<FileObject> ofo = ex.source().lookup(FileObject.class);
             if (!ofo.isPresent()) {
+                Debug.failure("No file object in extraction source lookup", ex.logString());
                 return;
             }
             FileObject fo = ofo.get();
@@ -405,6 +413,7 @@ public class AntlrRunSubscriptions {
                                 LOG.log(Level.FINEST, "Need a new compile builder for {0}", extraction.source());
                                 created = true;
                                 JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
+
                                 CSC csc = new CSC();
                                 arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
 
@@ -412,8 +421,63 @@ public class AntlrRunSubscriptions {
                                 cr = bldr.compile();
 
                                 if (!cr.isUsable()) {
+                                    if (!cr.diagnostics().isEmpty()) {
+                                        for (JavacDiagnostic diag : cr.diagnostics()) {
+                                            LOG.log(Level.FINE, "Compilation failed: {0} @ {1}:{2} - {3} in {4} {5}",
+                                                    new Object[]{diag.message(), diag.lineNumber(), diag.columnNumber(),
+                                                        diag.sourceCode(), diag.sourceRootRelativePath(),
+                                                        diag.kind()});
+                                        }
+                                        if (cr.thrown().isPresent()) {
+                                            LOG.log(Level.WARNING, "Exception building " + extraction.source(), cr.thrown().get());
+                                        }
+                                    }
+                                    Debug.failure("Unusable compilation result", () -> {
+                                        StringBuilder sb = new StringBuilder();
+                                        sb.append(cr).append('\n');
+                                        sb.append("failed ").append(cr.compileFailed());
+                                        sb.append("diags ").append(cr.diagnostics());
+                                        boolean hasFatal = false;
+                                        if (cr.diagnostics() != null && !cr.diagnostics().isEmpty()) {
+                                            for (JavacDiagnostic diag : cr.diagnostics()) {
+                                                sb.append("\n").append(diag.kind()).append(' ')
+                                                        .append(diag.message()).append("\n  at")
+                                                        .append(diag.lineNumber()).append(':')
+                                                        .append(diag.columnNumber()).append("\n")
+                                                        .append(diag.sourceCode()).append('\n');
+                                                hasFatal |= diag.isError();
+                                            }
+                                        }
+                                        Optional<Throwable> th = cr.thrown();
+                                        if (th != null && th.isPresent()) {
+                                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                            th.get().printStackTrace(new PrintStream(baos));
+                                            sb.append(new String(baos.toByteArray(), UTF_8));
+                                        }
+                                        if (hasFatal) {
+                                            for (Path pth : cr.sources()) {
+                                                JFSFileObject jfo = res.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
+                                                if (jfo == null) {
+                                                    jfo = res.jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
+                                                }
+                                                if (jfo == null) {
+                                                    jfo = res.jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
+                                                }
+                                                if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
+                                                    try {
+                                                        sb.append(jfo.getCharContent(true));
+                                                    } catch (IOException ex) {
+                                                        Exceptions.printStackTrace(ex);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        return sb.toString();
+                                    });
                                     LOG.log(Level.FINE, "Unusable compile result {0}", cr);
                                     return;
+                                } else {
+                                    Debug.success("Usable compile", cr::toString);
                                 }
 
                                 AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
@@ -421,8 +485,8 @@ public class AntlrRunSubscriptions {
                                 AntlrRunBuilder runBuilder = AntlrRunBuilder
                                         .fromGenerationPhase(compiler).isolated();
 
-                                if (csc.t != null) {
-                                    runBuilder.withParentClassLoader(csc.t);
+                                if (csc.classloaderSupplier != null) {
+                                    runBuilder.withParentClassLoader(csc.classloaderSupplier);
                                 }
 
                                 rb = runBuilder
@@ -431,10 +495,14 @@ public class AntlrRunSubscriptions {
                             } else {
                                 arg = cache.lastArg;
                                 cr = cache.lastCompileResult;
+                                Debug.message("Using last arg and compile result ", () -> {
+                                    return "arg " + arg + "\n" + cr;
+                                });;
                                 LOG.log(Level.FINEST, "Reuse cached {0} and {1}",
-                                        new Object[] { arg, cr});
+                                        new Object[]{arg, cr});
                             }
                             GrammarRunResult<T> rr = rb.run(arg, runner, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE, GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES, GrammarProcessingOptions.REBUILD_JAVA_SOURCES));
+
                             if (rr.isUsable()) {
                                 if (created) {
                                     grammarStatus = res.filesStatus;
@@ -444,6 +512,14 @@ public class AntlrRunSubscriptions {
                                 if (!created) {
                                     cache.lastRunner.resetFileModificationStatusForReuse();
                                 }
+                            } else {
+                                Debug.failure("Non-usable run result", () -> {
+                                    StringBuilder sb = new StringBuilder("compileFailed? ").append(rr.compileFailed()).append('\n');
+                                    sb.append("Diags: ").append(rr.diagnostics()).append('\n');
+                                    sb.append("GenOutput: ").append(rr.generationOutput()).append('\n');
+                                    sb.append(rr);
+                                    return sb.toString();
+                                });
                             }
                         });
             } catch (IOException ex) {
@@ -462,11 +538,11 @@ public class AntlrRunSubscriptions {
 
         static class CSC implements Consumer<Supplier<ClassLoader>> {
 
-            private Supplier<ClassLoader> t;
+            private Supplier<ClassLoader> classloaderSupplier;
 
             @Override
             public void accept(Supplier<ClassLoader> t) {
-                this.t = t;
+                this.classloaderSupplier = t;
             }
         }
 

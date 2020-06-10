@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.ChangeEvent;
@@ -37,6 +38,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.tool.Grammar;
@@ -44,6 +46,7 @@ import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -196,7 +199,7 @@ final class AdhocHighlighterManager {
                     addNotify(comp);
                     AdhocLanguageHierarchy.onNewEnvironment(mimeType, this);
                     AdhocReparseListeners.listen(mimeType, dd, xc);
-                    
+
                     DocumentUtilities.addPriorityDocumentListener(dd, this,
                             DocumentListenerPriority.LEXER);
                     colorings.addChangeListener(this);
@@ -259,8 +262,8 @@ final class AdhocHighlighterManager {
             @Override
             public void accept(Document t, EmbeddedAntlrParserResult u) {
                 Document d = document();
-                if (t == d) {
-                    Debug.run(this, "hl-mgr-xc-accept " + u.grammarTokensHash(), () -> {
+                if (t == d || d.getProperty(StreamDescriptionProperty) == null) { // XXX why???
+                    Debug.run(this, "hl-mgr-xc-accept " + u.grammarTokensHash() + " for " + t.getProperty(StreamDescriptionProperty), () -> {
                         onNewParse(t, u);
                     });
                 } else {
@@ -333,14 +336,37 @@ final class AdhocHighlighterManager {
     }
 
     void documentReparse() {
+        // Less elegant than wheedling our way through ParserManager, but also 
+        // less likely to deadlock on its lock
+        Document d = ctx.getDocument();
+        Debug.run(this, "adhoc-hlmgr-doc-reparse-" + d.getProperty(StreamDescriptionProperty), () -> {
+            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+            CharSequence text = DocumentUtilities.getText(d);
+            try {
+                EmbeddedAntlrParserResult result = parser.parse(text);
+                AntlrProxies.ParseTreeProxy prox = result.proxy();
+                if (prox.isUnparsed()) {
+                    Debug.failure("Got unparsed proxy", prox::loggingInfo);
+                } else {
+                    Debug.success("Got parsed proxy", prox::loggingInfo);
+                }
+                lastParseInfo.set(new HighlightingInfo(d, prox));
+                scheduleRepaint();
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        });
+    }
+
+    void xdocumentReparse() {
         // Trying to get out of the way of a complex deadlock,
         // and this is the one case where any code other than AdhocEditorKit$Doc.render()
         // is participating - invokeLater at least guarantees that one of the most
         // likely threads to participate for other reasons can't
-        EventQueue.invokeLater(this::doDocumentReparse);
+        EventQueue.invokeLater(this::xdoDocumentReparse);
     }
 
-    void doDocumentReparse() {
+    void xdoDocumentReparse() {
         Debug.run(this, "adhoc-hlmgr-doc-reparse " + AdhocMimeTypes.loggableMimeType(mimeType), () -> {
             Document d = ctx.getDocument();
             HighlightingInfo info = lastInfo();
@@ -353,41 +379,8 @@ final class AdhocHighlighterManager {
                         AdhocParserResult ahpr = (AdhocParserResult) res;
                         Debug.message("parser new proxy - "
                                 + ahpr.grammarHash() + " " + ahpr.parseTree().loggingInfo(),
-                                () -> {
-                                    StringBuilder sb = new StringBuilder("INFO:\n");
+                                parseResultDetails(ahpr, res));
 
-                                    AntlrGenerationAndCompilationResult gr = ahpr.result().runResult().genResult();
-
-                                    sb.append("AntlrGenerationAndCompilationResult: ")
-                                            .append(gr).append("\n");
-
-                                    for (Path p : gr.compiledSourceFiles()) {
-                                        sb.append("  ").append(p).append('\n');
-                                    }
-
-                                    AntlrGenerationResult genR = gr.generationResult();
-                                    sb.append("\nAntlrGenerationResult: ").append(genR).append("\n");
-                                    sb.append("  status: ").append(genR.currentStatus());
-                                    sb.append("  modified:\n");
-                                    for (Map.Entry<JFSFileObject, Long> e : genR.modifiedFiles.entrySet()) {
-                                        sb.append("    ").append(e.getKey()).append('\n');
-                                    }
-                                    sb.append("  new:\n");
-                                    for (JFSFileObject f : genR.newlyGeneratedFiles) {
-                                        sb.append("    ").append(f).append('\n');
-                                    }
-
-                                    Grammar g = genR.mainGrammar;
-                                    Vocabulary vocab = g.getVocabulary();
-                                    sb.append("\nGRAMMAR: ").append(g.name).append(" / ").append(g.fileName);
-                                    for (int i = 1; i < vocab.getMaxTokenType(); i++) {
-                                        sb.append("TT: ").append(vocab.getSymbolicName(i)).append(":").append(vocab.getLiteralName(i))
-                                                .append('\n');
-                                    }
-                                    sb.append("\nGRAMMAR TEXT:\n").append(g.text).append("\n\n");
-
-                                    return sb.toString();
-                                });
 //                        onNewParse(ctx.getDocument(), res.)
                         HighlightingInfo nue = new HighlightingInfo(ctx.getDocument(), ahpr.parseTree());
                         lastParseInfo.set(nue);
@@ -401,6 +394,64 @@ final class AdhocHighlighterManager {
                 LOG.log(Level.SEVERE, null, ex);
             }
         });
+    }
+
+    private static Supplier<String> parseResultDetails(AdhocParserResult ahpr, Parser.Result res) {
+        return () -> {
+            StringBuilder sb = new StringBuilder("INFO:\n");
+            EmbeddedAntlrParserResult parserResult = ahpr.result();
+            if (parserResult != null) {
+                GrammarRunResult<?> runResult = parserResult.runResult();
+                if (runResult != null) {
+                    AntlrGenerationAndCompilationResult gr = runResult.genResult();
+
+                    if (gr != null) {
+
+                        sb.append("AntlrGenerationAndCompilationResult: ")
+                                .append(gr).append("\n");
+
+                        for (Path p : gr.compiledSourceFiles()) {
+                            sb.append("  ").append(p).append('\n');
+                        }
+                        AntlrGenerationResult genR = gr.generationResult();
+                        if (genR != null) {
+                            sb.append("\nAntlrGenerationResult: ").append(genR).append("\n");
+                            sb.append("  status: ").append(genR.currentStatus());
+                            sb.append("  modified:\n");
+                            for (Map.Entry<JFSFileObject, Long> e : genR.modifiedFiles.entrySet()) {
+                                sb.append("    ").append(e.getKey()).append('\n');
+                            }
+                            sb.append("  new:\n");
+                            for (JFSFileObject f : genR.newlyGeneratedFiles) {
+                                sb.append("    ").append(f).append('\n');
+                            }
+
+                            Grammar g = genR.mainGrammar;
+                            if (g != null) {
+                                Vocabulary vocab = g.getVocabulary();
+                                sb.append("\nGRAMMAR: ").append(g.name).append(" / ").append(g.fileName);
+                                for (int i = 1; i < vocab.getMaxTokenType(); i++) {
+                                    sb.append("TT: ").append(vocab.getSymbolicName(i)).append(":").append(vocab.getLiteralName(i))
+                                            .append('\n');
+                                }
+                                sb.append("\nGRAMMAR TEXT:\n").append(g.text).append("\n\n");
+                            } else {
+                                sb.append("\nNo main grammar in ").append(genR);
+                            }
+                        } else {
+                            sb.append("\nNo generation result in ").append(gr).append(" of ").append(runResult).append(" of ").append(parserResult).append(" of ").append(res);
+                        }
+                    } else {
+                        sb.append("\nNo generation and compilation result in ").append(runResult).append(" of ").append(parserResult).append(" of ").append(res);
+                    }
+                } else {
+                    sb.append("\nNo grammar run result in ").append(parserResult).append(" of ").append(res);
+                }
+            } else {
+                sb.append("\nno embedded antlr parser result in ").append(res);
+            }
+            return sb.toString();
+        };
     }
 
     private void onNewParse(Document doc, EmbeddedAntlrParserResult res) {

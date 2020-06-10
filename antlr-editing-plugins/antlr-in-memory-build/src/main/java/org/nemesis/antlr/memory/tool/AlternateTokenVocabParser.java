@@ -34,8 +34,8 @@ import org.nemesis.jfs.JFSFileObject;
 final class AlternateTokenVocabParser {
 
     /**
-     * Ensure if there is .tokens file needed, and the lexer grammar that produces
-     * it is uncompiled, that we generate it.
+     * Ensure if there is .tokens file needed, and the lexer grammar that
+     * produces it is uncompiled, that we generate it.
      *
      * @param tool The tool
      * @param g The grammar requesting it
@@ -68,6 +68,7 @@ final class AlternateTokenVocabParser {
             Grammar pre = tool.readOneGrammar(fo, adjacent.getFileName().toString(), ctx);
             if (pre != null) {
                 tool.process(pre, true);
+                tool.noteImportedGrammar(pre.name, pre);
                 return true;
             }
         }
@@ -83,9 +84,11 @@ final class AlternateTokenVocabParser {
         Path filePath = ctx.importedFilePath(g, tool);
         precreateMissingLexer(tool, g, filePath);
         String vocabName = g.getOptionString("tokenVocab");
+        System.out.println("Try to load tokenVocab " + vocabName);
         try {
             JFSFileObject fullFile = ctx.getImportedVocabFile(g, tool);
             JFSFileObject ff = fullFile;
+            System.out.println("  Found token vocab file " + fullFile);
             tool.withCurrentPathThrowing(Paths.get(fullFile.getName()), () -> {
                 int maxTokenType = -1;
                 Pattern tokenDefPattern = Pattern.compile("([^\n]+?)[ \\t]*?=[ \\t]*?([0-9]+)");

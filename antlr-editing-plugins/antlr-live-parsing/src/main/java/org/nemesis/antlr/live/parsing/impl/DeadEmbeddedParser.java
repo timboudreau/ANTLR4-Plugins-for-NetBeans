@@ -47,4 +47,8 @@ public final class DeadEmbeddedParser implements EmbeddedParser {
         // do nothing
     }
 
+    public String toString() {
+        return "DeadEmbeddedParser(" + grammarName + ":" + grammarPath + ")";
+    }
+
 }

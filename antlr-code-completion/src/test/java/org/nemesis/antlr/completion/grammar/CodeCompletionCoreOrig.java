@@ -49,10 +49,6 @@ public class CodeCompletionCoreOrig {
 
     public final static Logger logger = Logger.getLogger(CodeCompletionCore.class.getName());
 
-    static {
-        logger.setLevel(Level.ALL);
-    }
-
     static final class NoNullsMap<T, R> extends HashMap<T, R> {
 
         @Override

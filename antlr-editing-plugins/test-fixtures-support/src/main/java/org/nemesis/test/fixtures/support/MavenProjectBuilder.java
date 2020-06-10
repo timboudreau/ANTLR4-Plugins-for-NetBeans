@@ -20,6 +20,7 @@ import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.streams.Streams;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -74,13 +75,31 @@ public final class MavenProjectBuilder {
         });
     }
 
+    public MavenProjectBuilder copyMainAntlrSource(Path orig, String path) {
+        assert Files.exists(orig);
+        Path relPath = Paths.get(path).resolve(orig.getFileName());
+        return addMainAntlrSource(relPath.toString(), () -> {
+            try {
+                return new String(Files.readAllBytes(orig), UTF_8);
+            } catch (IOException ex) {
+                return Exceptions.chuck(ex);
+            }
+        });
+    }
+
     public MavenProjectBuilder addMainAntlrSource(String name, Supplier<String> body) {
-        Path path = Paths.get("src/main/antlr4/").resolve(name + ".g4");
+        if (!name.endsWith(".g4")) {
+            name = name + ".g4";
+        }
+        Path path = Paths.get("src/main/antlr4/").resolve(name);
         return add(path, body);
     }
 
     public MavenProjectBuilder addImportedAntlrSource(String name, Supplier<String> body) {
-        Path path = Paths.get("src/main/antlr4/imports").resolve(name + ".g4");
+        if (!name.endsWith(".g4")) {
+            name = name + ".g4";
+        }
+        Path path = Paths.get("src/main/antlr4/imports").resolve(name);
         return add(path, body);
     }
 
@@ -160,7 +179,6 @@ public final class MavenProjectBuilder {
         return result;
     }
 
-
     static void assertNotNull(Object o, String msg) {
         if (o == null) {
             throw new AssertionError(msg);
@@ -168,6 +186,7 @@ public final class MavenProjectBuilder {
     }
 
     private boolean verboseLogging;
+
     public MavenProjectBuilder verboseLogging() {
         this.verboseLogging = true;
         return this;
@@ -181,12 +200,12 @@ public final class MavenProjectBuilder {
         logExclude.addAll(Arrays.asList(more));
         return this;
     }
+
     public MavenProjectBuilder logInclude(String s, String... more) {
         logInclude.add(s);
         logInclude.addAll(Arrays.asList(more));
         return this;
     }
-
 
     private static String POM_TEMPLATE = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             + "<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n"

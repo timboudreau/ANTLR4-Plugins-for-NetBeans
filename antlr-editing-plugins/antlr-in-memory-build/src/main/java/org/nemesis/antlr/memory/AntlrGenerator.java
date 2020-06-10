@@ -209,7 +209,6 @@ public final class AntlrGenerator {
                 tool.generate_ATN_dot = opts.contains(AntlrGenerationOption.GENERATE_ATN);
                 tool.grammarEncoding = grammarEncoding.name();
                 tool.gen_dependencies = opts.contains(AntlrGenerationOption.GENERATE_DEPENDENCIES);
-                System.out.println("SET GEN DEPS TO " + tool.gen_dependencies);
                 tool.longMessages = opts.contains(AntlrGenerationOption.LONG_MESSAGES);
                 tool.log = opts.contains(AntlrGenerationOption.LOG);
                 tool.force_atn = opts.contains(AntlrGenerationOption.FORCE_ATN);
@@ -350,6 +349,7 @@ public final class AntlrGenerator {
                     }
                 }
             }
+            grammars.addAll(tool.allGrammars());
         }
     }
 
