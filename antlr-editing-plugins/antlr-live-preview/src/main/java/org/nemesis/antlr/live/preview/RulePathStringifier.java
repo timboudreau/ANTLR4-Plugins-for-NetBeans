@@ -16,6 +16,8 @@
 package org.nemesis.antlr.live.preview;
 
 import java.awt.Color;
+import javax.swing.JComponent;
+import javax.swing.JList;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 
 /**
@@ -29,7 +31,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
  */
 public interface RulePathStringifier {
 
-    public void tokenRulePathString(AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, StringBuilder into, boolean html);
+    public void tokenRulePathString(AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, StringBuilder into, boolean html, JComponent colorSource);
 
-    public Color listBackgroundColorFor(String ruleName);
+    public Color listBackgroundColorFor(String ruleName, JList<?> list);
 }

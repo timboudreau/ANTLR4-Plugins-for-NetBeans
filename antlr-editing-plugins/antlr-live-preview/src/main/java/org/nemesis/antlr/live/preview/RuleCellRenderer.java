@@ -18,7 +18,7 @@ package org.nemesis.antlr.live.preview;
 import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
@@ -33,9 +33,9 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
 
     private final AdhocColorings colorings;
     private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
-    private final Function<String, Color> listBackgroundColorFor;
+    private final BiFunction<String, JList<?>, Color> listBackgroundColorFor;
 
-    public RuleCellRenderer(AdhocColorings colorings, Function<String, Color> listBackgroundColorFor) {
+    RuleCellRenderer(AdhocColorings colorings, BiFunction<String, JList<?>, Color> listBackgroundColorFor) {
         this.colorings = colorings;
         this.listBackgroundColorFor = listBackgroundColorFor;
     }
@@ -49,7 +49,7 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         String prefix = "";
         AdhocColoring col = colorings.get(value);
         if (!col.isActive()) {
-            prefix += "<font color='#aaaaaa'>";
+            prefix = RulePathStringifierImpl.dimmedForeground(list);
         }
         if (col.isBackgroundColor()) {
             prefix += "<b>";
@@ -57,7 +57,7 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         if (col.isItalic()) {
             prefix += "<i>";
         }
-        Color back = listBackgroundColorFor.apply(value);
+        Color back = listBackgroundColorFor.apply(value, list);
         if (isSelected) {
             ren.setCellBackground(list.getSelectionBackground());
         } else if (back != null) {

@@ -20,7 +20,6 @@ import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.EventQueue;
-import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -37,7 +36,6 @@ import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
-import javax.swing.SwingUtilities;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 import org.nemesis.antlr.live.preview.SyntaxTreeListModel.ModelEntry;
@@ -51,7 +49,6 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.nemesis.swing.html.HtmlRenderer;
-import org.openide.windows.TopComponent;
 
 /**
  *
@@ -85,10 +82,10 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
     }
 
     public JList<ModelEntry> createList() {
-        JList<ModelEntry> list = new ParentCheckList(this);
+        JList<ModelEntry> list = new ParentCheckingFastJList<>(this);
         list.setSelectionModel(selectionModel);
         list.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-        list.setCellRenderer(new MERenderer());
+        list.setCellRenderer(new SyntaxTreeCellRenderer());
         return list;
     }
 
@@ -136,93 +133,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         }
     }
 
-    static class ParentCheckList extends JList<ModelEntry> {
 
-        boolean parentFocused;
-
-        public ParentCheckList(ListModel<ModelEntry> dataModel) {
-            super(dataModel);
-        }
-
-        @Override
-        public void paint(Graphics g) {
-            TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, this);
-            if (tc != null) {
-                parentFocused = tc == TopComponent.getRegistry().getActivated();
-            }
-            super.paint(g);
-        }
-
-    }
-
-    static class MERenderer implements ListCellRenderer<ModelEntry> {
-
-        private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
-
-        @Override
-        public Component getListCellRendererComponent(JList<? extends ModelEntry> list, ModelEntry value, int index, boolean isSelected, boolean cellHasFocus) {
-            Component result = ren.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            JLabel r = (JLabel) ren;
-            if (value.isError()) {
-                ren.setHtml(true);
-                ren.setText("<font color='!nb.errorForeground'>" + Escaper.BASIC_HTML.escape(value.toString()));
-            } else if (value.isParserRule()) {
-                ren.setHtml(true);
-                ren.setText("<b>" + Escaper.BASIC_HTML.escape(value.toString()));
-            } else {
-                ren.setHtml(true);
-                ren.setText(Escaper.BASIC_HTML.escape(value.toString()));
-            }
-            r.setForeground(list.getForeground());
-            ren.setIndent(5 * value.depth());
-            if (list instanceof ParentCheckList) {
-                ren.setParentFocused(((ParentCheckList) list).parentFocused);
-            }
-            r.setToolTipText(value.tooltip());
-            if (isSelected) {
-                ren.setCellBackground(list.getSelectionBackground());
-            } else {
-                ModelEntry sel = list.getSelectedValue();
-                int dist = -1;
-                if (sel != null) {
-                    dist = sel.distanceFrom(value);
-                }
-                if (dist == -1) {
-                    ren.setCellBackground(list.getBackground());
-                } else {
-                    ren.setCellBackground(backgroundFor(dist, list, sel.depth()));
-                }
-            }
-            ((JComponent) result).setOpaque(true);
-            return result;
-        }
-
-        private Color backgroundFor(int dist, JList<?> list, int totalDepth) {
-            Color selBg = list.getSelectionBackground();
-            Color bg = list.getBackground();
-            float[] selBgHsb = new float[3];
-            Color.RGBtoHSB(selBg.getRed(), selBg.getGreen(), selBg.getBlue(), selBgHsb);
-            float[] bgHsb = new float[3];
-            Color.RGBtoHSB(bg.getRed(), bg.getGreen(), bg.getBlue(), bgHsb);
-            float[] changed = diff(selBgHsb, bgHsb, dist, totalDepth);
-            return new Color(Color.HSBtoRGB(changed[0], changed[1], changed[2]));
-        }
-
-        private float[] diff(float[] a, float[] b, float dist, float of) {
-            if (of == 0) {
-                return a;
-            }
-            float frac = dist / of;
-            float[] result = new float[a.length];
-            for (int i = 0; i < a.length; i++) {
-                float av = a[i];
-                float bv = b[i];
-                float diff = (bv - av) * frac;
-                result[i] = a[i] + diff;
-            }
-            return result;
-        }
-    }
 
     void update(ParseTreeProxy proxy) {
         if (EventQueue.isDispatchThread()) {

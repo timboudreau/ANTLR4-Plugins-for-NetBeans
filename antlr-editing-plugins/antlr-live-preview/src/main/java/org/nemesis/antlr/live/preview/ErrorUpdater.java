@@ -299,7 +299,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 print(Bundle.type(type.names()), IOColors.OutputType.LOG_DEBUG);
                 if (rule != null) {
                     StringBuilder sb = new StringBuilder();
-                    stringifier.tokenRulePathString(prx, tok, sb, false);
+                    stringifier.tokenRulePathString(prx, tok, sb, false, editorPane);
                     print(Bundle.rules(sb), IOColors.OutputType.LOG_DEBUG);
                 }
                 print(Bundle.text(prx.textOf(tok)), IOColors.OutputType.OUTPUT);

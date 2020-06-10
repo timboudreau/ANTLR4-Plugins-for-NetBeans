@@ -1749,6 +1749,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.stopOffset = stopOffset;
         }
 
+        public String identifier() {
+            return ruleName + ":" + decision + ":" + ruleIndex + ":" + startOffset + "-" + stopOffset;
+        }
+
         public int start() {
             return startOffset;
         }

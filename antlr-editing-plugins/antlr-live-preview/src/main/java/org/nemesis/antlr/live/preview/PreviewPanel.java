@@ -107,7 +107,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private static final java.util.logging.Logger LOG
             = java.util.logging.Logger.getLogger(PreviewPanel.class.getName());
 
-    private final JList<String> rules = new JList<>();
+    private final JList<String> rules = new ParentCheckingFastJList<>();
     private final JScrollPane rulesPane = new JScrollPane(rules);
     private final SyntaxTreeListModel syntaxModel = new SyntaxTreeListModel();
     private final JList<SyntaxTreeListModel.ModelEntry> syntaxTreeList
@@ -599,7 +599,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         StringBuilder sb = new StringBuilder();
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
-            stringifier.tokenRulePathString(prx, tok, sb, true);
+            stringifier.tokenRulePathString(prx, tok, sb, true, breadcrumb);
             List<ParseTreeElement> referenceChain = prx.referencedBy(tok); //tok.referencedBy();
             if (!referenceChain.isEmpty()) {
                 ParseTreeElement rule = referenceChain.get(referenceChain.size() - 1);

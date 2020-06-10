@@ -29,10 +29,16 @@ import javax.swing.text.Element;
 import javax.swing.text.Position;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
+import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.editor.mimelookup.MimePath;
+import org.netbeans.api.editor.settings.EditorStyleConstants;
+import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
@@ -86,14 +92,17 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
 
     private static AttributeSet warning;
     public static AttributeSet warning() {
-        // XXX fixme
         if (warning != null) {
             return warning;
         }
-        SimpleAttributeSet set = new SimpleAttributeSet();
-        StyleConstants.setUnderline(set, true);
-        StyleConstants.setBackground(set, Color.yellow.darker());
-        return warning = set;
+        FontColorSettings fcs = MimeLookup.getLookup(MimePath.parse(ANTLR_MIME_TYPE)).lookup(FontColorSettings.class);
+        warning = fcs.getFontColors("warning");
+        if (warning == null) {
+            SimpleAttributeSet sas = new SimpleAttributeSet();
+            sas.addAttribute(EditorStyleConstants.WaveUnderlineColor, Color.YELLOW.darker());
+            warning = sas;
+        }
+        return warning;
     }
 
     @Override
@@ -129,9 +138,17 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 }
             }
         }
+        List<ErrorDescription> set = new ArrayList<>();
         for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
-            bag.addHighlight(amb.startOffset, amb.stopOffset, warning());
+            ProxyToken a = semantics.tokens().get(amb.startOffset);
+            ProxyToken b = semantics.tokens().get(amb.stopOffset);
+            bag.addHighlight(a.getStartIndex(), b.getEndIndex(), warning());
+            SimpleAttributeSet sas = new SimpleAttributeSet();
+            sas.addAttribute(EditorStyleConstants.Tooltip, "Matches " + amb.conflictingAlternatives);
+            ErrorDescription ed = ErrorDescriptionFactory.createErrorDescription(Severity.WARNING, "Ambiguity in rule '" + amb.ruleName + "'", NbEditorUtilities.getFileObject(doc), amb.startOffset, amb.end());
+            set.add(ed);
         }
+        HintsController.setErrors(doc, "1", set);
         this.bag.setHighlights(bag);
         this.refreshErrorsTask.schedule(100);
     }
