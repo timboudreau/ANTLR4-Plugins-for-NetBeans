@@ -60,6 +60,7 @@ import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
+import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -341,7 +342,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         Debug.message("preview-new-proxy " + Long.toString(newProxy.id(), 36)
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
-            indicator.trigger();
+            AdhocColoringsRegistry.getDefault().ensureAllPresent(newProxy);
+            indicator.trigger(); // XXX invisible?
             Debug.run(this, "preview-update " + mimeType, () -> {
                 StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
                 sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');

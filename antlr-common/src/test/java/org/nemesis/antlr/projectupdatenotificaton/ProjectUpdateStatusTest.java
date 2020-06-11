@@ -86,8 +86,6 @@ public class ProjectUpdateStatusTest {
     public void testReadWriteGraph() throws Exception {
         initDeps();
         DynamicGraph<Path> dg = ProjectUpdates.graph();
-        System.out.println("sz " + dg.size());
-        System.out.println("Serializing " + dg);
         try (FileChannel channel = FileChannel.open(ser, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
             dg.store(channel, ProjectUpdateStatusTest::writePath);
         }
@@ -96,20 +94,17 @@ public class ProjectUpdateStatusTest {
             deser = DynamicGraph.load(channel, ProjectUpdateStatusTest::readPath);
         }
         assertNotNull(deser);
-        System.out.println("Deserialized " + deser);
         assertEquals(dg, deser);
     }
 
     static <C extends ReadableByteChannel & SeekableByteChannel> Path readPath(ByteBuffer buf) throws IOException {
         int len = buf.getInt();
-        System.out.println("path length " + len);
         if (len < 0 || len > 2048) {
             throw new IOException("Absurdly long path entry: " + len);
         }
         byte[] bytes = new byte[len];
         buf.get(bytes);
         Path p = Paths.get(new String(bytes, UTF_8));
-        System.out.println("  read path '" + p + "'");
         return p;
     }
 

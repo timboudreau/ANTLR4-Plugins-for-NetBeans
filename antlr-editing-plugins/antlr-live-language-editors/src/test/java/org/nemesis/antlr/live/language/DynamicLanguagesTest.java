@@ -57,8 +57,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
@@ -110,7 +108,6 @@ import org.openide.util.Lookup;
  *
  * @author Tim Boudreau
  */
-@Execution(ExecutionMode.SAME_THREAD)
 public class DynamicLanguagesTest {
 
     private static final String EXT = "woogle";
@@ -125,7 +122,7 @@ public class DynamicLanguagesTest {
             + "thing: 51 }";
 
     @Test
-    public void testMimeResolverIsPresent() throws IOException, InvalidMimeTypeRegistrationException {
+    public void testMimeResolverIsPresent() throws IOException, InvalidMimeTypeRegistrationException, DataObjectNotFoundException, InterruptedException, ParseException, BadLocationException {
 
         Collection<? extends MIMEResolver> all = Lookup.getDefault().lookupAll(MIMEResolver.class);
         AdhocMimeResolver found = null;
@@ -232,7 +229,6 @@ public class DynamicLanguagesTest {
 
         AdhocParserResult p = parse(testit);
         CharSequence sq = p.getSnapshot().getText();
-        System.out.println("TYPE OF sq is " + sq.getClass().getName());
         assertEquals(TEXT_1, sq.toString(), "Text was somehow altered in snapshot creation: " + p.getSnapshot());
         assertNotNull(p);
         AntlrProxies.ParseTreeProxy ptp = p.parseTree();
@@ -250,8 +246,6 @@ public class DynamicLanguagesTest {
         Path gp = AdhocMimeTypes.grammarFilePathForMimeType(mime);
         assertEquals(gp, gen.get("NestedMaps.g4"));
 
-        System.out.println("\n\n\nDO THE THING.\n");
-
         gen.replaceString("NestedMaps.g4", "Number", "Puppy").replaceString("NestedMaps.g4", "booleanValue", "dogCow");
 
         FileObject f1 = gen.file("NestedMaps.g4");
@@ -261,16 +255,7 @@ public class DynamicLanguagesTest {
 
         Reference<AdhocParserResult> ref = new WeakReference<>(p);
         p = null;
-        for (int i = 0; i < 50; i++) {
-            System.gc();
-            System.runFinalization();
-            if (ref.get() == null) {
-                break;
-            }
-            Thread.sleep(20);
-        }
-        p = ref.get();
-        assertNull(p, "Old parser result was not garbage collected");
+        p = assertGarbageCollected(ref, "Old parser result");
 
         EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
         assertNotNull(ck);
@@ -285,7 +270,13 @@ public class DynamicLanguagesTest {
         Set<String> fileRuleNames = Collections.synchronizedSet(new HashSet<>());
         Set<String> docRuleNames = Collections.synchronizedSet(new HashSet<>());
         AtomicReference<Throwable> thrown = new AtomicReference<>();
+        boolean[] notificationsDelivered = new boolean[4];
+        Thread testThread = Thread.currentThread();
         AdhocReparseListeners.listen(mime, doc, ref1 = (Document d, EmbeddedAntlrParserResult rs) -> {
+            synchronized (notificationsDelivered) {
+                notificationsDelivered[0] = true;
+                notificationsDelivered[2] = Thread.currentThread() == testThread;
+            }
             try {
                 assertSame(doc, d, "called with some other document");
                 docRuleNames.addAll(rs.proxy().parserRuleNames());
@@ -302,6 +293,7 @@ public class DynamicLanguagesTest {
                 }
                 assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
             } catch (Throwable t) {
+                t.printStackTrace();
                 thrown.updateAndGet(old -> {
                     if (old != null) {
                         old.addSuppressed(t);
@@ -312,13 +304,17 @@ public class DynamicLanguagesTest {
             }
         });
         AdhocReparseListeners.listen(mime, dob.getPrimaryFile(), ref2 = (lfo, rs) -> {
-            Thread.dumpStack();
+            synchronized (notificationsDelivered) {
+                notificationsDelivered[1] = true;
+                notificationsDelivered[3] = Thread.currentThread() == testThread;
+            }
             try {
                 assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
                 assertNull(lastProxy[1], "called twice");
                 fileRuleNames.addAll(rs.proxy().parserRuleNames());
                 lastProxy[1] = rs.proxy();
             } catch (Throwable t) {
+                t.printStackTrace();
                 thrown.updateAndGet(old -> {
                     if (old != null) {
                         old.addSuppressed(t);
@@ -330,10 +326,24 @@ public class DynamicLanguagesTest {
         });
 
         AdhocParserResult p1 = parse(testit);
+
+        boolean languageFired = AdhocLanguageFactory.awaitFire(3000);
+//        Thread.sleep(2000);
+        for (int i = 0; i < 200; i++) {
+            synchronized (notificationsDelivered) {
+                if (notificationsDelivered[0] && notificationsDelivered[1]) {
+                    break;
+                }
+            }
+            Thread.sleep(20);
+        }
+
+        assertTrue(notificationsDelivered[0], "Document reparse notification should have been delivered");
+        assertTrue(notificationsDelivered[1], "File reparse notification should have been delivered");
+
         assertNotNull(p1);
         assertNotSame(p, p1, "Should not have gotten cached parser result");
 
-        System.out.println("\nDO parse that should be changed");
         AntlrProxies.ParseTreeProxy ptp1 = p1.parseTree();
         assertTrue(ptp1.toString().contains("dogCow"));
         assertTrue(ptp1.toString().contains("Puppy"));
@@ -408,7 +418,7 @@ public class DynamicLanguagesTest {
             assertEquals(TEXT_1.length() + 1, length);
         });
         assertNull(AdhocEditorKit.currentFileObject());
-        Thread.sleep(2000);
+//        Thread.sleep(2000);
         assertNotNull(lastProxy[1], "File reparse listener was not called");
         assertNotNull(lastProxy[0], "Document reparse listener was not called");
         assertSame(lastProxy[0], lastProxy[1], "Listeners passed different objects");
@@ -417,6 +427,21 @@ public class DynamicLanguagesTest {
         if (t != null) {
             Exceptions.chuck(t);
         }
+    }
+
+    private AdhocParserResult assertGarbageCollected(Reference<AdhocParserResult> ref, String msg) throws InterruptedException {
+        AdhocParserResult p;
+        for (int i = 0; i < 50; i++) {
+            System.gc();
+            System.runFinalization();
+            if (ref.get() == null) {
+                break;
+            }
+            Thread.sleep(20);
+        }
+        p = ref.get();
+        assertNull(p, msg + " was not garbage collected");
+        return p;
     }
 
     private static void findReferenceGraphPathsTo(Object shouldBeGcd, Lookup lkp) throws InterruptedException {
@@ -462,7 +487,6 @@ public class DynamicLanguagesTest {
             assertNotNull(result);
             assertTrue(result instanceof AdhocParserResult);
             res = (AdhocParserResult) result;
-            System.out.println("P_RES " + res.grammarHash() + " - " + res.parseTree());
             assertFalse(res.parseTree().isUnparsed());
         }
     }

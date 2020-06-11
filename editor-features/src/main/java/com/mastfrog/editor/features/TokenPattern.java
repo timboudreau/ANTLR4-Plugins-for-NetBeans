@@ -79,15 +79,6 @@ final class TokenPattern {
         }
     }
 
-    public static void main(String[] args) {
-        int[] ix = new int[1];
-        TokenPattern tp = TokenPattern.parse(">| RPAREN {TOK_A, TOK_B, {TOK_C, TOK_D}} FOO {BAR BAX} LPAREN SEMI ! STOP_TOK_1 STOP_TOK_2 ? WHITESPACE", s -> {
-            System.out.println("'" + s + "' = " + (ix[0]));
-            return ix[0]++;
-        });
-        System.out.println("TP: " + tp);
-    }
-
     /*
 
     Use a microformat something like this:
@@ -102,7 +93,6 @@ final class TokenPattern {
      */
     private static IntPredicate toPredicate(Set<String> items, ToIntFunction<String> cvt) {
         IntPredicate result = IntPredicates.alwaysFalse();
-        System.out.println("ITEMS " + items);
         for (String item : items) {
             int val = cvt.applyAsInt(item);
             if (val < 0) {
@@ -128,7 +118,6 @@ final class TokenPattern {
                         + "stop tokens not specified");
             }
             String patternTokenList = val.substring(0, bangIx).trim();
-            System.out.println("PATTERN '" + patternTokenList + "'");
             List<Object> patternTokens = scanGroup(patternTokenList);
             if (patternTokens.isEmpty()) {
                 throw new IllegalArgumentException("Pattern token sequence '"
@@ -150,14 +139,12 @@ final class TokenPattern {
                 stopTokenList = remainder.substring(0, qix);
                 remainder = remainder.substring(qix + 1, remainder.length());
             }
-            System.out.println("STOPS: " + stopTokenList);
             Set<String> stopTokens = new HashSet<>(5);
             for (String stop : stopTokenList.split("\\s")) {
                 if (!stop.isEmpty()) {
                     stopTokens.add(stop);
                 }
             }
-            System.out.println("IGNORE: " + remainder);
             Set<String> ignoreTokens = new HashSet<>(5);
             if (!remainder.isEmpty()) {
                 for (String ign : remainder.split("\\s")) {

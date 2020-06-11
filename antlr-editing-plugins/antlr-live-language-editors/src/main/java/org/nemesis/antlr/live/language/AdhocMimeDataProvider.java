@@ -88,7 +88,6 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             if (ext.isPlaceholder()) {
                 return false;
             }
-            System.out.println("exthash " + ext.tokensHash());
             Long lastMod = lastModificationDateForMimeType.get(mimeType);
             boolean result = false;
             if (lastMod == null) {
@@ -97,7 +96,6 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             if (!result) {
                 try {
                     long currentLastModified = ext.source().lastModified();
-                    System.out.println("MOD TIME DIFF " + (currentLastModified - lastMod));
                     if (currentLastModified > lastMod) {
                         String lastHash = lastExtractionHashForMimeType.get(mimeType);
                         if (lastHash == null) {
@@ -105,7 +103,6 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                         } else {
                             result = !lastHash.equals(ext.tokensHash());
                         }
-                        System.out.println("HASHES " + lastHash + " -> " + ext.tokensHash());
                     }
                 } catch (IOException ex) {
                     LOG.log(Level.WARNING, ext.source().toString(), ex);
@@ -172,7 +169,6 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                     if (isRealUpdate(realMime, extraction)) {
                         LOG.log(Level.FINE, "Update of {0} tok hash {1} from {2}",
                                 new Object[]{AdhocMimeTypes.loggableMimeType(realMime), extraction.tokensHash(), sourcePath});
-                        System.out.println("REAL UPDATE ");
                         AdhocDataObject.invalidateSources(realMime);
                         updateMimeType(realMime);
                         Debug.success("Updated mime type", sourcePath::toString);

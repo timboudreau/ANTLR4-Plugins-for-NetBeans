@@ -256,17 +256,14 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
     @Override
     public void componentOpened() {
 //        lazyInit();
-        System.out.println("Component opened");
     }
 
     @Override
     public void componentClosed() {
-        System.out.println("component closed");
     }
 
     @Override
     public void componentShowing() {
-        System.out.println("component showing");
         superLazy.showing();
         if (panel != null) {
             panel.notifyShowing();
@@ -275,7 +272,6 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
     @Override
     public void componentHidden() {
-        System.out.println("component hidden");
         superLazy.hidden();
         if (panel != null) {
             panel.notifyHidden();

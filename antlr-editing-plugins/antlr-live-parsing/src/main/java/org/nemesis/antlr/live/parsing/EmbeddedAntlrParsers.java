@@ -118,7 +118,7 @@ public final class EmbeddedAntlrParsers {
         ReparseListeners.unlisten(path, listener);
     }
 
-    private EmbeddedAntlrParser find(Set<EmbeddedAntlrParserImpl> parsers) {
+    private EmbeddedAntlrParserImpl find(Set<EmbeddedAntlrParserImpl> parsers) {
         for (EmbeddedAntlrParserImpl e : parsers) {
             if (e != null && !e.isDisposed()) {
                 return e;
@@ -132,10 +132,10 @@ public final class EmbeddedAntlrParsers {
         Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(notNull("grammar file", grammar));
         EmbeddedAntlrParserImpl p;
         String mt = AdhocMimeTypes.mimeTypeForPath(FileUtil.toFile(grammar).toPath());
-//        EmbeddedAntlrParser p = find(set);
-//        if (p != null) {
-//            return p;
-//        }
+        p = find(set);
+        if (p != null) {
+            return p;
+        }
 
         Path path = FileUtil.toFile(grammar).toPath();
         p = new EmbeddedAntlrParserImpl(logName, path, grammar.getName(), mt);

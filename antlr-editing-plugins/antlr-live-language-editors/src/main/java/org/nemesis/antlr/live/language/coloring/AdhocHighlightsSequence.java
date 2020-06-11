@@ -146,7 +146,8 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                         // Use the *trimmed* length of the end token, as it is not
                         // useful to highlight whitespace up to the start of the
                         // next rule
-                        end = Math.min(length - 1, endToken.getStartIndex() + endToken.trimmedLength() - 1);
+//                        end = Math.min(length - 1, endToken.getStartIndex() + endToken.trimmedLength() - 1);
+                        end = Math.min(length - 1, endToken.getEndIndex());
                     }
                     // We may be handed a proxy for text that has changed
                     if (start > length || end > length) {
@@ -231,12 +232,20 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                 }
                 // Trim highlighting of tokens which have trailing whitespace
                 // so that we don't highlight all the way up to the next token
-                int len = tok.trimmedLength();
-                if (len == 0 && tok.length() > 0) {
-                    // The token simply is whitespace, so we must actually need
-                    // to highlight it
-                    len = tok.length();
+//                int len = tok.trimmedLength();
+//                if (len == 0 && tok.length() > 0) {
+//                    // The token simply is whitespace, so we must actually need
+//                    // to highlight it
+//                    len = tok.length();
+//                }
+                int len = tok.length();
+                if (len == 0) {
+                    continue;
                 }
+                if (start + len > length) {
+                    len = length - start;
+                }
+
                 DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> range = Range.of(start, len, a);
                 ranges.add(range);
             }

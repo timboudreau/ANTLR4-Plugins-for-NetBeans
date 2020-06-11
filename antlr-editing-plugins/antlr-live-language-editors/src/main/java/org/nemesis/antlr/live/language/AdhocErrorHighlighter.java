@@ -32,7 +32,6 @@ import javax.swing.text.StyleConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -138,6 +137,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 }
             }
         }
+        // XXX useful but very noisy
+        // Should annotate the grammar document 8once* instead
+        /*
         List<ErrorDescription> set = new ArrayList<>();
         for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
             ProxyToken a = semantics.tokens().get(amb.startOffset);
@@ -151,6 +153,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         HintsController.setErrors(doc, "1", set);
         this.bag.setHighlights(bag);
         this.refreshErrorsTask.schedule(100);
+        */
     }
 
     public void run() {

@@ -40,6 +40,7 @@ final class DocumentDeadlockBreaker {
         killThread.setUncaughtExceptionHandler((Thread t, Throwable e) -> {
             Exceptions.printStackTrace("Uncaught exception on " + t, e);
         });
+        killThread.start();
     }
 
     public static Runnable enqueue() {

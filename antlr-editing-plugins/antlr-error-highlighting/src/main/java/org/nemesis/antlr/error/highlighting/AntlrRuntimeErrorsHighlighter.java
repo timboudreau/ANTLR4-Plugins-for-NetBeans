@@ -693,7 +693,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> s : skippedAndSimilar) {
                 // Find the owners and remove them
                 for (NamedSemanticRegion<RuleTypes> parent : hetero.rightSlice().parents(s)) {
-                    System.out.println(parent.name() + " has a skip or channel directive - remove from orphans");
                     orphans.remove(parent.name());
                 }
             }
@@ -702,7 +701,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 ImportersFinder imf = ImportersFinder.forFile(of.get());
                 Problem p = imf.usagesOf(() -> false, of.get(), AntlrKeys.IMPORTS,
                         (IntRange<? extends IntRange<?>> a, String grammarName, FileObject importer, ExtractionKey<?> importerKey, Extraction importerExtraction) -> {
-                            System.out.println(importer.getNameExt() + " / " + grammarName + " imports " + of.get().getNameExt() + " importerExtraction " + importerExtraction.source());
                             if (importer.equals(of.get())) {
                                 // self import?
                                 return null;

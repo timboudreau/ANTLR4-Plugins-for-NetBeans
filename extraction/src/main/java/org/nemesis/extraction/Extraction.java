@@ -1060,7 +1060,6 @@ public final class Extraction implements Externalizable {
                         if (isAll) {
                             if (prefix != null) {
                                 List<String> tops = regs.topSimilarNames(optionalPrefix, maxPer);
-                                System.out.println("  TOPS: " + tops);
                                 for (String top : tops) {
                                     if (top.startsWith(prefix) && !fullText.equals(top)) {
                                         T key = regs.kind(top);
@@ -1129,9 +1128,6 @@ public final class Extraction implements Externalizable {
             if (add) {
                 cache.put(ruleId, result);
             }
-            System.out.println("Find " + RulesMapping.forMimeType(mimeType)
-                    .nameForRuleId(ruleId) + "(" + ruleId + ") in "
-                    + ruleIdsForKey + " gets " + result);
             return result;
         }
     }

@@ -19,6 +19,7 @@ import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.streams.Streams;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
@@ -104,6 +105,16 @@ public final class MavenProjectBuilder {
     }
 
     public MavenProjectBuilder addMainAntlrSource(String name, Class<?> relativeTo, String resourceName) {
+        InputStream in = relativeTo.getResourceAsStream(resourceName);
+        if (in == null) {
+            throw new IllegalArgumentException("No resource " + resourceName + " adjacent to " + relativeTo.getName());
+        } else {
+            try {
+                in.close();
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+        }
         return addMainAntlrSource(name, () -> {
             try {
                 return Streams.readResourceAsUTF8(relativeTo, name);
@@ -114,6 +125,16 @@ public final class MavenProjectBuilder {
     }
 
     public MavenProjectBuilder addImportedAntlrSource(String name, Class<?> relativeTo, String resourceName) {
+        InputStream in = relativeTo.getResourceAsStream(resourceName);
+        if (in == null) {
+            throw new IllegalArgumentException("No resource " + resourceName + " adjacent to " + relativeTo.getName());
+        } else {
+            try {
+                in.close();
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+        }
         return addImportedAntlrSource(name, () -> {
             try {
                 return Streams.readResourceAsUTF8(relativeTo, name);
@@ -167,6 +188,10 @@ public final class MavenProjectBuilder {
                 Files.createDirectories(dir.resolve(d));
             }
             String body = e.getValue().get();
+            if (body == null) {
+                throw new IllegalArgumentException("Supplier for " + e.getKey()
+                        + " returned null text: " + e.getValue());
+            }
             Path toWrite = dir.resolve(p);
             Files.write(toWrite, body.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             result.map.put(toWrite.getFileName().toString(), toWrite);

@@ -36,7 +36,6 @@ import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.impl.DeadEmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
-import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.debug.api.Trackables;
 import org.nemesis.extraction.Extraction;
@@ -85,10 +84,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     private static final Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     private Runnable unsubscriber;
     private final String logName;
@@ -149,6 +144,17 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
     @Override
     public EmbeddedAntlrParserResult parse(CharSequence textToParse) throws Exception {
+        // First, se if this is a reprise of the last parse and the grammar
+        // files have not changed; if so, and the text matches, just return
+        // the previous parser result without acquiring any locks.  I can't think
+        // of a scenario where this fails.
+        EmbeddedParsingEnvironment oldInfo = environment.get();
+        if (oldInfo.modifications.changes().isUpToDate()) {
+            LastParseInfo last = lastParseInfo.get();
+            if (last != null && last.canReuse(textToParse)) {
+                return last.parserResult;
+            }
+        }
         // XXX - this sucks, but lexer / snapshot char sequences explode on
         // contact after a while
         String toParse = textToParse == null ? null : textToParse.toString();
@@ -283,6 +289,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 Debug.failure("reentry", t.tokensHash());
                 return;
             }
+            LastParseInfo info = lastParseInfo.get();
+            if (info != null && info.parserResult != null && info.parserResult.runResult() == runResult) {
+                // multiply subscribed - shouldn't happen but did
+                return;
+            }
             reentry.set(true);
             try {
                 LOG.log(Level.FINER, "Got new run result for {0}: {2}, usable? "
@@ -291,10 +302,14 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             runResult.isUsable(), runResult.currentStatus(),
                             logName
                         });
+//                if (LOG.isLoggable(Level.FINEST)) {
+//                    LOG.log(Level.FINEST, "New run result " + System.identityHashCode(runResult)
+//                            + " received by " + System.identityHashCode(EmbeddedAntlrParserImpl.this), new Exception());
+//                }
                 AntlrGenerationAndCompilationResult g = runResult.genResult();
+                /*
                 AntlrGenerationResult gg = g.generationResult();
                 Path p = t.source().lookup(Path.class).isPresent() ? t.source().lookup(Path.class).get() : null;
-
                 Path actualGeneratedGrammar = g.jfs().originOf(gg.grammarFile, Path.class);
                 if (!path.equals(actualGeneratedGrammar) || (p != null && !p.equals(path)) || !grammarName.equals(gg.grammarName)) {
                     String msg = "EmbeddedAntlrParser " + this + " was passed a GrammarRunResult whose "
@@ -309,6 +324,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     Debug.failure("wrong-path", msg);
                     return;
                 }
+                */
 
                 if (runResult.isUsable()) {
                     setRunner(t, runResult);
@@ -413,11 +429,9 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
         public boolean shouldReplace(Extraction extraction, GrammarRunResult<EmbeddedParser> runner) {
             if (this.parser == null || this.parser instanceof DeadEmbeddedParser) {
-                System.out.println("yes replace");
                 return true;
             }
             if (Objects.equals(extraction.tokensHash(), grammarTokensHash)) {
-                System.out.println("tokens hash match, no replace env");
                 return false;
             }
             boolean wasEmpty = modifications.isEmpty();
@@ -431,7 +445,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 }
                 result = true;
             }
-            System.out.println("should replace? " + result);
             return result;
         }
     }

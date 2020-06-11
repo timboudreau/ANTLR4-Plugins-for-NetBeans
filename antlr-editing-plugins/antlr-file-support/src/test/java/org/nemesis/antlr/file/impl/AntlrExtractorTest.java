@@ -144,7 +144,6 @@ public class AntlrExtractorTest {
 
     @Test
     public void testAttribution() throws Throwable {
-        System.out.println("PROJECT: " + project.allFiles());
         FileObject fo = project.file("NestedMaps.g4");
         assertNotNull(fo);
         DataObject dob = DataObject.find(fo);
@@ -155,15 +154,11 @@ public class AntlrExtractorTest {
         assertNotNull(doc);
         doc.putProperty("Tools-Options->Editor->Formatting->Preview - Preferences", Preferences.userRoot()); // don't ask.
 
-        System.out.println("TEXT: --------------------"
-                + "\n" + doc.getText(0, doc.getLength()) + "\n---------------\n");
 
 
         Extraction ext = parseImmediately(doc);
         assertNotNull(ext);
         SemanticRegions<UnknownNameReference<RuleTypes>> unks = ext.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
-        System.out.println("UNKNOWN: "
-                + unks);
 
         Set<String> unknownNames = new HashSet<>();
         unks.forEach(reg -> {
@@ -172,7 +167,6 @@ public class AntlrExtractorTest {
                 unknownNames.add(name);
             }
         });
-        System.out.println("UNKNOWN: " + unknownNames);
 
         if (true) {
             return;
@@ -185,12 +179,10 @@ public class AntlrExtractorTest {
         // is needed for generic code completion
         List<String> parserRuleIdentifiers = new ArrayList<>();
         ext.namesForRule(ANTLRv4Parser.RULE_parserRuleIdentifier, "", Integer.MAX_VALUE, "", (s, e) -> {
-            System.out.println("parser id '" + s + "' " + e);
             parserRuleIdentifiers.add(s);
         });
         List<String> lexerRuleIdentifiers = new ArrayList<>();
         ext.namesForRule(ANTLRv4Parser.RULE_tokenRuleIdentifier, "", Integer.MAX_VALUE, "", (s, e) -> {
-            System.out.println("lexer id '" + s + "' " + e);
             lexerRuleIdentifiers.add(s);
         });
 //        List<String> fragmentRuleIdentifiers = new ArrayList<>();
@@ -206,7 +198,10 @@ public class AntlrExtractorTest {
         if (true) {
             // Somewhere in here, something tries to initialize the entire
             // module system from the wrong entry point, throws an exception
-            // and dies, and takes the import finder with it
+            // and dies, and takes the import finder with it.
+
+            // PENDING: This only may occur for JDK 8 - have noticed it only happens
+            // there for other modules
             return;
         }
 
@@ -216,14 +211,12 @@ public class AntlrExtractorTest {
 //        assertTrue(AntlrRuleReferenceResolver.instanceCreated());
         assertNotNull(attributions);
 
-        System.out.println("ATTRIBUTIONS: " + attributions);
         Set<String> attributedNames = new HashSet<>();
         attributions.attributed().forEach(reg -> {
             String name = reg.key().name();
             attributedNames.add(name);
         });
 
-        System.out.println("ATTRIBUTED NAMES: " + attributedNames);
 
         Thread.sleep(2000);
 
@@ -321,7 +314,6 @@ public class AntlrExtractorTest {
 
             public NBD(String mimeType) {
                 super(mimeType);
-                System.out.println("HEYA! " + mimeType);
             }
 
             protected @Override
@@ -378,7 +370,6 @@ public class AntlrExtractorTest {
 
         @Override
         public <P extends ParserRuleContext> Extraction extract(String mimeType, GrammarSource<?> src, Class<P> type) {
-            System.out.println("fake extractors extract " + src);
             // Avoid accidentally initializing the modules system
             try {
                 if (src.source() instanceof FileObject) {
@@ -429,10 +420,7 @@ public class AntlrExtractorTest {
         CommonTokenStream cts = new CommonTokenStream(lex);
         ANTLRv4Parser parser = new ANTLRv4Parser(cts);
         GrammarFileContext ctx = parser.grammarFile();
-        System.out.println("SRC: " + src);
-        System.out.println("GRAMMAR FILE: " + ctx);
         Extraction result = ext.extract(ctx, src, tokens);
-        System.out.println("GOT EXTRACTION\n" + result);
         return result;
     }
 

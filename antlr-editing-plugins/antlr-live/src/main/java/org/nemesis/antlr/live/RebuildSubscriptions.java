@@ -92,10 +92,6 @@ public final class RebuildSubscriptions {
     static Supplier<RebuildSubscriptions> INSTANCE_SUPPLIER
             = CachingSupplier.of(RebuildSubscriptions::new);
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     JFS jfsFor(Project project) { // for tests
         return mapping.getIfPresent(project);
     }
@@ -529,15 +525,14 @@ public final class RebuildSubscriptions {
                     this.mode = mode;
                     Project project = FileOwnerQuery.getOwner(fo);
                     if (project != null) {
-                        LOG.log(Level.FINER, "Init JFS mappings for Generator {0}", new Object[]{id,
-                            project.getProjectDirectory().getName()});
+                        LOG.log(Level.FINER, "Init JFS mappings for Generator {0} path {2} in {1}", new Object[]{id,
+                            project.getProjectDirectory().getName(), targetPath});
                         JFS jfs = mapping.getIfPresent(project);
                         if (jfs != null) {
                             initMapping(jfs);
                         }
                     } else {
-                        LOG.log(Level.FINER, "No project for Generator {0}", new Object[]{id,
-                            project.getProjectDirectory().getName()});
+                        LOG.log(Level.FINER, "No project for Generator {0} path {1}", new Object[]{id, targetPath});
                     }
                 }
             }
@@ -589,10 +584,10 @@ public final class RebuildSubscriptions {
                     Runnable doParse = () -> {
                         try {
                             ParsingUtils.parse(to, res -> {
-                                LOG.log(Level.FINER, "Parse of {0} completed with {1}",
-                                        new Object[]{to.getName(), res});
                                 if (res instanceof AntlrParseResult) {
                                     AntlrParseResult r = (AntlrParseResult) res;
+                                    LOG.log(Level.FINER, "Parse of {0} completed",
+                                            new Object[]{to.getName()});
                                     if (r.wasInvalidated()) {
                                         LOG.log(Level.FINEST, "Got old parser "
                                                 + "result, passing to onReparse: {0}", r);
@@ -762,10 +757,10 @@ public final class RebuildSubscriptions {
                     return true;
                 }
                 LOG.log(Level.FINER, "Reparse received by generator {0} for "
-                        + "{1} placeholder {2} result usable {3} run result "
+                        + "{1} placeholder {2} result usable {3} of "
                         + "{4} send to {5} subscribers",
                         new Object[]{id, extraction.source().name(),
-                            extraction.isPlaceholder(), result.isUsable(), result, subscribers.size()});
+                            extraction.isPlaceholder(), result.isUsable(), result.grammarName, subscribers.size()});
                 subscribers.forEach((s) -> {
                     try {
                         LOG.log(Level.FINEST, "Call onRebuild() on {0} for {1}",

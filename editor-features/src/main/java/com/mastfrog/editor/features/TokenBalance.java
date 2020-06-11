@@ -83,11 +83,9 @@ final class TokenBalance implements TokenHierarchyListener {
     private <T extends TokenId> boolean ensureTokensTracked(Language<T> l, int left, int right) {
         T ltok = l.tokenId(left);
         T rtok = left == right ? ltok : l.tokenId(right);
-        System.out.println("ENSURE TOKENS TRACKED " + ltok + " and " + rtok + " for " + l.mimeType());
         synchronized (lang2handler) {
             LanguageHandler<T> handler = handler(l, true);
             if (!handler.id2Pair.containsKey(ltok) || !handler.id2Pair.containsKey(rtok)) {
-                System.out.println("  ADDING TOKEN PAIR ");
                 handler.addTokenPair(ltok, rtok);
                 return true;
             }
@@ -157,9 +155,6 @@ final class TokenBalance implements TokenHierarchyListener {
         synchronized (lang2handler) {
             checkScanDone();
             handler = handler(lang, false);
-        }
-        if (handler == null) {
-            System.out.println("  NO HANDLER FOR " + lang.mimeType());
         }
         return (handler != null) ? handler.balance(id) : Integer.MAX_VALUE;
     }
@@ -257,8 +252,6 @@ final class TokenBalance implements TokenHierarchyListener {
 
         public int balance(T left) {
             TokenIdPair pair = id2Pair.get(left);
-            System.out.println("PAIR " + pair + " balance " + pair.balance
-                    + " is correct token? " + (pair.left == left));
             return (pair.left == left) ? pair.balance : Integer.MAX_VALUE;
         }
 

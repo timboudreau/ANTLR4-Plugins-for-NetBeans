@@ -118,12 +118,9 @@ public class TestExtractorGenerationWithTokenVocab {
         JFS jfs = findJFS();
         assertNotNull(lastGenResult);
         Grammar lg = findLexerGrammar(lastGenResult);
-        System.out.println("lg file " + lg.fileName + " for name " + lg.name);
-        System.out.println("main file " + lastGenResult.mainGrammar.fileName + " for name " + lastGenResult.mainGrammar.name);
         assertNotNull(lg);
         // Make sure we can really find the lexer grammar we depend on
         assertEquals("MarkdownLexer", lg.name);
-        System.out.println("LG NAME " + lg.name);
         ExtractionCodeGenerationResult codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(markdownParserFile, jfs, "com.goob", "MarkdownParser", null);
         JFSFileObject file = codeGenResult.file();
         assertNotNull(file, "Code not generated");
@@ -177,7 +174,6 @@ public class TestExtractorGenerationWithTokenVocab {
         assertFalse(ptp.isUnparsed());
         assertNotNull(r);
         assertFalse(r.compileFailed());
-        System.out.println("PTP:\n" + ptp);
     }
 
     @BeforeAll
@@ -198,8 +194,6 @@ public class TestExtractorGenerationWithTokenVocab {
         Path pth = gen.allFiles().get("MarkdownParser.g4");
         assertNotNull(pth);
         String mime = AdhocMimeTypes.mimeTypeForPath(pth);
-        System.out.println("Register fake parser for " + mime);
-
         shutdown = initAntlrTestFixtures(true)
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
                 .addToNamedLookup(mime, FakeParserFactory.class)
@@ -223,7 +217,6 @@ public class TestExtractorGenerationWithTokenVocab {
 
     @AfterAll
     public static void tearDown() throws Exception {
-        System.out.println("shutdown");
         shutdown.run();
     }
 

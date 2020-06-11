@@ -159,8 +159,6 @@ public class AdhocColoringTest {
         assertNotNull(c);
         AttributeSet d = b.combine(a);
         assertNotNull(d);
-        System.out.println("merged to " + c);
-        System.out.println("rev merged to " + d);
         assertTrue(c instanceof AdhocColoring);
         assertTrue(d instanceof AdhocColoring);
         AdhocColoring ac = (AdhocColoring) c;

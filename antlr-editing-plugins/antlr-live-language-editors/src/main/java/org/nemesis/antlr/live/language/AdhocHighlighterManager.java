@@ -479,8 +479,8 @@ final class AdhocHighlighterManager {
             });
             HighlightingInfo info = new HighlightingInfo(doc, res.proxy());
             lastParseInfo.set(info);
-//            scheduleRepaint();
-            repaintHighlights();
+            scheduleRepaint();
+//            repaintHighlights();
         });
     }
 

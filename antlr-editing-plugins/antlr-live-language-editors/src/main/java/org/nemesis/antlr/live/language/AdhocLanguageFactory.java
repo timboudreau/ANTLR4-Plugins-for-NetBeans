@@ -85,7 +85,6 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     private volatile boolean pendingFire;
 
     void reallyFire() {
-        System.out.println("\n\nADHOC LANG KIT FIRE");
         LOG.log(Level.FINEST, "Really fire property change to force LanguageManager to refresh");
 //        Thread.dumpStack();
         long ct = count.get();
@@ -159,7 +158,11 @@ public final class AdhocLanguageFactory extends LanguageProvider {
             latch.countDown();
         };
         factory.addPropertyChangeListener(l);
-        latch.await(millis, TimeUnit.MILLISECONDS);
+        try {
+            latch.await(millis, TimeUnit.MILLISECONDS);
+        } finally {
+            factory.removePropertyChangeListener(l);
+        }
         return fired[0];
     }
 }

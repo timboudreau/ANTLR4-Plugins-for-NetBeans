@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.live.language.coloring;
 
-import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import java.awt.Color;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -55,6 +54,8 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.ColorUtils;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -269,6 +270,35 @@ public final class AdhocColoringsRegistry {
     private void doUpdate(String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
         AdhocColorings existing = loadOrCreate(mimeType);
         doUpdate(existing, mimeType, ext, seen);
+    }
+
+    public void ensureAllPresent(ParseTreeProxy proxy) {
+        AdhocColorings coloringss = coloringsForMimeType.get(proxy.mimeType());
+        if (coloringss == null || proxy.isUnparsed()) {
+            return;
+        }
+        ColorUtils colors = new ColorUtils();
+        Supplier<Color> backgrounds = colors.backgroundColorSupplier();
+        Supplier<Color> foregrounds = colors.foregroundColorSupplier();
+        boolean changed = false;
+        for (AntlrProxies.ProxyTokenType tk : proxy.tokenTypes()) {
+            String nm = tk.name();
+            if (!coloringss.contains(nm)) {
+                Color fg = foregrounds.get();
+                coloringss.add(nm, fg, AttrTypes.FOREGROUND, AttrTypes.ACTIVE);
+                changed = true;
+            }
+        }
+        for (String rule : proxy.parserRuleNames()) {
+            if (!coloringss.contains(rule)) {
+                Color bg = backgrounds.get();
+                coloringss.add(rule, bg, AttrTypes.BACKGROUND, AttrTypes.ACTIVE);
+                changed = true;
+            }
+        }
+        if (changed) {
+            saver.task.schedule(5000);
+        }
     }
 
     private void doUpdate(AdhocColorings colorings, String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {

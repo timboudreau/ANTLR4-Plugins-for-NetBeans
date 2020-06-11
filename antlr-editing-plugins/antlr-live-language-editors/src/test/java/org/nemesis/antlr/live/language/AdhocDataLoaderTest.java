@@ -223,14 +223,17 @@ public class AdhocDataLoaderTest {
         DataLoaderPool dlp = DataLoaderPool.getDefault();
         Enumeration<DataLoader> loaders = dlp.allLoaders();
         // Ensure data loaders are initialized and listening
+        boolean found = false;
         while (loaders.hasMoreElements()) {
             DataLoader ldr = loaders.nextElement();
-            System.out.println("LOADER: " + ldr);
+            if (ldr instanceof AdhocDataLoader) {
+                found = true;
+            }
         }
+        assertTrue(found, "AdhocDataLoader not found in the loader pool");
 
         mimeType = AdhocMimeTypes.mimeTypeForPath(grammarFile);
         ext = AdhocMimeTypes.fileExtensionFor(mimeType);
-        System.out.println("MIME TYPE IS '" + mimeType + "'");
         L l = new L();
         AdhocMimeTypes.listenForRegistrations(l);
         DynamicLanguages.ensureRegistered(mimeType);
@@ -246,5 +249,9 @@ public class AdhocDataLoaderTest {
         fooFile = FileUtil.createData(fs.getRoot(), "SomeFile.foo");
         fooFile2 = FileUtil.createData(fs.getRoot(), "AnotherFile.foo");
         glorkFile = FileUtil.createData(fs.getRoot(), "Hoobie.glork");
+    }
+
+    public static void clearCache() {
+        AdhocMimeDataProvider.getDefault().clear();
     }
 }

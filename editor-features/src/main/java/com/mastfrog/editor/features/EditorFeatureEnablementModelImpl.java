@@ -62,7 +62,6 @@ final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementM
 
     @Override
     public void setEnabled(boolean val) {
-        System.out.println("Set enabled " + val + " on " + name() + " " + id());
         state = val;
     }
 
@@ -98,7 +97,6 @@ final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementM
     @Override
     public void commit() {
         if (isChanged()) {
-            System.out.println("COMMIT enabled " + state + " " + name() + " " + id());
             item.setEnabled(state);
         }
     }

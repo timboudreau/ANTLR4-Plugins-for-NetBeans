@@ -82,39 +82,4 @@ public abstract class EmbeddedAntlrParser {
     public abstract boolean isDisposed();
 
     abstract int rev();
-
-    /*
-    public EmbeddedAntlrParserResult parse(String t, int ruleNo) throws Exception {
-    CurrentParser cp = runner.get();
-    boolean wasStale = checkStale(cp);
-    EmbeddedAntlrParserResult result = lastResultIfMatches(wasStale, t);
-    if (result != null) {
-    return result;
-    }
-    if (wasStale) {
-    cp = runner.get();
-    }
-    GrammarRunResult<EmbeddedParser> r = cp == null ? null : cp.runResult;
-    if (r == null || r.get() == null) {
-    return AntlrProxies.forUnparsed(path, grammarName, t);
-    }
-    return setTextAndResult(t, r.get().parse(logName, t, ruleNo));
-    }
-    public ParseTreeProxy parse(String t, String ruleName) throws Exception {
-    CurrentParser cp = runner.get();
-    boolean wasStale = checkStale(cp);
-    ParseTreeProxy result = lastResultIfMatches(wasStale, t);
-    if (result != null) {
-    return result;
-    }
-    if (wasStale) {
-    cp = runner.get();
-    }
-    GrammarRunResult<EmbeddedParser> r = cp == null ? null : cp.runResult;
-    if (r == null || r.get() == null) {
-    return AntlrProxies.forUnparsed(path, grammarName, t);
-    }
-    return setTextAndResult(t, r.get().parse(logName, t, ruleName));
-    }
-     */
 }

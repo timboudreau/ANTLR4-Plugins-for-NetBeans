@@ -53,16 +53,16 @@ final class RuleNameComparator implements Comparator<String> {
         boolean title1 = isCapitalized(o1);
         boolean title2 = isCapitalized(o2);
         if (title1 && !title2) {
-            return 1;
-        } else if (title2 && !title1) {
             return -1;
+        } else if (title2 && !title1) {
+            return 1;
         }
         boolean ac1 = isUpperCase(o1);
         boolean ac2 = isUpperCase(o2);
         if (ac1 && !ac2) {
-            return -1;
-        } else if (ac2 && !ac1) {
             return 1;
+        } else if (ac2 && !ac1) {
+            return -1;
         }
         return o1.compareTo(o2);
     }

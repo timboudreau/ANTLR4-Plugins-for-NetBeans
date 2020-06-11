@@ -146,7 +146,11 @@ public class AdhocColoring implements AdhocAttributeSet {
     public String toString() {
         StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append('(');
         sb.append(isActive() ? "active" : "inactive");
+        if (color != null) {
         sb.append(" r=").append(color.getRed()).append(" g=").append(color.getGreen()).append(" b=").append(color.getBlue()).append(", flags:");
+        } else {
+            sb.append(" flags=");
+        }
         for (AttrTypes t : flags()) {
             sb.append(t.name()).append(" ");
         }
