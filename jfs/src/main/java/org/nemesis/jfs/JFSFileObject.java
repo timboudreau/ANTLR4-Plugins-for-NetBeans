@@ -15,12 +15,14 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.util.preconditions.Exceptions;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import javax.tools.FileObject;
 
 /**
@@ -108,5 +110,15 @@ public interface JFSFileObject extends FileObject {
 
     default void hash(MessageDigest digest) throws IOException {
         digest.update(asBytes());
+    }
+
+    default byte[] hash() throws IOException{
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            hash(digest);
+            return digest.digest();
+        } catch (NoSuchAlgorithmException ex) {
+            return Exceptions.chuck(ex);
+        }
     }
 }

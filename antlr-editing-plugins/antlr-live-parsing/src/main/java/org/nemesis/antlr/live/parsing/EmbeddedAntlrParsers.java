@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.parsing;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
@@ -127,7 +128,8 @@ public final class EmbeddedAntlrParsers {
     }
 
     private EmbeddedAntlrParser _subscribe(String logName, FileObject grammar) {
-        Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(grammar);
+        notNull("logName", logName);
+        Set<EmbeddedAntlrParserImpl> set = liveParsersForFile.get(notNull("grammar file", grammar));
         EmbeddedAntlrParserImpl p;
         String mt = AdhocMimeTypes.mimeTypeForPath(FileUtil.toFile(grammar).toPath());
 //        EmbeddedAntlrParser p = find(set);

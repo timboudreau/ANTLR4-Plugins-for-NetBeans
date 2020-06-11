@@ -15,16 +15,19 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.util.preconditions.Exceptions;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class HeapBytesStorageImpl implements JFSBytesStorage {
+final class HeapBytesStorageImpl implements JFSBytesStorage, HashingStorage {
 
     private final JFSStorage storage;
     private byte[] bytes;
@@ -34,6 +37,24 @@ final class HeapBytesStorageImpl implements JFSBytesStorage {
     HeapBytesStorageImpl(JFSStorage storage) {
         this.storage = storage;
     }
+
+    @Override
+    public boolean hash(MessageDigest into) {
+        into.update(bytes == null ? new byte[0] : bytes);
+        return true;
+    }
+
+    @Override
+    public byte[] hash() {
+        try {
+            MessageDigest dig = MessageDigest.getInstance("SHA-1");
+            hash(dig);
+            return dig.digest();
+        } catch (NoSuchAlgorithmException ex) {
+            return Exceptions.chuck(ex);
+        }
+    }
+
 
     @Override
     public synchronized String toString() {

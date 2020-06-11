@@ -15,9 +15,6 @@
  */
 package org.nemesis.antlr.live.language;
 
-import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
-import org.nemesis.antlr.live.language.coloring.AdhocColorings;
-import static com.google.common.base.Charsets.UTF_8;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
@@ -27,6 +24,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,9 +34,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -56,12 +57,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
+import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -105,6 +110,7 @@ import org.openide.util.Lookup;
  *
  * @author Tim Boudreau
  */
+@Execution(ExecutionMode.SAME_THREAD)
 public class DynamicLanguagesTest {
 
     private static final String EXT = "woogle";
@@ -266,11 +272,6 @@ public class DynamicLanguagesTest {
         p = ref.get();
         assertNull(p, "Old parser result was not garbage collected");
 
-        int ic2 = System.identityHashCode(Language.find(mime));
-        if (ic2 == ic) {
-            findReferenceGraphPathsTo(Language.find(mime), mimeLookup);
-        }
-        assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
         EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
         assertNotNull(ck);
         StyledDocument doc = ck.openDocument();
@@ -281,17 +282,52 @@ public class DynamicLanguagesTest {
         BiConsumer<FileObject, EmbeddedAntlrParserResult> ref2;
         ParseTreeProxy[] lastProxy = new ParseTreeProxy[2];
 
+        Set<String> fileRuleNames = Collections.synchronizedSet(new HashSet<>());
+        Set<String> docRuleNames = Collections.synchronizedSet(new HashSet<>());
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
         AdhocReparseListeners.listen(mime, doc, ref1 = (Document d, EmbeddedAntlrParserResult rs) -> {
-            assertSame(doc, d, "called with some other document");
-            assertNull(lastProxy[0], "called twice");
-            lastProxy[0] = rs.proxy();
+            try {
+                assertSame(doc, d, "called with some other document");
+                docRuleNames.addAll(rs.proxy().parserRuleNames());
+                assertNull(lastProxy[0], "called twice");
+                lastProxy[0] = rs.proxy();
+
+                int ic2 = System.identityHashCode(Language.find(mime));
+                if (ic2 == ic) {
+                    try {
+                        findReferenceGraphPathsTo(Language.find(mime), mimeLookup);
+                    } catch (InterruptedException ex) {
+                        org.openide.util.Exceptions.printStackTrace(ex);
+                    }
+                }
+                assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
+            } catch (Throwable t) {
+                thrown.updateAndGet(old -> {
+                    if (old != null) {
+                        old.addSuppressed(t);
+                        return old;
+                    }
+                    return t;
+                });
+            }
         });
         AdhocReparseListeners.listen(mime, dob.getPrimaryFile(), ref2 = (lfo, rs) -> {
-            assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
-            assertNull(lastProxy[1], "called twice");
-            lastProxy[1] = rs.proxy();
+            Thread.dumpStack();
+            try {
+                assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
+                assertNull(lastProxy[1], "called twice");
+                fileRuleNames.addAll(rs.proxy().parserRuleNames());
+                lastProxy[1] = rs.proxy();
+            } catch (Throwable t) {
+                thrown.updateAndGet(old -> {
+                    if (old != null) {
+                        old.addSuppressed(t);
+                        return old;
+                    }
+                    return t;
+                });
+            }
         });
-        Thread.sleep(2000);
 
         AdhocParserResult p1 = parse(testit);
         assertNotNull(p1);
@@ -308,6 +344,11 @@ public class DynamicLanguagesTest {
         EditorKit kit = mimeLookup.lookup(EditorKit.class);
         assertNotNull(kit);
         assertTrue(kit instanceof AdhocEditorKit);
+
+        assertFalse(fileRuleNames.isEmpty());
+        assertFalse(docRuleNames.isEmpty());
+        assertTrue(fileRuleNames.contains("Puppy"));
+        assertTrue(docRuleNames.contains("Puppy"));
 
         TokenSequenceChecker checker = new TokenSequenceChecker()
                 .add("OpenBrace").add("Whitespace")
@@ -371,6 +412,11 @@ public class DynamicLanguagesTest {
         assertNotNull(lastProxy[1], "File reparse listener was not called");
         assertNotNull(lastProxy[0], "Document reparse listener was not called");
         assertSame(lastProxy[0], lastProxy[1], "Listeners passed different objects");
+
+        Throwable t = thrown.get();
+        if (t != null) {
+            Exceptions.chuck(t);
+        }
     }
 
     private static void findReferenceGraphPathsTo(Object shouldBeGcd, Lookup lkp) throws InterruptedException {
@@ -440,7 +486,7 @@ public class DynamicLanguagesTest {
         Class.forName(AdhocMimeDataProvider.class.getName());
         Class.forName(AdhocLanguageFactory.class.getName());
         Class.forName(AdhocReparseListeners.class.getName());
-        shutdown = initAntlrTestFixtures(false)
+        shutdown = initAntlrTestFixtures(true)
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
                 //                .includeLogs("AdhocMimeDataProvider", "AdhocLanguageHierarchy", "AntlrLanguageFactory")
                 .build();

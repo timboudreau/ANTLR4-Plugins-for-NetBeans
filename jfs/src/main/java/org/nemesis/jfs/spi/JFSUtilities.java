@@ -49,13 +49,19 @@ import org.nemesis.jfs.JFSUrlStreamHandlerFactory;
  */
 public abstract class JFSUtilities {
 
+    private final boolean priorityListeners;
     protected JFSUtilities() {
+        priorityListeners = doDocumentListenersHavePriority();
     }
 
     private static JFSUtilities INSTANCE;
 
     public static JFSUtilities getDefault() {
         return INSTANCE == null ? INSTANCE = loadDefaultInstance() : INSTANCE;
+    }
+
+    public static boolean documentListenersHavePriority() {
+        return getDefault().priorityListeners;
     }
 
     private static JFSUtilities loadDefaultInstance() {
@@ -169,6 +175,10 @@ public abstract class JFSUtilities {
      * @return The encoding
      */
     protected abstract Charset getEncodingFor(Path file);
+
+    protected boolean doDocumentListenersHavePriority() {
+        return false;
+    }
 
     protected long getLastModifiedFor(Document document) {
         return DummyJFSUtilities.DummyTimestamps.getTimestamp(document);

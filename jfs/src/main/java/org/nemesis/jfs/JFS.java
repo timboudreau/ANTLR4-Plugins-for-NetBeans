@@ -501,7 +501,7 @@ public final class JFS implements JavaFileManager {
         return id().equals(id);
     }
 
-    private JFSStorage forLocation(Location loc, boolean create) {
+    JFSStorage storageForLocation(Location loc, boolean create) {
         JFSStorage result = storageForLocation.get(loc);
         if (result == null && create) {
             // Ensure we don't have a cached merged storage that does
@@ -552,7 +552,7 @@ public final class JFS implements JavaFileManager {
      */
     @Override
     public JFSClassLoader getClassLoader(Location location) {
-        JFSStorage storage = forLocation(location, false);
+        JFSStorage storage = storageForLocation(location, false);
         try {
             return storage == null ? null
                     : storage.createClassLoader(delegate.getClassLoader(StandardLocation.CLASS_PATH));
@@ -570,7 +570,7 @@ public final class JFS implements JavaFileManager {
      * @throws IOException
      */
     public JFSClassLoader getClassLoader(Location location, ClassLoader parent) throws IOException {
-        JFSStorage storage = forLocation(location, false);
+        JFSStorage storage = storageForLocation(location, false);
         return storage == null ? null : storage.createClassLoader(parent);
     }
 
@@ -603,7 +603,7 @@ public final class JFS implements JavaFileManager {
             if (all.contains(l)) {
                 continue;
             }
-            JFSStorage storage = forLocation(l, includeEmptyLocations);
+            JFSStorage storage = storageForLocation(l, includeEmptyLocations);
             if (storage == null) {
                 continue;
             }
@@ -653,7 +653,7 @@ public final class JFS implements JavaFileManager {
     }
 
     private Iterable<JavaFileObject> _list(Location location, String packageName, Set<JavaFileObject.Kind> kinds, boolean recurse) throws IOException {
-        JFSStorage stor = forLocation(location, false);
+        JFSStorage stor = storageForLocation(location, false);
         if (stor == null) {
             return Collections.emptyList();
         }
@@ -728,7 +728,7 @@ public final class JFS implements JavaFileManager {
     @Override
     public JFSJavaFileObject getJavaFileForInput(Location location, String className, JavaFileObject.Kind kind) throws IOException {
         Name name = Name.forClassName(className, kind);
-        JFSStorage stor = forLocation(location, false);
+        JFSStorage stor = storageForLocation(location, false);
         if (stor == null) {
             throw new IOException("No files in location " + location.getName());
         }
@@ -744,7 +744,7 @@ public final class JFS implements JavaFileManager {
     @Override
     public JFSJavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) throws IOException {
         Name name = Name.forClassName(className, kind);
-        JFSStorage stor = forLocation(location, true);
+        JFSStorage stor = storageForLocation(location, true);
         JFSJavaFileObject result = stor.findJavaFileObject(name, true);
         LOG.log(Level.FINEST, "getJavaFileForOutput {0} {1} {2} gets {3}",
                 new Object[]{location, className, kind, result});
@@ -754,7 +754,7 @@ public final class JFS implements JavaFileManager {
     @Override
     public JFSFileObject getFileForInput(Location location, String packageName, String relativeName) throws IOException {
         Name name = Name.forFileName(packageName, relativeName);
-        JFSStorage stor = forLocation(location, false);
+        JFSStorage stor = storageForLocation(location, false);
         if (stor == null) {
             throw new IOException("Nothing stored in location: " + location + " (looking up " + name + ")");
         }
@@ -785,7 +785,7 @@ public final class JFS implements JavaFileManager {
     @Override
     public JFSFileObject getFileForOutput(Location location, String packageName, String relativeName, FileObject sibling) throws IOException {
         Name name = Name.forFileName(packageName, relativeName);
-        JFSStorage stor = forLocation(location, true);
+        JFSStorage stor = storageForLocation(location, true);
         JFSFileObjectImpl result = stor.find(name, true);
         LOG.log(Level.FINEST, "getFileForOutput {0} {1} gets {2}",
                 new Object[]{location, packageName, result});
@@ -800,7 +800,7 @@ public final class JFS implements JavaFileManager {
      * @return A file object or null
      */
     public JFSFileObject get(Location location, UnixPath path) {
-        JFSStorage stor = forLocation(location, false);
+        JFSStorage stor = storageForLocation(location, false);
         return stor == null ? null : stor.find(Name.forPath(path));
     }
 
@@ -891,7 +891,7 @@ public final class JFS implements JavaFileManager {
     public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath, Charset encoding) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3} with {4}",
                 new Object[]{file, asPath, loc, fsid, encoding.name()});
-        return forLocation(loc, true).addRealFile(asPath, file, encoding);
+        return storageForLocation(loc, true).addRealFile(asPath, file, encoding);
     }
 
     /**
@@ -907,7 +907,7 @@ public final class JFS implements JavaFileManager {
     public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{file, asPath, loc, fsid});
-        return forLocation(loc, true).addRealFile(asPath, file);
+        return storageForLocation(loc, true).addRealFile(asPath, file);
     }
 
     /**
@@ -923,7 +923,7 @@ public final class JFS implements JavaFileManager {
     public JFSFileObject masquerade(Document doc, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Document): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{doc, asPath, loc, fsid});
-        return forLocation(loc, true).addDocument(asPath, doc);
+        return storageForLocation(loc, true).addDocument(asPath, doc);
     }
 
     /**
@@ -1029,7 +1029,7 @@ public final class JFS implements JavaFileManager {
      * @throws IOException
      */
     private JFSFileObject copyBytes(Name name, byte[] bytes, Location location, long lastModified) throws IOException {
-        JFSStorage storage = forLocation(location, true);
+        JFSStorage storage = storageForLocation(location, true);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         JFSFileObjectImpl result = storage.allocate(name, java);
         result.setBytes(bytes, lastModified);
@@ -1086,7 +1086,7 @@ public final class JFS implements JavaFileManager {
         Name name = Name.forPath(path);
         LOG.log(Level.FINEST, "JFS.create(): Add {0} with {1} bytes to {2} in {3}",
                 new Object[]{name, bytes.length, location, fsid});
-        JFSStorage storage = forLocation(location, true);
+        JFSStorage storage = storageForLocation(location, true);
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         JFSFileObjectImpl result = storage.allocate(name, java);
         result.setBytes(bytes, lastModified);

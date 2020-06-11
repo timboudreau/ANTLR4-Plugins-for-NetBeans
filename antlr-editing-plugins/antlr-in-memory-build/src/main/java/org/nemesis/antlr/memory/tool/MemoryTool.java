@@ -578,7 +578,6 @@ public final class MemoryTool extends Tool {
     @Override
     public Grammar loadImportedGrammar(Grammar g, GrammarAST nameNode) throws IOException {
         String name = nameNode.getText();
-        System.out.println("load imported grammar " + name);
         if (name.equals(g.name)) {
             // Avoid a StaackOverflowError if the grammar imports itself
             this.errMgr.emit(ErrorType.INVALID_IMPORT, new ANTLRMessage(ErrorType.INVALID_IMPORT, nameNode.token, name, name));
@@ -616,7 +615,6 @@ public final class MemoryTool extends Tool {
     }
 
     public Grammar loadDependentGrammar(String name, JFSFileObject fo) throws IOException {
-        System.out.println("TRY TO LOAD DEP " + name + " rel to " + fo.getName());
         return withCurrentPathThrowing(Paths.get(fo.getName()), () -> {
             try (InputStream inStream = fo.openInputStream()) {
                 ANTLRInputStream in = new ANTLRInputStream(inStream, fo.length());

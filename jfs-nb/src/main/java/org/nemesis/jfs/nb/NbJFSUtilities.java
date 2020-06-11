@@ -26,6 +26,7 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.spi.JFSUtilities;
 import org.netbeans.api.queries.FileEncodingQuery;
+import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -59,8 +60,12 @@ public class NbJFSUtilities extends JFSUtilities {
 
     @Override
     protected void weakListen(Document document, DocumentListener listener) {
-        DocumentUtilities.addPriorityDocumentListener(document,
-                WeakListeners.document(listener, document), DocumentListenerPriority.FIRST);
+        if (document instanceof BaseDocument) {
+            DocumentUtilities.addPriorityDocumentListener(document,
+                    WeakListeners.document(listener, document), DocumentListenerPriority.FIRST);
+        } else {
+            document.addDocumentListener(WeakListeners.document(listener, document));
+        }
     }
 
     @Override

@@ -43,8 +43,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
-import javax.swing.text.DefaultStyledDocument;
-import javax.swing.text.Document;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
 import javax.tools.FileObject;
@@ -60,7 +58,6 @@ import javax.tools.ToolProvider;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -554,38 +551,6 @@ public class JFSTest {
         }
     }
 
-    Document document;
-
-    @Test
-    public void testMapDocuments() throws Throwable {
-        JFS jfs = new JFS(UTF_16);
-        document = new DefaultStyledDocument();
-        String txt = "This is some text\nWhich shall be given up for you\n";
-        document.insertString(0, txt, null);
-        UnixPath pth = UnixPath.get("/some/docs/Doc.txt");
-        JFSFileObject fo = jfs.masquerade(document, SOURCE_PATH, pth);
-        assertNotNull(fo);
-        assertEquals(txt, fo.getCharContent(true).toString());
-        long lm = fo.getLastModified();
-        long len = fo.length();
-        String newText = "And now things are different\nin this here document.\n";
-        Thread.sleep(100);
-        try (OutputStream out = fo.openOutputStream()) {
-            out.write(newText.getBytes(UTF_16));
-        }
-        assertNotEquals(lm, fo.getLastModified());
-        assertNotEquals(len, fo.length());
-        assertEquals(newText, fo.getCharContent(true).toString());
-
-        try (InputStream in = fo.openInputStream()) {
-            byte[] bytes = new byte[fo.length() + 20];
-            int count = in.read(bytes);
-            String s = new String(bytes, 0, count, UTF_16);
-            assertEquals(newText.length(), s.length());
-            assertEquals(newText, s);
-        }
-        jfs.close();
-    }
 
     @BeforeClass
     public static void setup() {

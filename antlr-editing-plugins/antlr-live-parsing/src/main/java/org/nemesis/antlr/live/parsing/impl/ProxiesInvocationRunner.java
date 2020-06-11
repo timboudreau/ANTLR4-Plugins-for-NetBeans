@@ -65,6 +65,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     @SuppressWarnings("LeakingThisInConstructor")
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);
@@ -152,6 +156,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 return Debug.runObject(this, "Generate extractor source", () -> {;
                     csc.accept(CLASSLOADER_FACTORY);
                     GenerationResult gr = new GenerationResult(genResult, res.packageName, path, res.grammarName);
+                    LOG.log(Level.FINEST, "Generation result {0}", gr);
                     Debug.message("Generation result", gr::toString);
                     return gr;
                 });
@@ -176,6 +181,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             }
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
             PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
+            LOG.log(Level.FINER, "New environment created for embedded parser: {0}", env);
             Debug.message("Use new PreservedInvocationEnvironment", () -> {
                 return env.toString();
             });
@@ -251,6 +257,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 .includingJarOf(Interpreter.class)
                 .loadingFromParent(AntlrProxies.class)
                 .loadingFromParent(AntlrProxies.ParseTreeBuilder.class)
+                .loadingFromParent(AntlrProxies.Ambiguity.class)
                 .loadingFromParent(AntlrProxies.ParseTreeElement.class)
                 .loadingFromParent(AntlrProxies.ParseTreeElementKind.class)
                 .loadingFromParent(AntlrProxies.ParseTreeProxy.class)
@@ -287,7 +294,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public String toString() {
-            return super.toString() + "(" + ref + ")";
+            return super.toString() + "(" + ref + " - " + typeName + ")";
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
@@ -312,6 +319,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body) throws Exception {
+            LOG.log(Level.FINEST, "Initiating parse in {0}", logName);
             AntlrProxies.ParseTreeProxy[] prex = new AntlrProxies.ParseTreeProxy[1];
             return Debug.runObjectThrowing(this, "embedded-parse for " + logName, () -> {
                 StringBuilder sb = new StringBuilder("************* BODY ***************\n");

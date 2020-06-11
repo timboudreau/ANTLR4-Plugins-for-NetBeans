@@ -17,16 +17,22 @@ package org.nemesis.antlr.live.parsing;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.junit.jupiter.api.AfterEach;
+import javax.swing.event.ChangeListener;
+import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
@@ -42,6 +48,12 @@ import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
 import org.netbeans.modules.parsing.api.ParserManager;
+import org.netbeans.modules.parsing.api.Snapshot;
+import org.netbeans.modules.parsing.api.Task;
+import org.netbeans.modules.parsing.spi.ParseException;
+import org.netbeans.modules.parsing.spi.Parser;
+import org.netbeans.modules.parsing.spi.ParserFactory;
+import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.netbeans.modules.projectapi.nb.NbProjectManager;
 import org.netbeans.spi.editor.document.DocumentFactory;
 
@@ -51,8 +63,8 @@ import org.netbeans.spi.editor.document.DocumentFactory;
  */
 public class EmbeddedAntlrParsersTest {
 
-    private GeneratedMavenProject gen;
-    private ThrowingRunnable shutdown;
+    private static GeneratedMavenProject gen;
+    private static ThrowingRunnable shutdown;
 
     public static final String TEXT_1
             = "{ skiddoo : 23, meaningful : true,\n"
@@ -61,6 +73,7 @@ public class EmbeddedAntlrParsersTest {
 
     @Test
     public void testSubscriptionsWorkAsExpected() throws Exception {
+        assertNotNull(gen);
         assertNotNull(ParserExtractor.class.getResourceAsStream("ParserExtractor.template"),
                 "Parser extractor not generated");
 
@@ -114,31 +127,34 @@ public class EmbeddedAntlrParsersTest {
                 + "the grammar");
     }
 
-    @BeforeEach
-    public void setup() throws IOException, ClassNotFoundException {
+    @BeforeAll
+    public static void setup() throws IOException, ClassNotFoundException {
         Class.forName(AntlrNbParser.class.getName());
-        shutdown = initAntlrTestFixtures(true)
-                .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
-                .build();
         gen = ProjectTestHelper.projectBuilder()
                 .verboseLogging()
                 .writeStockTestGrammar("com.foo")
                 .build("foo");
+        Path grammarFile = gen.allFiles().get("NestedMaps.g4");
+        shutdown = initAntlrTestFixtures(true, grammarFile)
+                .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
+                .build();
         gen.deletedBy(shutdown);
     }
 
-    @AfterEach
-    public void tearDown() throws Exception {
+    @AfterAll
+    public static void tearDown() throws Exception {
         shutdown.run();
     }
 
-    public static TestFixtures initAntlrTestFixtures(boolean verbose) {
+    public static TestFixtures initAntlrTestFixtures(boolean verbose, Path grammarFile) {
         TestFixtures fixtures = new TestFixtures();
         if (verbose) {
             fixtures.verboseGlobalLogging();
         }
+        String synthesizedMimeType = AdhocMimeTypes.mimeTypeForPath(grammarFile);
         DocumentFactory fact = new DocumentFactoryImpl();
         return fixtures.addToMimeLookup("", fact)
+                .addToMimeLookup(synthesizedMimeType, FakeParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter(), fact)
                 .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
@@ -153,4 +169,44 @@ public class EmbeddedAntlrParsersTest {
                 );
     }
 
+    // Sigh - we need to grab the parsing infrastructure's lock inside
+    // EmbeddedAntlrParserImpl preemptively, to keep from code we call back
+    // from acquiring it out-of-order.  Which means we need to register a do-nothing
+    // parser to keep the plumbing from complaining that there's no parser registered
+    // for our mime type
+    public static final class FakeParserFactory extends ParserFactory {
+
+        @Override
+        public Parser createParser(Collection<Snapshot> clctn) {
+            return new FakeParser();
+        }
+
+        static class FakeParser extends Parser {
+
+            private final Map<Task, Result> results = new HashMap<>();
+
+            @Override
+            public void parse(Snapshot snpsht, Task task, SourceModificationEvent sme) throws ParseException {
+                results.put(task, new Result(snpsht) {
+                    @Override
+                    protected void invalidate() {
+                        // do nothing
+                    }
+                });
+            }
+
+            @Override
+            public Result getResult(Task task) throws ParseException {
+                return results.remove(task);
+            }
+
+            @Override
+            public void addChangeListener(ChangeListener cl) {
+            }
+
+            @Override
+            public void removeChangeListener(ChangeListener cl) {
+            }
+        }
+    }
 }

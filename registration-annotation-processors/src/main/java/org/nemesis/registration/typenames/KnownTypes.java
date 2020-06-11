@@ -428,6 +428,8 @@ public enum KnownTypes implements TypeName {
     FONT_COLOR_SETTINGS("org.netbeans.api.editor.settings.FontColorSettings",
         Libraries.SETTINGS),
     FOO("org.nemesis.antlr.file.Foo", Libraries.SUPPORT),
+    FOO_DUMP_EDITOR_KIT_ACTION(
+        "org.nemesis.antlr.file.Foo_dumpEditorKit_Action", Libraries.SUPPORT),
     FORMATTING_ACTION("org.nemesis.antlrformatting.api.FormattingAction",
         Libraries.FORMATTERS),
     FORMATTING_CONTEXT("org.nemesis.antlrformatting.api.FormattingContext",
@@ -502,7 +504,6 @@ public enum KnownTypes implements TypeName {
         Libraries.EXTRACTION),
     IMPORT_KEY_SUPPLIER("org.nemesis.extraction.attribution.ImportKeySupplier",
         Libraries.EXTRACTION),
-    INDENT("org.netbeans.modules.editor.indent.api.Indent", Libraries.INDENT),
     INDENT_CONTEXT("org.netbeans.modules.editor.indent.spi.Context",
         Libraries.INDENT),
     INDEXED_RESOLVABLE("com.mastfrog.abstractions.list.IndexedResolvable",
@@ -698,6 +699,11 @@ public enum KnownTypes implements TypeName {
     OPEN_COOKIE("org.openide.cookies.OpenCookie", Libraries.NODES),
     OPTIONS_PANEL_CONTROLLER("org.netbeans.spi.options.OptionsPanelController",
         Libraries.OPTIONS),
+    OR_HANDLING("org.nemesis.antlr.language.formatting.config.OrHandling",
+        Libraries.FORMATTING),
+    OR_HANDLING_RADIO_BUTTON_MODEL(
+        "org.nemesis.antlr.language.formatting.ui.OrHandlingRadioButtonModel",
+        Libraries.UI),
     PARAMETERS("org.openide.util.Parameters", Libraries.UTIL),
     PARSER("org.netbeans.modules.parsing.spi.Parser", Libraries.PARSING),
     PARSER_CONTROL(
@@ -727,7 +733,6 @@ public enum KnownTypes implements TypeName {
     PARSE_TREE_WALKER("org.antlr.v4.runtime.tree.ParseTreeWalker",
         Libraries.ANTLR_WRAPPER),
     PARSING_BAG("org.nemesis.source.api.ParsingBag", Libraries.INPUT),
-    PART_TYPE("org.netbeans.api.lexer.PartType", Libraries.LEXER),
     PATTERN_STRINGIFIER_BUILDER(
         "org.nemesis.antlr.completion.PatternStringifierBuilder",
         Libraries.CODE_COMPLETION),

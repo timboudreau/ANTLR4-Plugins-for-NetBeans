@@ -28,6 +28,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.security.MessageDigest;
 import java.util.Objects;
 import javax.tools.JavaFileManager.Location;
 
@@ -118,6 +119,25 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public String getName() {
         return name.toString();
+    }
+
+    @Override
+    public byte[] hash() throws IOException {
+        if (storage instanceof HashingStorage) {
+            byte[] result = ((HashingStorage) storage).hash();
+            if (result != null) {
+                return result;
+            }
+        }
+        return JFSFileObject.super.hash();
+    }
+
+    @Override
+    public void hash(MessageDigest digest) throws IOException {
+        if (storage instanceof HashingStorage && ((HashingStorage) storage).hash(digest)) {
+            return;
+        }
+        JFSFileObject.super.hash(digest);
     }
 
     @Override

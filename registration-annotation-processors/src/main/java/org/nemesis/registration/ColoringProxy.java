@@ -30,7 +30,7 @@ import java.util.TreeSet;
  */
 class ColoringProxy implements Iterable<String> {
 
-    private static final String[] DARK_THEMES = {"NetBeans_Solarized_Dark", "BlueTheme", "Darcula", "CityLights"};
+    private static final String[] DARK_THEMES = {"NetBeans_Solarized_Dark", "BlueTheme", "Darcula", "CityLights", "FlatLafDark"};
     private static final String[] BRIGHT_THEMES = new String[] {"NetBeans", "NetBeans55", "NetbeansEarth", "Tan", "NetBeans_Solarized_Light"};
 
     // IMPORTANT:  These mirror constants on Coloration and must exactly match:

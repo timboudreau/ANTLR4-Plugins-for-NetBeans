@@ -51,7 +51,6 @@ public class AdhocColoringsTest {
 
     @Test
     public void testAttributes() throws Throwable {
-        System.out.println("MT " + mimeType);
         AdhocColorings colorings = new AdhocColorings();
         PCL pcl = new PCL();
         AdhocColoring c = colorings.add("foo", Color.yellow, AttrTypes.ACTIVE, AttrTypes.BACKGROUND, AttrTypes.BOLD);

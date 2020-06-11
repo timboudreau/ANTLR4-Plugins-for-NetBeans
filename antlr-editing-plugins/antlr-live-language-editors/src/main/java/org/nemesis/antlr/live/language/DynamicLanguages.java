@@ -18,7 +18,6 @@ package org.nemesis.antlr.live.language;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.util.Collections;
 import java.util.Set;
-import org.netbeans.api.lexer.Language;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.util.Lookup;
 
@@ -60,8 +59,8 @@ public class DynamicLanguages {
             result = true;
         }
 //        if (regs < 2) {
-        Language<?> lang = Language.find(mimeType);
-        System.out.println("FOUND LAN " + lang);
+//        Language<?> lang = Language.find(mimeType);
+//        System.out.println("FOUND LAN " + lang);
 //        }
         return result;
     }

@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
+import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -58,8 +59,12 @@ final class PriorityTimestamp implements DocumentListener {
                     : initial);
             // Object is self-contained, not a leak
             doc.putProperty(PriorityTimestamp.class, result);
-            DocumentUtilities.addPriorityDocumentListener(doc, result,
-                    DocumentListenerPriority.FIRST);
+            if (doc instanceof BaseDocument) {
+                DocumentUtilities.addPriorityDocumentListener(doc, result,
+                        DocumentListenerPriority.FIRST);
+            } else {
+                doc.addDocumentListener(result);
+            }
         }
         return result;
     }

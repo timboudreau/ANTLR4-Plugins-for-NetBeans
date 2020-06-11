@@ -101,7 +101,6 @@ final class AdhocParser extends Parser {
 //        last = null;
 //        RESULT_FOR_TASK.clear();
         if (parsesAtLastFire != parses) {
-            Thread.dumpStack();
             parsesAtLastFire = parses;
             supp.fireChange();
         }

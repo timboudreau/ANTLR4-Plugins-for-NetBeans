@@ -86,6 +86,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParser.class.getName());
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     private Runnable unsubscriber;
     private final String logName;
     private final Path path;
@@ -399,7 +403,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             if (modifications.isEmpty()) {
                 return false;
             }
-            JFSFileModifications.FileChanges changes = modifications.changesAndReset();
+            JFSFileModifications.FileChanges changes = modifications.changes();
             boolean result = changes.isUpToDate();
             if (!result) {
                 LOG.log(Level.FINEST, "Parse env not up to date {0}", changes);
@@ -409,9 +413,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
         public boolean shouldReplace(Extraction extraction, GrammarRunResult<EmbeddedParser> runner) {
             if (this.parser == null || this.parser instanceof DeadEmbeddedParser) {
+                System.out.println("yes replace");
                 return true;
             }
             if (Objects.equals(extraction.tokensHash(), grammarTokensHash)) {
+                System.out.println("tokens hash match, no replace env");
                 return false;
             }
             boolean wasEmpty = modifications.isEmpty();
@@ -425,6 +431,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 }
                 result = true;
             }
+            System.out.println("should replace? " + result);
             return result;
         }
     }
@@ -434,6 +441,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
             if (Thread.interrupted()) {
+                LOG.log(Level.FINER, "Interrupted while awaiting parser result");
                 return;
             }
             Parser.Result res = resultIterator.getParserResult();

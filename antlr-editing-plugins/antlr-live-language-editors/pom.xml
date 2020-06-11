@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -45,7 +45,7 @@ limitations under the License.
     </licenses>
     <packaging>nbm</packaging>
     <properties>
-        <maven.test.skip>true</maven.test.skip>
+        <!--<maven.test.skip>true</maven.test.skip>-->
         <enforcer.skip>true</enforcer.skip>
     </properties>
     <build>
@@ -82,6 +82,10 @@ limitations under the License.
                     <systemPropertyVariables>
                         <unit.test>true</unit.test>
                         <forkNumber>${surefire.forkNumber}</forkNumber>
+                        <org.nemesis.antlr.live.parsing.impl.level>ALL</org.nemesis.antlr.live.parsing.impl.level>
+                        <org.nemesis.antlr.live.parsing.level>ALL</org.nemesis.antlr.live.parsing.level>
+                        <org.nemesis.antlr.live.parsing.extract.level>ALL</org.nemesis.antlr.live.parsing.extract.level>
+                        <org.nemesis.antlr.file.file.AntlrExtSyntax.level>ALL</org.nemesis.antlr.file.file.AntlrExtSyntax.level>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -316,6 +320,50 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.modules</groupId>
             <artifactId>org-netbeans-modules-masterfs</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- This bathtub of dependencies allows tests to be run in Maven 3.6.x
+        and forces the maven-embedder module to link against that, so it doesn't
+        detonate on contact.  No, useSystemClassloader doesn't help.
+        -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-artifact-manager</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-artifact</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-project</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-classworlds</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-container-default</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-interpolation</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-utils</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

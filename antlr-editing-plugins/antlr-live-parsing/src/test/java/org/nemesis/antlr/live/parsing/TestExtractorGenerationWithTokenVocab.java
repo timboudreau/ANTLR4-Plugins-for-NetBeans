@@ -26,17 +26,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.tools.StandardLocation;
 import org.antlr.v4.tool.Grammar;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer.Alphanumeric;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
@@ -44,6 +45,7 @@ import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsersTest.FakeParserFactory;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerationResult;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerator;
@@ -61,8 +63,10 @@ import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
+import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
+import org.netbeans.modules.parsing.spi.ParserFactory;
 import org.netbeans.modules.projectapi.nb.NbProjectManager;
 import org.netbeans.spi.editor.document.DocumentFactory;
 import org.openide.filesystems.FileObject;
@@ -75,14 +79,14 @@ import org.openide.filesystems.FileObject;
 @Execution(ExecutionMode.SAME_THREAD)
 public class TestExtractorGenerationWithTokenVocab {
 
-    private GeneratedMavenProject gen;
-    private ThrowingRunnable shutdown;
+    private static GeneratedMavenProject gen;
+    private static ThrowingRunnable shutdown;
     private static final String SOME_MARKDOWN = "# Well Hello There\n\nThis is some markdown,"
             + " which shall be parsed.\n\n * Is that\n * Cool and stuff\n * Or What?\n\n"
             + "This should work, I hope.\n";
-    private Path markdownParserFile;
-    private Path markdownLexerFile;
-    private AntlrGenerationResult lastGenResult;
+    private static Path markdownParserFile;
+    private static Path markdownLexerFile;
+    private static AntlrGenerationResult lastGenResult;
 
     private JFS findJFS() throws Exception {
         AtomicReference<JFS> jfs = new AtomicReference<>();
@@ -110,6 +114,7 @@ public class TestExtractorGenerationWithTokenVocab {
 
     @Test
     public void testCodeGeneration() throws Exception {
+        assertNotNull(gen);
         JFS jfs = findJFS();
         assertNotNull(lastGenResult);
         Grammar lg = findLexerGrammar(lastGenResult);
@@ -130,9 +135,6 @@ public class TestExtractorGenerationWithTokenVocab {
         assertNotNull(file, "Code not generated");
         txt = file.getCharContent(true).toString();
         assertLexerIsCreatedUsingCorrectClass(txt);
-        System.out.println("\n\n\n");
-        System.out.println(txt);
-        System.out.println("\n\n\n");
     }
 
     private void assertLexerIsCreatedUsingCorrectClass(String extractorText) {
@@ -150,6 +152,7 @@ public class TestExtractorGenerationWithTokenVocab {
     @Test
     public void testParserFindsCorrectLexer() throws Exception {
         AtomicReference<JFS> jfs = new AtomicReference<>();
+        assertNotNull(gen.file("MarkdownParser.g4"));
         RebuildSubscriptions.subscribe(gen.file("MarkdownParser.g4"), new Subscriber() {
             @Override
             public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
@@ -177,12 +180,10 @@ public class TestExtractorGenerationWithTokenVocab {
         System.out.println("PTP:\n" + ptp);
     }
 
-    @BeforeEach
-    public void setup() throws IOException, ClassNotFoundException, URISyntaxException {
+    @BeforeAll
+    public static void setup() throws IOException, ClassNotFoundException, URISyntaxException {
+
         Class.forName(AntlrNbParser.class.getName());
-        shutdown = initAntlrTestFixtures(true)
-                .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
-                .build();
 
         ProjectTestHelper helper = ProjectTestHelper.relativeTo(TestExtractorGenerationWithTokenVocab.class);
         markdownParserFile = helper.projectBaseDir().getParent().resolve(
@@ -194,6 +195,16 @@ public class TestExtractorGenerationWithTokenVocab {
         gen = ProjectTestHelper.projectBuilder().copyMainAntlrSource(markdownLexerFile, "com/goob")
                 .copyMainAntlrSource(markdownParserFile, "com/goob").verboseLogging().build("markdown");
 
+        Path pth = gen.allFiles().get("MarkdownParser.g4");
+        assertNotNull(pth);
+        String mime = AdhocMimeTypes.mimeTypeForPath(pth);
+        System.out.println("Register fake parser for " + mime);
+
+        shutdown = initAntlrTestFixtures(true)
+                .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
+                .addToNamedLookup(mime, FakeParserFactory.class)
+                .build();
+
         gen.deletedBy(shutdown);
         shutdown.andAlways(() -> {
             if (fixtures != null) {
@@ -204,10 +215,15 @@ public class TestExtractorGenerationWithTokenVocab {
                 }
             }
         });
+        assertNotNull(gen);
+        assertNotNull(gen.file("MarkdownParser.g4"));
+        assertNotNull(gen.file("MarkdownLexer.g4"));
+        assertNotNull(MimeLookup.getLookup(mime).lookup(ParserFactory.class));
     }
 
-    @AfterEach
-    public void tearDown() throws Exception {
+    @AfterAll
+    public static void tearDown() throws Exception {
+        System.out.println("shutdown");
         shutdown.run();
     }
 

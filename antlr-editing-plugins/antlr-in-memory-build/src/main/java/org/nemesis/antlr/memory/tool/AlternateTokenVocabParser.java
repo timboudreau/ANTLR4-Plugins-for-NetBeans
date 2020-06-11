@@ -84,11 +84,9 @@ final class AlternateTokenVocabParser {
         Path filePath = ctx.importedFilePath(g, tool);
         precreateMissingLexer(tool, g, filePath);
         String vocabName = g.getOptionString("tokenVocab");
-        System.out.println("Try to load tokenVocab " + vocabName);
         try {
             JFSFileObject fullFile = ctx.getImportedVocabFile(g, tool);
             JFSFileObject ff = fullFile;
-            System.out.println("  Found token vocab file " + fullFile);
             tool.withCurrentPathThrowing(Paths.get(fullFile.getName()), () -> {
                 int maxTokenType = -1;
                 Pattern tokenDefPattern = Pattern.compile("([^\n]+?)[ \\t]*?=[ \\t]*?([0-9]+)");

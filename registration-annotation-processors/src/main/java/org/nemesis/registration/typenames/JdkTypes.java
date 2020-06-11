@@ -139,6 +139,8 @@ public enum JdkTypes implements TypeName {
     CONCURRENT_HASH_MAP("java.util.concurrent.ConcurrentHashMap"),
     CONCURRENT_SKIP_LIST_SET("java.util.concurrent.ConcurrentSkipListSet"),
     COPY_ON_WRITE_ARRAY_LIST("java.util.concurrent.CopyOnWriteArrayList"),
+    DELAY_QUEUE("java.util.concurrent.DelayQueue"),
+    DELAYED("java.util.concurrent.Delayed"),
     EXECUTION_EXCEPTION("java.util.concurrent.ExecutionException"),
     EXECUTOR_SERVICE("java.util.concurrent.ExecutorService"),
     FUTURE("java.util.concurrent.Future"),

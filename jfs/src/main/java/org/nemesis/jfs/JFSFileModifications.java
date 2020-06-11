@@ -42,6 +42,8 @@ import javax.tools.StandardLocation;
 import org.nemesis.jfs.result.UpToDateness;
 
 /**
+ * Allows for tracking changes to files inside a JFS, including mapped files and
+ * documents, using SHA-1 hashes for matching.
  *
  * @author Tim Boudreau
  */
@@ -78,7 +80,7 @@ public class JFSFileModifications {
         this(jfs, ALL, locations);
     }
 
-    JFSFileModifications(JFS jfs, Predicate<UnixPath> filter, Set<Location> locations) {
+    JFSFileModifications(JFS jfs, Predicate<UnixPath> filter, Set<? extends Location> locations) {
         this.filter = notNull("filter", filter);
         this.locations = locationSet(notNull("locations", locations));
         this.jfs = notNull("jfs", jfs);
@@ -96,14 +98,54 @@ public class JFSFileModifications {
         this(old, false);
     }
 
+    /**
+     * Create a copy of this modifications which ignores a particular
+     * file.
+     *
+     * @param path A path
+     * @return A new JFSFileModifications
+     */
+    public JFSFileModifications excluding(String path) {
+        return excluding(UnixPath.get(path));
+    }
+
+    /**
+     * Create a copy of this modifications which ignores a particular
+     * file.
+     *
+     * @param path A path
+     * @return A new JFSFileModifications
+     */
+    public JFSFileModifications excluding(UnixPath path) {
+        Predicate<UnixPath> newFilter = filter.and(pth -> !path.equals(pth));
+        return new JFSFileModifications(jfs, newFilter, locations);
+    }
+
+    /**
+     * Create a copy of this JFSFileModifications whose reset status
+     * is independent of the original.
+     *
+     * @return A set of modifications
+     */
     public JFSFileModifications snapshot() {
         return new JFSFileModifications(this, true);
     }
 
+    /**
+     * Create an empty null-instance.
+     *
+     * @return A JFSFileModifications
+     */
     public static JFSFileModifications empty() {
         return new JFSFileModifications();
     }
 
+    /**
+     * Determine if this instance is not keeping track of any files (it was
+     * created by empty(), or the backing JFS is empty).
+     *
+     * @return True if nothing is being tracked currently
+     */
     public boolean isEmpty() {
         if (jfs == null) {
             return true; // empty instance
@@ -123,6 +165,12 @@ public class JFSFileModifications {
         return new JFSFileModifications(this);
     }
 
+    /**
+     * Get the current set of changes, compared with the initial or last-reset
+     * state.
+     *
+     * @return A set of file changes
+     */
     public FileChanges changes() {
         if (jfs == null) {
             return FileChanges.UNKNOWN;
@@ -130,6 +178,12 @@ public class JFSFileModifications {
         return FileChanges.create(this);
     }
 
+    /**
+     * Reset the state of changed-ness of the files, such that subsequent calls to
+     * get the status will show no changes.
+     *
+     * @return this
+     */
     public JFSFileModifications refresh() {
         if (jfs == null) {
             return this;
@@ -142,6 +196,11 @@ public class JFSFileModifications {
         info = m;
     }
 
+    /**
+     * Get the current set of file changes, and reset the state to be unmodified.
+     *
+     * @return A set of file changes
+     */
     public synchronized FileChanges changesAndReset() {
         if (jfs == null) {
             return FileChanges.UNKNOWN;
@@ -151,7 +210,7 @@ public class JFSFileModifications {
         return result;
     }
 
-    private static Set<? extends Location> locationSet(Set<Location> locations) {
+    private static Set<? extends Location> locationSet(Set<? extends Location> locations) {
         EnumSet<StandardLocation> es = EnumSet.noneOf(StandardLocation.class);
         boolean usable = true;
         for (Location l : locations) {
@@ -168,6 +227,9 @@ public class JFSFileModifications {
         return es;
     }
 
+    /**
+     * A set of changes to files being tracked by a JFSFileModifications.
+     */
     public static abstract class FileChanges {
 
         private static final FileChanges EMPTY = new EmptyFileChanges(false);

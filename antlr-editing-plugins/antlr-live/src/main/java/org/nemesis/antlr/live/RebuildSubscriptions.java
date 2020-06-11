@@ -92,6 +92,10 @@ public final class RebuildSubscriptions {
     static Supplier<RebuildSubscriptions> INSTANCE_SUPPLIER
             = CachingSupplier.of(RebuildSubscriptions::new);
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     JFS jfsFor(Project project) { // for tests
         return mapping.getIfPresent(project);
     }

@@ -102,6 +102,11 @@ public class FakeG4DataObject extends AntlrDataObject {
 
     public static class FakeG4MimeResolve extends MIMEResolver {
 
+        @SuppressWarnings("deprecation")
+        public FakeG4MimeResolve() {
+            super();
+        }
+
         @Override
         public String findMIMEType(FileObject fo) {
             if ("g4".equals(fo.getExt())) {

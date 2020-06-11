@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
-import com.mastfrog.util.thread.OneThreadLatch;
+import com.mastfrog.util.thread.ResettableCountDownLatch;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -68,6 +68,7 @@ public class AntlrRunSubscriptionsTest {
             + "thing: 51 }";
 
     @Test
+    @SuppressWarnings({"unchecked", "rawtype"})
     public void testReparseHappens() throws Throwable {
         // Runs some trivial code that runs the parser and extracts
         // a little info to prove it
@@ -81,13 +82,14 @@ public class AntlrRunSubscriptionsTest {
         Runnable unsub = is.subscribe(fo, bic);
         assertNotNull(unsub);
         assertNotNull(IR.IR);
-        Thread.sleep(1000);
         GrammarRunResult<Map> r = bic.assertExtracted();
         JFS jfs = r.jfs();
 
 
         JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/foo/bar/NestedMaps.g4"));
-        jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("imports/NMLexer.g4"));
+        assertNotNull(jfo);
+        JFSFileObject jfo2 = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("imports/NMLexer.g4"));
+        assertNotNull(jfo2);
 
         assertEquals(2, r.diagnostics().size(), () -> r.diagnostics().toString());
         Set<String> dgs = new HashSet<>();
@@ -109,15 +111,20 @@ public class AntlrRunSubscriptionsTest {
 
     static final class Bic implements BiConsumer<Extraction, GrammarRunResult<Map>> {
 
-        private GrammarRunResult<Map> map;
-        private final OneThreadLatch latch = new OneThreadLatch();
+        private volatile GrammarRunResult<Map> map;
+        private final ResettableCountDownLatch latch = new ResettableCountDownLatch(1);
 
         public GrammarRunResult<Map> assertExtracted() throws InterruptedException {
             for (int i = 0; i < 10; i++) {
                 if (map != null) {
                     break;
                 }
-                latch.await(100, TimeUnit.MILLISECONDS);
+                if (latch.await(1000, TimeUnit.MILLISECONDS)) {
+                    latch.reset(1);
+                    if (map != null) {
+                        break;
+                    }
+                }
             }
             GrammarRunResult<Map> result = map;
             map = null;
@@ -127,8 +134,9 @@ public class AntlrRunSubscriptionsTest {
 
         @Override
         public void accept(Extraction t, GrammarRunResult<Map> u) {
+            System.out.println("accept " + u);
             map = u;
-            latch.releaseOne();
+            latch.countDown();
         }
     }
 

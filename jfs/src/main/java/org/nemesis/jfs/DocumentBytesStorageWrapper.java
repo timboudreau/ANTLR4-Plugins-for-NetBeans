@@ -15,6 +15,7 @@
  */
 package org.nemesis.jfs;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,7 +24,11 @@ import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
@@ -35,18 +40,92 @@ import org.nemesis.jfs.spi.JFSUtilities;
  *
  * @author Tim Boudreau
  */
-final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentListener {
+final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentListener, HashingStorage {
 
+    // the sha-1 hash of an empty byte array
+    static byte[] EMPTY_BYTE_ARRAY_SHA_1 = new byte[]{-38, 57, -93, -18, 94, 107, 75, 13, 50, 85, -65, -17, -107, 96, 24, -112, -81, -40, 7, 9};
     private final JFSStorage storage;
     private final Document doc;
     private final Segment segment = new Segment();
+    static boolean computeHashes = JFSUtilities.documentListenersHavePriority(); // package private for tests
+    private AtomicReference<byte[][]> cache = new AtomicReference<>();
 
+
+    @SuppressWarnings("LeakingThisInConstructor")
     DocumentBytesStorageWrapper(JFSStorage storage, Document doc) {
-        this.storage = storage;
-        this.doc = doc;
-        JFSUtilities.attachWeakListener(doc, this);
+        this.storage = notNull("storage", storage);
+        this.doc = notNull("doc", doc);
         // Ensure initialization of the PriorityTimestamp in NbJFSUtilities
         lastModified();
+        recomputeHashes();
+        JFSUtilities.attachWeakListener(doc, this);
+    }
+
+    private void recomputeHashes() {
+        if (computeHashes) {
+            doc.render(() -> {
+                doc.render(() -> {
+                    int length = doc.getLength();
+                    if (length == 0) {
+                        cache.set(new byte[][]{new byte[0], EMPTY_BYTE_ARRAY_SHA_1});
+                        return;
+                    }
+                    try {
+                        doc.getText(0, length, segment);
+                        byte[] bytes = new String(segment.array, segment.offset, segment.count).getBytes(storage.encoding());
+                        // Ugh. The below should work, if the UTF-8 encoder worked as advertised, and
+                        // returned the ByteBuffer's limit set to the number of bytes written; but it
+                        // returns the total backing array size of 4096 minus one, instead on JDK 14.
+//                        CharsetEncoder enc = storage.encoding().newEncoder();
+//                        ByteBuffer buf = enc.encode(CharBuffer.wrap(segment.array));
+//                        System.out.println("retbufpos " + buf.position() + " limit " + buf.limit() + " remaining " + buf.remaining() + " hasArray? " + buf.hasArray());
+//                        if (buf.hasArray()) {
+//                            System.out.println("  array len " + buf.array().length);
+//                        }
+//                        byte[] bytes = new byte[buf.limit()];;
+//                        buf.get(bytes);
+                        MessageDigest dig = MessageDigest.getInstance("SHA-1");
+                        byte[] hash = dig.digest(bytes);
+                        cache.set(new byte[][]{bytes, hash});
+                    } catch (BadLocationException | NoSuchAlgorithmException ex) {
+                        Logger.getLogger(DocumentBytesStorageWrapper.class.getName()).log(Level.INFO, null, ex);
+                    }
+                });
+            });
+        }
+    }
+
+    @Override
+    public boolean hash(MessageDigest into) throws IOException {
+        if (!computeHashes) {
+            return false;
+        }
+        byte[][] cached = cache.get();
+        if (cached != null) {
+            into.update(cached[0]);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public byte[] hash() throws IOException {
+        if (!computeHashes) {
+            return null;
+        }
+        byte[][] cached = cache.get();
+        return cached == null ? null : cached[1];
+    }
+
+    @Override
+    public CharBuffer asCharBuffer(boolean ignoreEncodingErrors) throws IOException {
+        if (computeHashes) {
+            byte[][] bts = cache.get();
+            if (bts != null) {
+                return CharBuffer.wrap(new String(bts[0], storage.encoding()));
+            }
+        }
+        return JFSBytesStorage.super.asCharBuffer(ignoreEncodingErrors);
     }
 
     @Override
@@ -86,6 +165,12 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
 
     @Override
     public ByteBuffer asByteBuffer() throws IOException {
+        if (computeHashes) {
+            byte[][] cached = cache.get();
+            if (cached != null) {
+                return ByteBuffer.wrap(cached[0]);
+            }
+        }
         Charset encoding = storage.encoding();
         CharsetEncoder enc = encoding.newEncoder();
         return enc.encode(asCharBuffer(true));
@@ -93,10 +178,12 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
 
     @Override
     public byte[] asBytes() throws IOException {
-        //        ByteBuffer buf = asByteBuffer();
-//        byte[] bytes = new byte[buf.limit()];
-//        buf.get(bytes);
-//        return bytes;
+        if (computeHashes) {
+            byte[][] cached = cache.get();
+            if (cached != null) {
+                return cached[0];
+            }
+        }
         return asCharBuffer(true).toString().getBytes(storage.encoding());
     }
 
@@ -148,22 +235,23 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
         }
     }
 
-    void touch() {
+    void touch(DocumentEvent e) {
+        recomputeHashes();
     }
 
     @Override
     public void insertUpdate(DocumentEvent e) {
-        touch();
+        touch(e);
     }
 
     @Override
     public void removeUpdate(DocumentEvent e) {
-        touch();
+        touch(e);
     }
 
     @Override
     public void changedUpdate(DocumentEvent e) {
-        touch();
+//        touch();
     }
 
     private final class Out extends ByteArrayOutputStream {
