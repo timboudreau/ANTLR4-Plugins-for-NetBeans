@@ -122,7 +122,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                 if (a != null && a.isActive() && !a.isEmpty()) {
                     ruleCount++; // for logging
                     int start = rn.startTokenIndex();
-                    int end = rn.endTokenIndex();
+                    int end = rn.stopTokenIndex();
                     if (start < 0 || end < 0) { // EOF or broken source
                         continue;
                     } else {

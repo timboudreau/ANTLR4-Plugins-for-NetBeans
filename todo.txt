@@ -1,27 +1,11 @@
 
-Various BadLocationExceptions thrown after copy/paste in documents when preview active.  Should really just destroy the model with prejudice and rebuild at that point.
-
 Should add a build listener which can make antlr error lines clickable in output window.
-
-close options block should get a newline or we get:
-```
-
-options{tokenVocab=MarkdownLexer; } document
-    : ( heading | blockquote | unorderedList | orderedList | paragraphs |
-        horizontalRule | whitespace | embeddedImage | preformatted )+ EOF?;
-```
-
 
 Need tests for hetero object graph
 
 Would a better option be to implement TokenSource over nb document TokenHierarchy?
 
-Perhaps enum of Rules - would be more useful for code completion
- 
 Code sample should be able to be a file.
-
-Keybindings for instant rename and goto declaration are broken
- - Problem is in the keybinding registration - Editors/text/x-g4/Keybindings has the file - ??
 
 Add hint to turn terminal nodes in parser rules into lexer rules or fragments
 
@@ -88,7 +72,6 @@ Fix UsageFinder API
   * Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
     * Could use general support for sets of ranges in the range library
   * Relative should *prefer* but not insist on looking up the same type
-  * Keybinding actions still not actually working if not performers for standard netbeans ones
   * Resolve via tokens file into other project on classpath via ClassPathProvider
     * Enhance relative resolvers in the nb specialization project to look 
      up tokens files, etc. from the project's ClassPathProvider
