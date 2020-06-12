@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import javax.swing.BorderFactory;
@@ -61,7 +62,6 @@ import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
-import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
@@ -397,8 +397,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         doNotifyShowing();
     }
 
-    private EmbeddedAntlrParser parser;
-
     private void doNotifyShowing() {
         if (showing) {
             return;
@@ -418,42 +416,37 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         editorPane.requestFocusInWindow();
         editorPane.getDocument().addDocumentListener(this);
         grammarEditorClone.getDocument().addDocumentListener(this);
-//        FileObject grammarFileObject = NbEditorUtilities.getFileObject(grammarEditorClone.getDocument());
-//        if (grammarFileObject != null) {
-//            parser = EmbeddedAntlrParsers.forGrammar("preview-" + sampleFileDataObject, grammarFileObject);
-//        }
-
-        refreshDocumentParse();
-//        try {
-//            EmbeddedAntlrParserResult res = parser.parse(editorPane.getText());
-//            accept(editorPane.getDocument(), res);
-//        } catch (Exception ex) {
-//            Exceptions.printStackTrace(ex);
-//        }
-    }
-
-    private void refreshDocumentParse() {
-        asyncUpdateOutputWindowPool.post(() -> {
-            try {
-                ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), new UserTask() {
-                    @Override
-                    public void run(ResultIterator resultIterator) throws Exception {
-                        Parser.Result res = resultIterator.getParserResult();
-                        if (res instanceof AdhocParserResult) {
-                            AdhocParserResult ahpr = (AdhocParserResult) res;
-                            accept(editorPane.getDocument(), ahpr.result());
-                        }
-                    }
-                });;
-            } catch (ParseException ex) {
-                Exceptions.printStackTrace(ex);
-            }
-        });
+        reparseTask.schedule(500);
     }
 
     final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
 
+    private final UserTask ut = new UserTask() {
+        @Override
+        public void run(ResultIterator resultIterator) throws Exception {
+            Parser.Result res = resultIterator.getParserResult();
+            if (res instanceof AdhocParserResult) {
+                AdhocParserResult ahpr = (AdhocParserResult) res;
+                accept(editorPane.getDocument(), ahpr.result());
+            }
+        }
+    };
+
+    Future<Void> lastFuture;
+
     void reallyReparse() {
+        if (lastFuture != null) {
+            lastFuture.cancel(true);
+            lastFuture = null;
+        }
+        try {
+            lastFuture = ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), ut);
+        } catch (ParseException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
+    void xreallyReparse() {
         try {
 //            String txt = grammarEditorClone.getText();
 //            Debug.runThrowing("preview-reparse-grammar", txt, () -> {
@@ -468,18 +461,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     void forceReparse() {
-        reparseTask.schedule(400);
-        /*
-            if (parser != null) {
-            try {
-            System.out.println("FORFCE REPARSE");
-            EmbeddedAntlrParserResult res = parser.parse(editorPane.getText());
-            AdhocReparseListeners.reparsed(mimeType, editorPane.getDocument(), res);
-            accept(getLookup().lookup(DataObject.class).getPrimaryFile(), res);
-            } catch (Exception ex) {
-            Exceptions.printStackTrace(ex);
-            }
-            }*/
+        reparseTask.schedule(500);
     }
 
     public void notifyHidden() {
@@ -494,7 +476,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         editorPane.getCaret().removeChangeListener(this);
         editorPane.getDocument().removeDocumentListener(this);
         grammarEditorClone.getDocument().removeDocumentListener(this);
-        parser = null;
     }
 
     @Override
@@ -506,7 +487,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private void docChanged(boolean fromGrammarDoc) {
         haveGrammarChange = fromGrammarDoc;
-        enqueueRehighlighting();
+//        enqueueRehighlighting();
     }
 
     @Override
@@ -675,7 +656,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     public void stateChanged(ChangeEvent e) {
         if (e.getSource() instanceof Caret) {
             if (!selectingRange) {
-                updateBreadcrumb((Caret) e.getSource());
+                EventQueue.invokeLater(() -> {
+                    updateBreadcrumb((Caret) e.getSource());
+                });
             }
         } else {
             // a reparse will fire changes on the parse thread

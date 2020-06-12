@@ -55,7 +55,6 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         this.info = info;
         this.supp = supp;
         if (info.state() instanceof Integer) {
-            System.out.println("Create lexer with state " + info.state());
             cursor = (Integer) info.state();
         }
     }
@@ -90,7 +89,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         return info.input().toString();
     }
 
+    private ParseTreeProxy proxy;
     private ParseTreeProxy proxy() {
+        if (proxy != null) {
+            return proxy;
+        }
         int count = 0;
         LexerInput in = info.input();
         while (in.read() != -1) {
@@ -114,12 +117,12 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                             Debug.failure("unparsed", parser::toString);
                             LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
                         }
-                        return result;
+                        return proxy = result;
                     });
         } catch (Exception ex) {
             String nm = currentLexedName();
             LOG.log(Level.WARNING, "Thrown in embedded parser for " + nm, ex);
-            return AntlrProxies.forUnparsed(Paths.get(""), nm, text);
+            return proxy = AntlrProxies.forUnparsed(Paths.get(""), nm, text);
         }
     }
 

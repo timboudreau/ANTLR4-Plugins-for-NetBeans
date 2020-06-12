@@ -202,7 +202,7 @@ public class AntlrExtractorTest {
 
             // PENDING: This only may occur for JDK 8 - have noticed it only happens
             // there for other modules
-            return;
+//            return;
         }
 
         Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> attributions

@@ -16,9 +16,6 @@
 package org.nemesis.antlr.live.preview;
 
 import com.mastfrog.util.collections.CollectionUtils;
-import com.mastfrog.util.strings.Escaper;
-import java.awt.Color;
-import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -30,10 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListSelectionModel;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.ListDataEvent;
@@ -48,7 +42,6 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
-import org.nemesis.swing.html.HtmlRenderer;
 
 /**
  *
@@ -132,8 +125,6 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             list.repaint(list.getCellBounds(oldSel < 0 ? index : oldSel, index));
         }
     }
-
-
 
     void update(ParseTreeProxy proxy) {
         if (EventQueue.isDispatchThread()) {
@@ -328,9 +319,10 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 TerminalNodeTreeElement t = (TerminalNodeTreeElement) el;
                 ProxyToken tok = tokens.get(t.startTokenIndex());
                 int type = tok.getType();
-                return types.get(type + 1).name() + " - " + el.depth();
+                return types.get(type + 1).name() + " (" + tok.getStartIndex()
+                        + ":" + tok.getEndIndex() + ")";
             }
-            return el.stringify() + " - " + depth;
+            return el.stringify();
         }
 
         @Override

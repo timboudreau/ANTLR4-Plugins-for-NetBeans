@@ -31,6 +31,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.text.Segment;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -142,6 +143,71 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
     private final ReentrantReadWriteLock parseLock = new ReentrantReadWriteLock(true);
 
+    private static CharSequence escapeChar(char c) {
+        CharSequence result = Escaper.CONTROL_CHARACTERS.escape(c);
+        return result == null ? Character.toString(c) : result;
+    }
+
+    private static String charDiff(CharSequence a, CharSequence b) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Old length: ").append(a.length()).append(" new length ").append(b.length());
+        int firstDifference = -1;
+        char sda, sdb, eda, edb;
+        sda = sdb = eda = edb = 0;
+        for (int i = 0; i < Math.min(a.length(), b.length()); i++) {
+            char ca = a.charAt(i);
+            char cb = a.charAt(i);
+            if (ca != cb) {
+                sda = ca;
+                sdb = cb;
+                firstDifference = i;
+                break;
+            }
+        }
+        if (firstDifference == -1) {
+            sb.append("\nAll characters present in both strings match.");
+        }
+        int lastDifferenceA = -1;
+        int lastDifferenceB = -1;
+
+        for (int aa = a.length() - 1, bb = b.length() - 1; aa >= 0 && bb >= 0; aa--, bb--) {
+            char ca = a.charAt(aa);
+            char cb = b.charAt(bb);
+            if (ca != cb) {
+                eda = ca;
+                edb = cb;
+                lastDifferenceA = aa;
+                lastDifferenceB = bb;
+                break;
+            }
+        }
+        if (firstDifference != -1) {
+            sb.append("\nFirst difference at ")
+                    .append(firstDifference).append(" '")
+                    .append(escapeChar(sda))
+                    .append("' vs '").append(escapeChar(sdb)).append("'.");
+        }
+
+        sb.append("\nLast difference at ").append(lastDifferenceA)
+                .append("/").append(lastDifferenceB).append(" '")
+                .append(escapeChar(eda))
+                .append("' vs '").append(escapeChar(edb))
+                .append("'");
+//        sb.append("\nText A: ").append(a);
+//        sb.append("\nText B: ").append(b);
+        return sb.toString();
+    }
+
+    private static CharSequence convert(CharSequence seq) {
+        // If this is a org.netbeans.spi.lexer.LexerInput$ReadText
+        // we need to copy it, or its internals will get ripped out while
+        // we're using it
+        if (seq instanceof StringBuilder || seq instanceof Segment || seq instanceof String) {
+            return seq;
+        }
+        return seq.toString();
+    }
+
     @Override
     public EmbeddedAntlrParserResult parse(CharSequence textToParse) throws Exception {
         // First, se if this is a reprise of the last parse and the grammar
@@ -152,12 +218,15 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         if (oldInfo.modifications.changes().isUpToDate()) {
             LastParseInfo last = lastParseInfo.get();
             if (last != null && last.canReuse(textToParse)) {
+                LOG.log(Level.FINEST, "Reuse last parser result for same text");
                 return last.parserResult;
+            } else if (last != null && textToParse != null && last.seq != null && LOG.isLoggable(Level.FINEST)) {
+                LOG.log(Level.FINEST, "Text may be changed: " + charDiff(textToParse, last.seq));
             }
         }
         // XXX - this sucks, but lexer / snapshot char sequences explode on
         // contact after a while
-        String toParse = textToParse == null ? null : textToParse.toString();
+        CharSequence toParse = textToParse == null ? null : convert(textToParse);
         // Return the cached lastParseInfo where possible, ignoring cases where the
         // text is null (in which case, we are being invoked just for the lexer to get
         // the list of token types)
@@ -324,7 +393,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     Debug.failure("wrong-path", msg);
                     return;
                 }
-                */
+                 */
 
                 if (runResult.isUsable()) {
                     setRunner(t, runResult);
@@ -467,6 +536,49 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         }
     }
 
+    static boolean charSequencesMatchModuloTrailingNewline(CharSequence a, CharSequence b) {
+        // Okay, this gets a little tricky:  A CharSeq retrieved from a BaseDocument
+        // will always contain a trailing newline - the contract or javax.swing.Document,
+        // or at least NetBeans' interpretation of it; the text from a LexerInput will not.
+        // So, when the user types a character, many TaskFactories may spring into
+        // action and ask for a parse, all with the same document's text, but it will
+        // alternate between text with and without a trailing newline.  So if we don't
+        // handle that case, we will wind up thrashing new and expensive reparses 4-5
+        // times for each keystroke, for the same text
+        int aLen = a.length();
+        int bLen = b.length();
+        if (aLen == bLen) {
+            return Strings.charSequencesEqual(a, b);
+        }
+        if (Math.abs(aLen - bLen) == 1) {
+            CharSequence longer = aLen > bLen ? a : b;
+            CharSequence shorter = longer == a ? b : a;
+            int longerLength = longer == a ? aLen : bLen;
+            if (longer.charAt(longerLength - 1) == '\n') {
+                int shorterLength = longer == a ? bLen : aLen;
+                switch (shorterLength) {
+                    case 0:
+                        return true;
+                    case 1:
+                        return longer.charAt(0) == shorter.charAt(0);
+                    default:
+                        int half = shorterLength / 2;
+                        if (shorterLength > 2 && shorterLength % 2 != 0) {
+                            half++;
+                        }
+                        int end = shorterLength - 1;
+                        for (int i = 0; i < half; i++) {
+                            if (shorter.charAt(i) != longer.charAt(i) || shorter.charAt(end - i) != longer.charAt(end - i)) {
+                                return false;
+                            }
+                        }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     static final class LastParseInfo {
 
         private final EmbeddedAntlrParserResult parserResult;
@@ -486,6 +598,9 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         boolean canReuse(CharSequence textToParse) {
             if (textToParse == null && !parserResult.proxy().isUnparsed()) {
                 return true;
+            }
+            if (seq != null && textToParse != null) {
+                return charSequencesMatchModuloTrailingNewline(seq, textToParse);
             }
             return seq != null && parserResult.runResult() != null
                     && Strings.charSequencesEqual(seq, textToParse);

@@ -15,13 +15,13 @@
  */
 package org.nemesis.antlr.live.preview;
 
-import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
+import static org.nemesis.antlr.live.preview.RuleCellRenderer.escaper;
 import org.nemesis.swing.html.HtmlRenderer;
 
 /**
@@ -54,13 +54,13 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
         JLabel r = (JLabel) ren;
         if (value.isError()) {
             ren.setHtml(true);
-            ren.setText("<font color='!nb.errorForeground'>" + Escaper.BASIC_HTML.escape(value.toString()));
+            ren.setText("<font color='!nb.errorForeground'>" + escaper.escape(value.toString()));
         } else if (value.isParserRule()) {
             ren.setHtml(true);
-            ren.setText("<b>" + Escaper.BASIC_HTML.escape(truncate(value.toString())));
+            ren.setText("<b>" + escaper.escape(truncate(value.toString())));
         } else {
             ren.setHtml(true);
-            ren.setText(Escaper.BASIC_HTML.escape(truncate(value.toString())));
+            ren.setText(escaper.escape(truncate(value.toString())));
         }
         r.setForeground(list.getForeground());
         ren.setIndent(5 * value.depth());

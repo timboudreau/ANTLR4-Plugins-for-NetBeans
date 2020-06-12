@@ -17,17 +17,12 @@ package org.nemesis.antlr.live.language;
 
 import java.util.List;
 import java.util.logging.Level;
-import javax.swing.text.Document;
-import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.language.coloring.AdhocHighlightsContainer;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
-import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
-import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.ZOrder;
-import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -46,19 +41,6 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
 //                AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
 //                        .toFile()));
 
-    }
-
-    static final String logNameOf(Context ctx, String mimeType) {
-        Document doc = ctx.getDocument();
-        if (doc != null) {
-            FileObject fo = NbEditorUtilities.getFileObject(doc);
-            if (fo != null) {
-                return fo.getNameExt() + ":" + AdhocMimeTypes.loggableMimeType(mimeType);
-            } else {
-                return doc.toString() + ":" + AdhocMimeTypes.loggableMimeType(mimeType);
-            }
-        }
-        return "unknown";
     }
 
     @Override

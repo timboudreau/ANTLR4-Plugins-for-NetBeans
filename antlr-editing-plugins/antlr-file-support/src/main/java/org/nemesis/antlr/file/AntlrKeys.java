@@ -228,7 +228,7 @@ import org.nemesis.localizers.annotations.Localize;
                                 fg = {81, 62, 81},
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
-                                fg = {255, 255, 153},
+                                fg = {204, 204, 10},
                                 themes = POPULAR_DARK_THEMES)
                     }),
 
@@ -255,7 +255,7 @@ import org.nemesis.localizers.annotations.Localize;
                         fg = {168, 58, 132},
                         themes = POPULAR_BRIGHT_THEMES),
                 @Coloration(
-                        fg = {240, 193, 255},
+                        fg = {221, 103, 182},
                         themes = POPULAR_DARK_THEMES)
             }),
 
@@ -480,7 +480,7 @@ import org.nemesis.localizers.annotations.Localize;
                                 derivedFrom = "warning",
 //                                fg = {200, 200, 200},
                                 bg = {171, 171, 63, 32},
-                                waveUnderline = {240, 130, 0},
+                                waveUnderline = {210, 120, 0},
                                 themes = {
                                     POPULAR_DARK_THEMES
                                 })
@@ -551,7 +551,7 @@ public class AntlrKeys {
                             ),
                             @Coloration(
                                     themes = POPULAR_DARK_THEMES,
-                                    bg = {92, 89, 145})})
+                                    bg = {55, 50, 50})})
         ),
         @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
                 fixedSize = true,
@@ -600,7 +600,7 @@ public class AntlrKeys {
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
-                        bg = {159, 160, 219, 24})
+                        bg = {58, 52, 47})
             }))
     @Localize(displayName = "Repeating Elements")
     public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
@@ -619,13 +619,13 @@ public class AntlrKeys {
             colors = {
                 @Coloration(
                         themes = POPULAR_BRIGHT_THEMES,
-                        fg = {0, 0, 200},
+                        fg = {40, 40, 200},
                         bold = true,
                         italic = true
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
-                        bg = {180, 180, 250},
+                        bg = {0, 215, 215},
                         bold = true,
                         italic=true
                 )

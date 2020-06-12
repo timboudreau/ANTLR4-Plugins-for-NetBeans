@@ -131,14 +131,6 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                         AntlrProxies.ProxyToken endToken = end >= tokens.size()
                                 ? tokens.get(tokens.size() - 1) : tokens.get(end);
                         // Trim whitespace tokens off the tail of rule highlighting
-                        while (endToken.isWhitespace() || endToken.isEOF()) {
-                            end--;
-                            if (end < 0) {
-                                break;
-                            }
-                            endToken = end >= tokens.size()
-                                    ? tokens.get(tokens.size() - 1) : tokens.get(end);
-                        }
                         start = startToken.getStartIndex();
                         // Make sure the end is not after the end of the document, or
                         // we can wind up with a mess on edited but not yet re-lexed

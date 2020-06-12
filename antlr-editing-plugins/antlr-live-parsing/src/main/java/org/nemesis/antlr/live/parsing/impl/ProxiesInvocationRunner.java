@@ -65,10 +65,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     @SuppressWarnings("LeakingThisInConstructor")
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);
@@ -144,6 +140,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs,
                         res.packageName, res.grammarName(), lexerGrammar == null ? null : lexerGrammar.name);
                 LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
+                if (LOG.isLoggable(Level.FINEST)) {
+                    LOG.log(Level.FINEST, "OnBeforeCompilation", new Exception("Generation result " + System.identityHashCode(res)
+                        + " " + res.grammarName + " " + res.packageName + " extraction " + extraction.source()
+                        + " extraction id " + System.identityHashCode(extraction)));
+                }
                 bldr.addToClasspath(AntlrProxies.class);
                 bldr.addToClasspath(AntlrProxies.Ambiguity.class);
                 bldr.addToClasspath(ANTLRErrorListener.class);
@@ -182,6 +183,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
             PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
             LOG.log(Level.FINER, "New environment created for embedded parser: {0}", env);
+//            if (LOG.isLoggable(Level.FINEST)){
+//                LOG.log(Level.FINEST, "Cuprit for gen result " + System.identityHashCode(res),
+//                        new Exception(res.grammarName + " " + res.packageName));
+//            }
             Debug.message("Use new PreservedInvocationEnvironment", () -> {
                 return env.toString();
             });
@@ -311,7 +316,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                             if (old != ldr) {
                                 Thread.currentThread().setContextClassLoader(old);
                             }
-                            Debug.message("Invocation result", Objects.toString(res[0]));
+                            Debug.message("Invocation result", () -> Objects.toString(res[0]));
                         }
                         return result;
                     });
@@ -319,7 +324,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body) throws Exception {
-            LOG.log(Level.FINEST, "Initiating parse in {0}", logName);
+            LOG.log(Level.FINER, "Initiating parse in {0}", logName);
+            if (LOG.isLoggable(Level.FINEST)) {
+                LOG.log(Level.FINEST, "Parse culprit " + logName + " in PIE " + System.identityHashCode(this), new Exception());
+            }
             AntlrProxies.ParseTreeProxy[] prex = new AntlrProxies.ParseTreeProxy[1];
             return Debug.runObjectThrowing(this, "embedded-parse for " + logName, () -> {
                 StringBuilder sb = new StringBuilder("************* BODY ***************\n");

@@ -34,7 +34,7 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
     private final AdhocColorings colorings;
     private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
     private final BiFunction<String, JList<?>, Color> listBackgroundColorFor;
-
+    static final Escaper escaper = Escaper.CONTROL_CHARACTERS.and(Escaper.BASIC_HTML);
     RuleCellRenderer(AdhocColorings colorings, BiFunction<String, JList<?>, Color> listBackgroundColorFor) {
         this.colorings = colorings;
         this.listBackgroundColorFor = listBackgroundColorFor;
@@ -45,7 +45,7 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
     public Component getListCellRendererComponent(JList list, String value, int index, boolean isSelected, boolean cellHasFocus) {
         Component result = ren.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
         ren.setHtml(true);
-        value = Escaper.BASIC_HTML.escape(value);
+        value = escaper.escape(value);
         String prefix = "";
         AdhocColoring col = colorings.get(value);
         if (!col.isActive()) {

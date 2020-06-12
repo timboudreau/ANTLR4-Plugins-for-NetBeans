@@ -16,7 +16,6 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.CollectionUtils;
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -48,6 +47,8 @@ import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.LanguagePath;
 import org.netbeans.api.lexer.Token;
+import org.netbeans.api.project.FileOwnerQuery;
+import org.netbeans.api.project.Project;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.lexer.EmbeddingPresence;
 import org.netbeans.spi.lexer.LanguageEmbedding;
@@ -310,12 +311,17 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         private long expectedGrammarLastModified = Long.MIN_VALUE;
         private volatile boolean initialized;
         private final Set<BiConsumer<Extraction, GrammarRunResult<?>>> onReplaces = new WeakSet<>();
-
+        private FileObject grammarFo;
+        private Project project;
         public HierarchyInfo(String mimeType) {
             this.mimeType = mimeType;
             readLock = lock.readLock();
             writeLock = lock.writeLock();
             grammarFilePath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+            // Caching these - looking up last modified is expensive, and this
+            // makes it a bit cheaper
+            grammarFo = FileUtil.toFileObject(grammarFilePath.toFile());
+            project = FileOwnerQuery.getOwner(grammarFo);
         }
 
         void onReplace(BiConsumer<Extraction, GrammarRunResult<?>> r) {
@@ -327,8 +333,13 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         }
 
         public long grammarLastModified() throws IOException {
-            File f = grammarFilePath.toFile();
-            FileObject fo = FileUtil.toFileObject(f);
+            if (project != null) {
+                long result = RebuildSubscriptions.mostRecentGrammarLastModifiedInProject(project);
+                if (result != Long.MIN_VALUE) {
+                    return result;
+                }
+            }
+            FileObject fo = grammarFo == null ?  FileUtil.toFileObject(grammarFilePath.toFile()) : grammarFo;
             if (fo != null) {
                 return RebuildSubscriptions.mostRecentGrammarLastModifiedInProjectOf(fo);
             }

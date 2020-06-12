@@ -1317,10 +1317,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         public ParseTreeBuilder addRuleNode(String ruleName, int alternative,
-                int sourceIntervalStart, int sourceIntervalEnd, int depth, Runnable run) {
+                int firstToken, int lastToken, int depth, Runnable run) {
             ParseTreeElement old = element;
             try {
-                element = new RuleNodeTreeElement(ruleName, alternative, sourceIntervalStart, sourceIntervalEnd, depth);
+                element = new RuleNodeTreeElement(ruleName, alternative, firstToken, lastToken, depth);
                 proxies.addElement(element);
                 old.add(element);
                 run.run();
@@ -1475,16 +1475,16 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         private final String ruleName;
         private final int alternative;
         private final int startTokenIndex;
-        private final int endTokenIndex;
+        private final int stopTokenIndex;
         private final short depth;
 
         public RuleNodeTreeElement(String ruleName, int alternative,
-                int startTokenIndex, int endTokenIndex, int depth) {
+                int startTokenIndex, int stopTokenIndex, int depth) {
             super(ParseTreeElementKind.RULE);
             this.ruleName = ruleName;
             this.alternative = alternative;
             this.startTokenIndex = startTokenIndex;
-            this.endTokenIndex = endTokenIndex;
+            this.stopTokenIndex = stopTokenIndex;
             this.depth = (short) depth;
         }
 
@@ -1509,12 +1509,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         @Override
         public int stopTokenIndex() {
-            return endTokenIndex;
+            return stopTokenIndex;
         }
 
         @Override
         public String stringify() {
-            return ruleName + "(" + startTokenIndex + ":" + endTokenIndex + ")";
+            return ruleName + "(" + startTokenIndex + ":" + stopTokenIndex + ")";
         }
 
         @Override
@@ -1522,7 +1522,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             int hash = 7;
             hash = 73 * hash + Objects.hashCode(this.ruleName);
             hash = 73 * hash + this.startTokenIndex;
-            hash = 73 * hash + this.endTokenIndex;
+            hash = 73 * hash + this.stopTokenIndex;
             return hash;
         }
 
@@ -1541,7 +1541,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             if (this.startTokenIndex != other.startTokenIndex) {
                 return false;
             }
-            if (this.endTokenIndex != other.endTokenIndex) {
+            if (this.stopTokenIndex != other.stopTokenIndex) {
                 return false;
             }
             return Objects.equals(this.ruleName, other.ruleName);

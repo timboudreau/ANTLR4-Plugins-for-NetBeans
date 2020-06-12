@@ -155,6 +155,11 @@ public final class RebuildSubscriptions {
         return g.newestGrammarLastModified();
     }
 
+    public static long mostRecentGrammarLastModifiedInProject(Project proj) throws IOException {
+        Generator g = instance().generatorForMapping.get(proj);
+        return g == null ? Long.MIN_VALUE : g.newestGrammarLastModified();
+    }
+
     private static long mostRecentGrammarLastModifiedInProjectTheHardWay(String mime, FileObject fo, Project project) throws IOException {
         Iterable<FileObject> files = CollectionUtils.concatenate(
                 Folders.ANTLR_GRAMMAR_SOURCES.findFileObject(project, fo),
@@ -294,6 +299,20 @@ public final class RebuildSubscriptions {
                     }
                 }
             }
+        }
+
+        public long newestGrammarLastModified(Project project) throws IOException {
+            long result = Long.MIN_VALUE;
+            JFS jfs = mapping.forProject(project);
+            for (Mapping mapping : mappings) {
+                if (mapping.isGrammarFile()) {
+                    long val = mapping.lastModified(jfs);
+                    if (val > 0) {
+                        result = Math.max(result, val);
+                    }
+                }
+            }
+            return result;
         }
 
         public long newestGrammarLastModified() throws IOException {
