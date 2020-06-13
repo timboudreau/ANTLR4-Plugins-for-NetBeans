@@ -54,17 +54,21 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         String orig = value;
         value = escaper.escape(value);
         String prefix = "";
-        AdhocColoring col = colorings.get(value);
-        if (col.isActive()) {
-            prefix = "<b>";
-        }
-        if (Character.isUpperCase(value.charAt(0))) {
-            prefix += "<i>";
-        }
         Color back = listBackgroundColorFor.apply(value, list);
-        Color fore = colorFor(orig, col, list);
-        if (fore != null) {
-            prefix += RulePathStringifierImpl.foregroundColor(fore);
+        AdhocColoring col = colorings.get(value);
+        if (col == null) {
+            if (col.isActive()) {
+                prefix = "<b>";
+            }
+            if (Character.isUpperCase(value.charAt(0))) {
+                prefix += "<i>";
+            }
+            Color fore = colorFor(orig, col, list);
+            if (fore != null) {
+                prefix += RulePathStringifierImpl.foregroundColor(fore);
+            }
+        } else {
+            prefix = "<s>";
         }
         if (isSelected) {
             ren.setCellBackground(list.getSelectionBackground());
