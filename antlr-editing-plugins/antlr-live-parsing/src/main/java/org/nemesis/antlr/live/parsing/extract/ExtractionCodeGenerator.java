@@ -229,7 +229,6 @@ public class ExtractionCodeGenerator {
             // amount of work
             return result.setResult(fo);
         }
-
         return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
 

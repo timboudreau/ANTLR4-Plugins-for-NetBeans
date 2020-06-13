@@ -57,6 +57,11 @@ public class AdhocColoring implements AdhocAttributeSet {
         this.flags = fl;
     }
 
+    public AdhocColoring(AdhocColoring orig, boolean active) {
+        this(orig);
+        setActive(active);
+    }
+
     public AdhocColoring(int flags, Color color) {
         this((byte) flags, color);
     }

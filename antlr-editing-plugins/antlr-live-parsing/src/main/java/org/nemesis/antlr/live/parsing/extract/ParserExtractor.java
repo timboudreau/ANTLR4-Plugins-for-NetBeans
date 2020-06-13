@@ -113,7 +113,8 @@ public class ParserExtractor {
                 proxies.channelNames(new String[]{"default"});
             }
             // Same for the rule names
-            proxies.setParserRuleNames(DummyLanguageLexer.ruleNames); //parser
+            proxies.setParserRuleNames(DummyLanguageParser.ruleNames); //parser
+            proxies.setLexerRuleNames(DummyLanguageLexer.ruleNames);
             // We may have been called just to build a lexer vocabulary w/o text
             // to parse
             if (text != null) {

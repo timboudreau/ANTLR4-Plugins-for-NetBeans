@@ -39,6 +39,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
@@ -72,6 +73,7 @@ public class AntlrProxies {
     private final List<ParseTreeElement> treeElements = new ArrayList<>(50);
     private final Set<ProxySyntaxError> errors = new TreeSet<>();
     private String[] parserRuleNames = new String[0];
+    private String[] lexerRuleNames = new String[0];
     private String[] channelNames = new String[0];
     private boolean hasParseErrors;
     private MessageDigest hash;
@@ -123,7 +125,8 @@ public class AntlrProxies {
         newHash();
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
-                grammarName, grammarPath, text, thrown, ruleReferences, ambiguities);
+                grammarName, grammarPath, text, thrown, ruleReferences, ambiguities,
+                lexerRuleNames);
     }
 
     /**
@@ -154,9 +157,13 @@ public class AntlrProxies {
         ParseTreeProxy prox = new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE, Arrays.asList(root, child),
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
-                grammarName, pth, text, null, new BitSet[1], Collections.emptyList());
+                grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0]);
         prox.isUnparsed = true;
         return prox;
+    }
+
+    public void setLexerRuleNames(String[] ruleNames) {
+        this.lexerRuleNames = ruleNames;
     }
 
     /**
@@ -177,6 +184,7 @@ public class AntlrProxies {
         private final Set<ProxySyntaxError> syntaxErrors;
         private final String[] parserRuleNames;
         private final String[] channelNames;
+        private final String[] lexerRuleNames;
         private final boolean hasParseErrors;
         private final String hashString;
         private final String grammarName;
@@ -188,13 +196,14 @@ public class AntlrProxies {
         private final long id = IDS.getAndIncrement();
         private final long when = System.currentTimeMillis();
         private BitSet[] ruleReferencesForToken;
+        private SortedSet<String> allRuleNames;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
                 Set<ProxySyntaxError> errors, String[] parserRuleNames,
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
                 Path grammarPath, CharSequence text, RuntimeException thrown,
-                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities) {
+                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames) {
             this.tokens = tokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
@@ -211,6 +220,20 @@ public class AntlrProxies {
             this.thrown = thrown;
             this.ruleReferencesForToken = ruleReferencesForToken;
             this.ambiguities = ambiguities;
+            this.lexerRuleNames = lexerRuleNames;
+        }
+
+        public List<String> lexerRuleNames() {
+            return Arrays.asList(lexerRuleNames);
+        }
+
+        public SortedSet<String> allRuleNames() {
+            if (allRuleNames == null) {
+                SortedSet<String> result = new TreeSet<>(Arrays.asList(lexerRuleNames));
+                result.addAll(Arrays.asList(parserRuleNames));
+                return allRuleNames = Collections.unmodifiableSortedSet(result);
+            }
+            return allRuleNames;
         }
 
         public boolean hasAmbiguities() {
@@ -408,7 +431,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
-                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList());
+                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), new String[0]);
         }
 
         public RuntimeException thrown() {

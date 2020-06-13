@@ -91,13 +91,6 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                                 ? tokens.get(tokens.size() - 1) : tokens.get(end);
                         // Trim whitespace tokens off the tail of rule highlighting
                         start = startToken.getStartIndex();
-                        // Make sure the end is not after the end of the document, or
-                        // we can wind up with a mess on edited but not yet re-lexed
-                        // documents.
-                        // Use the *trimmed* length of the end token, as it is not
-                        // useful to highlight whitespace up to the start of the
-                        // next rule
-//                        end = Math.min(length - 1, endToken.getStartIndex() + endToken.trimmedLength() - 1);
                         end = Math.min(length - 1, endToken.getEndIndex());
                     }
                     // We may be handed a proxy for text that has changed
@@ -107,39 +100,7 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                     if (end <= start) {
                         continue;
                     }
-                    // Record the depth - we try to use it in the coalescer (does this do anything
-                    // at this point, or is it solved below?)
                     nue.addHighlight(start, end, a);
-//                    DepthAttributeSet s = new DepthAttributeSet(a, rn.depth());
-//                    DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> range
-//                            = Range.of(start, end - start, s);
-//                    if (last != null && last.start() == start && last.end() == end) {
-//                        // iterate back and while the immediately preceding range
-//                        // is exactly the same offsets (two rules with highlighting
-//                        // where the parent has one child rule, so they have the same
-//                        // bounds), and merge those now, so we ensure the top-most
-//                        // item includes the deepest coloring rules in case of conflict
-//                        while (!ranges.isEmpty()) {
-//                            // Now, go back up and pre-coalesce only identically sized
-//                            // highlights
-//                            last = ranges.get(ranges.size() - 1);
-//                            if (last.start() == start && last.end() == end && last.get() instanceof DepthAttributeSet) {
-//                                DepthAttributeSet ds = (DepthAttributeSet) last.get();
-//                                // If all of the below are set, marging is not going to change anything,
-//                                // so just remove the item
-//                                if (!s.isBackgroundColor() || !s.isItalic() || !s.isForegroundColor() || !s.isBold()) {
-//                                    s = new DepthAttributeSet(AdhocColoring.merge(ds.delegate(), s.delegate()), rn.depth());
-//                                    range = Range.of(start, end - start, s);
-//                                }
-//                                ranges.remove(ranges.size() - 1);
-//                            } else {
-//                                break;
-//                            }
-//                        }
-//                    }
-//                    ranges.add(range);
-//                    last = range;
-//                }
                 }
             }
             // Now iterate the tokens - coalescing will take care of ordering
@@ -182,14 +143,6 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                     if (end <= start) { // EOF or goofiness
                         continue;
                     }
-                    // Trim highlighting of tokens which have trailing whitespace
-                    // so that we don't highlight all the way up to the next token
-//                int len = tok.trimmedLength();
-//                if (len == 0 && tok.length() > 0) {
-//                    // The token simply is whitespace, so we must actually need
-//                    // to highlight it
-//                    len = tok.length();
-//                }
                     int len = tok.length();
                     if (len == 0) {
                         continue;
@@ -198,8 +151,6 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                         len = length - start;
                     }
                     nue.addHighlight(start, end, a);
-//                DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> range = Range.of(start, len, a);
-//                ranges.add(range);
                 }
             }
 

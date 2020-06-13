@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.language.coloring;
 
+import java.util.EnumSet;
+import java.util.Set;
 import org.openide.util.NbBundle;
 
 /**
@@ -43,4 +45,11 @@ public enum AttrTypes {
         return maskValue;
     }
 
+    public static Set<AttrTypes> set(AttrTypes... types) {
+        EnumSet<AttrTypes> result = EnumSet.noneOf(AttrTypes.class);
+        for (int i = 0; i < types.length; i++) {
+            result.add(types[i]);
+        }
+        return result;
+    }
 }

@@ -20,7 +20,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +45,7 @@ import com.mastfrog.graph.StringGraph;
 import com.mastfrog.graph.algorithm.Score;
 import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -59,6 +59,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
@@ -269,60 +270,138 @@ public final class AdhocColoringsRegistry {
 
     private void doUpdate(String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
         AdhocColorings existing = loadOrCreate(mimeType);
-        doUpdate(existing, mimeType, ext, seen);
+        generatedHighlightings(existing, mimeType, ext, seen);
     }
 
-    public void ensureAllPresent(ParseTreeProxy proxy) {
-        AdhocColorings coloringss = coloringsForMimeType.get(proxy.mimeType());
-        if (coloringss == null || proxy.isUnparsed()) {
+    public boolean ensureAllPresent(ParseTreeProxy proxy) {
+        AdhocColorings colorings = get(proxy.mimeType());
+        if (colorings == null || proxy.isUnparsed()) {
+            return false;
+        }
+        return colorings.withChangesSuspended(() -> {;
+            ColorUtils colors = new ColorUtils();
+            Supplier<Color> backgrounds = colors.backgroundColorSupplier();
+            Supplier<Color> foregrounds = colors.foregroundColorSupplier();
+            Set<String> added = new HashSet<>(8);
+            Set<String> removed = new HashSet<>(colorings.keys());
+            removed.removeAll(proxy.allRuleNames());
+            boolean changed = !removed.isEmpty();
+            for (AntlrProxies.ProxyTokenType tk : proxy.tokenTypes()) {
+                String nm = tk.name();
+                if (!colorings.contains(nm) && !"EOF".equals(nm) && !"0".equals(nm)) {
+                    added.add(nm);
+                    // addIfAbsent will use the recovered value if there is one
+                    colorings.addIfAbsent(nm, foregrounds.get(), AttrTypes.FOREGROUND);
+                    changed = true;
+                }
+            }
+            for (String rule : proxy.parserRuleNames()) {
+                if (!colorings.contains(rule)) {
+                    added.add(rule);
+                    // addIfAbsent will use the recovered value if there is one
+                    colorings.addIfAbsent(rule, backgrounds.get(), AttrTypes.BACKGROUND);
+                    changed = true;
+                }
+            }
+            for (String rem : removed) {
+                colorings.remove(rem);
+            }
+            if (changed) {
+                System.out.println("ADDED TO COLORINGS: " + added);
+                System.out.println("REMOVED FROM COLORINGS: " + removed);
+                saver.task.schedule(5000);
+            }
+            return changed;
+        });
+    }
+
+    private void generatedHighlightings(AdhocColorings colorings, String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
+        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
+        boolean anyAbsent = false;
+        for (NamedSemanticRegion<RuleTypes> item : nameds.ofKind(RuleTypes.LEXER)) {
+            if (!colorings.contains(item.name())) {
+                anyAbsent = true;
+                break;
+            }
+        }
+        if (!anyAbsent) {
+            for (NamedSemanticRegion<RuleTypes> item : nameds.ofKind(RuleTypes.PARSER)) {
+                if (!colorings.contains(item.name())) {
+                    anyAbsent = true;
+                    break;
+                }
+            }
+        }
+        if (!anyAbsent) {
             return;
         }
-        ColorUtils colors = new ColorUtils();
-        Supplier<Color> backgrounds = colors.backgroundColorSupplier();
-        Supplier<Color> foregrounds = colors.foregroundColorSupplier();
-        boolean changed = false;
-        for (AntlrProxies.ProxyTokenType tk : proxy.tokenTypes()) {
-            String nm = tk.name();
-            if (!coloringss.contains(nm)) {
-                Color fg = foregrounds.get();
-                coloringss.add(nm, fg, AttrTypes.FOREGROUND, AttrTypes.ACTIVE);
-                changed = true;
+        colorings.withChangesSuspended(() -> {
+            // Okay, to randomly compute some initial syntax highlighting, we use a
+            // some heuristics.  Does it all work?  Well, kinda...
+            ColorUtils colors = new ColorUtils();
+            Supplier<Color> backgrounds = colors.backgroundColorSupplier();
+            Supplier<Color> foregrounds = colors.foregroundColorSupplier();
+
+            StringGraph tree = ext.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
+
+            // The set of nodes that score highest on eigenvector centrality - this
+            // is a measure of how frequently they intersect on all possible paths
+            // through the graph - container rules that are widely used; we take
+            // the top 4 and will activate rules for those
+            List<Score<String>> mostConnectedThrough = tree.eigenvectorCentrality();
+            mostConnectedThrough = mostConnectedThrough.isEmpty()
+                    ? Collections.emptyList()
+                    : mostConnectedThrough.subList(0, Math.min(mostConnectedThrough.size(), 4));
+            // For tokens, we will enable highlighting for those that are most used by
+            // many different rules - PageRank is good for that
+            List<Score<String>> rank = tree.pageRank();
+            Collections.sort(rank);
+            Set<String> topTokens = new HashSet<>();
+            if (!rank.isEmpty()) {
+                for (Score<String> score : rank) {
+                    String ruleid = score.node();
+                    if (RuleTypes.LEXER == nameds.kind(ruleid)) {
+                        topTokens.add(ruleid);
+                        if (topTokens.size() == 5) {
+                            break;
+                        }
+                    }
+                }
             }
-        }
-        for (String rule : proxy.parserRuleNames()) {
-            if (!coloringss.contains(rule)) {
-                Color bg = backgrounds.get();
-                coloringss.add(rule, bg, AttrTypes.BACKGROUND, AttrTypes.ACTIVE);
-                changed = true;
+            // This is the trickiest to understand:  We take the highest ranked nodes according
+            // to eigenvector centrality - the most connected through.  Then we intersect the
+            // closure - leaf nodes that are descendants of those often-connected-through nodes
+            // which ONLY OCCUR IN THE CLOSURE OF ONE OF THE TOP RANKED NODES
+            // These are rules which are distinctive enough to merit highlighting. - i.e. they're
+            // not something quite as mundane as ; or =.
+            Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
+            for (Score<String> centralNode : mostConnectedThrough) {
+                importantRules.add(centralNode.node());
             }
-        }
-        if (changed) {
-            saver.task.schedule(5000);
-        }
-    }
-
-    private void doUpdate(AdhocColorings colorings, String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
-        ColorUtils colors = new ColorUtils();
-        Supplier<Color> backgrounds = colors.backgroundColorSupplier();
-
-        StringGraph tree = ext.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
-        Supplier<Color> foregrounds = colors.foregroundColorSupplier();
-
-        List<Score<String>> mostConnectedThrough = tree.eigenvectorCentrality();
-        mostConnectedThrough = mostConnectedThrough.isEmpty()
-                ? Collections.emptyList()
-                : mostConnectedThrough.subList(0, Math.min(mostConnectedThrough.size(), 5));
-
-        for (Score<String> score : mostConnectedThrough) {
-            if (!colorings.contains(score.node())) {
-                Set<AttrTypes> attrs = EnumSet.of(AttrTypes.BACKGROUND, AttrTypes.ACTIVE);
-                colorings.addIfAbsent(score.node(), backgrounds.get(), attrs);
-            }
-        }
-        for (String lowest : tree.bottomLevelNodes()) {
-            if (!colorings.contains(lowest)) {
-                Set<AttrTypes> attrs = EnumSet.of(AttrTypes.FOREGROUND, AttrTypes.ACTIVE);
-                switch (ThreadLocalRandom.current().nextInt(4)) {
+            importantRules.addAll(topTokens);
+            rules:
+            for (String ruleId : nameds.nameArray()) {
+                if (colorings.contains(ruleId) || "EOF".equals(ruleId) || "0".equals(ruleId)) {
+                    continue;
+                }
+                Set<AttrTypes> attrs = EnumSet.noneOf(AttrTypes.class);
+                RuleTypes type = nameds.kind(ruleId);
+                Color color;
+                switch (type) {
+                    case LEXER:
+                        // use foreground colors for tokens by default
+                        attrs.add(AttrTypes.FOREGROUND);
+                        color = foregrounds.get();
+                        break;
+                    case PARSER:
+                        // Use background colors for parser rules by default
+                        attrs.add(AttrTypes.BACKGROUND);
+                        color = backgrounds.get();
+                        break;
+                    default:
+                        continue rules;
+                }
+                switch (ThreadLocalRandom.current().nextInt(7)) {
                     case 1:
                         attrs.add(AttrTypes.BOLD);
                         break;
@@ -334,48 +413,16 @@ public final class AdhocColoringsRegistry {
                         attrs.add(AttrTypes.ITALIC);
                         break;
                 }
+                if (importantRules.contains(ruleId)) {
+                    attrs.add(AttrTypes.ACTIVE);
+                } else if (ThreadLocalRandom.current().nextInt(10) == 7) {
+                    attrs.add(AttrTypes.ACTIVE);
+                }
+                colorings.addIfAbsent(ruleId, color, attrs);
             }
-        }
-        Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
-        NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
-        for (String id : nameds.nameArray()) {
-            if (colorings.contains(id)) {
-                continue;
-            }
-            Set<AttrTypes> attrs = EnumSet.of(AttrTypes.FOREGROUND);
-            if (importantRules.contains(id)) {
-                attrs.add(AttrTypes.ACTIVE);
-            } else if (ThreadLocalRandom.current().nextInt(20) == 17) {
-                attrs.add(AttrTypes.ACTIVE);
-            }
-            colorings.addIfAbsent(id, backgrounds.get(), attrs);
-        }
-        /*
-        colorings.addIfAbsent("keywords", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND, AttrTypes.BOLD));
-        colorings.addIfAbsent("symbols", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("numbers", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("identifier", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND, AttrTypes.ITALIC));
-        colorings.addIfAbsent("delimiters", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("operators", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("string", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("literals", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("field", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("comment", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-        colorings.addIfAbsent("whitespace", foregrounds.get(), EnumSet.of(AttrTypes.ACTIVE,
-                AttrTypes.FOREGROUND));
-         */
-
-        importImportedTokensAndRules(ANTLR_MIME_TYPE, ext, seen, colorings);
+            importImportedTokensAndRules(ANTLR_MIME_TYPE, ext, seen, colorings);
+            return true;
+        });
     }
 
     private void importImportedTokensAndRules(String mimeType, Extraction ext,
@@ -396,7 +443,7 @@ public final class AdhocColoringsRegistry {
                             if (result instanceof ExtractionParserResult) {
                                 Extraction ext = ((ExtractionParserResult) result).extraction();
                                 if (!seen.contains(ext.source())) { // could be indirect import, so check here too
-                                    doUpdate(intoColorings, mimeType, ext, seen);
+                                    generatedHighlightings(intoColorings, mimeType, ext, seen);
                                 }
                             }
                         }

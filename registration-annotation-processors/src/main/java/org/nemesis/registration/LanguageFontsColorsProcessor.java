@@ -45,6 +45,10 @@ import org.nemesis.registration.FontsColorsBuilder.Fc;
 import org.nemesis.registration.FontsColorsBuilder.MultiThemeFontsColorsBuilder;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.annotation.AnnotationUtils;
+import com.mastfrog.util.streams.Streams;
+import com.mastfrog.util.strings.Strings;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.annotation.processing.ProcessingEnvironment;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.xml.sax.SAXException;
@@ -218,9 +222,65 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         return all.toArray(new Element[all.size()]);
     }
 
-    private void updateSample(String mimeType, String sample) {
+    private static final Pattern FILE_PATTERN = Pattern.compile("\\S+\\.[a-zA-Z0-9]+");
+    private static final Pattern FILE_PATH_PATTERN = Pattern.compile("\\/?\\S+\\/\\S*\\/\\S+\\.[a-zA-Z0-9]");
+    private static final StandardLocation[] CHECK_FOR_FILES
+            = new StandardLocation[]{StandardLocation.SOURCE_PATH, StandardLocation.CLASS_OUTPUT,
+                StandardLocation.CLASS_PATH};
+
+    private String loadSample(String sample, Element on) {
+        Matcher m = FILE_PATTERN.matcher(sample);
+        String resourcePath = null;
+        String resourceName = null;
+//        FileObject resource = null;
+        if (m.matches()) {
+            resourcePath = utils().packageName(on).replace('.', '/');
+            resourceName = sample;
+        } else {
+            m = FILE_PATH_PATTERN.matcher(sample);
+            if (m.matches()) {
+                resourceName = sample;
+            }
+        }
+        if (resourceName != null) {
+            String resource;
+            if (resourcePath != null) {
+                resource = resourcePath + '/' + resourceName;
+            } else {
+                resource = resourceName;
+            }
+            FileObject resourceFile = null;
+            for (StandardLocation loc : CHECK_FOR_FILES) {
+                try {
+                    resourceFile = processingEnv.getFiler().getResource(loc, "",
+                            resource);
+                    if (resourceFile != null) {
+                        try (InputStream in = resourceFile.openInputStream()) {
+                            sample = Streams.readString(in, "UTF-8", 512);
+                        }
+                        break;
+                    }
+                } catch (FileNotFoundException | NoSuchFileException ex) {
+                    // ok
+                } catch (IOException ex) {
+                    utils().fail(Strings.toString(ex), on);
+                }
+            }
+            if (resourceFile == null) {
+                utils().warn("Did not find a sample file '" + sample
+                        + "' - using that *as* the sample text", on);
+            }
+        }
+        return sample;
+    }
+
+    private void updateSample(String mimeType, String sample, Element on) {
         if (sample != null) {
-            sampleForMimeType.put(mimeType, sample);
+            sample = loadSample(sample, on);
+            String old = sampleForMimeType.get(mimeType);
+            if (old == null || old.isEmpty()) {
+                sampleForMimeType.put(mimeType, sample);
+            }
         }
     }
 
@@ -300,7 +360,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
             return true;
         }
         AnnotationMirror dataObject = utils().annotationValue(registration, "file", AnnotationMirror.class);
-        updateSample(mimeType, utils().annotationValue(registration, "sample", String.class));
+        updateSample(mimeType, utils().annotationValue(registration, "sample", String.class), on);
         updateElements(mimeType, on);
         String ext = utils().annotationValue(dataObject, "extension", String.class);
         if (ext != null) {

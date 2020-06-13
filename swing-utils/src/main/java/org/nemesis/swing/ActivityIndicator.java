@@ -51,10 +51,10 @@ public final class ActivityIndicator extends JComponent implements ActionListene
     }
 
     public ActivityIndicator() {
-        this(24);
+        this(32);
         setOpaque(true);
         setBackground(UIManager.getColor("control"));
-        setForeground(Color.BLUE);
+        setForeground(UIManager.getColor("textText"));
         timer.setCoalesce(false);
         timer.setRepeats(true);
         setFocusable(false);

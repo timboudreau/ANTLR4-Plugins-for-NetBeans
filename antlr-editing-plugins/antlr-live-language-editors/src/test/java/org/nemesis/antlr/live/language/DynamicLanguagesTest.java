@@ -42,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,11 +66,13 @@ import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
+import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -77,6 +80,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
@@ -253,6 +257,13 @@ public class DynamicLanguagesTest {
 
         gen.replaceString("NestedMaps.g4", "Number", "Puppy").replaceString("NestedMaps.g4", "booleanValue", "dogCow");
 
+        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
+        CountDownLatch parserEnvironmentReplaced = new CountDownLatch(1);
+        BiConsumer<Extraction, GrammarRunResult<?>> cons = ((ex, grr) -> {
+            parserEnvironmentReplaced.countDown();;
+        });
+        parser.listen(cons);
+
         FileObject f1 = gen.file("NestedMaps.g4");
         String txt = f1.asText();
         assertTrue(txt.contains("dogCow"));
@@ -281,7 +292,7 @@ public class DynamicLanguagesTest {
             }
             try {
                 assertSame(doc, d, "called with some other document");
-                docRuleNames.addAll(rs.proxy().parserRuleNames());
+                docRuleNames.addAll(rs.proxy().allRuleNames());
                 assertNull(lastProxy[0], "called twice");
                 lastProxy[0] = rs.proxy();
 
@@ -314,7 +325,7 @@ public class DynamicLanguagesTest {
             try {
                 assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
                 assertNull(lastProxy[1], "called twice");
-                fileRuleNames.addAll(rs.proxy().parserRuleNames());
+                fileRuleNames.addAll(rs.proxy().allRuleNames());
                 lastProxy[1] = rs.proxy();
             } catch (Throwable t) {
                 t.printStackTrace();
@@ -334,7 +345,8 @@ public class DynamicLanguagesTest {
         AdhocParserResult p1 = parse(testit);
 
         boolean languageFired = AdhocLanguageFactory.awaitFire(3000);
-//        Thread.sleep(2000);
+//        Thread.sleep(4000);
+        parserEnvironmentReplaced.await(10, TimeUnit.SECONDS);
         for (int i = 0; i < 200; i++) {
             synchronized (notificationsDelivered) {
                 if (notificationsDelivered[0] && notificationsDelivered[1]) {
@@ -354,8 +366,8 @@ public class DynamicLanguagesTest {
         assertNotSame(p, p1, "Should not have gotten cached parser result");
 
         AntlrProxies.ParseTreeProxy ptp1 = p1.parseTree();
-        assertTrue(ptp1.toString().contains("dogCow"));
-        assertTrue(ptp1.toString().contains("Puppy"));
+        assertTrue(ptp1.allRuleNames().contains("dogCow"));
+        assertTrue(ptp1.allRuleNames().contains("Puppy"));
 
         String foundText = doc.getText(0, doc.getLength());
         assertEquals(TEXT_1, foundText);
@@ -366,8 +378,8 @@ public class DynamicLanguagesTest {
 
         assertFalse(fileRuleNames.isEmpty());
         assertFalse(docRuleNames.isEmpty());
-        assertTrue(fileRuleNames.contains("Puppy"));
-        assertTrue(docRuleNames.contains("Puppy"));
+        assertTrue(fileRuleNames.contains("dogCow"), fileRuleNames::toString);
+        assertTrue(docRuleNames.contains("dogCow"), docRuleNames::toString);
 
         TokenSequenceChecker checker = new TokenSequenceChecker()
                 .add("OpenBrace").add("Whitespace")

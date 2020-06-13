@@ -15,9 +15,6 @@
  */
 package org.nemesis.antlr.live.language.coloring;
 
-import org.nemesis.antlr.live.language.coloring.AdhocColorings;
-import org.nemesis.antlr.live.language.coloring.AttrTypes;
-import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import java.awt.Color;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -29,6 +26,8 @@ import java.nio.file.Paths;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.StyleConstants;
 import static org.junit.Assert.assertEquals;
@@ -53,8 +52,10 @@ public class AdhocColoringsTest {
     public void testAttributes() throws Throwable {
         AdhocColorings colorings = new AdhocColorings();
         PCL pcl = new PCL();
+        colorings.addChangeListener(pcl);
         AdhocColoring c = colorings.add("foo", Color.yellow, AttrTypes.ACTIVE, AttrTypes.BACKGROUND, AttrTypes.BOLD);
         colorings.addPropertyChangeListener("foo", pcl);
+        pcl.assertChangeFired();
 
         assertEquals(2, c.getAttributeCount());
         Set<Object> attrs = attrs(c);
@@ -106,6 +107,12 @@ public class AdhocColoringsTest {
         assertTrue(attrs.contains(StyleConstants.Bold));
 
         assertEquals(3, c.getAttributeCount());
+
+        AdhocColoring c1 = colorings.add("whoopie", Color.GREEN, AttrTypes.ACTIVE, AttrTypes.BACKGROUND, AttrTypes.ITALIC);
+        assertNotNull(c1);
+        pcl.assertChangeFired();
+        colorings.remove("whoopie");
+        pcl.assertChangeFired();
     }
 
     private static Set<Object> attrs(AttributeSet s) {
@@ -174,7 +181,7 @@ public class AdhocColoringsTest {
         pcl.assertFired("bar");
     }
 
-    static final class PCL implements PropertyChangeListener {
+    static final class PCL implements PropertyChangeListener, ChangeListener {
 
         void assertNotFired() {
             assertNull(last);
@@ -192,6 +199,19 @@ public class AdhocColoringsTest {
             last = null;
             assertNotNull(l);
             assertEquals(name, l);
+        }
+
+        private boolean changeFired;
+
+        @Override
+        public void stateChanged(ChangeEvent e) {
+            changeFired = true;
+        }
+
+        public void assertChangeFired() {
+            boolean old = changeFired;
+            changeFired = false;
+            assertTrue("Change not fired", old);
         }
 
     }

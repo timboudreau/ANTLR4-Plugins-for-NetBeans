@@ -69,6 +69,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.TreeMap;
 import java.util.logging.Logger;
 import javax.annotation.processing.Filer;
 import static javax.lang.model.element.Modifier.DEFAULT;
@@ -101,6 +102,7 @@ import static org.nemesis.registration.typenames.JdkTypes.SUPPLIER;
 import static org.nemesis.registration.typenames.JdkTypes.SUPPRESS_WARNINGS;
 import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.WEAK_HASH_MAP;
+import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_LOOKUP;
 import static org.nemesis.registration.typenames.KnownTypes.ACTION_BINDING;
@@ -125,6 +127,7 @@ import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT;
 import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_EXISTS_EXCEPTION;
 import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_HOOKS;
 import static org.nemesis.registration.typenames.KnownTypes.DECLARATION_TOKEN_PROCESSOR;
+import static org.nemesis.registration.typenames.KnownTypes.EMBEDDING_PRESENCE;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR;
@@ -134,6 +137,7 @@ import static org.nemesis.registration.typenames.KnownTypes.FILE_OBJECT;
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_COMPLETION_PROVIDER;
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
 import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTER_KEY_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.INPUT_ATTRIBUTES;
 import static org.nemesis.registration.typenames.KnownTypes.INSTANCE_CONTENT;
 import static org.nemesis.registration.typenames.KnownTypes.INT_PREDICATES;
 import static org.nemesis.registration.typenames.KnownTypes.ITERABLE_TOKEN_SOURCE;
@@ -141,9 +145,11 @@ import static org.nemesis.registration.typenames.KnownTypes.KEY;
 import static org.nemesis.registration.typenames.KnownTypes.KEYBINDING;
 import static org.nemesis.registration.typenames.KnownTypes.KEY_MODIFIERS;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE;
+import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_EMBEDDING;
 import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_HIERARCHY;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER_RESTART_INFO;
+import static org.nemesis.registration.typenames.KnownTypes.LEXER_TOKEN;
 import static org.nemesis.registration.typenames.KnownTypes.LOOKUP;
 import static org.nemesis.registration.typenames.KnownTypes.MESSAGES;
 import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
@@ -811,7 +817,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             String editorKitFile = "Editors/" + mimeType + "/" + editorKitFqn.replace('.', '-') + ".instance";
             layer(type).file(editorKitFile)
                     .methodvalue("instanceCreate", dataObjectFqn, "createEditorKit")
-                    .stringvalue("instanceOf", EDITOR_KIT.qname() + "," +  editorKitFqn + ','
+                    .stringvalue("instanceOf", EDITOR_KIT.qname() + "," + editorKitFqn + ','
                             + NB_EDITOR_KIT.qname() + ',' + BASE_KIT.qname())
                     .write();
 
@@ -2528,6 +2534,163 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .initializedTo("new " + adapterClassName + "()").withModifier(PRIVATE).withModifier(STATIC).withModifier(FINAL)
                 .ofType(adapterClassName);
         //.ofType("NbLexerAdapter<" + tokenTypeName + ", " + lexerClass + ">");
+
+        List<AnnotationMirror> embeddings = utils().annotationValues(mirror, "embeddedLanguages", AnnotationMirror.class);
+        if (!embeddings.isEmpty()) {
+            String tokenInterface = cb.className();
+            Map<Integer, String> mimeTypeForToken = new TreeMap<>();
+            Map<Integer, String> helperForToken = new TreeMap<>();
+            Map<String, Set<Integer>> tokensForMimeType = CollectionUtils.supplierMap(TreeSet::new);
+            Map<String, Set<Integer>> tokensForHelper = CollectionUtils.supplierMap(TreeSet::new);
+            Map<String, Integer> startSkipLengths = new HashMap<>();
+            Map<String, Integer> endSkipLengths = new HashMap<>();
+            Set<String> joinSections = new HashSet<>();
+            Map<String, String> embPresences = new HashMap<>();
+
+            Set<Integer> seenTokens = new HashSet<>();
+            boolean ok = true;
+
+            for (AnnotationMirror emb : embeddings) {
+                String key;
+                List<Integer> embToks = utils().annotationValues(emb, "tokens", Integer.class);
+                if (embToks.isEmpty()) {
+                    ok = false;
+                    utils().fail("Language embedding does not define any tokens to match", type, emb);
+                    continue;
+                }
+                int oldSize = seenTokens.size();
+                seenTokens.addAll(embToks);
+                if (seenTokens.size() != oldSize + embToks.size()) {
+                    ok = false;
+                    utils().fail("The same token is used for more than one embedding", type, emb);
+                    continue;
+                }
+                String mime = utils().annotationValue(emb, "mimeType", String.class);
+                if (mime == null || mime.isEmpty()) {
+                    List<String> helperClass = utils().classNamesForAnnotationMember(type, "org.nemesis.antlr.spi.language.AntlrLanguageRegistration$Embedding", "helper", "org.nemesis.antlr.spi.language.EmbeddingHelper");
+                    if (helperClass.isEmpty()) {
+                        ok = false;
+                        utils().fail("Either a mime type or a helper must be specified", type, emb);
+                        continue;
+                    } else {
+                        String helper = helperClass.iterator().next();
+                        key = helper;
+                        for (Integer tok : embToks) {
+                            helperForToken.put(tok, helper);
+                            tokensForHelper.get(helper).add(tok);
+                        }
+                    }
+                } else {
+                    key = mime;
+                    for (Integer tok : embToks) {
+                        mimeTypeForToken.put(tok, mime);
+                        tokensForMimeType.get(mime).add(tok);
+                    }
+                }
+                Integer startSkipLength = utils().annotationValue(emb, "startSkipLength", Integer.class, 0);
+                Integer endSkipLength = utils().annotationValue(emb, "endSkipLength", Integer.class, 0);
+                boolean joinSectionsValue = utils().annotationValue(emb, "joinSections", Boolean.class, Boolean.TRUE);
+                if (joinSectionsValue) {
+                    joinSections.add(key);
+                }
+                startSkipLengths.put(key, startSkipLength);
+                endSkipLengths.put(key, endSkipLength);
+                String embPresence = utils().enumConstantValue(mirror, "presence", "CACHED_FIRST_QUERY");
+                embPresences.put(key, embPresence);
+            }
+            if (ok) {
+                Map<String, String> fieldNameForHelper = new HashMap<>();
+                for (String h : tokensForHelper.keySet()) {
+                    String fn = h.replace('.', '_').toLowerCase();
+                    fieldNameForHelper.put(h, fn);
+                    lh.importing(h).field(fn).initializedWithNew().ofType(simpleName(h));
+                }
+                lh.importing(LANGUAGE_EMBEDDING.qname(), EMBEDDING_PRESENCE.qname(), LANGUAGE_HIERARCHY.qname(),
+                        LANGUAGE.qname(), LEXER_TOKEN.qname(), proxy.lexerClassFqn(),
+                        TOKEN_ID.qname(), "org.netbeans.api.lexer.LanguagePath", INPUT_ATTRIBUTES.qname())
+                        .overridePublic("embeddingPresence", mb -> {
+                            mb.returning(KnownTypes.EMBEDDING_PRESENCE.simpleName())
+                                    .addArgument(simpleName(tokenInterface), "id")
+                                    .body(bb -> {
+                                        ClassBuilder.SwitchBuilder<?> sw = bb.switchingOn("id.ordinal()");
+                                        for (Map.Entry<Integer, String> e : mimeTypeForToken.entrySet()) {
+//                                            proxy.toFieldName(e.getKey());
+                                            sw.inCase(proxy.tokenFieldReference(e.getKey()), swb -> {
+                                                String mime = e.getValue();
+                                                swb.returning(EMBEDDING_PRESENCE.simpleName() + "." + embPresences.get(mime));
+                                            });
+                                        }
+                                        for (Map.Entry<Integer, String> e : helperForToken.entrySet()) {
+                                            sw.inCase(proxy.tokenFieldReference(e.getKey()), swb -> {
+                                                String helper = e.getValue();
+                                                swb.returning(EMBEDDING_PRESENCE.simpleName() + "." + embPresences.get(helper));
+                                            });
+                                        }
+                                        sw.inDefaultCase().returningNull().endBlock();
+//                                        bb.returningNull();
+                                        sw.build();
+                                    });
+                        })
+                        /*
+protected LanguageEmbedding<?> embedding(Token<AntlrToken> token, LanguagePath languagePath, InputAttributes inputAttributes) {
+                        */
+                        .overrideProtected("embedding", mb -> {
+                            mb.returning(LANGUAGE_EMBEDDING.parametrizedName("?"))
+                                    .addArgument(LEXER_TOKEN.parametrizedName(tokenInterface), "token")
+                                    .addArgument("LanguagePath", "path")
+                                    .addArgument(INPUT_ATTRIBUTES.simpleName(), "attrs")
+                                    .body(bb -> {
+                                        bb.declare("lang").as(LANGUAGE.parametrizedName("?"));
+                                        ClassBuilder.SwitchBuilder<?> sw = bb.switchingOn("token.id().ordinal()");
+                                        for (Map.Entry<Integer, String> e : mimeTypeForToken.entrySet()) {
+//                                            proxy.toFieldName(e.getKey());
+                                            sw.inCase(proxy.tokenFieldReference(e.getKey()), swb -> {
+//                                                swb.returningInvocationOf("create")
+                                                String mime = e.getValue();
+                                                int startSkip = startSkipLengths.getOrDefault(mime, 0);
+                                                int endSkip = endSkipLengths.getOrDefault(mime, 0);
+                                                boolean join = joinSections.contains(mime);
+                                                swb.assign("lang").toInvocation("find").withStringLiteral(mime)
+                                                        .on(LANGUAGE.simpleName());
+//                                                swb.assign("lang").toExpression("(Language<T>) Language.find(\"" + mime + "\"");
+                                                swb.ifNotNull("lang").returningInvocationOf("create")
+                                                        .withArgument("lang")
+                                                        .withArgument(startSkip)
+                                                        .withArgument(endSkip)
+                                                        .withArgument(join)
+                                                        .on(LANGUAGE_EMBEDDING.simpleName()).endIf();
+                                                swb.statement("break");
+                                            });
+                                        }
+                                        for (Map.Entry<Integer, String> e : helperForToken.entrySet()) {
+                                            sw.inCase(proxy.tokenFieldReference(e.getKey()), swb -> {
+                                                String helper = e.getValue();
+                                                String field = fieldNameForHelper.get(helper);
+                                                assert field != null;
+                                                int startSkip = startSkipLengths.getOrDefault(helper, 0);
+                                                int endSkip = endSkipLengths.getOrDefault(helper, 0);
+                                                boolean join = joinSections.contains(helper);
+                                                // Ugly, but java-vogon doesn't have a "cast()" method yet for
+                                                // assignments.  Should be an alternate to as(type), castTo(type)
+                                                swb.assign("lang").toExpression("Language.find("
+                                                        + field + ".mimeTypeForEmbedding (hierarchy, token, path, attrs"
+                                                        + ")");
+                                                swb.ifNotNull("lang").returningInvocationOf("create")
+                                                        .withArgument("lang")
+                                                        .withArgument(startSkip)
+                                                        .withArgument(endSkip)
+                                                        .withArgument(join)
+                                                        .on(LANGUAGE_EMBEDDING.simpleName()).endIf();
+                                                swb.statement("break");
+                                            });
+                                        }
+                                        sw.inDefaultCase().returningNull().endBlock();
+                                        sw.build();
+                                        bb.returningNull();
+                                    });
+                        });
+            }
+        }
 
         // Save generated source files toExpression disk
         writeOne(cb);

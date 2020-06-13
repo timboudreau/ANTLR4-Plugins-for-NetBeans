@@ -15,18 +15,16 @@
  */
 package org.nemesis.antlr.live.language.coloring;
 
-import org.nemesis.antlr.live.language.coloring.AttrTypes;
-import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import java.awt.Color;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -34,6 +32,7 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import javax.swing.event.ChangeListener;
 import org.openide.util.ChangeSupport;
 
@@ -45,6 +44,9 @@ public class AdhocColorings implements DynamicColorings {
 
     private static final long serialVersionUID = 1;
     private final Map<String, AdhocColoring> colorings;
+    private final Map<String, AdhocColoring> defunct = new TreeMap<>();
+    private boolean changesSuspended;
+    private boolean pendingFire;
     private transient PropertyChangeSupport supp;
     private AtomicInteger rev = new AtomicInteger();
     private transient ChangeSupport csupp;
@@ -53,8 +55,9 @@ public class AdhocColorings implements DynamicColorings {
         colorings = new TreeMap<>();
     }
 
-    private AdhocColorings(Map<String, AdhocColoring> all) {
+    private AdhocColorings(Map<String, AdhocColoring> all, Map<String, AdhocColoring> defunct) {
         this.colorings = new TreeMap<>(all);
+        this.defunct.putAll(defunct);
     }
 
     @Override
@@ -109,6 +112,42 @@ public class AdhocColorings implements DynamicColorings {
         return colorings.size();
     }
 
+    public void disableAll() {
+        Map<String, AdhocColoring> nue = new HashMap<>();
+        Map<String, AdhocColoring> old = new HashMap<>(colorings);
+        Set<String> changed = new HashSet<>();
+        for (Map.Entry<String, AdhocColoring> e : old.entrySet()) {
+            if (e.getValue().isActive()) {
+                nue.put(e.getKey(), new AdhocColoring(e.getValue(), false));
+                changed.add(e.getKey());
+            } else {
+                nue.put(e.getKey(), e.getValue());
+            }
+        }
+        for (String c : changed) {
+            firePropertyChange(c, old.get(c), nue.get(c));
+        }
+        fire();
+    }
+
+    public AdhocColoring remove(String key) {
+        AdhocColoring result = this.colorings.remove(key);
+        if (result != null) {
+            defunct.put(key, result);
+            fire();
+        }
+        return result;
+    }
+
+    public AdhocColoring recover(String key) {
+        AdhocColoring result = this.defunct.remove(key);
+        if (result != null) {
+            this.colorings.put(key, result);
+            fire();
+        }
+        return result;
+    }
+
     public AdhocColoring add(String key, Color color, AttrTypes... types) {
         int flags = 0;
         for (AttrTypes t : types) {
@@ -157,8 +196,27 @@ public class AdhocColorings implements DynamicColorings {
         return Collections.unmodifiableSet(colorings.keySet());
     }
 
+    public boolean withChangesSuspended(BooleanSupplier run) {
+        boolean old = changesSuspended;
+        changesSuspended = true;
+        if (!old) {
+            pendingFire = false;
+        }
+        try {
+            return run.getAsBoolean();
+        } finally {
+            changesSuspended = old;
+            if (!changesSuspended) {
+                if (pendingFire) {
+                    pendingFire = false;
+                    fire();
+                }
+            }
+        }
+    }
+
     private void fire() {
-        if (csupp != null) {
+        if (csupp != null && !changesSuspended) {
             csupp.fireChange();
         }
     }
@@ -204,6 +262,15 @@ public class AdhocColorings implements DynamicColorings {
             out.write(eq);
             out.write(colorings.get(key).toLine().getBytes(UTF_8));
         }
+        out.write("\n# Deleted but preserved items\n".getBytes(UTF_8));
+        if (!defunct.isEmpty()) {
+            for (String key : defunct.keySet()) {
+                out.write((byte) '!');
+                out.write(key.getBytes(UTF_8));
+                out.write(eq);
+                out.write(defunct.get(key).toLine().getBytes(UTF_8));
+            }
+        }
         out.flush();
     }
 
@@ -211,19 +278,27 @@ public class AdhocColorings implements DynamicColorings {
         Scanner scanner = new Scanner(in);
         try {
             Map<String, AdhocColoring> map = new HashMap<>();
+            Map<String, AdhocColoring> defunct = new HashMap<>();
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine().trim();
                 if (line.isEmpty() || line.charAt(0) == '#') {
                     continue;
                 }
+                Map<String, AdhocColoring> targetMap;
+                if (line.charAt(0) == '!') {
+                    line = line.substring(1);
+                    targetMap = defunct;
+                } else {
+                    targetMap = map;
+                }
                 String[] parts = line.split("\\=", 2);
                 if (parts.length == 2) {
                     String key = parts[0];
                     AdhocColoring val = AdhocColoring.parse(parts[1]);
-                    map.put(key, val);
+                    targetMap.put(key, val);
                 }
             }
-            return new AdhocColorings(map);
+            return new AdhocColorings(map, defunct);
         } finally {
             scanner.close();
         }
@@ -283,8 +358,17 @@ public class AdhocColorings implements DynamicColorings {
         return false;
     }
 
-    void addIfAbsent(String key, Color color, Set<AttrTypes> of) {
+    public AdhocColoring addIfAbsent(String key, Color color, AttrTypes... attrs) {
+        return addIfAbsent(key, color, AttrTypes.set(attrs));
+    }
+
+    public AdhocColoring addIfAbsent(String key, Color color, Set<AttrTypes> of) {
         if (!colorings.containsKey(key)) {
+            AdhocColoring recovered = recover(key);
+            if (recovered != null) {
+                return recovered;
+            }
+
             int flags = 0;
             for (AttrTypes t : of) {
                 flags |= t.maskValue();
@@ -292,7 +376,10 @@ public class AdhocColorings implements DynamicColorings {
             AdhocColoring nue = new AdhocColoring(flags, color);
             colorings.put(key, new AdhocColoring(flags, color));
             firePropertyChange(key, null, nue);
+            fire();
+            return nue;
         }
+        return null;
     }
 
     private <T> void firePropertyChange(String key, T old, T nue) {

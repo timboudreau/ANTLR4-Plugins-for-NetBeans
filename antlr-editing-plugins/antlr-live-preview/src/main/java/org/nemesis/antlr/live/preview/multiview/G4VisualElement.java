@@ -46,6 +46,7 @@ import org.nemesis.antlr.live.preview.PreviewPanel;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
+import org.netbeans.api.lexer.Language;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
@@ -67,6 +68,7 @@ import org.openide.util.actions.SystemAction;
 import org.openide.util.lookup.Lookups;
 
 import org.openide.windows.TopComponent;
+import org.openide.windows.WindowManager;
 
 @MultiViewElement.Registration(
         displayName = "#LBL_G4_VISUAL",
@@ -189,8 +191,17 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.INFO, null, ex);
                         }
                         // Warm some things up that will be needed soon
-                        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mime));
+                        for (int i = 0; i < 5; i++) {
+                            if (Language.find(mime) == null) {
+                                try {
+                                    Thread.sleep(30);
+                                } catch (InterruptedException ex) {
+                                    LOG.log(Level.INFO, null, ex);
+                                }
+                            }
+                        }
                     }
+                    Lookup lkp = MimeLookup.getLookup(MimePath.parse(mime));
                     // Force init of lookup contents ahead of time
                     EditorKit kit = lkp.lookup(EditorKit.class);
                     Object o;
@@ -217,7 +228,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.FINEST,
                                     "Lazy load completed in {0} ms", new Object[]{
                                         System.currentTimeMillis() - then});
-                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc, colorings);
+                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc, colorings, kit, lkp);
                             UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
                             if (prov != null) {
                                 this.undoRedo = prov.get();
@@ -264,10 +275,12 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
     @Override
     public void componentShowing() {
-        superLazy.showing();
-        if (panel != null) {
-            panel.notifyShowing();
-        }
+        WindowManager.getDefault().invokeWhenUIReady(() -> {
+            superLazy.showing();
+            if (panel != null) {
+                panel.notifyShowing();
+            }
+        });
     }
 
     @Override

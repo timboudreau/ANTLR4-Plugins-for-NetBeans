@@ -17,6 +17,7 @@ package org.nemesis.antlr.file;
 
 import org.nemesis.antlr.file.impl.AntlrDataObjectHooks;
 import java.util.Set;
+import javax.swing.JOptionPane;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
@@ -30,7 +31,6 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.LexerModes;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import static org.nemesis.antlr.file.AntlrKeys.ANTLR_SAMPLE;
 import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
@@ -56,6 +56,10 @@ import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrig
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightZOrder;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistration;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlighterKeyRegistrations;
+import org.nemesis.antlr.spi.language.keybindings.Key;
+import org.nemesis.antlr.spi.language.keybindings.KeyModifiers;
+import org.nemesis.antlr.spi.language.keybindings.Keybinding;
+import org.nemesis.antlr.spi.language.keybindings.Keybindings;
 import org.nemesis.charfilter.CharPredicates;
 import org.nemesis.charfilter.anno.CharFilterSpec;
 import org.nemesis.charfilter.anno.CharPredicateSpec;
@@ -174,7 +178,7 @@ import org.nemesis.localizers.annotations.Localize;
                 }
         ),
         localizingBundle = "org.nemesis.antlr.file.Bundle",
-        sample = ANTLR_SAMPLE,
+        sample = "AntlrSample.g4",
         lineCommentPrefix = "//",
         categories = {
             @TokenCategory(name = "errors",
@@ -496,6 +500,10 @@ import org.nemesis.localizers.annotations.Localize;
                                 fg = {10, 10, 10}
                         )}
             )
+        },
+        embeddedLanguages = {
+            @AntlrLanguageRegistration.Embedding(mimeType = "text/x-java", tokens = {ANTLRv4Lexer.ACTION_CONTENT,
+                ANTLRv4Lexer.BEGIN_ACTION, ANTLRv4Lexer.END_ACTION})
         }
 )
 public class AntlrKeys {
@@ -625,7 +633,7 @@ public class AntlrKeys {
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
-                        bg = {0, 215, 215},
+                        bg = {235, 171, 120},
                         bold = true,
                         italic=true
                 )
@@ -674,43 +682,10 @@ public class AntlrKeys {
     public static final NameReferenceSetKey<LexerModes> MODE_REFS = MODES.createReferenceKey("mode-refs");
 
 
-    static final String ANTLR_SAMPLE = "grammar Timestamps;\n"
-            + "\n"
-            + "timestampDecl : \n"
-            + "    ( def? ':' ts=Timestamp constraints) #IsoTimestamp\n"
-            + "    |(def? ':' amt=digits) #IntTimestamp \n"
-            + "    |(def? ':' digits) #FooTimestamp;\n"
-            + "\n// line comment\n"
-            + "constraints: (min=min | max=max | req=req)*;\n"
-            + "\n"
-            + "max : 'max' value=timestampLiteral;\n"
-            + "min : Min value=timestampLiteral;\n"
-            + "req : 'required';\n"
-            + "def  : 'default'? '=' def=timestampLiteral;\n"
-            + "timestampLiteral : Timestamp;\n"
-            + "\n"
-            + "digits: DIGIT (DIGIT | '_')*;\n"
-            + "\n"
-            + "Thing : Timestamp~[\\r\\n]*;\n"
-            + "Timestamp : Datestamp 'T' Time;\n"
-            + "Datestamp : FOUR_DIGITS '-' TWO_DIGITS '-' TWO_DIGITS ;\n"
-            + "Time : TWO_DIGITS ':' TWO_DIGITS ':' TWO_DIGITS TS_FRACTION? TS_OFFSET;\n"
-            + "\n"
-            + "Min : 'min';\n"
-            + "\n"
-            + "fragment FOUR_DIGITS : DIGIT DIGIT DIGIT DIGIT;\n"
-            + "fragment TWO_DIGITS : DIGIT DIGIT;\n"
-            + "fragment TS_FRACTION : '.' DIGIT+;\n"
-            + "fragment TS_OFFSET\n"
-            + "    : 'Z' | TS_NUM_OFFSET;\n"
-            + "fragment TS_NUM_OFFSET\n"
-            + "    : ( '+' | '-' ) DIGIT DIGIT ':' DIGIT DIGIT;\n"
-            + "fragment DIGIT: [0-9];\n";
-
-
-//    @Keybindings(description = "Whatever", displayName = "Whatever", menuPath = "Edit",
-//            name = "whatevs", mimeType = "text/x-g4", popup = true, keybindings = @Keybinding(key = Key.CIRCUMFLEX, modifiers = KeyModifiers.CTRL_OR_COMMAND))
-//    public static void fooz() {
-//        JOptionPane.showMessageDialog(null, "Hello world");
-//    }
+    @Keybindings(description = "Whatever", displayName = "Whatever", menuPath = "Edit",
+            name = "whatevs", mimeType = "text/x-g4", popup = true, 
+            keybindings = @Keybinding(key = Key.SEMICOLON, modifiers = KeyModifiers.CTRL_OR_COMMAND))
+    public static void fooz() {
+        JOptionPane.showMessageDialog(null, "Hello world");
+    }
 }

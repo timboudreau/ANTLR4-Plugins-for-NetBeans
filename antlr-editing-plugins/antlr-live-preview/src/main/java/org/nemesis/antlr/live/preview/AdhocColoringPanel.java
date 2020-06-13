@@ -39,6 +39,7 @@ import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
 import org.nemesis.antlr.live.language.ColorUtils;
+import org.nemesis.swing.ActivityIndicator;
 import org.openide.util.NbBundle.Messages;
 
 /**
@@ -52,7 +53,8 @@ import org.openide.util.NbBundle.Messages;
     "color=Color",
     "sampleText=<Sample Text>",
     "bold=Bold",
-    "italic=Italic"
+    "italic=Italic",
+    "disableAll=Disable All Colors"
 })
 public final class AdhocColoringPanel extends JPanel implements ActionListener, PropertyChangeListener {
 
@@ -64,6 +66,9 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
     private final JRadioButton background = new JRadioButton(Bundle.background());
     private final JButton colorButton = new JButton(Bundle.color());
     private final ButtonGroup group = new ButtonGroup();
+    private final ActivityIndicator indicator = new ActivityIndicator();
+    private final JButton disableAll = new JButton(Bundle.disableAll());
+    private static final String CMD_DISABLE = "disable";
     private static final String CMD_ACTIVE = "active";
     private static final String CMD_FOREGROUND = "fg";
     private static final String CMD_BACKGROUND = "bg";
@@ -72,14 +77,17 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
     private static final String CMD_COLOR = "color";
     private static final String PROP_COLOR = "color";
     private Color color = Color.black;
+    private final AdhocColorings colorings;
+    private boolean updating;
 
     public AdhocColoringPanel(String key, AdhocColorings colorings) {
-        this();
+        this(colorings);
         setAdhocColoring(colorings, key);
     }
 
     @SuppressWarnings("LeakingThisInConstructor")
-    public AdhocColoringPanel() {
+    public AdhocColoringPanel(AdhocColorings colorings) {
+        this.colorings = colorings;
 //        setLayout(new GridLayout(1, 5, 5, 5));
         setLayout(new GridBagLayout());
         group.add(foreground);
@@ -103,6 +111,10 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         add(label, gbc);
         gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.FIRST_LINE_END;
+        gbc.gridx++;
+        add(indicator, gbc);
+        gbc.gridx++;
+        add(disableAll, gbc);
         gbc.gridx++;
         gbc.gridwidth = 2;
         add(colorButton, gbc);
@@ -129,8 +141,14 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         bold.addActionListener(this);
         italic.setActionCommand(CMD_ITALIC);
         italic.addActionListener(this);
+        disableAll.setActionCommand(CMD_DISABLE);
+        disableAll.addActionListener(this);
 
         addPropertyChangeListener(this);
+    }
+
+    public void indicateActivity() {
+        indicator.trigger();
     }
 
     public void setColor(Color color) {
@@ -148,7 +166,7 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
     @Override
     @Messages("colorTitle=Highlighting Color")
     public void actionPerformed(ActionEvent e) {
-        if (listeningSuspended || info == null) {
+        if (listeningSuspended || info == null || updating) {
             return;
         }
         switch (e.getActionCommand()) {
@@ -179,6 +197,9 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
                 break;
             case CMD_ITALIC:
                 info.setItalic(italic.isSelected());
+                break;
+            case CMD_DISABLE:
+                colorings.disableAll();
                 break;
         }
         updateFrom(info);
@@ -240,21 +261,26 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         if (info == null) {
             return;
         }
-        label.setText(info.key);
-        setColor(info.coloring.color());
-        if (info.isForeground()) {
-            colorButton.setForeground(info.coloring.color());
-            colorButton.setBackground(ColorUtils.editorBackground());
-            group.setSelected(foreground.getModel(), true);
-        } else {
-            colorButton.setBackground(info.coloring.color());
-            colorButton.setForeground(ColorUtils.editorForeground());
-            group.setSelected(background.getModel(), true);
+        updating = true;
+        try {
+            label.setText(info.key);
+            setColor(info.coloring.color());
+            if (info.isForeground()) {
+                colorButton.setForeground(info.coloring.color());
+                colorButton.setBackground(ColorUtils.editorBackground());
+                group.setSelected(foreground.getModel(), true);
+            } else {
+                colorButton.setBackground(info.coloring.color());
+                colorButton.setForeground(ColorUtils.editorForeground());
+                group.setSelected(background.getModel(), true);
+            }
+            active.setSelected(info.isActive());
+            invalidate();
+            revalidate();
+            repaint();
+        } finally {
+            updating = false;
         }
-        active.setSelected(info.isActive());
-        invalidate();
-        revalidate();
-        repaint();
     }
 
     private boolean listeningSuspended;

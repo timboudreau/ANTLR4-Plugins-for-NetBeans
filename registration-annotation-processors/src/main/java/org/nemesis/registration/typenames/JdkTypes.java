@@ -193,6 +193,7 @@ public enum JdkTypes implements TypeName {
     DOCUMENT("javax.swing.text.Document"),
     EDITOR_KIT("javax.swing.text.EditorKit"),
     POSITION("javax.swing.text.Position"),
+    SEGMENT("javax.swing.text.Segment"),
     STYLED_DOCUMENT("javax.swing.text.StyledDocument"),
     TEXT_ACTION("javax.swing.text.TextAction")
     ;

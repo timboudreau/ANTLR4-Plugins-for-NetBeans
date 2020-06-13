@@ -23,6 +23,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Parser;
+import org.netbeans.spi.lexer.EmbeddingPresence;
 
 /**
  * Register an Antlr-based language, generating all necessary configuration and
@@ -215,13 +216,13 @@ public @interface AntlrLanguageRegistration {
         /**
          * In the case that you are using one parser rule for names of
          * things, and a different parser rule for <i>references to</i>
-         * that name.  Generic code completion looks for names that were
+         * that name. Generic code completion looks for names that were
          * extracted inside a rule ID and offers completions when
          * <i>that exact rule ID is one of those that could follow the
-         * caret token</i>.  In the case that the token at the caret uses
+         * caret token</i>. In the case that the token at the caret uses
          * a different rule ID, use &#064;RuleSubstitutions to request
          * names for the rule ID you collected them under instead.
-         * 
+         *
          * @return An array of substitution token pairs
          */
         RuleSubstitutions[] ruleSubstitutions() default {};
@@ -436,5 +437,76 @@ public @interface AntlrLanguageRegistration {
          * @return A class which implements DataObjectHooks
          */
         Class<? extends DataObjectHooks> hooks() default NoHooks.class;
+    }
+
+    /**
+     * If your language can have sections of other languages embedded in it, and the
+     * IDE should use its support for those languages to syntax-highlight those sections,
+     * you can specify these here.
+     *
+     * @return An array of embedded language details
+     */
+    Embedding[] embeddedLanguages() default {};
+
+    @interface Embedding {
+        /**
+         * The ANTLR token ids (int constants on your Antlr-generated lexer class), that
+         * may contain the language you are specifying.
+         *
+         * @return An array of token ids
+         */
+        int[] tokens();
+
+        /**
+         * The mime type of the embedded language; either this, or <code>helper()</code>
+         * must be specified - if there is only one language that could possibly be
+         * embedded under the token ids you specify, use this; if the contents of the
+         * file may be what determines the language (as with Antlr itself, where embedded
+         * action code might be Java&trade;, Javascript&trade; or something else),
+         * implements {@link EmbeddingHelper}, provide that type from <code>helper()</code>
+         * and leave this unspecified.
+         *
+         * @return A mime type string
+         */
+        String mimeType() default "";
+
+        /**
+         * An alternate way of providing the mime type in the case that multiple languages
+         * are possible and the file contents must be examined to determine which.
+         *
+         * @return The type of an EmbeddingHelper implementation that has a public,
+         * no-argument constructor
+         */
+        Class<? extends EmbeddingHelper> helper() default EmbeddingHelper.class;
+
+        /**
+         * The skip length, as specified in {@link org.netbeans.spi.lexer.LanguageEmbedding}.
+         * 
+         * @return The number of characters to skip at the head of an embedding
+         */
+        int startSkipLength() default 0;
+
+        /**
+         * The skip length, as specified in {@link org.netbeans.spi.lexer.LanguageEmbedding}.
+         *
+         * @return The number of characters to skip at the tail of an embedding
+         */
+        int endSkipLength() default 0;
+
+        /**
+         * If true, join consecutive tokens that match the same language when parsing.
+         *
+         * @return true by default
+         */
+        boolean joinSections() default true;
+
+        /**
+         * Hint to the NetBeans lexer infrastructure as to whether the embedding language
+         * should be checked every time a matching token encountered, or assumed to be
+         * stable for the life of the document.
+         *
+         * @return by default CACHED_FIRST_QUERY.
+         */
+        EmbeddingPresence presence() default EmbeddingPresence.CACHED_FIRST_QUERY;
     }
 }

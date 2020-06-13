@@ -16,13 +16,16 @@
 package org.nemesis.antlr.live.preview;
 
 import org.nemesis.swing.html.SimpleHtmlLabel;
-import org.nemesis.swing.ActivityIndicator;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
@@ -36,6 +39,7 @@ import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JEditorPane;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -57,7 +61,6 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
 import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
-import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
@@ -67,12 +70,12 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.swing.Scroller;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
-import org.netbeans.api.editor.mimelookup.MimeLookup;
-import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
 import org.netbeans.modules.parsing.api.ParserManager;
@@ -81,8 +84,7 @@ import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
-import org.netbeans.spi.editor.caret.CaretMoveHandler;
-import org.openide.awt.StatusDisplayer;
+import org.openide.awt.Mnemonics;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
@@ -90,6 +92,7 @@ import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.Mutex;
+import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 import org.openide.util.lookup.AbstractLookup;
@@ -100,6 +103,7 @@ import org.openide.util.lookup.ProxyLookup;
  *
  * @author Tim Boudreau
  */
+@Messages({"rulesList=&Rules", "syntaxTree=S&yntax Tree"})
 public final class PreviewPanel extends JPanel implements ChangeListener,
         ListSelectionListener, DocumentListener, PropertyChangeListener,
         Lookup.Provider, BiConsumer<Document, EmbeddedAntlrParserResult> {
@@ -108,17 +112,17 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private static final java.util.logging.Logger LOG
             = java.util.logging.Logger.getLogger(PreviewPanel.class.getName());
 
-    private final JList<String> rules = new ParentCheckingFastJList<>();
-    private final JScrollPane rulesPane = new JScrollPane(rules);
+    private final JList<String> rulesList = new ParentCheckingFastJList<>();
+    private final JScrollPane rulesScroll = new JScrollPane(rulesList);
     private final SyntaxTreeListModel syntaxModel = new SyntaxTreeListModel();
     private final JList<SyntaxTreeListModel.ModelEntry> syntaxTreeList
             = syntaxModel.createList();
     private final JScrollPane syntaxTreeScroll = new JScrollPane(syntaxTreeList);
     private final JSplitPane listsSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private final AdhocColorings colorings;
-    private final AdhocColoringPanel customizer = new AdhocColoringPanel();
+    private final AdhocColoringPanel customizer;
 
-    private final JEditorPane editorPane;
+    private final JEditorPane editorPane = new JEditorPane();
     private final SimpleHtmlLabel breadcrumb = new SimpleHtmlLabel();
     private final JPanel breadcrumbPanel = new JPanel(new BorderLayout());
     private final JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -137,37 +141,62 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final String mimeType;
     private final JEditorPane grammarEditorClone = new JEditorPane();
     private final DataObject sampleFileDataObject;
-    private final ActivityIndicator indicator = new ActivityIndicator(24);
+    private final JPanel rulesContainer = new JPanel(new BorderLayout());
+    private final JPanel syntaxTreeContainer = new JPanel(new BorderLayout());
+    private final JLabel rulesLabel = new JLabel();
+    private final JLabel syntaxTreeLabel = new JLabel();
+    private final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
 
     @SuppressWarnings("LeakingThisInConstructor")
     public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject,
-            StyledDocument doc, AdhocColorings colorings) {
+            StyledDocument doc, AdhocColorings colorings, EditorKit kit, Lookup lkp) {
+        // We preload anything we can on the background thread so as not to
+        // block the UI with I/O intensive stuff, hence the constructor arguments
         this.mimeType = mimeType;
         this.sampleFileDataObject = sampleFileDataObject;
         this.colorings = colorings;
+        customizer = new AdhocColoringPanel(colorings);
+        // A few labels for usability
+        Mnemonics.setLocalizedText(rulesLabel, Bundle.rulesList());
+        Mnemonics.setLocalizedText(syntaxTreeLabel, Bundle.syntaxTree());
+        rulesContainer.add(rulesLabel, BorderLayout.NORTH);
+        rulesContainer.add(rulesScroll, BorderLayout.CENTER);
+        rulesLabel.setLabelFor(rulesList);
+        syntaxTreeContainer.add(syntaxTreeLabel, BorderLayout.NORTH);
+        syntaxTreeContainer.add(syntaxTreeScroll, BorderLayout.CENTER);
+        syntaxTreeLabel.setLabelFor(syntaxTreeList);
+
+        Border underline = BorderFactory.createMatteBorder(0, 0, 1, 0, UIManager.getColor("controlDkShadow"));
+        Border paddedUnderline = BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(5, 5, 5, 0),
+                BorderFactory.createCompoundBorder(underline, BorderFactory.createEmptyBorder(5, 0, 5, 0)));
+        rulesLabel.setBorder(paddedUnderline);
+        syntaxTreeLabel.setBorder(paddedUnderline);
+
         setLayout(new BorderLayout());
-        rules.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        rulesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         // Add the selected coloring customizer at the top
         add(customizer, BorderLayout.NORTH);
-        // Put the rules list in a scroll pane
 
         // "border buildup" avoidance
         Border empty = BorderFactory.createEmptyBorder();
         Border line = BorderFactory.createMatteBorder(1, 1, 0, 0,
                 color("controlShadow", Color.DARK_GRAY));
-        rulesPane.setBorder(line);
-        rulesPane.setViewportBorder(empty);
 
-        syntaxTreeScroll.setBorder(line);
+        // Clean up gratuitous Swing borders
+//        rulesScroll.setBorder(line);
+        rulesScroll.setBorder(empty);
+        rulesScroll.setViewportBorder(empty);
+
+//        syntaxTreeScroll.setBorder(line);
+        syntaxTreeScroll.setBorder(empty);
         syntaxTreeScroll.setViewportBorder(empty);
 
-        listsSplit.setTopComponent(rulesPane);
-        listsSplit.setBottomComponent(syntaxTreeScroll);
+        listsSplit.setTopComponent(rulesContainer);
+        listsSplit.setBottomComponent(syntaxTreeContainer);
+        listsSplit.setBorder(empty);
 
         // Add the rules pane
         add(listsSplit, BorderLayout.EAST);
-        // Create an editor pane
-        editorPane = new JEditorPane();
         // Create a runnable that will run asynchronously to beginScroll the
         // output window after the sample text has been altered or the
         // grammar has
@@ -178,14 +207,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         this.lookup = new ProxyLookup(sampleFileDataObject.getLookup(), internalLookup);
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
-        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
-        EditorKit kit = lkp.lookup(EditorKit.class);
+//        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
         // Configure the editor pane to use it
         editorPane.setEditorKit(kit);
         // Open the document and set it on the editor pane
         content.add(doc);
         editorPane.setDocument(doc);
-        LOG.log(Level.INFO, "PreviewPanel content type is {0}", editorPane.getContentType());
+        LOG.log(Level.FINE, "PreviewPanel content type is {0}", editorPane.getContentType());
         // EditorUI gives us line number gutter, error gutter, etc.
         EditorUI editorUI = Utilities.getEditorUI(editorPane);
         if (editorUI != null) {
@@ -227,8 +255,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // the top and the grammar file in the bottom
         add(split, BorderLayout.CENTER);
         // Listen to the rule list to beginScroll the rule customizer
-        rules.getSelectionModel().addListSelectionListener(this);
-        rules.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor));
+        rulesList.getSelectionModel().addListSelectionListener(this);
+        rulesList.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor, this::currentProxy));
         // Listen for changes to force re-highlighting if necessary
 
         // More border munging
@@ -236,11 +264,118 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         breadcrumb.setMinimumSize(new Dimension(100, 24));
         // The breadcrumb shows the rule path the caret is in
         breadcrumbPanel.add(breadcrumb, BorderLayout.CENTER);
-        breadcrumbPanel.add(indicator, BorderLayout.EAST);
         add(breadcrumbPanel, BorderLayout.SOUTH);
         // listen on the caret to beginScroll the breadcrumb
         syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
         editorPane.getCaret().addChangeListener(WeakListeners.change(this, editorPane.getCaret()));
+        RulesListClickOrEnter ruleClick = new RulesListClickOrEnter();
+        rulesList.addKeyListener(ruleClick);
+        rulesList.addMouseListener(ruleClick);
+    }
+
+    private ParseTreeProxy currentProxy() {
+        EmbeddedAntlrParserResult res = internalLookup.lookup(EmbeddedAntlrParserResult.class);
+        if (res != null) {
+            return res.proxy();
+        }
+        return null;
+    }
+
+    private class RulesListClickOrEnter extends MouseAdapter implements KeyListener {
+
+        @Override
+        public void keyTyped(KeyEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void keyPressed(KeyEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void keyReleased(KeyEvent e) {
+            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                String rule = rulesList.getSelectedValue();
+                e.consume();
+                navigateToNearestExampleOf(rule);
+            }
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
+                String rule = rulesList.getSelectedValue();
+                e.consume();
+                navigateToNearestExampleOf(rule);
+            }
+        }
+    }
+
+    private void navigateToNearestExampleOf(String rule) {
+        if (rule == null) {
+            return;
+        }
+        EmbeddedAntlrParserResult res = internalLookup.lookup(EmbeddedAntlrParserResult.class);
+        if (res == null) {
+            return;
+        }
+        ParseTreeProxy ptp = res.proxy();
+        if (ptp.isUnparsed()) {
+            return;
+        }
+        int caretPosition = editorPane.getCaretPosition();
+        boolean isLexer = Character.isUpperCase(rule.charAt(0));
+        if (isLexer) {
+            ProxyToken tok = ptp.tokenAtPosition(caretPosition);
+            int ix = tok.getTokenIndex();
+            List<ProxyToken> all = ptp.tokens();
+            for (int i = ix + 1; i < all.size(); i++) {
+                ProxyToken next = all.get(i);
+                ProxyTokenType type = ptp.tokenTypeForInt(next.getType());
+                if (type.name().equals(rule)) {
+                    selectRangeInPreviewEditor(next.getStartIndex(), next.getEndIndex());
+                    return;
+                }
+            }
+            for (int i = ix; i >= 0; i--) {
+                ProxyToken prev = all.get(i);
+                ProxyTokenType type = ptp.tokenTypeForInt(prev.getType());
+                if (type.name().equals(rule)) {
+                    selectRangeInPreviewEditor(prev.getStartIndex(), prev.getEndIndex());
+                    return;
+                }
+            }
+        } else {
+            for (ParseTreeElement el : ptp.allTreeElements()) {
+                switch (el.kind()) {
+                    case ERROR:
+                    case ROOT:
+                    case TERMINAL:
+                        continue;
+                }
+                if (el.name().equals(rule)) {
+                    List<ProxyToken> toks = new ArrayList<>(20);
+                    Collections.sort(toks);
+                    allElements(el, toks, ptp);
+                    if (!toks.isEmpty()) {
+                        ProxyToken first = toks.get(0);
+                        ProxyToken last = toks.get(toks.size() - 1);
+                        selectRangeInPreviewEditor(first.getStartIndex(), last.getEndIndex());
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private void allElements(ParseTreeElement el, List<ProxyToken> into, ParseTreeProxy prox) {
+        if (el instanceof TokenAssociated) {
+            TokenAssociated ta = (TokenAssociated)  el;
+            int start = ta.startTokenIndex();
+            int end = ta.endTokenIndex();
+            into.addAll(prox.tokens().subList(start, end));
+        }
     }
 
     public String toString() {
@@ -258,7 +393,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     @SuppressWarnings("deprecation")
-    void selectRangeInPreviewEditor(int[] range) {
+    void selectRangeInPreviewEditor(int... range) {
         if (selectingRange) {
             // ensure we don't re-enter because we noticed the
             // selection change and wind up grabbing the parent
@@ -295,17 +430,14 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 Position begin = NbDocument.createPosition(editorPane.getDocument(), endPoint, Position.Bias.Backward);
                 Position end = NbDocument.createPosition(editorPane.getDocument(), range[0], Position.Bias.Forward);
                 org.netbeans.api.editor.caret.CaretInfo info = ec.getLastCaret();
-                ec.moveCarets(new CaretMoveHandler() {
-                    @Override
-                    public void moveCarets(CaretMoveContext context) {
-                        // This seems to usually run later in the event
-                        // queue, so try to preserve the selection the user chose
-                        selectingRange = true;
-                        try {
-                            context.setDotAndMark(info, end, Position.Bias.Forward, begin, Position.Bias.Backward);
-                        } finally {
-                            selectingRange = false;
-                        }
+                ec.moveCarets((CaretMoveContext context) -> {
+                    // This seems to usually run later in the event
+                    // queue, so try to preserve the selection the user chose
+                    selectingRange = true;
+                    try {
+                        context.setDotAndMark(info, end, Position.Bias.Forward, begin, Position.Bias.Backward);
+                    } finally {
+                        selectingRange = false;
                     }
                 });
             } else {
@@ -334,7 +466,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     @Override
     public void accept(Document a, EmbeddedAntlrParserResult res) {
         ParseTreeProxy newProxy = res.proxy();
-        StatusDisplayer.getDefault().setStatusText("Woo hoo!!! " + (newProxy == null ? "null" : newProxy.loggingInfo()));
         if (!newProxy.mimeType().equals(mimeType)) {
             new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
             return;
@@ -342,8 +473,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         Debug.message("preview-new-proxy " + Long.toString(newProxy.id(), 36)
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
-            AdhocColoringsRegistry.getDefault().ensureAllPresent(newProxy);
-            indicator.trigger(); // XXX invisible?
+            if (AdhocColoringsRegistry.getDefault().ensureAllPresent(newProxy)) {
+                updateColoringsList();
+            }
+            customizer.indicateActivity();// XXX invisible?
             Debug.run(this, "preview-update " + mimeType, () -> {
                 StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
                 sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
@@ -407,8 +540,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // Listen for changes in it
         colorings.addChangeListener(this);
         colorings.addPropertyChangeListener(this);
-        if (rules.getSelectedIndex() < 0 && rules.getModel().getSize() > 0) {
-            rules.setSelectedIndex(0);
+        if (rulesList.getSelectedIndex() < 0 && rulesList.getModel().getSize() > 0) {
+            rulesList.setSelectedIndex(0);
         }
         updateSplitPosition();
         AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
@@ -418,8 +551,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         grammarEditorClone.getDocument().addDocumentListener(this);
         reparseTask.schedule(500);
     }
-
-    final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
 
     private final UserTask ut = new UserTask() {
         @Override
@@ -435,27 +566,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     Future<Void> lastFuture;
 
     void reallyReparse() {
-        if (lastFuture != null) {
+        if (lastFuture != null && !lastFuture.isDone()) {
             lastFuture.cancel(true);
             lastFuture = null;
         }
         try {
             lastFuture = ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), ut);
         } catch (ParseException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-    }
-
-    void xreallyReparse() {
-        try {
-//            String txt = grammarEditorClone.getText();
-//            Debug.runThrowing("preview-reparse-grammar", txt, () -> {
-            ParsingUtils.parse(grammarEditorClone.getDocument(), (Parser.Result res) -> {
-                Debug.message("parser-result " + res, res::toString);
-                return null;
-//                });
-            });
-        } catch (Exception ex) {
             Exceptions.printStackTrace(ex);
         }
     }
@@ -469,6 +586,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             return;
         }
         showing = false;
+        Future<Void> lastFuture = this.lastFuture;
+        if (lastFuture != null && !lastFuture.isDone()) {
+            lastFuture.cancel(true);
+        }
+        this.reparseTask.cancel();
+        this.updateOutputWindowTask.cancel();
         AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
         colorings.removeChangeListener(this);
         colorings.removePropertyChangeListener(this);
@@ -476,6 +599,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         editorPane.getCaret().removeChangeListener(this);
         editorPane.getDocument().removeDocumentListener(this);
         grammarEditorClone.getDocument().removeDocumentListener(this);
+        EmbeddedAntlrParserResult res = internalLookup.lookup(EmbeddedAntlrParserResult.class);
+        // Holding the parser result can be a fairly big leak, and this component will
+        // be held until the window system serializes the component to disk
+        if (res != null) {
+            content.remove(res);
+        }
     }
 
     @Override
@@ -487,6 +616,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private void docChanged(boolean fromGrammarDoc) {
         haveGrammarChange = fromGrammarDoc;
+        if (fromGrammarDoc) {
+            rulesList.repaint(2000);
+        }
 //        enqueueRehighlighting();
     }
 
@@ -502,7 +634,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     @Override
     public void changedUpdate(DocumentEvent e) {
-        docChanged(e.getDocument() == grammarEditorClone.getDocument());
+//        docChanged(e.getDocument() == grammarEditorClone.getDocument());
     }
 
     void enqueueRehighlighting() {
@@ -593,11 +725,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 if (referenceChain.size() > 1) {
                     rule = referenceChain.get(referenceChain.size() - 2);
                     String ruleName = rule.name();
-                    for (int i = 0; i < rules.getModel().getSize(); i++) {
-                        String el = rules.getModel().getElementAt(i);
+                    for (int i = 0; i < rulesList.getModel().getSize(); i++) {
+                        String el = rulesList.getModel().getElementAt(i);
                         if (ruleName.equals(el) || el.contains(">" + ruleName + "<")) {
-                            rules.setSelectionInterval(i, i);
-                            Scroller.get(rules).beginScroll(rules, i);
+                            rulesList.setSelectionInterval(i, i);
+                            Scroller.get(rulesList).beginScroll(rulesList, i);
                             break;
                         }
                     }
@@ -610,7 +742,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         breadcrumb.repaint();
         // Updating the stringifier may change what background colors are
         // used for some cells, so repaint it
-        rules.repaint();
+        rulesList.repaint();
     }
 
     static Color color(String s, Color fallback) {
@@ -633,7 +765,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void updateColoringsList() {
-        String sel = rules.getSelectedValue();
+        String sel = rulesList.getSelectedValue();
         DefaultListModel<String> mdl = new DefaultListModel<>();
         int ix = 0;
         int selectedIndex = -1;
@@ -646,9 +778,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             mdl.addElement(key);
             ix++;
         }
-        rules.setModel(mdl);
+        rulesList.setModel(mdl);
         if (selectedIndex != -1) {
-            rules.setSelectedIndex(selectedIndex);
+            rulesList.setSelectedIndex(selectedIndex);
         }
     }
 
@@ -669,7 +801,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     @Override
     public void valueChanged(ListSelectionEvent e) {
-        String sel = rules.getSelectedValue();
+        String sel = rulesList.getSelectedValue();
         if (sel != null) {
             customizer.setAdhocColoring(colorings, sel);
         }
