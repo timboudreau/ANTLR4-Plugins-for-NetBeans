@@ -175,6 +175,12 @@ public class AdhocColoring implements AdhocAttributeSet {
     }
 
     public static AdhocColoring parse(String toParse) {
+        if (toParse.charAt(0) == '=') {
+            toParse = toParse.substring(1);
+        }
+        if (toParse.isEmpty()) {
+            return null;
+        }
         // Parses the format written by toLine()
         String[] s = toParse.trim().split(";");
         if (s.length != 2) {

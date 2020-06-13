@@ -102,24 +102,6 @@ public final class AdhocReparseListeners {
     }
 
     public static void unlisten(String mimeType, Document doc, BiConsumer<? super Document, ? super EmbeddedAntlrParserResult> listener) {
-        DynamicLanguages.ensureRegistered(mimeType);
-        String realMimeType = NbEditorUtilities.getMimeType(doc);
-        if (!realMimeType.equals(mimeType)) {
-            FileObject fo = NbEditorUtilities.getFileObject(doc);
-            StringBuilder sb = new StringBuilder()
-                    .append("Unsubscribing from reparses of ")
-                    .append(fo.getNameExt())
-                    .append(" which is of mime type ")
-                    .append(fo.getMIMEType())
-                    .append(" as the mime type ")
-                    .append(mimeType)
-                    .append("(").append(AdhocMimeTypes.loggableMimeType(mimeType))
-                    .append(") is surely a bug.  Callback is: ")
-                    .append(listener).append(", document is ")
-                    .append(doc);
-            LOG.log(Level.SEVERE, sb.toString(), new Exception(sb.toString()));
-        }
-
         withListeners(mimeType, false, arl -> {
             Set<BiConsumer<? super Document, ? super EmbeddedAntlrParserResult>> set
                     = arl.documentListeners.get(doc);

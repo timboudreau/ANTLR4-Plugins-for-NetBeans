@@ -85,7 +85,7 @@ public final class RebuildSubscriptions {
 
     private static final Logger LOG = Logger.getLogger(RebuildSubscriptions.class.getName());
     private final JFSMapping mapping = new JFSMapping();
-    private static final RequestProcessor RP = new RequestProcessor("rebuild-antlr-subscriptions", 2, true);
+    private static final RequestProcessor RP = new RequestProcessor("rebuild-antlr-subscriptions", 4, true);
     private final Map<Project, Generator> generatorForMapping
             = new WeakHashMap<>();
 
@@ -219,6 +219,14 @@ public final class RebuildSubscriptions {
         };
     }
 
+    boolean kill(Project p, JFS jfs) {
+        Generator gen = generatorForMapping.get(p);
+        if (gen == null) {
+            return true;
+        }
+        return gen.kill(jfs);
+    }
+
     static volatile int ids;
 
     static class Generator extends FileChangeAdapter {
@@ -229,6 +237,12 @@ public final class RebuildSubscriptions {
         private final Charset encoding;
         private final FileObject initialFile;
         private final int id = ids++;
+        private volatile boolean killed;
+
+        boolean kill(JFS jfs) {
+            killed = true;
+            return true;
+        }
 
         @Override
         public String toString() {
@@ -331,6 +345,9 @@ public final class RebuildSubscriptions {
 
         @Override
         public void fileDeleted(FileEvent fe) {
+            if (killed) {
+                return;
+            }
             FileObject deleted = fe.getFile();
             new HashSet<>(mappings).stream().filter((m) -> (m.fo.equals(deleted))).forEach((m) -> {
                 try {
@@ -348,6 +365,9 @@ public final class RebuildSubscriptions {
 
         @Override
         public void fileRenamed(FileRenameEvent fe) {
+            if (killed) {
+                return;
+            }
             FileObject renamed = fe.getFile();
             new HashSet<>(mappings).stream().filter((m) -> (m.fo.equals(renamed))).forEach((m) -> {
                 try {
@@ -371,6 +391,9 @@ public final class RebuildSubscriptions {
 
         @Override
         public void fileDataCreated(FileEvent fe) {
+            if (killed) {
+                return;
+            }
             FileObject fo = fe.getFile();
             if (fo.isData() && "text/x-g4".equals(fo.getMIMEType())) {
                 Folders owner = Folders.ownerOf(fo);
@@ -651,7 +674,9 @@ public final class RebuildSubscriptions {
                 return subscribers.isEmpty();
             }
 
+            private boolean mappingsInitialized;
             private void initMappings(JFS jfs) {
+                mappingsInitialized = true;
                 mappings.forEach((m) -> {
                     m.initMapping(jfs);
                 });
@@ -672,7 +697,9 @@ public final class RebuildSubscriptions {
                         return gen;
                     }
                 } else {
-                    initMappings(jfs);
+                    if (killed || !mappingsInitialized) {
+                        initMappings(jfs);
+                    }
                 }
 
                 Folders owner = Folders.ownerOf(fo);

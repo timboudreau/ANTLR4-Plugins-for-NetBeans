@@ -89,7 +89,7 @@ public final class AdhocColoringsRegistry {
     private final Map<String, AdhocColorings> coloringsForMimeType = new ConcurrentHashMap<>();
     private final Map<String, Long> lastModifiedTimes = new ConcurrentHashMap<>();
     private final Lis saver = new Lis();
-    private static final Logger LOG = Logger.getLogger(AdhocColoringsRegistry.class.getName());
+    static final Logger LOG = Logger.getLogger(AdhocColoringsRegistry.class.getName());
     private final Hook hook = new Hook();
 
     public static AdhocColoringsRegistry getDefault() {

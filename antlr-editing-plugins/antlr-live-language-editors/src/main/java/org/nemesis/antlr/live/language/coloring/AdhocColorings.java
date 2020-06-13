@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language.coloring;
 
+import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.logging.Level;
 import javax.swing.event.ChangeListener;
 import org.openide.util.ChangeSupport;
 
@@ -258,17 +260,23 @@ public class AdhocColorings implements DynamicColorings {
     public void store(OutputStream out) throws IOException {
         byte[] eq = "=".getBytes(UTF_8);
         for (String key : colorings.keySet()) {
-            out.write(key.getBytes(UTF_8));
-            out.write(eq);
-            out.write(colorings.get(key).toLine().getBytes(UTF_8));
+            AdhocColoring val = colorings.get(key);
+            if (val != null) {
+                out.write(key.getBytes(UTF_8));
+                out.write(eq);
+                out.write(val.toLine().getBytes(UTF_8));
+            }
         }
         out.write("\n# Deleted but preserved items\n".getBytes(UTF_8));
         if (!defunct.isEmpty()) {
             for (String key : defunct.keySet()) {
-                out.write((byte) '!');
-                out.write(key.getBytes(UTF_8));
-                out.write(eq);
-                out.write(defunct.get(key).toLine().getBytes(UTF_8));
+                AdhocColoring val = defunct.get(key);
+                if (val != null) {
+                    out.write("!".getBytes(UTF_8));
+                    out.write(key.getBytes(UTF_8));
+                    out.write(eq);
+                    out.write(val.toLine().getBytes(UTF_8));
+                }
             }
         }
         out.flush();
@@ -284,6 +292,7 @@ public class AdhocColorings implements DynamicColorings {
                 if (line.isEmpty() || line.charAt(0) == '#') {
                     continue;
                 }
+                String origLine = line;
                 Map<String, AdhocColoring> targetMap;
                 if (line.charAt(0) == '!') {
                     line = line.substring(1);
@@ -291,11 +300,19 @@ public class AdhocColorings implements DynamicColorings {
                 } else {
                     targetMap = map;
                 }
-                String[] parts = line.split("\\=", 2);
+                String[] parts = Strings.splitOnce('=', line);
                 if (parts.length == 2) {
                     String key = parts[0];
-                    AdhocColoring val = AdhocColoring.parse(parts[1]);
-                    targetMap.put(key, val);
+                    try {
+                        AdhocColoring val = AdhocColoring.parse(parts[1]);
+                        if (val != null) {
+                            targetMap.put(key, val);
+                        }
+                    } catch (NumberFormatException nfe) {
+                        AdhocColoringsRegistry.LOG.log(Level.WARNING,
+                                "Corruption in saved colorings '{0}' trimmed to '{1}' key {2} val {3}",
+                                new Object[]{origLine, line, parts[0], parts[1]});
+                    }
                 }
             }
             return new AdhocColorings(map, defunct);

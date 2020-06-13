@@ -21,6 +21,7 @@ import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -29,6 +30,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
@@ -84,6 +88,7 @@ public class SequenceHighlightingTest {
     public void testHighlighting() throws Exception {
         EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test",
                 gen.file("MarkdownParser.g4"));
+        System.out.println("GOT PARSER " + p);
         EmbeddedAntlrParserResult pr = p.parse(readmeDraft);
 
         AntlrProxies.ParseTreeProxy prox = pr.proxy();
@@ -95,8 +100,8 @@ public class SequenceHighlightingTest {
         HighlightsSequence seq = hi.getHighlights(0, readmeDraft.length());
         assertTrue(seq instanceof AdhocHighlightsSequence);
         List<SeqEntry> coalesced = checkSequence((AdhocHighlightsSequence) seq, readmeDraft, prox);
-        for (int i = 0; i < coalesced.size()-1; i++) {
-            System.out.println((i+1) + "/" + coalesced.size() +  ". " + coalesced.get(i));
+        for (int i = 0; i < coalesced.size() - 1; i++) {
+            System.out.println((i + 1) + "/" + coalesced.size() + ". " + coalesced.get(i));
             coalesced.get(i).checkTokenBoundaries(prox);
         }
     }
@@ -206,10 +211,6 @@ public class SequenceHighlightingTest {
         }
     }
 
-    private static final class SeqTestBuilder {
-
-    }
-
     private static final String RADIAL_GRADIENT = "# Radial Gradient Customizer\n\nA radial gradient is a "
             + "sequence of multiple colors which is (optionally) repeated in _concentric_ circles radianting out "
             + "from a _central point_, with a defined radius and focus point.\n\nThe customizer shows point-selector "
@@ -236,7 +237,7 @@ public class SequenceHighlightingTest {
         Class.forName(AdhocLanguageFactory.class.getName());
         Class.forName(AdhocReparseListeners.class.getName());
         shutdown = initAntlrTestFixtures(true)
-                //                .verboseGlobalLogging()
+                .verboseGlobalLogging()
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
                 //                .includeLogs("AdhocMimeDataProvider", "AdhocLanguageHierarchy", "AntlrLanguageFactory")
                 .build();
@@ -270,6 +271,36 @@ public class SequenceHighlightingTest {
         String syntheticMimeType = AdhocMimeTypes.mimeTypeForPath(grammarFile);
         DynamicLanguages.ensureRegistered(syntheticMimeType);
         AdhocMimeTypes.registerFileNameExtension("md", syntheticMimeType);
+        initLoggers();
+    }
+
+    static final String[] PREINIT = new String[]{
+        "org.nemesis.antlr.live.language.AdhocMimeDataProvider",
+        "org.nemesis.antlr.live.language.AdhocLanguageFactory",
+        "org.nemesis.antlr.live.language.AdhocReparseListeners",
+        "org.nemesis.antlr.live.JFSMapping",
+        "org.nemesis.antlr.live.RebuildSubscriptions",
+        "org.nemesis.antlr.live.execution.AntlrRunSubscriptions",
+        "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",
+        "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",};
+
+    @BeforeAll
+    public static void initLoggers() {
+        // Attempting to debug introduction of JFS-killing
+        for (String p : PREINIT) {
+            try {
+                Class<?> c = Class.forName(p);
+                Field f = c.getDeclaredField("LOG");
+                f.setAccessible(true);
+                Object o = f.get(null);
+                if (o instanceof Logger) {
+                    ((Logger) o).setLevel(Level.ALL);
+                    System.out.println("init logger " + c.getName() + " for " + ((Logger) o).getName());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace(System.err);
+            }
+        }
     }
 
     private static String loadResource(String name) throws IOException {

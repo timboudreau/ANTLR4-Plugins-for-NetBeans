@@ -345,7 +345,7 @@ public class DynamicLanguagesTest {
         AdhocParserResult p1 = parse(testit);
 
         boolean languageFired = AdhocLanguageFactory.awaitFire(3000);
-//        Thread.sleep(4000);
+        Thread.sleep(4000);
         parserEnvironmentReplaced.await(10, TimeUnit.SECONDS);
         for (int i = 0; i < 200; i++) {
             synchronized (notificationsDelivered) {
