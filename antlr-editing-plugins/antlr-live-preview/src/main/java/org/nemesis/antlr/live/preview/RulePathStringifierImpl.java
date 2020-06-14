@@ -198,7 +198,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         if (dist > MAX_HIGHLIGHTABLE_DISTANCE) {
             return null;
         }
-        float alpha = Math.max(1f, dist / (float) mx);
+        float alpha = Math.min(1f, dist / (float) mx);
         Color hl = relatedToCaretItemHighlightColor(comp);
         return new Color(hl.getRed(), hl.getGreen(), hl.getBlue(),
                 (int) (255 * alpha));

@@ -17,12 +17,14 @@ package org.nemesis.antlr.live.preview;
 
 import java.awt.Color;
 import java.awt.Component;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
+import java.awt.FontMetrics;
+import java.awt.geom.RoundRectangle2D;
 import javax.swing.JList;
 import javax.swing.ListCellRenderer;
+import javax.swing.UIManager;
 import static org.nemesis.antlr.live.preview.RuleCellRenderer.escaper;
-import org.nemesis.swing.html.HtmlRenderer;
+import org.nemesis.swing.cell.TextCell;
+import org.nemesis.swing.cell.TextCellCellRenderer;
 
 /**
  *
@@ -30,11 +32,13 @@ import org.nemesis.swing.html.HtmlRenderer;
  */
 class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.ModelEntry> {
 
-    private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
+//    private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
+    private final TextCellCellRenderer ren = new TextCellCellRenderer();
     private final int limit;
 
     SyntaxTreeCellRenderer(int limit) {
         this.limit = limit;
+        ren.setOpaque(true);
     }
 
     SyntaxTreeCellRenderer() {
@@ -48,41 +52,55 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
         return s;
     }
 
+    private final RoundRectangle2D.Float rr = new RoundRectangle2D.Float(0, 0, 0, 0, 16, 16);
+    private final SelectionIndicatorIcon icon = new SelectionIndicatorIcon();
+
     @Override
-    public Component getListCellRendererComponent(JList<? extends SyntaxTreeListModel.ModelEntry> list, SyntaxTreeListModel.ModelEntry value, int index, boolean isSelected, boolean cellHasFocus) {
-        Component result = ren.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-        JLabel r = (JLabel) ren;
+    public Component getListCellRendererComponent(JList<? extends SyntaxTreeListModel.ModelEntry> list,
+            SyntaxTreeListModel.ModelEntry value, int index, boolean isSelected, boolean cellHasFocus) {
+        Component result = ren;
+        ren.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+        ren.setForeground(isSelected ? list.getForeground() : list.getForeground());
+        ren.setFont(list.getFont());
+        TextCell cell = ren.cell().withText(escaper.escape(truncate(value.toString())));
         if (value.isError()) {
-            ren.setHtml(true);
-            ren.setText("<font color='!nb.errorForeground'>" + escaper.escape(value.toString()));
+            Color c = UIManager.getColor("nb.errorForeground");
+            if (c == null) {
+                c = Color.RED;
+            }
+            cell.strikethrough().withForeground(c);
         } else if (value.isParserRule()) {
-            ren.setHtml(true);
-            ren.setText("<b>" + escaper.escape(truncate(value.toString())));
-        } else {
-            ren.setHtml(true);
-            ren.setText(escaper.escape(truncate(value.toString())));
+            cell.bold();
         }
-        r.setForeground(list.getForeground());
-        ren.setIndent(5 * value.depth());
-        if (list instanceof ParentCheckingFastJList<?>) {
-            ren.setParentFocused(((ParentCheckingFastJList<?>) list).parentFocused);
+        cell.bottomMargin(3);
+        FontMetrics fm = list.getFontMetrics(list.getFont());
+        int asc = fm.getAscent();
+        cell.indent(5);
+        ren.setToolTipText(value.tooltip());
+        if (value.isTerminal()) {
+            String type = value.lexerRuleName();
+            if (type != null) {
+                cell.inner(type, tc -> {
+                    tc.italic().withForeground(list.getForeground().darker()).indent(asc / 2);
+                });
+            }
         }
-        r.setToolTipText(value.tooltip());
-        if (isSelected) {
-            ren.setCellBackground(list.getSelectionBackground());
-        } else {
+
+        if (!isSelected) {
+            ren.setIndent(asc + ((asc / 3) * value.depth()));
             SyntaxTreeListModel.ModelEntry sel = list.getSelectedValue();
             int dist = -1;
             if (sel != null) {
                 dist = sel.distanceFrom(value);
             }
-            if (dist == -1) {
-                ren.setCellBackground(list.getBackground());
-            } else {
-                ren.setCellBackground(backgroundFor(dist, list, sel.depth()));
+            if (dist != -1) {
+                cell.withBackground(backgroundFor(dist, list, sel.depth()), rr).stretch();
             }
+            ren.setIcon(null);
+        } else {
+            ren.setIcon(icon);
+            icon.width = icon.height = asc;
         }
-        ((JComponent) result).setOpaque(true);
         return result;
     }
 

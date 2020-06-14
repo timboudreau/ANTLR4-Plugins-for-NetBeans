@@ -155,7 +155,7 @@ class HtmlLabelUI extends LabelUI {
     }
 
     @SuppressWarnings("unchecked")
-    static final Map<?, ?> getHints() {
+    public static final Map<?, ?> getHints() {
         //XXX We REALLY need to put this in a graphics utils lib
         if (hintsMap == null) {
             //Thanks to Phil Race for making this possible

@@ -274,6 +274,8 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
                 colorButton.setForeground(ColorUtils.editorForeground());
                 group.setSelected(background.getModel(), true);
             }
+            italic.setSelected(info.coloring.isItalic());
+            bold.setSelected(info.coloring.isBold());
             active.setSelected(info.isActive());
             invalidate();
             revalidate();

@@ -36,6 +36,7 @@ import org.nemesis.antlr.live.preview.SyntaxTreeListModel.ModelEntry;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ErrorNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
+import static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind.TERMINAL;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
@@ -254,11 +255,27 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         private final AntlrProxies.ParseTreeElement el;
         private final int depth;
         private String tooltip;
+        private String lexerRuleName = null;
 
         public ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
             this.el = el;
             this.depth = depth;
             tooltip = tooltip(proxy.tokens(), proxy.tokenTypes());
+            if (isTerminal()) {
+                List<ProxyToken> tokens = proxy.tokensForElement(el);
+                if (!tokens.isEmpty()) {
+                    ProxyToken tk = tokens.get(0);
+                    lexerRuleName = proxy.tokenTypeForInt(tk.getType()).name();
+                }
+            }
+        }
+
+        public String lexerRuleName() {
+            return lexerRuleName;
+        }
+
+        public boolean isTerminal() {
+            return el.kind() == TERMINAL;
         }
 
         public String tooltip() {

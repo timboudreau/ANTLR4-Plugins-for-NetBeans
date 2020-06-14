@@ -18,10 +18,16 @@ package org.nemesis.antlr.live.preview;
 import org.nemesis.swing.html.SimpleHtmlLabel;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -32,16 +38,20 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import javax.swing.BorderFactory;
+import javax.swing.BoundedRangeModel;
 import javax.swing.DefaultListModel;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import static javax.swing.JSplitPane.DIVIDER_LOCATION_PROPERTY;
@@ -74,6 +84,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.swing.Scroller;
+import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.editor.EditorUI;
@@ -94,7 +105,6 @@ import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
-import org.openide.util.WeakListeners;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
 import org.openide.util.lookup.ProxyLookup;
@@ -106,7 +116,8 @@ import org.openide.util.lookup.ProxyLookup;
 @Messages({"rulesList=&Rules", "syntaxTree=S&yntax Tree"})
 public final class PreviewPanel extends JPanel implements ChangeListener,
         ListSelectionListener, DocumentListener, PropertyChangeListener,
-        Lookup.Provider, BiConsumer<Document, EmbeddedAntlrParserResult> {
+        Lookup.Provider, BiConsumer<Document, EmbeddedAntlrParserResult>,
+        FocusListener {
 
     static final Comparator<String> RULE_COMPARATOR = new RuleNameComparator();
     private static final java.util.logging.Logger LOG
@@ -135,7 +146,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private RequestProcessor.Task triggerRerunHighlighters;
     private final RulePathStringifier stringifier = new RulePathStringifierImpl();
     private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
-    private SplitLocationSaver splitLocationSaver;
+    private static final String SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE = "sidebarSplitPosition";
+    private static final String SIDE_SPLIT_SIZE_FILE_ATTRIBUTE = "sidebarSize";
+    private static final String SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "sampleEditorCaretPos";
+    private static final String GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "grammarEditorCaretPos";
+    private static final String GRAMMAR_SCROLL_POSITION = "grammarScrollPosition";
+    private static final String EDITOR_SCROLL_POSITION = "editorScrollPosition";
+    private LayoutInfoSaver splitLocationSaver;
     private final InstanceContent content = new InstanceContent();
     private final AbstractLookup internalLookup = new AbstractLookup(content);
     private final String mimeType;
@@ -146,6 +163,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final JLabel rulesLabel = new JLabel();
     private final JLabel syntaxTreeLabel = new JLabel();
     private final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
+    private final JScrollPane sampleScroll;
+    private final JScrollPane grammarScroll;
+    private Component lastFocused;
 
     @SuppressWarnings("LeakingThisInConstructor")
     public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject,
@@ -218,9 +238,24 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         EditorUI editorUI = Utilities.getEditorUI(editorPane);
         if (editorUI != null) {
             // This gives us the line number bar, etc.
-            split.setTopComponent(editorUI.getExtComponent());
+            Component sampleEditorUIComponent = editorUI.getExtComponent();
+            split.setTopComponent(sampleEditorUIComponent);
+            if (sampleEditorUIComponent instanceof JScrollPane) {
+                sampleScroll = (JScrollPane) sampleEditorUIComponent;
+            } else {
+                JScrollPane pane = null;
+                if (sampleEditorUIComponent instanceof Container) {
+                    for (Component c : ((Container) sampleEditorUIComponent).getComponents()) {
+                        if (c instanceof JScrollPane) {
+                            pane = (JScrollPane) c;
+                            break;
+                        }
+                    }
+                }
+                sampleScroll = pane;
+            }
         } else {
-            split.setTopComponent(new JScrollPane(editorPane));
+            split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
         }
         EditorCookie grammarFileEditorCookie = lookup.lookup(EditorCookie.class);
         // There will be an opened pane or this code would not
@@ -238,10 +273,22 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         split.setOneTouchExpandable(true);
         // This sometimes gets us an invisible component
         if (grammarFileEditorUI != null) {
-            // XXX what is this?
-//            JToolBar tb = grammarFileEditorUI.getToolBarComponent();
-//            if (tb == null) {
-            split.setBottomComponent(grammarFileEditorUI.getExtComponent());
+            Component grammarEditorUIComponent = grammarFileEditorUI.getExtComponent();
+            split.setBottomComponent(grammarEditorUIComponent);
+            if (grammarEditorUIComponent instanceof JScrollPane) {
+                grammarScroll = (JScrollPane) grammarEditorUIComponent;
+            } else {
+                JScrollPane pane = null;
+                if (grammarEditorUIComponent instanceof Container) {
+                    for (Component c : ((Container) grammarEditorUIComponent).getComponents()) {
+                        if (c instanceof JScrollPane) {
+                            pane = (JScrollPane) c;
+                            break;
+                        }
+                    }
+                }
+                grammarScroll = pane;
+            }
 //            } else {
 //                JPanel grammarContainer = new JPanel(new BorderLayout());
 //                grammarContainer.add(tb, BorderLayout.NORTH);
@@ -249,7 +296,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 //                split.setBottomComponent(grammarContainer);
 //            }
         } else {
-            split.setBottomComponent(new JScrollPane(grammarEditorClone));
+//            grammarEditorScroll =
+            split.setBottomComponent(grammarScroll = new JScrollPane(grammarEditorClone));
         }
         // The splitter is our central component, showing the sample content in
         // the top and the grammar file in the bottom
@@ -267,10 +315,22 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         add(breadcrumbPanel, BorderLayout.SOUTH);
         // listen on the caret to beginScroll the breadcrumb
         syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
-        editorPane.getCaret().addChangeListener(WeakListeners.change(this, editorPane.getCaret()));
+        editorPane.getCaret().addChangeListener(this);
+        grammarEditorClone.getCaret().addChangeListener(this);
+        if (sampleScroll != null) {
+            sampleScroll.getVerticalScrollBar().getModel().addChangeListener(this);
+        }
+        if (grammarScroll != null) {
+            grammarScroll.getVerticalScrollBar().getModel().addChangeListener(this);
+        }
+
         RulesListClickOrEnter ruleClick = new RulesListClickOrEnter();
         rulesList.addKeyListener(ruleClick);
         rulesList.addMouseListener(ruleClick);
+        rulesList.addFocusListener(this);
+        grammarEditorClone.addFocusListener(this);
+        editorPane.addFocusListener(this);
+        syntaxTreeList.addFocusListener(this);
     }
 
     private ParseTreeProxy currentProxy() {
@@ -371,7 +431,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private void allElements(ParseTreeElement el, List<ProxyToken> into, ParseTreeProxy prox) {
         if (el instanceof TokenAssociated) {
-            TokenAssociated ta = (TokenAssociated)  el;
+            TokenAssociated ta = (TokenAssociated) el;
             int start = ta.startTokenIndex();
             int end = ta.endTokenIndex();
             into.addAll(prox.tokens().subList(start, end));
@@ -381,6 +441,25 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     public String toString() {
         return "PreviewPanel(" + editorPane.getDocument().getProperty(StreamDescriptionProperty) + " - displayable "
                 + isDisplayable() + " showing " + isShowing() + ")";
+    }
+
+    @Override
+    public void focusGained(FocusEvent e) {
+        lastFocused = e.getComponent();
+    }
+
+    public void requestFocus() {
+        super.requestFocus();
+        if (lastFocused != null) {
+            lastFocused.requestFocus();
+        } else {
+            editorPane.requestFocus();
+        }
+    }
+
+    @Override
+    public void focusLost(FocusEvent e) {
+        // do nothing
     }
 
     List<ProxyToken> proxyTokens() {
@@ -524,6 +603,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private boolean showing;
 
     public void notifyShowing() {
+        EventQueue.invokeLater(this::requestFocus);
         if (initialAdd) {
             return;
         }
@@ -534,7 +614,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (showing) {
             return;
         }
-        showing = true;
         // Sync the colorings JList with the stored list of colorings
         updateColoringsList();
         // Listen for changes in it
@@ -543,13 +622,14 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (rulesList.getSelectedIndex() < 0 && rulesList.getModel().getSize() > 0) {
             rulesList.setSelectedIndex(0);
         }
-        updateSplitPosition();
+        updateSplitScrollAndCaretPositions();
         AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
         stateChanged(new ChangeEvent(editorPane.getCaret()));
         editorPane.requestFocusInWindow();
         editorPane.getDocument().addDocumentListener(this);
         grammarEditorClone.getDocument().addDocumentListener(this);
         reparseTask.schedule(500);
+        showing = true;
     }
 
     private final UserTask ut = new UserTask() {
@@ -590,8 +670,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (lastFuture != null && !lastFuture.isDone()) {
             lastFuture.cancel(true);
         }
-        this.reparseTask.cancel();
-        this.updateOutputWindowTask.cancel();
+        if (reparseTask != null) {
+            this.reparseTask.cancel();
+        }
+        if (updateOutputWindowTask != null) {
+            this.updateOutputWindowTask.cancel();
+        }
         AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
         colorings.removeChangeListener(this);
         colorings.removePropertyChangeListener(this);
@@ -604,6 +688,25 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // be held until the window system serializes the component to disk
         if (res != null) {
             content.remove(res);
+        }
+    }
+
+    private void positionCaret(Caret caret, int pos, Document doc) {
+        try {
+            // The unbelievable lengths the editor api makes one go through to
+            // simply set the caret position
+            Position position = doc.createPosition(pos);
+            if (caret instanceof EditorCaret) {
+                EditorCaret ec = (EditorCaret) caret;
+                ec.moveCarets((CaretMoveContext cmc) -> {
+                    CaretInfo info = ec.getLastCaret();
+                    cmc.setDotAndMark(info, position, Position.Bias.Forward, position, Position.Bias.Forward);
+                });
+            } else {
+                caret.setDot(pos);
+            }
+        } catch (BadLocationException ex) {
+            LOG.log(Level.INFO, null, ex);
         }
     }
 
@@ -679,10 +782,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (evt.getSource() instanceof JSplitPane
                 && JSplitPane.DIVIDER_LOCATION_PROPERTY.equals(
                         evt.getPropertyName())) {
-            splitPaneLocationUpdated((int) evt.getNewValue());
-            return;
+            splitPaneDividerLocationUpdated((JSplitPane) evt.getSource(), (int) evt.getNewValue());
+        } else if (evt.getSource() instanceof JScrollBar) {
+
+        } else if (evt.getSource() instanceof AdhocColorings) {
+            enqueueRehighlighting();
         }
-        enqueueRehighlighting();
     }
 
     private void updateBreadcrumb(Caret caret) {
@@ -750,18 +855,114 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         return result == null ? fallback : result;
     }
 
-    void updateSplitPosition() {
+    Dimension origPosition;
+
+    void updateSplitScrollAndCaretPositions() {
         if (initialAdd) {
             // Until the first layout has happened, which will be after the
             // event queue cycle that calls addNotify() completes, it is useless
             // to set the split location, because the UI delegate will change it
             // So use invokeLater to get out of our own way here.
             EventQueue.invokeLater(() -> {
-                double pos = loadOriginalDividerLocation(getLookup().lookup(DataObject.class));
-                split.setDividerLocation(pos);
-                split.addPropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
+                DataObject dob = getLookup().lookup(DataObject.class);
+                if (dob != null) {
+                    double pos = loadOriginalDividerLocation(DIVIDER_LOCATION_FILE_ATTRIBUTE, dob);
+                    double lsPos = loadOriginalDividerLocation(SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE, dob);
+                    split.setDividerLocation(pos);
+                    listsSplit.setDividerLocation(lsPos);
+                    split.addPropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
+                    listsSplit.addPropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
+                    listsSplit.addComponentListener(new CL());
+                    int editorCaret = loadPosition(SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, dob);
+                    if (editorCaret > 0) {
+                        int length = editorPane.getDocument().getLength();
+                        if (length > editorCaret) {
+                            positionCaret(editorPane.getCaret(), editorCaret, editorPane.getDocument());
+                        }
+                    }
+                    int grammarCaret = loadPosition(GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, dob);
+                    if (grammarCaret > 0) {
+                        int length = grammarEditorClone.getDocument().getLength();
+                        if (length > grammarCaret) {
+                            positionCaret(grammarEditorClone.getCaret(), grammarCaret, grammarEditorClone.getDocument());
+                        }
+                    }
+                    if (sampleScroll != null) {
+                        int scrollTo = loadPosition(EDITOR_SCROLL_POSITION, dob);
+                        if (scrollTo > 0) {
+                            BoundedRangeModel bmr = sampleScroll.getVerticalScrollBar().getModel();
+                            if (scrollTo > bmr.getMinimum() && scrollTo < bmr.getMaximum()) {
+                                bmr.setValue(scrollTo);
+                            }
+                        }
+                    }
+                    if (grammarScroll != null) {
+                        int scrollTo = loadPosition(GRAMMAR_SCROLL_POSITION, dob);
+                        if (scrollTo > 0) {
+                            BoundedRangeModel bmr = grammarScroll.getVerticalScrollBar().getModel();
+                            if (scrollTo > bmr.getMinimum() && scrollTo < bmr.getMaximum()) {
+                                bmr.setValue(scrollTo);
+                            }
+                        }
+                    }
+                }
             });
         }
+    }
+
+    private Dimension previousSideComponentSize;
+
+    @Override
+    public void doLayout() {
+        // If we want to honor the previously saved size so the UI doesn't jump once
+        // the model loads and the rules tree needs more width, there is no nice way
+        // to do that with BorderLayout.  So, a clever simulacrum, and it can still
+        // be used to compute the preferred size.
+        if (previousSideComponentSize == null) {
+            DataObject dob = getLookup().lookup(DataObject.class);
+            if (dob != null) {
+                previousSideComponentSize = loadOriginalLeftSideSize(dob);
+                if (previousSideComponentSize == null) {
+                    previousSideComponentSize = new Dimension(0, 0);
+                }
+            } else {
+                previousSideComponentSize = new Dimension(0, 0);
+            }
+        }
+        Dimension leftSideSize;
+        if (syntaxTreeList.getModel().getSize() == 0 && previousSideComponentSize.width > 0 && previousSideComponentSize.height > 0) {
+            leftSideSize = previousSideComponentSize;
+        } else {
+            leftSideSize = listsSplit.getPreferredSize();
+        }
+        Dimension topSize = customizer.getPreferredSize();
+        Dimension bottomSize = breadcrumbPanel.getPreferredSize();
+//        Dimension centerSize = split.getPreferredSize();
+
+        Insets ins = getInsets();
+        customizer.setBounds(ins.left, ins.top, getWidth() - (ins.left + ins.right), topSize.height);
+        listsSplit.setBounds(getWidth() - (ins.right + leftSideSize.width), ins.top + topSize.height, leftSideSize.width, getHeight() - (ins.top + ins.bottom + topSize.height));
+        breadcrumbPanel.setBounds(ins.left, getHeight() - (ins.bottom + bottomSize.height), getWidth() - (ins.left + ins.right + leftSideSize.width), bottomSize.height);
+        split.setBounds(ins.left,
+                ins.top + topSize.height,
+                getWidth() - (ins.left + ins.right + leftSideSize.width),
+                getHeight() - (ins.top + ins.bottom + topSize.height + bottomSize.height));
+
+//        super.doLayout(); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    class CL extends ComponentAdapter {
+
+        @Override
+        public void componentResized(ComponentEvent e) {
+            if (isShowing()) {
+                Dimension d = e.getComponent().getSize();
+                if (d.width >= 75 && d.height >= 100) {
+                    saveComponentSize(SIDE_SPLIT_SIZE_FILE_ATTRIBUTE, d.width, d.height);
+                }
+            }
+        }
+
     }
 
     private void updateColoringsList() {
@@ -786,12 +987,33 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     @Override
     public void stateChanged(ChangeEvent e) {
-        if (e.getSource() instanceof Caret) {
+        if (e.getSource() instanceof Caret && e.getSource() == editorPane.getCaret()) {
             if (!selectingRange) {
+                if (isShowing() && showing) {
+                    savePosition(SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, ((Caret) e.getSource()).getDot());
+                }
                 EventQueue.invokeLater(() -> {
                     updateBreadcrumb((Caret) e.getSource());
                 });
             }
+        } else if (e.getSource() instanceof Caret && grammarEditorClone != null && e.getSource() == grammarEditorClone.getCaret()) {
+            Caret caret = (Caret) e.getSource();
+            if (isShowing() && showing) {
+                savePosition(GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, caret.getDot());
+            }
+        } else if (e.getSource() instanceof BoundedRangeModel) {
+            if (isShowing() && showing) {
+                BoundedRangeModel bmr = (BoundedRangeModel) e.getSource();
+                if (!bmr.getValueIsAdjusting()) {
+                    int pos = bmr.getValue();
+                    if (sampleScroll != null && e.getSource() == sampleScroll.getVerticalScrollBar().getModel()) {
+                        savePosition(GRAMMAR_SCROLL_POSITION, pos);
+                    } else if (grammarScroll != null && e.getSource() == grammarScroll.getVerticalScrollBar().getModel()) {
+                        savePosition(EDITOR_SCROLL_POSITION, pos);
+                    }
+                }
+            }
+            // editorCloneScroll.getVerticalScrollBar().getModel().
         } else {
             // a reparse will fire changes on the parse thread
             // if rules have been added
@@ -807,55 +1029,144 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
-    private double loadOriginalDividerLocation(DataObject sampleFile) {
-        Object result = sampleFile.getPrimaryFile().getAttribute(DIVIDER_LOCATION_FILE_ATTRIBUTE);
+    private Dimension loadOriginalLeftSideSize(DataObject sampleFile) {
+        Object result = sampleFile.getPrimaryFile().getAttribute(SIDE_SPLIT_SIZE_FILE_ATTRIBUTE + ".width");
+        if (result instanceof Number) {
+            int width = ((Number) result).intValue();
+            result = sampleFile.getPrimaryFile().getAttribute(SIDE_SPLIT_SIZE_FILE_ATTRIBUTE + ".height");
+            if (result instanceof Number) {
+                return new Dimension(width, ((Number) result).intValue());
+            }
+        }
+        return null;
+    }
+
+    private double loadOriginalDividerLocation(String prop, DataObject sampleFile) {
+        Object result = sampleFile.getPrimaryFile().getAttribute(prop);
         if (result instanceof Number) {
             return ((Number) result).doubleValue();
         }
         return 0.6825D;
     }
 
-    private void splitPaneLocationUpdated(int i) {
+    private int loadPosition(String prop, DataObject sampleFile) {
+        Object result = sampleFile.getPrimaryFile().getAttribute(prop);
+        if (result instanceof Number) {
+            return ((Number) result).intValue();
+        }
+        return -1;
+    }
+
+    private void splitPaneDividerLocationUpdated(JSplitPane split, int i) {
         if (i <= 0 || !split.isDisplayable() || split.getWidth() == 0 || split.getHeight() == 0) {
             return;
         }
         if (splitLocationSaver == null) {
-            splitLocationSaver = new SplitLocationSaver();
+            splitLocationSaver = new LayoutInfoSaver();
         }
         int height = split.getHeight();
         Insets ins = split.getInsets();
         if (ins != null) {
             height -= ins.top + ins.bottom;
         }
-        splitLocationSaver.set(i, height);
+        String attr = split == listsSplit ? SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE : DIVIDER_LOCATION_FILE_ATTRIBUTE;
+        splitLocationSaver.set(attr, i, height);
     }
 
-    private final class SplitLocationSaver implements Runnable {
+    private void saveComponentSize(String attr, int width, int height) {
+        if (splitLocationSaver == null) {
+            splitLocationSaver = new LayoutInfoSaver();
+        }
+        splitLocationSaver.setSize(attr, width, height);
+    }
 
-        double lastPosition;
-        double lastHeight;
+    private void savePosition(String attr, int position) {
+        if (splitLocationSaver == null) {
+            splitLocationSaver = new LayoutInfoSaver();
+        }
+        splitLocationSaver.setPosition(attr, position);
+    }
+
+    private final class LayoutInfoSaver implements Runnable {
+
         RequestProcessor.Task task;
+        final Map<String, int[]> splitInfos = new HashMap<>();
+        final Map<String, Dimension> compInfos = new HashMap<>();
+        final Map<String, Integer> positions = new HashMap<>();
+        private static final int DELAY = 5000;
 
-        void set(int lastPosition, int lastHeight) {
-            this.lastPosition = lastPosition;
-            this.lastHeight = lastHeight;
+        synchronized void setPosition(String attr, int position) {
+            positions.put(attr, position);
             if (task == null) {
                 task = asyncUpdateOutputWindowPool.create(this);
             }
-            task.schedule(1000);
+            task.schedule(DELAY);
+        }
+
+        synchronized void setSize(String attr, int width, int height) {
+            Dimension d = compInfos.get(attr);
+            if (d == null) {
+                d = new Dimension(width, height);
+                compInfos.put(attr, d);
+            }
+            if (task == null) {
+                task = asyncUpdateOutputWindowPool.create(this);
+            }
+            task.schedule(DELAY);
+        }
+
+        synchronized void set(String attr, int lastPosition, int lastHeight) {
+            int[] values = splitInfos.get(attr);
+            if (values == null) {
+                values = new int[]{lastPosition, lastHeight};
+                splitInfos.put(attr, values);
+            } else {
+                values[0] = lastPosition;
+                values[1] = lastHeight;
+            }
+            if (task == null) {
+                task = asyncUpdateOutputWindowPool.create(this);
+            }
+            task.schedule(DELAY);
         }
 
         @Override
-        public void run() {
-            double value = Math.min(0.8D, Math.max(0.2D, lastPosition / lastHeight));
+        public synchronized void run() {
             FileObject file = sampleFileDataObject.getPrimaryFile();
-            try {
-                file.setAttribute(DIVIDER_LOCATION_FILE_ATTRIBUTE, Double.valueOf(value));
-            } catch (IOException ex) {
-                LOG.log(Level.WARNING,
-                        "Exception saving split position for "
-                        + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+            for (Map.Entry<String, int[]> e : splitInfos.entrySet()) {
+                double lastPosition = e.getValue()[0];
+                double lastHeight = e.getValue()[1];
+                double value = Math.min(0.8D, Math.max(0.2D, lastPosition / lastHeight));
+                try {
+                    file.setAttribute(e.getKey(), Double.valueOf(value));
+                } catch (IOException ex) {
+                    LOG.log(Level.WARNING,
+                            "Exception saving split '" + e.getKey() + "' position for "
+                            + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+                }
             }
+            splitInfos.clear();
+            for (Map.Entry<String, Dimension> e : compInfos.entrySet()) {
+                try {
+                    file.setAttribute(e.getKey() + ".width", e.getValue().width);
+                    file.setAttribute(e.getKey() + ".height", e.getValue().height);
+                } catch (IOException ex) {
+                    LOG.log(Level.WARNING,
+                            "Exception saving split position '" + e.getKey() + "' for "
+                            + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+                }
+            }
+            for (Map.Entry<String, Integer> e : positions.entrySet()) {
+                try {
+                    file.setAttribute(e.getKey(), e.getValue());
+                } catch (IOException ex) {
+                    LOG.log(Level.WARNING,
+                            "Exception saving split position '" + e.getKey() + "' for "
+                            + sampleFileDataObject.getPrimaryFile().getPath(), ex);
+                }
+
+            }
+            compInfos.clear();
         }
     }
 }

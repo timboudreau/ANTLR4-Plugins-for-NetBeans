@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -82,6 +83,7 @@ public class AntlrProxies {
     private final Path grammarPath;
     private final CharSequence text;
     private BitSet[] ruleReferences;
+    private final Set<String> presentRuleNames = new HashSet<>(40);
 
     public AntlrProxies(String grammarName, Path grammarPath, CharSequence text) {
         this.grammarName = grammarName;
@@ -126,7 +128,7 @@ public class AntlrProxies {
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
                 grammarName, grammarPath, text, thrown, ruleReferences, ambiguities,
-                lexerRuleNames);
+                lexerRuleNames, presentRuleNames);
     }
 
     /**
@@ -157,7 +159,8 @@ public class AntlrProxies {
         ParseTreeProxy prox = new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE, Arrays.asList(root, child),
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
-                grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0]);
+                grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0],
+                Collections.emptySet());
         prox.isUnparsed = true;
         return prox;
     }
@@ -197,13 +200,15 @@ public class AntlrProxies {
         private final long when = System.currentTimeMillis();
         private BitSet[] ruleReferencesForToken;
         private SortedSet<String> allRuleNames;
+        private final Set<String> presentRuleNames;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
                 Set<ProxySyntaxError> errors, String[] parserRuleNames,
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
                 Path grammarPath, CharSequence text, RuntimeException thrown,
-                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames) {
+                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames,
+                Set<String> presentRuleNames) {
             this.tokens = tokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
@@ -221,10 +226,16 @@ public class AntlrProxies {
             this.ruleReferencesForToken = ruleReferencesForToken;
             this.ambiguities = ambiguities;
             this.lexerRuleNames = lexerRuleNames;
+            this.presentRuleNames = presentRuleNames.isEmpty() ? presentRuleNames
+                    : Collections.unmodifiableSet(presentRuleNames);
         }
 
         public List<String> lexerRuleNames() {
             return Arrays.asList(lexerRuleNames);
+        }
+
+        public Set<String> presentRuleNames() {
+            return presentRuleNames;
         }
 
         public SortedSet<String> allRuleNames() {
@@ -431,7 +442,8 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
-                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), new String[0]);
+                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), lexerRuleNames,
+                    Collections.emptySet());
         }
 
         public RuntimeException thrown() {
@@ -684,13 +696,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                     + hasParseErrors + "\n hashString=" + hashString + "\n root=" + root + '}';
         }
 
-        public List<ProxyToken> tokensForElement(ParseTreeElement element) {
-            if (element instanceof TokenAssociated) {
-                TokenAssociated ta = (TokenAssociated) element;
-                List<ProxyToken> result = new ArrayList<>(ta.endTokenIndex() - ta.startTokenIndex());
-                for (int i = ta.startTokenIndex(); i < ta.endTokenIndex(); i++) {
-                    result.add(tokens.get(i));
-                }
+        public List<ProxyToken> tokensForElement(ParseTreeElement el) {
+            if (el instanceof TokenAssociated) {
+                TokenAssociated ta = (TokenAssociated) el;
+                int start = ta.startTokenIndex();
+                int end = ta.endTokenIndex();
+                return tokens().subList(start, end);
             }
             return Collections.emptyList();
         }
@@ -701,13 +712,15 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             // will be -1 token index
             return;
         }
+        switch (el.kind()) {
+            case RULE:
+                presentRuleNames.add(el.name());
+        }
         int index = treeElements.size();
         treeElements.add(el);
         if (el instanceof TokenAssociated) {
             TokenAssociated ta = (TokenAssociated) el;
             for (int tokenIndex = Math.max(0, ta.startTokenIndex()); tokenIndex < ta.endTokenIndex(); tokenIndex++) {
-//                ProxyToken tok = tokens.get(tokenIndex);
-//                tok.addRuleReference(el);
                 if (ruleReferences == null) {
                     ruleReferences = new BitSet[tokens.size() + 1];
                 }
@@ -725,10 +738,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     public AntlrProxies onToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim) {
         ByteBuffer.wrap(hashScratch).putInt(type);
         hash.update(hashScratch);
-//        if (text != null && !text.trim().isEmpty()) {
-//            ByteBuffer.wrap(hashScratch).putInt(text.hashCode());
-//            hash.update(hashScratch);
-//        }
+        if (type > -1) {
+            ProxyTokenType typeType = tokenTypes.get(type + 1);
+            if (typeType.symbolicName != null) {
+                presentRuleNames.add(typeType.symbolicName);
+            }
+        }
         ProxyToken token = new ProxyToken(type, line,
                 charPositionInLine, channel, tokenIndex, startIndex, stopIndex, trim);
         if (startIndex > stopIndex && type != -1) {
@@ -748,10 +763,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                         + " startIndex " + startIndex + " stopIndex " + stopIndex
                 );
             }
-//            ProxyTokenType ttype = this.tokenTypes.get(typeIndex);
-//            ttype.addTokenInstance(token);
-//        } else {
-//            EOF_TYPE.addTokenInstance(token);
         }
         return this;
     }

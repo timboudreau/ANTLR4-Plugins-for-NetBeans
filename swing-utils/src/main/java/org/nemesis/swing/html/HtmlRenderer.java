@@ -31,6 +31,7 @@ import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.StringTokenizer;
@@ -225,6 +226,10 @@ public final class HtmlRenderer {
     private static Set<String> badStrings = null;
 
     private static Logger LOG = Logger.getLogger(HtmlRenderer.class.getName());
+
+    public static Map<?,?> hintsMap() {
+        return HtmlLabelUI.getHints();
+    }
 
     /** Definitions for a limited subset of SGML character entities */
     private static final Object[] entities = new Object[] {
