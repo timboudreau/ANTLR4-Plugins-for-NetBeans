@@ -42,6 +42,7 @@ import org.openide.windows.OutputEvent;
 import org.openide.windows.OutputListener;
 
 /**
+ * Makes antlr errors clickable in the output window.
  *
  * @author Tim Boudreau
  */
@@ -59,20 +60,28 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
     static class AntlrLineProcessor implements OutputProcessor {
 
         private static final String[] SEQS = new String[]{"mojo-execute#antlr4:antlr4"};
-        private boolean win = Utilities.isWindows();
-        private static final String WINDOWS_FILE_PATTERN = "^(?:[a-zA-Z]\\:|\\\\\\\\[\\w\\.]+\\\\[\\w.$]+)\\\\(?:[\\w]+\\\\)*\\w([\\w.])+";
-//        private static final String UNIX_FILE_PATTERN = "^\\([^\\0 !$`&*()+]\\|\\\\\\(\\ |\\!|\\$|\\`|\\&|\\*|\\(|\\)|\\+\\)\\)\\+";
-//        private static final String UNIX_FILE_PATTERN = "^\\([^!$`&*()+]\\|\\\\\\(\\ |\\!|\\$|\\`|\\&|\\*|\\(|\\)|\\+\\)\\)\\+";
-        private static final String UNIX_FILE_PATTERN = "^(\\/\\S.*?)+\\S.*?\\.g4";
-        private static final String FILE_PATTERN = Utilities.isWindows() ? WINDOWS_FILE_PATTERN : UNIX_FILE_PATTERN;
-        private static final String ERR_MATCH_1 = "\\s\\[(\\d+):(\\d+)\\]:\\s(\\w.*)$";
-        private static final String ERR_MATCH_2 = ":(\\d+):(\\d+):\\s(\\w.*)$";
+        private static final int STATE_READY = 0;
+        private static final int STATE_RECEIVED_LINE = 1;
+        private static final int STATE_ANTICIPATING_EXCEPTION_TYPE = 2;
+        private static final int STATE_IN_STACK_TRACE = 3;
+        private int state = STATE_READY;
+        private static final Pattern EXCEPTION_PATTERN = Pattern.compile("^org\\.antlr\\.\\S+Exception");
+        private static final Pattern STACK_TRACE_LINE = Pattern.compile("^\\s+at \\S+$");
 
-        private static final String FILE_MATCH_1 = FILE_PATTERN + ERR_MATCH_1;
-        private static final String FILE_MATCH_2 = FILE_PATTERN + ERR_MATCH_2;
+        @Override
+        public void sequenceStart(String string, OutputVisitor ov) {
+            state = STATE_READY;
+        }
 
-        private static final Pattern FM1 = Pattern.compile(FILE_MATCH_1);
-        private static final Pattern FM2 = Pattern.compile(FILE_MATCH_2);
+        @Override
+        public void sequenceEnd(String string, OutputVisitor ov) {
+            state = STATE_READY;
+        }
+
+        @Override
+        public void sequenceFail(String string, OutputVisitor ov) {
+            state = STATE_READY;
+        }
 
         @Override
         public String[] getRegisteredOutputSequences() {
@@ -81,14 +90,47 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
 
         @Override
         public void processLine(String line, OutputVisitor ov) {
-            ErrInfo info = ErrInfo.parse(line);
-            if (info != null) {
-                attachToLine(info, ov);
+            switch (state) {
+                case STATE_READY:
+                case STATE_RECEIVED_LINE:
+                    ErrInfo info = ErrInfo.parse(line);
+                    if (info != null) {
+                        if (info.isExceptionMessage) {
+                            state = 2;
+                            ov.skipLine();
+                        } else {
+                            state = STATE_RECEIVED_LINE;
+                            attachToLine(info, ov);
+                        }
+                    } else {
+                        state = STATE_READY;
+                    }
+                    break;
+                case STATE_ANTICIPATING_EXCEPTION_TYPE:
+                    Matcher exceptionMatcher = EXCEPTION_PATTERN.matcher(line);
+                    if (exceptionMatcher.matches()) {
+                        state = STATE_IN_STACK_TRACE;
+                        ov.skipLine();
+                    } else {
+                        state = STATE_READY;
+                    }
+                    break;
+                case STATE_IN_STACK_TRACE:
+                    Matcher traceMatcher = STACK_TRACE_LINE.matcher(line);
+                    if (traceMatcher.matches()) {
+                        ov.skipLine();
+                    } else {
+                        state = STATE_READY;
+                    }
+                    break;
+                default:
+                    state = STATE_READY;
+                    break;
             }
         }
 
         private void attachToLine(ErrInfo info, OutputVisitor ov) {
-            ov.setOutputType(IOColors.OutputType.ERROR);
+            ov.setOutputType(IOColors.OutputType.HYPERLINK_IMPORTANT);
             ov.setOutputListener(new Listener(info));
         }
 
@@ -138,16 +180,28 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
 
         static class ErrInfo {
 
-            private final String file;
-            private final int line;
-            private final int lineOffset;
-            private final String message;
+            private static boolean win = Utilities.isWindows();
+            private static final String WINDOWS_FILE_PATTERN = "^(?:[a-zA-Z]\\:|\\\\\\\\[\\w\\.]+\\\\[\\w.$]+)\\\\(?:[\\w]+\\\\)*\\w([\\w.])+";
+            private static final String UNIX_FILE_PATTERN = "^(\\/\\S.*?)+\\S.*?\\.g4";
+            private static final String FILE_PATTERN = win ? WINDOWS_FILE_PATTERN : UNIX_FILE_PATTERN;
+            private static final String ERR_MATCH_1 = "\\s\\[(\\d+):(\\d+)\\]:\\s(\\w.*)$";
+            private static final String ERR_MATCH_2 = ":(\\d+):(\\d+):\\s(\\w.*)$";
+
+            private static final Pattern FM1 = Pattern.compile(FILE_PATTERN + ERR_MATCH_1);
+            private static final Pattern FM2 = Pattern.compile(FILE_PATTERN + ERR_MATCH_2);
+
+            public final String file;
+            public final int line;
+            public final int lineOffset;
+            public final String message;
+            public final boolean isExceptionMessage;
 
             public ErrInfo(String file, int line, int lineOffset, boolean matchPattern1, String message) {
                 this.file = file;
                 this.line = line;
                 this.lineOffset = lineOffset;
                 this.message = message;
+                this.isExceptionMessage = !matchPattern1;
             }
 
             public String toString() {
@@ -155,11 +209,16 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
             }
 
             static ErrInfo parse(String string) {
-                Matcher m = FM1.matcher(string);
+                // Pending:  We are assuming error format == gnu, which is what
+                // the add antlr support action will generate.  Might be nice either to
+                // support the other error output formats antlr supports, or offer to
+                // fiddle with the pom file
+                Matcher m = pattern1().matcher(string);
                 boolean isP1 = true;
                 if (!m.find()) {
-                    m = FM2.matcher(string);
+                    m = pattern2().matcher(string);
                     if (!m.find()) {
+                        System.out.println("no match for '" + pattern1().pattern() + "' or '" + pattern2().pattern() + "'");
                         return null;
                     }
                     isP1 = false;
@@ -167,24 +226,49 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
                 int gc = m.groupCount();
                 String positionInLine = m.group(gc - 1);
                 String line = m.group(gc - 2);
-                int lineNumberStart = m.start(gc - 1);
-                String path = string.substring(0, lineNumberStart - 1);
+                int lineNumberStart = m.start(gc - 2);
+                String path = string.substring(0, lineNumberStart - (isP1 ? 2 : 1));
                 String message = m.group(gc);
                 return new ErrInfo(path, Integer.parseInt(line), Integer.parseInt(positionInLine), isP1, message);
             }
-        }
 
-        @Override
-        public void sequenceStart(String string, OutputVisitor ov) {
-        }
+            // For unit tests, allow windows
+            private static Pattern pattern1() {
+                switch (mode) {
+                    case DEFAULT:
+                        return FM1;
+                    case WINDOWS:
+                        return win ? FM1 : Pattern.compile(WINDOWS_FILE_PATTERN + ERR_MATCH_1);
+                    case UNIX:
+                        return !win ? FM1 : Pattern.compile(UNIX_FILE_PATTERN + ERR_MATCH_1);
+                    default:
+                        throw new AssertionError(mode);
+                }
+            }
 
-        @Override
-        public void sequenceEnd(String string, OutputVisitor ov) {
-        }
+            private static Pattern pattern2() {
+                switch (mode) {
+                    case DEFAULT:
+                        return FM2;
+                    case WINDOWS:
+                        return win ? FM2 : Pattern.compile(WINDOWS_FILE_PATTERN + ERR_MATCH_2);
+                    case UNIX:
+                        return !win ? FM2 : Pattern.compile(UNIX_FILE_PATTERN + ERR_MATCH_2);
+                    default:
+                        throw new AssertionError(mode);
+                }
+            }
+            private static ParsingMode mode = ParsingMode.DEFAULT;
 
-        @Override
-        public void sequenceFail(String string, OutputVisitor ov) {
-        }
+            static void setParsingMode(ParsingMode mode) {
+                ErrInfo.mode = mode;
+            }
 
+            public enum ParsingMode {
+                DEFAULT,
+                WINDOWS,
+                UNIX;
+            }
+        }
     }
 }
