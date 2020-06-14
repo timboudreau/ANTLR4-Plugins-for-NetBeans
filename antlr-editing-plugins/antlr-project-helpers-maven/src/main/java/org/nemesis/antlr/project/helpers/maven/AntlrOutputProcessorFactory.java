@@ -49,11 +49,18 @@ import org.openide.windows.OutputListener;
 @ServiceProvider(service = OutputProcessorFactory.class)
 public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
 
+    private static final Logger LOG = Logger.getLogger(AntlrOutputProcessorFactory.class.getName());
+
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     @Override
     public Set<? extends OutputProcessor> createProcessorsSet(Project prjct) {
         if (prjct != null && prjct.getLookup().lookup(HideAntlrSourceDirsFromMavenOtherSources.class) == null) {
             return Collections.emptySet();
         }
+        LOG.log(Level.FINE, "Create an AntlrLineProcessor for {0}", prjct);
         return Collections.singleton(new AntlrLineProcessor());
     }
 
@@ -70,16 +77,19 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
 
         @Override
         public void sequenceStart(String string, OutputVisitor ov) {
+            LOG.log(Level.FINEST, "Sequence start {0}", string);
             state = STATE_READY;
         }
 
         @Override
         public void sequenceEnd(String string, OutputVisitor ov) {
+            LOG.log(Level.FINEST, "Sequence end {0}", string);
             state = STATE_READY;
         }
 
         @Override
         public void sequenceFail(String string, OutputVisitor ov) {
+            LOG.log(Level.FINEST, "Sequence fail {0}", string);
             state = STATE_READY;
         }
 
@@ -96,34 +106,46 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
                     ErrInfo info = ErrInfo.parse(line);
                     if (info != null) {
                         if (info.isExceptionMessage) {
-                            state = 2;
-                            ov.skipLine();
+                            state = STATE_ANTICIPATING_EXCEPTION_TYPE;
+                            LOG.log(Level.FINE, "Processed err line to {0}, is exception message; new state 2", info);
+//                            ov.skipLine();
                         } else {
+                            LOG.log(Level.FINE, "Processed err line to {0}, attach listener; new state 1", info);
                             state = STATE_RECEIVED_LINE;
                             attachToLine(info, ov);
                         }
                     } else {
                         state = STATE_READY;
+                        LOG.log(Level.FINEST, "Not recognized: {0}", line);
                     }
                     break;
                 case STATE_ANTICIPATING_EXCEPTION_TYPE:
                     Matcher exceptionMatcher = EXCEPTION_PATTERN.matcher(line);
                     if (exceptionMatcher.matches()) {
+                        LOG.log(Level.FINEST, "Antipated and matched exception type {0}; to state 3", line);
                         state = STATE_IN_STACK_TRACE;
-                        ov.skipLine();
+//                        ov.skipLine();
                     } else {
+                        LOG.log(Level.FINER, "Anticipating exception type, got {0} - to state 0", line);;
                         state = STATE_READY;
                     }
                     break;
                 case STATE_IN_STACK_TRACE:
                     Matcher traceMatcher = STACK_TRACE_LINE.matcher(line);
                     if (traceMatcher.matches()) {
+                        if (LOG.isLoggable(Level.FINEST)) {
+                            LOG.log(Level.FINEST, "Antipated and matched stack trace line {0}; stay in state 3", line.trim());
+                        }
                         ov.skipLine();
                     } else {
+                        LOG.log(Level.FINER, "Anticipating stack line, got {0} - to state 0", line);;
                         state = STATE_READY;
                     }
                     break;
                 default:
+                    if (state != STATE_READY) {
+                        LOG.log(Level.WARNING, "Unexpected state {0}, to state 0", state);
+                    }
                     state = STATE_READY;
                     break;
             }
@@ -145,6 +167,7 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
             @Override
             public void outputLineAction(OutputEvent oe) {
                 Path path = Paths.get(info.file);
+                LOG.log(Level.FINE, "Attempt to open {0} for output click", path);
                 if (Files.exists(path)) {
                     FileObject fo = FileUtil.toFileObject(path.toFile());
                     try {
@@ -218,7 +241,6 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
                 if (!m.find()) {
                     m = pattern2().matcher(string);
                     if (!m.find()) {
-                        System.out.println("no match for '" + pattern1().pattern() + "' or '" + pattern2().pattern() + "'");
                         return null;
                     }
                     isP1 = false;
