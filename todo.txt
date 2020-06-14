@@ -3,17 +3,11 @@ Should add a build listener which can make antlr error lines clickable in output
 
 Need tests for hetero object graph
 
-Would a better option be to implement TokenSource over nb document TokenHierarchy?
-
-Code sample should be able to be a file.
-
 Add hint to turn terminal nodes in parser rules into lexer rules or fragments
 
 We are capturing 'skip' directives - should capture channels and offer to change a skip to an unused channel number > 0
 
 Hint to unwrap blocks which are solo w/o any EBNF, e.g. foo: (bar baz); or a : b (c)?)
-
-Factor out a simple error highlighter from AntlrRuntimeErrorsHighlighter
 
 Finish ebnf suggestions parser - generated text is broken
 
@@ -45,12 +39,7 @@ JFS and friends should be under antlr-editing-plugins - not used in the general 
 
 NB filesystem for jfs for debugging?
 
-
-Font color specifying in html renderer seems to be broken.  Need a fork?
-  - Have the fork, need to fix the same bug in it.
-
 Fix UsageFinder API
-
 
 # Antlr Editing Plugins To-Dos
 
@@ -67,10 +56,6 @@ Fix UsageFinder API
     to enable graph-algorithm facilitated sorting
   * For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
     * Nestable colorations, as in our old ebnf support
-  * Sample should be specifiable as a URL / file name
-  * Java embedding for Antlr, general Antlr embedding support
-  * Track insertions and update custom highlighting offsets in adhoc highlighting sequence?
-    * Could use general support for sets of ranges in the range library
   * Relative should *prefer* but not insist on looking up the same type
   * Resolve via tokens file into other project on classpath via ClassPathProvider
     * Enhance relative resolvers in the nb specialization project to look 
@@ -79,6 +64,8 @@ Fix UsageFinder API
       * no need to keep it hanging around, and it's not really used except for update check  * could just keep the JFSFileModifications snapshot
         and that is enough; those things that actually need the output should get them via the as yet
         unused antlr output api.
+      * Currently being used by code generation to decide which generated java source is the class name of the lexer and parser - but probably not
+        needed beyond that, and could just preserve the names
   * The pattern matching stuff in antlr-formatters is exactly what is needed for code completion  * extract and generify it
 
 !!! Font color entries not written to layer unless the annotation processor
@@ -89,18 +76,8 @@ highlighter registration annotation on a key).
 
 # General Antlr Plugin Support To-Dos
 
-Use new carets api to do inplace rename refactoring
-
 Maybe generic scoping  * parser rule based what can reference what?
 
-
-CODE COMPLETION:
-  * Annotation + processor for registering it  * OR ADD TO AntlrLanguageRegistration so it can access parser / lexer
-     * Filter tokens optionally
-     * Insertion policy (prepend/append space under what conditions)
-  * Ability to flag a named region extraction key as providing completions after a list of tokens
-     * Ability to intercept and filter based on scope
-  * Generic extraction-based completion contributor
 
 FORMATTING:
 
@@ -114,7 +91,5 @@ ACTIONS:
     * Well, that's a big fat NOPE.
 
 OTHER:
-  * Generic indexing support
+  * Generic indexing support?  Will anything use it?
     * Annotation?
-
-
