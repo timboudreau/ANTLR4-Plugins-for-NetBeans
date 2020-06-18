@@ -98,6 +98,11 @@ public class JFSFileModifications {
         this(old, false);
     }
 
+    @Override
+    public String toString() {
+        return "JFSFileModifications(" + (jfs == null ? "-none-" : jfs.id()) + " " + info + ")";
+    }
+
     /**
      * Create a copy of this modifications which ignores a particular
      * file.
@@ -500,7 +505,14 @@ public class JFSFileModifications {
         }
 
         public String toString() {
-            return "FilesInfo(" + timestamps.keySet() + ": " + Strings.toPaddedHex(hash) + ")";
+            StringBuilder result = new StringBuilder();
+            result.append("FilesInfo(").append(timestamps.keySet()).append(": ").append(Strings.toPaddedHex(hash)).append(": {");
+            for (Map.Entry<? extends Location, Map<UnixPath, Long>> e : timestamps.entrySet()) {
+                for (Map.Entry<UnixPath, Long> e1 : e.getValue().entrySet()) {
+                    result.append(e1.getKey()).append(',');
+                }
+            }
+            return result.append("})").toString();
         }
     }
 }

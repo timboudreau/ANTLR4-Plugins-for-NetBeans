@@ -340,6 +340,8 @@ public enum KnownTypes implements TypeName {
     ELISION(
         "com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Elision",
         Libraries.FEATURES),
+    EMBEDDING_HELPER("org.nemesis.antlr.spi.language.EmbeddingHelper",
+        Libraries.ANTLR_LANGUAGE),
     EMBEDDING_PRESENCE("org.netbeans.spi.lexer.EmbeddingPresence",
         Libraries.LEXER),
     ENHANCED_TOKEN_STREAM("org.nemesis.antlrformatting.api.EnhancedTokenStream",
@@ -957,6 +959,11 @@ public enum KnownTypes implements TypeName {
     TASK_LISTENER("org.openide.util.TaskListener", Libraries.UTIL),
     TERMINAL_NODE("org.antlr.v4.runtime.tree.TerminalNode",
         Libraries.ANTLR_WRAPPER),
+    TEXT_CELL("org.nemesis.swing.cell.TextCell", Libraries.SWING_UTILS),
+    TEXT_CELL_CELL_RENDERER("org.nemesis.swing.cell.TextCellCellRenderer",
+        Libraries.SWING_UTILS),
+    TEXT_CELL_LABEL("org.nemesis.swing.cell.TextCellLabel",
+        Libraries.SWING_UTILS),
     THROWING_BI_CONSUMER("com.mastfrog.function.throwing.ThrowingBiConsumer",
         Libraries.WRAPPER),
     THROWING_BI_FUNCTION("com.mastfrog.function.throwing.ThrowingBiFunction",
@@ -1034,6 +1041,7 @@ public enum KnownTypes implements TypeName {
     WEAK_SET("org.openide.util.WeakSet", Libraries.UTIL),
     WHERE_USED_QUERY("org.netbeans.modules.refactoring.api.WhereUsedQuery",
         Libraries.MODULES_REFACTORING),
+    WINDOW_MANAGER("org.openide.windows.WindowManager", Libraries.WINDOWS),
     WRAPPER("com.mastfrog.abstractions.Wrapper", Libraries.WRAPPER),
     YENTA("org.netbeans.contrib.yenta.Yenta", Libraries.API),
     ZORDER("org.netbeans.spi.editor.highlighting.ZOrder", Libraries.LIB2)

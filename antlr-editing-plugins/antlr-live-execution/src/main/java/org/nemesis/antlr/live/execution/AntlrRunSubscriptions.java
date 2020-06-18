@@ -429,7 +429,7 @@ public class AntlrRunSubscriptions {
                                                         diag.kind()});
                                         }
                                         if (cr.thrown().isPresent()) {
-                                            LOG.log(Level.WARNING, "Exception building " + extraction.source(), cr.thrown().get());
+                                            LOG.log(Level.INFO, "Exception building " + extraction.source(), cr.thrown().get());
                                         }
                                     }
                                     Debug.failure("Unusable compilation result", () -> {
@@ -491,7 +491,6 @@ public class AntlrRunSubscriptions {
 
                                 rb = runBuilder
                                         .build(extraction.source().name());
-
                             } else {
                                 arg = cache.lastArg;
                                 cr = cache.lastCompileResult;

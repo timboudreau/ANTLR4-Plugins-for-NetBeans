@@ -18,12 +18,8 @@ package org.nemesis.antlr.live.parsing;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import javax.swing.event.ChangeListener;
 import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -45,15 +41,8 @@ import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
-import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
 import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.Snapshot;
-import org.netbeans.modules.parsing.api.Task;
-import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
-import org.netbeans.modules.parsing.spi.ParserFactory;
-import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.netbeans.modules.projectapi.nb.NbProjectManager;
 import org.netbeans.spi.editor.document.DocumentFactory;
 
@@ -152,7 +141,7 @@ public class EmbeddedAntlrParsersTest {
             fixtures.verboseGlobalLogging();
         }
         String synthesizedMimeType = AdhocMimeTypes.mimeTypeForPath(grammarFile);
-        DocumentFactory fact = new DocumentFactoryImpl();
+        DocumentFactory fact = new WrapDocumentFactory();
         return fixtures.addToMimeLookup("", fact)
                 .addToMimeLookup(synthesizedMimeType, FakeParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
@@ -160,6 +149,8 @@ public class EmbeddedAntlrParsersTest {
                 .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
                         new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder())
                 .addToDefaultLookup(
+                        MockModules.class,
+                        WrapDocumentFactory.class,
                         FakeG4DataLoader.class,
                         MavenFolderStrategyFactory.class,
                         NbMavenProjectFactory.class,
@@ -167,46 +158,5 @@ public class EmbeddedAntlrParsersTest {
                         NbProjectManager.class,
                         NbJFSUtilities.class
                 );
-    }
-
-    // Sigh - we need to grab the parsing infrastructure's lock inside
-    // EmbeddedAntlrParserImpl preemptively, to keep from code we call back
-    // from acquiring it out-of-order.  Which means we need to register a do-nothing
-    // parser to keep the plumbing from complaining that there's no parser registered
-    // for our mime type
-    public static final class FakeParserFactory extends ParserFactory {
-
-        @Override
-        public Parser createParser(Collection<Snapshot> clctn) {
-            return new FakeParser();
-        }
-
-        static class FakeParser extends Parser {
-
-            private final Map<Task, Result> results = new HashMap<>();
-
-            @Override
-            public void parse(Snapshot snpsht, Task task, SourceModificationEvent sme) throws ParseException {
-                results.put(task, new Result(snpsht) {
-                    @Override
-                    protected void invalidate() {
-                        // do nothing
-                    }
-                });
-            }
-
-            @Override
-            public Result getResult(Task task) throws ParseException {
-                return results.remove(task);
-            }
-
-            @Override
-            public void addChangeListener(ChangeListener cl) {
-            }
-
-            @Override
-            public void removeChangeListener(ChangeListener cl) {
-            }
-        }
     }
 }

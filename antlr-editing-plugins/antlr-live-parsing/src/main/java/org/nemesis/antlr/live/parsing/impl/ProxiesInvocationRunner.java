@@ -53,6 +53,10 @@ import org.openide.util.lookup.ServiceProvider;
 import org.stringtemplate.v4.Interpreter;
 
 /**
+ * Factory that replaces the inner EmbeddedParser implementation wrapped by the persistent instances of
+ * EmbeddedAntlrParser returned by EmbeddedAntlrParsers; this class is called when an Antlr grammar
+ * has been rebuild in its JFS and the parser may need to recompile its ParserExptractor to work
+ * against the revised grammar.
  *
  * @author Tim Boudreau
  */
@@ -108,7 +112,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
     public static Grammar findLexerGrammar(AntlrGenerationResult res) {
         Grammar main = res.mainGrammar;
-        if (main.implicitLexer != null) {
+        if (main.implicitLexer != null && main.implicitLexer.name != null) {
             return main.implicitLexer;
         }
         if (main.importedGrammars != null) {
@@ -128,6 +132,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         return null;
     }
 
+    private static String findLexerGrammarName(AntlrGenerationResult res) {
+        return res.mainGrammar.getOptionString("tokenVocab");
+    }
+
     @Override
     protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
         return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
@@ -136,14 +144,14 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             if (realSourceFile.isPresent()) {
                 Path path = realSourceFile.get();
                 Grammar lexerGrammar = findLexerGrammar(res);
-
+                String lexerName = lexerGrammar == null ? findLexerGrammarName(res) : lexerGrammar.name;
                 ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs,
-                        res.packageName, res.grammarName(), lexerGrammar == null ? null : lexerGrammar.name);
+                        res.packageName, res.grammarName(), lexerName);
                 LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
                 if (LOG.isLoggable(Level.FINEST)) {
                     LOG.log(Level.FINEST, "OnBeforeCompilation", new Exception("Generation result " + System.identityHashCode(res)
-                        + " " + res.grammarName + " " + res.packageName + " extraction " + extraction.source()
-                        + " extraction id " + System.identityHashCode(extraction)));
+                            + " " + res.grammarName + " " + res.packageName + " extraction " + extraction.source()
+                            + " extraction id " + System.identityHashCode(extraction)));
                 }
                 bldr.addToClasspath(AntlrProxies.class);
                 bldr.addToClasspath(AntlrProxies.Ambiguity.class);
@@ -181,15 +189,9 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
             }
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
-            PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName);
-            LOG.log(Level.FINER, "New environment created for embedded parser: {0}", env);
-//            if (LOG.isLoggable(Level.FINEST)){
-//                LOG.log(Level.FINEST, "Cuprit for gen result " + System.identityHashCode(res),
-//                        new Exception(res.grammarName + " " + res.packageName));
-//            }
-            Debug.message("Use new PreservedInvocationEnvironment", () -> {
-                return env.toString();
-            });
+            PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName, res.res);
+            LOG.log(Level.FINER, "New environment created for embedded parser: {0} and {1}", new Object[] {env, res.res});
+            Debug.message("Use new PreservedInvocationEnvironment", env::toString);
             return env;
         });
     }
@@ -208,6 +210,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             this.grammarName = grammarName;
         }
 
+        @Override
         public String toString() {
             return "ProxiesInvocationRunner.GenerationResult("
                     + packageName + " " + grammarName + " on " + grammarPath + ": "
@@ -290,16 +293,19 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         private final ClassLoader ldr;
         private final String typeName;
         private EnvRef ref;
+        private final CharSequence genInfo;
 
-        public PreservedInvocationEnvironment(ClassLoader ldr, String pkgName) {
+        private PreservedInvocationEnvironment(ClassLoader ldr, String pkgName, ExtractionCodeGenerationResult res) {
             this.ldr = ldr;
-            typeName = pkgName + "." + ExtractionCodeGenerator.PARSER_EXTRACTOR;
+            typeName = pkgName + "." + res.generatedClassName();
             ref = new EnvRef(this);
+            this.genInfo = res.generationInfo();
         }
 
         @Override
         public String toString() {
-            return super.toString() + "(" + ref + " - " + typeName + ")";
+            return super.toString() + "(" + ref + " - " + typeName  + " generationInfo: "
+                    + genInfo.toString().replace("\n", "; ") + ")";
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
@@ -334,7 +340,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 sb.append(body);
                 sb.append("\n******************* PROXY *********************\n");
                 sb.append(prex[0]);
-                return "";
+                sb.append("\n******************* GEN INFO ******************\n");
+                return sb.toString();
             }, () -> {
                 return clRun(() -> {
                     prex[0] = reflectively(typeName, new Class<?>[]{CharSequence.class}, body);

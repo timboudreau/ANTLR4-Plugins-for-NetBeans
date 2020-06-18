@@ -160,6 +160,7 @@ import static org.nemesis.registration.typenames.KnownTypes.MULTI_VIEW_EDITOR_EL
 import static org.nemesis.registration.typenames.KnownTypes.MULTI_VIEW_ELEMENT;
 import static org.nemesis.registration.typenames.KnownTypes.NAVIGATOR_PANEL;
 import static org.nemesis.registration.typenames.KnownTypes.NB_ANTLR_UTILS;
+import static org.nemesis.registration.typenames.KnownTypes.NB_EDITOR_DOCUMENT;
 import static org.nemesis.registration.typenames.KnownTypes.NB_EDITOR_KIT;
 import static org.nemesis.registration.typenames.KnownTypes.NB_LEXER_ADAPTER;
 import static org.nemesis.registration.typenames.KnownTypes.NB_PARSER_HELPER;
@@ -1151,6 +1152,51 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             nb.withArgument("doc").ofType(syntaxName);
                         });
                     });
+        }
+
+        try {
+        // Workaround to allow unit tests to avoid initializing the entire module system:
+        cl.field("UNIT_TEST", fb -> {
+            fb.docComment("There is a bug workaround in NbEditorDocument which causes a background "
+                    + "thread to try to initialize the entire module system, which will wreak "
+                    + "havoc in a unit test.  So set a system property in your unit test runner "
+                    + "to avoid this problem.");
+            fb.withModifier(PRIVATE, STATIC, FINAL)
+                    .initializedFromInvocationOf("getBoolean").withStringLiteral("unit.test").on("Boolean").ofType("boolean");
+        });
+        cl.importing(DOCUMENT.qname()).overridePublic("createDefaultDocument", mb -> {
+            mb.returning(DOCUMENT.simpleName()).body(bb -> {
+                bb.iff(ifb -> {
+                    ClassBuilder.IfBuilder<?> ib = ifb.booleanExpression("UNIT_TEST");
+                    ib.returningNew()
+                            .withStringLiteral(mimeType).ofType("AvoidInitializingModuleSystemDocument");
+                });
+                bb.returningInvocationOf("createDefaultDocument").on("super");
+            });
+        });
+        cl.importing(NB_EDITOR_DOCUMENT.qname(), "java.util.Dictionary")
+                .innerClass("AvoidInitializingModuleSystemDocument", ic -> {
+                    ic.withModifier(PRIVATE, STATIC, FINAL)
+                            .extending(NB_EDITOR_DOCUMENT.simpleName())
+                            .constructor(con -> {
+                                con.addArgument("String", "mimeType")
+                                        .body(cb -> {
+                                            cb.invoke("super").withArgument("mimeType").inScope();
+                                        });
+                            })
+                            .overrideProtected("createDocumentProperties", mb -> {
+                                mb.docComment("The default implementation of this method will start a background "
+                                        + "thread that calls <code>IndentUtils.indentLevelSize(NbEditorDocument.this);</code>, "
+                                        + "which will trigger full initialization of the module system, which wreaks "
+                                        + "havoc with tests.  So we return this class if the system property <code>unit.test</code> "
+                                        + "is true, which overrides this method to bypass launching the background thread.");
+                                mb.returning("Dictionary").addArgument("Dictionary", "orig")
+                                        .bodyReturning("orig");
+                            });
+                });
+        } catch (Exception ex) {
+            ex.printStackTrace(System.err);
+            com.mastfrog.util.preconditions.Exceptions.chuck(ex);
         }
 
         String lineComment = utils().annotationValue(registrationAnno, "lineCommentPrefix", String.class);
@@ -2633,7 +2679,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         })
                         /*
 protected LanguageEmbedding<?> embedding(Token<AntlrToken> token, LanguagePath languagePath, InputAttributes inputAttributes) {
-                        */
+                         */
                         .overrideProtected("embedding", mb -> {
                             mb.returning(LANGUAGE_EMBEDDING.parametrizedName("?"))
                                     .addArgument(LEXER_TOKEN.parametrizedName(tokenInterface), "token")

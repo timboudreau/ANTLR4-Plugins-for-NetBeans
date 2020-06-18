@@ -62,6 +62,6 @@ public final class EmbeddedAntlrParserResult {
 
         return EmbeddedAntlrParserImpl.truncated(
                 proxy.text() == null ? "--null--" : proxy.text(),
-                sb, 20).append(")").toString();
+                sb, 20).append("')").toString();
     }
 }

@@ -84,6 +84,7 @@ public final class EmbeddedAntlrParsers {
             }
         }
         for (FileObject fo : dead) {
+            LOG.log(Level.FINEST, "Remove parser for dead file {0}", fo);
             liveParsersForFile.remove(fo);
         }
     }
@@ -134,6 +135,8 @@ public final class EmbeddedAntlrParsers {
         String mt = AdhocMimeTypes.mimeTypeForPath(FileUtil.toFile(grammar).toPath());
         p = find(set);
         if (p != null) {
+            LOG.log(Level.FINE, "Returning existing EmbeddedAntlrParserImpl for {0} for use by {1}",
+                    new Object[]{grammar, logName});
             return p;
         }
 

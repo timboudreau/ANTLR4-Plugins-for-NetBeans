@@ -157,6 +157,7 @@ limitations under the License.
                         <trimStackTrace>false</trimStackTrace>
                         <argline>--illegal-access=permit</argline>
                         <systemPropertyVariables>
+                            <org.netbeans.core.startup.ModuleSystem.CULPRIT>true</org.netbeans.core.startup.ModuleSystem.CULPRIT>
                             <java.awt.headless>${headlessTests}</java.awt.headless>
                             <unit.test>true</unit.test>
                             <forkNumber>${surefire.forkNumber}</forkNumber>

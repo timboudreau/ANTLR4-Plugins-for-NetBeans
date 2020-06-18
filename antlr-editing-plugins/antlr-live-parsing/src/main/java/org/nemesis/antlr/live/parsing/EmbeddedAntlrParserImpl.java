@@ -32,7 +32,6 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Segment;
-import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.impl.DeadEmbeddedParser;
@@ -103,6 +102,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         this.grammarName = grammarName;
         environment.set(new EmbeddedParsingEnvironment(path, grammarName));
         lastParseInfo = new AtomicReference<>(placeholderInfo = new LastParseInfo(path, grammarName));
+        LOG.log(Level.FINER, "Create an EmbeddedAntlrParserImpl {0} for {1} grammar {2} type {3}",
+                new Object[] {logName, path, grammarName, mimeType});
     }
 
     @Override
@@ -371,34 +372,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             runResult.isUsable(), runResult.currentStatus(),
                             logName
                         });
-//                if (LOG.isLoggable(Level.FINEST)) {
-//                    LOG.log(Level.FINEST, "New run result " + System.identityHashCode(runResult)
-//                            + " received by " + System.identityHashCode(EmbeddedAntlrParserImpl.this), new Exception());
-//                }
-                AntlrGenerationAndCompilationResult g = runResult.genResult();
-                /*
-                AntlrGenerationResult gg = g.generationResult();
-                Path p = t.source().lookup(Path.class).isPresent() ? t.source().lookup(Path.class).get() : null;
-                Path actualGeneratedGrammar = g.jfs().originOf(gg.grammarFile, Path.class);
-                if (!path.equals(actualGeneratedGrammar) || (p != null && !p.equals(path)) || !grammarName.equals(gg.grammarName)) {
-                    String msg = "EmbeddedAntlrParser " + this + " was passed a GrammarRunResult whose "
-                            + " Antlr generation result belongs to another file"
-                            + "\nPath  : " + path
-                            + "\nExtsrc: " + p
-                            + "\nGensrc: " + gg.grammarFile
-                            + "\nGPaths: " + runResult.sources()
-                            + "\nMy Grammar Name: " + grammarName
-                            + "\nRR Grammar Name: " + gg.grammarName;
-                    LOG.log(Level.SEVERE, msg, new Exception(msg));
-                    Debug.failure("wrong-path", msg);
-                    return;
-                }
-                 */
-
                 if (runResult.isUsable()) {
                     setRunner(t, runResult);
                 } else {
-                    Debug.failure("non-usable", g::toString);
+                    Debug.failure("non-usable", runResult.genResult()::toString);
                     LOG.log(Level.FINE, "Non-usable generation result {0} for {1}"
                             + "; will not use", new Object[]{runResult, t.source()});
                 }
@@ -451,6 +428,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         final GrammarRunResult<EmbeddedParser> runResult;
 
         public EmbeddedParsingEnvironment(Path path, String grammarName) {
+            LOG.log(Level.FINEST, "Create an initial dummy environment for {0} grammar {1}",
+                    new Object[] {path, grammarName});
             grammarTokensHash = "-";
             modifications = JFSFileModifications.empty();
             parser = new DeadEmbeddedParser(path, grammarName);
@@ -458,6 +437,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         }
 
         public EmbeddedParsingEnvironment(String grammarTokensHash, GrammarRunResult<EmbeddedParser> runner) {
+            LOG.log(Level.FINER, "Create a new EmbeddedParsingEnvironment for run result {0}",
+                    runner);
             this.grammarTokensHash = grammarTokensHash;
             // XXX - this is only needed for error highlighting and output window
             // printing, after which it is useless.  Find a way to dispose of
@@ -469,6 +450,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 if (runner.genResult().generationResult() != null) {
                     if (runner.genResult().generationResult().filesStatus != null) {
                         mods = runner.genResult().generationResult().filesStatus.snapshot();
+                        LOG.log(Level.FINEST, "Have a modification set {0}", mods);
                     }
                 }
             }

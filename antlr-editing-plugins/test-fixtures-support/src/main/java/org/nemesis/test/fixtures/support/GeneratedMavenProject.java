@@ -24,16 +24,21 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.prefs.Preferences;
 import javax.swing.text.StyledDocument;
+import static org.nemesis.test.fixtures.support.TestFixtures.assertNotNull;
 import org.netbeans.api.project.Project;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
+import org.openide.util.NbPreferences;
 
 /**
  *
@@ -54,6 +59,20 @@ public final class GeneratedMavenProject {
     public GeneratedMavenProject preserve() {
         preserve = true;
         return this;
+    }
+
+    public FileObject addFile(String relativePath, String content) throws IOException {
+        Path pth = add(relativePath, content);
+        assertNotNull(pth);
+        return FileUtil.toFileObject(pth.toFile());
+    }
+
+    public Path add(String relativePath, String content) throws IOException {
+        Path pth = dir.resolve(relativePath);
+        Files.write(pth, content.getBytes(UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        String  fn = Paths.get(relativePath).getFileName().toString();
+        map.put(fn, pth);
+        return pth;
     }
 
     public GeneratedMavenProject deletedBy(ThrowingRunnable run) {
@@ -104,7 +123,11 @@ public final class GeneratedMavenProject {
     }
 
     public StyledDocument document(String filename) throws DataObjectNotFoundException, IOException {
-        return cookie(filename).openDocument();
+        StyledDocument doc = cookie(filename).openDocument();
+        Preferences prefs = NbPreferences.forModule(GeneratedMavenProject.class);
+        // Try to prevent the module system from getting initialized by CodeStylePreferences
+        doc.putProperty("Tools-Options->Editor->Formatting->Preview - Preferences", prefs);
+        return doc;
     }
 
     public Path get(String filename) {

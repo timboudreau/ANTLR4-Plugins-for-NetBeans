@@ -44,9 +44,13 @@ final class AlternateTokenVocabParser {
      */
     private boolean precreateMissingLexer(MemoryTool tool, Grammar g, Path filePath) {
         ToolContext ctx = ToolContext.get(tool);
+        boolean result = false;
         try {
             JFSFileObject fo = ctx.getImportedVocabFile(g, tool);
-            return true;
+            // Try to load the grammar regardless, of whether the file
+            // is present, so the parser extractor generation code can
+            // figure out the grammar name
+            result = true;
         } catch (FileNotFoundException fnfe) {
             // ok
         }
@@ -69,10 +73,10 @@ final class AlternateTokenVocabParser {
             if (pre != null) {
                 tool.process(pre, true);
                 tool.noteImportedGrammar(pre.name, pre);
-                return true;
+                result = true;
             }
         }
-        return false;
+        return result;
     }
 
     /**

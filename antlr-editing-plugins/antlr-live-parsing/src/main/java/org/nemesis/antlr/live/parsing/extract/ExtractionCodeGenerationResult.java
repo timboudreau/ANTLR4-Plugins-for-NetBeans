@@ -29,6 +29,8 @@ public class ExtractionCodeGenerationResult {
     private final String grammarName;
     private final String pkg;
     private final Set<String> examined = new TreeSet<>();
+    private CharSequence generationInfo;
+    private String generatedClassName;
 
     ExtractionCodeGenerationResult(String grammarName, String pkg) {
         this.grammarName = grammarName;
@@ -38,6 +40,22 @@ public class ExtractionCodeGenerationResult {
     ExtractionCodeGenerationResult setResult(JFSFileObject fo) {
         generatedFile = fo;
         return this;
+    }
+
+    void setGeneratedClassName(String generatedClassName) {
+        this.generatedClassName = generatedClassName;
+    }
+
+    public String generatedClassName() {
+        return generatedClassName;
+    }
+
+    public CharSequence generationInfo() {
+        return generationInfo;
+    }
+
+    void setGenerationInfo(CharSequence genInfo) {
+        this.generationInfo = genInfo;
     }
 
     public ExtractionCodeGenerationResult examined(String what) {
@@ -72,5 +90,4 @@ public class ExtractionCodeGenerationResult {
         sb.insert(0, "Could not find a generated parser or lexer for ");
         return sb.toString();
     }
-
 }

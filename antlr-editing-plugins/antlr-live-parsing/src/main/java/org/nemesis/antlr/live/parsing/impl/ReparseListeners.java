@@ -76,6 +76,7 @@ public final class ReparseListeners {
                     = listeners.get(proxy.grammarPath());
             for (BiConsumer<? super GrammarRunResult<EmbeddedParser>, ? super AntlrProxies.ParseTreeProxy> listener : s) {
                 try {
+                    LOG.log(Level.FINEST, "Fire reparse of {0} to {1} with {2}", new Object[] {proxy.grammarPath(), s, g} );
                     listener.accept(g, proxy);
                 } catch (Exception ex) {
                     LOG.log(Level.SEVERE, "Passing new parse of "

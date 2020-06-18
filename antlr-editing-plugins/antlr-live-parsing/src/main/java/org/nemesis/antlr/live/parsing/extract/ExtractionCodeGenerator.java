@@ -20,11 +20,8 @@ import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.EnumSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -33,6 +30,7 @@ import javax.tools.JavaFileObject;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 
@@ -51,42 +49,8 @@ public class ExtractionCodeGenerator {
 
     private static final Logger LOG = Logger.getLogger(ExtractionCodeGenerator.class.getName());
 
-    /**
-     * Save to disk.
-     *
-     * @param originalGrammarFile The original grammar file it should be
-     * relative to
-     * @param pkg The package name in the destination location
-     * @param prefix The class name prefix, typically the name of the grammar
-     * but may differ in character case
-     * @param dir The destination directory
-     * @param lexerOnly If true, omit any code relating to dealing with a parser
-     * java class which will not exist for lexer grammars
-     * @return A path to the created file
-     * @throws IOException If reading the template fails or writing fails
-     */
-    public static Path saveExtractorSourceTo(Path originalGrammarFile, String pkg, String prefix, Path dir, boolean lexerOnly, String lexerGrammarName) throws IOException {
-        if (Files.exists(dir.getParent().resolve("CompileResult.java"))) {
-            throw new AssertionError("Writing extractor over itself: " + dir);
-        }
-        Path dest = dir.resolve(PARSER_EXTRACTOR_SOURCE_FILE);
-        if (!Files.exists(dest)) {
-            Path lexerFile = dir.resolve(prefix + "Lexer.java");
-            String lexerSuffix = "Lexer";
-            if (!Files.exists(lexerFile)) {
-                // Fragment only files get compiled to grammarname.java, for
-                // whatever reason
-                lexerFile = dir.resolve(prefix + ".java");
-                lexerSuffix = "lexer";
-            }
-            LOG.log(Level.FINER, "Save extractor to {0} wih lexer fn {1}, lexer only? {2}", new Object[]{dest, lexerFile, lexerOnly});
-            String javaCode = getLexerExtractorSourceCode(originalGrammarFile, pkg, prefix, lexerOnly, lexerSuffix, lexerGrammarName);
-            Files.write(dest, javaCode.getBytes(StandardCharsets.UTF_8), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
-        }
-        return dest;
-    }
-
-    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg, String grammarName, String lexerGrammarName) throws IOException {
+    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg,
+            String grammarName, String lexerGrammarName) throws IOException {
         ExtractionCodeGenerationResult result = new ExtractionCodeGenerationResult(grammarName, pkg);
         // We presume antlr generation has been done here
 //        Iterable<JavaFileObject> generated = fs.list(SOURCE_OUTPUT, pkg, EnumSet.of(JavaFileObject.Kind.SOURCE), false);
@@ -132,6 +96,8 @@ public class ExtractionCodeGenerator {
             }
         }
         StringBuilder genInfo = new StringBuilder("\n/*\n");
+        genInfo.append("Passed grammar name: ").append(grammarName).append('\n');
+        genInfo.append("Passed lexer name: ").append(lexerGrammarName).append('\n');
         genInfo.append("Looking for '").append(grammarName).append("'\n\n");
         genInfo.append("Passed lexer grammar name '").append(lexerGrammarName).append("'\n");
         String pfx = grammarName.endsWith("Parser") ? grammarName.substring(0, grammarName.length() - 6) : grammarName;
@@ -141,7 +107,12 @@ public class ExtractionCodeGenerator {
                 genInfo.append("  Have lexer ").append(foundLexer).append(" and parser ").append(foundParser).append(" - done\n");
                 break;
             }
+            // XXX should use Levenshtein distance to update the candidate lexer if it is
+            // a better match for the passed lexer name?
             String fn = Paths.get(fo.getName()).getFileName().toString();
+            if (fn.endsWith(PARSER_EXTRACTOR) || fn.endsWith("Visitor") || fn.endsWith("Listener")) {
+                continue;
+            }
             if (fn.endsWith(".java")) {
                 genInfo.append("examine ").append(fo.getName()).append(" as name ").append(fn).append('\n');
                 String nm = fn.substring(0, fn.length() - 5);
@@ -193,7 +164,15 @@ public class ExtractionCodeGenerator {
                 }
                 if (grammarName.equalsIgnoreCase(nm) && !nm.endsWith("Parser")) {
                     genInfo.append("  Partial name match '").append(nm).append("' marking ").append(fo.getName()).append(" as fallback lexer candidate\n");
-                    candidateLexer = fo;
+                    if (candidateLexer != null && lexerGrammarName != null) {
+                        String oldCandidateName = rawName(candidateLexer);
+                        String newCandidateName = rawName(fo);
+                        if (LevenshteinDistance.levenshteinDistance(oldCandidateName, lexerGrammarName, false) > LevenshteinDistance.levenshteinDistance(newCandidateName, lexerGrammarName, true)) {
+                            candidateLexer = fo;
+                        }
+                    } else {
+                        candidateLexer = fo;
+                    }
                 }
             }
         }
@@ -210,19 +189,30 @@ public class ExtractionCodeGenerator {
         // so bail here so we don't leave behind either a class missing parts
         // needed when generation is fixed, or an uncompilable turd
         if (foundLexer == null && candidateLexer == null && foundParser == null) {
-            LOG.log(Level.WARNING, "Did not find a parser or a lexer: {0}", genInfo);
+            LOG.log(Level.WARNING, "Did not find a parser or a lexer: {0}", genInfo.toString().replace("\n", "; "));
+            result.setGenerationInfo(genInfo);
             return result;
         }
 
+        String generatedClassName = stripExt(foundParser == null ? foundLexer.getName() : foundParser.getName())
+                + PARSER_EXTRACTOR;
+
+        result.setGeneratedClassName(generatedClassName);
+
         genInfo.append(" \n*/\n");
-        String code = getLexerExtractorSourceCode(realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix,
+        String code = getLexerExtractorSourceCode(generatedClassName, realSourceFile, pkg, realPrefix, foundParser == null, lexerSuffix,
                 lexerGrammarName);
 
-        UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), PARSER_EXTRACTOR_SOURCE_FILE);
+        UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), generatedClassName + ".java");
         Debug.message("Generated source code " + realSourceFile + " in " + pkg, () -> code + genInfo);
 
         JFSFileObject fo = fs.get(SOURCE_PATH, extractorPath);
+        result.setGenerationInfo(genInfo);
         if (fo != null && Strings.charSequencesEqual(fo.getCharContent(true), code, false)) {
+            LOG.log(Level.INFO, "Generating extractor. Passed lexer name: {0}, passed grammar name {1},"
+                    + " found lexer: {2}, found grammar: {3}, package {4}", new Object[]{
+                        grammarName, lexerGrammarName, (foundLexer == null ? null : foundLexer.getName()),
+                        (foundParser == null ? null : foundParser.getName()), pkg});
             // Avoid touching the file if we would regenerate the same content - it will
             // cause the test whether files have been modified and the parser should be
             // regenerated to always return true, making every keystroke lead to a furious
@@ -232,7 +222,23 @@ public class ExtractionCodeGenerator {
         return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
 
-    public static String getLexerExtractorSourceCode(Path originalGrammarFile, String pkg,
+    private static String rawName(FileObject fo) {
+        return stripExt(UnixPath.get(fo.getName()).getFileName().toString());
+    }
+
+    private static String stripExt(String name) {
+        int ix = name.lastIndexOf('/');
+        if (ix > 0 && ix < name.length() - 1) {
+            name = name.substring(ix + 1);
+        }
+        ix = name.lastIndexOf('.');
+        if (ix > 0) {
+            name = name.substring(0, ix);
+        }
+        return name;
+    }
+
+    public static String getLexerExtractorSourceCode(String generatedClassName, Path originalGrammarFile, String pkg,
             String classNamePrefix, boolean lexerOnly, String lexerSuffix, String passedLexerName) throws IOException {
         String result = Streams.readResourceAsUTF8(ParserExtractor.class, PARSER_EXTRACTOR_TEMPLATE);
         assert result != null : PARSER_EXTRACTOR_TEMPLATE + " not adjacent to " + ExtractionCodeGenerator.class;
@@ -243,7 +249,7 @@ public class ExtractionCodeGenerator {
         String extractorPackage = AntlrProxies.class.getPackage().getName();
         // Change the package statement
         result = result.replace("package org.nemesis.antlr.live.parsing.extract;",
-                "package " + pkg + ";");
+                "package " + pkg + ";").replaceAll(PARSER_EXTRACTOR, generatedClassName);
         // Replace the import with an import of the actual lexer class (even though we're in
         // the same package ordinarily - this could be generated into wherever and an import
         // from the same package is harmless)
