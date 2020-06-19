@@ -159,6 +159,8 @@ public enum KnownTypes implements TypeName {
         Libraries.FEATURES),
     BUFFERED_TOKEN_STREAM("org.antlr.v4.runtime.BufferedTokenStream",
         Libraries.ANTLR_WRAPPER),
+    BUFFERED_TREE_NODE_STREAM("org.antlr.runtime.tree.BufferedTreeNodeStream",
+        Libraries.RUNTIME),
     BUILT_IN_ACTION("org.nemesis.antlr.spi.language.keybindings.BuiltInAction",
         Libraries.ANTLR_LANGUAGE),
     CACHE_FILE_READER("org.nemesis.antlr.common.cachefile.CacheFileReader",
@@ -1014,6 +1016,8 @@ public enum KnownTypes implements TypeName {
     TOKEN_UTILS("org.nemesis.antlr.completion.TokenUtils",
         Libraries.CODE_COMPLETION),
     TOP_COMPONENT("org.openide.windows.TopComponent", Libraries.WINDOWS),
+    TREE("org.antlr.runtime.tree.Tree", Libraries.RUNTIME),
+    TREE_NODE_STREAM("org.antlr.runtime.tree.TreeNodeStream", Libraries.RUNTIME),
     TRI_CONSUMER("com.mastfrog.function.TriConsumer", Libraries.WRAPPER),
     TRI_FUNCTION("com.mastfrog.function.TriFunction", Libraries.WRAPPER),
     TYPED_BREAK_INTERCEPTOR(
