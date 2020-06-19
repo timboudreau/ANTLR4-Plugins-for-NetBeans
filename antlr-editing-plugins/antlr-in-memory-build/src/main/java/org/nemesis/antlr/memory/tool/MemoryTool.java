@@ -632,21 +632,19 @@ public final class MemoryTool extends Tool {
         if (ast == null) { // no such source inputLocation or file
             return null;
         }
-//        elideReturnsClauses(ast);
         ast = elide(ast);
         if (ast.grammarType == ANTLRParser.LEXER) {
             g = new LexerGrammar(this, ast);
         } else {
             g = new AlternateTokenLoadingGrammar(this, ast);
         }
-        System.out.println("Create grammar " + ast.getClass().getName());
         // ensure each node has pointer to surrounding grammar
         GrammarTransformPipeline.setGrammarPtr(g, ast);
         return g;
     }
 
     private GrammarRootAST elide(GrammarRootAST ast) {
-        GrammarRootAST result = new GrammarASTElider(MemoryTool::shouldElide).log().elide(ast);
+        GrammarRootAST result = new GrammarASTElider(MemoryTool::shouldElide).elide(ast);
         if (result == null) {
             throw new IllegalStateException("Elider produced null result");
         }

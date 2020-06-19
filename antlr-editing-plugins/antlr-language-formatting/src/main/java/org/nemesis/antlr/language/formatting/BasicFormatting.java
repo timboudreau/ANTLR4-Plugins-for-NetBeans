@@ -128,6 +128,10 @@ public class BasicFormatting extends AbstractFormatter {
                 .priority(100)
                 .format(PREPEND_DOUBLE_NEWLINE.and(APPEND_NEWLINE));
 
+        rules.onTokenType(criteria.matching(RETURNS))
+                .named("space-before-returns")
+                .format(spaceOrWrap.and(APPEND_SPACE));
+
         // Put a blank line before a line comment if it starts the line
         // in the original source, and if it was not preceded by another
         // line comment
