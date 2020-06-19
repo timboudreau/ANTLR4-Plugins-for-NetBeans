@@ -1,4 +1,6 @@
 
+Use of returns keyword gets munged into rule name when formatted.
+
 If opened against an un-parseable grammar, syntax tree in preview never gets updated once it is made usable.
 
 Should add a build listener which can make antlr error lines clickable in output window.

@@ -49,6 +49,7 @@ import org.antlr.runtime.CommonToken;
 import org.antlr.runtime.RecognitionException;
 import org.antlr.runtime.Token;
 import org.antlr.runtime.misc.IntArray;
+import org.antlr.runtime.tree.Tree;
 import org.antlr.v4.Tool;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.runtime.RuntimeMetaData;
@@ -631,21 +632,29 @@ public final class MemoryTool extends Tool {
         if (ast == null) { // no such source inputLocation or file
             return null;
         }
+//        elideReturnsClauses(ast);
+        ast = elide(ast);
         if (ast.grammarType == ANTLRParser.LEXER) {
             g = new LexerGrammar(this, ast);
         } else {
             g = new AlternateTokenLoadingGrammar(this, ast);
         }
-
-//        BuildDependencyGenerator dep =
-//					new BuildDependencyGenerator(this, g);
-//
-//        System.out.println("*************** DEPENDENCIES *****************");
-//        System.out.println(dep.getDependencies().render());
-//        System.out.println("***************              *****************");
+        System.out.println("Create grammar " + ast.getClass().getName());
         // ensure each node has pointer to surrounding grammar
         GrammarTransformPipeline.setGrammarPtr(g, ast);
         return g;
+    }
+
+    private GrammarRootAST elide(GrammarRootAST ast) {
+        GrammarRootAST result = new GrammarASTElider(MemoryTool::shouldElide).log().elide(ast);
+        if (result == null) {
+            throw new IllegalStateException("Elider produced null result");
+        }
+        return result;
+    }
+
+    private static boolean shouldElide(Tree tree) {
+        return tree instanceof GrammarAST && "returns".equals(tree.getText());
     }
 
     @Override

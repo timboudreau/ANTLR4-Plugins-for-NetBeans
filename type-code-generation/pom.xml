@@ -10,6 +10,7 @@
     <artifactId>type-code-generation</artifactId>
     <properties>
         <manifest.file.path>${basedir}/src/manifest.mf</manifest.file.path>
+        <maven.test.skip>true</maven.test.skip>
     </properties>
     <dependencies>
         <dependency>
