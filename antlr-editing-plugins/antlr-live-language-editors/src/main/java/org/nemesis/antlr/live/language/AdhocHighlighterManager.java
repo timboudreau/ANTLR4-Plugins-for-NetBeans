@@ -324,7 +324,8 @@ final class AdhocHighlighterManager {
 
                             ParsingUtils.parse(fo);
                             Debug.message("reparse-file", fo::toString);
-                            documentReparse();
+//                            documentReparseInner();
+                            reparseDocumentTask.schedule(REPARSE_DELAY);
                         } catch (Exception ex) {
                             Debug.thrown(ex);
                             Exceptions.printStackTrace(ex);
@@ -338,6 +339,10 @@ final class AdhocHighlighterManager {
     void documentReparse() {
         // Less elegant than wheedling our way through ParserManager, but also 
         // less likely to deadlock on its lock
+        documentReparseInner();
+    }
+
+    synchronized void documentReparseInner() {
         Document d = ctx.getDocument();
         Debug.run(this, "adhoc-hlmgr-doc-reparse-" + d.getProperty(StreamDescriptionProperty), () -> {
             EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);

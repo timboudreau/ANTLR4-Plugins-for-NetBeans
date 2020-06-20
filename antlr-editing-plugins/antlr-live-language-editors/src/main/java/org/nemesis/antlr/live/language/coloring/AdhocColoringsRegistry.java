@@ -307,8 +307,8 @@ public final class AdhocColoringsRegistry {
                 colorings.remove(rem);
             }
             if (changed) {
-                System.out.println("ADDED TO COLORINGS: " + added);
-                System.out.println("REMOVED FROM COLORINGS: " + removed);
+                LOG.log(Level.FINEST, "eap removed colors for {0} added for {1} for grammar {2]",
+                        new Object[]{removed, added, proxy.grammarName()});
                 saver.task.schedule(5000);
             }
             return changed;
@@ -336,6 +336,7 @@ public final class AdhocColoringsRegistry {
             return;
         }
         colorings.withChangesSuspended(() -> {
+            LOG.log(Level.FINER, "generateHighlightings {0}", ext.source());
             // Okay, to randomly compute some initial syntax highlighting, we use a
             // some heuristics.  Does it all work?  Well, kinda...
             ColorUtils colors = new ColorUtils();
@@ -368,6 +369,7 @@ public final class AdhocColoringsRegistry {
                     }
                 }
             }
+            LOG.log(Level.FINEST, "Tokens from rank: {0}", topTokens);
             // This is the trickiest to understand:  We take the highest ranked nodes according
             // to eigenvector centrality - the most connected through.  Then we intersect the
             // closure - leaf nodes that are descendants of those often-connected-through nodes
@@ -375,6 +377,11 @@ public final class AdhocColoringsRegistry {
             // These are rules which are distinctive enough to merit highlighting. - i.e. they're
             // not something quite as mundane as ; or =.
             Set<String> importantRules = new HashSet<>(tree.disjunctionOfClosureOfHighestRankedNodes());
+            if (importantRules.size() > rank.size() / 4) {
+                List<String> best = rankedByScore(mostConnectedThrough, rank.size() / 4);
+                importantRules.retainAll(best);
+            }
+            LOG.log(Level.FINEST, "Rules from disjunction: {0}", importantRules);
             for (Score<String> centralNode : mostConnectedThrough) {
                 importantRules.add(centralNode.node());
             }
@@ -418,11 +425,25 @@ public final class AdhocColoringsRegistry {
                 } else if (ThreadLocalRandom.current().nextInt(10) == 7) {
                     attrs.add(AttrTypes.ACTIVE);
                 }
-                colorings.addIfAbsent(ruleId, color, attrs);
+                AdhocColoring added = colorings.addIfAbsent(ruleId, color, attrs);
+                if (added != null) {
+                    LOG.log(Level.FINEST, "Added for {0} key {1}: {2}", new Object[] {ext.source(), ruleId, added});
+                }
             }
             importImportedTokensAndRules(ANTLR_MIME_TYPE, ext, seen, colorings);
             return true;
         });
+    }
+
+    private static List<String> rankedByScore(List<Score<String>> l, int maxSize) {
+        if (l.size() > maxSize) {
+            l = l.subList(0, maxSize);
+        }
+        List<String> result = new ArrayList<>();
+        for (Score<String> s : l) {
+            result.add(s.node());
+        }
+        return result;
     }
 
     private void importImportedTokensAndRules(String mimeType, Extraction ext,

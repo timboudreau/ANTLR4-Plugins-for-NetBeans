@@ -9,6 +9,9 @@
     </parent>
     <artifactId>type-code-generation</artifactId>
     <properties>
+        <!-- keep tests off by default or it can fail if all other
+             modules have not been built once without tests enabled.
+             This thing should probably really be a Maven plugin. -->
         <manifest.file.path>${basedir}/src/manifest.mf</manifest.file.path>
         <maven.test.skip>true</maven.test.skip>
     </properties>

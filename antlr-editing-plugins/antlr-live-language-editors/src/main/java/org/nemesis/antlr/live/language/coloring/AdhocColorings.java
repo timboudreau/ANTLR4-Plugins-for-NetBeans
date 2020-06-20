@@ -391,7 +391,7 @@ public class AdhocColorings implements DynamicColorings {
                 flags |= t.maskValue();
             }
             AdhocColoring nue = new AdhocColoring(flags, color);
-            colorings.put(key, new AdhocColoring(flags, color));
+            colorings.put(key, nue);
             firePropertyChange(key, null, nue);
             fire();
             return nue;

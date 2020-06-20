@@ -34,8 +34,10 @@ import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 
 /**
  * An extremely lightweight highlights sequence, taking advantage of the
- * merge-api's ability to do complex coalescing of overlapping ranges
- * efficiently.
+ * range-api's ability to do complex coalescing of overlapping ranges
+ * efficiently.  AdhocRuleHighlighter2 implements the same thing over
+ * NetBeans' OffsetsBag, and is slow enough to cause noticable UI freezes
+ * any time a highlight changes - unacceptable performance.
  *
  * @author Tim Boudreau
  */

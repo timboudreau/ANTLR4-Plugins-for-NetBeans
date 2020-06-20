@@ -26,6 +26,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.openide.util.Mutex;
 
 /**
  *
@@ -153,8 +154,10 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                     nue.addHighlight(start, end, a);
                 }
             }
-
-            bag.setHighlights(nue);
+            // Avoids flashing
+            Mutex.EVENT.readAccess(() -> {
+                bag.setHighlights(nue);
+            });
         }
     }
 }

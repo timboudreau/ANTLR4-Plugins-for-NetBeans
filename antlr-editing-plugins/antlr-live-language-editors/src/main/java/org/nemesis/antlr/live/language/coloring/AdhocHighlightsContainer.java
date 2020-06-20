@@ -97,6 +97,9 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
 
     @Override
     public HighlightsSequence getHighlights(int startOffset, int endOffset) {
+        if (endOffset == startOffset + 1) {
+            Thread.dumpStack();
+        }
         List<DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>>> currentHighlights
                 = mostRecent.get();
 
@@ -121,7 +124,7 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
         int end = -1;
         for (int i = 0; i < currentHighlights.size(); i++) {
             DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> item = currentHighlights.get(i);
-            if (item.start() >= startOffset) {
+            if (item.end() > startOffset || item.start() >= startOffset) {
                 start = i;
                 break;
             }
@@ -131,7 +134,7 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
         }
         for (int i = currentHighlights.size() - 1; i >= 0; i--) {
             DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>> item = currentHighlights.get(i);
-            if (item.end() <= endOffset) {
+            if (item.start() <= endOffset || item.end() <= endOffset) {
                 end = i;
                 break;
             }

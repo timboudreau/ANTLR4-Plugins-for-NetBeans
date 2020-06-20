@@ -36,11 +36,6 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
     public AdhocRuleHighlighter(AdhocHighlighterManager mgr) {
         super(mgr, ZOrder.SYNTAX_RACK.forPosition(2000));
         bag = new AdhocHighlightsContainer();
-//        parser = EmbeddedAntlrParsers.forGrammar("rule-higlighter "
-//                + logNameOf(ctx, mimeType), FileUtil.toFileObject(
-//                AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
-//                        .toFile()));
-
     }
 
     @Override
@@ -64,6 +59,7 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
         bag.update(mgr.colorings(), info.semantics, info.semantics.text().length());
     }
 
+    @Override
     public final HighlightsContainer getHighlightsBag() {
         return bag;
     }
