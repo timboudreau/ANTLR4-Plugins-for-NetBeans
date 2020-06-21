@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import java.util.logging.Level;
 import javax.swing.text.Document;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
@@ -40,6 +41,7 @@ public class AntlrRuntimeHighlightLayerFactory implements HighlightsLayerFactory
         if (fo == null) { // preview pane, etc.
             return EMPTY;
         }
+        AntlrRuntimeErrorsHighlighter.LOG.log(Level.FINE, "Create layers for {0}", fo);
         AntlrRuntimeErrorsHighlighter hl = new AntlrRuntimeErrorsHighlighter(ctx);
         return new HighlightsLayer[]{
             HighlightsLayer.create(ANTLR_RUNTIME_ERRORS, ZOrder.TOP_RACK,

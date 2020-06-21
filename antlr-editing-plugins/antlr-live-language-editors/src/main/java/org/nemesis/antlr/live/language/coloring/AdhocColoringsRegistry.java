@@ -129,7 +129,12 @@ public final class AdhocColoringsRegistry {
     private boolean isModified(String key, Path path) {
         try {
             FileTime ft = Files.getLastModifiedTime(path);
-            return isModified(key, ft.toMillis());
+            long millis = ft.toMillis();
+            boolean result = isModified(key, ft.toMillis());
+            if (result) {
+                lastModifiedTimes.put(key, millis);
+            }
+            return result;
         } catch (IOException ioe) {
             return false;
         }

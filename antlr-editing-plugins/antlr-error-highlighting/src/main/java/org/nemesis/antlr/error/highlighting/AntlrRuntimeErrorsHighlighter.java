@@ -112,7 +112,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     protected final OffsetsBag bag;
     private final AttributeSet errorHighlight;
     private final AttributeSet warningHighlight;
-    private static final Logger LOG = Logger.getLogger(
+    static final Logger LOG = Logger.getLogger(
             AntlrRuntimeErrorsHighlighter.class.getName());
 
     private final Context ctx;
@@ -123,7 +123,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     @SuppressWarnings("LeakingThisInConstructor")
     AntlrRuntimeErrorsHighlighter(Context ctx) {
         this.ctx = ctx;
-        bag = new OffsetsBag(ctx.getDocument(), true);
+        Document doc = ctx.getDocument();
+        bag = new OffsetsBag(doc, true);
         // XXX listen for changes, etc
         MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
         FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
@@ -158,9 +159,11 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         // This can race - double check
         EventQueue.invokeLater(() -> {
             if (ctx.getComponent().isShowing()) {
+                LOG.log(Level.FINER, "Component is showing, set active");
                 compl.setActive(true);
             }
         });
+        LOG.log(Level.FINE, "Create an AntlrRuntimeErrorsHighlighter for {0}", doc);
     }
 
     private IntRange<? extends IntRange<?>> offsets(ProblematicEbnfInfo info, Extraction ext) {
@@ -186,7 +189,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String msg = Bundle.canMatchEmpty(prob.text());
 
             String pid = prob.text() + "-" + prob.start() + ":" + prob.end();
-
+            LOG.log(Level.FINEST, "Handle epsilon {0}", eps);
             fixes.addError(pid, problemBlock, msg, () -> {
                 String repl = computeReplacement(prob.text());
                 String prepl = computePlusReplacement(prob.text());
@@ -336,11 +339,13 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
         @Override
         public void componentShown(ComponentEvent e) {
+            LOG.log(Level.FINEST, "Component shown {0}", ctx.getDocument());
             setActive(true);
         }
 
         @Override
         public void componentHidden(ComponentEvent e) {
+            LOG.log(Level.FINEST, "Component hidden {0}", ctx.getDocument());
             setActive(false);
         }
 
@@ -354,9 +359,11 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         void setActive(boolean active) {
             if (active != this.active) {
                 this.active = active;
+                LOG.log(Level.FINE, "Set active to {0} for {1}", new Object[]{active, ctx.getDocument()});
                 if (active) {
                     task.schedule(350);
                 } else {
+                    task.cancel();
                     unsubscribe();
                 }
             }
@@ -364,6 +371,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
         void unsubscribe() {
             if (unsubscriber != null) {
+                LOG.log(Level.FINE, "Unsubscribe from rebuilds of {0}", ctx.getDocument());
                 unsubscriber.run();
                 unsubscriber = null;
             }
@@ -373,7 +381,14 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         public void run() {
             if (active) {
                 FileObject fo = NbEditorUtilities.getFileObject(ctx.getDocument());
-                unsubscriber = RebuildSubscriptions.subscribe(fo, AntlrRuntimeErrorsHighlighter.this);
+                if (fo != null) {
+                    LOG.log(Level.FINE, "Subscribing to rebuilds of {0}", fo);
+                    unsubscriber = RebuildSubscriptions.subscribe(fo, AntlrRuntimeErrorsHighlighter.this);
+                } else {
+                    LOG.log(Level.WARNING, "No FileObject to subscribe to for {0}", ctx.getDocument());
+                }
+            } else {
+                LOG.log(Level.FINE, "Not active, don't subscribe to rebuilds of {0}", ctx.getDocument());
             }
         }
     }
@@ -430,11 +445,14 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
+        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
         Optional<Document> doc = extraction.source().lookup(Document.class);
         if (!doc.isPresent()) {
+            LOG.log(Level.FINE, "Doc not present from source {0}", extraction.source());
             return;
         }
-        if (!doc.equals(ctx.getDocument())) {
+        if (!doc.get().equals(ctx.getDocument())) {
+            LOG.log(Level.INFO, "Called with wrong extraction: {0} expecting {1}", new Object[]{doc.get(), ctx.getDocument()});
             // Currently we can be notified about any document in the
             // project
             return;
@@ -452,7 +470,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
         }
-
         Set<String> usedErrorIds = new HashSet<>();
         LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
         updateErrorHighlights(res, extraction, fixes, usedErrorIds);
@@ -843,6 +860,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         Optional<Path> path = extraction.source().lookup(Path.class);
         List<EpsilonRuleInfo> epsilons = new ArrayList<>(errors.size());
         for (ParsedAntlrError err : errors) {
+            LOG.log(Level.FINEST, "Handle err {0}", err);
             boolean shouldAdd = true;
             if (path.isPresent()) {
                 // Convert to UnixPath to ensure endsWith test works
@@ -889,13 +907,21 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                             if (!usedErrIds.contains(errId)) {
                                 usedErrIds.add(errId);
                                 if (err.isError()) {
+                                    LOG.log(Level.FINEST, "Add error for {0} offsets {1}:{2}",
+                                            new Object[]{err, startOffset, endOffset});
                                     fixes.addError(errId, startOffset, endOffset,
                                             err.message());
                                 } else {
+                                    LOG.log(Level.FINEST, "Add warning for {0} offsets {1}:{2}",
+                                            new Object[]{err, startOffset, endOffset});
                                     fixes.addWarning(errId, startOffset, endOffset,
                                             err.message());
                                 }
+                            } else {
+                                LOG.log(Level.FINE, "ErrId {0} already handled", errId);
                             }
+                        } else {
+                            LOG.log(Level.FINEST, "Handled with fix: {0}", err);
                         }
                     } catch (IllegalStateException ex) {
                         LOG.log(Level.FINE, "No line offsets in {0}", err);
@@ -913,6 +939,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                                 + " err was " + err, ex);
                     }
                 });
+            } else {
+                System.out.println("   IGRNORE " + err);
             }
         }
         Mutex.EVENT.readAccess(() -> {
@@ -1043,7 +1071,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
     @Messages({
         "# {0} - unresolvable imported grammar name",
-        "unresolved=Unresolvable import: {0}"
+        "unresolved=Unresolvable import: {0}",
+        "capitalize=Capitalize name to make this a lexer rule"
     })
     boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext, Set<String> usedErrIds) throws BadLocationException {
         EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
@@ -1064,6 +1093,15 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                     return false;
                 }
                 fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
+                    if (err.code() == 53) {
+                        String name = findRuleNameInErrorMessage(err.message());
+                        if (name != null) {
+                            offsetsOf(err, (start, end) -> {
+                                fixConsumer.addReplacement(Bundle.capitalize(), start, end, capitalize(name));
+                            });
+                        }
+                    }
+
                     fixConsumer.addDeletion(NbBundle.getMessage(
                             AntlrRuntimeErrorsHighlighter.class, "delete_rule"),
                             region.start(), region.end());
@@ -1088,5 +1126,31 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             default:
                 return false;
         }
+    }
+
+    private static String findRuleNameInErrorMessage(String msg) {
+        String msgStart = "parser rule ";
+        // parser rule 
+        if (msg.startsWith(msgStart) && msg.length() > msgStart.length()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = msgStart.length(); i < msg.length(); i++) {
+                char c = msg.charAt(i);
+                if (Character.isLetter(c) || Character.isDigit(c)) {
+                    sb.append(c);
+                } else {
+                    break;
+                }
+            }
+            if (sb.length() > 0) {
+                return sb.toString();
+            }
+        }
+        return null;
+    }
+
+    private static String capitalize(String name) {
+        char[] c = name.toCharArray();
+        c[0] = Character.toUpperCase(c[0]);
+        return new String(c);
     }
 }
