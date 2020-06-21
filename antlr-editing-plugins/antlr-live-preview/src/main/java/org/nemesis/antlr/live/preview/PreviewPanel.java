@@ -207,10 +207,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         // "border buildup" avoidance
         Border empty = BorderFactory.createEmptyBorder();
+        // Clean up gratuitous Swing borders
         rulesScroll.setBorder(empty);
         rulesScroll.setViewportBorder(empty);
 
-//        syntaxTreeScroll.setBorder(line);
         syntaxTreeScroll.setBorder(empty);
         syntaxTreeScroll.setViewportBorder(empty);
 
