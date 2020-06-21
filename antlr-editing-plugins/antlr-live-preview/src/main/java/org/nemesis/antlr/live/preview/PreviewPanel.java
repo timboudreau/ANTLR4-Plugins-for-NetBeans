@@ -889,23 +889,22 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             // to set the split location, because the UI delegate will change it
             // So use invokeLater to get out of our own way here.
             EventQueue.invokeLater(() -> {
-                DataObject dob = getLookup().lookup(DataObject.class);
-                if (dob != null) {
-                    double pos = loadOriginalDividerLocation(DIVIDER_LOCATION_FILE_ATTRIBUTE, dob);
-                    double lsPos = loadOriginalDividerLocation(SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE, dob);
+                if (sampleFileDataObject != null) {
+                    double pos = loadOriginalDividerLocation(DIVIDER_LOCATION_FILE_ATTRIBUTE, sampleFileDataObject);
+                    double lsPos = loadOriginalDividerLocation(SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE, sampleFileDataObject);
                     split.setDividerLocation(pos);
                     listsSplit.setDividerLocation(lsPos);
                     split.addPropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
                     listsSplit.addPropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
                     listsSplit.addComponentListener(new CL());
-                    int editorCaret = loadPosition(SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, dob);
+                    int editorCaret = loadPosition(SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, sampleFileDataObject);
                     if (editorCaret > 0) {
                         int length = editorPane.getDocument().getLength();
                         if (length > editorCaret) {
                             positionCaret(editorPane.getCaret(), editorCaret, editorPane.getDocument());
                         }
                     }
-                    int grammarCaret = loadPosition(GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, dob);
+                    int grammarCaret = loadPosition(GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, sampleFileDataObject);
                     if (grammarCaret > 0) {
                         int length = grammarEditorClone.getDocument().getLength();
                         if (length > grammarCaret) {
@@ -913,7 +912,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         }
                     }
                     if (sampleScroll != null) {
-                        int scrollTo = loadPosition(EDITOR_SCROLL_POSITION, dob);
+                        int scrollTo = loadPosition(EDITOR_SCROLL_POSITION, sampleFileDataObject);
                         if (scrollTo > 0) {
                             BoundedRangeModel bmr = sampleScroll.getVerticalScrollBar().getModel();
                             if (scrollTo > bmr.getMinimum() && scrollTo < bmr.getMaximum()) {
@@ -922,7 +921,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         }
                     }
                     if (grammarScroll != null) {
-                        int scrollTo = loadPosition(GRAMMAR_SCROLL_POSITION, dob);
+                        int scrollTo = loadPosition(GRAMMAR_SCROLL_POSITION, sampleFileDataObject);
                         if (scrollTo > 0) {
                             BoundedRangeModel bmr = grammarScroll.getVerticalScrollBar().getModel();
                             if (scrollTo > bmr.getMinimum() && scrollTo < bmr.getMaximum()) {
@@ -944,9 +943,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // to do that with BorderLayout.  So, a clever simulacrum, and it can still
         // be used to compute the preferred size.
         if (previousSideComponentSize == null) {
-            DataObject dob = getLookup().lookup(DataObject.class);
-            if (dob != null) {
-                previousSideComponentSize = loadOriginalLeftSideSize(dob);
+            if (sampleFileDataObject != null) {
+                previousSideComponentSize = loadOriginalLeftSideSize(sampleFileDataObject);
                 if (previousSideComponentSize == null) {
                     previousSideComponentSize = new Dimension(0, 0);
                 }
