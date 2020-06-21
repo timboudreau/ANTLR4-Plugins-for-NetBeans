@@ -126,7 +126,14 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         Lookup.Provider, BiConsumer<Document, EmbeddedAntlrParserResult>,
         FocusListener {
 
-    static final Comparator<String> RULE_COMPARATOR = new RuleNameComparator();
+    private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
+    private static final String SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE = "sidebarSplitPosition";
+    private static final String SIDE_SPLIT_SIZE_FILE_ATTRIBUTE = "sidebarSize";
+    private static final String SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "sampleEditorCaretPos";
+    private static final String GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "grammarEditorCaretPos";
+    private static final String GRAMMAR_SCROLL_POSITION = "grammarScrollPosition";
+    private static final String EDITOR_SCROLL_POSITION = "editorScrollPosition";
+    private static final Comparator<String> RULE_COMPARATOR = new RuleNameComparator();
     private static final java.util.logging.Logger LOG
             = java.util.logging.Logger.getLogger(PreviewPanel.class.getName());
 
@@ -141,9 +148,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final AdhocColoringPanel customizer;
 
     private final JEditorPane editorPane = new JEditorPane();
-//    private final SimpleHtmlLabel breadcrumb = new SimpleHtmlLabel();
     private final TextCellLabel breadcrumb = new TextCellLabel("position");
-//    private final JPanel breadcrumbPanel = new JPanel(new BorderLayout());
     private final JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private boolean initialAdd = true;
     private Lookup lookup = Lookup.EMPTY;
@@ -153,13 +158,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final ErrorUpdater outputWindowUpdaterRunnable;
     private RequestProcessor.Task triggerRerunHighlighters;
     private final RulePathStringifier stringifier = new RulePathStringifierImpl();
-    private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
-    private static final String SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE = "sidebarSplitPosition";
-    private static final String SIDE_SPLIT_SIZE_FILE_ATTRIBUTE = "sidebarSize";
-    private static final String SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "sampleEditorCaretPos";
-    private static final String GRAMMAR_EDITOR_CARET_POSITION_FILE_ATTRIBUTE = "grammarEditorCaretPos";
-    private static final String GRAMMAR_SCROLL_POSITION = "grammarScrollPosition";
-    private static final String EDITOR_SCROLL_POSITION = "editorScrollPosition";
     private LayoutInfoSaver splitLocationSaver;
     private final InstanceContent content = new InstanceContent();
     private final AbstractLookup internalLookup = new AbstractLookup(content);
@@ -173,7 +171,28 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
     private final JScrollPane sampleScroll;
     private final JScrollPane grammarScroll;
+    private Future<Void> lastFuture;
+    private boolean selectingRange;
     private Component lastFocused;
+    private boolean showing;
+    private Dimension previousSideComponentSize;
+    private volatile boolean haveGrammarChange;
+    private static final Border underline = BorderFactory.createMatteBorder(0, 0, 1, 0,
+            UIManager.getColor("controlDkShadow"));
+    private static final Border paddedUnderline = BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(5, 5, 5, 0),
+            BorderFactory.createCompoundBorder(underline,
+                    BorderFactory.createEmptyBorder(5, 0, 5, 0)));
+    private final UserTask ut = new UserTask() {
+        @Override
+        public void run(ResultIterator resultIterator) throws Exception {
+            Parser.Result res = resultIterator.getParserResult();
+            if (res instanceof AdhocParserResult) {
+                AdhocParserResult ahpr = (AdhocParserResult) res;
+                accept(editorPane.getDocument(), ahpr.result());
+            }
+        }
+    };
 
     @SuppressWarnings("LeakingThisInConstructor")
     public PreviewPanel(final String mimeType, Lookup lookup, DataObject sampleFileDataObject,
@@ -194,9 +213,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         syntaxTreeContainer.add(syntaxTreeScroll, BorderLayout.CENTER);
         syntaxTreeLabel.setLabelFor(syntaxTreeList);
 
-        Border underline = BorderFactory.createMatteBorder(0, 0, 1, 0, UIManager.getColor("controlDkShadow"));
-        Border paddedUnderline = BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(5, 5, 5, 0),
-                BorderFactory.createCompoundBorder(underline, BorderFactory.createEmptyBorder(5, 0, 5, 0)));
         rulesLabel.setBorder(paddedUnderline);
         syntaxTreeLabel.setBorder(paddedUnderline);
 
@@ -561,9 +577,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
-    private boolean selectingRange;
-
-    void onSyntaxTreeClick(int clickCount, SyntaxTreeListModel.ModelEntry entry,  int start, int end) {
+    void onSyntaxTreeClick(int clickCount, SyntaxTreeListModel.ModelEntry entry, int start, int end) {
         selectRangeInPreviewEditor(new int[]{start, end});
         if (clickCount == 2) {
             navigateToRule(entry.name(), false);
@@ -628,8 +642,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         notifyHidden();
     }
 
-    private boolean showing;
-
     public void notifyShowing() {
         EventQueue.invokeLater(this::requestFocus);
         if (initialAdd) {
@@ -659,19 +671,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         reparseTask.schedule(500);
         showing = true;
     }
-
-    private final UserTask ut = new UserTask() {
-        @Override
-        public void run(ResultIterator resultIterator) throws Exception {
-            Parser.Result res = resultIterator.getParserResult();
-            if (res instanceof AdhocParserResult) {
-                AdhocParserResult ahpr = (AdhocParserResult) res;
-                accept(editorPane.getDocument(), ahpr.result());
-            }
-        }
-    };
-
-    Future<Void> lastFuture;
 
     void reallyReparse() {
         if (lastFuture != null && !lastFuture.isDone()) {
@@ -742,8 +741,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     public Lookup getLookup() {
         return lookup;
     }
-
-    private volatile boolean haveGrammarChange;
 
     private void docChanged(boolean fromGrammarDoc) {
         haveGrammarChange = fromGrammarDoc;
@@ -880,8 +877,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         return result == null ? fallback : result;
     }
 
-    Dimension origPosition;
-
     void updateSplitScrollAndCaretPositions() {
         if (initialAdd) {
             // Until the first layout has happened, which will be after the
@@ -933,8 +928,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             });
         }
     }
-
-    private Dimension previousSideComponentSize;
 
     @Override
     public void doLayout() {
