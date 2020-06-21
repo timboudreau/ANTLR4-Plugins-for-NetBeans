@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListSelectionModel;
@@ -83,17 +82,21 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         return list;
     }
 
-    public void listenForClicks(JList<ModelEntry> list, Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer, BooleanSupplier disabled) {
+    public void listenForClicks(JList<ModelEntry> list, Supplier<List<ProxyToken>> supp, ModelTreeNavigator consumer, BooleanSupplier disabled) {
         list.addMouseListener(new ME(supp, consumer, disabled));
+    }
+
+    interface ModelTreeNavigator {
+        void onClick(int clickCount, ModelEntry entry, int start, int end);
     }
 
     final class ME extends MouseAdapter {
 
         private final Supplier<List<ProxyToken>> supp;
-        private final Consumer<int[]> consumer;
+        private final ModelTreeNavigator consumer;
         private final BooleanSupplier disabled;
 
-        public ME(Supplier<List<ProxyToken>> supp, Consumer<int[]> consumer, BooleanSupplier disabled) {
+        public ME(Supplier<List<ProxyToken>> supp, ModelTreeNavigator consumer, BooleanSupplier disabled) {
             this.supp = supp;
             this.consumer = consumer;
             this.disabled = disabled;
@@ -119,7 +122,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             if (entry != null) {
                 int[] loc = entry.bounds(toks);
                 if (loc.length == 2) {
-                    consumer.accept(loc);
+                    consumer.onClick(e.getClickCount(), entry, loc[0], loc[1]);
                 }
             }
             list.setSelectedIndex(index);
@@ -250,6 +253,15 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         listeners.remove(l);
     }
 
+    public ModelEntry find(String text) {
+        for (ModelEntry me : entries) {
+            if (me.matches(text)) {
+                return me;
+            }
+        }
+        return null;
+    }
+
     static final class ModelEntry {
 
         private final AntlrProxies.ParseTreeElement el;
@@ -268,6 +280,14 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                     lexerRuleName = proxy.tokenTypeForInt(tk.getType()).name();
                 }
             }
+        }
+
+        public String name() {
+            return el.name();
+        }
+
+        public boolean matches(String name) {
+            return name.equals(el.name());
         }
 
         public String lexerRuleName() {

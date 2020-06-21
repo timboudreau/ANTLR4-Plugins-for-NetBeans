@@ -20,6 +20,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Paint;
+import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.Stroke;
 import java.awt.font.LineMetrics;
@@ -55,6 +56,7 @@ public class TextCell {
     private boolean stretch;
     private boolean strikethrough;
     private AffineTransform scaleFont;
+    private AffineTransform lastScaleFont;
 
     TextCell(String text, boolean isChild) {
         this.text = text;
@@ -74,6 +76,9 @@ public class TextCell {
     public TextCell reset() {
         text = "";
         oldChild = child;
+        if (scaleFont != null) {
+            lastScaleFont = scaleFont;
+        }
         child = null;
         strikethrough = false;
         foreground = null;
@@ -107,6 +112,7 @@ public class TextCell {
         nue.stretch = stretch;
         nue.scaleFont = scaleFont;
         nue.rightMargin = rightMargin;
+        nue.lastScaleFont = lastScaleFont;
         return nue;
     }
 
@@ -185,18 +191,17 @@ public class TextCell {
         if (by == 1D || by <= 0D) {
             scaleFont = null;
         } else {
-            scaleFont = AffineTransform.getScaleInstance(by, by);
+            if (lastScaleFont != null && lastScaleFont.getScaleX() == by && lastScaleFont.getScaleY() == by) {
+                scaleFont = lastScaleFont;
+            } else {
+                scaleFont = AffineTransform.getScaleInstance(by, by);
+            }
         }
         return this;
     }
 
     public TextCell scaleFont(float by) {
-        if (by == 1F || by <= 0F) {
-            scaleFont = null;
-        } else {
-            scaleFont = AffineTransform.getScaleInstance(by, by);
-        }
-        return this;
+        return scaleFont((double) by);
     }
 
     public TextCell inner(String text, Consumer<TextCell> childConsumer) {
@@ -274,7 +279,33 @@ public class TextCell {
         return result;
     }
 
+    String textAt(Point point, float x, float y, float maxX, float maxY, Font baseFont, Function<Font,FontMetrics> mx) {
+        if (point.x < x || point.y < y || point.x > maxX || point.y > maxY) {
+            return null;
+        }
+        if (text == null || text.isEmpty()) {
+            if (child != null) {
+                return child.textAt(point, x, y, maxX, maxY, baseFont, mx);
+            }
+            return null;
+        }
+        Font f = _font(font == null ? baseFont : font);
+        FontMetrics fm = mx.apply(f);
+        int w = fm.stringWidth(text);
+        int h = fm.getHeight() + fm.getDescent();
+        float textX = x + margin + indent + padding;
+        float textMaxX = Math.min(maxX, textX + w + padding + rightMargin);
+        if (point.x >= textX && point.x <= textMaxX) {
+            return text;
+        }
+        if (child != null) {
+            return child.textAt(point, textMaxX, y, maxX, maxY, baseFont, mx);
+        }
+        return null;
+    }
+
     private float paint(Graphics2D g, float x, float y, float maxX, float maxY, float baseline, Rectangle2D.Float painted) {
+//        System.out.println("Paint cell '" + text + "' at " + x + ", " + y + " maxes " + maxX + "," + maxY);
         if (text == null || text.isEmpty()) {
             if (child != null) {
                 return child.paint(g, x, y, maxX, maxY, baseline, painted);
@@ -368,6 +399,9 @@ public class TextCell {
 
     @Override
     public String toString() {
-        return "TextCell{" + "foreground=" + foreground + ", background=" + background + ", font=" + font + ", text=" + text + ", bgShape=" + bgShape + ", child=" + child + ", isChild=" + isChild + ", indent=" + indent + ", margin=" + margin + ", padding=" + padding + ", bold=" + bold + ", italic=" + italic + ", stretch=" + stretch + '}';
+        return "TextCell{" + "foreground=" + foreground + ", background=" + background + ", font="
+                + font + ", text=" + text + ", bgShape=" + bgShape + ", isChild=" + isChild + ", indent="
+                + indent + ", margin=" + margin + ", padding=" + padding + ", bold=" + bold + ", italic="
+                + italic + ", stretch=" + stretch + ", child=" + child + '}';
     }
 }

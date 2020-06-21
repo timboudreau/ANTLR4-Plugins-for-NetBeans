@@ -90,6 +90,7 @@ public final class Spinner extends JComponent implements ActionListener, Compone
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public void reshape(int x, int y, int w, int h) {
         shape = null;
         dim = Math.min(maxDim, (double) Math.min(w, h) / 2D);

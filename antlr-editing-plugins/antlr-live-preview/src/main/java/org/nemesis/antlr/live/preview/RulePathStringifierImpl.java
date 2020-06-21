@@ -15,14 +15,19 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
+import java.awt.FontMetrics;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JComponent;
 import javax.swing.JList;
+import javax.swing.UIManager;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
+import org.nemesis.swing.cell.TextCell;
+import org.nemesis.swing.cell.TextCellLabel;
 
 /**
  *
@@ -30,11 +35,87 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
  */
 public class RulePathStringifierImpl implements RulePathStringifier {
 
+    private static final Color DIM_BRIGHT = new Color(162, 162, 162);
+    private static final Color DIM_DARK = new Color(128, 128, 128);
+    private static final Color ATTENTION_BRIGHT = new Color(192, 192, 240);
+    private static final Color ATTENTION_DARK = new Color(40, 40, 120);
+    private static final Color TERMINAL_BRIGHT = new Color(128, 187, 140);
+    private static final Color TERMINAL_DARK = new Color(60, 152, 80);
+    private static final Color RELATED_TO_CARET_DARK = new Color(40, 112, 40);
+    private static final Color RELATED_TO_CARET_BRIGHT = new Color(255, 196, 80);
+    private static final Color CARET_ITEM_DARK = new Color(30, 180, 30);
+    private static final Color CARET_ITEM_BRIGHT = new Color(180, 180, 255);
+    private static final int MAX_HIGHLIGHTABLE_DISTANCE = 8;
     private static final String DELIM = " &gt; ";
     private static final String TOKEN_DELIM = " | ";
 
     private Map<String, Integer> distances = new HashMap<>();
     private int maxDist = 1;
+
+    public void configureTextCell(TextCellLabel lbl, AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, JComponent colorSource) {
+        AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
+        int count = prx.referencesCount(tok) - 1;
+        if (count <= 0) {
+            return;
+        }
+        maxDist = count + 1;
+        distances.clear();
+        List<ParseTreeElement> els = prx.referencedBy(tok);
+        lbl.setBackground(colorSource.getBackground());
+        lbl.setForeground(colorSource.getForeground());
+        Color shad = DIM_DARK;
+        FontMetrics fm = colorSource.getFontMetrics(lbl.getFont());
+        int gap = fm.charWidth('O') / 2;
+        TextCell cell = lbl.cell().bold().withText(type.name()).withForeground(attentionForegroundColor(colorSource))
+                .rightMargin(gap);
+        boolean ruleElementSeen = false;
+        for (int i = count; i >= 0; i--) { // zeroth will be the token
+            AntlrProxies.ParseTreeElement el = els.get(i);
+            if (i != count) {
+                String delim = i == 0 ? "\u00B7" : ">";
+                cell.inner(delim, (ch) -> {
+                    ch.withForeground(shad).margin(gap).rightMargin(gap).scaleFont(0.75);
+                });
+            }
+            if (el instanceof AntlrProxies.RuleNodeTreeElement) {
+                boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
+                boolean isFirstRule = !ruleElementSeen;
+                ruleElementSeen = true;
+                cell.inner(el.name(), ch -> {
+                    if (sameSpan) {
+                        ch.withForeground(dimmedForegroundColor(colorSource)).italic();
+                    }
+                    if (isFirstRule) {
+                        ch.bold();
+                    }
+                });
+                distances.put(el.name(), i);
+            } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
+                cell.inner(truncateText(el), ch -> {
+                    ch.withForeground(terminalForegroundColor(colorSource));
+                });
+            } else { // error node
+                cell.inner(el.name(), ch -> {
+                    Color c = UIManager.getColor("nb.errorForeground");
+                    if (c == null) {
+                        c = Color.RED;
+                    }
+                    ch.withForeground(c);
+                });
+            }
+        }
+        lbl.invalidate();
+        lbl.revalidate();
+        lbl.repaint();
+    }
+
+    private String truncateText(AntlrProxies.ParseTreeElement el) {
+        String text = Escaper.CONTROL_CHARACTERS.escape(el.name());
+        if (text.length() > 16) {
+            text = text.substring(0, 16) + "\u2026";
+        }
+        return "'" + text + "'";
+    }
 
     public void tokenRulePathString(AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, StringBuilder into, boolean html, JComponent colorSource) {
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
@@ -114,18 +195,34 @@ public class RulePathStringifierImpl implements RulePathStringifier {
     }
 
     static void appendDimmedForeground(JComponent comp, StringBuilder into) {
-        if (isDarkBackground(comp)) {
-            foregroundColor(new Color(162, 162, 162));
-        } else {
-            foregroundColor(new Color(128, 128, 128));
-        }
+        into.append(foregroundColor(dimmedForegroundColor(comp)));
     }
 
     static void appendAttentionForeground(JComponent comp, StringBuilder into) {
+        into.append(foregroundColor(attentionForegroundColor(comp)));
+    }
+
+    static Color dimmedForegroundColor(JComponent comp) {
         if (isDarkBackground(comp)) {
-            foregroundColor(new Color(192, 192, 240));
+            return DIM_BRIGHT;
         } else {
-            foregroundColor(new Color(40, 40, 120));
+            return DIM_DARK;
+        }
+    }
+
+    static Color attentionForegroundColor(JComponent comp) {
+        if (isDarkBackground(comp)) {
+            return ATTENTION_BRIGHT;
+        } else {
+            return ATTENTION_DARK;
+        }
+    }
+
+    static Color terminalForegroundColor(JComponent comp) {
+        if (isDarkBackground(comp)) {
+           return TERMINAL_BRIGHT;
+        } else {
+            return TERMINAL_DARK;
         }
     }
 
@@ -174,18 +271,17 @@ public class RulePathStringifierImpl implements RulePathStringifier {
 
     private Color relatedToCaretItemHighlightColor(JComponent comp) {
         if (isDarkBackground(comp)) {
-            return new Color(40, 112, 40);
+            return RELATED_TO_CARET_DARK;
         }
-        return new Color(255, 196, 80);
+        return RELATED_TO_CARET_BRIGHT;
     }
 
     private Color caretItemHighlightColor(JComponent comp) {
         if (isDarkBackground(comp)) {
-            return new Color(30, 180, 30);
+            return CARET_ITEM_DARK;
         }
-        return new Color(180, 180, 255);
+        return CARET_ITEM_BRIGHT;
     }
-    private static final int MAX_HIGHLIGHTABLE_DISTANCE = 7;
 
     private Color colorForDistance(float dist, JComponent comp) {
         if (maxDist == 0) {

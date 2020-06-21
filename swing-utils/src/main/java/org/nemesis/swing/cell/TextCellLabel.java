@@ -15,13 +15,18 @@
  */
 package org.nemesis.swing.cell;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
@@ -29,7 +34,9 @@ import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
@@ -98,12 +105,31 @@ public class TextCellLabel extends JComponent {
             d.height = Math.max(d.height, icon.getIconHeight() + ins.top + ins.bottom);
             d.width += icon.getIconWidth() + gap;
         }
+        d.width = Math.max(5, d.width);
+        if (d.height == 0) {
+            FontMetrics fm = getFontMetrics(getFont());
+            d.height = fm.getHeight() + fm.getDescent();
+        }
         return d;
     }
 
     @Override
     public Dimension getMinimumSize() {
         return getPreferredSize();
+    }
+
+    public String textAt(Point p) {
+        Insets ins = getInsets();
+        int x = ins.left + indent;
+        int y = ins.top;
+        int w = getWidth() - (ins.left + ins.right);
+        int h = getHeight() - (ins.top + ins.bottom);
+        if (icon != null) {
+            int iw = icon.getIconWidth() + gap;
+            w -= iw;
+            x += iw;
+        }
+        return cell.textAt(p, x, y, x+w, y+h, getFont(), this::getFontMetrics);
     }
 
     @Override
@@ -122,9 +148,9 @@ public class TextCellLabel extends JComponent {
         int iconY = 0;
         int iconX = indent;
         if (icon != null) {
-            int iw = icon.getIconWidth();
-            w -= iw + gap;
-            x += iw + gap;
+            int iw = icon.getIconWidth() + gap;
+            w -= iw;
+            x += iw;
         }
         size.width = size.height = size.x = size.y = 0;
         float baseline = cell.paint((Graphics2D) g, x, y, x + w, y + h, size);
@@ -133,8 +159,6 @@ public class TextCellLabel extends JComponent {
             int availIconHeight = (int) (baseline - y);
             if (availIconHeight < ih) {
                 iconY = 0;
-//                int offset = (availIconHeight - ih) / 2;
-//                iconY = y + offset;
             } else {
                 iconY = (int) (baseline - ih);
             }
@@ -185,7 +209,7 @@ public class TextCellLabel extends JComponent {
             }
         }
 
-        JPanel pnl = new JPanel();
+        JPanel pnl = new JPanel(new BorderLayout());
 
         TextCell cell = new TextCell("Hello").withForeground(Color.BLUE).bold();
         cell.inner("world", tx -> {
@@ -212,7 +236,20 @@ public class TextCellLabel extends JComponent {
         lbl.setBackground(Color.YELLOW);
         lbl.setOpaque(true);
         lbl.setBorder(BorderFactory.createMatteBorder(3, 7, 5, 9, Color.MAGENTA));
-        pnl.add(lbl);
+        pnl.add(lbl, BorderLayout.CENTER);
+        pnl.add(new JSlider(), BorderLayout.NORTH);
+
+        lbl.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String txt = lbl.textAt(e.getPoint());
+                    if (txt != null) {
+                        JOptionPane.showMessageDialog(pnl, txt);
+                    }
+                }
+            }
+        });
 
         JFrame jf = new JFrame();
         jf.setContentPane(pnl);
@@ -220,6 +257,5 @@ public class TextCellLabel extends JComponent {
         jf.setLocation(400, 400);
         jf.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         jf.setVisible(true);
-
     }
 }

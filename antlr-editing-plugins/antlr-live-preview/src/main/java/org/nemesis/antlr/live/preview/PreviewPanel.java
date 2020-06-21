@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.live.preview;
 
-import org.nemesis.swing.html.SimpleHtmlLabel;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -71,6 +70,9 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
 import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.file.AntlrKeys;
+import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
@@ -82,8 +84,13 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
+import org.nemesis.antlr.spi.language.AntlrParseResult;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.extraction.Extraction;
 import org.nemesis.swing.Scroller;
+import org.nemesis.swing.cell.TextCellLabel;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
@@ -134,8 +141,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final AdhocColoringPanel customizer;
 
     private final JEditorPane editorPane = new JEditorPane();
-    private final SimpleHtmlLabel breadcrumb = new SimpleHtmlLabel();
-    private final JPanel breadcrumbPanel = new JPanel(new BorderLayout());
+//    private final SimpleHtmlLabel breadcrumb = new SimpleHtmlLabel();
+    private final TextCellLabel breadcrumb = new TextCellLabel("position");
+//    private final JPanel breadcrumbPanel = new JPanel(new BorderLayout());
     private final JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private boolean initialAdd = true;
     private Lookup lookup = Lookup.EMPTY;
@@ -199,11 +207,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         // "border buildup" avoidance
         Border empty = BorderFactory.createEmptyBorder();
-        Border line = BorderFactory.createMatteBorder(1, 1, 0, 0,
-                color("controlShadow", Color.DARK_GRAY));
-
-        // Clean up gratuitous Swing borders
-//        rulesScroll.setBorder(line);
         rulesScroll.setBorder(empty);
         rulesScroll.setViewportBorder(empty);
 
@@ -227,7 +230,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         this.lookup = new ProxyLookup(sampleFileDataObject.getLookup(), internalLookup);
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
-//        Lookup lkp = MimeLookup.getLookup(MimePath.parse(mimeType));
         // Configure the editor pane to use it
         editorPane.setEditorKit(kit);
         // Open the document and set it on the editor pane
@@ -243,16 +245,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (sampleEditorUIComponent instanceof JScrollPane) {
                 sampleScroll = (JScrollPane) sampleEditorUIComponent;
             } else {
-                JScrollPane pane = null;
-                if (sampleEditorUIComponent instanceof Container) {
-                    for (Component c : ((Container) sampleEditorUIComponent).getComponents()) {
-                        if (c instanceof JScrollPane) {
-                            pane = (JScrollPane) c;
-                            break;
-                        }
-                    }
-                }
-                sampleScroll = pane;
+                sampleScroll = findScrollPane(sampleEditorUIComponent);
             }
         } else {
             split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
@@ -278,25 +271,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (grammarEditorUIComponent instanceof JScrollPane) {
                 grammarScroll = (JScrollPane) grammarEditorUIComponent;
             } else {
-                JScrollPane pane = null;
-                if (grammarEditorUIComponent instanceof Container) {
-                    for (Component c : ((Container) grammarEditorUIComponent).getComponents()) {
-                        if (c instanceof JScrollPane) {
-                            pane = (JScrollPane) c;
-                            break;
-                        }
-                    }
-                }
-                grammarScroll = pane;
+                grammarScroll = findScrollPane(grammarEditorUIComponent);
             }
-//            } else {
-//                JPanel grammarContainer = new JPanel(new BorderLayout());
-//                grammarContainer.add(tb, BorderLayout.NORTH);
-//                grammarContainer.add(grammarFileEditorUI.getExtComponent(), BorderLayout.CENTER);
-//                split.setBottomComponent(grammarContainer);
-//            }
         } else {
-//            grammarEditorScroll =
             split.setBottomComponent(grammarScroll = new JScrollPane(grammarEditorClone));
         }
         // The splitter is our central component, showing the sample content in
@@ -305,14 +282,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // Listen to the rule list to beginScroll the rule customizer
         rulesList.getSelectionModel().addListSelectionListener(this);
         rulesList.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor, this::currentProxy));
-        // Listen for changes to force re-highlighting if necessary
 
         // More border munging
-        breadcrumbPanel.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 0));
-        breadcrumb.setMinimumSize(new Dimension(100, 24));
+        breadcrumb.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 0));
         // The breadcrumb shows the rule path the caret is in
-        breadcrumbPanel.add(breadcrumb, BorderLayout.CENTER);
-        add(breadcrumbPanel, BorderLayout.SOUTH);
+        add(breadcrumb, BorderLayout.SOUTH);
         // listen on the caret to beginScroll the breadcrumb
         syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
         editorPane.getCaret().addChangeListener(this);
@@ -331,6 +305,18 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         grammarEditorClone.addFocusListener(this);
         editorPane.addFocusListener(this);
         syntaxTreeList.addFocusListener(this);
+        breadcrumb.addMouseListener(new BreadcrumbClickListener());
+    }
+
+    private static JScrollPane findScrollPane(Component comp) {
+        if (comp instanceof Container) {
+            for (Component c : ((Container) comp).getComponents()) {
+                if (c instanceof JScrollPane) {
+                    return (JScrollPane) c;
+                }
+            }
+        }
+        return null;
     }
 
     private ParseTreeProxy currentProxy() {
@@ -339,6 +325,45 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             return res.proxy();
         }
         return null;
+    }
+
+    private class BreadcrumbClickListener extends MouseAdapter {
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
+                String text = breadcrumb.textAt(e.getPoint());
+                if (text != null) {
+                    navigateToRule(text, true);
+                    e.consume();
+                }
+            }
+        }
+    }
+
+    private void navigateToRule(String ruleName, boolean focus) {
+        try {
+            Document doc = grammarEditorClone.getDocument();
+            ParsingUtils.parse(doc, res -> {
+                if (res instanceof AntlrParseResult) {
+                    Extraction ext = ((AntlrParseResult) res).extraction();
+                    if (ext != null) {
+                        NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
+                        if (regions != null && regions.contains(ruleName)) {
+                            NamedSemanticRegion<?> region = regions.regionFor(ruleName);
+                            Caret caret = grammarEditorClone.getCaret();
+                            positionCaret(caret, region.start(), doc);
+                            if (focus) {
+                                grammarEditorClone.requestFocus();
+                            }
+                        }
+                    }
+                }
+                return null;
+            });
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        }
     }
 
     private class RulesListClickOrEnter extends MouseAdapter implements KeyListener {
@@ -538,8 +563,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private boolean selectingRange;
 
-    void onSyntaxTreeClick(int[] range) {
-        selectRangeInPreviewEditor(range);
+    void onSyntaxTreeClick(int clickCount, SyntaxTreeListModel.ModelEntry entry,  int start, int end) {
+        selectRangeInPreviewEditor(new int[]{start, end});
+        if (clickCount == 2) {
+            navigateToRule(entry.name(), false);
+        }
     }
 
     @Override
@@ -792,7 +820,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     private void updateBreadcrumb(Caret caret) {
         if (caret.getMark() != caret.getDot()) {
-            breadcrumb.setText(" ");
+            breadcrumb.cell().withText(" ");
+            return;
         }
         if (editorPane.getDocument().getLength() > 0) {
             EventQueue.invokeLater(() -> {
@@ -816,11 +845,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void updateBreadcrumb(Caret caret, ParseTreeProxy prx) {
-        StringBuilder sb = new StringBuilder();
+//        StringBuilder sb = new StringBuilder();
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
-            stringifier.tokenRulePathString(prx, tok, sb, true, breadcrumb);
-            List<ParseTreeElement> referenceChain = prx.referencedBy(tok); //tok.referencedBy();
+            stringifier.configureTextCell(breadcrumb, prx, tok, rulesList);
+            List<ParseTreeElement> referenceChain = prx.referencedBy(tok);
             if (!referenceChain.isEmpty()) {
                 ParseTreeElement rule = referenceChain.get(referenceChain.size() - 1);
                 int ix = syntaxModel.select(rule);
@@ -841,10 +870,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 }
             }
         }
-        breadcrumb.setText(sb.toString());
-        breadcrumb.invalidate();
-        breadcrumb.revalidate();
-        breadcrumb.repaint();
         // Updating the stringifier may change what background colors are
         // used for some cells, so repaint it
         rulesList.repaint();
@@ -936,13 +961,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             leftSideSize = listsSplit.getPreferredSize();
         }
         Dimension topSize = customizer.getPreferredSize();
-        Dimension bottomSize = breadcrumbPanel.getPreferredSize();
+        Dimension bottomSize = breadcrumb.getPreferredSize();
 //        Dimension centerSize = split.getPreferredSize();
 
         Insets ins = getInsets();
         customizer.setBounds(ins.left, ins.top, getWidth() - (ins.left + ins.right), topSize.height);
         listsSplit.setBounds(getWidth() - (ins.right + leftSideSize.width), ins.top + topSize.height, leftSideSize.width, getHeight() - (ins.top + ins.bottom + topSize.height));
-        breadcrumbPanel.setBounds(ins.left, getHeight() - (ins.bottom + bottomSize.height), getWidth() - (ins.left + ins.right + leftSideSize.width), bottomSize.height);
+        breadcrumb.setBounds(ins.left, getHeight() - (ins.bottom + bottomSize.height), getWidth() - (ins.left + ins.right + leftSideSize.width), bottomSize.height);
         split.setBounds(ins.left,
                 ins.top + topSize.height,
                 getWidth() - (ins.left + ins.right + leftSideSize.width),
@@ -962,7 +987,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 }
             }
         }
-
     }
 
     private void updateColoringsList() {
