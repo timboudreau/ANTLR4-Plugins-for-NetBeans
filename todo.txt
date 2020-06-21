@@ -1,15 +1,15 @@
 
-Preview is generating activated highlighting for *every* rule.
+Format with an options {} block inserts a leading space before first rule name.
 
-Formatting option to align # alternative names.
+Should have a rule "inline" refactoring if it has users.
+
+Formatting option to align # alternative names (would need a justify pass).
 
 If opened against an un-parseable grammar, syntax tree in preview never gets updated once it is made usable.
 
-Should add a build listener which can make antlr error lines clickable in output window.
-
 Need tests for hetero object graph
 
-Add hint to turn terminal nodes in parser rules into lexer rules or fragments
+Add hint to turn literals in parser rules into lexer rules or fragments
 
 We are capturing 'skip' directives - should capture channels and offer to change a skip to an unused channel number > 0
 

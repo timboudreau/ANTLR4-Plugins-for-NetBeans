@@ -80,7 +80,7 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
         if (value.isTerminal()) {
             String type = value.lexerRuleName();
             if (type != null) {
-                cell.inner(type, tc -> {
+                cell.append(type, tc -> {
                     tc.italic().withForeground(list.getForeground().darker()).indent(asc / 2);
                 });
             }

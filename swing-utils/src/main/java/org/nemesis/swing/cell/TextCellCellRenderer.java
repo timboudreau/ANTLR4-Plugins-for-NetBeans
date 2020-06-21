@@ -37,6 +37,10 @@ import javax.swing.event.AncestorListener;
  */
 public class TextCellCellRenderer extends TextCellLabel {
 
+    protected final boolean isCellRenderer() {
+        return true;
+    }
+
     /**
      * Overridden to do nothing for performance reasons
      */

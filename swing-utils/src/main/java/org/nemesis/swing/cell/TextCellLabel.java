@@ -37,10 +37,14 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
+import javax.swing.ToolTipManager;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
 /**
+ * A label which can display "cells" of text that have different
+ * font/color/background shape attributes.  For use as a Swing cell renderer,
+ * use the subclass TextCellCellRenderer.
  *
  * @author Tim Boudreau
  */
@@ -51,6 +55,8 @@ public class TextCellLabel extends JComponent {
     private Icon icon;
     private int gap;
     private int indent;
+    private boolean useFullTextAsToolTip;
+    private String fullTextDelimiter = " ";
 
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public TextCellLabel() {
@@ -76,25 +82,142 @@ public class TextCellLabel extends JComponent {
         this.cell = cell;
     }
 
+    /**
+     * Set an icon on this label.
+     *
+     * @param icon An icon or null
+     * @return this
+     */
     public TextCellLabel setIcon(Icon icon) {
         this.icon = icon;
         return this;
     }
 
+    /**
+     * Set the gap between icon and the start of the first cell's contents.
+     *
+     * @param gap The gap
+     * @return this
+     */
     public TextCellLabel setIconTextGap(int gap) {
         this.gap = gap;
         return this;
     }
 
+    /**
+     * Set the amount all contents of this label should be indented.
+     *
+     * @param indent The indent amount
+     * @return this
+     */
     public TextCellLabel setIndent(int indent) {
         this.indent = indent;
         return this;
     }
 
+    /**
+     * If set, use the full text of the text cell(s) as the tooltip for this
+     * component.
+     *
+     * @param delimiter The delimiter to place between cells so text does not
+     * run together.
+     * @return this
+     */
+    public TextCellLabel useFullTextAsToolTip(String delimiter) {
+        this.fullTextDelimiter = delimiter;
+        return this;
+    }
+
+    /**
+     * If set, use the full text of the text cell(s) as the tooltip for this
+     * component.
+     *
+     * @return this
+     */
+    public TextCellLabel useFullTextAsToolTip() {
+        setUseFullTextAsToolTip(true);
+        return this;
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        ensureNotRegisteredWithTooltipManagerIfNeeded();
+    }
+
+    @Override
+    public void removeNotify() {
+        ensureNotRegisteredWithTooltipManagerIfNeeded();
+        super.removeNotify();
+    }
+
+    public String getFullText() {
+        return cell.fullText(fullTextDelimiter);
+    }
+
+    public void setFullTextDelimiter(String delmiter) {
+        this.fullTextDelimiter = delmiter;
+    }
+
+    public void setUseFullTextAsToolTip(boolean val) {
+        if (val != useFullTextAsToolTip) {
+            useFullTextAsToolTip = val;
+            if (val) {
+                ensureRegisteredWithTooltipManager();
+            } else {
+                ensureNotRegisteredWithTooltipManagerIfNeeded();
+            }
+        }
+    }
+
+    private void ensureRegisteredWithTooltipManager() {
+        if (!isCellRenderer() && isDisplayable()) {
+            ToolTipManager.sharedInstance().registerComponent(this);
+        }
+    }
+
+    private void ensureNotRegisteredWithTooltipManagerIfNeeded() {
+        if (!isCellRenderer()) {
+            ToolTipManager.sharedInstance().unregisterComponent(this);
+        }
+    }
+
+    public boolean isEmpty() {
+        return cell.isEmpty();
+    }
+
+    @Override
+    public String getToolTipText() {
+        if (useFullTextAsToolTip) {
+            return cell.fullText(fullTextDelimiter);
+        }
+        return super.getToolTipText();
+    }
+
+    /**
+     * Overridden by TextCellCellRenderer to return true and disable registering
+     * with ToolTipManager.
+     *
+     * @return false by default
+     */
+    protected boolean isCellRenderer() {
+        return false;
+    }
+
+    /**
+     * Get the currently set icon.
+     *
+     * @return An icon
+     */
     public Icon getIcon() {
         return icon;
     }
 
+    /**
+     * Computes the preferred size based on the contained cell(s0.
+     *
+     * @return A dimension
+     */
     public Dimension getPreferredSize() {
         size.x = size.y = size.width = size.height = 0;
         Insets ins = getInsets();
@@ -113,11 +236,22 @@ public class TextCellLabel extends JComponent {
         return d;
     }
 
+    /**
+     * Returns the preferred size.
+     *
+     * @return The minimum size
+     */
     @Override
     public Dimension getMinimumSize() {
         return getPreferredSize();
     }
 
+    /**
+     * Get the text of the cell painted at a given point, if any.
+     *
+     * @param p The point
+     * @return The text
+     */
     public String textAt(Point p) {
         Insets ins = getInsets();
         int x = ins.left + indent;
@@ -129,7 +263,7 @@ public class TextCellLabel extends JComponent {
             w -= iw;
             x += iw;
         }
-        return cell.textAt(p, x, y, x+w, y+h, getFont(), this::getFontMetrics);
+        return cell.textAt(p, x, y, x + w, y + h, getFont(), this::getFontMetrics);
     }
 
     @Override
@@ -166,18 +300,44 @@ public class TextCellLabel extends JComponent {
         }
     }
 
+    /**
+     * Set the displayed text.  This replaces the cell with one which
+     * retains color, shape, margin, padding and font settings, but not
+     * any child cells, with the text set to the passed text.
+     *
+     * @param text
+     */
     public void setText(String text) {
         setCell(cell.newCellLikeThis(text));
     }
 
-    public TextCell getCell(TextCell cell) {
+    /**
+     * Get the text cell, without altering its contents.
+     *
+     * @param cell The cell
+     * @return The cell
+     */
+    public TextCell getCell() {
         return cell;
     }
 
+    /**
+     * Get the cell, resetting its coloring and all attributes of it -
+     * use this method when replacing the entire contents which may
+     * involve a sequence of child cells, to remove previously painted
+     * state (particularly useful in cell renderers).
+     *
+     * @return The cell, with its contents and state cleared
+     */
     public TextCell cell() {
         return cell.reset();
     }
 
+    /**
+     * Replace the cell contents.
+     *
+     * @param cell The cell
+     */
     public void setCell(TextCell cell) {
         this.cell = cell;
         invalidate();
@@ -212,23 +372,23 @@ public class TextCellLabel extends JComponent {
         JPanel pnl = new JPanel(new BorderLayout());
 
         TextCell cell = new TextCell("Hello").withForeground(Color.BLUE).bold();
-        cell.inner("world", tx -> {
+        cell.append("world", tx -> {
             tx.withBackground(Color.ORANGE, new Ellipse2D.Float());
         });
-        cell.inner("stuff", tx -> {
-            tx.withForeground(new Color(0, 128, 0)).margin(10).withFont(new Font("Times New Roman", Font.BOLD, 36))
+        cell.append("stuff", tx -> {
+            tx.withForeground(new Color(0, 128, 0)).leftMargin(10).withFont(new Font("Times New Roman", Font.BOLD, 36))
                     .rightMargin(10).strikethrough();
         });
-        cell.inner("Goodbye", tx -> {
+        cell.append("Goodbye", tx -> {
             tx.italic().withBackground(Color.GRAY).withForeground(Color.WHITE).indent(12).rightMargin(12)
                     .strikethrough();
         });
-        cell.inner("Wonderful", tx -> {
+        cell.append("Wonderful", tx -> {
             tx.scaleFont(0.5F).withBackground(Color.ORANGE, new RoundRectangle2D.Float(0, 0, 0, 0, 17, 14)).indent(10)
-                    .stretch();
+                    ;
         });
-        cell.inner("plain", tx -> {
-            tx.margin(12);
+        cell.append("plain", tx -> {
+            tx.leftMargin(12).withBackground(Color.LIGHT_GRAY, new RoundRectangle2D.Float(0, 0, 0, 0, 17, 14));
         });
 
         TextCellLabel lbl = new TextCellLabel(cell).setIcon(new IC()).setIconTextGap(1).setIndent(20);

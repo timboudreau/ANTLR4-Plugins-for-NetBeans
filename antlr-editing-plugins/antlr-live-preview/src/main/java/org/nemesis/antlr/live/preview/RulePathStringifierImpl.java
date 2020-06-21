@@ -21,11 +21,13 @@ import java.awt.FontMetrics;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.UIManager;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind;
 import org.nemesis.swing.cell.TextCell;
 import org.nemesis.swing.cell.TextCellLabel;
 
@@ -45,9 +47,15 @@ public class RulePathStringifierImpl implements RulePathStringifier {
     private static final Color RELATED_TO_CARET_BRIGHT = new Color(255, 196, 80);
     private static final Color CARET_ITEM_DARK = new Color(30, 180, 30);
     private static final Color CARET_ITEM_BRIGHT = new Color(180, 180, 255);
+    private static final Color RULE_CELL_DARK = new Color(40, 40, 135);
+    private static final Color RULE_CELL_LIGHT = new Color(162, 162, 237);
+    private static final Color RULE_CELL_DARK_DIM = new Color(10, 10, 80);
+    private static final Color RULE_CELL_LIGHT_DIM = new Color(180, 180, 245);
     private static final int MAX_HIGHLIGHTABLE_DISTANCE = 8;
     private static final String DELIM = " &gt; ";
     private static final String TOKEN_DELIM = " | ";
+    private final BreadcrumbCellShape shape = new BreadcrumbCellShape();
+    private boolean useShape = false;
 
     private Map<String, Integer> distances = new HashMap<>();
     private int maxDist = 1;
@@ -65,42 +73,65 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         lbl.setForeground(colorSource.getForeground());
         Color shad = DIM_DARK;
         FontMetrics fm = colorSource.getFontMetrics(lbl.getFont());
+        lbl.useFullTextAsToolTip();
+
+        int pad = (int) Math.ceil(fm.getHeight() / 14);
+        if (useShape) {
+            lbl.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        }
+
         int gap = fm.charWidth('O') / 2;
         TextCell cell = lbl.cell().bold().withText(type.name()).withForeground(attentionForegroundColor(colorSource))
-                .rightMargin(gap);
+                .rightMargin(gap).pad(pad);
+
         boolean ruleElementSeen = false;
         for (int i = count; i >= 0; i--) { // zeroth will be the token
             AntlrProxies.ParseTreeElement el = els.get(i);
             if (i != count) {
                 String delim = i == 0 ? "\u00B7" : ">";
-                cell.inner(delim, (ch) -> {
-                    ch.withForeground(shad).margin(gap).rightMargin(gap).scaleFont(0.75);
+                cell.append(delim, (ch) -> {
+                    ch.withForeground(shad).leftMargin(gap).rightMargin(gap).scaleFont(0.75);
                 });
             }
             if (el instanceof AntlrProxies.RuleNodeTreeElement) {
                 boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
                 boolean isFirstRule = !ruleElementSeen;
                 ruleElementSeen = true;
-                cell.inner(el.name(), ch -> {
+                cell.append(el.name(), ch -> {
                     if (sameSpan) {
                         ch.withForeground(dimmedForegroundColor(colorSource)).italic();
+                        if (useShape) {
+                            ch.withBackground(ruleCellDimmedBackgroundColor(colorSource), shape)
+                                    .indent(12).rightMargin(12).topMargin(3);
+                        }
+                    } else {
+                        if (useShape) {
+                            ch.withBackground(ruleCellBackgroundColor(colorSource), shape)
+                                    .indent(12).rightMargin(12).topMargin(3);
+                        }
                     }
                     if (isFirstRule) {
                         ch.bold();
                     }
+                    if (useShape) {
+                        ch.pad(pad).shapeOutlinePainted().bottomMargin(1).topMargin(1);
+                    }
+
                 });
                 distances.put(el.name(), i);
             } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
-                cell.inner(truncateText(el), ch -> {
+                cell.append(truncateText(el), ch -> {
                     ch.withForeground(terminalForegroundColor(colorSource));
                 });
             } else { // error node
-                cell.inner(el.name(), ch -> {
+                cell.append(el.name(), ch -> {
                     Color c = UIManager.getColor("nb.errorForeground");
                     if (c == null) {
                         c = Color.RED;
                     }
-                    ch.withForeground(c);
+                    if (el.kind() == ParseTreeElementKind.ERROR) {
+                        ch.withForeground(c);
+                    }
                 });
             }
         }
@@ -202,28 +233,39 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         into.append(foregroundColor(attentionForegroundColor(comp)));
     }
 
+    static Color ruleCellBackgroundColor(JComponent comp) {
+        if (isDarkBackground(comp)) {
+            return RULE_CELL_DARK;
+        }
+        return RULE_CELL_LIGHT;
+    }
+
+    static Color ruleCellDimmedBackgroundColor(JComponent comp) {
+        if (isDarkBackground(comp)) {
+            return RULE_CELL_DARK_DIM;
+        }
+        return RULE_CELL_LIGHT_DIM;
+    }
+
     static Color dimmedForegroundColor(JComponent comp) {
         if (isDarkBackground(comp)) {
             return DIM_BRIGHT;
-        } else {
-            return DIM_DARK;
         }
+        return DIM_DARK;
     }
 
     static Color attentionForegroundColor(JComponent comp) {
         if (isDarkBackground(comp)) {
             return ATTENTION_BRIGHT;
-        } else {
-            return ATTENTION_DARK;
         }
+        return ATTENTION_DARK;
     }
 
     static Color terminalForegroundColor(JComponent comp) {
         if (isDarkBackground(comp)) {
-           return TERMINAL_BRIGHT;
-        } else {
-            return TERMINAL_DARK;
+            return TERMINAL_BRIGHT;
         }
+        return TERMINAL_DARK;
     }
 
     public Color listBackgroundColorFor(String ruleName, JList<?> list) {

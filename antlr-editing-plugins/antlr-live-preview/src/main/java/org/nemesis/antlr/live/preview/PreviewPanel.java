@@ -322,6 +322,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         editorPane.addFocusListener(this);
         syntaxTreeList.addFocusListener(this);
         breadcrumb.addMouseListener(new BreadcrumbClickListener());
+        breadcrumb.useFullTextAsToolTip();
     }
 
     private static JScrollPane findScrollPane(Component comp) {

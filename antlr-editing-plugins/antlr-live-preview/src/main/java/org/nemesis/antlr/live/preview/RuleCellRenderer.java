@@ -102,8 +102,8 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
                 }
                 Color fore = colorFor(orig, col, list, present);
                 if (!present) {
-                    cell.strikethrough().inner(Bundle.notPresent(), tc -> {
-                        tc.margin(12).scaleFont(0.75F).withForeground(fore != null ? fore.darker() : list.getForeground().darker());
+                    cell.strikethrough().append(Bundle.notPresent(), tc -> {
+                        tc.leftMargin(12).scaleFont(0.75F).withForeground(fore != null ? fore.darker() : list.getForeground().darker());
                     });
                 } else {
                     if (fore != null) {
@@ -114,8 +114,8 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         } else {
             // We can be asked to paint after a color has been removed but before our
             // model has been updated
-            cell.strikethrough().inner("(unknown)", tc -> {
-                tc.margin(12).scaleFont(0.75F).withForeground(UIManager.getColor("controlShadow"));
+            cell.strikethrough().append("(unknown)", tc -> {
+                tc.leftMargin(12).scaleFont(0.75F).withForeground(UIManager.getColor("controlShadow"));
             });
         }
         ren.setIndent(5);

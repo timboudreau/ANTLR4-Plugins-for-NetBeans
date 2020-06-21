@@ -33,11 +33,18 @@ import java.util.function.Function;
 import org.nemesis.swing.html.HtmlRenderer;
 
 /**
+ * A single cell of text which may have its own foreground, background, font,
+ * font style and scaling, left and right and bottom margins, padding,
+ * properties, and optionally a RectangularShape which wraps around the
+ * background.
  *
  * @author Tim Boudreau
  */
 public class TextCell {
 
+    private static final BasicStroke STROKE = new BasicStroke(1);
+    private final Rectangle2D.Float RECT = new Rectangle2D.Float();
+    private static final Line2D.Float STRIKE = new Line2D.Float();
     private Paint foreground;
     private Paint background;
     private Font font;
@@ -47,7 +54,7 @@ public class TextCell {
     private TextCell oldChild;
     private boolean isChild;
     private int indent;
-    private int margin;
+    private int leftMargin;
     private int rightMargin;
     private int padding;
     private int bottomMargin;
@@ -55,6 +62,8 @@ public class TextCell {
     private boolean italic;
     private boolean stretch;
     private boolean strikethrough;
+    private boolean shapeOutlinePainted;
+    private int topMargin;
     private AffineTransform scaleFont;
     private AffineTransform lastScaleFont;
 
@@ -73,6 +82,12 @@ public class TextCell {
         return this;
     }
 
+    /**
+     * Wipe the contents and properties of this cell, leaving it ready to be set
+     * up with new contents and properties.
+     *
+     * @return this
+     */
     public TextCell reset() {
         text = "";
         oldChild = child;
@@ -86,25 +101,35 @@ public class TextCell {
         font = null;
         indent = 0;
         bottomMargin = 0;
-        margin = 0;
+        shapeOutlinePainted = false;
+        leftMargin = 0;
         padding = 0;
         bold = false;
         italic = false;
         stretch = false;
         scaleFont = null;
         rightMargin = 0;
+        topMargin = 0;
         return this;
     }
 
+    /**
+     * Create a cell which shares all the properties of this one other than
+     * child cells, but uses the passed text as its text.
+     *
+     * @param text The text
+     * @return A new cell
+     */
     public TextCell newCellLikeThis(String text) {
         TextCell nue = new TextCell(text, false);
         nue.foreground = foreground;
+        nue.topMargin = topMargin;
         nue.background = background;
         nue.font = font;
         nue.bgShape = bgShape;
         nue.indent = indent;
         nue.bottomMargin = bottomMargin;
-        nue.margin = margin;
+        nue.leftMargin = leftMargin;
         nue.padding = padding;
         nue.bold = bold;
         nue.strikethrough = strikethrough;
@@ -112,81 +137,176 @@ public class TextCell {
         nue.stretch = stretch;
         nue.scaleFont = scaleFont;
         nue.rightMargin = rightMargin;
+        nue.shapeOutlinePainted = shapeOutlinePainted;
         nue.lastScaleFont = lastScaleFont;
         return nue;
     }
 
+    /**
+     * Set the bottom leftMargin in pixels.
+     *
+     * @param bottomMargin The bottom leftMargin
+     * @return this
+     */
     public TextCell bottomMargin(int bottomMargin) {
         this.bottomMargin = bottomMargin;
         return this;
     }
 
+    /**
+     * Set this cell to strike through its text.
+     *
+     * @return this
+     */
     public TextCell strikethrough() {
         this.strikethrough = true;
         return this;
     }
 
+    /**
+     * Change the text of this cell.
+     *
+     * @param text The new text.
+     * @return
+     */
     public TextCell withText(String text) {
-        this.text = text;
+        this.text = text == null ? "" : text;
         return this;
     }
 
+    /**
+     * Cause the background shape (if any) to stretch to the maxiumum x position
+     * when painting, such that any child cells also are contained within it.
+     *
+     * @return this
+     */
     public TextCell stretch() {
         this.stretch = true;
         return this;
     }
 
+    /**
+     * Add bold to the font styles.
+     *
+     * @return this
+     */
     public TextCell bold() {
         bold = true;
         return this;
     }
 
+    /**
+     * Add italic to the font style.
+     *
+     * @return this
+     */
     public TextCell italic() {
         italic = true;
         return this;
     }
 
+    /**
+     * Set the right leftMargin in pixels.
+     *
+     * @param margin The leftMargin
+     * @return this
+     */
     public TextCell rightMargin(int margin) {
         this.rightMargin = margin;
         return this;
     }
 
+    /**
+     * Set the font to use (the passed font will be used as a base for deriving
+     * the actual font painted with, if the font scaling or style is set).
+     *
+     * @param font The font
+     * @return this
+     */
     public TextCell withFont(Font font) {
         this.font = font;
         return this;
     }
 
+    /**
+     * Set the foreground paint.
+     *
+     * @param fg The foreground paint.
+     * @return this
+     */
     public TextCell withForeground(Paint fg) {
         this.foreground = fg;
         return this;
     }
 
+    /**
+     * Set the background paint and a shape to use for the background.
+     *
+     * @param bg The background paint
+     * @param bgShape The background shape
+     * @return this
+     */
     public TextCell withBackground(Paint bg, RectangularShape bgShape) {
         this.bgShape = bgShape;
         this.background = bg;
         return this;
     }
 
+    /**
+     * Set the background paint.
+     *
+     * @param bg The background
+     * @return this
+     */
     public TextCell withBackground(Paint bg) {
         this.background = bg;
         return this;
     }
 
+    /**
+     * Set the indentation of this cell - empty space before any background
+     * shape or text is painted.
+     *
+     * @param by The indent
+     * @return this
+     */
     public TextCell indent(int by) {
         indent = by;
         return this;
     }
 
-    public TextCell margin(int margin) {
-        this.margin = margin;
+    /**
+     * Set the left leftMargin of this cell - empty space which may come after
+     * the left edge of the background shape (if any) before text painting
+     * begins.
+     *
+     * @param margin The leftMargin
+     * @return this
+     */
+    public TextCell leftMargin(int margin) {
+        this.leftMargin = margin;
         return this;
     }
 
+    /**
+     * Set the padding - pixels added to all sides of this cell when painting or
+     * computing the preferred size.
+     *
+     * @param padding The padding
+     * @return this
+     */
     public TextCell pad(int padding) {
         this.padding = padding;
         return this;
     }
 
+    /**
+     * Set scaling on the font when painting.
+     *
+     * @param by A value &gt; 1 to make the font larger, or &lt; 1 to make it
+     * smaller
+     * @return this
+     */
     public TextCell scaleFont(double by) {
         if (by == 1D || by <= 0D) {
             scaleFont = null;
@@ -200,11 +320,33 @@ public class TextCell {
         return this;
     }
 
+    /**
+     * Set scaling on the font when painting.
+     *
+     * @param by A value &gt; 1 to make the font larger, or &lt; 1 to make it
+     * smaller
+     * @return this
+     */
     public TextCell scaleFont(float by) {
         return scaleFont((double) by);
     }
 
-    public TextCell inner(String text, Consumer<TextCell> childConsumer) {
+    public TextCell topMargin(int margin) {
+        this.topMargin = topMargin;
+        return this;
+    }
+
+    /**
+     * Append a new cell to this one (technically adding a child cell which is
+     * passed to the passed consumer for configuration) - the new cell will be
+     * painted adjacent to this one and may have its own color and other
+     * properties.
+     *
+     * @param text The text to use for the subsequent cell
+     * @param childConsumer A consumer which is passed the child cell
+     * @return this, <b>not</b> the child cell
+     */
+    public TextCell append(String text, Consumer<TextCell> childConsumer) {
         if (oldChild != null) {
             child = oldChild.reset();
             oldChild = null;
@@ -212,7 +354,7 @@ public class TextCell {
             return this;
         }
         if (child != null) {
-            child.inner(text, childConsumer);
+            child.append(text, childConsumer);
         } else {
             child = new TextCell(text, true);
             childConsumer.accept(child);
@@ -235,6 +377,20 @@ public class TextCell {
         return f;
     }
 
+    /**
+     * Compute the bounds of this cell and its children into the passed
+     * Rectangle.'
+     *
+     * @param initialFont The font to use if no font is explicitly set on this
+     * cell or its children
+     * @param into A rectangle to reconfigure with the target bounds
+     * @param x The starting x coordinate
+     * @param y The starting y coordinate
+     * @param func A function for retrieving a screen-tuned FontMetrics for a
+     * font - in a <code>Component</code>, pass
+     * <code>this::getFontMetrics</code>, or a handle to the equivalent method
+     * on a <code>Graphics2D</code>.
+     */
     public void bounds(Font initialFont, Rectangle2D.Float into, float x, float y, Function<Font, FontMetrics> func) {
         if (text == null || text.isEmpty()) {
             if (child != null) {
@@ -250,23 +406,72 @@ public class TextCell {
         if (into.isEmpty()) {
             into.x = x;
             into.y = y;
-            into.width = margin + rightMargin + indent + w + (padding * 2);
-            into.height = h + (padding * 2) + bottomMargin;
+            into.width = leftMargin + rightMargin + indent + w + (padding * 2);
+            into.height = h + (padding * 2) + bottomMargin + topMargin;
         } else {
-            into.width += margin + rightMargin + indent + w + (padding * 2);
-            into.height = Math.max(into.height, h + (padding * 2) + bottomMargin);
+            into.width += leftMargin + rightMargin + indent + w + (padding * 2);
+            into.height = Math.max(into.height, h + (padding * 2) + bottomMargin + topMargin);
         }
         if (child != null) {
             child.bounds(initialFont, into, x + into.width, y, func);
         }
     }
 
-    private static final BasicStroke STROKE = new BasicStroke(1);
-    private final Rectangle2D.Float RECT = new Rectangle2D.Float();
-    private static final Line2D.Float STRIKE = new Line2D.Float();
+    /**
+     * Get the text of this cell and any child cells, prepending the passed
+     * delimiter before the text of child cells.
+     *
+     * @param delimiter A delmiter
+     * @return The text of this and all descendant child cells, concatenated
+     */
+    public String fullText(String delimiter) {
+        StringBuilder sb = new StringBuilder();
+        fullText(sb, delimiter);
+        return sb.toString();
+    }
 
+    private void fullText(StringBuilder sb, String delimiter) {
+        if (text != null && !text.isEmpty()) {
+            sb.append(text).append(delimiter);
+        }
+        if (child != null) {
+            child.fullText(sb, delimiter);
+        }
+    }
+
+    /**
+     * Returns true if the text of this and any child cells is null, empty or
+     * entirely whitespace.
+     *
+     * @return True if the text is effectively empty
+     */
+    public boolean isEmpty() {
+        boolean result = text.trim().isEmpty();
+        if (child != null) {
+            result |= child.isEmpty();
+        }
+        return result;
+    }
+
+    /**
+     * Paint this cell and its children.
+     *
+     * @param g A graphics
+     * @param x The starting x coordinate
+     * @param y The starting y coordinate
+     * @param maxX The maximum x coordinate
+     * @param maxY The maximum y coordinate
+     * @param painted A rectangle to configure with the bounds modified by
+     * painting
+     * @return The text baseline in the y axis
+     */
     public float paint(Graphics2D g, float x, float y, float maxX, float maxY, Rectangle2D.Float painted) {
         return paint(g, x, y, maxX, maxY, -1, painted);
+    }
+
+    public TextCell shapeOutlinePainted() {
+        shapeOutlinePainted = true;
+        return this;
     }
 
     private float baseline(float y, Graphics2D g, float lastBaseline) {
@@ -274,12 +479,14 @@ public class TextCell {
         FontMetrics fm = g.getFontMetrics(f);
         float result = Math.max(lastBaseline, y + fm.getAscent()) + padding;
         if (child != null) {
-            result = Math.max(result, child.baseline(y, g, result));
+            result = Math.max(result + topMargin, child.baseline(y, g, result));
+        } else {
+            result += topMargin;
         }
         return result;
     }
 
-    String textAt(Point point, float x, float y, float maxX, float maxY, Font baseFont, Function<Font,FontMetrics> mx) {
+    String textAt(Point point, float x, float y, float maxX, float maxY, Font baseFont, Function<Font, FontMetrics> mx) {
         if (point.x < x || point.y < y || point.x > maxX || point.y > maxY) {
             return null;
         }
@@ -293,7 +500,7 @@ public class TextCell {
         FontMetrics fm = mx.apply(f);
         int w = fm.stringWidth(text);
         int h = fm.getHeight() + fm.getDescent();
-        float textX = x + margin + indent + padding;
+        float textX = x + leftMargin + indent + padding;
         float textMaxX = Math.min(maxX, textX + w + padding + rightMargin);
         if (point.x >= textX && point.x <= textMaxX) {
             return text;
@@ -322,9 +529,8 @@ public class TextCell {
         }
         FontMetrics fm = g.getFontMetrics();
         float baselineAdjust = baseline - (y + fm.getAscent());
-
         int w = fm.stringWidth(text);
-        int h = fm.getHeight() + fm.getDescent();
+        int h = fm.getAscent() + fm.getDescent();
         if (!isChild) {
             g.addRenderingHints(HtmlRenderer.hintsMap());
             Object rhval = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
@@ -337,19 +543,30 @@ public class TextCell {
             RectangularShape shape = bgShape == null ? RECT : bgShape;
             float shapeW;
             if (!stretch) {
-                shapeW = Math.min(rightMargin + margin + w + (padding * 2) + indent, maxX - x);
+                shapeW = Math.min(rightMargin + leftMargin + w + (padding * 2) + indent, maxX - x);
             } else {
-                shapeW = Math.max(rightMargin + margin + w + (padding * 2) + indent, maxX - x);
+                shapeW = Math.max(rightMargin + leftMargin + w + (padding * 2) + indent, maxX - x);
             }
-            float shapeY = y + (baselineAdjust / 2);
-            shape.setFrame(x + margin, shapeY, shapeW, Math.min(y + h + (padding * 2) + fm.getDescent(), maxY - y) - y);
+            float shapeHeight = Math.min(y + h + (padding * 2), maxY - y) - y;
+            float shapeY = y + baselineAdjust + topMargin;
+            if (shapeY + shapeHeight < y + h) {
+                shapeY += h - shapeHeight;
+            }
+            shape.setFrame(x + leftMargin, shapeY, shapeW, shapeHeight);
             if (!isChild) {
                 g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             }
             Stroke oldStroke = g.getStroke();
             g.setStroke(STROKE);
-            g.setPaint(background);
+            if (shapeOutlinePainted) {
+                g.setPaint(foreground);
+            } else {
+                g.setPaint(background);
+            }
             g.draw(shape);
+            if (shapeOutlinePainted) {
+                g.setPaint(background);
+            }
             g.fill(shape);
             g.setStroke(oldStroke);
             if (painted.isEmpty()) {
@@ -362,9 +579,9 @@ public class TextCell {
             }
         } else {
             if (painted.isEmpty()) {
-                painted.setFrame(x, y, w + margin + indent + (padding * 2), h + (padding * 2));
+                painted.setFrame(x, y, w + leftMargin + indent + (padding * 2), h + (padding * 2));
             } else {
-                RECT.setFrame(x, y, w + margin + indent + (padding * 2), h + (padding * 2));
+                RECT.setFrame(x, y, w + leftMargin + indent + (padding * 2), h + (padding * 2));
                 painted.add(RECT);
             }
         }
@@ -374,11 +591,11 @@ public class TextCell {
         } else {
             g.setPaint(oldPaint);
         }
-        float textX = x + margin + indent + padding;
+        float textX = x + leftMargin + indent + padding;
         g.drawString(text, textX, textY);
         if (strikethrough) {
             LineMetrics lm = fm.getLineMetrics(text, g);
-            float lineY = textY + lm.getStrikethroughOffset();
+            float lineY = textY + lm.getStrikethroughOffset() + topMargin;
             float thick = lm.getStrikethroughThickness();
             BasicStroke stroke = new BasicStroke(thick);
             Stroke oldStroke = g.getStroke();
@@ -392,7 +609,7 @@ public class TextCell {
         }
         g.setPaint(oldPaint);
         if (child != null) {
-            child.paint(g, x + w + margin + indent + (padding * 2) + rightMargin, y, maxX, maxY, baseline, painted);
+            child.paint(g, x + w + leftMargin + indent + (padding * 2) + rightMargin, y, maxX, maxY, baseline, painted);
         }
         return baseline;
     }
@@ -401,7 +618,7 @@ public class TextCell {
     public String toString() {
         return "TextCell{" + "foreground=" + foreground + ", background=" + background + ", font="
                 + font + ", text=" + text + ", bgShape=" + bgShape + ", isChild=" + isChild + ", indent="
-                + indent + ", margin=" + margin + ", padding=" + padding + ", bold=" + bold + ", italic="
+                + indent + ", margin=" + leftMargin + ", padding=" + padding + ", bold=" + bold + ", italic="
                 + italic + ", stretch=" + stretch + ", child=" + child + '}';
     }
 }
