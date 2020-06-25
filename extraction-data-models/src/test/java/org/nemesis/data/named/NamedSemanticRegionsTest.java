@@ -371,6 +371,30 @@ public class NamedSemanticRegionsTest {
         }
     }
 
+    @Test
+    public void testBuilderCreatesRegionsThatUseArrayWhenNeeded (){
+        NamedSemanticRegionsBuilder b = new NamedSemanticRegionsBuilder(Stuff.class);
+        b.add("hey", Stuff.A, 0, 3);
+        NamedSemanticRegions<Stuff> nsr = b.build();
+        assertTrue(nsr.areRegionSizesNameLengths());
+        assertEquals(1, nsr.size());
+        assertEquals("hey", nsr.iterator().next().name());
+        assertEquals(0, nsr.iterator().next().start());
+        assertEquals(3, nsr.iterator().next().end());
+        b = new NamedSemanticRegionsBuilder(Stuff.class);
+        b.add("hey", Stuff.A, 0, 13);
+        nsr = b.build();
+        assertFalse(nsr.areRegionSizesNameLengths());
+        assertEquals(1, nsr.size());
+        assertEquals("hey", nsr.iterator().next().name());
+        assertEquals(0, nsr.iterator().next().start());
+        assertEquals(13, nsr.iterator().next().end());
+    }
+
+    enum Stuff {
+        A, B
+    }
+
     @Before
     public void setup() {
         foos = new Foo[chars.length];

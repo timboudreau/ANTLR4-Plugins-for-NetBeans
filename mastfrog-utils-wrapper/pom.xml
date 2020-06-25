@@ -62,6 +62,7 @@ limitations under the License.
                         <publicPackage>com.mastfrog.bits.large</publicPackage>
                         <publicPackage>com.mastfrog.converters</publicPackage>
                         <publicPackage>com.mastfrog.function</publicPackage>
+                        <publicPackage>com.mastfrog.function.state</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing</publicPackage>
                         <publicPackage>com.mastfrog.function.throwing.io</publicPackage>
                         <publicPackage>com.mastfrog.graph</publicPackage>

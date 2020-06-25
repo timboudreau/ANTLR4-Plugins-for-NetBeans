@@ -75,28 +75,6 @@ public class AntlrDataObjectHooks implements DataObjectHooks {
     public void handleDelete(DataObject on, IORunnable superHandleDelete) throws IOException {
         new HookRunner(on, superHandleDelete, 
             Lookup.getDefault().lookupAll(GrammarFileDeletionHook.class)).run();
-        /*
-        Set<String> registeredExtensions = registeredExtensions(on);
-        if (!registeredExtensions.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            for (String e : registeredExtensions) {
-                if (sb.length() > 0) {
-                    sb.append(", ");
-                }
-                sb.append(e);
-            }
-            String msg = Bundle.hasRegisteredExtensions(on.getPrimaryFile().getName(), sb);
-            throw new UserQuestionException(msg) {
-                @Override
-                public void confirmed() throws IOException {
-                    AdhocMimeTypes.unregisterMimeType(adhocMimeType(on));
-                    superHandleDelete.run();
-                }
-            };
-        } else {
-            superHandleDelete.run();
-        }
-         */
     }
 
     static final class HookRunner implements IORunnable {

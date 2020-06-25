@@ -469,7 +469,28 @@ public final class MemoryTool extends Tool {
             log("Loaded primary grammar " + g.name + " file "
                     + g.fileName + " from " + ctx.inputLocation
                     + ":" + finalFile);
-            process(g, false);
+            try {
+                process(g, false);
+            } catch (NullPointerException ex) {
+                /*
+                A parser grammar with an illegal labeled element referencing
+                a non-set will produce an NPE - e.g.,
+                foo=(This? That)
+                causes
+                java.lang.NullPointerException
+                        at org.antlr.v4.automata.ParserATNFactory.elemList(ParserATNFactory.java:467)
+                        at org.antlr.v4.automata.ParserATNFactory.alt(ParserATNFactory.java:456)
+                        at org.antlr.v4.parse.ATNBuilder.alternative(ATNBuilder.java:559)
+                        at org.antlr.v4.parse.ATNBuilder.ruleBlock(ATNBuilder.java:293)
+                        at org.antlr.v4.automata.ParserATNFactory._createATN(ParserATNFactory.java:162)
+                        at org.antlr.v4.automata.ParserATNFactory.createATN(ParserATNFactory.java:108)
+                        at org.antlr.v4.Tool.processNonCombinedGrammar(Tool.java:396)
+                        at org.antlr.v4.Tool.process(Tool.java:369)
+
+                */
+                ex.printStackTrace(ToolContext.get(this).logStream);
+                errMgr.toolError(ErrorType.INTERNAL_ERROR, ex);
+            }
         }
         return g;
     }

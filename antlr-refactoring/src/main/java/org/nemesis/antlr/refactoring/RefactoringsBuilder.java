@@ -51,6 +51,7 @@ public final class RefactoringsBuilder {
     RefactoringsBuilder(String mimeType) {
         this.mimeType = mimeType;
         for (CustomRefactoring<?> c : CustomRefactoring.registeredRefactorings(mimeType)) {
+            System.out.println("FOUND CUSTOM REFACTORING FOR " + mimeType + ": " + c);
             generators.add(c.toGenerator());
         }
     }

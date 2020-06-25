@@ -108,7 +108,7 @@ class RenameFileAndReferencesFromSingletonPlugin<T> extends AbstractAntlrRefacto
         String newFileName = nm + "." + file.getExt();
         return ProblemSupplier.of(super::checkParameters)
                 .or(() -> nm == null || nm.isEmpty()
-                ? new Problem(true, Bundle.empty_name()) : null)
+                ? createProblem(true, Bundle.empty_name()) : null)
                 .or(() -> oldName().equals(nm) ? fatal(Bundle.name_unchanged()) : null)
                 .or(() -> filter.test(nm, false) ? fatal(Bundle.invalid_chars()) : null)
                 .or(() -> file.getParent().getFileObject(newFileName) != null ? fatal(Bundle.exists(newFileName)) : null)

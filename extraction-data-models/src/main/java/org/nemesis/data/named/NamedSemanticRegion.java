@@ -83,4 +83,108 @@ public interface NamedSemanticRegion<K extends Enum<K>> extends IndexAddressable
         return start() == item.start() && end() == item.end() && Objects.equals(name(), item.name());
     }
 
+    @Override
+    default NamedSemanticRegion<K> withStart(int newStart) {
+        return new NamedSemanticRegion<K>(){
+            @Override
+            public K kind() {
+                return NamedSemanticRegion.this.kind();
+            }
+
+            @Override
+            public int ordering() {
+                return NamedSemanticRegion.this.ordering();
+            }
+
+            @Override
+            public boolean isReference() {
+                return NamedSemanticRegion.this.isReference();
+            }
+
+            @Override
+            public int index() {
+                return NamedSemanticRegion.this.index();
+            }
+
+            @Override
+            public int start() {
+                return newStart;
+            }
+
+            @Override
+            public String name() {
+                return NamedSemanticRegion.this.name();
+            }
+
+            @Override
+            public int end() {
+                int result = NamedSemanticRegion.this.end();
+                if (result < newStart) {
+                    result = newStart;
+                }
+                return result;
+            }
+
+            @Override
+            public int size() {
+                return Math.max(0, NamedSemanticRegion.this.end() - newStart);
+            }
+        };
+    }
+
+    @Override
+    default NamedSemanticRegion<K>  withEnd(int end) {
+        return new NamedSemanticRegion<K>() {
+            @Override
+            public K kind() {
+                return NamedSemanticRegion.this.kind();
+            }
+
+            @Override
+            public int ordering() {
+                return NamedSemanticRegion.this.ordering();
+            }
+
+            @Override
+            public boolean isReference() {
+                return NamedSemanticRegion.this.isReference();
+            }
+
+            @Override
+            public int index() {
+                return NamedSemanticRegion.this.index();
+            }
+
+            @Override
+            public int start() {
+                int result = NamedSemanticRegion.this.start();
+                if (result > end) {
+                    return end;
+                }
+                return result;
+            }
+
+            @Override
+            public String name() {
+                return NamedSemanticRegion.this.name();
+            }
+
+            @Override
+            public int end() {
+                return end;
+            }
+        };
+    }
+
+    @Override
+    default NamedSemanticRegion<K>  withStart(long start) {
+        return withStart((int) start);
+    }
+
+    @Override
+    default IndexAddressable.IndexAddressableItem withEnd(long end) {
+        return withEnd((int) end);
+    }
+
+    
 }

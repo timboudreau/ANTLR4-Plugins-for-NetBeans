@@ -96,16 +96,23 @@ abstract class AbstractAntlrRefactoringPlugin<R extends AbstractRefactoring>
     @Override
     public Problem checkParameters() {
         if (!file.isValid()) {
-            return new Problem(true, Bundle.invalidFile(file.getNameExt()));
+            return createProblem(true, Bundle.invalidFile(file.getNameExt()));
         }
         if (!file.canRead()) {
-            return new Problem(true, Bundle.cantRead(file.getNameExt()));
+            return createProblem(true, Bundle.cantRead(file.getNameExt()));
         }
         return null;
     }
 
     @Override
     public Problem preCheck() {
+        new Exception(getClass().getSimpleName() + " preCheck").printStackTrace();
+        if (!file.isValid()) {
+            return createProblem(true, Bundle.invalidFile(file.getNameExt()));
+        }
+        if (!file.canRead()) {
+            return createProblem(true, Bundle.cantRead(file.getNameExt()));
+        }
         return null;
     }
 
@@ -116,6 +123,7 @@ abstract class AbstractAntlrRefactoringPlugin<R extends AbstractRefactoring>
 
     @Override
     public final Problem prepare(RefactoringElementsBag bag) {
+        new Exception(getClass().getSimpleName() + ".prepare").printStackTrace();
         return inParsingContext(() -> doPrepare(bag));
     }
 

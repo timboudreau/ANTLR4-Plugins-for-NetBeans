@@ -73,8 +73,8 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
         if (AbstractRefactoringContext.debugLog) {
             LOG.setLevel(Level.ALL);
         }
-        RefactoringsBuilder bldr = new RefactoringsBuilder(mimeType);
         this.mimeType = notNull("mimeType", mimeType);
+        RefactoringsBuilder bldr = new RefactoringsBuilder(mimeType);
         notNull("toPopulate", toPopulate).accept(bldr);
         entries.addAll(bldr.generators());
     }
@@ -97,6 +97,7 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
         if (result) {
             for (RefactoringPluginGenerator<?> gen : entries) {
                 if (gen.matches(type)) {
+                    System.out.println("HAVE A GENERATOR " + gen + " matching " + type.getSimpleName());
                     result = true;
                     break;
                 }

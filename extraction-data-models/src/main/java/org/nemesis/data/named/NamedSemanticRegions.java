@@ -187,6 +187,10 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         this.names = null;
     }
 
+    public boolean areRegionSizesNameLengths() {
+        return ends.getClass() == StringEndSupplier.class;
+    }
+
     /**
      * Fetch the raw, uncopied name array that is the sorted backing store of
      * names. Do not modify!
@@ -674,6 +678,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 sb.append(',');
             }
         }
+        sb.append(" EndSupplier: ").append(this.ends);
         return sb.toString();
     }
 

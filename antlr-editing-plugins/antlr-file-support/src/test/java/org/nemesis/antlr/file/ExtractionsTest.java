@@ -21,8 +21,11 @@ import java.util.List;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4Parser;
@@ -34,6 +37,7 @@ import org.nemesis.antlr.sample.AntlrSampleFiles;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedRegionReferenceSet;
 import org.nemesis.data.named.NamedRegionReferenceSets;
+import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
@@ -73,7 +77,15 @@ public class ExtractionsTest {
 
         SemanticRegions<String> rules = extraction.regions(AntlrKeys_SyntaxTreeNavigator_Registration.TREE_NODES);
         NamedSemanticRegions<RuleTypes> bds = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
-
+        NamedSemanticRegions<RuleTypes> names = extraction.namedRegions(AntlrKeys.RULE_NAMES);
+        assertArrayEquals(bds.nameArray(), names.nameArray());
+        for (NamedSemanticRegion<RuleTypes> nsr : names) {
+            String nm = nsr.name();
+            NamedSemanticRegion<RuleTypes> body = bds.regionFor(nm);
+            assertTrue(nsr.start() >= body.start(), "Rule name and rule body start should be the same: " + nsr + " and " + body);
+            assertNotEquals(nsr.end(), body.end(), "Rule name and rule body end should NOT be the same: " + nsr + " and " + body);
+            assertTrue(nsr.end() < body.end(), "Rule name and rule body end should NOT be the same: " + nsr + " and " + body);
+        }
     }
 
     @BeforeEach

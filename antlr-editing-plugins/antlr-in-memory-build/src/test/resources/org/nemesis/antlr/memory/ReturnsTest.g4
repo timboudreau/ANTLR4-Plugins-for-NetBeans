@@ -15,11 +15,6 @@
  */
 grammar ReturnsTest;
 
-// TODO:  Add your lexer and parser rules here
-//@members {
-//    String foo = "bar";
-//}
-
 @parser::members {
     int skiddoo = 23;
 }

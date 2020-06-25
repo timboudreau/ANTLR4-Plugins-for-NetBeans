@@ -46,7 +46,11 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     ANTLR_LEXER("ANTLRv4Lexer.g4"),
     ANTLR_PARSER("ANTLRv4.g4"),
     ANTLR_LEX_BASIC("LexBasic.g4"),
-    SENSORS("Sensors.g4");
+    SENSORS("Sensors.g4"),
+    MARKDOWN_LEXER("MarkdownLexer.g4"),
+    MARKDOWN_PARSER("MarkdownParser.g4"),
+    RETURNS_TEST("ReturnsTest.g4"),
+    ;
     private final String fileName;
 
     AntlrSampleFiles(String pathFromRoot) {

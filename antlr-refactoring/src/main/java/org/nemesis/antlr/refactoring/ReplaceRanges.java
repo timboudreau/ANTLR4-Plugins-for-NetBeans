@@ -116,7 +116,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         }
     }
 
-    public static void create(ExtractionKey<?> key, FileObject fo, List<IntRange<? extends IntRange<?>>> ranges, String oldText, String newText, Consumer<RefactoringElementImplementation> c) throws IOException, BadLocationException {
+    public static void create(ExtractionKey<?> key, FileObject fo, List<? extends IntRange<? extends IntRange<?>>> ranges, String oldText, String newText, Consumer<RefactoringElementImplementation> c) throws IOException, BadLocationException {
         if (ranges.isEmpty()) {
             return;
         }

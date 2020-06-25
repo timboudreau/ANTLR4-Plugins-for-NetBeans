@@ -116,7 +116,7 @@ public abstract class LayerGeneratingProcessor extends AbstractProcessor {
             Filer filer = processingEnv.getFiler();
             Document doc = generatedLayerByProcessor.remove(filer);
             Collection<Element> originatingElementsL = originatingElementsByProcessor.remove(filer);
-            System.out.println("write elements for " + originatingElementsL);
+//            System.out.println("write elements for " + originatingElementsL);
             if (doc != null && !roundEnv.errorRaised()) {
                 Element[] originatingElementsA = new Element[0];
                 if (originatingElementsL != null) {
@@ -139,7 +139,7 @@ public abstract class LayerGeneratingProcessor extends AbstractProcessor {
                     ser.write(doc, output);
                     byte[] data = baos.toByteArray();
                     XMLUtil.parse(new InputSource(new ByteArrayInputStream(data)), true, true, ERROR_HANDLER, ENTITY_RESOLVER);
-                    System.out.println("will create output resource for " + filer + " for " + this);
+//                    System.out.println("will create output resource for " + filer + " for " + this);
                     FileObject layer = filer.createResource(StandardLocation.CLASS_OUTPUT, "", GENERATED_LAYER, originatingElementsA);
                     OutputStream os = layer.openOutputStream();
                     try {

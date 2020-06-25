@@ -71,7 +71,7 @@ import org.openide.windows.TopComponent;
         },
         deleteMatchingDelimiter = {
             @DelimiterPair(
-                    category = "Stuff",
+                    category = "Delimiters",
                     openingToken = LPAREN,
                     closingToken = RPAREN,
                     name = "Delete matching paren if empty",

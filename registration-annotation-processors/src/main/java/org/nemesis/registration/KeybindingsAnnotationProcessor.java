@@ -268,7 +268,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 String keyName = utils().enumConstantValue(keybinding, "key");
                 Set<String> modifiers = utils().enumConstantValues(keybinding, "modifiers");
                 String bindingDescriptor = keybinding(keyName, modifiers, on);
-//                System.out.println("KB ANNO BIND " + actionName + " to " + bindingDescriptor);
                 for (String profile : profiles) {
                     boolean mac = utils().annotationValue(keybinding, "appleSpeific", Boolean.class, Boolean.FALSE);
                     KeysFile file = keysFile(mimeType, profile, mac, on);
@@ -331,8 +330,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws IOException {
         if (env.processingOver()) {
-//            System.out.println("KEYB on round complete with " + files.size()
-//                    + " files: " + files);
             List<KeysFile> all = new ArrayList<>(files.values());
             files.clear();
             for (KeysFile file : all) {
@@ -365,8 +362,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     }
 
     private void generateActionImplementation(LayerBuilder layer, String actionName, ExecutableElement method, String mimeType, AnnotationMirror mirror) throws IOException, LayerGenerationException {
-//        System.out.println("generateActionImplementation " + actionName + " mime " + mimeType);
-        // check return type
         if (utils().isAssignable(method.getReturnType(), ACTION_TYPE)) {
             if (!method.getParameters().isEmpty()) {
                 utils().fail("Methods which return an action may not take parameters", method);
@@ -540,7 +535,6 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     private void writeOneKeysFileAndActions(KeysFile file, Element method) throws IOException {
         Filer filer = processingEnv.getFiler();
         String path = packagePath(file.mimeType(), method) + file.name;
-//        System.out.println("Write keys file and actions " + file.mimeType + " to " + path);
         FileObject resource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path, method);
         try (OutputStream out = resource.openOutputStream()) {
             byte[] outBytes = file.toString().getBytes(UTF_8);

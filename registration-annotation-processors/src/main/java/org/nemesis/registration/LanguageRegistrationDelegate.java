@@ -3022,11 +3022,9 @@ protected LanguageEmbedding<?> embedding(Token<AntlrToken> token, LanguagePath l
                                     + "were not given a category in the annotation that "
                                     + "generated this class:\n");
                             int ix = 0;
-                            System.err.println("UNHANDLED: " + unhandled);
                             for (Iterator<Integer> it = unhandled.iterator(); it.hasNext();) {
                                 Integer unh = it.next();
                                 String name = lexer.tokenName(unh);
-                                System.out.println("  tok " + name);
                                 sb.append(name).append('(').append(unh).append(')');
                                 if (it.hasNext()) {
                                     if (++ix % 3 == 0) {
@@ -3037,7 +3035,6 @@ protected LanguageEmbedding<?> embedding(Token<AntlrToken> token, LanguagePath l
                                 }
                             }
                             meth.lineComment(sb.toString());
-                            System.out.println(sb);
 //                            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
 //                                    sb, type, mirror);
                         } else {

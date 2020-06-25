@@ -25,6 +25,8 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
@@ -49,6 +51,7 @@ import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
+import javax.swing.UIManager;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
@@ -93,7 +96,9 @@ import org.openide.util.lookup.ProxyLookup;
 
 /**
  * Base class for refactoring-related types which provides thread-local caching
- * for extractions.
+ * for extractions, and various utility methods for tasks that are commonly
+ * needed (like creating Problem instances whose text is readable on dark themes
+ * and high DPI screens0.
  *
  * @author Tim Boudreau
  */
@@ -102,7 +107,7 @@ public abstract class AbstractRefactoringContext {
     private static final Map<Class<?>, Logger> loggers = new ConcurrentHashMap<>();
     private static boolean cacheDisabled = Boolean.getBoolean("AbstractRefactoringContext.noCache");
     private static final ThreadLocal<CacheContext> CTX = ThreadLocal.withInitial(CacheContext::new);
-    static boolean debugLog = false;
+    static boolean debugLog = Boolean.getBoolean("antlr.refactoring.debug");
 
     protected static String escapeHtml(String s) {
         return Strings.escape(s, AbstractRefactoringContext::escape);
@@ -615,25 +620,137 @@ public abstract class AbstractRefactoringContext {
      * @param b Another problem, or null
      * @return A problem or null if both were null
      */
-    protected static Problem chainProblems(Problem a, Problem b) {
-        if (a == null && b != null) {
-            return b;
+    public static Problem chainProblems(Problem a, Problem b) {
+        if (a == null && b == null) {
+            return null;
         } else if (a != null && b == null) {
             return a;
-        } else if (a == null && b == null) {
-            return null;
+        } else if (b != null && a == null) {
+            return b;
         } else {
-            if (a.isFatal() && !b.isFatal()) {
-                a.setNext(b);
-                return a;
-            } else if (b.isFatal() && !a.isFatal()) {
-                b.setNext(a);
-                return b;
+            if (b.isFatal() && !a.isFatal()) {
+                return attachTo(b, a);
             } else {
-                a.setNext(b);
-                return a;
+                return attachTo(a, b);
             }
         }
+    }
+
+    private static Problem attachTo(Problem a, Problem b) {
+        while (a.getNext() != null) {
+            a = a.getNext();
+        }
+        a.setNext(b);
+        return a;
+    }
+
+    /**
+     * File under "you've got to be kidding me": The refactoring API uses Swing
+     * HTML rendering, so the font will be Times New Roman and on dark themes,
+     * the foreground color will be close to the background color unless we do
+     * backflips to set up the colors. So, use this method to create Problem
+     * instances rather than the constructor.
+     *
+     * @param fatal If the problem is fatal
+     * @param text The raw text (may contain HTML markup) to use
+     * @return A problem which sets up fonts and colors correctly for the UI
+     * based on UIManager colors and fonts
+     */
+    public static Problem createProblem(boolean fatal, String text) {
+        return new Problem(fatal, problemBoilerplateHead() + text + problemBoilerplateTail());
+    }
+
+    /**
+     * Create a fatal problem instance with the fonts and colors set correctly
+     * to be readable on high dpi screens and dark themes.
+     *
+     * @param text The problem text
+     * @return A prooblem
+     */
+    public static Problem fatalProblem(String text) {
+        return createProblem(true, text);
+    }
+
+    /**
+     * Create a fatal problem instance with the fonts and colors set correctly
+     * to be readable on high dpi screens and dark themes.
+     *
+     * @param text The problem text
+     * @return A prooblem
+     */
+    public static Problem warningProblem(String text) {
+        return createProblem(false, text);
+    }
+
+    private static String PROBLEM_BOILERPLATE_HEAD;
+    private static String PROBLEM_BOILERPLATE_TAIL = "</font>";
+
+    private static String problemBoilerplateHead() {
+        if (PROBLEM_BOILERPLATE_HEAD != null) {
+            return PROBLEM_BOILERPLATE_HEAD;
+        }
+        // Dawn of time markup, but it works.
+        StringBuilder sb = new StringBuilder("<font face='");
+        Font f = UIManager.getFont("controlFont");
+        if (f == null) {
+            f = UIManager.getFont("Label.font");
+            if (f == null) {
+                f = new JLabel().getFont();
+            }
+        }
+        if (f != null) {
+            sb.append(f.getFamily()).append("' size='");
+            // XXX this is not working right - the font size
+            // winds up being ADDED to some arbitrary base font
+            // size Swing decides on
+            String prop = System.getProperty("uiFontSize");
+            if (prop != null) {
+                sb.append(prop);
+            } else {
+                sb.append(f.getSize());
+            }
+            sb.append("' ");
+        } else {
+            sb.append("Sans Serif' size='14' ");
+        }
+        Color fg = UIManager.getColor("textText");
+        if (fg == null) {
+            fg = UIManager.getColor("controlText");
+            if (fg == null) {
+                fg = UIManager.getColor("Label.foreground");
+                if (fg == null) {
+                    fg = new JLabel().getForeground();
+                    if (fg == null) {
+                        fg = Color.BLACK;
+                    }
+                }
+            }
+        }
+        sb.append("color='");
+        colorToHex(fg, sb);
+        sb.append("'>");
+
+        PROBLEM_BOILERPLATE_HEAD = sb.toString();
+        return PROBLEM_BOILERPLATE_HEAD;
+    }
+
+    private static void colorToHex(Color c, StringBuilder sb) {
+        sb.append('#');
+        twoDigitHex(c.getRed(), sb);
+        twoDigitHex(c.getGreen(), sb);
+        twoDigitHex(c.getBlue(), sb);
+    }
+
+    private static void twoDigitHex(int val, StringBuilder into) {
+        String res = Integer.toHexString(val);
+        if (res.length() == 1) {
+            into.append('0');
+        }
+        into.append(res);
+    }
+
+    private static String problemBoilerplateTail() {
+        return PROBLEM_BOILERPLATE_TAIL;
     }
 
     /**
@@ -708,7 +825,7 @@ public abstract class AbstractRefactoringContext {
      * @param th The throwable
      * @return A problem
      */
-    protected static Problem toProblem(Throwable th) {
+    public static Problem toProblem(Throwable th) {
         return toProblem(th, true);
     }
 
@@ -719,7 +836,7 @@ public abstract class AbstractRefactoringContext {
      * @param fatal Whether the resulting problem should be set to fatal
      * @return A problem
      */
-    protected static Problem toProblem(Throwable th, boolean fatal) {
+    public static Problem toProblem(Throwable th, boolean fatal) {
         String msg = th.getMessage();
         if (msg == null) {
             msg = th.getClass().getSimpleName();
@@ -734,7 +851,7 @@ public abstract class AbstractRefactoringContext {
      * @param msg The string to use in the problem
      * @return A problem
      */
-    protected static Problem toProblem(Throwable th, String msg) {
+    public static Problem toProblem(Throwable th, String msg) {
         return toProblem(th, msg, true);
     }
 
@@ -746,7 +863,7 @@ public abstract class AbstractRefactoringContext {
      * @param fatal Whether the resulting problem should be set to fatal
      * @return A problem
      */
-    protected static Problem toProblem(Throwable th, String msg, boolean fatal) {
+    public static Problem toProblem(Throwable th, String msg, boolean fatal) {
         return new Problem(fatal, msg, ProblemDetailsFactory.createProblemDetails(new ThPdI(th)));
     }
 

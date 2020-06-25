@@ -26,6 +26,8 @@ import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.openide.filesystems.FileObject;
 
 /**
+ * Tells the import finders infrastructure what folders to scan for related
+ * Antlr grammars that may be imports within the same project.
  *
  * @author Tim Boudreau
  */
@@ -37,6 +39,8 @@ public class AntlrLanguageImportersFinder extends SimpleImportersFinder {
         if (cancelled.getAsBoolean()) {
             return Collections.emptySet();
         }
+        // Concatenate returns an iterable which does not copy the underlying
+        // iterables
         return CollectionUtils.concatenate(Folders.ANTLR_GRAMMAR_SOURCES.allFiles(file),
                 Folders.ANTLR_IMPORTS.allFiles(file));
     }

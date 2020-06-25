@@ -15,7 +15,6 @@
  */
 package org.nemesis.registration;
 
-import com.mastfrog.annotation.AnnotationUtils;
 import com.mastfrog.annotation.processor.AbstractLayerGeneratingDelegatingProcessor;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.SupportedAnnotationTypes;
@@ -62,7 +61,6 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
 
     @Override
     protected void installDelegates(Delegates delegates) {
-        AnnotationUtils.forceLogging();
         LanguageRegistrationDelegate main = new LanguageRegistrationDelegate();
         KeybindingsAnnotationProcessor keys = new KeybindingsAnnotationProcessor();
         LanguageFontsColorsProcessor proc = new LanguageFontsColorsProcessor();
