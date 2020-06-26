@@ -39,6 +39,10 @@ public final class GrammarDeclaration implements IntRange<GrammarDeclaration>, N
         this.grammarNameEnd = grammarNameEnd;
     }
 
+    public GrammarType type() {
+        return grammarType;
+    }
+
     public String name() {
         return grammarName;
     }

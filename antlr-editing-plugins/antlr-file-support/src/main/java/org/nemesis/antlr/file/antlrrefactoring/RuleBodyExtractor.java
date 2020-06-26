@@ -16,6 +16,7 @@
 package org.nemesis.antlr.file.antlrrefactoring;
 
 import com.mastfrog.util.strings.Escaper;
+import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.util.function.Supplier;
 import javax.swing.text.BadLocationException;
@@ -133,7 +134,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
         if (ival.a > 0) {
             Token prev = parser.getTokenStream().get(ival.a - 1);
             String txt = prev.getText();
-            if (txt.trim().isEmpty()) {
+            if (Strings.isBlank(txt)) {
                 int lix = txt.lastIndexOf('\n');
                 if (lix >= 0) {
                     whitespaceCharsUpToAndIncludingPrecedingNewline = txt.length() - lix;
@@ -147,7 +148,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
             }
             if (next.getType() != TokenStream.EOF) {
                 String txt = next.getText();
-                if (txt.trim().isEmpty()) {
+                if (Strings.isBlank(txt)) {
                     int ix = txt.indexOf('\n');
                     if (ix >= 0) {
                         whitespaceCharsUpToAndIncludingSubsequentNewline = ix + 1;
@@ -367,7 +368,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
 
     private StringBuilder appendText(Token tok) {
         String text = tok.getText();
-        if (text.trim().isEmpty()) {
+        if (Strings.isBlank(text)) {
             return sb;
         }
         boolean prependSpace = true;
@@ -485,7 +486,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
         if (!ext.wasRuleFound()) {
             problem = createProblem(true, Bundle.ruleNotFound(ruleName));
         }
-        if (result.toString().trim().isEmpty()) {
+        if (Strings.isBlank(result.toString())) {
             problem = chainProblems(problem, warningProblem(Bundle.bodyIsEmpty()));
         }
         if (checker.errorEncountered) {

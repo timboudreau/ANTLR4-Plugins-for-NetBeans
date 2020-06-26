@@ -1205,9 +1205,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (lineComment != null) {
             share(LanguageRegistrationDelegate.COMMENT_STRING, lineComment);
             actionTypes.add(TOGGLE_COMMENT_ACTION);
-            // XXX this is the right way to do it, but is causing
-            // layer builders to reread generated-layer.xml more than
-            // once, which wreaks some nasty havoc and crashes javac
             cl.importing(ACTION_BINDINGS.qname(), ACTION_BINDING.qname(),
                     KEY_MODIFIERS.qname(), KEY.qname(),
                     KEYBINDING.qname(), BUILT_IN_ACTION.qname())
@@ -1218,13 +1215,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                             .addAnnotationArgument("bindings", KEYBINDING.simpleName(), keyb -> {
                                                 keyb.addExpressionArgument("modifiers", "KeyModifiers.CTRL_OR_COMMAND")
                                                         .addExpressionArgument("key", "Key.SLASH");
-                                                // XXX this call should not be necessaary - fix in
-                                                // ClassBuilder
-                                                keyb.closeAnnotation();
                                             });
-                                    // XXX this call should not be necessaary - fix in
-                                    // ClassBuilder
-                                    actB.closeAnnotation();
                                 });
                     });
         }

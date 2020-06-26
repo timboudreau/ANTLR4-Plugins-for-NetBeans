@@ -122,7 +122,7 @@ final class ExtractRule implements FixImplementation, Runnable, DocumentListener
             }
             int newTextStart = toSelect.getBegin().getOffset();
             document.addPostModificationDocumentListener(this);
-            edits.insert(document, newTextStart, '\n' + name + " : " + newText + ";\n");
+            edits.insert(document, newTextStart, '\n' + name + " : " + newText + (newText.endsWith(";") ? "\n": ";\n"));
             return null;
         });
     }

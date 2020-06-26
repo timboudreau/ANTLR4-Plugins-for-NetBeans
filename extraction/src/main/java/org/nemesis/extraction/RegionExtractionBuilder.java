@@ -350,6 +350,9 @@ public final class RegionExtractionBuilder<EntryPointType extends ParserRuleCont
         public FinishableRegionExtractorBuilder<EntryPointType, RegionKeyType> extractingBoundsFromRuleAndKeyWith(Function<RuleType, RegionKeyType> func) {
             return extractingKeyAndBoundsWith((rule, c) -> {
                 RegionKeyType k = func.apply(rule);
+                if (k == null) {
+                    return false;
+                }
                 return c.test(k, new int[]{rule.getStart().getStartIndex(), rule.getStop().getStopIndex() + 1});
             });
         }

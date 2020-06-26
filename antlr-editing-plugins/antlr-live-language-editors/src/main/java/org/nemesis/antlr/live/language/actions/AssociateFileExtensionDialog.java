@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language.actions;
 
+import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -124,7 +125,7 @@ public class AssociateFileExtensionDialog extends JPanel
         } else {
             associations.setText(Bundle.noAssociations());
         }
-        if (!field.getText().trim().isEmpty()) {
+        if (!Strings.isBlank(field.getText())) {
             addButton.setEnabled(validExtension());
         }
     }

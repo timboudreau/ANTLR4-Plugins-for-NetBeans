@@ -21,7 +21,9 @@ import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
+import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.deSingleQuote;
 import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.event.ComponentAdapter;
@@ -57,7 +59,11 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.AntlrConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.SingleTermCtx;
+import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.TermCtx;
 import org.nemesis.antlr.file.AntlrKeys;
+import static org.nemesis.antlr.file.AntlrKeys.GRAMMAR_TYPE;
+import static org.nemesis.antlr.file.AntlrKeys.RULE_NAMES;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
@@ -440,6 +446,59 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         return 0;
     }
 
+    @Messages({
+        "# {0} - grammarName",
+        "# {1} - firstRuleName",
+        "eofUnhandled=End-of-file (EOF) is not handled in {0}."
+        + " Append it to {1}?",
+        "detailsNoEof=A grammar which does not handle EOF may not parse all of "
+        + "the input it is given, leading to unexpected results.",
+        "# {0} - insertionText",
+        "# {1} - ruleName",
+        "insertEof=Insert {0} at end of rule {1}"
+    })
+    private void checkClosureOfFirstRuleContainsEOF(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes) {
+        NamedSemanticRegions<RuleTypes> regions = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
+        SingletonEncounters<GrammarDeclaration> gt = extraction.singletons(GRAMMAR_TYPE);
+        if (!regions.isEmpty() && !gt.isEmpty()) {
+            SingletonEncounters.SingletonEncounter<GrammarDeclaration> grammarType = gt.first();
+            GrammarDeclaration gg = grammarType.get();
+            SemanticRegions<UnknownNameReference<RuleTypes>> unks = extraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES);
+
+            switch (gg.type()) {
+                case COMBINED:
+                    String firstRuleName = regions.get(0);
+
+                    List<? extends SemanticRegion<UnknownNameReference<RuleTypes>>> eofMentions = unks.collect((unk) -> "EOF".equals(unk.name()));
+                    if (eofMentions.isEmpty()) {
+                        extraction.source().lookup(Document.class, doc -> {
+                            try {
+                                NamedSemanticRegion<RuleTypes> firstRuleBounds
+                                        = regions.regionFor(firstRuleName);
+                                int insertPoint = firstRuleBounds.stop();
+                                String msg = Bundle.eofUnhandled(extraction.source().name(), firstRuleName);
+                                fixes.addWarning("no-eof", firstRuleBounds, msg, Bundle::detailsNoEof, fixen -> {
+                                    try {
+                                        String toInsert = EOFInsertionStringGenerator.getEofInsertionString(doc);
+                                        fixen.addInsertion(Bundle.insertEof(toInsert, firstRuleName),
+                                                insertPoint, insertPoint, toInsert);
+                                    } catch (IOException ex) {
+                                        Exceptions.printStackTrace(ex);
+                                    }
+                                });
+                            } catch (Exception ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
+                        });
+                    }
+                    break;
+            }
+        }
+    }
+
     @Override
     public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
@@ -481,6 +540,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         flagDuplicateBlocks(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         flagStringLiteralsInParserRules(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         flagSkips(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
+        checkClosureOfFirstRuleContainsEOF(tree, mimeType, extraction, res, populate, fixes);
     }
 
     private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
@@ -553,10 +613,18 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         "# {1} - literal",
         "literalInParserRule=String literal {1} encountered in parser rule {0} times. Replace with lexer rule?",
         "# {0} - literal",
-        "replaceWithLexerRule=Replace all occurrences of {0} with a lexer rule?"
+        "replaceWithLexerRule=Replace all occurrences of {0} with a lexer rule?",
+        "# {0} - literal",
+        "# {1} - existingRule",
+        "replaceWithExistingRule=Replace {0} with reference to identical rule {1}"
     })
     private void flagStringLiteralsInParserRules(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Set<String> usedErrorIds) {
-        SemanticRegions<ChannelsAndSkipExtractors.TermCtx> terms = extraction.regions(ChannelsAndSkipExtractors.LONELY_TERMINALS);
+        SemanticRegions<TermCtx> terms = extraction.regions(ChannelsAndSkipExtractors.LONELY_STRING_LITERALS);
+        SemanticRegions<SingleTermCtx> matchingRules = extraction.regions(ChannelsAndSkipExtractors.SOLO_STRING_LITERALS);
+        Map<String, String> index = new HashMap<>();
+        for (SemanticRegion<SingleTermCtx> ctx : matchingRules) {
+            index.put(ctx.key().text, ctx.key().ruleName);
+        }
         terms.forEach(region -> {
             String id = region.key().text + "-pbr-" + region.index();
             if (!usedErrorIds.contains(id)) {
@@ -577,12 +645,31 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                         count[0]++;
                     }
                 });
-                String msg = Bundle.literalInParserRule(count[0], region.key().text);
+                String literal = deSingleQuote(region.key().text);
+                String targetRule = index.get(literal);
                 try {
-                    fixes.addHint(id, region, msg, fixen -> {
-                        ExtractRule extract = new ExtractRule(ranges, extraction, base, region.key().text, lexerRuleName(region.key().text));
-                        fixen.add(Bundle.replaceWithLexerRule(region.key().text), extract);
-                    });
+                    if (targetRule != null) {
+                        String msg = Bundle.replaceWithExistingRule(region.key().text, targetRule);
+//                        PositionBoundsRange rng = PositionBoundsRange.create(extraction.source(), region);
+                        fixes.addHint(id, region, msg, fixen -> {
+//                            fixen.addReplacement(msg, rng.start(), rng.end(), targetRule);
+                            fixen.addReplacement(msg, region.start(), region.end(), targetRule);
+                        });
+                    } else {
+                        String msg = Bundle.literalInParserRule(count[0], region.key().text);
+                        RuleNamingConvention namingConvention = RuleNamingConvention.forExtraction(extraction);
+                        fixes.addHint(id, region, msg, fixen -> {
+                            String generatedName = namingConvention.adjustName(generateLexerRuleName(region.key().text), RuleTypes.LEXER);
+                            NamedSemanticRegions<RuleTypes> existingNames = extraction.namedRegions(RULE_NAMES);
+                            int ix = 0;
+                            String uniqueName = generatedName;
+                            while (existingNames.contains(uniqueName)) {
+                                uniqueName = generatedName + "_" + ++ix;
+                            }
+                            ExtractRule extract = new ExtractRule(ranges, extraction, base, region.key().text, uniqueName);
+                            fixen.add(Bundle.replaceWithLexerRule(region.key().text), extract);
+                        });
+                    }
                 } catch (BadLocationException ex) {
                     Exceptions.printStackTrace(ex);
                 }
@@ -592,16 +679,12 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
     private static final Pattern QUOTES = Pattern.compile("[\"'](.*)[\"']");
 
-    static String lexerRuleName(String text) {
+    static String generateLexerRuleName(String text) {
         Matcher m = QUOTES.matcher(text);
         if (m.find()) {
             text = m.group(1);
         }
-        text = text.toUpperCase();
-        if (text.length() == 1) {
-            return "LETTER_" + text;
-        }
-        return "TOK_" + text;
+        return capitalize(Escaper.JAVA_IDENTIFIER_CAMEL_CASE.escape(text));
     }
 
     @Messages({
@@ -618,6 +701,13 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         ContentsChecksums<SemanticRegion<Void>> checksums = extraction.checksums(AntlrKeys.BLOCKS);
         if (!checksums.isEmpty()) {
             int[] index = new int[1];
+            // XXX we should detect the case that the checksum match is also the only
+            // contents of a rule, and in that case, offer to USE that rule rather than
+            // generate a new one - i.e. if you have
+            // Thing : DIGIT '\n';
+            // Newline : '\n';
+            // then offer to replace the first '\n' with a reference to Newline - or
+            // create a fragment rule for '\n' and use that from both
             checksums.visitRegionGroups(group -> {
 //                System.out.println("\nDuplicate region groups: " + group);
                 index[0]++;
@@ -647,7 +737,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 String msg = Bundle.dup_block(group.size());
                 for (PositionBoundsRange r : ranges) {
                     ExtractRule extract = new ExtractRule(ranges, extraction, r, text);
-                    String id = "bx-" + index[0] + "-" + r.original().index();
+                    String id = "bx-" + index[0] + "-" + r.original().start() + "-" + r.original().end();
                     if (!usedErrorIds.contains(id)) {
                         try {
                             fixes.addHint(id, r, msg, det, fixen -> {

@@ -34,7 +34,7 @@ import org.openide.util.Exceptions;
  */
 public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
 
-    private final SemanticRegion<?> range;
+    private final IntRange<? extends IntRange<?>> range;
     private final PositionBounds bounds;
 
     public PositionBoundsRange(SemanticRegion<?> range, PositionBounds bounds) {
@@ -46,7 +46,7 @@ public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
         return bounds;
     }
 
-    SemanticRegion<?> original() {
+    IntRange<? extends IntRange<?>> original() {
         return range;
     }
 

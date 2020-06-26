@@ -82,11 +82,11 @@ topLevelDef
 // Message definition
 
 message
-    :   'message' messageName messageBody
+    :   MESSAGE messageName messageBody
     ;
 
 messageBody
-    :   '{' (   field
+    :   LBRACE (   field
             |   enumDefinition
             |   message
             |   option
@@ -95,7 +95,7 @@ messageBody
             |   reserved
             |   emptyStatement
             )*
-       '}'
+       RBRACE
     ;
 
 // Enum definition
@@ -123,17 +123,17 @@ enumValueOption
 // Service definition
 
 service
-    :   'service' serviceName '{' (   option
+    :   SERVICE serviceName LBRACE (   option
                                   |   rpc
                                   // not defined in the protobuf specification
                                   //|   stream
                                   |   emptyStatement
                                   )*
-        '}'
+        RBRACE
     ;
 
 rpc
-    :   'rpc' rpcName '(' 'stream'? messageType ')'
+    :   RPC rpcName '(' 'stream'? messageType ')'
         'returns' '(' 'stream'? messageType ')' (('{' (option | emptyStatement)* '}') | ';')
     ;
 
@@ -163,21 +163,21 @@ fieldNames
 //
 
 type
-    :   (   'double'
-        |   'float'
-        |   'int32'
-        |   'int64'
-        |   'uint32'
-        |   'uint64'
-        |   'sint32'
-        |   'sint64'
-        |   'fixed32'
-        |   'fixed64'
-        |   'sfixed32'
-        |   'sfixed64'
-        |   'bool'
-        |   'string'
-        |   'bytes'
+    :   (   DOUBLE
+        |   FLOAT
+        |   INT32
+        |   INT64
+        |   UINT32
+        |   UINT64
+        |   SINT32
+        |   SINT64
+        |   FIXED32
+        |   FIXED64
+        |   SFIXED32
+        |   SFIXED64
+        |   BOOL
+        |   STRING
+        |   BYTES
         )
     |   messageOrEnumType
     ;
@@ -189,11 +189,11 @@ fieldNumber
 // Normal field
 
 field
-    :   'repeated'? type fieldName '=' fieldNumber ('[' fieldOptions ']')? ';'
+    :   REPEATED? type fieldName ASSIGN fieldNumber (LBRACK fieldOptions RBRACK)? SEMI
     ;
 
 fieldOptions
-    :   fieldOption (','  fieldOption)*
+    :   fieldOption (COMMA  fieldOption)*
     ;
 
 fieldOption
@@ -203,21 +203,21 @@ fieldOption
 // Oneof and oneof field
 
 oneof
-    :   'oneof' oneofName '{' (oneofField | emptyStatement)* '}'
+    :   ONEOF oneofName '{' (oneofField | emptyStatement)* '}'
     ;
 
 oneofField
-    :   type fieldName '=' fieldNumber ('[' fieldOptions ']')? ';'
+    :   type fieldName ASSIGN fieldNumber ('[' fieldOptions ']')? ';'
     ;
 
 // Map field
 
 mapField
-    :   'map' '<' keyType ',' type '>' mapName '=' fieldNumber ('[' fieldOptions ']')? ';'
+    :   MAP '<' keyType ',' type '>' mapName '=' fieldNumber ('[' fieldOptions ']')? ';'
     ;
 
 keyType
-    :   'int32'
+    :   INT32
     |   'int64'
     |   'uint32'
     |   'uint64'

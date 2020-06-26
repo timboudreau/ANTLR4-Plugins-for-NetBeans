@@ -660,7 +660,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     }
 
     /**
-     * Determine if this Offsets instance contains a particular name.
+     * Determine if this NamedSemanticRegions instance contains a particular name.
      *
      * @param name The name
      * @return true if it is present
@@ -669,6 +669,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         return indexOf(name) >= 0;
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < size(); i++) {

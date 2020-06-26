@@ -53,6 +53,7 @@ import org.nemesis.extraction.key.SingletonKey;
 import com.mastfrog.graph.StringGraph;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
+import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -1038,7 +1039,7 @@ public final class Extraction implements Externalizable {
                 int maxPer, String optionalSuffix, BiConsumer<String, Enum<?>> c) {
             String fullText = (optionalPrefix == null ? "" : optionalPrefix)
                     + (optionalSuffix == null ? "" : optionalSuffix);
-            if (optionalPrefix != null && optionalPrefix.trim().isEmpty()) {
+            if (optionalPrefix != null && !Strings.isBlank(optionalPrefix)) {
                 optionalPrefix = null;
             }
             String prefix = optionalPrefix;

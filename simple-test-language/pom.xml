@@ -125,6 +125,13 @@ limitations under the License.
                                         <include>*.g4</include>
                                     </includes>
                                 </resource>
+                                <resource>
+                                    <directory>${basedir}/../protoc-antlr/src/main/antlr4/com/mastfrog/protoc/antlr/</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>*.g4</include>
+                                    </includes>
+                                </resource>
                             </resources>
                         </configuration>
                     </execution>

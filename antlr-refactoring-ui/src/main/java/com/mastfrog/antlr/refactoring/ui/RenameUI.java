@@ -19,6 +19,7 @@ import com.mastfrog.abstractions.Named;
 import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findCategoryOfThingRefactored;
 import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findNameOfThingRefactored;
 import static com.mastfrog.antlr.refactoring.ui.FindUsagesUI.findRefactoringFileName;
+import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.EventQueue;
@@ -131,7 +132,7 @@ public class RenameUI extends BaseUI<RenameRefactoring> {
         }
         String name = refactoring.getNewName();
         if (name != null) {
-            if (name.isEmpty() || name.trim().isEmpty()) {
+            if (Strings.isBlank(name)) {
                 return new Problem(true, Bundle.emptyName());
             }
             CharFilter filter = refactoring.getContext().lookup(CharFilter.class);

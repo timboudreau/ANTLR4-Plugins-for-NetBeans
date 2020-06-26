@@ -330,38 +330,34 @@ public class LocalizeAnnotationProcessor extends AbstractProcessor implements Pr
                                 + ".class").inScope();
                     });
                 })
-                .conditionally(true, cbb -> { // XXX change this to iteratively once java-vogon > 2.6.0 released
-                    for (EnumConstantInfo info : infos) {
-                        if (info.displayName != null && !info.displayName.isEmpty()) {
-                            if (isBundlePath(info.displayName)) {
-                                cbb.lineComment("Annotation value placed in generated resource bundle");
-                                cbb.field(staticFieldName(info, DISPLAY_NAME_SUFFIX))
-                                        .withModifier(PRIVATE, STATIC, FINAL)
-                                        .docComment("Annotation value placed "
-                                                + "in generated resource bundle. "
-                                                + "Original: '" + info.displayName
-                                                + "'")
-                                        .initializedWith(info.displayName);
-                            } else {
-                                String genBundlePath = key.addProperty(
-                                        info.enumConstantName, info.displayName);
-
-                                cbb.field(staticFieldName(info, DISPLAY_NAME_SUFFIX))
-                                        .withModifier(PRIVATE, STATIC, FINAL)
-                                        .initializedWith(genBundlePath);
-                                ;
-                            }
-                        }
-                        if (info.iconPath != null && !info.iconPath.isEmpty()) {
-                            String iconPath = info.iconPath;
-                            if (iconPath.indexOf('/') < 0) {
-                                iconPath = key.pkg.replace('.', '/') + '/' + iconPath;
-                            }
-                            cbb.field(staticFieldName(info, ICON_SUFFIX))
+                .iteratively(infos, (ClassBuilder<?> cbb, EnumConstantInfo info) -> {
+                    if (info.displayName != null && !info.displayName.isEmpty()) {
+                        if (isBundlePath(info.displayName)) {
+                            cbb.lineComment("Annotation value placed in generated resource bundle");
+                            cbb.field(staticFieldName(info, DISPLAY_NAME_SUFFIX))
                                     .withModifier(PRIVATE, STATIC, FINAL)
-                                    .initializedWith(iconPath);
-                            ;
+                                    .docComment("Annotation value placed "
+                                            + "in generated resource bundle. "
+                                            + "Original: '" + info.displayName
+                                            + "'")
+                                    .initializedWith(info.displayName);
+                        } else {
+                            String genBundlePath = key.addProperty(
+                                    info.enumConstantName, info.displayName);
+
+                            cbb.field(staticFieldName(info, DISPLAY_NAME_SUFFIX))
+                                    .withModifier(PRIVATE, STATIC, FINAL)
+                                    .initializedWith(genBundlePath);
                         }
+                    }
+                    if (info.iconPath != null && !info.iconPath.isEmpty()) {
+                        String iconPath = info.iconPath;
+                        if (iconPath.indexOf('/') < 0) {
+                            iconPath = key.pkg.replace('.', '/') + '/' + iconPath;
+                        }
+                        cbb.field(staticFieldName(info, ICON_SUFFIX))
+                                .withModifier(PRIVATE, STATIC, FINAL)
+                                .initializedWith(iconPath);
                     }
                 })
                 .conditionally(hasAnyHints,

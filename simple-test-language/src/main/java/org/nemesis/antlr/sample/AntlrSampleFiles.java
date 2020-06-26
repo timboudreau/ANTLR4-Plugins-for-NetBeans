@@ -15,12 +15,14 @@
  */
 package org.nemesis.antlr.sample;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Function;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
@@ -33,6 +35,9 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.simple.SampleFile;
 
 /**
+ * We need ANTLR grammars for tests all over the place, so we aggregate them
+ * here and handle the boilerplate of creating lexers and parsers and copying
+ * them around.
  *
  * @author Tim Boudreau
  */
@@ -50,6 +55,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     MARKDOWN_LEXER("MarkdownLexer.g4"),
     MARKDOWN_PARSER("MarkdownParser.g4"),
     RETURNS_TEST("ReturnsTest.g4"),
+    PROTOBUF_3("Protobuf3.g4")
     ;
     private final String fileName;
 
@@ -151,12 +157,18 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
         }
         Path file = target.resolve(fileName);
         copyTo(file);
-        if (this == ANTLR_PARSER || this == ANTLR_LEXER) {
-            Path imp = dir.resolve("imports");
-            if (!Files.exists(imp)) {
-                Files.createDirectories(imp);
-            }
-            ANTLR_LEX_BASIC.copyTo(imp.resolve(ANTLR_LEX_BASIC.fileName));
+        Path imp = dir.resolve("imports");
+        switch (this) {
+            case ANTLR_LEXER:
+            case ANTLR_PARSER:
+                if (!Files.exists(imp)) {
+                    Files.createDirectories(imp);
+                }
+                ANTLR_LEX_BASIC.copyTo(imp.resolve(ANTLR_LEX_BASIC.fileName));
+                break;
+            case MARKDOWN_PARSER:
+                MARKDOWN_LEXER.copyTo(imp.resolve(MARKDOWN_LEXER.fileName));
+                break;
         }
     }
 
@@ -168,5 +180,77 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
             }
         }
         return null;
+    }
+
+    /**
+     * Create an in-memory copy of the original grammar with modifications to
+     * its content made by the passed function.
+     *
+     * @param processor A function to alter the original grammar text in some way
+     * @return A Sample File
+     */
+    public SampleFile withText(Function<String, String> processor) {
+        return new SampleFile<ANTLRv4Lexer, ANTLRv4Parser>() {
+            @Override
+            public CharStream charStream() throws IOException {
+                return CharStreams.fromString(text());
+            }
+
+            public String toString() {
+                return AntlrSampleFiles.this.name() + " processed by " + processor;
+            }
+
+            @Override
+            public SampleFile related(String name) {
+                return AntlrSampleFiles.this.related(name);
+            }
+
+            @Override
+            public InputStream inputStream() {
+                try {
+                    return new ByteArrayInputStream(text().getBytes(UTF_8));
+                } catch (IOException ex) {
+                    throw new AssertionError(ex);
+                }
+            }
+
+            @Override
+            public int length() throws IOException {
+                return text().getBytes(UTF_8).length;
+            }
+
+            @Override
+            public ANTLRv4Lexer lexer() throws IOException {
+                ANTLRv4Lexer lex = new ANTLRv4Lexer(charStream());
+                lex.removeErrorListeners();
+                return lex;
+            }
+
+            @Override
+            public ANTLRv4Lexer lexer(ANTLRErrorListener l) throws IOException {
+                ANTLRv4Lexer lex = lexer();
+                lex.addErrorListener(l);
+                return lex;
+            }
+
+            @Override
+            public ANTLRv4Parser parser() throws IOException {
+                ANTLRv4Lexer lex = lexer();
+                CommonTokenStream cts = new CommonTokenStream(lex);
+                ANTLRv4Parser parser = new ANTLRv4Parser(cts);
+                parser.removeErrorListeners();
+                return parser;
+            }
+
+            @Override
+            public String text() throws IOException {
+                return processor.apply(AntlrSampleFiles.this.text());
+            }
+
+            @Override
+            public String fileName() {
+                return AntlrSampleFiles.this.fileName;
+            }
+        };
     }
 }

@@ -18,6 +18,7 @@ package org.nemesis.antlr.file.antlrrefactoring;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -97,7 +98,7 @@ class InlineRefactoringPlugin extends AbstractRefactoringContext implements Refa
                 int en = Math.min(d.getLength(), endPos + 1);
                 try {
                     String txt = d.getText(st, en - st);
-                    if (txt.trim().isEmpty()) {
+                    if (Strings.isBlank(txt)) {
                         // Use createProblem so that we don't wind up with
                         // black on black text
                         prob.set(createProblem(true, Bundle.inWhitespace()));
