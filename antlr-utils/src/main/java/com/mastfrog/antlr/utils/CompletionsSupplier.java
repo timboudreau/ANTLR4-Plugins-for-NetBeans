@@ -23,6 +23,7 @@ import javax.swing.text.Document;
 import org.openide.util.Lookup;
 
 /**
+ * Generic code completion, registerable in the default lookup.
  *
  * @author Tim Boudreau
  */

@@ -46,6 +46,9 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.EditorFeaturesAnnotationProcessor.EDITOR_FEATURES_ANNO;
+import static org.nemesis.registration.NameAndMimeTypeUtils.characterToCharacterName;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
+import static org.nemesis.registration.NameAndMimeTypeUtils.prefixFromMimeTypeOrLexerName;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.CRITERIA;
 import static org.nemesis.registration.typenames.KnownTypes.DELETED_TEXT_INTERCEPTOR;
@@ -105,13 +108,15 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
             }
         }
         if (!boilerplates.isEmpty() || !elisions.isEmpty() || !delimiterPairs.isEmpty()) {
-            String mime = utils.annotationValue(mirror, "mimeType", String.class);
-            String generatedClassName = stripMimeType(mime).toUpperCase() + type.getSimpleName() + "EditorFeatures";
+            String rawMime = utils.annotationValue(mirror, "mimeType", String.class);
+            String mime = cleanMimeType(rawMime);
             int pos = utils.annotationValue(mirror, "order", Integer.class, Math.min(Integer.MAX_VALUE - 1000, Math.abs(type.getQualifiedName().toString().hashCode())));
             AtomicInteger layerPos = new AtomicInteger(pos);
 
             LexerInfo lexer = lexer(mirror, type, utils);
             final boolean isAntlrLexer = lexer.lexerClassFqn() != null;
+            String prefix =prefixFromMimeTypeOrLexerName(rawMime, lexer.lexerClassFqn());
+            String generatedClassName = prefix + type.getSimpleName() + "EditorFeatures";
 
             Map<String, String> bundleItems = new TreeMap<>();
 
@@ -337,85 +342,6 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
         return false;
     }
 
-    /**
-     * Generate the name of a character for use in bundle keys.
-     *
-     * @param c A character
-     * @return A string name of the character understandable to a human
-     * translator
-     */
-    static String c2s(char c) {
-        // The point here isn't accurracy so much as consistency, so
-        // for example "Insert )" and "Insert :" aren't converged to
-        // the same bundle key "insert".
-        switch (c) {
-            case '(':
-                return "lparen";
-            case ')':
-                return "rparen";
-            case '#':
-                return "pound";
-            case '!':
-                return "bang";
-            case '@':
-                return "at";
-            case '$':
-                return "dollars";
-            case '%':
-                return "pct";
-            case '^':
-                return "caren";
-            case '&':
-                return "amp";
-            case '*':
-                return "asterisk";
-            case '-':
-                return "dash";
-            case '_':
-                return "underscore";
-            case '=':
-                return "equals";
-            case '{':
-                return "obrace";
-            case '}':
-                return "cbrace";
-            case '[':
-                return "obrack";
-            case ']':
-                return "cbrack";
-            case ';':
-                return "semi";
-            case ':':
-                return "colon";
-            case '\'':
-                return "squote";
-            case '"':
-                return "quote";
-            case '<':
-                return "lt";
-            case '>':
-                return "gt";
-            case ',':
-                return "comma";
-            case '.':
-                return "dot";
-            case '?':
-                return "question";
-            case '/':
-                return "slash";
-            case '\\':
-                return "backslash";
-            case '|':
-                return "pipe";
-            case '~':
-                return "tilde";
-            case '`':
-                return "backtick";
-            default:
-                return null;
-        }
-    }
-
     private static String namify(String s, AnnotationMirror mir) {
         StringBuilder sb = new StringBuilder(
                 mir.getAnnotationType().asElement().getSimpleName().toString().toLowerCase()).append('_');
@@ -424,7 +350,7 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             if (Character.isWhitespace(c) || (!Character.isAlphabetic(c) && !Character.isDigit(c))) {
-                String cname = c2s(c);
+                String cname = characterToCharacterName(c);
                 if (cname != null) {
                     if (!lastWasUnderscore) {
                         sb.append('_');
@@ -524,7 +450,11 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         test = utils.testMirror()
                 .testMember("mimeType")
-                .validateStringValueAsMimeType()
+                .addPredicate("Mime type", mir -> {
+                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(),  null, mir);
+                        String value = utils().annotationValue(mir, "mimeType", String.class);
+                        return mimeTest.test(value);
+                    })
                 .build()
                 .testMember("lexer")
                 .mustBeSubtypeOf(KnownTypes.ANTLR_V4_LEXER.qnameNotouch())
@@ -533,7 +463,7 @@ public final class EditorFeaturesAnnotationProcessor extends LayerGeneratingDele
                 //                .build()
                 .addPredicate(mirror -> {
                     boolean result = true;
-                    String mime = utils.annotationValue(mirror, "mimeType", String.class, "");
+                    String mime = cleanMimeType(utils.annotationValue(mirror, "mimeType", String.class, ""));
                     String dn = utils.annotationValue(mirror, "languageDisplayName", String.class);
                     List<AnnotationMirror> boilerplates = utils.annotationValues(mirror, "insertBoilerplate", AnnotationMirror.class);
                     List<AnnotationMirror> elisions = utils.annotationValues(mirror, "elideTypedChars", AnnotationMirror.class);

@@ -31,9 +31,9 @@ import com.mastfrog.antlr.utils.Criteria.SingleCriterion;
  * One test a rule can use to determine if it matches one or more token types.
  * This class does not add anything to IntPredicate, but ensures that instances
  * created via logical operations are meaningfully loggable, which lambdas do
- * not.  Implementations for matching, non-matching individual values and
- * arrays also implement their equality and hashCode contract correctly,
- * allowing them to be used as map keys.
+ * not. Implementations for matching, non-matching individual values and arrays
+ * also implement their equality and hashCode contract correctly, allowing them
+ * to be used as map keys.
  *
  * @author Tim Boudreau
  */
@@ -43,16 +43,41 @@ public interface Criterion extends IntPredicate {
     // toString(), as
     // FormattingRules$FormattingAction$$Lambda$1/1007603019@5383967b
     // doesn't say much
+    /**
+     * Return a criterion that exactly matches a single token type.
+     *
+     * @param vocab The vocabulary
+     * @param val The token type
+     * @return A criterion
+     */
     static Criterion matching(Vocabulary vocab, int val) {
         return new SingleCriterion(val, vocab, false);
     }
 
+    /**
+     * Return a criterion that matches all tokens <i>except</i> a single token
+     * type.
+     *
+     * @param vocab The vocabulary
+     * @param val The token type
+     * @return a criterion
+     */
     static Criterion notMatching(Vocabulary vocab, int val) {
         return new SingleCriterion(val, vocab, true);
     }
 
+    /**
+     * Static instance that always returns false.
+     */
     public static Criterion NEVER = new FixedCriterion(false);
 
+    /**
+     * Returns a criterion that matches any of a set of token types.
+     *
+     * @param vocab The vocabulary
+     * @param ints The types
+     * @return A criterion
+     */
     static Criterion anyOf(Vocabulary vocab, int... ints) {
         if (ints.length == 0) {
             return NEVER;
@@ -64,6 +89,12 @@ public interface Criterion extends IntPredicate {
         return new ArrayCriterion(ints, vocab, false);
     }
 
+    /**
+     * Logical or this criterion and another.
+     *
+     * @param other The other criterion
+     * @return A criterion
+     */
     default Criterion or(Criterion other) {
         return new LogicalCriterion(this, other, true);
     }
@@ -72,6 +103,14 @@ public interface Criterion extends IntPredicate {
         return new LogicalCriterion(this, other, false);
     }
 
+    /**
+     * Create a predicate that takes some object type, finds a token type in it
+     * using the passed function, and tests that using this criterion.
+     *
+     * @param <R> The type
+     * @param func The conversion function
+     * @return A predicate
+     */
     default <R> Predicate<R> convertedBy(ToIntFunction<R> func) {
         return new Predicate<R>() {
             public boolean test(R val) {
@@ -85,6 +124,14 @@ public interface Criterion extends IntPredicate {
         };
     }
 
+    /**
+     * Create a <i>single-use, stateful</i> criterion which will only match the
+     * first <i>n</i> cases where this criterion returns true. Useful for
+     * logging when debugging complex tests.
+     *
+     * @param max The maximum
+     * @return A criterion.
+     */
     default Criterion firstNmatches(int max) {
         return new Criterion() {
             private int count;
@@ -100,11 +147,19 @@ public interface Criterion extends IntPredicate {
 
             @Override
             public String toString() {
-                return "first-" + max + "-matches";
+                return "first-" + max + "-matches-of-" + Criterion.this;
             }
         };
     }
 
+    /**
+     * Return a criterion which matches everything <i>except</i> the passed set
+     * of token types.
+     *
+     * @param vocab The vocabulary
+     * @param ints The token types
+     * @return A criterion
+     */
     public static Criterion noneOf(Vocabulary vocab, int... ints) {
         if (ints.length == 0) {
             return ALWAYS;
@@ -238,6 +293,15 @@ public interface Criterion extends IntPredicate {
         };
     }
 
+    /**
+     * Returns a criterion which will return true for any token within <i>n</i>
+     * tokens subsequent to one where this criterion tests true - useful for
+     * logging the context around a test when debugging.
+     *
+     * @param n The number of tokens to remain active for after a successful
+     * test
+     * @return A criterion
+     */
     default Criterion andSubsequent(int n) {
         return new Criterion() {
             int ct = -1;
@@ -265,6 +329,11 @@ public interface Criterion extends IntPredicate {
         };
     }
 
+    /**
+     * Create a predicate that takes Token instances over this criterion.
+     *
+     * @return A token predicate
+     */
     default Predicate<Token> toTokenPredicate() {
         return new Predicate<Token>() {
             @Override

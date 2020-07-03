@@ -32,7 +32,7 @@ import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.nemesis.registration.FontsColorsBuilder.Fc;
-import org.openide.filesystems.annotations.XMLUtil;
+import org.openide.xml.XMLUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;

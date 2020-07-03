@@ -50,9 +50,7 @@ import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.validation.AnnotationMirrorMemberTestBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
-import static com.mastfrog.annotation.AnnotationUtils.capitalize;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
-import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.processor.Key;
 import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
@@ -70,6 +68,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import javax.annotation.processing.Filer;
 import static javax.lang.model.element.Modifier.DEFAULT;
@@ -77,6 +76,7 @@ import static javax.lang.model.element.Modifier.SYNCHRONIZED;
 import javax.lang.model.element.PackageElement;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.nemesis.registration.typenames.JdkTypes;
 import static org.nemesis.registration.typenames.JdkTypes.ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.ARRAYS;
@@ -112,6 +112,7 @@ import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCE;
 import static org.nemesis.registration.typenames.KnownTypes.ACTION_REFERENCES;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_MIME_TYPE_REGISTRATION;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_PARSE_RESULT;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_LEXER;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_PARSER;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_V4_TOKEN;
 import static org.nemesis.registration.typenames.KnownTypes.BASE_DOCUMENT;
@@ -127,6 +128,7 @@ import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT;
 import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_EXISTS_EXCEPTION;
 import static org.nemesis.registration.typenames.KnownTypes.DATA_OBJECT_HOOKS;
 import static org.nemesis.registration.typenames.KnownTypes.DECLARATION_TOKEN_PROCESSOR;
+import static org.nemesis.registration.typenames.KnownTypes.EMBEDDING_HELPER;
 import static org.nemesis.registration.typenames.KnownTypes.EMBEDDING_PRESENCE;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION_REGISTRATION;
@@ -150,6 +152,7 @@ import static org.nemesis.registration.typenames.KnownTypes.LANGUAGE_HIERARCHY;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER_RESTART_INFO;
 import static org.nemesis.registration.typenames.KnownTypes.LEXER_TOKEN;
+import static org.nemesis.registration.typenames.KnownTypes.LEXER_TOKEN_ID;
 import static org.nemesis.registration.typenames.KnownTypes.LOOKUP;
 import static org.nemesis.registration.typenames.KnownTypes.MESSAGES;
 import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
@@ -210,7 +213,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     private BiPredicate<? super AnnotationMirror, ? super Element> mirrorTest;
 
     static final Key<String> COMMENT_STRING = key(String.class, "comment");
+    static final Key<LexerParserTasks> LEXER_PARSER_TASKS = key(LexerParserTasks.class, "lpt");
     static final String TOGGLE_COMMENT_ACTION = "ToggleCommentAction";
+    private final LexerParserTasks tasks = new LexerParserTasks();
 
     private static Map<String, Integer> lexerClassConstants() {
         Map<String, Integer> result = new HashMap<>();
@@ -231,12 +236,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
+        super.share(LEXER_PARSER_TASKS, tasks);
         mirrorTest = utils.multiAnnotations().whereAnnotationType(REGISTRATION_ANNO, mb -> {
             mb.testMember("name").stringValueMustNotBeEmpty()
                     .stringValueMustBeValidJavaIdentifier()
                     .build()
                     .testMember("mimeType")
-                    .validateStringValueAsMimeType().build()
+                    .addPredicate("Mime type", mir -> {
+                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(),  null, mir);
+                        String value = utils().annotationValue(mir, "mimeType", String.class);
+                        return mimeTest.test(value);
+                    })
+                    .build()
                     .testMember("lexer", lexer -> {
                         lexer.asTypeSpecifier()
                                 .hasModifier(PUBLIC)
@@ -307,7 +318,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         if (GOTO_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
-            String mime = utils().annotationValue(mirror, "mimeType", String.class);
+            String mime = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
             if (mime != null) {
                 Set<VariableElement> ves = gotos.get(mime);
                 if (ves == null) {
@@ -341,7 +352,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         Map<AnnotationMirror, Element> result = new HashMap<>();
         for (Element el : all) {
             AnnotationMirror mir = utils().findAnnotationMirror(el, ANTLR_ACTION_ANNO_TYPE);
-            String mime = utils().annotationValue(mir, "mimeType", String.class);
+            String mime = cleanMimeType(utils().annotationValue(mir, "mimeType", String.class));
             if (mimeType.equals(mime)) {
                 result.put(mir, el);
             }
@@ -377,13 +388,16 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             return false;
         }
         String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        preemptivelyCheckGotos(roundEnv);
-        String prefix = utils().annotationValue(mirror, "name", String.class);
+//        String prefix = utils().annotationValue(mirror, "name", String.class);
         LexerProxy lexerProxy = LexerProxy.create(mirror, type, utils());
         if (lexerProxy == null) {
             utils().warn("Could not find Lexer info for " + mimeType + " on " + type.getQualifiedName(), type);
             return true;
         }
+        boolean useImplicit = utils().annotationValue(mirror, "useImplicitLanguageNameFromLexerName", Boolean.class, Boolean.FALSE);
+        String prefix = NameAndMimeTypeUtils.prefixFromMimeTypeOrLexerName(mimeType, useImplicit ? lexerProxy.lexerClassFqn() : null);
+        mimeType = cleanMimeType(mimeType);
+        preemptivelyCheckGotos(roundEnv);
         TypeMirror tokenCategorizerClass = utils().typeForSingleClassAnnotationMember(mirror, "tokenCategorizer");
 
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
@@ -394,15 +408,16 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 utils().warn("Could not find parser info for " + mimeType + " on " + type.getQualifiedName()
                         + " will generate basic syntax support and no more.",
                         type);
-                generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
+                generateTokensClasses(mimeType, type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
                 return true;
             }
-            generateParserClasses(parser, lexerProxy, type, mirror, parserHelper, prefix);
+            generateParserClasses(mimeType, parser, lexerProxy, type, mirror, parserHelper, prefix);
             writeOne(parser.createRuleTypeMapper(utils().packageName(type), prefix, mimeType));
         }
-        generateRegistration(prefix, mirror, mimeType, type, lexerProxy);
+        tasks.set(mimeType, lexerProxy, parser, prefix, utils().packageName(type));
+        generateRegistration(prefix, mirror, mimeType, type, lexerProxy, parser);
 
-        generateTokensClasses(type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
+        generateTokensClasses(mimeType, type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
 
         AnnotationMirror fileInfo = utils().annotationValue(mirror, "file", AnnotationMirror.class);
         if (fileInfo != null && !roundEnv.errorRaised()) {
@@ -414,7 +429,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         return false;
                     }
                 }
-                generateDataObjectClassAndRegistration(fileInfo, extension, mirror, prefix, type, parser, lexerProxy, roundEnv);
+                generateDataObjectClassAndRegistration(mimeType, fileInfo, extension, mirror, prefix, type, parser, lexerProxy, roundEnv);
             }
         }
         AnnotationMirror codeCompletion = utils().annotationValue(mirror, "genericCodeCompletion", AnnotationMirror.class);
@@ -427,11 +442,17 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     private static final String ANTLR_MIME_REG_TYPE = "org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration";
 
-    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on, LexerProxy lexer) throws IOException {
+    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on, LexerProxy lexer, ParserProxy parser) throws IOException {
         String generatedClassName = prefix + "AntlrLanguageRegistration";
         String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
-        ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on)).named(generatedClassName)
-                .importing(ANTLR_MIME_TYPE_REGISTRATION.qname(), SERVICE_PROVIDER.qname())
+        ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on))
+                .named(generatedClassName)
+                .importing(ANTLR_MIME_TYPE_REGISTRATION.qname(), SERVICE_PROVIDER.qname(),
+                        ANTLR_V4_LEXER.qname(), lexer.lexerClassFqn())
+                .conditionally(parser != null, cbb -> {
+                    cbb.importing(parser.parserClassFqn())
+                            .importing(ANTLR_V4_PARSER.qname());
+                })
                 .extending(ANTLR_MIME_TYPE_REGISTRATION.simpleName())
                 .annotatedWith(SERVICE_PROVIDER.simpleName(), ab -> {
                     // should do *something* to provide ordering - hash code will do
@@ -439,7 +460,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .addArgument("position", Math.abs(generatedClassName.hashCode()));
                 })
                 .withModifier(PUBLIC, FINAL)
-                .docComment("Generated from annotation on ", on.getQualifiedName(), " for MIME type ",
+                .docComment("Generated from ", mirror.getAnnotationType().toString(),
+                        " annotation on ", on.getQualifiedName(), " for MIME type ",
                         mimeType, " by " + getClass().getSimpleName())
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
@@ -449,8 +471,21 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .withArgument(lexer.lexerClassFqn() + ".VOCABULARY")
                                         .inScope();
                             });
-                });
-        ;
+                }).method("lexerType", mb -> {
+            mb.returning("Class<? extends " + ANTLR_V4_LEXER.simpleName() + ">")
+                    .withModifier(PUBLIC)
+                    .bodyReturning(lexer.lexerClassSimple() + ".class");
+            ;
+        }).method("parserType", mb -> {
+            mb.withModifier(PUBLIC).returning("Class<? extends Parser>")
+                    .body(bb -> {
+                        if (parser == null) {
+                            bb.returningNull();
+                        } else {
+                            bb.returning(parser.parserClassSimple() + ".class");
+                        }
+                    });
+        });
         writeOne(cb);
     }
 
@@ -512,7 +547,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 })
                 .withModifier(PUBLIC, FINAL)
                 .staticImport(lexer.lexerClassFqn() + ".*")
-                .generateDebugLogCode()
+//                .generateDebugLogCode()
                 .privateMethod("createParser", mb -> {
                     mb.withModifier(STATIC)
                             .addArgument(DOCUMENT.simpleName(), "doc")
@@ -662,13 +697,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     private static int dataObjectClassCount = 0;
 
     // DataObject generation
-    private void generateDataObjectClassAndRegistration(AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, ParserProxy parser, LexerProxy lexer, RoundEnvironment roundEnv) throws Exception {
+    private void generateDataObjectClassAndRegistration(String mimeType, AnnotationMirror fileInfo, String extension, AnnotationMirror mirror, String prefix, TypeElement type, ParserProxy parser, LexerProxy lexer, RoundEnvironment roundEnv) throws Exception {
         dataObjectClassCount++;
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
-        if ("<error>".equals(mimeType)) {
-            utils().fail("Could not get mime type", type);
-            return;
-        }
         String iconBaseTmp = utils().annotationValue(fileInfo, "iconBase", String.class, "");
         String pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName().toString();
         if (pkg != null && !pkg.isEmpty() && !iconBaseTmp.isEmpty() && iconBaseTmp.indexOf('/') < 0) {
@@ -822,7 +852,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             + NB_EDITOR_KIT.qname() + ',' + BASE_KIT.qname())
                     .write();
 
-            layer.folder("Actions/" + AnnotationUtils.stripMimeType(mimeType))
+            layer.folder("Actions/" + mimeType)
                     .stringvalue("displayName", prefix).write();
         }, type);
         writeOne(cl);
@@ -1116,7 +1146,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         return overridden;
     }
 
-    private String generateEditorKitClassAndRegistration(String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType, ParserProxy parser, LexerProxy lexer, RoundEnvironment env) throws Exception {
+    private String generateEditorKitClassAndRegistration(String dataObjectPackage, AnnotationMirror registrationAnno, String prefix, TypeElement type, String mimeType,
+            ParserProxy parser, LexerProxy lexer, RoundEnvironment env) throws Exception {
         String editorKitName = prefix + "EditorKit";
         String syntaxName = generateSyntaxSupport(mimeType, type, dataObjectPackage, registrationAnno, prefix, lexer);
         ClassBuilder<String> cl = ClassBuilder.forPackage(dataObjectPackage)
@@ -1155,45 +1186,45 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
 
         try {
-        // Workaround to allow unit tests to avoid initializing the entire module system:
-        cl.field("UNIT_TEST", fb -> {
-            fb.docComment("There is a bug workaround in NbEditorDocument which causes a background "
-                    + "thread to try to initialize the entire module system, which will wreak "
-                    + "havoc in a unit test.  So set a system property in your unit test runner "
-                    + "to avoid this problem.");
-            fb.withModifier(PRIVATE, STATIC, FINAL)
-                    .initializedFromInvocationOf("getBoolean").withStringLiteral("unit.test").on("Boolean").ofType("boolean");
-        });
-        cl.importing(DOCUMENT.qname()).overridePublic("createDefaultDocument", mb -> {
-            mb.returning(DOCUMENT.simpleName()).body(bb -> {
-                bb.iff(ifb -> {
-                    ClassBuilder.IfBuilder<?> ib = ifb.booleanExpression("UNIT_TEST");
-                    ib.returningNew()
-                            .withStringLiteral(mimeType).ofType("AvoidInitializingModuleSystemDocument");
-                });
-                bb.returningInvocationOf("createDefaultDocument").on("super");
+            // Workaround to allow unit tests to avoid initializing the entire module system:
+            cl.field("UNIT_TEST", fb -> {
+                fb.docComment("There is a bug workaround in NbEditorDocument which causes a background "
+                        + "thread to try to initialize the entire module system, which will wreak "
+                        + "havoc in a unit test.  So set a system property in your unit test runner "
+                        + "to avoid this problem.");
+                fb.withModifier(PRIVATE, STATIC, FINAL)
+                        .initializedFromInvocationOf("getBoolean").withStringLiteral("unit.test").on("Boolean").ofType("boolean");
             });
-        });
-        cl.importing(NB_EDITOR_DOCUMENT.qname(), "java.util.Dictionary")
-                .innerClass("AvoidInitializingModuleSystemDocument", ic -> {
-                    ic.withModifier(PRIVATE, STATIC, FINAL)
-                            .extending(NB_EDITOR_DOCUMENT.simpleName())
-                            .constructor(con -> {
-                                con.addArgument("String", "mimeType")
-                                        .body(cb -> {
-                                            cb.invoke("super").withArgument("mimeType").inScope();
-                                        });
-                            })
-                            .overrideProtected("createDocumentProperties", mb -> {
-                                mb.docComment("The default implementation of this method will start a background "
-                                        + "thread that calls <code>IndentUtils.indentLevelSize(NbEditorDocument.this);</code>, "
-                                        + "which will trigger full initialization of the module system, which wreaks "
-                                        + "havoc with tests.  So we return this class if the system property <code>unit.test</code> "
-                                        + "is true, which overrides this method to bypass launching the background thread.");
-                                mb.returning("Dictionary").addArgument("Dictionary", "orig")
-                                        .bodyReturning("orig");
-                            });
+            cl.importing(DOCUMENT.qname()).overridePublic("createDefaultDocument", mb -> {
+                mb.returning(DOCUMENT.simpleName()).body(bb -> {
+                    bb.iff(ifb -> {
+                        ClassBuilder.IfBuilder<?> ib = ifb.booleanExpression("UNIT_TEST");
+                        ib.returningNew()
+                                .withStringLiteral(mimeType).ofType("AvoidInitializingModuleSystemDocument");
+                    });
+                    bb.returningInvocationOf("createDefaultDocument").on("super");
                 });
+            });
+            cl.importing(NB_EDITOR_DOCUMENT.qname(), "java.util.Dictionary")
+                    .innerClass("AvoidInitializingModuleSystemDocument", ic -> {
+                        ic.withModifier(PRIVATE, STATIC, FINAL)
+                                .extending(NB_EDITOR_DOCUMENT.simpleName())
+                                .constructor(con -> {
+                                    con.addArgument("String", "mimeType")
+                                            .body(cb -> {
+                                                cb.invoke("super").withArgument("mimeType").inScope();
+                                            });
+                                })
+                                .overrideProtected("createDocumentProperties", mb -> {
+                                    mb.docComment("The default implementation of this method will start a background "
+                                            + "thread that calls <code>IndentUtils.indentLevelSize(NbEditorDocument.this);</code>, "
+                                            + "which will trigger full initialization of the module system, which wreaks "
+                                            + "havoc with tests.  So we return this class if the system property <code>unit.test</code> "
+                                            + "is true, which overrides this method to bypass launching the background thread.");
+                                    mb.returning("Dictionary").addArgument("Dictionary", "orig")
+                                            .bodyReturning("orig");
+                                });
+                    });
         } catch (Exception ex) {
             ex.printStackTrace(System.err);
             com.mastfrog.util.preconditions.Exceptions.chuck(ex);
@@ -1408,7 +1439,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             }
         }
         if (useDeclarationTokenProcessor(mimeType)) {
-            String className = capitalize(stripMimeType(mimeType)) + DECLARATION_TOKEN_PROCESSOR.simpleName();
+            String className = prefix + DECLARATION_TOKEN_PROCESSOR.simpleName();
             cl.overridePublic("createDeclarationTokenProcessor").returning(className)
                     .addArgument("String", "varName")
                     .addArgument("int", "startPos")
@@ -1520,7 +1551,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     // Parser generation
-    private void generateParserClasses(ParserProxy parser, LexerProxy lexer,
+    private void generateParserClasses(String mimeType, ParserProxy parser, LexerProxy lexer,
             TypeElement type, AnnotationMirror mirror,
             AnnotationMirror parserInfo, String prefix) throws IOException {
         String nbParserName = prefix + "NbParser";
@@ -1532,7 +1563,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         TypeMirror helperClass = utils().typeForSingleClassAnnotationMember(parserInfo, "helper");
         boolean hasExplicitHelperClass = helperClass != null
-                && !"org.nemesis.antlr.spi.language.NbParserHelper".equals(helperClass.toString());
+                && !NB_PARSER_HELPER.qnameNotouch().equals(helperClass.toString());
         String helperClassName = hasExplicitHelperClass ? helperClass.toString() : prefix + "ParserHelper";
 
         String entryPointType = parser.parserEntryPointReturnTypeFqn();
@@ -1927,16 +1958,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         writeOne(cl);
         if (utils().annotationValue(parserInfo, "generateSyntaxTreeNavigatorPanel", Boolean.class, false)) {
-            generateSyntaxTreeNavigatorPanel(type, mirror, parser.parserEntryPoint(), lexer);
+            generateSyntaxTreeNavigatorPanel(mimeType, type, mirror, parser.parserEntryPoint(), lexer);
         }
         if (utils().annotationValue(parserInfo, "generateExtractionDebugNavigatorPanel", Boolean.class, false)) {
-            generateExtractionDebugPanel(type, mirror, parser.parserEntryPoint());
+            generateExtractionDebugPanel(mimeType, type, mirror, parser.parserEntryPoint());
         }
     }
 
     // Navigator generation
-    private void generateExtractionDebugPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+    private void generateExtractionDebugPanel(String mimeType, TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod) throws IOException {
         Name pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName();
         String generatedClassName = type.getSimpleName() + "_ExtractionNavigator_Registration";
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
@@ -1960,8 +1990,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     }
 
-    private void generateSyntaxTreeNavigatorPanel(TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod, LexerProxy lexer) throws IOException {
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+    private void generateSyntaxTreeNavigatorPanel(String mimeType, TypeElement type, AnnotationMirror mirror, ExecutableElement entryPointMethod, LexerProxy lexer) throws IOException {
         AnnotationMirror fileType = utils().annotationValue(mirror, "file", AnnotationMirror.class);
 
         String icon = fileType == null ? null : utils().annotationValue(fileType, "iconBase", String.class);
@@ -2083,14 +2112,13 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     // Lexer generation
-    private void generateTokensClasses(TypeElement type, AnnotationMirror mirror, LexerProxy proxy, TypeMirror tokenCategorizerClass, String prefix, ParserProxy parser) throws Exception {
+    private void generateTokensClasses(String mimeType, TypeElement type, AnnotationMirror mirror, LexerProxy proxy, TypeMirror tokenCategorizerClass, String prefix, ParserProxy parser) throws Exception {
 
         List<AnnotationMirror> categories = utils().annotationValues(mirror, "categories", AnnotationMirror.class);
 
         // Figure out if we are generating a token categorizer now, so we have the class name for it
         String tokenCatName = willHandleCategories(categories, tokenCategorizerClass, prefix, utils());
         String tokenTypeName = prefix + "Token";
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
         if ("<error>".equals(mimeType)) {
             utils().fail("Mime type invalid: " + mimeType);
             return;
@@ -2111,7 +2139,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         "Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), " specified by "
                         + "an annotation on ", type.getSimpleName())
                 .makePublic()
-                .importing("org.netbeans.api.lexer.TokenId", proxy.lexerClassFqn())
+                .importing(LEXER_TOKEN_ID.qname(), proxy.lexerClassFqn())
                 //                .importing("javax.annotation.processing.Generated")
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .field("MIME_TYPE").withModifier(FINAL).withModifier(STATIC).withModifier(PUBLIC).initializedTo(LinesBuilder.stringLiteral(mimeType)).ofType("String")
@@ -2173,9 +2201,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         + "\nGenerated by ", getClass().getSimpleName(),
                         " from fields on ", proxy.lexerClassSimple(),
                         " from annotations on ", type.getSimpleName() + ".")
-                .importing("java.util.Arrays", "java.util.HashMap", "java.util.Map", "java.util.Optional",
-                        "java.util.List", "java.util.ArrayList", "java.util.Collections",
-                        "org.nemesis.antlr.spi.language.highlighting.TokenCategorizer",
+                .importing(
+                        ARRAY_LIST.qname(), LIST.qname(), COLLECTIONS.qname(),
+                        OPTIONAL.qname(), HASH_MAP.qname(), ARRAYS.qname(),
+                        MAP.qname(), OPTIONAL.qname(),
+                        TOKEN_CATEGORIZER.qname(),
                         //                        "javax.annotation.processing.Generated",
                         proxy.lexerClassFqn())
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
@@ -2387,7 +2417,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         ". Generated by ", getClass().getSimpleName(), " from fields on ", proxy.lexerClassSimple(), ".")
                 //                .importing("javax.annotation.processing.Generated")
                 .makePublic().makeFinal()
-                .constructor().setModifier(PUBLIC).body().debugLog("Create a new " + hierName).endBlock()
+                .constructor().setModifier(PRIVATE).body().debugLog("Create a new " + hierName).endBlock()
                 //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .extending("LanguageHierarchy<" + tokenTypeName + ">")
                 .field("LANGUAGE").withModifier(FINAL).withModifier(STATIC).withModifier(PRIVATE)
@@ -2604,7 +2634,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 }
                 String mime = utils().annotationValue(emb, "mimeType", String.class);
                 if (mime == null || mime.isEmpty()) {
-                    List<String> helperClass = utils().classNamesForAnnotationMember(type, "org.nemesis.antlr.spi.language.AntlrLanguageRegistration$Embedding", "helper", "org.nemesis.antlr.spi.language.EmbeddingHelper");
+                    List<String> helperClass = utils().classNamesForAnnotationMember(type,
+                            "org.nemesis.antlr.spi.language.AntlrLanguageRegistration$Embedding",
+                            "helper", EMBEDDING_HELPER.qname());
                     if (helperClass.isEmpty()) {
                         ok = false;
                         utils().fail("Either a mime type or a helper must be specified", type, emb);

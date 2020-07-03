@@ -76,8 +76,8 @@ OpenHr
 mode PREFORMATTED;
 
 PreformattedContent
-    :~[`]+
-    | ( BACKTICK BACKTICK~[`]? )+;
+    : ~[`]+
+    | ( BACKTICK BACKTICK ~[`]? )+;
 
 ClosePreformattedContent
     : BACKTICK BACKTICK BACKTICK -> popMode;
@@ -268,7 +268,7 @@ fragment DIGIT
     : [\p{Digit}];
 
 fragment NON_HR
-    :~[ -*];
+    : ~[ -*];
 
 //    : '0'..'9';
 fragment ALL_WS
@@ -289,7 +289,7 @@ fragment SPECIAL_CHARS
     | STRIKE;
 
 fragment NON_WHITESPACE
-    :~[ \r\n\t];
+    : ~[ \r\n\t];
 
 //    :~[\p{White_Space}];
 fragment LINK_TEXT

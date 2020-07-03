@@ -53,6 +53,7 @@ import javax.annotation.processing.ProcessingEnvironment;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.xml.sax.SAXException;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 
 /**
  *
@@ -94,7 +95,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
             return true;
         }
         // This will be a HighlighterKeyRegistration
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         if (mimeType == null) {
             log(" - no mime type");
             return false;
@@ -124,8 +125,11 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
         List<AnnotationMirror> tokenCategories = utils().annotationValues(mirror, "categories", AnnotationMirror.class);
 
         TypeMirror tokenCategorizerClass = utils().typeForSingleClassAnnotationMember(mirror, "tokenCategorizer");
-        String prefix = utils().annotationValue(mirror, "name", String.class);
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+
+        LexerProxy proxy = LexerProxy.create(mirror, on, utils());
+
+        String prefix = NameAndMimeTypeUtils.prefixFromMimeTypeOrLexerName(utils().annotationValue(mirror, "mimeType", String.class), proxy.lexerClassFqn());
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         String tokenClassName = LanguageRegistrationDelegate.willHandleCategories(tokenCategories, tokenCategorizerClass, prefix, utils());
         if (tokenClassName == null) {
             // Nothing specified - will use the heuristic categorizer - nothing to do

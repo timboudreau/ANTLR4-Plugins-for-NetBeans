@@ -19,6 +19,7 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.sample.AntlrSampleFiles;
@@ -29,27 +30,57 @@ import org.nemesis.antlr.sample.AntlrSampleFiles;
  */
 public class RuleBodyExtractorTest {
 
+    private RuleBodyExtractor ext;
+
     @Test
-    public void testSomeMethod() throws IOException {
+    public void testTwoEbnfs() throws IOException {
 //        ANTLRv4Parser parser = AntlrSampleFiles.RETURNS_TEST.parser();
 //        CharSequence seq = parser.grammarFile().accept(new RuleBodyExtractor("number", parser));
 //        System.out.println("NUMBER:\n" + seq);
-        RuleBodyExtractor ext = testOne(AntlrSampleFiles.MARKDOWN_PARSER, "innerContent", "(content | embeddedImage)+? (whitespace (content | embeddedImage))*?");
+        ext = testOne(AntlrSampleFiles.MARKDOWN_PARSER, "innerContent", "(content | embeddedImage)+? (whitespace (content | embeddedImage))*?");
+    }
+
+    @Test
+    public void testSimpleSeriesOfTokens() throws IOException {
         ext = testOne(AntlrSampleFiles.MARKDOWN_PARSER, "preformatted", "OpenPreformattedText PreformattedContent ClosePreformattedContent");
         assertEquals(0, ext.labeledAlternativeCount());
         assertEquals(1, ext.labeledAtomCount());
         assertEquals(0, ext.blockCount());
+    }
+
+    @Test
+    public void testNestedEbnfs() throws Exception {
         ext = testOne(AntlrSampleFiles.MARKDOWN_PARSER, "orderedList", "(firstOrderedListItem orderedListItem* (orderedList (returningOrderedListItem orderedListItem*)*)) | (firstOrderedListItem orderedListItem*) | orderedListItem (firstOrderedListItem orderedListItem* (orderedList (returningOrderedListItem orderedListItem*)*))");
+    }
+
+    @Test
+    public void testSerialOrs() throws Exception {
         ext = testOne(AntlrSampleFiles.MARKDOWN_PARSER, "content", "text | bold | code | italic | strikethrough | link | bracketed | parenthesized");
         assertEquals(0, ext.labeledAlternativeCount());
         assertEquals(0, ext.labeledAtomCount());
         assertEquals(0, ext.blockCount());
+    }
+
+    @Test
+    public void testNestedOrs() throws Exception {
         ext = testOne(AntlrSampleFiles.RUST, "variable_binding", "(Let variable_props variable_spec) | (Let variable_props variable_pattern Equals expression_pattern) | (Let variable_props variable_spec Equals assignee_props expression variable_cast?) | (Let variable_props type_spec variable_pattern ((Equals assignee_props variable_name) | expression))");
         assertEquals(6, ext.blockCount());
         assertEquals(4, ext.labeledAlternativeCount());
         assertEquals(15, ext.labeledAtomCount());
+    }
+
+    @Test
+    public void testBlockComment() throws Exception {
         ext = testOne(AntlrSampleFiles.RUST, "BlockComment", "BlockCommentPrefix (~[*/] | Slash* BlockComment | Slash+ (~[*/]) | Asterisk+ ~[*/])* Asterisk+ Slash");
+    }
+
+    @Test
+    public void testComplexLexerRule() throws Exception {
         ext = testOne(AntlrSampleFiles.RUST, "CHAR", "~['\"\\r\\n\\\\\\ud800-\\udfff] | [\\ud800-\\udbff] [\\udc00-\\udfff] | SIMPLE_ESCAPE | '\\\\x' [0-7] [0-9a-fA-F] | '\\\\u{' [0-9a-fA-F]+ RightBrace");
+    }
+
+    @Test
+    public void testAntlr3ReturnsClause() throws Exception {
         ext = testOne(AntlrSampleFiles.RETURNS_TEST, "number", "Integer");
         assertEquals(1, ext.atomCount());
         assertEquals(0, ext.labeledAlternativeCount());
@@ -57,14 +88,17 @@ public class RuleBodyExtractorTest {
         assertEquals(0, ext.blockCount());
     }
 
-
     private RuleBodyExtractor testOne(AntlrSampleFiles sample, String rule, String expect) throws IOException {
         ANTLRv4Parser parser = sample.parser();
         RuleBodyExtractor ext = new RuleBodyExtractor(rule, parser);
         CharSequence seq = parser.grammarFile().accept(ext);
         assertNotNull(seq);
         assertTrue(seq.length() > 0);
-        assertEquals(expect, seq.toString());
+        String got = seq.toString();
+        if (!got.equals(expect)) {
+            // Format it so it's easy to tell what is missing
+            fail("Strings do not match - expect / got:\n" + expect + "\n" + got);
+        }
         return ext;
     }
 }

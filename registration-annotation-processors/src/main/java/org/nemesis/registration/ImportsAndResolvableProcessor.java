@@ -21,6 +21,7 @@ import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
@@ -37,6 +38,9 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.RESOLVER_ANNOTATION;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
+import static org.nemesis.registration.typenames.JdkTypes.IO_EXCEPTION;
+import static org.nemesis.registration.typenames.JdkTypes.MAP;
 import static org.nemesis.registration.typenames.JdkTypes.SET;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTION;
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
@@ -44,7 +48,10 @@ import static org.nemesis.registration.typenames.KnownTypes.IMPORT_FINDER;
 import static org.nemesis.registration.typenames.KnownTypes.IMPORT_KEY_SUPPLIER;
 import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_KEY;
 import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGIONS;
 import static org.nemesis.registration.typenames.KnownTypes.REGISTERABLE_RESOLVER;
+import static org.nemesis.registration.typenames.KnownTypes.RESOLUTION_CONSUMER;
+import static org.nemesis.registration.typenames.KnownTypes.SEMANTIC_REGIONS;
 import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
 import static org.nemesis.registration.typenames.KnownTypes.UNKNOWN_NAME_REFERENCE;
 
@@ -58,21 +65,6 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
 
     static final String IMPORTS_ANNOTATION = "org.nemesis.antlr.spi.language.Imports";
     static final String RESOLVER_ANNOTATION = "org.nemesis.antlr.spi.language.ReferenceableFromImports";
-    static final String NAMED_REGION_KEY_TYPE = "org.nemesis.extraction.key.NamedRegionKey";
-    static final String NAMED_REGION_REFERENCE_KEY_TYPE = "org.nemesis.extraction.key.NameReferenceSetKey";
-    static final String IMPORT_FINDER_TYPE = "org.nemesis.extraction.attribution.ImportFinder";
-    static final String IMPORT_KEY_SUPPLIER_TYPE = "org.nemesis.extraction.attribution.ImportKeySupplier";
-    static final String SERVICE_PROVIDER_ANNOTATION_TYPE = "org.openide.util.lookup.ServiceProvider";
-    static final String EXTRACTION_TYPE = "org.nemesis.extraction.Extraction";
-    static final String GRAMMAR_SOURCE_TYPE = "org.nemesis.source.api.GrammarSource";
-    static final String UNKNOWN_NAME_REFERENCE_TYPE = "org.nemesis.extraction.UnknownNameReference";
-    static final String NAMED_SEMANTIC_REGION_TYPE = "org.nemesis.data.named.NamedSemanticRegion";
-    static final String NAMED_SEMANTIC_REGIONS_TYPE = "org.nemesis.data.named.NamedSemanticRegions";
-    static final String REGISTERABLE_RESOLVER_TYPE = "org.nemesis.extraction.attribution.RegisterableResolver";
-    static final String IO_EXCEPTION_TYPE = "java.io.IOException";
-    static final String MAP_TYPE = "java.util.Map";
-    static final String RESOLUTION_CONSUMER_TYPE = "org.nemesis.extraction.ResolutionConsumer";
-    static final String SEMANTIC_REGIONS_TYPE = "org.nemesis.data.SemanticRegions";
     private BiPredicate<? super AnnotationMirror, ? super Element> test;
 
     @Override
@@ -84,14 +76,18 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                     b.onlyOneMemberMayBeSet("strategy", "simpleStrategy");
                     b.whereFieldIsAnnotated(eltest -> {
                         eltest.hasModifiers(Modifier.FINAL, Modifier.STATIC)
-                                .isSubTypeOf(NAMED_REGION_KEY_TYPE);
+                                .isSubTypeOf(NAMED_REGION_KEY.qnameNotouch());
                     });
                 }).whereAnnotationType(RESOLVER_ANNOTATION, b -> {
-            b.testMember("mimeType").validateStringValueAsMimeType();
+            b.testMember("mimeType").addPredicate("Mime type", mir -> {
+                Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                String value = utils().annotationValue(mir, "mimeType", String.class);
+                return mimeTest.test(value);
+            }).build();
             b.whereFieldIsAnnotated(eltest -> {
                 eltest.hasModifiers(Modifier.FINAL, Modifier.STATIC)
-                        .isSubTypeOf(NAMED_REGION_KEY_TYPE);
-            });
+                        .isSubTypeOf(NAMED_REGION_KEY.qnameNotouch());
+            }).build();
         }).build();
     }
 
@@ -103,7 +99,7 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
     @Override
     protected boolean processFieldAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
         String pkg = utils().packageName(var);
-        String mime = utils().annotationValue(mirror, "mimeType", String.class);
+        String mime = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         if (IMPORTS_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
             writeOne(handleImportsAnnotation(pkg, var, mirror, utils(), mime));
         } else if (RESOLVER_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
@@ -129,9 +125,9 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                         NAMED_REGION_KEY.qname(),
                         IMPORT_KEY_SUPPLIER.qname(),
                         SET.qname())
-                .implementing(simpleName(IMPORT_FINDER_TYPE), simpleName(IMPORT_KEY_SUPPLIER_TYPE))
+                .implementing(IMPORT_FINDER.simpleName(), IMPORT_KEY_SUPPLIER.simpleName())
                 .annotatedWith(SERVICE_PROVIDER.simpleName(), ab -> {
-                    ab.addClassArgument("service", simpleName(IMPORT_FINDER_TYPE))
+                    ab.addClassArgument("service", IMPORT_FINDER.simpleName())
                             .addArgument("path", "antlr/resolvers/" + mimeType);
                 })
                 .field("DELEGATE", fb -> {
@@ -186,13 +182,7 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                     mb.returning(NAMED_REGION_KEY.simpleName() + "<?>[]")
                             .body()
                             .returningValue().toArrayLiteral(NAMED_REGION_KEY.simpleName() + "<?>")
-                                .add(varQName).closeArrayLiteral();
-//                            .returning("new NamedRegionKey<?>[]{" + varQName + "}")
-//                            .endBlock();
-//                    mb.returning("NamedRegionKey<?>[]")
-//                            .body()
-//                            .returning("new NamedRegionKey<?>[]{" + varQName + "}")
-//                            .endBlock();
+                            .add(varQName).closeArrayLiteral();
 
                 });
         // implement Key based
@@ -200,16 +190,17 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
     }
 
     private ClassBuilder<String> handleResolverAnnotation(String pkg, VariableElement var, AnnotationMirror mirror, AnnotationUtils utils, String mimeType) {
-        String resolverClassName = capitalize(AnnotationUtils.stripMimeType(mimeType) + "Resolver_" + var.getSimpleName());
+        String resolverClassName = NameAndMimeTypeUtils.prefixFromMimeType(mimeType)
+                + "Resolver_" + var.getSimpleName();
         TypeMirror mir = utils.getTypeParameter(0, var);
         if (mir == null) {
             utils.fail("Could not find a type parameter on " + var);
         }
 
-        String rcType = simpleName(RESOLUTION_CONSUMER_TYPE) + "<"
-                + simpleName(GRAMMAR_SOURCE_TYPE) + "<?>,"
-                + simpleName(NAMED_SEMANTIC_REGIONS_TYPE) + "<" + simpleName(mir.toString()) + ">,"
-                + simpleName(NAMED_SEMANTIC_REGION_TYPE) + "<" + simpleName(mir.toString()) + ">,"
+        String rcType = RESOLUTION_CONSUMER.simpleName() + "<"
+                + GRAMMAR_SOURCE.simpleName() + "<?>,"
+                + NAMED_SEMANTIC_REGIONS.simpleName() + "<" + simpleName(mir.toString()) + ">,"
+                + NAMED_SEMANTIC_REGION.simpleName()+ "<" + simpleName(mir.toString()) + ">,"
                 + simpleName(mir) + ",X>";
 
         // ResolutionConsumer<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes, X> c
@@ -218,32 +209,31 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(resolverClassName)
                 .withModifier(PUBLIC, FINAL)
                 .importing(
-                        SERVICE_PROVIDER_ANNOTATION_TYPE,
-                        IMPORT_FINDER_TYPE,
-                        EXTRACTION_TYPE,
-                        GRAMMAR_SOURCE_TYPE,
-                        REGISTERABLE_RESOLVER_TYPE,
-                        NAMED_SEMANTIC_REGION_TYPE,
-                        UNKNOWN_NAME_REFERENCE_TYPE,
-                        NAMED_SEMANTIC_REGIONS_TYPE,
-                        IO_EXCEPTION_TYPE,
-                        SEMANTIC_REGIONS_TYPE,
-                        RESOLUTION_CONSUMER_TYPE,
-                        MAP_TYPE,
-                        mir.toString(),
-                        "java.util.Set")
-                .implementing(simpleName(REGISTERABLE_RESOLVER_TYPE) + "<" + simpleName(mir.toString()) + ">")
+                        SERVICE_PROVIDER.qname(),
+                        IMPORT_FINDER.qname(),
+                        EXTRACTION.qname(),
+                        GRAMMAR_SOURCE.qname(),
+                        REGISTERABLE_RESOLVER.qname(),
+                        NAMED_SEMANTIC_REGION.qname(),
+                        UNKNOWN_NAME_REFERENCE.qname(),
+                        NAMED_SEMANTIC_REGIONS.qname(),
+                        IO_EXCEPTION.qname(),
+                        SEMANTIC_REGIONS.qname(),
+                        RESOLUTION_CONSUMER.qname(),
+                        SET.qname(),
+                        MAP.qname(),
+                        mir.toString()
+                ).implementing(REGISTERABLE_RESOLVER.parametrizedName(simpleName(mir.toString())))
                 .annotatedWith("ServiceProvider", ab -> {
-                    ab.addClassArgument("service", simpleName(REGISTERABLE_RESOLVER_TYPE))
+                    ab.addClassArgument("service", REGISTERABLE_RESOLVER.simpleName())
                             .addArgument("path", "antlr/resolvers/" + mimeType);
-                }).field("delegate").withModifier(PRIVATE, FINAL).ofType(simpleName(REGISTERABLE_RESOLVER_TYPE)
-                + "<" + simpleName(mir.toString()) + ">")
+                }).field("delegate").withModifier(PRIVATE, FINAL).ofType(REGISTERABLE_RESOLVER.parametrizedName(simpleName(mir)))
                 .constructor(con -> {
                     con.setModifier(PUBLIC).body(bb -> {
                         bb.declare("importFinder").initializedByInvoking("forMimeType")
                                 .withStringLiteral(mimeType)
-                                .on(simpleName(IMPORT_FINDER_TYPE))
-                                .as("ImportFinder");
+                                .on(IMPORT_FINDER.simpleName())
+                                .as(IMPORT_FINDER.simpleName());
                         bb.assign("delegate").toInvocation("createReferenceResolver")
                                 .withArgument(varQName)
                                 .on("importFinder");
@@ -251,11 +241,11 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                 })
                 .overridePublic("resolve", mb -> {
                     mb.withTypeParam("X")
-                            .addArgument(simpleName(EXTRACTION_TYPE), "extraction")
-                            .addArgument(simpleName(UNKNOWN_NAME_REFERENCE_TYPE) + "<" + simpleName(mir.toString()) + ">", "ref")
+                            .addArgument(EXTRACTION.simpleName(), "extraction")
+                            .addArgument(UNKNOWN_NAME_REFERENCE.parametrizedName(simpleName(mir.toString())), "ref")
                             .addArgument(rcType, "c")
                             .returning("X")
-                            .throwing(simpleName(IO_EXCEPTION_TYPE))
+                            .throwing(simpleName(IO_EXCEPTION.simpleName()))
                             .body(bb -> {
                                 bb.returningInvocationOf("resolve")
                                         .withArguments("extraction", "ref", "c")
@@ -265,11 +255,11 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                 })
                 .overridePublic("resolveAll", mb -> {
                     mb.withTypeParam("X")
-                            .addArgument(simpleName(EXTRACTION_TYPE), "extraction")
-                            .addArgument(simpleName(SEMANTIC_REGIONS_TYPE) + "<" + simpleName(UNKNOWN_NAME_REFERENCE_TYPE) + "<" + simpleName(mir.toString()) + ">>", "refs")
+                            .addArgument(EXTRACTION.simpleName(), "extraction")
+                            .addArgument(SEMANTIC_REGIONS.simpleName() + "<" + UNKNOWN_NAME_REFERENCE.simpleName() + "<" + simpleName(mir.toString()) + ">>", "refs")
                             .addArgument(rcType, "c")
-                            .returning(simpleName(MAP_TYPE) + "<" + simpleName(UNKNOWN_NAME_REFERENCE_TYPE) + "<" + simpleName(mir.toString()) + ">, X>")
-                            .throwing(simpleName(IO_EXCEPTION_TYPE))
+                            .returning(simpleName(MAP.simpleName()) + "<" + UNKNOWN_NAME_REFERENCE.simpleName() + "<" + simpleName(mir.toString()) + ">, X>")
+                            .throwing(simpleName(IO_EXCEPTION.simpleName()))
                             .body(bb -> {
                                 bb.log("Find imports of {0} with {1}", Level.FINE, "extraction.source()", "delegate");
                                 bb.returningInvocationOf("resolveAll")

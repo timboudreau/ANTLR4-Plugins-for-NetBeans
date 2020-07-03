@@ -2,7 +2,7 @@ parser grammar MarkdownParser;
 
 options { tokenVocab = MarkdownLexerV2; }
 
- document
+document
     : ( heading | blockquote | unorderedList | orderedList | paragraphs |
         horizontalRule | whitespace | embeddedImage | preformatted )+ EOF?;
 

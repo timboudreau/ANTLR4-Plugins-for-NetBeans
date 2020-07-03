@@ -15,18 +15,28 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import com.mastfrog.antlr.utils.TreeUtils.TreeNodeSearchResult;
+import static com.mastfrog.antlr.utils.TreeUtils.ancestor;
+import static com.mastfrog.antlr.utils.TreeUtils.hasAncestor;
+import static com.mastfrog.antlr.utils.TreeUtils.isSingleChildAncestors;
 import com.mastfrog.util.strings.Strings;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.ANTLRv4Parser.EbnfContext;
 import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.FragmentRuleSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import static org.nemesis.antlr.ANTLRv4Parser.LEXCOM_SKIP;
+import org.nemesis.antlr.ANTLRv4Parser.LabeledParserRuleElementContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleBlockContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementBlockContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementsContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleSpecContext;
 import org.nemesis.antlr.ANTLRv4Parser.TerminalContext;
@@ -38,6 +48,7 @@ import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.ExtractorBuilder;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.localizers.annotations.Localize;
+import static com.mastfrog.antlr.utils.TreeUtils.searchParentTree;
 
 /**
  *
@@ -60,6 +71,10 @@ public class ChannelsAndSkipExtractors {
     @Localize(displayName = "All String Literals")
     public static final RegionsKey<String> ALL_STRING_LITERALS
             = RegionsKey.create(String.class, "string-literals");
+
+    @Localize(displayName = "Superfluous Parentheses")
+    public static final RegionsKey<Integer> SUPERFLUOUS_PARENTEHSES
+            = RegionsKey.create(Integer.class, "superfluous-parentheses");
 
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE,
             entryPoint = ANTLRv4Parser.GrammarFileContext.class)
@@ -129,6 +144,102 @@ public class ChannelsAndSkipExtractors {
                     return null;
                 })
                 .finishRegionExtractor();
+
+        bldr.extractingRegionsUnder(SUPERFLUOUS_PARENTEHSES)
+                .whenRuleType(ANTLRv4Parser.BlockContext.class)
+                .extractingBoundsFromRuleAndKeyWith(block -> {
+                    if (!(block.getParent() instanceof EbnfContext) || ((block.getParent() instanceof EbnfContext && ((EbnfContext) block.getParent()).ebnfSuffix() == null))) {
+                        if (block.getParent() instanceof ANTLRv4Parser.LabeledParserRuleElementContext) {
+                            LabeledParserRuleElementContext ctx = (LabeledParserRuleElementContext) block.getParent();
+                            if (ctx.identifier() != null) {
+                                return null;
+                            }
+                        }
+                        return spId(block);
+                    }
+                    return null;
+                })
+                .whenRuleType(LexerRuleBlockContext.class)
+                .extractingKeyAndBoundsWith((blockContext, consumer) -> {
+                    boolean isInLexerRuleBlock = hasAncestor(blockContext, LexerRuleBlockContext.class);
+                    TreeNodeSearchResult testRes = searchParentTree(blockContext, ctx -> {
+                        assert ctx != blockContext : "Got same node";
+                        if (ctx instanceof LexerRuleElementBlockContext) {
+                            LexerRuleElementBlockContext bl = (LexerRuleElementBlockContext) ctx;
+                            if (bl.LPAREN() != null && bl.RPAREN() != null && bl.getChildCount() == 3) {
+                                return TreeNodeSearchResult.CONTINUE;
+                            } else {
+                                return TreeNodeSearchResult.FAIL;
+                            }
+                        }
+                        if (ctx instanceof LexerRuleElementsContext) {
+                            LexerRuleElementsContext els = (LexerRuleElementsContext) ctx;
+                            if (els.getChildCount() == 1) {
+                                return TreeNodeSearchResult.OK;
+                            } else {
+                                ParseTree node = els.getChild(0);
+                                if (ancestor(blockContext, node.getClass()) == node) {
+                                    return TreeNodeSearchResult.OK;
+                                } else {
+                                    return TreeNodeSearchResult.FAIL;
+                                }
+                            }
+                        }
+                        TreeNodeSearchResult result = ctx.getChildCount() == 1 ? TreeNodeSearchResult.CONTINUE : TreeNodeSearchResult.FAIL;
+                        return result;
+                    });
+                    boolean isSingleChildAncestorsToLexerRuleBlock = testRes.isSuccess();
+                    if (isInLexerRuleBlock && isSingleChildAncestorsToLexerRuleBlock) {
+                        LexerRuleElementBlockContext anc = ancestor(blockContext, LexerRuleElementBlockContext.class);
+                        int[] offsets = new int[]{anc.start.getStartIndex(),
+                            anc.stop.getStopIndex() + 1};
+                        return consumer.test(spId(blockContext), offsets);
+                    }
+                    return false;
+                })
+                /*
+                .whenRuleType(LexerRuleAtomContext.class)
+                .extractingKeyAndBoundsWith((atom, consumer) -> {
+                    LexerRuleElementContext parentElement = ancestor(atom, LexerRuleElementContext.class);
+                    if (parentElement != null) {
+                        switch (parentElement.getChildCount()) {
+                            case 1:
+                                break;
+                            case 2:
+                                if (!(parentElement.getChild(1) instanceof ANTLRv4Parser.EbnfSuffixContext)) {
+                                    return false;
+                                }
+                                break;
+                            default:
+                                return false;
+                        }
+                        if (isSingleChildAncestors(atom, LexerRuleBlockContext.class)) {
+                            LexerRuleBlockContext blockAncestor = ancestor(atom, LexerRuleBlockContext.class);
+                            if (blockAncestor.getChildCount() > 1) {
+                                return false;
+                            }
+                            if (hasAncestor(blockAncestor, LexerRuleBlockContext.class)) {
+                                LexerRuleElementBlockContext boundsAncestor = ancestor(blockAncestor, LexerRuleElementBlockContext.class);
+                                if (boundsAncestor != null) {
+                                    int[] offsets = new int[]{boundsAncestor.LPAREN().getSymbol().getStartIndex(),
+                                        boundsAncestor.RPAREN().getSymbol().getStopIndex() + 1
+                                    };
+                                    System.out.println("SUPERF PARENS C '" + blockAncestor.getText() + "' at "
+                                            + offsets[0] + ":" + offsets[1]);
+                                    return consumer.test(spId(boundsAncestor), offsets);
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                })
+                 */
+                .finishRegionExtractor();
+        ;
+    }
+
+    private static int spId(ParserRuleContext ctx) {
+        return ctx.getRuleIndex() * (ctx.start.getTokenIndex() + (3775311 * ctx.stop.getTokenIndex()));
     }
 
     private static String ruleName(ParserRuleContext ctx) {
@@ -157,17 +268,6 @@ public class ChannelsAndSkipExtractors {
             ctx = ctx.getParent();
         } while (ctx != null && !(ctx instanceof GrammarFileContext));
         return null;
-    }
-
-    private static boolean isSingleChildAncestors(ParserRuleContext ctx, Class<? extends ParserRuleContext> stopAt) {
-        ParserRuleContext curr = ctx.getParent();
-        while (curr != null && !(curr instanceof GrammarFileContext) && !stopAt.isInstance(curr)) {
-            if (curr.getChildCount() != 1) {
-                return false;
-            }
-            curr = curr.getParent();
-        }
-        return true;
     }
 
     static class TermCtx {

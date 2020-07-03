@@ -33,17 +33,13 @@ import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.refactoring.spi.ui.UI;
-import org.openide.awt.ActionID;
-import org.openide.awt.ActionReference;
-import org.openide.awt.ActionReferences;
-import org.openide.awt.ActionRegistration;
-import org.openide.awt.ActionState;
 import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.PositionBounds;
 import org.openide.text.PositionRef;
 import org.openide.util.NbBundle.Messages;
 
+/*
 @ActionID(
         category = "Refactoring",
         id = "org.nemesis.antlr.file.antlrrefactoring.InlineRuleAction"
@@ -57,6 +53,7 @@ import org.openide.util.NbBundle.Messages;
     @ActionReference(path = "Editors/text/x-g4/RefactoringActions", name = "InlineAction", position = 421),
     @ActionReference(path = "Editors/text/x-g4/Popup", name = "InlineAction", position = 421)
 })
+*/
 @Messages("CTL_InlineRuleAction=Inline Rule")
 public final class InlineRuleAction extends GenericRefactoringContextAction<AntlrToken> {
 
@@ -96,10 +93,4 @@ public final class InlineRuleAction extends GenericRefactoringContextAction<Antl
         UI.openRefactoringUI(ui, NbEditorUtilities.getOuterTopComponent(EditorRegistry.findComponent(doc)));
     }
 
-//    @interface CustomRefactoringRegistration {
-//        int[] enabledOnTokens();
-//        String name();
-//        Class<? extends AbstractRefactoring> refactoring() default AbstractRefactoring.class;
-//        Class<? extends RefactoringPlugin> plugin();
-//    }
 }

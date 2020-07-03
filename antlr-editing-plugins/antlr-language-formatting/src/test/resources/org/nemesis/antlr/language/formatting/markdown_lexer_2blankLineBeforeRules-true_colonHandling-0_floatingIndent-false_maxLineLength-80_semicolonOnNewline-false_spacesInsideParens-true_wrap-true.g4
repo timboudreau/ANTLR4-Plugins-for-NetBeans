@@ -70,7 +70,7 @@ OpenHr : (( DASH DASH DASH+ )| ( ASTERISK ASTERISK ASTERISK+ )| ( DASH SPACE DAS
 
 mode PREFORMATTED;
 
-PreformattedContent :~[`]+ | ( BACKTICK BACKTICK~[`]? )+;
+PreformattedContent : ~[`]+ | ( BACKTICK BACKTICK ~[`]? )+;
 
 ClosePreformattedContent : BACKTICK BACKTICK BACKTICK -> popMode;
 
@@ -224,7 +224,7 @@ fragment LETTER : [\p{Alphabetic}];
 
 fragment DIGIT : [\p{Digit}];
 
-fragment NON_HR :~[ -*];
+fragment NON_HR : ~[ -*];
 
 //    : '0'..'9';
 fragment ALL_WS : INLINE_WHITESPACE | NEWLINE;
@@ -235,7 +235,7 @@ fragment NEWLINE : '\n';
 
 fragment SPECIAL_CHARS : ASTERISK | STRIKE | BACKTICK | POUND | STRIKE;
 
-fragment NON_WHITESPACE :~[ \r\n\t];
+fragment NON_WHITESPACE : ~[ \r\n\t];
 
 //    :~[\p{White_Space}];
 fragment LINK_TEXT : [a-zA-Z0-9\-_$/\\\\.!?+=&^%#];

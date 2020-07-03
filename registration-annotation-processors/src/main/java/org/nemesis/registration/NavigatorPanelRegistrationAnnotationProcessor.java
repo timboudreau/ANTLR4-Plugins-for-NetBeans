@@ -44,6 +44,7 @@ import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import com.mastfrog.java.vogon.LinesBuilder;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProcessor.NAVIGATOR_PANEL_REGISTRATION_ANNOTATION;
 
@@ -107,7 +108,11 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractDeleg
                 .build();
 
         annotationChecks = utils.testMirror().testMember("mimeType")
-                .validateStringValueAsMimeType().build().build();
+                .addPredicate("Mime type", mir -> {
+                    Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                    String value = utils().annotationValue(mir, "mimeType", String.class);
+                    return mimeTest.test(value);
+                }).build().build();
     }
 
     @Override
@@ -151,7 +156,7 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractDeleg
 
     private String generateJavaSource(String pkg, String className, String method, AnnotationMirror anno, ExecutableElement on) {
 //        boolean isSemantic = utils().isSubtypeOf(on, SEMANTIC_REGION_PANEL_CONFIG_TYPE).isSubtype();
-        String mimeType = utils().annotationValue(anno, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(anno, "mimeType", String.class));
         if (!validateMimeType(mimeType, on)) {
             return null;
         }
@@ -161,9 +166,9 @@ public class NavigatorPanelRegistrationAnnotationProcessor extends AbstractDeleg
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .makeFinal().makePublic()
                 .importing(NAV_PANEL_TYPE)
-//                .importing("javax.annotation.processing.Generated")
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString())
-//                .closeAnnotation()
+                //                .importing("javax.annotation.processing.Generated")
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString())
+                //                .closeAnnotation()
                 .method("create", mb -> {
                     mb.withModifier(Modifier.PUBLIC).withModifier(Modifier.STATIC)
                             .returning("NavigatorPanel")

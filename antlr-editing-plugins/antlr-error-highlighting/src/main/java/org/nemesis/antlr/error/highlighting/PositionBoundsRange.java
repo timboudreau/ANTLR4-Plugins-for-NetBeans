@@ -16,6 +16,7 @@
 package org.nemesis.antlr.error.highlighting;
 
 import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 import java.util.Optional;
 import javax.swing.text.Position;
 import org.nemesis.data.SemanticRegion;
@@ -37,7 +38,7 @@ public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
     private final IntRange<? extends IntRange<?>> range;
     private final PositionBounds bounds;
 
-    public PositionBoundsRange(SemanticRegion<?> range, PositionBounds bounds) {
+    public PositionBoundsRange(IntRange<? extends IntRange<?>> range, PositionBounds bounds) {
         this.range = range;
         this.bounds = bounds;
     }
@@ -57,8 +58,8 @@ public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
                 DataObject dob = DataObject.find(fo.get());
                 CloneableEditorSupport supp = dob.getLookup().lookup(CloneableEditorSupport.class);
                 if (supp != null) {
-                    PositionRef startPos = supp.createPositionRef(start, Position.Bias.Backward);
-                    PositionRef endPos = supp.createPositionRef(end, Position.Bias.Forward);
+                    PositionRef startPos = supp.createPositionRef(start, Position.Bias.Forward);
+                    PositionRef endPos = supp.createPositionRef(end, Position.Bias.Backward);
                     return new PositionBounds(startPos, endPos);
                 }
             } catch (DataObjectNotFoundException ex) {
@@ -67,6 +68,11 @@ public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
         }
         return null;
 
+    }
+
+    static PositionBoundsRange create(GrammarSource<?> src, int start, int end) {
+        PositionBounds pb = createBounds(src, start, end);
+        return pb == null ? null : new PositionBoundsRange(Range.of(start, end), pb);
     }
 
     static PositionBoundsRange create(GrammarSource<?> src, SemanticRegion<?> range) {
@@ -92,6 +98,10 @@ public class PositionBoundsRange implements IntRange<PositionBoundsRange> {
     @Override
     public PositionBoundsRange newRange(long start, long size) {
         throw new UnsupportedOperationException();
+    }
+
+    public String toString() {
+        return start() + ":" + end();
     }
 
 }

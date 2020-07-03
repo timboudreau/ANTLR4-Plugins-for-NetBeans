@@ -56,8 +56,23 @@ class HeaderMatterFormatting extends AbstractFormatter {
             rls.onTokenType(OPTIONS)
                     .format(PREPEND_DOUBLE_NEWLINE);
             rls.onTokenType(SEMI).when(SEMICOLON_COUNT).isEqualTo(1)
+                    .whereNextTokenTypeNot(criteria.anyOf(PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKDEC_ID, TOKEN_ID, ID))
                     .format(APPEND_SPACE);
+            rls.onTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE)).wherePreviousTokenType(criteria.matching(LBRACE))
+                    .format(spaceOrWrap);
+            rls.onTokenType(LBRACE).wherePreviousTokenType(OPTIONS)
+                    .whereNextTokenTypeNot(criteria.anyOf(PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKDEC_ID, TOKEN_ID, ID))
+                    .format(PREPEND_SPACE);
+            rls.onTokenType(LBRACE)
+                    .whereNextTokenType(criteria.anyOf(PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKDEC_ID, TOKEN_ID, ID))
+                    .format(PREPEND_DOUBLE_NEWLINE);
         });
+
+        rules.onTokenType(PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKDEC_ID, TOKEN_ID, ID)
+                .whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_DEFAULT, MODE_IMPORT),
+                        Criterion.ALWAYS))
+                .wherePreviousTokenType(criteria.matching(RBRACE))
+                .format(PREPEND_DOUBLE_NEWLINE);
 
         rules.whenInMode(AntlrCriteria.mode(MODE_DEFAULT), rls -> {
             rls.onTokenType(AT).format(PREPEND_DOUBLE_NEWLINE);
@@ -88,7 +103,6 @@ class HeaderMatterFormatting extends AbstractFormatter {
 //        });
         rules.onTokenType(RBRACE).whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_OPTIONS), Criterion.ALWAYS))
                 .format(APPEND_DOUBLE_NEWLINE);
-
 
 //        rules.onTokenType(SEMI).wherePreviousTokenType(ID).format(prependNewlineAndDoubleIndent);
 //        rules.onTokenType(ID).whenEnteringMode(Arrays.asList(modeNames).indexOf(MODE_IDENTIFIER))
@@ -125,6 +139,5 @@ class HeaderMatterFormatting extends AbstractFormatter {
                 .toNext(LBRACE, BEGIN_ACTION)
                 .ignoringWhitespace();
     }
-
 
 }

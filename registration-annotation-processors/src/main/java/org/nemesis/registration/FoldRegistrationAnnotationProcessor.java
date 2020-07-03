@@ -46,6 +46,21 @@ import javax.tools.Diagnostic;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import static org.nemesis.registration.FoldRegistrationAnnotationProcessor.FOLD_REGISTRATION_ANNO;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
+import static org.nemesis.registration.typenames.JdkTypes.COLLECTION;
+import static org.nemesis.registration.typenames.JdkTypes.COLLECTIONS;
+import static org.nemesis.registration.typenames.KnownTypes.FOLD_MANAGER_FACTORY;
+import static org.nemesis.registration.typenames.KnownTypes.FOLD_TEMPLATE;
+import static org.nemesis.registration.typenames.KnownTypes.FOLD_TYPE;
+import static org.nemesis.registration.typenames.KnownTypes.FOLD_TYPE_PROVIDER;
+import static org.nemesis.registration.typenames.KnownTypes.KEY_TO_FOLD_CONVERTER;
+import static org.nemesis.registration.typenames.KnownTypes.MIME_REGISTRATION;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_REGION_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION;
+import static org.nemesis.registration.typenames.KnownTypes.NAMED_SEMANTIC_REGION_REFERENCE;
+import static org.nemesis.registration.typenames.KnownTypes.REGIONS_KEY;
+import static org.nemesis.registration.typenames.KnownTypes.SEMANTIC_REGION;
+import static org.nemesis.registration.typenames.KnownTypes.TASK_FACTORY;
 
 /**
  *
@@ -58,13 +73,6 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
 
     public static final String PKG = "org.nemesis.antlr.fold";
     public static final String FOLD_REGISTRATION_ANNO = PKG + ".AntlrFoldsRegistration";
-    private static final String REGIONS_KEY_TYPE = "org.nemesis.extraction.key.RegionsKey";
-    private static final String NAMED_REGION_KEY_TYPE = "org.nemesis.extraction.key.NamedRegionKey";
-    private static final String FOLD_MANAGER_FACTORY_TYPE = "org.netbeans.spi.editor.fold.FoldManagerFactory";
-    private static final String FOLD_MANAGER_FACTORY_NAME = "FoldManagerFactory";
-    private static final String MIME_REGISTRATION_ANNOT_TYPE = "org.netbeans.api.editor.mimelookup.MimeRegistration";
-    private static final String REGION_TO_FOLD_CONVERTER_SIMPLE = "KeyToFoldConverter";
-    private static final String REGION_TO_FOLD_CONVERTER_TYPE = PKG + "." + REGION_TO_FOLD_CONVERTER_SIMPLE;
 
     private Predicate<? super Element> variableElementTest;
     private Predicate<? super AnnotationMirror> annotationMirrorTest;
@@ -72,18 +80,23 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         variableElementTest = utils().testsBuilder()
-                .isSubTypeOf(REGIONS_KEY_TYPE, NAMED_REGION_KEY_TYPE)
+                .isSubTypeOf(REGIONS_KEY.qnameNotouch(), NAMED_REGION_KEY.qnameNotouch())
                 .doesNotHaveModifier(Modifier.PRIVATE)
                 .hasModifier(Modifier.STATIC)
                 .testElementAsType().typeKindMustBe(DECLARED)
                 .build()
-//                .addPredicate(this::typeHasTypeParameter)
+                //                .addPredicate(this::typeHasTypeParameter)
                 .testContainingClass().doesNotHaveModifier(Modifier.PRIVATE)
                 .build()
                 .build();
 
         annotationMirrorTest = utils().testMirror().testMember("mimeType")
-                .validateStringValueAsMimeType().build().build();
+                .addPredicate("Mime type", mir -> {
+                    Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                    String value = utils().annotationValue(mir, "mimeType", String.class);
+                    return mimeTest.test(value);
+                })
+                .build().build();
     }
 
     @Override
@@ -152,7 +165,7 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
             return true;
         }
         TypeMirror parameterizedOn = null;
-        TypeElement semRegionType = processingEnv.getElementUtils().getTypeElement(REGION_TO_FOLD_CONVERTER_TYPE);
+        TypeElement semRegionType = processingEnv.getElementUtils().getTypeElement(KEY_TO_FOLD_CONVERTER.qnameNotouch());
         TypeMirror semRegionTypeErased = utils().erasureOf(semRegionType.asType());
         List<? extends TypeMirror> supers = processingEnv.getTypeUtils().directSupertypes(type);
         for (TypeMirror parent : supers) {
@@ -186,7 +199,7 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         TypeElement encType = AnnotationUtils.enclosingType(field);
         PackageElement pkgEl = processingEnv.getElementUtils().getPackageOf(encType);
 
-        String mime = utils().annotationValue(mirror, "mimeType", String.class);
+        String mime = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
 
         String genClassName = encType.getSimpleName().toString() + "__"
                 + field.getSimpleName().toString() + "__" + "FoldRegistration";
@@ -199,7 +212,8 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         Iterator<String> tps = utils().typeList(mirror, "converter").iterator();
         boolean useDefaultConverter = !tps.hasNext();
 
-        String converterType = (!useDefaultConverter ? tps.next() : REGION_TO_FOLD_CONVERTER_SIMPLE)
+        String converterType = (!useDefaultConverter ? tps.next()
+                : KEY_TO_FOLD_CONVERTER.simpleName())
                 .replace('$', '.');
 
         TypeMirror fieldParamaterType = utils().firstTypeParameter(field);
@@ -223,13 +237,16 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         String itemType;
         switch (fieldRawType.toString()) {
             case "org.nemesis.extraction.key.RegionsKey":
-                itemType = "org.nemesis.data.SemanticRegion";
+                itemType = SEMANTIC_REGION.qname();
+//                itemType = "org.nemesis.data.SemanticRegion";
                 break;
             case "org.nemesis.extraction.key.NamedRegionKey":
-                itemType = "org.nemesis.data.named.NamedSemanticRegion";
+//                itemType = "org.nemesis.data.named.NamedSemanticRegion";
+                itemType = NAMED_SEMANTIC_REGION.qname();
                 break;
             case "org.nemesis.extraction.key.NameReferenceSetKey":
-                itemType = "org.nemesis.data.named.NamedSemanticRegionReference";
+//                itemType = "org.nemesis.data.named.NamedSemanticRegionReference";
+                itemType = NAMED_SEMANTIC_REGION_REFERENCE.qname();
                 break;
             default:
                 utils().fail("Unknown field type " + fieldRawType + " - cannot generate code");
@@ -247,14 +264,14 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkgEl.getQualifiedName())
                 .named(genClassName)
                 .importing(
-//                        "javax.annotation.processing.Generated",
-                        "org.netbeans.modules.parsing.spi.TaskFactory",
-                        REGION_TO_FOLD_CONVERTER_TYPE,
-                        MIME_REGISTRATION_ANNOT_TYPE, itemType,
-                        FOLD_MANAGER_FACTORY_TYPE)
-//                .annotatedWith("Generated").addArgument("value", getClass().getName())
-//                .addArgument("comments", versionString())
-//                .closeAnnotation()
+                        //                        "javax.annotation.processing.Generated",
+                        TASK_FACTORY.qname(),
+                        KEY_TO_FOLD_CONVERTER.qname(),
+                        MIME_REGISTRATION.qname(), itemType,
+                        FOLD_MANAGER_FACTORY.qname())
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName())
+                //                .addArgument("comments", versionString())
+                //                .closeAnnotation()
                 .docComment("Generated from field ", field.getSimpleName(), " on ", encType.getQualifiedName(),
                         " annotated with ", mirror.toString().replaceAll("@", "&#064;"))
                 .makePublic().makeFinal()
@@ -263,27 +280,27 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
                     if (useDefaultConverter) {
                         if (foldTypeName == null) {
                             if (spec == null) {
-                                fb.initializedFromInvocationOf("createDefault").on(REGION_TO_FOLD_CONVERTER_SIMPLE);
+                                fb.initializedFromInvocationOf("createDefault").on(KEY_TO_FOLD_CONVERTER.simpleName());
                             } else {
 //                                fb.withInitializer("new " + spec.className + "Converter");
                                 fb.initializedFromInvocationOf("create")
                                         .withArgument(spec.className + "." + spec.fieldName)
-                                        .on(REGION_TO_FOLD_CONVERTER_SIMPLE);
+                                        .on(KEY_TO_FOLD_CONVERTER.simpleName());
                             }
                         } else {
                             fb.initializedFromInvocationOf("create")
                                     .withArgument("FoldType." + foldTypeName)
-                                    .on(REGION_TO_FOLD_CONVERTER_SIMPLE);
+                                    .on(KEY_TO_FOLD_CONVERTER.simpleName());
                         }
                     } else {
                         fb.initializedTo("new " + converterType + "()");
                     }
-                    fb.ofType(REGION_TO_FOLD_CONVERTER_SIMPLE + "<" + itemTypeSimple + "<" + paramType + ">>");
+                    fb.ofType(KEY_TO_FOLD_CONVERTER.simpleName() + "<" + itemTypeSimple + "<" + paramType + ">>");
 //                    fb.ofType(SEMANTIC_REGION_TO_FOLD_CONVERTER_SIMPLE + "<" + fieldRawType + "<" + field.asType() + ">>");
                 })
                 .method("createFoldManagerFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
-                .returning(FOLD_MANAGER_FACTORY_NAME)
+                .returning(FOLD_MANAGER_FACTORY.simpleName())
                 //                .annotatedWith("MimeRegistration").addArgument("mimeType", mime).addArgument("service", FOLD_MANAGER_FACTORY_NAME)
                 //                .addExpressionArgument("position", "" + (670 + layerPos)).closeAnnotation()
                 .body(bb -> {
@@ -291,13 +308,14 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
                     bb.returningInvocationOf("createFoldManagerFactory")
                             .withArgument(fieldFqn)
                             .withArgument("CONVERTER")
-                            .on(REGION_TO_FOLD_CONVERTER_SIMPLE);
+                            .on(KEY_TO_FOLD_CONVERTER.simpleName());
                     bb.endBlock();
                 })
                 .method("createFoldRefreshTaskFactory")
                 .withModifier(PUBLIC).withModifier(STATIC)
                 .returning("TaskFactory")
-                .annotatedWith("MimeRegistration").addArgument("mimeType", mime).addClassArgument("service", "TaskFactory")
+                .annotatedWith(MIME_REGISTRATION.simpleName()).addArgument("mimeType", mime)
+                .addClassArgument("service", TASK_FACTORY.simpleName())
                 .addArgument("position", (670 + (layerPos))).closeAnnotation()
                 .body(bb -> {
                     bb.log(Level.FINE).stringLiteral(mime)
@@ -321,7 +339,7 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
 
         layer(field).file(layerFile)
                 .methodvalue("instanceCreate", fqn, "createFoldManagerFactory")
-                .stringvalue("instanceOf", FOLD_MANAGER_FACTORY_TYPE)
+                .stringvalue("instanceOf", FOLD_MANAGER_FACTORY.qnameNotouch())
                 .intvalue("position", layerPos)
                 .write();
         if (layerPos == pos) {
@@ -345,19 +363,22 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         String foldFieldName = specName.toUpperCase() + "_FOLD_TYPE";
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkgEl.getQualifiedName())
-                .named(regClassName).importing("org.netbeans.spi.editor.fold.FoldTypeProvider",
-                "org.netbeans.api.editor.fold.FoldType", "java.util.Collections", "java.util.Collection",
-//                "javax.annotation.processing.Generated",
-                "org.netbeans.api.editor.fold.FoldTemplate",
-                MIME_REGISTRATION_ANNOT_TYPE)
+                .named(regClassName).importing(
+                FOLD_TYPE_PROVIDER.qname(),
+                FOLD_TYPE.qname(),
+                COLLECTIONS.qname(),
+                COLLECTION.qname(),
+                FOLD_TEMPLATE.qname(),
+                MIME_REGISTRATION.qname()
+        )
                 .implementing("FoldTypeProvider")
                 .withModifier(PUBLIC).withModifier(FINAL)
-//                .annotatedWith("Generated").addArgument("value", getClass().getName())
-//                .addArgument("comments", versionString())
-//                .closeAnnotation()
-                .annotatedWith("MimeRegistration")
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName())
+                //                .addArgument("comments", versionString())
+                //                .closeAnnotation()
+                .annotatedWith(MIME_REGISTRATION.simpleName())
                 .addArgument("mimeType", mimeType)
-                .addClassArgument("service", "FoldTypeProvider")
+                .addClassArgument("service", FOLD_TYPE_PROVIDER.simpleName())
                 .addArgument("position", pos)
                 .closeAnnotation()
                 .field(foldFieldName, fb -> {
@@ -365,7 +386,7 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
                     fb.initializedFromInvocationOf("create")
                             .withStringLiteral(specName)
                             .withStringLiteral(displayName)
-                            .withArgumentFromInvoking("new FoldTemplate")
+                            .withArgumentFromInvoking("new " + FOLD_TEMPLATE.simpleName())
                             .withArgument(guardedStart)
                             .withArgument(guardedEnd)
                             .withStringLiteral(displayText == null ? "..." : displayText)
@@ -418,7 +439,8 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
         if (version != null) {
             return "version=" + version;
         }
-        InputStream in = FoldRegistrationAnnotationProcessor.class.getResourceAsStream("/META-INF/maven/org/nemesis/registration-annotation-processors/pom.properties");
+        InputStream in = FoldRegistrationAnnotationProcessor.class.getResourceAsStream(
+                "/META-INF/maven/org/nemesis/registration-annotation-processors/pom.properties");
         if (in == null) {
             return "unknown";
         }

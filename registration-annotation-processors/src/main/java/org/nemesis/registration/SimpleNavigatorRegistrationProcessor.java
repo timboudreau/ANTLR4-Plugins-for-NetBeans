@@ -42,8 +42,10 @@ import static org.nemesis.registration.NavigatorPanelRegistrationAnnotationProce
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
+import java.util.function.Predicate;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -66,7 +68,12 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
             amtb.testMember("icon")
                     .stringValueMustEndWith(".jpg", ".gif", ".png")
                     .build()
-                    .testMember("mimeType").validateStringValueAsMimeType().build()
+                    .testMember("mimeType")
+                    .addPredicate("Mime type", mir -> {
+                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                        String value = utils().annotationValue(mir, "mimeType", String.class);
+                        return mimeTest.test(value);
+                    }).build()
                     // Class<? extends Appearance<?>> appearance() default DefaultAppearance.class;
                     .testMember("appearance").asType(tmtb -> {
                 tmtb.isSubtypeWithErasure(APPEARANCE_TYPE).nestingKindMustNotBe(NestingKind.LOCAL);
@@ -131,7 +138,7 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
         boolean isSemanticRegion = utils().isSubtypeOf(var, SEMANTIC_REGION_KEY_TYPE).isSubtype();
 
         final String generatedClassName = classNamePrefix(var) + "_" + var.getSimpleName() + "_NavRegistration";
-        final String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        final String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         String ic = utils().annotationValue(mirror, "icon", String.class, "");
         final Integer order = utils().annotationValue(mirror, "order", Integer.class, Integer.MAX_VALUE);
 
@@ -167,10 +174,10 @@ public class SimpleNavigatorRegistrationProcessor extends AbstractDelegatingProc
 
         ClassBuilder<String> bldr = ClassBuilder.forPackage(pkg).named(generatedClassName)
                 .importing(configType,
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         NAVIGATOR_PANEL_REGISTRATION_ANNOTATION
                 )
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .staticImport(on.getQualifiedName() + "." + var.getSimpleName())
                 .withModifier(FINAL).constructor().body().statement("throw new AssertionError()").endBlock()
                 .method("create", mb -> {

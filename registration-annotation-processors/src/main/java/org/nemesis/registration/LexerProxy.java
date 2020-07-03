@@ -50,6 +50,15 @@ class LexerProxy implements LexerInfo {
         this.last = last;
     }
 
+    public String implicitLanguageName() {
+        String simple = lexerClassSimple();
+        if (!"Lexer".equals(simple) && simple.endsWith("Lexer")) {
+            int end = simple.length() - "Lexer".length();
+            return simple.substring(0, end);
+        }
+        return simple;
+    }
+
     @Override
     public String tokenFieldReference(int tokenId) {
         String nm = tokenNameForIndex.get(tokenId);

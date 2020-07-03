@@ -42,6 +42,7 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.ExtractionContributorRegistrationProcessor.EXTRACTION_REGISTRATION_ANNO;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 
 /**
  *
@@ -62,7 +63,12 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         super.onInit(env, utils);
-        mirrorCheck = utils().testMirror().testMember("mimeType").validateStringValueAsMimeType().build().build();
+        mirrorCheck = utils().testMirror().testMember("mimeType")
+                .addPredicate("Mime type", mir -> {
+                    Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                    String value = utils().annotationValue(mir, "mimeType", String.class);
+                    return mimeTest.test(value);
+                }).build().build();
     }
 
     @Override
@@ -95,7 +101,7 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
         }
         String ownerTypeSimple = owner.getSimpleName().toString();
         String entrySimple = simpleName(entryPointType);
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         PackageElement pkg = processingEnv.getElementUtils().getPackageOf(method);
         String generatedClassName = owner.getSimpleName() + "_ExtractionContributor" + "_" + method.getSimpleName();
 
@@ -111,11 +117,11 @@ public class ExtractionContributorRegistrationProcessor extends AbstractDelegati
         cb.implementing(EC_NAME + "<" + entrySimple + ">")
                 .withModifier(PUBLIC).withModifier(FINAL)
                 .importing(
-//                        "javax.annotation.processing.Generated",
+                        //                        "javax.annotation.processing.Generated",
                         "org.openide.util.lookup.ServiceProvider",
                         EC_TYPE, "org.nemesis.extraction.ExtractorBuilder", entryPointType.toString())
                 .staticImport(registrationFieldCNB)
-//                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
+                //                .annotatedWith("Generated").addArgument("value", getClass().getName()).addArgument("comments", versionString()).closeAnnotation()
                 .annotatedWith("ServiceProvider").addClassArgument("service", EC_NAME)
                 .addExpressionArgument("path", registrationFieldName)
                 //                .addArgument("path", registrationPath(mimeType, entryPointType.toString()))

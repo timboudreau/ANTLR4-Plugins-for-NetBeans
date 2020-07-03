@@ -38,10 +38,9 @@ import static org.nemesis.registration.GotoDeclarationProcessor.GOTO_ANNOTATION;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
-import static com.mastfrog.annotation.AnnotationUtils.capitalize;
-import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.util.preconditions.Exceptions;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import static org.nemesis.registration.typenames.JdkTypes.ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import org.nemesis.registration.typenames.KnownTypes;
@@ -82,7 +81,13 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                 .build().build();
         ;
         annoTest = utils().testMirror()
-                .testMember("mimeType").validateStringValueAsMimeType().build().build();
+                .testMember("mimeType")
+                .addPredicate("Mime type", mir -> {
+                    Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                    String value = utils().annotationValue(mir, "mimeType", String.class);
+                    return mimeTest.test(value);
+                })
+                .build().build();
     }
 
     @Override
@@ -93,6 +98,7 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
     private final Map<String, Set<String>> all = new HashMap<>();
     private final Map<String, Set<Element>> variablesForItem = new HashMap<>();
     private final Map<String, String> targetPackageForMimeType = new HashMap<>();
+    private final Map<String, LexerProxy> lexerForMimeType = new HashMap<>();
 
     private Set<Element> setFor(String keyField) {
         return variablesForItem.getOrDefault(keyField, Collections.emptySet());
@@ -104,12 +110,16 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
         // data object type will be generated into, in order to generate the
         // declaration token processor next to it
         if (REGISTRATION_ANNO.equals(mirror.getAnnotationType().toString())) {
-            String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+            String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
             if (mimeType != null) {
                 AnnotationMirror file = utils().annotationValue(mirror, "file", AnnotationMirror.class);
                 if (file != null) {
                     String pkg = utils().packageName(type);
                     targetPackageForMimeType.put(mimeType, pkg);
+                }
+                LexerProxy lexerProxy = LexerProxy.create(mirror, type, utils());
+                if (lexerProxy != null) {
+                    lexerForMimeType.put(mimeType, lexerProxy);
                 }
             }
         }
@@ -139,7 +149,7 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
         if (!fieldTest.test(var)) {
             return false;
         }
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         TypeElement targetType = AnnotationUtils.enclosingType(var);
         addField(mimeType, targetType.getQualifiedName() + "." + var.getSimpleName(), var);
         return true;
@@ -191,7 +201,10 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
 
     private ClassBuilder<String> declarationFinder(String mimeType, Set<String> fieldFqns) {
         String targetPackage = dataObjectPackageForMimeType(mimeType);
-        String generatedClassName = capitalize(stripMimeType(mimeType)) + "DeclarationTokenProcessor";
+        String lexerFqn = lexerForMimeType.containsKey(mimeType)
+                ? lexerForMimeType.get(mimeType).lexerClassFqn() : null;
+        String base = NameAndMimeTypeUtils.prefixFromMimeTypeOrLexerName(mimeType, lexerFqn);
+        String generatedClassName = base + "DeclarationTokenProcessor";
         ClassBuilder<String> cb = ClassBuilder.forPackage(targetPackage)
                 .named(generatedClassName)
                 .importing(
@@ -307,7 +320,10 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
 
     private ClassBuilder<String> generateCustomGotoDeclarationAction(String mimeType, Set<String> value) {
         log("Generate one: {0} with {1}", mimeType, value);
-        String gotoDeclarationActionClassName = capitalize(stripMimeType(mimeType))
+        String lexerFqn = lexerForMimeType.containsKey(mimeType)
+                ? lexerForMimeType.get(mimeType).lexerClassFqn() : null;
+        String prefix = NameAndMimeTypeUtils.prefixFromMimeTypeOrLexerName(mimeType, lexerFqn);
+        String gotoDeclarationActionClassName = prefix
                 + "GotoDeclarationAction";
         ClassBuilder<String> cb = ClassBuilder.forPackage(dataObjectPackageForMimeType(mimeType))
                 .named(gotoDeclarationActionClassName)
@@ -336,8 +352,8 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                         ib.withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName());
                     }).ofType(ABSTRACT_EDITOR_ACTION.simpleName());
         })*/.method("action", mb -> {
-            mb
-                    /*
+                    mb
+                            /*
                     .annotatedWith(EDITOR_ACTION_REGISTRATION.simpleName(), ab -> {
                 ab.addArgument("name", "goto-declaration")
                         .addArgument("mimeType", mimeType)
@@ -350,18 +366,18 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
             }).annotatedWith(MESSAGES.qname(), ab -> {
                 ab.addArgument("value", "goto-declaration=&Go to Declaration");
             })
-                     */
-                    .withModifier(PUBLIC, STATIC).returning(ACTION.simpleName())
-                    .body(bb -> {
-                        bb.log("Create a " + mimeType + " inplace editor action", Level.INFO);
-                        bb.debugLog("Create " + mimeType + " inplace editor action");
-                        bb.declare("result").initializedByInvoking("createGotoDeclarationAction")
-                                .withStringLiteral(mimeType)
-                                .withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName())
-                                .as(ABSTRACT_EDITOR_ACTION.simpleName());
-                        bb.log("Returning {0}", Level.INFO, "result");
-                        bb.returning("result");
-                    });
+                             */
+                            .withModifier(PUBLIC, STATIC).returning(ACTION.simpleName())
+                            .body(bb -> {
+                                bb.log("Create a " + mimeType + " inplace editor action", Level.INFO);
+                                bb.debugLog("Create " + mimeType + " inplace editor action");
+                                bb.declare("result").initializedByInvoking("createGotoDeclarationAction")
+                                        .withStringLiteral(mimeType)
+                                        .withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName())
+                                        .as(ABSTRACT_EDITOR_ACTION.simpleName());
+                                bb.log("Returning {0}", Level.INFO, "result");
+                                bb.returning("result");
+                            });
 //                    .bodyReturning("ACTION");
                 });
         /*

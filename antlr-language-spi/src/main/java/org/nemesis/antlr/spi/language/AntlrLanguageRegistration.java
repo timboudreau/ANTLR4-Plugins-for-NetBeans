@@ -40,11 +40,51 @@ public @interface AntlrLanguageRegistration {
      * The language name - used as a prefix in generated file names.
      *
      * @return The name
+     * @deprecated This can cause severe problems in that annotations processed
+     * separatey cannot guess what this value is, but may need to access generated
+     * classes such as the LanguageHierarchy or Token subclasses generated from
+     * this annotation, but will not have any way to guess it.  The preferred
+     * way of handling this is to embed it in the MIME type as a key-value pair,
+     * which at least stands a better chance of being portable - e.g.
+     * <code>text/x-g4;prefix=Antlr</code>.  By default, the back half of the
+     * MIME type is used, omitting any leading <code>x-</code>, so
+     * <code>text/x-g4</code> results in <code>G4DataObject</code>,
+     * <code>G4LanguageHierarchy</code>, etc.
      */
+    @Deprecated
     String name();
 
     /**
-     * The mime type this language is registered under.
+     * If true and if the <code>mimeType</code> does not contain a
+     * <code>prefix=...</code> key-value pair, then derive the name of
+     * the language (used to prefix class names) from the lexer name -
+     * so IntercalLexer results in a file name prefix "Intercal".
+     * <p>
+     * While this could in theory cause a problem with annotations in other
+     * modules not knowing the prefix to derive the name of the language's
+     * LanguageHierarchy or DataObject subclasses, in practice, every
+     * annotation that needs to do this also knows the lexer class and can
+     * figure it out for itself.  Nonetheless, it is off by default.
+     * </p><p>
+     * If this is not set, and no prefix is specified in the mime type,
+     * the back half of the MIME type, sans any leading <code>x-</code>
+     * or text preceding a <code>+</code> character is used (so
+     * <code>text/xml+docbook</code> gets "Docbook".
+     * </p>
+     *
+     * @return true if, if no prefix= pair is present in the mime type,
+     * the prefix should be derived from the grammar name as implied
+     * by the lexer name
+     */
+    boolean useImplicitLanguageNameFromLexerName() default false;
+
+    /**
+     * The mime type this language is registered under.  To ensure that
+     * the generated API classes are named reasonably intuitively, the
+     * mime type may contain a key-value pair "prefix=..." - for example,
+     * <code>text/x-g4;prefix=Antlr</code> and the class name prefix
+     * <code>Antlr</code> will be used instead of the less intuitive
+     * <code>G4</code>.
      *
      * @return The mime type
      */
@@ -84,10 +124,12 @@ public @interface AntlrLanguageRegistration {
     TokenCategory[] categories() default {};
 
     /**
-     * Breif sample text in the language in question. If set it will be used in
+     * Breif sample text in the language in question, which can either be raw
+     * text or a / delimited file path within the module's JAR (any whitespace will
+     * cause it to be assumed to be raw sample text). If set it will be used in
      * the <b>Fonts and Colors</b> options dialog page for your language.
      *
-     * @return Sample text in the language in question
+     * @return Sample text in the language in question, or a path within sources to it
      */
     String sample() default "";
 
@@ -475,13 +517,13 @@ public @interface AntlrLanguageRegistration {
          * are possible and the file contents must be examined to determine which.
          *
          * @return The type of an EmbeddingHelper implementation that has a public,
-         * no-argument constructor
+         *         no-argument constructor
          */
         Class<? extends EmbeddingHelper> helper() default EmbeddingHelper.class;
 
         /**
          * The skip length, as specified in {@link org.netbeans.spi.lexer.LanguageEmbedding}.
-         * 
+         *
          * @return The number of characters to skip at the head of an embedding
          */
         int startSkipLength() default 0;

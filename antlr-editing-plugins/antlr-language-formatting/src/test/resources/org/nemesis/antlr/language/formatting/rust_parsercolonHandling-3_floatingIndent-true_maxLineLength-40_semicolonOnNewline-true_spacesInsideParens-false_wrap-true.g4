@@ -1,6 +1,6 @@
 grammar Rust;
 
-@parser::header { import java.util.*;}
+@parser::header { import java .util .*;}
 
 @parser::members {
     Set<String> importedTypes = new HashSet<>();
@@ -699,22 +699,23 @@ aawoo :
       ;
 
 EnclosingDocCommentLine :
-                        EnclosingDocCommentPrefix~[\r\n]*
+                        EnclosingDocCommentPrefix
+                            ~[\r\n]*
                         ;
 
 // Lexer
 DocCommentLine :
-               DocCommentPrefix~[\r\n]*
+               DocCommentPrefix ~[\r\n]*
                ;
 
 LineComment :
-            LineCommentPrefix~[\r\n]* -> channel(1);
+            LineCommentPrefix ~[\r\n]* -> channel(1);
 
 BlockComment :
              BlockCommentPrefix (~[*/] |
                  Slash* BlockComment |
                  Slash+ (~[*/]) |
-                 Asterisk+~[*/])*
+                 Asterisk+ ~[*/])*
                  Asterisk+ Slash -> channel(2);
 
 Lifetime :
@@ -1301,11 +1302,12 @@ BareIntLiteral :
 FullIntLiteral :
                DEC_DIGITS INT_SUFFIX?
                | HexLiteralPrefix
-                   Underscore*[0-9a-fA-F][0-9a-fA-F_]*
+                   Underscore*
+                   [0-9a-fA-F][0-9a-fA-F_]*
                | OctalLiteralPrefix
-                   Underscore*[0-7][0-7_]*
+                   Underscore* [0-7][0-7_]*
                | BitsLiteralPrefix
-                   Underscore*[01][01_]*
+                   Underscore* [01][01_]*
                ;
 
 // Some lookahead is required here. ANTLR does not support this
@@ -1322,7 +1324,7 @@ FullIntLiteral :
 //     later reject it, though.
 //
 FloatLiteral :
-             DEC_DIGITS Dot[0-9][0-9_]*
+             DEC_DIGITS Dot [0-9][0-9_]*
                  EXPONENT?
              | DEC_DIGITS (Dot {
         /* dot followed by another dot is a range, not a float */
@@ -1338,15 +1340,16 @@ FloatLiteral :
 
 // Fragments used for literals below here
 fragment SIMPLE_ESCAPE :
-                       Backslash[0nrt'"\\]
+                       Backslash
+                           [0nrt'"\\]
                        ;
 
 fragment CHAR :
               ~['"\r\n\\\ud800-\udfff]// a single BMP character other than a backslash, newline, or quote
               | [\ud800-\udbff][\udc00-\udfff]// a single non-BMP character (hack for Java)
               | SIMPLE_ESCAPE
-              | '\\x'[0-7][0-9a-fA-F]
-              | '\\u{'[0-9a-fA-F]+
+              | '\\x' [0-7][0-9a-fA-F]
+              | '\\u{' [0-9a-fA-F]+
                   RightBrace
               ;
 
@@ -1354,7 +1357,8 @@ fragment OTHER_STRING_ELEMENT :
                               SingleQuote
                               | Backslash
                                   CarriageReturn?
-                                  Newline[ \t]*
+                                  Newline
+                                  [ \t]*
                               |
                                   CarriageReturn
                               | Newline
@@ -1369,7 +1373,7 @@ fragment STRING_ELEMENT :
 fragment RAW_CHAR :
                   ~[\ud800-\udfff]// any BMP character
                   | [\ud800-\udbff][\udc00-\udfff]
-                  ;// any non-BMP character (hack for Java)
+                  ; // any non-BMP character (hack for Java)
 // Here we use a non-greedy match to implement the
 // (non-regular) rules about raw string syntax.
 fragment RAW_STRING_BODY :
@@ -1389,7 +1393,7 @@ fragment BYTE :
               | Circumflex
               | [_-~]
               | SIMPLE_ESCAPE
-              | '\\x'[0-9a-fA-F][0-9a-fA-F]
+              | '\\x' [0-9a-fA-F][0-9a-fA-F]
               ;
 
 fragment BYTE_STRING_ELEMENT :
@@ -1399,7 +1403,8 @@ fragment BYTE_STRING_ELEMENT :
                              ;
 
 fragment RAW_BYTE_STRING_BODY :
-                              Quote[\t\r\n -~]*?
+                              Quote
+                                  [\t\r\n -~]*?
                                   Quote
                               | Hash
                                   RAW_BYTE_STRING_BODY
@@ -1415,7 +1420,8 @@ fragment INT_SUFFIX :
                     ;
 
 fragment EXPONENT :
-                  [Ee][+-]? Underscore*[0-9][0-9_]*
+                  [Ee][+-]? Underscore*
+                      [0-9][0-9_]*
                   ;
 
 fragment FLOAT_SUFFIX :

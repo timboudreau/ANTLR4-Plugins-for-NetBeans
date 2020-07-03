@@ -52,7 +52,7 @@ import org.nemesis.registration.typenames.TypeName;
 @SupportedAnnotationTypes({ANTLR_ACTION_ANNO_TYPE, REGISTRATION_ANNO, SEMANTIC_HIGHLIGHTING_ANNO,
     GROUP_SEMANTIC_HIGHLIGHTING_ANNO, GOTO_ANNOTATION, EDITOR_FEATURES_ANNO, FOLD_REGISTRATION_ANNO,
     FORMATTER_REGISTRATION_ANNO_TYPE, IMPORTS_ANNOTATION, RESOLVER_ANNOTATION, INPLACE_RENAME_ANNO_TYPE,
-    IMPORTS_ANNOTATION, KEYBINDING_ANNO, GOTO_ANNOTATION, ACTION_BINDINGS_ANNO})
+    KEYBINDING_ANNO, ACTION_BINDINGS_ANNO /*, CUSTOM_REFACTORING_ANNO */})
 @SupportedOptions(AU_LOG)
 public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelegatingProcessor {
 
@@ -71,6 +71,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
         GotoDeclarationProcessor gotos = new GotoDeclarationProcessor();
         ImportsAndResolvableProcessor imports = new ImportsAndResolvableProcessor();
         InplaceRenameProcessor renames = new InplaceRenameProcessor();
+//        CustomRefactoringDelegate customRefactoring = new CustomRefactoringDelegate();
         delegates
                 .apply(features)
                 .to(ElementKind.CLASS, ElementKind.FIELD, ElementKind.CONSTRUCTOR, ElementKind.METHOD)
@@ -104,6 +105,8 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
                 .apply(hkProc)
                 .to(ElementKind.FIELD)
                 .whenAnnotationTypes(GROUP_SEMANTIC_HIGHLIGHTING_ANNO)
+//                .apply(customRefactoring).to(ElementKind.FIELD)
+//                .whenAnnotationTypes(CUSTOM_REFACTORING_ANNO )
                 .apply(main).to(ElementKind.CLASS)
                 .whenAnnotationTypes(REGISTRATION_ANNO)
                 ;

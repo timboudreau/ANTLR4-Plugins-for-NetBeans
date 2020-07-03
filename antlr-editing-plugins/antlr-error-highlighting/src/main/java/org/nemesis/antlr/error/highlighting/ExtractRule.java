@@ -59,15 +59,11 @@ final class ExtractRule implements FixImplementation, Runnable, DocumentListener
     private BaseDocument doc;
     private final String newRuleName;
 
-    ExtractRule(List<PositionBoundsRange> ranges, Extraction ext, PositionBoundsRange preferred, String text) {
-        this(ranges, ext, preferred, text, null);
-    }
-
     ExtractRule(List<PositionBoundsRange> ranges, Extraction ext, PositionBoundsRange preferred, String text, String newRuleName) {
         this.ranges = ranges;
         this.ext = ext;
         this.preferred = preferred;
-        this.text = text;
+        this.text = text.trim();
         timer = new Timer(75, this);
         timer.setRepeats(false);
         this.newRuleName = newRuleName;
@@ -81,15 +77,13 @@ final class ExtractRule implements FixImplementation, Runnable, DocumentListener
                 case 0:
                     return "";
                 case ' ':
-                    return "";
+                    return " ";
             }
             return Strings.singleChar(ch);
         }).replaceAll("\\s+", " ");
     }
 
     private String newRuleName() {
-        // XXX scan the references inside the bounds, and figure out if any
-        // are parser rules, if so, lower case, if not upper
         return newRuleName == null ?  "new_rule" : newRuleName;
     }
 

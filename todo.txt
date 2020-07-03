@@ -1,17 +1,27 @@
 
+CompletionsSupplier should NOT be in the default lookup, it should use Lookups.forPath() or MimeLookup or
+we will wind up mixing completions for different languages.
+
+Preview sometimes doesn't re-attach listeners and updating sidebars breaks.
+
+Add EOF hint is using weird choice of rules to add it to.
+
+Add auto-insert closing [.
+
+Colon insert editor feature should not be active when next token is a colon.
+
+Fixes add error method should report BadLocationExceptions not propagate them - adds tons of noise to error handlers.
+
 Format with an options {} block inserts a leading space before first rule name.
 
-Should have a rule "inline" refactoring if it has users.
+Format with space inside parens does not put a space in first paren if a label comes after, e.g.
+ : (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) 
 
 Formatting option to align # alternative names (would need a justify pass).
 
 If opened against an un-parseable grammar, syntax tree in preview never gets updated once it is made usable.
 
 Need tests for hetero object graph
-
-Add hint to turn literals in parser rules into lexer rules or fragments
-
-We are capturing 'skip' directives - should capture channels and offer to change a skip to an unused channel number > 0
 
 Hint to unwrap blocks which are solo w/o any EBNF, e.g. foo: (bar baz); or a : b (c)?)
 

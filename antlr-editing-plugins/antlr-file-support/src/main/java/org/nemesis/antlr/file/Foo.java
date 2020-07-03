@@ -20,31 +20,9 @@ import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Boile
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.DelimiterPair;
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.Elision;
 import com.mastfrog.editor.features.annotations.EditorFeaturesRegistration.LinePosition;
-import java.awt.BorderLayout;
-import javax.swing.Action;
-import javax.swing.JEditorPane;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.KeyStroke;
-import javax.swing.text.EditorKit;
-import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LPAREN;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARSER_RULE_ID;
-import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
-import static org.nemesis.antlr.ANTLRv4Lexer.STRING_LITERAL;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_ID;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import org.nemesis.antlr.spi.language.keybindings.Key;
-import org.nemesis.antlr.spi.language.keybindings.KeyModifiers;
-import org.nemesis.antlr.spi.language.keybindings.Keybinding;
-import org.nemesis.antlr.spi.language.keybindings.Keybindings;
-import org.netbeans.editor.BaseKit;
-import org.netbeans.editor.MultiKeymap;
-import static org.netbeans.editor.Utilities.keyStrokeToString;
-import org.openide.windows.TopComponent;
 
 /**
  *
@@ -58,16 +36,24 @@ import org.openide.windows.TopComponent;
         elideTypedChars = {
             @Elision(
                     backward = true,
-                    name = "Skip extract :'s",
+                    name = "Ignore a : typed right after another :",
                     onKeyTyped = ':',
-                    category = "Stuff",
-                    whenNotIn = STRING_LITERAL),
+                    category = "Elisions",
+                    whenNotIn = {STRING_LITERAL, ACTION_CONTENT, LEXER_CHAR_SET}),
             @Elision(
                     backward = false,
                     name = "Skip extract :'s",
                     onKeyTyped = ':',
-                    category = "Stuff",
-                    whenNotIn = STRING_LITERAL)
+                    category = "Elisions",
+                    whenNotIn = {STRING_LITERAL, ACTION_CONTENT, LEXER_CHAR_SET}),
+            @Elision(
+                    backward = true,
+                    name = "Elide ] after [",
+                    onKeyTyped = ']',
+                    category="Elisions",
+                    whenNotIn = {STRING_LITERAL, ACTION_CONTENT},
+                    description = "Elide ] after ["
+            )
         },
         deleteMatchingDelimiter = {
             @DelimiterPair(
@@ -75,8 +61,8 @@ import org.openide.windows.TopComponent;
                     openingToken = LPAREN,
                     closingToken = RPAREN,
                     name = "Delete matching paren if empty",
-                    ignoring = {ANTLRv4Lexer.WS, ANTLRv4Lexer.PARDEC_WS},
-                    description = "Delete stuff")
+                    ignoring = {WS, PARDEC_WS},
+                    description = "Delete Matching Delimiters")
         },
         insertBoilerplate = {
             @Boilerplate(
@@ -87,31 +73,53 @@ import org.openide.windows.TopComponent;
                     onChar = ' ',
                     whenPrecedingToken = {TOKEN_ID, PARSER_RULE_ID},
                     inserting = " : ^;",
-                    whenCurrentTokenNot = {STRING_LITERAL, LINE_COMMENT, BLOCK_COMMENT, LPAREN},
+                    whenCurrentTokenNot = {STRING_LITERAL, LINE_COMMENT, BLOCK_COMMENT, LPAREN, ACTION_CONTENT, LBRACE, LEXER_CHAR_SET},
                     whenFollowedByPattern = "<| SEMI {PARSER_RULE_ID TOKEN_ID} ! COLON ? PARDEC_WS ID_WS IMPORT_WS CHN_WS FRAGDEC_WS HDR_IMPRT_WS HDR_PCKG_WS HEADER_P_WS HEADER_WS LEXCOM_WS OPT_WS PARDEC_OPT_WS TOK_WS TOKDEC_WS TYPE_WS WS LINE_COMMENT BLOCK_COMMENT CHN_BLOCK_COMMENT FRAGDEC_LINE_COMMENT CHN_LINE_COMMENT DOC_COMMENT HDR_IMPRT_LINE_COMMENT HDR_PCKG_LINE_COMMENT HEADER_BLOCK_COMMENT HEADER_LINE_COMMENT HEADER_P_BLOCK_COMMENT HEADER_P_LINE_COMMENT ID_BLOCK_COMMENT ID_LINE_COMMENT IMPORT_BLOCK_COMMENT IMPORT_LINE_COMMENT LEXCOM_BLOCK_COMMENT LEXCOM_LINE_COMMENT OPT_BLOCK_COMMENT OPT_LINE_COMMENT PARDEC_LINE_COMMENT PARDEC_BLOCK_COMMENT PARDEC_OPT_LINE_COMMENT PARDEC_OPT_BLOCK_COMMENT TOK_BLOCK_COMMENT TOK_LINE_COMMENT TYPE_LINE_COMMENT"
             ),
             @Boilerplate(
                     category = "Boilerplate",
-                    name = "Insert closing ) after (",
+                    description = "Insert a matching ] when [ typed",
+                    linePosition = LinePosition.ANY,
+                    name = "Insert ] for [",
+                    onChar = '[',
+                    inserting = "[^]",
+                    whenPrecedingToken = {COLON, PARDEC_WS, TOKDEC_WS,
+                        LEXER_CHAR_SET,
+                        ID, FRAGDEC_ID,
+                        TOKEN_ID, STRING_LITERAL,
+                        NOT, LPAREN
+                    },
+                    whenCurrentTokenNot = {ACTION_CONTENT, STRING_LITERAL, LINE_COMMENT, BLOCK_COMMENT, LBRACE,
+                        PARDEC_LINE_COMMENT,
+                        CHN_BLOCK_COMMENT,
+                        CHN_LINE_COMMENT,
+                        PARDEC_BLOCK_COMMENT
+                    }
+            ),
+            @Boilerplate(
+                    category = "Boilerplate",
+                    name = "Insert a matching ) after (",
                     onChar = '(',
                     whenPrecedingToken = {ANTLRv4Lexer.COLON,
-                        ANTLRv4Lexer.PARSER_RULE_ID, ANTLRv4Lexer.TOKEN_ID,
-                        ANTLRv4Lexer.TOKDEC_WS, ANTLRv4Lexer.PARDEC_WS,
-                        ANTLRv4Lexer.FRAGDEC_WS,
-                        ANTLRv4Lexer.END_ACTION},
+                        PARSER_RULE_ID, TOKEN_ID,
+                        TOKDEC_WS, PARDEC_WS,
+                        FRAGDEC_WS,
+                        END_ACTION},
                     inserting = "(^)",
                     whenCurrentTokenNot = {
-                        ANTLRv4Lexer.STRING_LITERAL,
-                        ANTLRv4Lexer.ID,
-                        ANTLRv4Lexer.PARSER_RULE_ID,
-                        ANTLRv4Lexer.TOKEN_ID,
-                        ANTLRv4Lexer.LINE_COMMENT,
-                        ANTLRv4Lexer.BLOCK_COMMENT,
-                        ANTLRv4Lexer.STRING_LITERAL,
-                        ANTLRv4Lexer.PARDEC_LINE_COMMENT,
-                        ANTLRv4Lexer.CHN_BLOCK_COMMENT,
-                        ANTLRv4Lexer.CHN_LINE_COMMENT,
-                        ANTLRv4Lexer.PARDEC_BLOCK_COMMENT
+                        LEXER_CHAR_SET,
+                        STRING_LITERAL,
+                        ACTION_CONTENT,
+                        ID,
+                        PARSER_RULE_ID,
+                        TOKEN_ID,
+                        LINE_COMMENT,
+                        BLOCK_COMMENT,
+                        STRING_LITERAL,
+                        PARDEC_LINE_COMMENT,
+                        CHN_BLOCK_COMMENT,
+                        CHN_LINE_COMMENT,
+                        PARDEC_BLOCK_COMMENT
                     }
             ),
             @Boilerplate(
@@ -163,7 +171,7 @@ import org.openide.windows.TopComponent;
 //    })
 //})
 public class Foo {
-
+/*
     @Keybindings(mimeType = ANTLR_MIME_TYPE, description = "Dump the editor kit", displayName = "Dump Editor Kit", name = "dumpEditorKit",
             popup = true, menuPath = "Edit", keybindings = @Keybinding(key = Key.EIGHT, modifiers = KeyModifiers.CTRL_OR_COMMAND))
     public static void dumpEditorKit(JTextComponent comp) {
@@ -210,4 +218,5 @@ public class Foo {
         tc.open();
         tc.requestActive();
     }
+    */
 }

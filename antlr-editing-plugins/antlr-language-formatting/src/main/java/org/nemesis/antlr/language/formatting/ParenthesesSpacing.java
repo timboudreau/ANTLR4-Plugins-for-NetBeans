@@ -18,6 +18,7 @@ package org.nemesis.antlr.language.formatting;
 import static org.nemesis.antlr.ANTLRv4Lexer.ASSIGN;
 import static org.nemesis.antlr.ANTLRv4Lexer.COLON;
 import static org.nemesis.antlr.ANTLRv4Lexer.ID;
+import static org.nemesis.antlr.ANTLRv4Lexer.INT;
 import static org.nemesis.antlr.ANTLRv4Lexer.LANGUAGE;
 import static org.nemesis.antlr.ANTLRv4Lexer.LPAREN;
 import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
@@ -59,6 +60,10 @@ final class ParenthesesSpacing extends AbstractFormatter {
                 .format(PREPEND_SPACE);
         rules.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
                 .priority(100)
+                .format(PREPEND_SPACE);
+
+        rules.onTokenType(criteria.matching(INT))
+                .wherePreviousTokenType(criteria.matching(LPAREN))
                 .format(PREPEND_SPACE);
 
         rules.whenInMode(AntlrCriteria.mode(MODE_OPTIONS), fr -> {

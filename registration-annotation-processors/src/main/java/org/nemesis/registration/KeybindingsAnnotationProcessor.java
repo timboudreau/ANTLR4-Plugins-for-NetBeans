@@ -62,8 +62,14 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.KEYBINDING_ANNO;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
+import org.nemesis.registration.typenames.KnownTypes;
+import static org.nemesis.registration.typenames.KnownTypes.ANTLR_ACTION;
+import static org.nemesis.registration.typenames.KnownTypes.BASE_ACTION;
+import static org.nemesis.registration.typenames.KnownTypes.NB_ANTLR_UTILS;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerGenerationException;
 import org.openide.xml.XMLUtil;
@@ -125,8 +131,11 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         validator = utils.multiAnnotations().whereAnnotationType(KEYBINDING_ANNO, bldr -> {
-            bldr.testMember("mimeType").validateStringValueAsMimeType()
-                    .build()
+            bldr.testMember("mimeType").addPredicate("Mime type", mir -> {
+                Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                String value = utils().annotationValue(mir, "mimeType", String.class);
+                return mimeTest.test(value);
+            }).build()
                     .testMember("name")
                     .stringValueMustNotContainWhitespace()
                     .stringValueMustNotContain('/', '\\', '"', '.')
@@ -148,9 +157,17 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 });
             });
         }).whereAnnotationType(GOTO_ANNOTATION, bldr -> {
-            bldr.testMember("mimeType").validateStringValueAsMimeType().build();
+            bldr.testMember("mimeType").addPredicate("Mime type", mir -> {
+                Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                String value = utils().annotationValue(mir, "mimeType", String.class);
+                return mimeTest.test(value);
+            }).build();
         }).whereAnnotationType(ACTION_BINDINGS_ANNO, bldr -> {
-            bldr.testMember("mimeType").validateStringValueAsMimeType().build()
+            bldr.testMember("mimeType").addPredicate("Mime type", mir -> {
+                Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                String value = utils().annotationValue(mir, "mimeType", String.class);
+                return mimeTest.test(value);
+            }).build()
                     .testMemberAsAnnotation("bindings")
                     .atLeastOneMemberMayBeSet("actionName", "action")
                     .onlyOneMemberMayBeSet("actionName", "action")
@@ -182,7 +199,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         if (mirror.getAnnotationType().toString().equals(ACTION_BINDINGS_ANNO)) {
             return handleActionBinding(var, mirror, roundEnv);
         } else {
-            String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+            String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
             if (mimeType != null) {
                 updateTargetElement(mimeType, var);
                 KeysFile keysFile = keysFile(mimeType, "NetBeans", false, var);
@@ -198,7 +215,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         if (mirror.getAnnotationType().toString().equals(ACTION_BINDINGS_ANNO)) {
             return handleActionBinding(method, mirror, roundEnv);
         }
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         if (mimeType == null) {
             return true;
         }
@@ -236,7 +253,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
     }
 
     private boolean handleActionBinding(Element on, AnnotationMirror anno, RoundEnvironment env) throws IOException, SAXException {
-        String mimeType = utils().annotationValue(anno, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(anno, "mimeType", String.class));
         List<AnnotationMirror> bindings = utils().annotationValues(anno, "bindings", AnnotationMirror.class);
         if (bindings.isEmpty()) {
             utils().warn("ActionBindings annotation does not specify any "
@@ -391,20 +408,24 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                 utils().fail("Not one of " + legalMethodArguments + ": " + arg, method);
             }
             argumentTypes.add(arg);
+            KnownTypes kt = KnownTypes.forName(arg);
+            if (kt != null) {
+                kt.qname(); // ensure the dependency is reported
+            }
         }
         String toSubclass;
         if (argumentTypes.isEmpty() || (argumentTypes.size() == 1 && argumentTypes.contains(ACTION_EVENT_TYPE))) {
             toSubclass = ABSTRACT_ACTION_TYPE;
         } else {
-            toSubclass = BASE_ACTION_TYPE;
+            toSubclass = BASE_ACTION.qname();
         }
 //        boolean lockDocument = utils().annotationValue(mirror, "lockDocument", Boolean.class, false);
         boolean async = argumentTypes.contains(EXTRACTION_TYPE) || utils().annotationValue(mirror, "asynchronous", Boolean.class, false);
         ClassBuilder<String> clazz = ClassBuilder.forPackage(pkg.getQualifiedName()).named(generatedClassName)
                 .withModifier(PUBLIC, FINAL)
-                .importing(toSubclass, ACTION_EVENT_TYPE, J_TEXT_COMPONENT_TYPE, ANTLR_ACTION_ANNO_TYPE)
+                .importing(toSubclass, ACTION_EVENT_TYPE, J_TEXT_COMPONENT_TYPE, ANTLR_ACTION.qname(), NB_ANTLR_UTILS.qname())
                 .importing(argumentTypes)
-                .annotatedWith(simpleName(ANTLR_ACTION_ANNO_TYPE))
+                .annotatedWith(ANTLR_ACTION.simpleName())
                 .addArgument("mimeType", mimeType)
                 .addArgument("order", actionPosition)
                 .closeAnnotation()
@@ -449,7 +470,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                                                     .body().iff().variable("thrown").notEquals().expression("null")
                                                     .endCondition().invoke("printStackTrace").withArgument("thrown").on("Exceptions")
                                                     .orElse(invokeTheMethod).endBlock();
-                                        }).on(simpleName(ANTLR_UTILS_TYPE));
+                                        }).on(simpleName(NB_ANTLR_UTILS.simpleName()));
 
                                 bb.endBlock();
                             });

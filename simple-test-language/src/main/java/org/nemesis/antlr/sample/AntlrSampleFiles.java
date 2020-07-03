@@ -47,6 +47,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     TIMESTAMPS("Timestamps.g4"),
     EPSILON("Epsilon.g4"),
     NESTED_MAPS("NestedMapGrammar.g4"),
+    NESTED_MAPS_WITH_SUPERFLUOUS_PARENTHESES("NestedMapsWithSuperfluousParens.g4"),
     DUMMY_LANGUAGE("DummyLanguage.g4"),
     ANTLR_LEXER("ANTLRv4Lexer.g4"),
     ANTLR_PARSER("ANTLRv4.g4"),
@@ -173,7 +174,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     }
 
     @Override
-    public SampleFile related(String name) {
+    public SampleFile<ANTLRv4Lexer, ANTLRv4Parser> related(String name) {
         for (AntlrSampleFiles sf : AntlrSampleFiles.values()) {
             if (sf.fileName().equals(name)) {
                 return sf;
@@ -189,7 +190,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
      * @param processor A function to alter the original grammar text in some way
      * @return A Sample File
      */
-    public SampleFile withText(Function<String, String> processor) {
+    public SampleFile<ANTLRv4Lexer, ANTLRv4Parser> withText(Function<String, String> processor) {
         return new SampleFile<ANTLRv4Lexer, ANTLRv4Parser>() {
             @Override
             public CharStream charStream() throws IOException {

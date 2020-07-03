@@ -86,7 +86,7 @@ mode PREFORMATTED;
 PreformattedContent
     :
     ~[`]+
-    | (BACKTICK BACKTICK~[`]?)+;
+    | (BACKTICK BACKTICK ~[`]?)+;
 
 ClosePreformattedContent
     :

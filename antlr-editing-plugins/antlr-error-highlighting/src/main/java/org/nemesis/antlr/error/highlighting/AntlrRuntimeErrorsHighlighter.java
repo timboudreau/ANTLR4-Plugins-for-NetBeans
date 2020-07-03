@@ -16,6 +16,8 @@
 package org.nemesis.antlr.error.highlighting;
 
 import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.function.state.Bool;
+import com.mastfrog.function.state.Int;
 import com.mastfrog.graph.StringGraph;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
@@ -34,6 +36,7 @@ import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -54,16 +57,20 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.AntlrConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import static org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES;
 import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.SingleTermCtx;
 import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.TermCtx;
 import org.nemesis.antlr.file.AntlrKeys;
+import static org.nemesis.antlr.file.AntlrKeys.BLOCKS;
 import static org.nemesis.antlr.file.AntlrKeys.GRAMMAR_TYPE;
 import static org.nemesis.antlr.file.AntlrKeys.RULE_NAMES;
+import static org.nemesis.antlr.file.AntlrKeys.RULE_NAME_REFERENCES;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
@@ -79,7 +86,9 @@ import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
 import org.nemesis.data.named.ContentsChecksums;
+import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.extraction.AttributedForeignNameReference;
@@ -115,6 +124,8 @@ import org.openide.util.WeakListeners;
  */
 public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
+    // XXX this class has grown gargantuan and should be split into pluggable
+    // pieces that deal with specific things.
     protected final OffsetsBag bag;
     private final AttributeSet errorHighlight;
     private final AttributeSet warningHighlight;
@@ -541,6 +552,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         flagStringLiteralsInParserRules(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         flagSkips(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
         checkClosureOfFirstRuleContainsEOF(tree, mimeType, extraction, res, populate, fixes);
+        flagSuperfluousParentheses(tree, mimeType, extraction, res, populate, fixes, usedErrorIds);
     }
 
     private Set<String> findDeletableClosureOfOrphan(String orphan, StringGraph usageGraph) {
@@ -688,6 +700,52 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     }
 
     @Messages({
+        //        "# {0} - content",
+        "superfluousParentheses=Superfluous parentheses. Remove them?"
+    })
+    private void flagSuperfluousParentheses(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes, Set<String> usedErrorIds) {
+        SemanticRegions<Integer> regs = extraction.regions(SUPERFLUOUS_PARENTEHSES);
+        for (SemanticRegion<Integer> reg : regs) {
+            String errId = "sp-" + reg.key();
+            if (!usedErrorIds.contains(errId)) {
+                PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), reg);
+                if (pbr != null) {
+                    try {
+                        if (reg.start() < reg.stop()) {
+                            usedErrorIds.add(errId);
+                            fixes.addHint(errId, pbr, Bundle.superfluousParentheses(), fixen -> {
+                                Document doc = extraction.source().lookup(Document.class).get();
+                                Segment seg = new Segment();
+                                Bool failed = Bool.create();
+                                doc.render(() -> {
+                                    try {
+                                        int startOffset = reg.start() + 1;
+                                        int endOffset = reg.stop();
+                                        doc.getText(startOffset, endOffset - startOffset, seg);
+                                    } catch (BadLocationException ex) {
+                                        Exceptions.printStackTrace(ex);
+                                        failed.set();
+                                    }
+                                });
+                                failed.ifUntrue(() -> {
+                                    fixen.addReplacement(Bundle.superfluousParentheses(),
+                                            pbr.start(), pbr.end(),
+                                            seg.toString().trim());
+                                });
+                            });
+                        }
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
+        }
+    }
+
+    @Messages({
         "# {0} - occurrences",
         "# {1} - text",
         "dup_hints_detail=The block ''{0}'' occurs {1} times in the grammar. Extract into a new rule?",
@@ -698,7 +756,10 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes, Set<String> usedErrorIds) {
-        ContentsChecksums<SemanticRegion<Void>> checksums = extraction.checksums(AntlrKeys.BLOCKS);
+        NamedSemanticRegions<RuleTypes> allNames = extraction.namedRegions(RULE_NAMES);
+        NamedRegionReferenceSets<RuleTypes> refs = extraction.nameReferences(RULE_NAME_REFERENCES);
+        Set<RuleTypes> ruleReferenceTypesInDuplicateRegion = EnumSet.noneOf(RuleTypes.class);
+        ContentsChecksums<SemanticRegion<Void>> checksums = extraction.checksums(BLOCKS);
         if (!checksums.isEmpty()) {
             int[] index = new int[1];
             // XXX we should detect the case that the checksum match is also the only
@@ -708,35 +769,52 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             // Newline : '\n';
             // then offer to replace the first '\n' with a reference to Newline - or
             // create a fragment rule for '\n' and use that from both
-            checksums.visitRegionGroups(group -> {
-//                System.out.println("\nDuplicate region groups: " + group);
+            checksums.visitRegionGroups(duplicateSet -> {
                 index[0]++;
-                List<PositionBoundsRange> ranges = new ArrayList<>(group.size());
-                StringBuilder occurrences = new StringBuilder(group.size() * 4);
+                List<PositionBoundsRange> ranges = new ArrayList<>(duplicateSet.size());
+                StringBuilder occurrences = new StringBuilder(duplicateSet.size() * 4);
                 String text = null;
-                for (SemanticRegion<Void> region : group) {
-                    PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), region);
+                List<String> namesInBlock = new ArrayList<String>();
+                for (SemanticRegion<Void> tokensWithSameChecksum : duplicateSet) {
+                    PositionBoundsRange pbr = PositionBoundsRange.create(extraction.source(), tokensWithSameChecksum);
                     if (pbr == null) {
                         return;
                     }
                     ranges.add(pbr);
                     if (text == null) {
                         try {
-                            text = pbr.bounds().getText();
+                            text = Strings.dequote(pbr.bounds().getText().trim(), '(', ')');
                         } catch (BadLocationException | IOException ex) {
                             Exceptions.printStackTrace(ex);
+                        }
+                    }
+                    if (ruleReferenceTypesInDuplicateRegion.isEmpty()) {
+                        loop:
+                        for (NamedSemanticRegionReference<RuleTypes> ref : refs.asIterable()) {
+                            switch (tokensWithSameChecksum.relationTo(ref)) {
+                                case BEFORE:
+//                                        break loop;
+                                    break;
+                                case CONTAINS:
+                                case CONTAINED:
+                                case EQUAL:
+                                    namesInBlock.add(ref.name());
+                                    ruleReferenceTypesInDuplicateRegion.add(ref.kind());
+                            }
                         }
                     }
                     if (occurrences.length() > 0) {
                         occurrences.append(',');
                     }
-                    occurrences.append(region.start()).append(':').append(region.stop());
+                    occurrences.append(tokensWithSameChecksum.start()).append(':').append(tokensWithSameChecksum.stop());
                 }
-                String details = Bundle.dup_hints_detail(text, group.size());
+                String details = Bundle.dup_hints_detail(text, duplicateSet.size());
                 Supplier<String> det = () -> details;
-                String msg = Bundle.dup_block(group.size());
+                String msg = Bundle.dup_block(duplicateSet.size());
+                RuleNamingConvention convention = RuleNamingConvention.forExtraction(extraction);
+                String rn = createRuleName(namesInBlock, ruleReferenceTypesInDuplicateRegion, convention, allNames);
                 for (PositionBoundsRange r : ranges) {
-                    ExtractRule extract = new ExtractRule(ranges, extraction, r, text);
+                    ExtractRule extract = new ExtractRule(ranges, extraction, r, text, rn);
                     String id = "bx-" + index[0] + "-" + r.original().start() + "-" + r.original().end();
                     if (!usedErrorIds.contains(id)) {
                         try {
@@ -752,6 +830,43 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
     }
 
+    private static String createRuleName(List<String> rulesReferenced, Set<RuleTypes> ruleTypes, RuleNamingConvention namingConvention, NamedSemanticRegions<RuleTypes> allNames) {
+        boolean containsParserRule = ruleTypes.isEmpty() || ruleTypes.contains(RuleTypes.PARSER);
+        if (rulesReferenced.isEmpty()) {
+            return containsParserRule ? "new_rule" : "NewRule";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<String> it = rulesReferenced.iterator(); it.hasNext();) {
+            String name = it.next();
+            if (containsParserRule) {
+                name = name.toLowerCase();
+            } else {
+                switch (namingConvention) {
+                    case LEXER_RULES_UPPER_CASE:
+                        name = name.toUpperCase();
+                }
+            }
+            sb.append(name);
+            if (sb.length() > 32 && !allNames.contains(sb.toString())) {
+                break;
+            }
+            if (it.hasNext() && (containsParserRule || namingConvention == RuleNamingConvention.LEXER_RULES_UPPER_CASE)) {
+                sb.append('_');
+            }
+        }
+        String result = sb.toString();
+        if (allNames.contains(result)) {
+            for (int i = 1;; i++) {
+                String test = result + "_" + i;
+                if (!allNames.contains(test)) {
+                    result = test;
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
     @Messages({
         "# {0} - Rule name",
         "unusedRule=Unused rule ''{0}''",
@@ -765,12 +880,25 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         "# {1} - Path",
         "deleteRuleAndClosure=Delete ''{0}'' and its closure {1}",})
     private void flagOrphansIfNoImports(ANTLRv4Parser.GrammarFileContext tree,
-            String mimeType, Extraction extraction,
-            AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes, Set<String> usedErrorIds) {
+            String mimeType,
+            Extraction extraction,
+            AntlrGenerationResult res,
+            ParseResultContents populate,
+            Fixes fixes,
+            Set<String> usedErrorIds
+    ) {
+        if (res.mainGrammar.isLexer()) {
+            // XXX should use usages finder for lexer rules
+            return;
+        }
         NamedSemanticRegions<RuleTypes> rules = extraction.namedRegions(AntlrKeys.RULE_NAMES);
         if (!rules.isEmpty()) {
             StringGraph graph = extraction.referenceGraph(AntlrKeys.RULE_NAME_REFERENCES);
+            if (graph == null) {
+                // In an undo operation, the extraction nmay have been disposed
+                // Should fix this never to return null
+                return;
+            }
             NamedSemanticRegions<RuleTypes> ruleBounds = extraction.namedRegions(AntlrKeys.RULE_BOUNDS);
             NamedSemanticRegion<RuleTypes> firstRule = rules.index().first();
             String firstRuleName = firstRule.name();
@@ -911,9 +1039,13 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         "replaceGrammarName=Replace {0} with {1}"
     })
     private void checkGrammarNameMatchesFile(ANTLRv4Parser.GrammarFileContext tree,
-            String mimeType, Extraction extraction,
-            AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes, Set<String> usedErrorIds) {
+            String mimeType,
+            Extraction extraction,
+            AntlrGenerationResult res,
+            ParseResultContents populate,
+            Fixes fixes,
+            Set<String> usedErrorIds
+    ) {
         SingletonEncounters<GrammarDeclaration> grammarDecls = extraction.singletons(AntlrKeys.GRAMMAR_TYPE);
         if (grammarDecls.hasEncounter()) {
             SingletonEncounters.SingletonEncounter<GrammarDeclaration> decl = grammarDecls.first();
@@ -1029,8 +1161,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                                 + " err was " + err, ex);
                     }
                 });
-            } else {
-                System.out.println("   IGRNORE " + err);
             }
         }
         Mutex.EVENT.readAccess(() -> {
@@ -1162,7 +1292,8 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
     @Messages({
         "# {0} - unresolvable imported grammar name",
         "unresolved=Unresolvable import: {0}",
-        "capitalize=Capitalize name to make this a lexer rule"
+        "capitalize=Capitalize name to make this a lexer rule",
+        "illegalLabel=Cannot use a label here.  Remove?"
     })
     boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext, Set<String> usedErrIds) throws BadLocationException {
         EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
@@ -1212,7 +1343,51 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                         }
                     }
                 }
+                // error 130 : label str assigned to a block which is not a set
+                return true;
+            case 130: // Parser rule Label assigned to a block which is not a set
+            case 201: // label in a lexer rule
 
+                String errId2 = err.code() + "-" + err.lineNumber() + "-" + err.lineOffset();
+                if (!usedErrIds.contains(errId2)) {
+                    Bool added = Bool.create();
+                    offsetsOf(err, (start, end) -> {
+                        if (end > start) {
+                            PositionBoundsRange pbr = PositionBoundsRange.create(ext.source(), start, end);
+                            try {
+                                fixes.addError(pbr, err.message(), Bundle::illegalLabel, fixen -> {
+                                    Int realEnd = Int.of(-1);
+                                    ext.source().lookup(Document.class, d -> {
+                                        d.render(() -> {
+                                            Segment seg = new Segment();
+                                            int len = d.getLength();
+                                            if (len > pbr.end()) {
+                                                try {
+                                                    d.getText(pbr.end(), len - pbr.end(), seg);
+                                                    for (int i = 0; i < seg.length(); i++) {
+                                                        if ('=' == seg.charAt(i)) {
+                                                            realEnd.set(i + 1);
+                                                            return;
+                                                        }
+                                                    }
+                                                } catch (BadLocationException ex) {
+                                                    Exceptions.printStackTrace(ex);
+                                                }
+                                            }
+                                        });
+                                    });
+                                    if (realEnd.getAsInt() > pbr.start()) {
+                                        fixen.addDeletion(Bundle.illegalLabel(), pbr.start(), realEnd.getAsInt());
+                                        added.set();
+                                    }
+                                });
+                            } catch (BadLocationException ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
+                        }
+                    });
+                    return added.get();
+                }
             default:
                 return false;
         }
@@ -1220,7 +1395,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
     private static String findRuleNameInErrorMessage(String msg) {
         String msgStart = "parser rule ";
-        // parser rule 
+        // parser rule
         if (msg.startsWith(msgStart) && msg.length() > msgStart.length()) {
             StringBuilder sb = new StringBuilder();
             for (int i = msgStart.length(); i < msg.length(); i++) {

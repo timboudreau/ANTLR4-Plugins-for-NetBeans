@@ -93,8 +93,24 @@ public class BasicFormatting extends AbstractFormatter {
                 .wherePreviousTokenType(SEMI | END_ACTION)
                 .format(PREPEND_NEWLINE);
 
+        rules.onTokenType(PARSER_RULE_ID)
+                .wherePreviousTokenType(RBRACE)
+                .priority(200)
+                .format(PREPEND_NEWLINE);
+                ;
+
         rules.onTokenType(LEXCOM_MODE)
                 .format(spaceOrWrap);
+
+        rules.onTokenType(ANTLRv4Lexer.GRAMMAR)
+                .whereNotFirstTokenInSource()
+                .wherePreviousTokenType(criteria.anyOf(LEXER, PARSER))
+                .format(spaceOrWrap);
+
+        rules.onTokenType(ANTLRv4Lexer.PARSER, GRAMMAR, LEXER)
+                .whereNotFirstTokenInSource()
+                .wherePreviousTokenType(BLOCK_COMMENT, LINE_COMMENT)
+                .format(PREPEND_NEWLINE);
 
         rules.onTokenType(ID, FRAGDEC_ID, TOKEN_ID, PARSER_RULE_ID)
                 .wherePreviousTokenType(LEXCOM_MODE, MODE, RPAREN)
@@ -111,6 +127,10 @@ public class BasicFormatting extends AbstractFormatter {
         rules.onTokenType(RARROW)
                 .named("spaces-channel-arrow")
                 .format(spaceOrWrap.and(APPEND_SPACE));
+
+        rules.onTokenType(ANTLRv4Lexer.NOT, DOT, LEXER_CHAR_SET)
+                .wherePreviousTokenTypeNot(LPAREN, LBRACE, LEXER_CHAR_SET, NOT)
+                .format(spaceOrWrap);
 
         rules.onTokenType(GRAMMAR, LEXER, PARSER)
                 .named("spaces-in-grammar-decl")
@@ -191,7 +211,8 @@ public class BasicFormatting extends AbstractFormatter {
                 .format(PREPEND_NEWLINE);
 
         rules.onTokenType(lineComments())
-                .wherePreviousTokenType(RBRACE, RPAREN, END_ACTION)
+                .wherePreviousTokenType(RBRACE, RPAREN, END_ACTION, SEMI)
+                .whereNotFirstTokenInSource()
                 .named("offset-line-comments-by-one-space-when-inline")
                 .ifPrecededByNewline(false).format(PREPEND_SPACE);
 

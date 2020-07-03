@@ -126,7 +126,7 @@ fragment NEWLINE : '\n';
 
 fragment SPECIAL_CHARS : ASTERISK | STRIKE | BACKTICK | POUND | STRIKE;
 
-fragment NON_WHITESPACE :~[ \r\n\t];
+fragment NON_WHITESPACE : ~[ \r\n\t];
 
 //    :~[\p{White_Space}];
 fragment LINK_TEXT : [a-zA-Z0-9] | '/' | '.';

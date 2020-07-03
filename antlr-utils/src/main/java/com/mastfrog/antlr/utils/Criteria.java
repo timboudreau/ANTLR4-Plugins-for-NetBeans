@@ -25,7 +25,10 @@ import org.antlr.v4.runtime.Vocabulary;
  * Factory for Criterion instances which uses a shared instance of Vocabulary
  * for the convenience of not needing to pass it to every invocation of static
  * methods on Criterion; these are effectively just loggable IntPredicates which
- * show the token names rather than numbers.
+ * show the token names rather than token-type numbers, so that calling
+ * <code>toString()</code> on even a complex, aggregated Criterion instance will
+ * actually tell you what it is trying to match on and when, rather than
+ * something like "Foo$$Lambda1".
  *
  * @author Tim Boudreau
  */
@@ -37,23 +40,58 @@ public final class Criteria {
         this.vocab = vocab;
     }
 
+    /**
+     * Create a Criteria instance for a particular Antlr vocabulary.
+     *
+     * @param vocab The vocabulary
+     * @return A Criteria instance
+     */
     public static Criteria forVocabulary(Vocabulary vocab) {
         assert vocab != null : "vocab null";
         return new Criteria(vocab);
     }
 
+    /**
+     * Get a criterion that matches one specific token type.
+     *
+     * @param val The token type
+     * @return A criterion
+     */
     public Criterion matching(int val) {
         return Criterion.matching(vocab, val);
     }
 
+    /**
+     * Get a criterion that matches all types <i>except</i> the passed token
+     * type.
+     *
+     * @param val The token type
+     * @return A criterion
+     */
     public Criterion notMatching(int val) {
         return Criterion.notMatching(vocab, val);
     }
 
-    public Criterion anyOf(int... ints) {
-        return Criterion.anyOf(vocab, ints);
+    /**
+     * Get a criterion that matches any of a set of token types (the passed
+     * array should not contain duplicates, and this will eventually be
+     * enforced).
+     *
+     * @param tokenTypes The token types
+     * @return A criterion
+     */
+    public Criterion anyOf(int... tokenTypes) {
+        return Criterion.anyOf(vocab, tokenTypes);
     }
 
+    /**
+     * Get a criterion that matches any token types <i>except</i> the set of
+     * token types (the passed array should not contain duplicates, and this
+     * will eventually be enforced).
+     *
+     * @param tokenTypes The token types
+     * @return A criterion
+     */
     public Criterion noneOf(int... ints) {
         return Criterion.noneOf(vocab, ints);
     }
@@ -253,6 +291,7 @@ public final class Criteria {
             this.orig = orig;
         }
 
+        @Override
         public String toString() {
             return "not(" + orig + ")";
         }

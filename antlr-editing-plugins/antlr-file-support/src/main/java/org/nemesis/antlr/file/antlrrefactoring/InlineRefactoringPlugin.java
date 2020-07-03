@@ -61,7 +61,7 @@ import org.openide.util.NbBundle;
  *
  * @author Tim Boudreau
  */
-class InlineRefactoringPlugin extends AbstractRefactoringContext implements RefactoringPlugin {
+public class InlineRefactoringPlugin extends AbstractRefactoringContext implements RefactoringPlugin {
 
     private static final Logger LOG = Logger.getLogger(InlineRuleRefactoring.class.getName());
     private final PositionBounds bounds;
@@ -71,7 +71,7 @@ class InlineRefactoringPlugin extends AbstractRefactoringContext implements Refa
     private NamedSemanticRegion<RuleTypes> region;
     private FileObject file;
 
-    InlineRefactoringPlugin(AbstractRefactoring refactoring, Extraction extraction, PositionBounds bounds) {
+    public InlineRefactoringPlugin(AbstractRefactoring refactoring, Extraction extraction, PositionBounds bounds) {
         this.refactoring = refactoring;
         this.extraction = extraction;
         this.bounds = bounds;

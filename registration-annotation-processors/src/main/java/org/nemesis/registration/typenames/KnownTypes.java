@@ -45,6 +45,7 @@ public enum KnownTypes implements TypeName {
     ACTION_REFERENCE("org.openide.awt.ActionReference", Libraries.AWT),
     ACTION_REFERENCES("org.openide.awt.ActionReferences", Libraries.AWT),
     ACTION_REGISTRATION("org.openide.awt.ActionRegistration", Libraries.AWT),
+    ACTION_STATE("org.openide.awt.ActionState", Libraries.AWT),
     ACTIVITY_INDICATOR("org.nemesis.swing.ActivityIndicator",
         Libraries.SWING_UTILS),
     ANTLR_ACTION("org.nemesis.antlr.spi.language.AntlrAction",
@@ -70,6 +71,8 @@ public enum KnownTypes implements TypeName {
         Libraries.RESOLVER),
     ANTLR_FOLDS_REGISTRATION("org.nemesis.antlr.fold.AntlrFoldsRegistration",
         Libraries.FOLDING),
+    ANTLR_FOO_EDITOR_FEATURES("org.nemesis.antlr.file.AntlrFooEditorFeatures",
+        Libraries.SUPPORT),
     ANTLR_FORMATTER_CONFIG(
         "org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig",
         Libraries.FORMATTING),
@@ -93,6 +96,12 @@ public enum KnownTypes implements TypeName {
     ANTLR_HIGHLIGHTING_LAYER_FACTORY(
         "org.nemesis.antlr.highlighting.AntlrHighlightingLayerFactory",
         Libraries.HIGHLIGHTING),
+    ANTLR_INLINE_RULE_CUSTOM_REFACTORING(
+        "org.nemesis.antlr.file.AntlrInlineRuleCustomRefactoring",
+        Libraries.SUPPORT),
+    ANTLR_INLINE_RULE_CUSTOM_REFACTORING_ACTION(
+        "org.nemesis.antlr.file.AntlrInlineRuleCustomRefactoringAction",
+        Libraries.SUPPORT),
     ANTLR_INPUT_STREAM("org.antlr.runtime.ANTLRInputStream", Libraries.RUNTIME),
     ANTLR_KEYS("org.nemesis.antlr.file.AntlrKeys", Libraries.SUPPORT),
     ANTLR_LANGUAGE_REGISTRATION(
@@ -250,12 +259,20 @@ public enum KnownTypes implements TypeName {
     CONTEXT(
         "org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context",
         Libraries.LIB2),
+    CONTEXT_AWARE_ACTION("org.openide.util.ContextAwareAction",
+        Libraries.UTIL_UI),
     CONVERTERS("com.mastfrog.converters.Converters", Libraries.WRAPPER),
     COOKIE_SET("org.openide.nodes.CookieSet", Libraries.NODES),
     COPY_ACTION("org.openide.actions.CopyAction", Libraries.ACTIONS),
     CRITERIA("com.mastfrog.antlr.utils.Criteria", Libraries.UTILS),
     CRITERION("com.mastfrog.antlr.utils.Criterion", Libraries.UTILS),
     CUSTOM_REFACTORING("org.nemesis.antlr.refactoring.CustomRefactoring",
+        Libraries.REFACTORING),
+    CUSTOM_REFACTORING_PANEL(
+        "org.netbeans.modules.refactoring.spi.ui.CustomRefactoringPanel",
+        Libraries.MODULES_REFACTORING),
+    CUSTOM_REFACTORING_REGISTRATION(
+        "org.nemesis.antlr.refactoring.CustomRefactoringRegistration",
         Libraries.REFACTORING),
     CUT_ACTION("org.openide.actions.CutAction", Libraries.ACTIONS),
     DATA_FOLDER("org.openide.loaders.DataFolder", Libraries.LOADERS),
@@ -444,13 +461,16 @@ public enum KnownTypes implements TypeName {
         Libraries.FORMATTERS),
     FORMATTING_RULES("org.nemesis.antlrformatting.api.FormattingRules",
         Libraries.FORMATTERS),
-    G4FOO_EDITOR_FEATURES("org.nemesis.antlr.file.G4FooEditorFeatures",
-        Libraries.SUPPORT),
+    FUNCTION_PETA_FUNCTION("com.mastfrog.function.PetaFunction",
+        Libraries.WRAPPER),
     G4INPLACE_RENAME_ACTION("org.nemesis.antlr.file.G4InplaceRenameAction",
         Libraries.SUPPORT),
     G4REFACTORING_PLUGIN_FACTORY(
         "org.nemesis.antlr.file.G4RefactoringPluginFactory", Libraries.SUPPORT),
     GCI("org.nemesis.antlr.completion.grammar.GCI", Libraries.CODE_COMPLETION),
+    GENERIC_REFACTORING_CONTEXT_ACTION(
+        "org.nemesis.antlr.refactoring.GenericRefactoringContextAction",
+        Libraries.REFACTORING),
     GOTO("org.nemesis.antlr.spi.language.Goto", Libraries.ANTLR_LANGUAGE),
     GRAMMAR_ASTADAPTOR("org.antlr.v4.parse.GrammarASTAdaptor",
         Libraries.ANTLR_WRAPPER),
@@ -697,6 +717,7 @@ public enum KnownTypes implements TypeName {
     NODE("org.openide.nodes.Node", Libraries.NODES),
     NULL_ALLOWED("org.netbeans.api.annotations.common.NullAllowed",
         Libraries.COMMON),
+    OBJ("com.mastfrog.function.state.Obj", Libraries.WRAPPER),
     OFFSETS_BAG("org.netbeans.spi.editor.highlighting.support.OffsetsBag",
         Libraries.LIB2),
     OPEN_ACTION("org.openide.actions.OpenAction", Libraries.ACTIONS),
@@ -799,6 +820,8 @@ public enum KnownTypes implements TypeName {
         Libraries.MODULES_REFACTORING),
     REFACTORING_PLUGIN_FACTORY(
         "org.netbeans.modules.refactoring.spi.RefactoringPluginFactory",
+        Libraries.MODULES_REFACTORING),
+    REFACTORING_UI("org.netbeans.modules.refactoring.spi.ui.RefactoringUI",
         Libraries.MODULES_REFACTORING),
     REFERENCEABLE_FROM_IMPORTS(
         "org.nemesis.antlr.spi.language.ReferenceableFromImports",
@@ -1026,6 +1049,8 @@ public enum KnownTypes implements TypeName {
     TYPED_TEXT_INTERCEPTOR(
         "org.netbeans.spi.editor.typinghooks.TypedTextInterceptor",
         Libraries.LIB2),
+    UI("org.netbeans.modules.refactoring.spi.ui.UI",
+        Libraries.MODULES_REFACTORING),
     UNDO_REDO("org.openide.awt.UndoRedo", Libraries.AWT),
     UNKNOWN_NAME_REFERENCE("org.nemesis.extraction.UnknownNameReference",
         Libraries.EXTRACTION),

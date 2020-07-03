@@ -31,11 +31,11 @@ import org.openide.util.NbBundle.Messages;
  */
 @Messages({"uiInlineRule=Inline Rule",
     "descInlineRule=Remove the rule and replace all usages of it with its contents"})
-final class InlineRefactoringUI implements RefactoringUI {
+public final class InlineRefactoringUI implements RefactoringUI {
 
     private final AbstractRefactoring inlineRefactoring;
 
-    InlineRefactoringUI(AbstractRefactoring inlineRefactoring) {
+    public InlineRefactoringUI(AbstractRefactoring inlineRefactoring) {
         this.inlineRefactoring = inlineRefactoring;
     }
 

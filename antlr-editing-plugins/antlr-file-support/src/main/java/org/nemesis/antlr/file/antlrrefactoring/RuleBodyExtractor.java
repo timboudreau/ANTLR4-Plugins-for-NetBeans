@@ -342,6 +342,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
         Interval ival = ctx.getSourceInterval();
         for (int i = ival.a; i <= ival.b; i++) {
             Token tok = parser.getTokenStream().get(i);
+            System.out.println("  " + ANTLRv4Lexer.VOCABULARY.getDisplayName(tok.getType()) + " '" + tok.getText() + "'");
             appendText(tok);
         }
         return sb;

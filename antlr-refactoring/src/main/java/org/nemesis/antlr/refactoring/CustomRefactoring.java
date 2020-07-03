@@ -21,6 +21,7 @@ import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
+import org.netbeans.modules.refactoring.spi.ui.RefactoringUI;
 import org.openide.text.PositionBounds;
 
 /**
@@ -60,5 +61,20 @@ public abstract class CustomRefactoring<R extends AbstractRefactoring> implement
 
     public final String toString() {
         return getClass().getName();
+    }
+
+    /**
+     * For many refactorings, the only purpose for the UI is to show Problem
+     * instances if something is wrong, and the only way to do that is to have a
+     * UI class to show, even though no part of it will actually ever be shown
+     * at all.
+     *
+     * @param refactoring The refactoring
+     * @param name The refactoring name
+     * @param desc The refactoring description
+     * @return A ui
+     */
+    public static RefactoringUI createDummyRefactoringUI(AbstractRefactoring refactoring, String name, String desc) {
+        return new DummyRefactoringUI(refactoring, name, desc);
     }
 }

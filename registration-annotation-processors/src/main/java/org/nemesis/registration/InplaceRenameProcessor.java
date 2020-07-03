@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
@@ -59,6 +60,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
 import static org.nemesis.registration.InplaceRenameProcessor.INPLACE_RENAME_ANNO_TYPE;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_REFACTORING_PLUGIN_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.CHAR_FILTER;
@@ -105,7 +107,11 @@ public class InplaceRenameProcessor extends LayerGeneratingDelegate {
         test = utils.multiAnnotations()
                 .whereAnnotationType(INPLACE_RENAME_ANNO_TYPE, b -> {
                     // Make sure the mime type is good
-                    b.testMember("mimeType").validateStringValueAsMimeType().build();
+                    b.testMember("mimeType").addPredicate("Mime type", mir -> {
+                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                        String value = utils().annotationValue(mir, "mimeType", String.class);
+                        return mimeTest.test(value);
+                    }).build();
                     b.onlyOneMemberMayBeSet("useRefactoringApi", "renameParticipant");
                     // Test the filters don't contain duplicate elements or types that
                     // are not what is required
@@ -611,7 +617,7 @@ public class InplaceRenameProcessor extends LayerGeneratingDelegate {
     private final Map<String, VariableElement> importsAnnotated = new HashMap<>();
 
     protected boolean processImportsAnnotation(VariableElement var, AnnotationMirror mirror, RoundEnvironment roundEnv) throws Exception {
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         if (mimeType != null) {
             importsAnnotated.put(mimeType, var);
         }
@@ -623,7 +629,7 @@ public class InplaceRenameProcessor extends LayerGeneratingDelegate {
         if (IMPORTS_ANNOTATION.equals(mirror.getAnnotationType().toString())) {
             return processImportsAnnotation(var, mirror, roundEnv);
         }
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         String pkg = utils().packageName(var);
         String className = capitalize(AnnotationUtils.stripMimeType(mimeType)) + "InplaceRenameAction";
 

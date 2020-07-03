@@ -38,7 +38,7 @@ proto
 //
 
 syntax
-    :   'syntax' '=' ('"proto3"' | '\'proto3\'' ) ';'
+    :   SYNTAX ASSIGN (PROTO3_DOUBLE | PROTO3_SINGLE ) SEMI
     ;
 
 //
@@ -46,7 +46,7 @@ syntax
 //
 
 importStatement
-    :   'import' ('weak' | 'public')? StrLit ';'
+    :   IMPORT (WEAK | PUBLIC)? StrLit SEMI
     ;
 
 //
@@ -54,7 +54,7 @@ importStatement
 //
 
 packageStatement
-    :   'package' fullIdent ';'
+    :   PACKAGE fullIdent SEMI
     ;
 
 //
@@ -62,11 +62,11 @@ packageStatement
 //
 
 option
-    :   'option' optionName '=' constant ';'
+    :   OPTION optionName ASSIGN constant SEMI
     ;
 
 optionName
-    :   (Ident | '(' fullIdent ')' ) ('.' Ident)*
+    :   (Ident | LPAREN fullIdent RPAREN ) (DOT Ident)*
     ;
 
 //
@@ -101,23 +101,23 @@ messageBody
 // Enum definition
 
 enumDefinition
-    :   'enum' enumName enumBody
+    :   ENUM enumName enumBody
     ;
 
 enumBody
-    :   '{' (   option
+    :   LBRACE (   option
             |   enumField
             |   emptyStatement
             )*
-        '}'
+        RBRACE
     ;
 
 enumField
-    :   Ident '=' '-'? IntLit ('[' enumValueOption (','  enumValueOption)* ']')? ';'
+    :   Ident ASSIGN MINUS? IntLit (LBRACK enumValueOption (COMMA  enumValueOption)* RBRACK)? SEMI
     ;
 
 enumValueOption
-    :   optionName '=' constant
+    :   optionName ASSIGN constant
     ;
 
 // Service definition
@@ -133,8 +133,8 @@ service
     ;
 
 rpc
-    :   RPC rpcName '(' 'stream'? messageType ')'
-        'returns' '(' 'stream'? messageType ')' (('{' (option | emptyStatement)* '}') | ';')
+    :   RPC rpcName LPAREN STREAM? messageType RPAREN
+        RETURNS LPAREN STREAM? messageType RPAREN ((LBRACE (option | emptyStatement)* RBRACE) | SEMI)
     ;
 
 //
@@ -142,20 +142,20 @@ rpc
 //
 
 reserved
-    :   'reserved' (ranges | fieldNames) ';'
+    :   RESERVED (ranges | fieldNames) SEMI
     ;
 
 ranges
-    :   range (',' range)*
+    :   range (COMMA range)*
     ;
 
 range
     :   IntLit
-    |   IntLit 'to' IntLit
+    |   IntLit TO IntLit
     ;
 
 fieldNames
-    :   StrLit (',' StrLit)*
+    :   StrLit (COMMA StrLit)*
     ;
 
 //
@@ -197,38 +197,38 @@ fieldOptions
     ;
 
 fieldOption
-    :   optionName '=' constant
+    :   optionName ASSIGN constant
     ;
 
 // Oneof and oneof field
 
 oneof
-    :   ONEOF oneofName '{' (oneofField | emptyStatement)* '}'
+    :   ONEOF oneofName LBRACE (oneofField | emptyStatement)* RBRACE
     ;
 
 oneofField
-    :   type fieldName ASSIGN fieldNumber ('[' fieldOptions ']')? ';'
+    :   type fieldName ASSIGN fieldNumber (LBRACK fieldOptions RBRACK)? SEMI
     ;
 
 // Map field
 
 mapField
-    :   MAP '<' keyType ',' type '>' mapName '=' fieldNumber ('[' fieldOptions ']')? ';'
+    :   MAP LCHEVR keyType COMMA type RCHEVR mapName ASSIGN fieldNumber (LBRACK fieldOptions RBRACK)? SEMI
     ;
 
 keyType
     :   INT32
-    |   'int64'
-    |   'uint32'
-    |   'uint64'
-    |   'sint32'
-    |   'sint64'
-    |   'fixed32'
-    |   'fixed64'
-    |   'sfixed32'
-    |   'sfixed64'
-    |   'bool'
-    |   'string'
+    |   INT64
+    |   UINT32
+    |   UINT64
+    |   SINT32
+    |   SINT64
+    |   FIXED32
+    |   FIXED64
+    |   SFIXED32
+    |   SFIXED64
+    |   BOOL
+    |   STRING
     ;
 
 //
@@ -301,7 +301,7 @@ Ident
     ;
 
 fullIdent
-    :   Ident ('.' Ident)*
+    :   Ident (DOT Ident)*
     ;
 
 messageName
@@ -335,13 +335,13 @@ serviceName
 rpcName
     :   Ident
     ;
-
+//foo 
 messageType
-    :   '.'? (Ident '.')* messageName
+    :   DOT? (Ident DOT)* messageName
     ;
 
 messageOrEnumType
-    :   '.'? (Ident '.')* messageOrEnumName
+    :   DOT? (Ident DOT)* messageOrEnumName
     ;
 
 // Integer literals
@@ -433,15 +433,15 @@ Quote
 // Empty Statement
 
 emptyStatement
-    :   ';'
+    :   SEMI
     ;
 
 // Constant
 
 constant
     :   fullIdent
-    |   ('-' | '+')? IntLit
-    |   ('-' | '+')? FloatLit
+    |   (MINUS | PLUS)? IntLit
+    |   (MINUS | PLUS)? FloatLit
     |   (   StrLit
         |   BoolLit
         )
@@ -469,13 +469,13 @@ ASSIGN          : '=';
 
 // Whitespace and comments
 
-WS  :   [ \t\r\n\u000C]+ -> skip
+WS  :   [ \t\r\n\u000C]+ -> channel (1)
     ;
 
 COMMENT
-    :   '/*' .*? '*/' -> skip
+    :   '/*' .*? '*/' -> channel (2)
     ;
 
 LINE_COMMENT
-    :   '//' ~[\r\n]* -> skip
+    :   '//' ~[\r\n]* -> channel (2)
     ;

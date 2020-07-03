@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-netbeans-parent</artifactId>
-        <version>2.0.44</version>
+        <version>2.0.45</version>
     </parent>
     <artifactId>antlr-refactoring</artifactId>
     <packaging>nbm</packaging>
@@ -21,6 +21,15 @@
                         <publicPackage>org.nemesis.antlr.refactoring.usages</publicPackage>
                     </publicPackages>
                     <moduleType>autoload</moduleType>
+                    <!-- 
+                    @CustomRefactoringRegistration references Antlr's Lexer class,
+                    however, the retention of this annotation is Source, so it should
+                    never be loaded at runtime, making the fact that a direct
+                    dependency on antlr-wrapper is absent a non-problem. No sense
+                    in making everyone who uses this module depend directly on Antlr
+                    if they are only dealing with lexer types.
+                    -->
+                    <verifyRuntime>false</verifyRuntime>
                 </configuration>
             </plugin>
         </plugins>

@@ -214,9 +214,7 @@ public final class DocumentOperator {
         }
 
         private void postOpRun( Runnable r ) {
-//            r.run();
             runOnEq( r );
-//            EventQueue.invokeLater( r );
         }
 
         @Override

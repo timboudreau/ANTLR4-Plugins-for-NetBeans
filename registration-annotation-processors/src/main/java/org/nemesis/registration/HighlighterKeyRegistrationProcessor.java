@@ -48,6 +48,7 @@ import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import java.util.Comparator;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_HIGHLIGHTING_LAYER_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTS_LAYER;
@@ -78,7 +79,11 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         log("init");
         mirrorTest = utils.testMirror()
-                .testMember("mimeType").stringValueMustNotBeEmpty().validateStringValueAsMimeType().build()
+                .testMember("mimeType").stringValueMustNotBeEmpty().addPredicate("Mime type", mir -> {
+            Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+            String value = utils().annotationValue(mir, "mimeType", String.class);
+            return mimeTest.test(value);
+        }).build()
                 .testMember("coloringName").stringValueMustNotContainWhitespace().build()
                 //                .testMember("colorFinder").asTypeSpecifier().mustBeFullyReifiedType()
                 //                    .typeParameterExtends(0, PKG_NAME)
@@ -433,7 +438,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
             utils().fail("Could not determine what code to generate for coloration for " + mirror, var);
             return false;
         }
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
 
         int position = utils().annotationValue(mirror, "order", Integer.class, 100);
 

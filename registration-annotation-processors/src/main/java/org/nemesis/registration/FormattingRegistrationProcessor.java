@@ -43,6 +43,7 @@ import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
+import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 
 /**
  *
@@ -74,7 +75,12 @@ public class FormattingRegistrationProcessor extends LayerGeneratingDelegate {
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         annoCheck = utils.testMirror()
                 .addPredicate(this::warnIfWhitespaceElementsEmpty)
-                .testMember("mimeType").validateStringValueAsMimeType()
+                .testMember("mimeType")
+                .addPredicate("Mime type", mir -> {
+                    Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                    String value = utils().annotationValue(mir, "mimeType", String.class);
+                    return mimeTest.test(value);
+                })
                 .build().build();
         typeCheck = utils.testsBuilder().mustBeFullyReifiedType()
                 .doesNotHaveModifier(Modifier.PRIVATE)
@@ -97,7 +103,7 @@ public class FormattingRegistrationProcessor extends LayerGeneratingDelegate {
         for (Element e : elements) {
             AnnotationMirror mir = utils().findAnnotationMirror(e, REGISTRATION_ANNO);
             if (mir != null) {
-                String mime = utils().annotationValue(mir, "mimeType", String.class);
+                String mime = cleanMimeType(utils().annotationValue(mir, "mimeType", String.class));
                 if (mimeType.equals(mime)) {
                     return mir;
                 }
@@ -205,7 +211,7 @@ public class FormattingRegistrationProcessor extends LayerGeneratingDelegate {
     private static final String MIME_REG_TYPE = "org.netbeans.api.editor.mimelookup.MimeRegistration";
 
     private void processFormatterRegistration(TypeElement type, AnnotationMirror mirror, RoundEnvironment roundEnv) throws IOException {
-        String mimeType = utils().annotationValue(mirror, "mimeType", String.class);
+        String mimeType = cleanMimeType(utils().annotationValue(mirror, "mimeType", String.class));
         TypeMirror lexerClass = findTypeArgumentOnInterfacesImplementedBy(type, mirror, ANTLR_LEXER_TYPE);
         TypeMirror enumClass = findTypeArgumentOnInterfacesImplementedBy(type, mirror, java.lang.Enum.class.getName());
         if (lexerClass == null) {
@@ -291,16 +297,16 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
                                                         + names, type);
                                             }
                                         })
-//                                        .withNewArrayArgument("int", ints -> {
-//                                            List<Integer> debug = utils()
-//                                                    .annotationValues(mirror,
-//                                                            "debugTokens", Integer.class);
-//                                            Collections.sort(debug);
-//                                            debug.forEach((w) -> {
-//                                                ints.number(w);
-//                                            });
-//                                            ints.closeArray();
-//                                        })
+                                        //                                        .withNewArrayArgument("int", ints -> {
+                                        //                                            List<Integer> debug = utils()
+                                        //                                                    .annotationValues(mirror,
+                                        //                                                            "debugTokens", Integer.class);
+                                        //                                            Collections.sort(debug);
+                                        //                                            debug.forEach((w) -> {
+                                        //                                                ints.number(w);
+                                        //                                            });
+                                        //                                            ints.closeArray();
+                                        //                                        })
                                         .withArgument(parser == null ? "null" : parser.parserClassSimple() + ".ruleNames")
                                         // String[] parserRuleNames, Function<Lexer,RuleNode> rootRuleFinder
                                         /*

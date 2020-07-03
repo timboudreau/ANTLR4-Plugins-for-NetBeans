@@ -31,12 +31,14 @@ import org.nemesis.antlr.common.extractiontypes.HeaderMatter;
 import org.nemesis.antlr.common.extractiontypes.ImportKinds;
 import org.nemesis.antlr.common.extractiontypes.LexerModes;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.file.antlrrefactoring.InlineRefactoringPlugin;
 import org.nemesis.antlr.file.impl.ColorKeyFromRegionReference;
 import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.fold.AntlrFoldsRegistration;
 import org.nemesis.antlr.fold.FoldTypeName;
 import org.nemesis.antlr.fold.FoldTypeSpec;
 import org.nemesis.antlr.instantrename.annotations.InplaceRename;
+import org.nemesis.antlr.refactoring.CustomRefactoringRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.RuleSubstitutions;
 import org.nemesis.antlr.spi.language.AntlrLanguageRegistration.CodeCompletion.SupplementaryTokenCompletion;
@@ -73,7 +75,8 @@ import org.nemesis.localizers.annotations.Localize;
  *
  * @author Tim Boudreau
  */
-@AntlrLanguageRegistration(name = "Antlr", mimeType = ANTLR_MIME_TYPE, lexer = ANTLRv4Lexer.class,
+@AntlrLanguageRegistration(name = "Antlr", mimeType = "text/x-g4", lexer = ANTLRv4Lexer.class,
+        useImplicitLanguageNameFromLexerName = true,
         parser = @ParserControl(
                 type = ANTLRv4Parser.class,
                 generateSyntaxTreeNavigatorPanel = true,
@@ -101,17 +104,17 @@ import org.nemesis.localizers.annotations.Localize;
                     TYPE_LINE_COMMENT}
         ),
         genericCodeCompletion = @AntlrLanguageRegistration.CodeCompletion(
-//                ignoreTokens = {
-//                    LINE_COMMENT, BLOCK_COMMENT, CHN_BLOCK_COMMENT,
-//                    FRAGDEC_LINE_COMMENT, CHN_LINE_COMMENT, DOC_COMMENT,
-//                    HDR_IMPRT_LINE_COMMENT, HDR_PCKG_LINE_COMMENT,
-//                    HEADER_BLOCK_COMMENT, HEADER_LINE_COMMENT, HEADER_P_BLOCK_COMMENT,
-//                    HEADER_P_LINE_COMMENT, ID_BLOCK_COMMENT, ID_LINE_COMMENT,
-//                    IMPORT_BLOCK_COMMENT, IMPORT_LINE_COMMENT, LEXCOM_BLOCK_COMMENT,
-//                    LEXCOM_LINE_COMMENT, OPT_BLOCK_COMMENT, OPT_LINE_COMMENT, PARDEC_LINE_COMMENT,
-//                    PARDEC_BLOCK_COMMENT, PARDEC_OPT_LINE_COMMENT, PARDEC_OPT_BLOCK_COMMENT,
-//                    TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
-//                    TYPE_LINE_COMMENT},
+                //                ignoreTokens = {
+                //                    LINE_COMMENT, BLOCK_COMMENT, CHN_BLOCK_COMMENT,
+                //                    FRAGDEC_LINE_COMMENT, CHN_LINE_COMMENT, DOC_COMMENT,
+                //                    HDR_IMPRT_LINE_COMMENT, HDR_PCKG_LINE_COMMENT,
+                //                    HEADER_BLOCK_COMMENT, HEADER_LINE_COMMENT, HEADER_P_BLOCK_COMMENT,
+                //                    HEADER_P_LINE_COMMENT, ID_BLOCK_COMMENT, ID_LINE_COMMENT,
+                //                    IMPORT_BLOCK_COMMENT, IMPORT_LINE_COMMENT, LEXCOM_BLOCK_COMMENT,
+                //                    LEXCOM_LINE_COMMENT, OPT_BLOCK_COMMENT, OPT_LINE_COMMENT, PARDEC_LINE_COMMENT,
+                //                    PARDEC_BLOCK_COMMENT, PARDEC_OPT_LINE_COMMENT, PARDEC_OPT_BLOCK_COMMENT,
+                //                    TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
+                //                    TYPE_LINE_COMMENT},
                 ignoreTokens = {PARDEC_WS, ID_WS, IMPORT_WS, CHN_WS, FRAGDEC_WS,
                     HDR_IMPRT_WS, HDR_PCKG_WS, HEADER_P_WS, HEADER_WS, LEXCOM_WS,
                     OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS,
@@ -126,32 +129,31 @@ import org.nemesis.localizers.annotations.Localize;
                     TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
                     TYPE_LINE_COMMENT},
                 preferredRules = {
-//                    ANTLRv4Parser.RULE_ebnf,
+                    //                    ANTLRv4Parser.RULE_ebnf,
                     ANTLRv4Parser.RULE_ebnfSuffix,
                     ANTLRv4Parser.RULE_identifier,
                     ANTLRv4Parser.RULE_parserRuleIdentifier,
                     ANTLRv4Parser.RULE_fragmentRuleIdentifier,
-                    ANTLRv4Parser.RULE_tokenRuleIdentifier,
-//                    ANTLRv4Parser.RULE_block,
-//                    ANTLRv4Parser.RULE_parserRuleAtom,
-//                    ANTLRv4Parser.RULE_labeledParserRuleElement,
+                    ANTLRv4Parser.RULE_tokenRuleIdentifier, //                    ANTLRv4Parser.RULE_block,
+                //                    ANTLRv4Parser.RULE_parserRuleAtom,
+                //                    ANTLRv4Parser.RULE_labeledParserRuleElement,
                 },
                 tokenCompletions = {
-                    @SupplementaryTokenCompletion (
-                        tokenId=OR,
-                        text="|"
+                    @SupplementaryTokenCompletion(
+                            tokenId = OR,
+                            text = "|"
                     ),
-                    @SupplementaryTokenCompletion (
-                        tokenId=BEGIN_ACTION,
-                        text="{}"
+                    @SupplementaryTokenCompletion(
+                            tokenId = BEGIN_ACTION,
+                            text = "{}"
                     ),
-                    @SupplementaryTokenCompletion (
-                        tokenId=STRING_LITERAL,
-                        text="''"
+                    @SupplementaryTokenCompletion(
+                            tokenId = STRING_LITERAL,
+                            text = "''"
                     ),
-                    @SupplementaryTokenCompletion (
-                        tokenId=END_ACTION,
-                        text="}"
+                    @SupplementaryTokenCompletion(
+                            tokenId = END_ACTION,
+                            text = "}"
                     ),
 //                    @SupplementaryTokenCompletion (
 //                        tokenId=SEMI,
@@ -165,11 +167,10 @@ import org.nemesis.localizers.annotations.Localize;
 //                        tokenId=SHARP,
 //                        text="#"
 //                    ),
-                    @SupplementaryTokenCompletion (
-                        tokenId=NOT,
-                        text="~"
-                    ),
-                },
+                    @SupplementaryTokenCompletion(
+                            tokenId = NOT,
+                            text = "~"
+                    ),},
                 ruleSubstitutions = {
                     @RuleSubstitutions(
                             complete = RULE_parserRuleReference,
@@ -177,7 +178,7 @@ import org.nemesis.localizers.annotations.Localize;
                     )
                 }
         ),
-        localizingBundle = "org.nemesis.antlr.file.Bundle",
+        localizingBundle = "org.nemesis.antlr.file.res.Bundle",
         sample = "AntlrSample.g4",
         lineCommentPrefix = "//",
         categories = {
@@ -192,7 +193,7 @@ import org.nemesis.localizers.annotations.Localize;
                     }, colors = {
                 @Coloration(
                         derivedFrom = "errors",
-//                        fg = {255, 200, 200},
+                        //                        fg = {255, 200, 200},
                         bg = {222, 90, 90, 32},
                         waveUnderline = {255, 0, 0},
                         themes = {
@@ -200,7 +201,7 @@ import org.nemesis.localizers.annotations.Localize;
                         }),
                 @Coloration(
                         derivedFrom = "errors",
-//                        fg = {255, 200, 200},
+                        //                        fg = {255, 200, 200},
                         bg = {171, 63, 63, 32},
                         waveUnderline = {255, 200, 200},
                         themes = {
@@ -474,7 +475,7 @@ import org.nemesis.localizers.annotations.Localize;
                     colors = {
                         @Coloration(
                                 derivedFrom = "warning",
-//                                fg = {255, 255, 200},
+                                //                                fg = {255, 255, 200},
                                 bg = {212, 212, 100, 32},
                                 waveUnderline = {210, 120, 0},
                                 themes = {
@@ -482,7 +483,7 @@ import org.nemesis.localizers.annotations.Localize;
                                 }),
                         @Coloration(
                                 derivedFrom = "warning",
-//                                fg = {200, 200, 200},
+                                //                                fg = {200, 200, 200},
                                 bg = {171, 171, 63, 32},
                                 waveUnderline = {210, 120, 0},
                                 themes = {
@@ -503,7 +504,7 @@ import org.nemesis.localizers.annotations.Localize;
         },
         embeddedLanguages = {
             @AntlrLanguageRegistration.Embedding(mimeType = "text/x-java", tokens = {ANTLRv4Lexer.ACTION_CONTENT,
-                ANTLRv4Lexer.BEGIN_ACTION, ANTLRv4Lexer.END_ACTION})
+        ANTLRv4Lexer.BEGIN_ACTION, ANTLRv4Lexer.END_ACTION})
         }
 )
 public class AntlrKeys {
@@ -582,6 +583,14 @@ public class AntlrKeys {
             )
     )
     @Localize(displayName = "Rule Reference")
+    @CustomRefactoringRegistration(actionPosition = 101, description = "Inline a rule and remove it",
+            name = "Inline Rule", keybinding = "OS-N", mimeType = ANTLR_MIME_TYPE,
+            enabledOnTokens = {PARSER_RULE_ID, TOKEN_ID, FRAGDEC_ID, ID},
+            plugin = InlineRefactoringPlugin.class,
+            lexer = ANTLRv4Lexer.class
+    //            ,ui = InlineRefactoringUI.class
+    //            ,refactoring = InlineRuleRefactoring.InlineRule.class
+    )
     public static final NameReferenceSetKey<RuleTypes> RULE_NAME_REFERENCES = RULE_NAMES.createReferenceKey("ruleRefs");
 
     @Localize(displayName = "Grammar Type")
@@ -622,7 +631,6 @@ public class AntlrKeys {
     @Localize(displayName = "Code Folds")
     public static final RegionsKey<FoldableRegion> FOLDABLES = RegionsKey.create(FoldableRegion.class, "folds");
 
-
     @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE, colors = @ColoringCategory(name = "mode",
             colors = {
                 @Coloration(
@@ -635,7 +643,7 @@ public class AntlrKeys {
                         themes = POPULAR_DARK_THEMES,
                         bg = {235, 171, 120},
                         bold = true,
-                        italic=true
+                        italic = true
                 )
             }))
     public static final NamedRegionKey<LexerModes> MODES = NamedRegionKey.create("lexer-modes", LexerModes.class);
@@ -678,12 +686,11 @@ public class AntlrKeys {
                     )
             )
     )
-    @Localize(displayName="Lexer Mode References")
+    @Localize(displayName = "Lexer Mode References")
     public static final NameReferenceSetKey<LexerModes> MODE_REFS = MODES.createReferenceKey("mode-refs");
 
-
     @Keybindings(description = "Whatever", displayName = "Whatever", menuPath = "Edit",
-            name = "whatevs", mimeType = "text/x-g4", popup = true, 
+            name = "whatevs", mimeType = "text/x-g4", popup = true,
             keybindings = @Keybinding(key = Key.SEMICOLON, modifiers = KeyModifiers.CTRL_OR_COMMAND))
     public static void fooz() {
         JOptionPane.showMessageDialog(null, "Hello world");
