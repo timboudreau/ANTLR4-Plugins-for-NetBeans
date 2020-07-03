@@ -333,7 +333,7 @@ public class CustomRefactoringDelegate extends Delegate {
         }).constructor(con -> {
             con.setModifier(PUBLIC).body(bb -> {
                 bb.invoke("super").withArgument(prefix + "Hierarchy::" + prefix.toLowerCase() + "Language").inScope();
-                bb.invoke("putValue").withArgument("NAME").withArgument("Bundle." + nameBundleKey + "()");
+                bb.invoke("putValue").withArgument("NAME").withArgument("Bundle." + nameBundleKey + "()").inScope();
             });
         }).conditionally(refactoringUITypeName != null, cbb -> {
             cbb.importing(refactoringUITypeName.toString());
