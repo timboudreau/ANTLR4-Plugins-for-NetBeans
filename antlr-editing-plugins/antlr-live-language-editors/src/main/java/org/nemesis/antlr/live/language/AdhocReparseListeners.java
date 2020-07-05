@@ -17,6 +17,7 @@ package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +40,6 @@ import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
-import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakSet;
@@ -134,7 +134,7 @@ public final class AdhocReparseListeners {
                 FileObject theFileObject = FileUtil.toFileObject(file);
                 if (!theFileObject.getMIMEType().equals(mimeType)) {
                     if (runCount++ < 6) {
-                        PROC.schedule(this, 1, TimeUnit.SECONDS);
+                        PROC.schedule(this, 5, TimeUnit.SECONDS);
                         return;
                     }
                 }
@@ -170,7 +170,7 @@ public final class AdhocReparseListeners {
     }
 
     static Document documentFor(Source src) {
-        Document d = src.getDocument(false);
+        Document d = src.getDocument(true);
         if (d != null) {
             return d;
         }
@@ -182,10 +182,10 @@ public final class AdhocReparseListeners {
             DataObject dob = DataObject.find(fo);
             EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
             if (ck != null) {
-                return ck.getDocument();
+                return ck.openDocument();
             }
-        } catch (DataObjectNotFoundException ex) {
-            LOG.log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            LOG.log(Level.SEVERE, "Getting doc for " + src, ex);
         }
         return null;
     }
@@ -196,12 +196,11 @@ public final class AdhocReparseListeners {
             Document d = src.getDocument(false);
             if (d != null) {
                 result = NbEditorUtilities.getFileObject(d);
-            } else {
-                Object o = d.getProperty(StreamDescriptionProperty);
+            }
+            if (result == null) {
+                Object o = maybeToFileObject(d.getProperty(StreamDescriptionProperty));
                 if (o instanceof FileObject) {
                     result = (FileObject) o;
-                } else if (o instanceof DataObject) {
-                    result = ((DataObject) o).getPrimaryFile();
                 }
             }
         }
@@ -260,11 +259,26 @@ public final class AdhocReparseListeners {
     }
 
     static boolean reparsed(String mimeType, Source src, EmbeddedAntlrParserResult res) {
-        if (true) {
-            return withListeners(mimeType, false, arl -> {
-                arl.onReparse(src, res);
-            });
-        }
+//        if (true) {
+//            return withListeners(mimeType, false, arl -> {
+//                SourceKey k = new SourceKey(mimeType, src, res);
+//                SourceKey real = PENDING.get(k);
+//                if (real == null) {
+//                    if (k.maybeUpdate(res)) {
+//                        k.touch();
+//                    }
+//                } else if (real != k) {
+//                    if (real.maybeUpdate(res)) {
+//                        real.touch();
+//                    } else {
+//                        PENDING.put(k, k);
+//                    }
+//                } else {
+//                    real.touch();
+//                }
+////                arl.onReparse(src, res);
+//            });
+//        }
 
         String foundMime = src.getMimeType();
         String proxyMime = res.proxy().mimeType();
@@ -297,7 +311,7 @@ public final class AdhocReparseListeners {
                     if (real.maybeUpdate(res)) {
                         real.touch();
                     } else {
-                        PENDING.put(k, k);
+                        k.touch();
                     }
                 } else {
                     real.touch();
@@ -324,7 +338,7 @@ public final class AdhocReparseListeners {
         return false;
     }
 
-    static final RequestProcessor PROC = new RequestProcessor("adhoc-reparse", 5);
+    static final RequestProcessor PROC = new RequestProcessor("adhoc-reparse", 5, false);
     static Map<SourceKey, SourceKey> PENDING = new HashMap<>();
 
     static final class SourceKey implements Runnable {
@@ -334,6 +348,16 @@ public final class AdhocReparseListeners {
         private final AtomicReference<KeyInfo> ref = new AtomicReference<>();
         private volatile boolean running;
         private final RequestProcessor.Task task = PROC.create(this, false);
+        private final Runnable expire = () -> {
+            synchronized (PENDING) {
+                SourceKey sk = PENDING.get(this);
+                if (sk == this) {
+                    PENDING.remove(this);
+                    LOG.log(Level.FINER, "Expire SourceKey {0}", this);
+                }
+            }
+        };
+        private final RequestProcessor.Task expireTask = PROC.create(expire, false);
 
         public SourceKey(String mimeType, Source src, EmbeddedAntlrParserResult res) {
             this.mimeType = mimeType;
@@ -348,10 +372,11 @@ public final class AdhocReparseListeners {
         @Override
         public String toString() {
             return "SourceKey(" + src + ", " + ref.get() + " running "
-                    + running + ")";
+                    + running + " expired " + expireTask.isFinished() + ")";
         }
 
         SourceKey touch() {
+            scheduleExpire();
             synchronized (PENDING) {
                 PENDING.put(this, this);
                 task.schedule(250);
@@ -360,29 +385,48 @@ public final class AdhocReparseListeners {
         }
 
         public boolean maybeUpdate(EmbeddedAntlrParserResult res) {
+            ref.set(new KeyInfo(res));
             if (running) {
                 LOG.log(Level.FINEST, "Update parser result while running {0}", res);
+                synchronized (PENDING) {
+                    PENDING.put(this, this);
+                }
                 return false;
             }
-            ref.set(new KeyInfo(res));
             return true;
+        }
+
+        private void scheduleExpire() {
+            expireTask.schedule(60000);
         }
 
         @Override
         public void run() {
+            KeyInfo info = ref.get();
             running = true;
-            Debug.run(this, this.toString(), () -> {
-                synchronized (PENDING) {
-                    PENDING.remove(this);
-                }
-                KeyInfo info = ref.get();
-                boolean res = withListeners(mimeType, false, arl -> {
-                    arl.onReparse(src, info.res);
+            expireTask.cancel();
+            try {
+                Debug.run(this, this.toString(), () -> {
+                    synchronized (PENDING) {
+                        PENDING.remove(this);
+                    }
+                    boolean res = withListeners(mimeType, false, arl -> {
+                        arl.onReparse(src, info.res);
+                    });
+                    Debug.message("WithListeners returned " + res);
+                    LOG.log(Level.FINEST, "WithListeners result {0} for {1}",
+                            new Object[]{res, this});
                 });
-                Debug.message("WithListeners returned " + res);
-                LOG.log(Level.FINEST, "WithListeners result {0} for {1}",
-                        new Object[]{res, this});
-            });
+            } finally {
+                running = false;
+                synchronized (PENDING) {
+                    if (PENDING.containsKey(this)) {
+                        LOG.log(Level.FINEST, "Received update while delivering parse "
+                                + "results - reenqueue {0}", this);
+                        PENDING.get(this).touch();
+                    }
+                }
+            }
         }
 
         static class KeyInfo {
@@ -414,7 +458,7 @@ public final class AdhocReparseListeners {
                         return true;
                     }
                     Document dTheirs = sk.src.getDocument(false);
-                    Document dMine = sk.src.getDocument(false);
+                    Document dMine = src.getDocument(false);
                     if (dTheirs == dMine) {
                         return true;
                     }
@@ -426,8 +470,8 @@ public final class AdhocReparseListeners {
                         }
                     }
                     if (dMine != null && dTheirs != null) {
-                        Object myProp = dMine.getProperty(StreamDescriptionProperty);
-                        Object theirProp = dTheirs.getProperty(StreamDescriptionProperty);
+                        Object myProp = maybeToFileObject(dMine.getProperty(StreamDescriptionProperty));
+                        Object theirProp = maybeToFileObject(dTheirs.getProperty(StreamDescriptionProperty));
                         if (myProp != null && theirProp != null && myProp.equals(theirProp)) {
                             return true;
                         }
@@ -450,11 +494,21 @@ public final class AdhocReparseListeners {
                     return fo.hashCode();
                 }
             }
-            Object prop = doc.getProperty(StreamDescriptionProperty);
+            Object prop = maybeToFileObject(doc.getProperty(StreamDescriptionProperty));
             if (prop != null) {
                 return prop.hashCode();
             }
             return doc.hashCode();
         }
+    }
+
+    private static Object maybeToFileObject(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof DataObject) {
+            return ((DataObject) o).getPrimaryFile();
+        }
+        return o;
     }
 }

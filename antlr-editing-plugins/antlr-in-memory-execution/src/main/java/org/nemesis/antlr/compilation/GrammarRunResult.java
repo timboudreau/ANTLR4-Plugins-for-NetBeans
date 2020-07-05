@@ -36,6 +36,7 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     private final GenerationAndCompilationResult buildResult;
     private final GrammarRunResult<T> lastGood;
     private final AntlrGenerationAndCompilationResult genResult;
+    private final long timestamp = System.currentTimeMillis();
 
     GrammarRunResult(T result, Throwable thrown, GenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
         this.result = result;
@@ -43,6 +44,19 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         this.buildResult = buildResult;
         this.lastGood = lastGood;
         genResult = buildResult.genResult();
+    }
+
+    public String grammarName() {
+        if (buildResult != null && buildResult.genAndCompileResult.generationResult() != null) {
+            return buildResult.genAndCompileResult.generationResult().grammarName;
+        }
+        if (lastGood != null && lastGood.genResult != null && lastGood.genResult.generationResult() != null) {
+            return lastGood.genResult.generationResult().grammarName;
+        }
+        if (buildResult.genAndCompileResult != null && buildResult.genAndCompileResult.mainGrammar() != null) {
+            return buildResult.genAndCompileResult.mainGrammar().name;
+        }
+        return "Unknown";
     }
 
     @Override
@@ -62,6 +76,10 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     void disposeResult() {
         result = null;
+    }
+
+    public long timestamp() {
+        return timestamp;
     }
 
     public JFS jfs() {

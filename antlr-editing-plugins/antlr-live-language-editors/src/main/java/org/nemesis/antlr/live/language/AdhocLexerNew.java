@@ -159,7 +159,8 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
             in.read();
         }
         AdhocTokenId id = idFor(tok);
-        return token(id, length);
+        int actualLength = Math.min(proxy.text().length() - tok.getStartIndex(), length);
+        return token(id, actualLength);
     }
 
     private Token<AdhocTokenId> trailingJunkToken(LexerInput in) {

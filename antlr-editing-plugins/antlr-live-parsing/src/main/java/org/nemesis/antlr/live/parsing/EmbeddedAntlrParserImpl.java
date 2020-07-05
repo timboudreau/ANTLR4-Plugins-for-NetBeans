@@ -277,7 +277,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             new Object[]{res.loggingInfo(), info.parser});
                     String gth = info.grammarTokensHash;
                     EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(res,
-                            info.runResult, info.grammarTokensHash);
+                            info.runResult, info.grammarTokensHash, grammarName);
                     if (toParse != null) {
                         lastParseInfo.set(new LastParseInfo(result, toParse));
                         Trackables.track(AntlrProxies.ParseTreeProxy.class, res, () -> {
@@ -573,7 +573,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
         LastParseInfo(Path path, String grammarName) {
             this.parserResult = new EmbeddedAntlrParserResult(AntlrProxies.forUnparsed(path, grammarName, "-"),
-                    null, "-");
+                    null, "-", grammarName);
             this.seq = "-";
         }
 

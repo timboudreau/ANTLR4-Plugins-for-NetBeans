@@ -105,7 +105,7 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
         BoundedRangeModel vmdl = pane.getVerticalScrollBar().getModel();
         int val = vmdl.getValue();
         start = val;
-        System.out.println("\nSTART " + val + " target " + target.y);
+//        System.out.println("\nSTART " + val + " target " + target.y);
         timer.start();
     }
 
@@ -172,7 +172,7 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
         int total = 100;
 //        int ydist = val - target.y;
         int ease = quadraticEase(0, tick, start, target.y, total);
-        System.out.println("Start " + start + " val " + val + " target " + target.y + " ease " + ease + " at " + tick + "/" + total);
+//        System.out.println("Start " + start + " val " + val + " target " + target.y + " ease " + ease + " at " + tick + "/" + total);
         vmdl.setValue(ease);
         tick++;
         if (tick == total + 1) {

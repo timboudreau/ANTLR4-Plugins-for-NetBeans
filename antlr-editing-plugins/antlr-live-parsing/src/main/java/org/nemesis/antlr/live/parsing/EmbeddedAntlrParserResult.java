@@ -27,11 +27,14 @@ public final class EmbeddedAntlrParserResult {
     private final ParseTreeProxy proxy;
     private final GrammarRunResult<?> runResult;
     private final String grammarTokensHash;
+    private final String grammarName;
 
-    EmbeddedAntlrParserResult(ParseTreeProxy proxy, GrammarRunResult<?> runResult, String grammarTokensHash) {
+    EmbeddedAntlrParserResult(ParseTreeProxy proxy, GrammarRunResult<?> runResult, String grammarTokensHash,
+            String grammarName) {
         this.proxy = proxy;
         this.runResult = runResult;
         this.grammarTokensHash = grammarTokensHash;
+        this.grammarName = grammarName;
     }
 
     public ParseTreeProxy proxy() {
@@ -40,6 +43,10 @@ public final class EmbeddedAntlrParserResult {
 
     public boolean isUsable() {
         return runResult != null && runResult.isUsable();
+    }
+
+    public String grammarName() {
+        return grammarName;
     }
 
     public GrammarRunResult<?> runResult() {

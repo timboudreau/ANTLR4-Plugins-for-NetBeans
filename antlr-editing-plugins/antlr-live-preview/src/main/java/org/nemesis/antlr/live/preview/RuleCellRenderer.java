@@ -169,7 +169,7 @@ final class RuleCellRenderer implements ListCellRenderer<String> {
         return list.getForeground();
     }
 
-    private Color deriveColor(Color c, float hueAdjust, boolean active) {
+    static Color deriveColor(Color c, float hueAdjust, boolean active) {
         float[] hsb = new float[3];
         Color.RGBtoHSB(c.getRed(), c.getGreen(), c.getBlue(), hsb);
         hsb[0] += hueAdjust;

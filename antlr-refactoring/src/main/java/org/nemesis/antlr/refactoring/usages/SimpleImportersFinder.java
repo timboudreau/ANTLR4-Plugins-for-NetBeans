@@ -208,8 +208,6 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                                     if (ext == null) {
                                         result = chainProblems(result, new Problem(false, "Null extraction for " + fo));
                                         continue;
-                                    } else {
-                                        System.out.println("SECOND TRY WORKD FOR " + fo);
                                     }
                                 }
                                 NamedSemanticRegions<?> imported = ext.namedRegions(key);

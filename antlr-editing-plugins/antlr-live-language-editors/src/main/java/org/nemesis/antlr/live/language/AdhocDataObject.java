@@ -102,7 +102,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         content.add(this);
         @SuppressWarnings("LeakingThisInConstructor")
         String mime = mimeType(this);
-        DES supp = new DES(this, mime);
+        DES supp = new DES(this, mime, content);
         saver = new SaveCookieImpl(supp);
         if (mime != null && !"content/unknown".equals(mime)) {
             supp.setMIMEType(mime);
@@ -185,11 +185,11 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
         private static final long serialVersionUID = 1;
         final String mimeType;
 
-        DES(DataObject d, String mimeType) {
+        DES(DataObject d, String mimeType, InstanceContent putUndoHere) {
             super(d, d.getLookup(), new DEnv(d));
             super.setMIMEType(mimeType);
             this.mimeType = mimeType;
-
+            DataEditorSupport des = this;
         }
 
         @Override

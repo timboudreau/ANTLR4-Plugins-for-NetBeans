@@ -66,6 +66,7 @@ import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
  */
 public class AntlrProxies {
 
+    public static final String ERRONEOUS_TOKEN_NAME = "$ERRONEOUS";
     private final List<ProxyToken> tokens = new ArrayList<>();
     private final List<ProxyTokenType> tokenTypes = new ArrayList<>(50);
     private final List<Ambiguity> ambiguities = new ArrayList<>(10);
@@ -76,6 +77,8 @@ public class AntlrProxies {
     private String[] parserRuleNames = new String[0];
     private String[] lexerRuleNames = new String[0];
     private String[] channelNames = new String[0];
+    private String[] modeNames = new String[]{"DEFAULT_MODE"};
+    private int defaultModeIndex = 0;
     private boolean hasParseErrors;
     private MessageDigest hash;
     private RuntimeException thrown;
@@ -95,6 +98,13 @@ public class AntlrProxies {
 
     public void onAmbiguity(Ambiguity ambiguity) {
         ambiguities.add(ambiguity);
+    }
+
+    public void setModeInfo(int defaultMode, String[] modeNames) {
+        defaultModeIndex = 0;
+        if (modeNames != null) {
+            this.modeNames = modeNames;
+        }
     }
 
     public void onThrown(Throwable thrown) {
@@ -128,7 +138,7 @@ public class AntlrProxies {
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
                 grammarName, grammarPath, text, thrown, ruleReferences, ambiguities,
-                lexerRuleNames, presentRuleNames);
+                lexerRuleNames, presentRuleNames, defaultModeIndex, modeNames);
     }
 
     /**
@@ -148,8 +158,8 @@ public class AntlrProxies {
             text = "(sample code here)\n";
         }
         ProxyTokenType textType = new ProxyTokenType(0, "text", "text", "text");
-        ProxyToken all = new ProxyToken(0, 0, 0, 0, 0, 0, text.length() - 1);
-        ProxyToken eof = new ProxyToken(-1, 0, 0, 0, 1, text.length(), text.length());
+        ProxyToken all = new ProxyToken(0, 0, 0, 0, 0, 0, text.length() - 1, 0);
+        ProxyToken eof = new ProxyToken(-1, 0, 0, 0, 1, text.length(), text.length(), 0);
         ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
         ParseTreeElement child = new RuleNodeTreeElement("unparsed", 0, 0, 1, 1);
         ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
@@ -160,7 +170,7 @@ public class AntlrProxies {
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
                 grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0],
-                Collections.emptySet());
+                Collections.emptySet(), 0, null);
         prox.isUnparsed = true;
         return prox;
     }
@@ -201,6 +211,8 @@ public class AntlrProxies {
         private BitSet[] ruleReferencesForToken;
         private SortedSet<String> allRuleNames;
         private final Set<String> presentRuleNames;
+        private final String[] modeNames;
+        private final short defaultMode;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
@@ -208,7 +220,7 @@ public class AntlrProxies {
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
                 Path grammarPath, CharSequence text, RuntimeException thrown,
                 BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames,
-                Set<String> presentRuleNames) {
+                Set<String> presentRuleNames, int defaultMode, String[] modeNames) {
             this.tokens = tokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
@@ -226,8 +238,34 @@ public class AntlrProxies {
             this.ruleReferencesForToken = ruleReferencesForToken;
             this.ambiguities = ambiguities;
             this.lexerRuleNames = lexerRuleNames;
+            this.modeNames = modeNames == null ? new String[]{"DEFAULT_MODE"} : modeNames;
+            this.defaultMode = (short) defaultMode;
             this.presentRuleNames = presentRuleNames.isEmpty() ? presentRuleNames
                     : Collections.unmodifiableSet(presentRuleNames);
+        }
+
+        public String[] modeNames() {
+            return modeNames;
+        }
+
+        public int defaultMode() {
+            return defaultMode;
+        }
+
+        public boolean isDefaultMode(ProxyToken tok) {
+            return tok.mode == defaultMode || tok.mode >= modeNames.length || tok.mode < 0;
+        }
+
+        public boolean isErroneousToken(ProxyToken tok) {
+            return tok.type == tokenTypes.size() - 1;
+        }
+
+        public String modeName(ProxyToken tok) {
+            int md = tok.mode();
+            if (md >= 0 && md < modeNames.length) {
+                return modeNames[md];
+            }
+            return "DEFAULT_MODE";
         }
 
         public List<String> lexerRuleNames() {
@@ -293,7 +331,7 @@ public class AntlrProxies {
 
         public int referencesCount(ProxyToken tok) {
             int ix = tok.getTokenIndex();
-            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length < ix || tok.getType() == -1) {
+            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length <= ix || tok.getType() == -1) {
                 return 0;
             }
             BitSet set = ruleReferencesForToken[ix];
@@ -305,7 +343,7 @@ public class AntlrProxies {
 
         public List<ParseTreeElement> referencedBy(ProxyToken tok) {
             int ix = tok.getTokenIndex();
-            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length < ix || tok.getType() == -1) {
+            if (ix < 0 || ruleReferencesForToken == null || ruleReferencesForToken.length <= ix || tok.getType() == -1) {
                 return Collections.emptyList();
             }
             BitSet set = ruleReferencesForToken[ix];
@@ -388,6 +426,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             if (this.isUnparsed != other.isUnparsed) {
                 return false;
             }
+            if (!Arrays.equals(modeNames, other.modeNames)) {
+                return false;
+            }
             if (!Objects.equals(this.hashString, other.hashString)) {
                 return false;
             }
@@ -438,12 +479,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          */
         public ParseTreeProxy toEmptyParseTreeProxy(String whitespace) {
             whitespace = whitespace == null ? "" : whitespace;
-            List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(-1, 1, 0, 0, 0, 0, whitespace.length() - 1));
+            List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(-1, 1, 0, 0, 0, 0, whitespace.length() - 1, 0, 0));
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
                     Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), lexerRuleNames,
-                    Collections.emptySet());
+                    Collections.emptySet(), defaultMode, modeNames);
         }
 
         public RuntimeException thrown() {
@@ -724,6 +765,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 if (ruleReferences == null) {
                     ruleReferences = new BitSet[tokens.size() + 1];
                 }
+                if (tokenIndex >= ruleReferences.length) {
+                    // Happens when we are adding elements for a lexer-only grammar
+                    ruleReferences = Arrays.copyOf(ruleReferences, tokenIndex + 16);
+                }
                 BitSet set = ruleReferences[tokenIndex];
                 if (set == null) {
                     set = ruleReferences[tokenIndex] = new BitSet(treeElements.size());
@@ -735,7 +780,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     private final byte[] hashScratch = new byte[4];
 
-    public AntlrProxies onToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim) {
+    public AntlrProxies onToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim, int mode) {
         ByteBuffer.wrap(hashScratch).putInt(type);
         hash.update(hashScratch);
         if (type > -1) {
@@ -745,7 +790,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             }
         }
         ProxyToken token = new ProxyToken(type, line,
-                charPositionInLine, channel, tokenIndex, startIndex, stopIndex, trim);
+                charPositionInLine, channel, tokenIndex, startIndex, stopIndex, trim, mode);
         if (startIndex > stopIndex && type != -1) {
             throw new IllegalArgumentException("Token ends before it starts: '"
                     + text + "' type=" + type + " startIndex=" + startIndex
@@ -780,6 +825,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     }
 
     public void onSyntaxError(String message, int line, int charPositionInLine) {
+        errors.add(new ProxySyntaxError(message, line, charPositionInLine));
+    }
+
+    public void onSyntaxError(String message, int line, int charPositionInLine, int streamPosition) {
         errors.add(new ProxySyntaxError(message, line, charPositionInLine));
     }
 
@@ -1162,12 +1211,13 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         private final int tokenIndex;
         private final int startIndex;
         private final short length;
+        private final short mode;
 
-        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex) {
-            this(type, line, charPositionInLine, channel, tokenIndex, startIndex, stopIndex, 0);
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int mode) {
+            this(type, line, charPositionInLine, channel, tokenIndex, startIndex, stopIndex, 0, mode);
         }
 
-        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim) {
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim, int mode) {
             this.type = (short) type;
             this.line = line;
             this.charPositionInLine = (short) charPositionInLine;
@@ -1177,6 +1227,11 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.length = (short) Math.max(0, (stopIndex - startIndex) + 1);
             assert trim <= length : "Trim " + trim + " < length " + length;
             this.trim = 0;
+            this.mode = (short) mode;
+        }
+
+        public int mode() {
+            return mode;
         }
 
         public boolean isWhitespace() {
@@ -1434,7 +1489,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                     : parent.kind == ParseTreeElementKind.ROOT;
         }
 
-        void add(ParseTreeElement child) {
+        protected void add(ParseTreeElement child) {
             child.parent = this;
             if (children == null) {
                 children = new ArrayList<>(5);

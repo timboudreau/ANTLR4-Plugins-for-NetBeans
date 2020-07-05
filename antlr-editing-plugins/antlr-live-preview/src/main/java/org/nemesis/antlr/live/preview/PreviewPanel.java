@@ -34,12 +34,17 @@ import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -55,6 +60,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import static javax.swing.JSplitPane.DIVIDER_LOCATION_PROPERTY;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.event.ChangeEvent;
@@ -68,6 +74,7 @@ import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
+import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
@@ -76,6 +83,7 @@ import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
+import org.nemesis.antlr.live.language.UndoRedoProvider;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -94,8 +102,10 @@ import org.nemesis.swing.cell.TextCellLabel;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
+import org.netbeans.editor.BaseKit;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
@@ -103,9 +113,12 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.awt.Mnemonics;
+import org.openide.awt.UndoRedo;
 import org.openide.cookies.EditorCookie;
+import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
+import org.openide.text.CloneableEditorSupport;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
@@ -114,7 +127,7 @@ import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
-import org.openide.util.lookup.ProxyLookup;
+import org.openide.util.lookup.Lookups;
 
 /**
  *
@@ -147,7 +160,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final AdhocColorings colorings;
     private final AdhocColoringPanel customizer;
 
-    private final JEditorPane editorPane = new JEditorPane();
+    private final JEditorPane editorPane;
     private final TextCellLabel breadcrumb = new TextCellLabel("position");
     private final JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private boolean initialAdd = true;
@@ -162,7 +175,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final InstanceContent content = new InstanceContent();
     private final AbstractLookup internalLookup = new AbstractLookup(content);
     private final String mimeType;
-    private final JEditorPane grammarEditorClone = new JEditorPane();
+    private final JEditorPane grammarEditorClone;
     private final DataObject sampleFileDataObject;
     private final JPanel rulesContainer = new JPanel(new BorderLayout());
     private final JPanel syntaxTreeContainer = new JPanel(new BorderLayout());
@@ -183,6 +196,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             BorderFactory.createEmptyBorder(5, 5, 5, 0),
             BorderFactory.createCompoundBorder(underline,
                     BorderFactory.createEmptyBorder(5, 0, 5, 0)));
+    private final UndoRedoProviderImpl switchingUndoRedo;
+    // need to hold a reference, or it will be gc'd and not get added/removed
+    // Will not be otherwise used.
+    private MetaSaveCookie saveCookie;
     private final UserTask ut = new UserTask() {
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
@@ -236,14 +253,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         // Add the rules pane
         add(listsSplit, BorderLayout.EAST);
-        // Create a runnable that will run asynchronously to beginScroll the
-        // output window after the sample text has been altered or the
-        // grammar has
-        this.outputWindowUpdaterRunnable
-                = new ErrorUpdater(editorPane, new RulePathStringifierImpl());
+        editorPane = new JEditorPane();
 
-        // We will include its lookup in our own, so it can be saved
-        this.lookup = new ProxyLookup(sampleFileDataObject.getLookup(), internalLookup);
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
         // Configure the editor pane to use it
@@ -254,6 +265,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         LOG.log(Level.FINE, "PreviewPanel content type is {0}", editorPane.getContentType());
         // EditorUI gives us line number gutter, error gutter, etc.
         EditorUI editorUI = Utilities.getEditorUI(editorPane);
+
+//        editorUI.
         if (editorUI != null) {
             // This gives us the line number bar, etc.
             Component sampleEditorUIComponent = editorUI.getExtComponent();
@@ -261,7 +274,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (sampleEditorUIComponent instanceof JScrollPane) {
                 sampleScroll = (JScrollPane) sampleEditorUIComponent;
             } else {
-                sampleScroll = findScrollPane(sampleEditorUIComponent);
+                sampleScroll = findScrollPane(editorUI, sampleEditorUIComponent);
             }
         } else {
             split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
@@ -272,13 +285,20 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
         // Create our own editor
 
-        EditorKit grammarKit = grammarFileOriginalEditor.getEditorKit();
-        // XXX if we could access ExtKit.createUI, we could probably fix the problem
-        // that navigator clicks always switch to the Source tab
+
+//        EditorKit grammarKit = grammarFileOriginalEditor.getEditorKit();
+        BaseKit grammarKit = Utilities.getKit(grammarFileOriginalEditor);
+
+        grammarEditorClone = new JEditorPane();
         grammarEditorClone.setEditorKit(grammarKit);
         grammarEditorClone.setDocument(grammarFileOriginalEditor.getDocument());
 
         EditorUI grammarFileEditorUI = Utilities.getEditorUI(grammarEditorClone);
+
+//        System.out.println("GRAMMAR EDITOR UI IS " + grammarFileEditorUI);
+//
+//        System.out.println("KIT " + kit + "\n\n");
+
         split.setOneTouchExpandable(true);
         // This sometimes gets us an invisible component
         if (grammarFileEditorUI != null) {
@@ -287,7 +307,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (grammarEditorUIComponent instanceof JScrollPane) {
                 grammarScroll = (JScrollPane) grammarEditorUIComponent;
             } else {
-                grammarScroll = findScrollPane(grammarEditorUIComponent);
+                grammarScroll = findScrollPane(grammarFileEditorUI, grammarEditorUIComponent);
             }
         } else {
             split.setBottomComponent(grammarScroll = new JScrollPane(grammarEditorClone));
@@ -299,21 +319,26 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         rulesList.getSelectionModel().addListSelectionListener(this);
         rulesList.setCellRenderer(new RuleCellRenderer(colorings, stringifier::listBackgroundColorFor, this::currentProxy));
 
+        UndoRedoProvider grammarUndoRedo = undoRedoFor(lookup);
+        UndoRedoProvider editorUndoRedo = undoRedoFor(sampleFileDataObject.getLookup());
+        switchingUndoRedo = new UndoRedoProviderImpl(grammarUndoRedo, editorUndoRedo);
+        content.add(switchingUndoRedo);
+
+        // We will include its lookup in our own, so it can be saved
+        this.lookup = createLookup(content, sampleFileDataObject, sampleFileDataObject, lookup);
+
         // More border munging
         breadcrumb.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 0));
         // The breadcrumb shows the rule path the caret is in
         add(breadcrumb, BorderLayout.SOUTH);
         // listen on the caret to beginScroll the breadcrumb
         syntaxModel.listenForClicks(syntaxTreeList, this::proxyTokens, this::onSyntaxTreeClick, () -> selectingRange);
-        editorPane.getCaret().addChangeListener(this);
-        grammarEditorClone.getCaret().addChangeListener(this);
         if (sampleScroll != null) {
             sampleScroll.getVerticalScrollBar().getModel().addChangeListener(this);
         }
         if (grammarScroll != null) {
             grammarScroll.getVerticalScrollBar().getModel().addChangeListener(this);
         }
-
         RulesListClickOrEnter ruleClick = new RulesListClickOrEnter();
         rulesList.addKeyListener(ruleClick);
         rulesList.addMouseListener(ruleClick);
@@ -323,9 +348,42 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         syntaxTreeList.addFocusListener(this);
         breadcrumb.addMouseListener(new BreadcrumbClickListener());
         breadcrumb.useFullTextAsToolTip();
+        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
+
+//        CloneableEditorSupport supp = lookup.lookup(CloneableEditorSupport.class);
+        System.out.println("\n\nUNDO FOR GRAMMAR: " + lookup.lookup(UndoRedoProvider.class));
+        System.out.println("   IN " + lookup.lookup(Object.class));
+
+        System.out.println("\n\nUNDO FOR SAMPLE: " + sampleFileDataObject.getLookup().lookup(UndoRedoProvider.class));
+        System.out.println("  IN " + sampleFileDataObject.getLookup().lookup(Object.class));
+//        supp.
+        // Create a runnable that will run asynchronously to beginScroll the
+        // output window after the sample text has been altered or the
+        // grammar has
+        this.outputWindowUpdaterRunnable
+                = new ErrorUpdater(editorPane, new RulePathStringifierImpl());
     }
 
-    private static JScrollPane findScrollPane(Component comp) {
+    private Lookup createLookup(InstanceContent internalContent, DataObject sampleFileDataObject, DataObject grammarFileDataObject, Lookup internalLookup) {
+        Lookup sampleFileLookup = sampleFileDataObject.getLookup();
+        Lookup grammarFileLookup = grammarFileDataObject.getLookup();
+        saveCookie = MetaSaveCookie.attach(internalContent, sampleFileLookup, grammarFileLookup);
+        sampleFileLookup = Lookups.exclude(sampleFileLookup, SaveCookie.class);
+        grammarFileLookup = Lookups.exclude(sampleFileLookup, SaveCookie.class);
+        FocusSwitchingProxyLookup mpl = new FocusSwitchingProxyLookup(editorPane, sampleFileLookup, grammarEditorClone, grammarFileLookup);
+        return mpl;
+    }
+
+    RequestProcessor outputThreadPool() {
+        return asyncUpdateOutputWindowPool;
+    }
+
+    private static JScrollPane findScrollPane(EditorUI ui, Component comp) {
+        JTextComponent jtc = ui.getComponent();
+        JScrollPane result = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, jtc);
+        if (result != null) {
+            return result;
+        }
         if (comp instanceof Container) {
             for (Component c : ((Container) comp).getComponents()) {
                 if (c instanceof JScrollPane) {
@@ -430,6 +488,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         boolean isLexer = Character.isUpperCase(rule.charAt(0));
         if (isLexer) {
             ProxyToken tok = ptp.tokenAtPosition(caretPosition);
+            if (tok == null) {
+                // broken source
+                return;
+            }
             int ix = tok.getTokenIndex();
             List<ProxyToken> all = ptp.tokens();
             for (int i = ix + 1; i < all.size(); i++) {
@@ -488,6 +550,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     @Override
     public void focusGained(FocusEvent e) {
         lastFocused = e.getComponent();
+        if (e.getComponent() == grammarEditorClone) {
+            switchingUndoRedo.setGrammar(true);
+        } else if (e.getComponent() == editorPane) {
+            switchingUndoRedo.setGrammar(false);
+        }
     }
 
     public void requestFocus() {
@@ -592,12 +659,15 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
             return;
         }
+        if (a != editorPane.getDocument()) {
+            LOG.log(Level.WARNING, "Passed document for " + NbEditorUtilities.getFileObject(a)
+                    + " Expected " + sampleFileDataObject.getPrimaryFile());
+            return;
+        }
+
         Debug.message("preview-new-proxy " + Long.toString(newProxy.id(), 36)
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
-            if (AdhocColoringsRegistry.getDefault().ensureAllPresent(newProxy)) {
-                updateColoringsList();
-            }
             customizer.indicateActivity();// XXX invisible?
             Debug.run(this, "preview-update " + mimeType, () -> {
                 StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
@@ -611,15 +681,20 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 return "";
             }, () -> {
                 EmbeddedAntlrParserResult old = internalLookup.lookup(EmbeddedAntlrParserResult.class);
-                if (old != null && res != old) {
-                    content.add(res);
-                    content.remove(old);
+                if (old != null) {
+                    if (res != old) {
+                        content.add(res);
+                        content.remove(old);
+                    }
                 } else {
                     content.add(res);
                 }
                 if (old != null) {
                     Debug.message("replacing " + old.proxy().loggingInfo()
                             + " with " + res.proxy().loggingInfo(), old.proxy()::toString);
+                }
+                if (AdhocColoringsRegistry.getDefault().ensureAllPresent(newProxy)) {
+                    updateColoringsList();
                 }
                 syntaxModel.update(newProxy);
                 updateBreadcrumb(editorPane.getCaret(), newProxy);
@@ -632,6 +707,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     public void addNotify() {
         super.addNotify();
 //        if (initialAdd) {
+        ensureListening();
         doNotifyShowing();
 //        }
     }
@@ -641,13 +717,14 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         super.removeNotify();
         initialAdd = false;
         notifyHidden();
+        ensureNotListening();
     }
 
     public void notifyShowing() {
         EventQueue.invokeLater(this::requestFocus);
-        if (initialAdd) {
-            return;
-        }
+//        if (initialAdd) {
+//            return;
+//        }
         doNotifyShowing();
     }
 
@@ -658,18 +735,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // Sync the colorings JList with the stored list of colorings
         updateColoringsList();
         // Listen for changes in it
-        colorings.addChangeListener(this);
-        colorings.addPropertyChangeListener(this);
         if (rulesList.getSelectedIndex() < 0 && rulesList.getModel().getSize() > 0) {
             rulesList.setSelectedIndex(0);
         }
         updateSplitScrollAndCaretPositions();
-        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
         stateChanged(new ChangeEvent(editorPane.getCaret()));
         editorPane.requestFocusInWindow();
-        editorPane.getDocument().addDocumentListener(this);
-        grammarEditorClone.getDocument().addDocumentListener(this);
-        reparseTask.schedule(500);
         showing = true;
     }
 
@@ -679,10 +750,56 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             lastFuture = null;
         }
         try {
-            lastFuture = ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(editorPane.getDocument())), ut);
+            lastFuture = ParserManager.parseWhenScanFinished(
+                    Collections.singleton(Source.create(editorPane.getDocument())), ut);
         } catch (ParseException ex) {
             Exceptions.printStackTrace(ex);
         }
+    }
+    private boolean listening;
+
+    private void ensureListening() {
+        if (listening) {
+            return;
+        }
+        assert EventQueue.isDispatchThread() : "Not on EDT";
+        listening = true;
+        colorings.addChangeListener(this);
+        colorings.addPropertyChangeListener(this);
+//        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
+        editorPane.getDocument().addDocumentListener(this);
+        editorPane.getCaret().addChangeListener(this);
+        grammarEditorClone.getDocument().addDocumentListener(this);
+        editorPane.getCaret().addChangeListener(this);
+        grammarEditorClone.getCaret().addChangeListener(this);
+        reparseTask.schedule(500);
+    }
+
+    private void ensureNotListening() {
+        if (!listening) {
+            return;
+        }
+        assert EventQueue.isDispatchThread() : "Not on EDT";
+        listening = false;
+        Future<Void> lastFuture = this.lastFuture;
+        if (lastFuture != null && !lastFuture.isDone()) {
+            lastFuture.cancel(true);
+            this.lastFuture = null;
+        }
+        if (reparseTask != null) {
+            this.reparseTask.cancel();
+        }
+        if (updateOutputWindowTask != null) {
+            this.updateOutputWindowTask.cancel();
+        }
+//        AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
+        colorings.removeChangeListener(this);
+        colorings.removePropertyChangeListener(this);
+        split.removePropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
+        editorPane.getCaret().removeChangeListener(this);
+        editorPane.getDocument().removeDocumentListener(this);
+        grammarEditorClone.getDocument().removeDocumentListener(this);
+        grammarEditorClone.getCaret().removeChangeListener(this);
     }
 
     void forceReparse() {
@@ -694,23 +811,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             return;
         }
         showing = false;
-        Future<Void> lastFuture = this.lastFuture;
-        if (lastFuture != null && !lastFuture.isDone()) {
-            lastFuture.cancel(true);
-        }
-        if (reparseTask != null) {
-            this.reparseTask.cancel();
-        }
-        if (updateOutputWindowTask != null) {
-            this.updateOutputWindowTask.cancel();
-        }
-        AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
-        colorings.removeChangeListener(this);
-        colorings.removePropertyChangeListener(this);
-        split.removePropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
-        editorPane.getCaret().removeChangeListener(this);
-        editorPane.getDocument().removeDocumentListener(this);
-        grammarEditorClone.getDocument().removeDocumentListener(this);
+        ensureNotListening();
         EmbeddedAntlrParserResult res = internalLookup.lookup(EmbeddedAntlrParserResult.class);
         // Holding the parser result can be a fairly big leak, and this component will
         // be held until the window system serializes the component to disk
@@ -747,8 +848,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         haveGrammarChange = fromGrammarDoc;
         if (fromGrammarDoc) {
             rulesList.repaint(2000);
+        } else {
+            enqueueRehighlighting();
         }
-//        enqueueRehighlighting();
     }
 
     @Override
@@ -828,8 +930,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         = res == null ? null : res.proxy();
                 if (prx != null) {
                     updateBreadcrumb(caret, prx);
-                    updateErrors(res);
                 }
+                updateErrors(res);
             });
         }
     }
@@ -859,11 +961,27 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     String ruleName = rule.name();
                     for (int i = 0; i < rulesList.getModel().getSize(); i++) {
                         String el = rulesList.getModel().getElementAt(i);
-                        if (ruleName.equals(el) || el.contains(">" + ruleName + "<")) {
+                        boolean match = ruleName.equals(el) || el.contains(">" + ruleName + "<");
+                        if (match) {
                             rulesList.setSelectionInterval(i, i);
                             Scroller.get(rulesList).beginScroll(rulesList, i);
                             break;
                         }
+                    }
+                }
+            } else {
+                // A token in lexer grammar mode
+                int ix = syntaxModel.select(tok);
+                if (ix >= 0) {
+                    Scroller.get(syntaxTreeList).beginScroll(syntaxTreeList, ix);
+                }
+                for (int i = 0; i < rulesList.getModel().getSize(); i++) {
+                    String el = rulesList.getModel().getElementAt(i);
+                    boolean match = prx.tokenTypeForInt(tok.getType()).name().equals(el);
+                    if (match) {
+                        rulesList.setSelectionInterval(i, i);
+                        Scroller.get(rulesList).beginScroll(rulesList, i);
+                        break;
                     }
                 }
             }
@@ -1007,6 +1125,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (!selectingRange) {
                 if (isShowing() && showing) {
                     savePosition(SAMPLE_EDITOR_CARET_POSITION_FILE_ATTRIBUTE, ((Caret) e.getSource()).getDot());
+                } else {
+                    return;
                 }
                 EventQueue.invokeLater(() -> {
                     updateBreadcrumb((Caret) e.getSource());
@@ -1184,5 +1304,125 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             }
             compInfos.clear();
         }
+    }
+
+    static void outHierarchy(String name, Component comp) {
+        System.out.println("\n\nHierarchy " + name + "\n");
+        outHierarchy(comp, 0);
+    }
+
+    static void outHierarchy(Component comp, int depth) {
+        char[] c = new char[depth * 2];
+        Arrays.fill(c, ' ');
+        StringBuilder sb = new StringBuilder().append(c);
+        appendTypes(comp, sb);
+        if (comp instanceof Container) {
+            for (int i = 0; i < ((Container) comp).getComponentCount(); i++) {
+                Component c1 = ((Container) comp).getComponent(i);
+                outHierarchy(c1, depth + 1);
+            }
+        }
+
+        System.out.println(sb.toString());
+    }
+
+    static void appendTypes(Object o, StringBuilder sb) {
+        if (o == null) {
+            sb.append("null");
+            return;
+        }
+        Set<Class<?>> seen = new HashSet<>();
+        Class<?> type = o.getClass();
+        int ct = 0;
+        while (type != Object.class) {
+            if (!seen.contains(type)) {
+                seen.add(type);
+                if (ct > 0) {
+                    sb.append(", ");
+                }
+                sb.append(type.getSimpleName());
+                ct++;
+                for (Class<?> iface : type.getInterfaces()) {
+                    if (!seen.contains(iface)) {
+                        sb.append(", ");
+                        sb.append(iface.getSimpleName());
+                        ct++;
+                    }
+                }
+                type = type.getSuperclass();
+            }
+        }
+    }
+
+    private static UndoRedoProvider undoRedoFor(Lookup lkp) {
+        UndoRedoProvider prov = lkp.lookup(UndoRedoProvider.class);
+        if (prov != null) {
+            return prov;
+        }
+        return new DelegateUndoRedoProvider(lkp);
+    }
+
+    class UndoRedoProviderImpl implements UndoRedoProvider {
+
+        private final UndoRedoProvider grammarUndo;
+        private final UndoRedoProvider previewUndo;
+        private boolean isGrammar;
+        private UndoRedo last = UndoRedo.NONE;
+
+        public UndoRedoProviderImpl(UndoRedoProvider grammarUndo, UndoRedoProvider previewUndo) {
+            this.grammarUndo = grammarUndo;
+            this.previewUndo = previewUndo;
+        }
+
+        private UndoRedoProvider provider() {
+            return isGrammar ? grammarUndo : previewUndo;
+        }
+
+        void setGrammar(boolean value) {
+            if (value != isGrammar) {
+                this.isGrammar = value;
+                UndoRedo old = last;
+                firePropertyChange("undoRedo", old, get());
+            }
+        }
+
+        @Override
+        public UndoRedo get() {
+            return provider().get();
+        }
+    }
+
+    static class DelegateUndoRedoProvider implements UndoRedoProvider {
+
+        private static Method method;
+        private final CloneableEditorSupport supp;
+
+        DelegateUndoRedoProvider(Lookup lkp) {
+            supp = lkp.lookup(CloneableEditorSupport.class);
+            assert supp != null : "Lookup " + lkp + " has no CloneableEditorSupport";
+        }
+
+        static synchronized Method method() {
+            if (method == null) {
+                try {
+                    method = CloneableEditorSupport.class.getDeclaredMethod("getUndoRedo");
+                    method.setAccessible(true);
+                    return method;
+                } catch (NoSuchMethodException | SecurityException ex) {
+                    return com.mastfrog.util.preconditions.Exceptions.chuck(ex);
+                }
+            }
+            return method;
+        }
+
+        @Override
+        public UndoRedo get() {
+            try {
+                return (UndoRedo) method().invoke(supp);
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+                return com.mastfrog.util.preconditions.Exceptions.chuck(ex);
+            }
+        }
+
     }
 }

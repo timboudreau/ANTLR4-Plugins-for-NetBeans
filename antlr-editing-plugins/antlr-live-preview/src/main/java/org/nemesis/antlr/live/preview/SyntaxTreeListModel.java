@@ -74,6 +74,17 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         return -1;
     }
 
+    int select(ProxyToken tok) {
+        for (int i = 0; i < entries.size(); i++) {
+            ModelEntry me = entries.get(i);
+            if (me.tokenIndex == tok.getTokenIndex()) {
+                selectionModel.setSelectionInterval(i, i);
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public JList<ModelEntry> createList() {
         JList<ModelEntry> list = new ParentCheckingFastJList<>(this);
         list.setSelectionModel(selectionModel);
@@ -87,6 +98,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
     }
 
     interface ModelTreeNavigator {
+
         void onClick(int clickCount, ModelEntry entry, int start, int end);
     }
 
@@ -131,13 +143,8 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
     }
 
     void update(ParseTreeProxy proxy) {
-        if (EventQueue.isDispatchThread()) {
-            doUpdate(proxy);
-        } else {
-            EventQueue.invokeLater(() -> {
-                doUpdate(proxy);
-            });
-        }
+        assert EventQueue.isDispatchThread();
+        doUpdate(proxy);
     }
 
     int indexOf(ModelEntry en) {
@@ -152,8 +159,14 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         }
         List<ParseTreeElement> els = proxy.allTreeElements();
         List<ModelEntry> newEntries = new ArrayList<>(els.size());
-        for (ParseTreeElement el : proxy.parseTreeRoots()) {
+        Iterable<ParseTreeElement> roots = proxy.parseTreeRoots();
+        for (ParseTreeElement el : roots) {
             process(proxy, el, 0, newEntries);
+        }
+        if (entries.isEmpty() && !els.isEmpty()) { // broken source, maybe some items
+            for (ParseTreeElement pte : els) {
+                process(proxy, pte, 0, newEntries);
+            }
         }
         int newSelected = -1;
         if (selected != null) {
@@ -268,6 +281,9 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         private final int depth;
         private String tooltip;
         private String lexerRuleName = null;
+        private String modeName = null;
+        private boolean erroneous;
+        private int tokenIndex = -1;
 
         public ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
             this.el = el;
@@ -276,10 +292,23 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             if (isTerminal()) {
                 List<ProxyToken> tokens = proxy.tokensForElement(el);
                 if (!tokens.isEmpty()) {
-                    ProxyToken tk = tokens.get(0);
-                    lexerRuleName = proxy.tokenTypeForInt(tk.getType()).name();
+                    ProxyToken tok = tokens.get(0);
+                    lexerRuleName = proxy.tokenTypeForInt(tok.getType()).name();
+                    if (!proxy.isDefaultMode(tok)) {
+                        modeName = proxy.modeName(tok);
+                    }
+                    tokenIndex = tok.getTokenIndex();
+                    erroneous = proxy.isErroneousToken(tok)
+                            || proxy.tokenTypeForInt(
+                                    tok.getType()).name()
+                            // object equality intentional
+                            == AntlrProxies.ERRONEOUS_TOKEN_NAME;
                 }
             }
+        }
+
+        public String modeName() {
+            return modeName;
         }
 
         public String name() {
@@ -306,7 +335,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             if (el instanceof TokenAssociated) {
                 TokenAssociated e = (TokenAssociated) el;
                 int startToken = e.startTokenIndex();
-                int endToken = e.endTokenIndex();
+                int endToken = e.stopTokenIndex();
                 if (startToken >= 0 && startToken < tokens.size() && endToken >= 0 && endToken < tokens.size()) {
                     ProxyToken start = tokens.get(startToken);
                     ProxyToken end = tokens.get(endToken);
@@ -344,7 +373,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         }
 
         public boolean isError() {
-            return el instanceof ErrorNodeTreeElement;
+            return erroneous || el instanceof ErrorNodeTreeElement;
         }
 
         public boolean isParserRule() {

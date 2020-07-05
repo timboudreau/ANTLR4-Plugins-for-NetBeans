@@ -36,6 +36,7 @@ import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -515,6 +516,9 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
+        if (res == null) {
+            return;
+        }
         LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
         Optional<Document> doc = extraction.source().lookup(Document.class);
         if (!doc.isPresent()) {
@@ -887,7 +891,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             Fixes fixes,
             Set<String> usedErrorIds
     ) {
-        if (res.mainGrammar.isLexer()) {
+        if (res == null || res.mainGrammar == null || res.mainGrammar.isLexer()) {
             // XXX should use usages finder for lexer rules
             return;
         }
@@ -1076,6 +1080,9 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
     private List<EpsilonRuleInfo> updateErrorHighlights(AntlrGenerationResult res,
             Extraction extraction, Fixes fixes, Set<String> usedErrIds) {
+        if (res == null) {
+            return Collections.emptyList();
+        }
         OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), true);
         boolean[] anyHighlights = new boolean[1];
         List<ParsedAntlrError> errors = res.errors();

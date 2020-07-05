@@ -48,6 +48,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Optional;
+import javax.swing.UIManager;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
@@ -293,6 +294,16 @@ public final class AdhocColoringsRegistry {
             boolean changed = !removed.isEmpty();
             for (AntlrProxies.ProxyTokenType tk : proxy.tokenTypes()) {
                 String nm = tk.name();
+                if (AntlrProxies.ERRONEOUS_TOKEN_NAME.equals(nm)) {
+                    if (!colorings.contains(nm)) {
+                        Color c = UIManager.getColor("nb.errorForeground");
+                        if (c == null) {
+                            c = Color.RED.brighter();
+                        }
+                        colorings.addIfAbsent(nm, c, AttrTypes.FOREGROUND);
+                        continue;
+                    }
+                }
                 if (!colorings.contains(nm) && !"EOF".equals(nm) && !"0".equals(nm)) {
                     added.add(nm);
                     // addIfAbsent will use the recovered value if there is one

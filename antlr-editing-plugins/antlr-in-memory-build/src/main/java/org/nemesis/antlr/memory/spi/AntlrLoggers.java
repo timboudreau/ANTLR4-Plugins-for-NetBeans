@@ -253,7 +253,6 @@ public abstract class AntlrLoggers {
             public void write(byte[] b) throws IOException {
                 // do nothing
             }
-
         }
     }
 }

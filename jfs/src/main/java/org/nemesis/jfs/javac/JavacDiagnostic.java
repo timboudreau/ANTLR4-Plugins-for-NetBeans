@@ -109,6 +109,7 @@ public final class JavacDiagnostic {
         return Paths.get(path);
     }
 
+    @Override
     public String toString() {
         return kind.name().toLowerCase() + ": " + path
                 + "(" + lineNumber + ":" + columnNumber + "/" + position + ":"
@@ -128,6 +129,7 @@ public final class JavacDiagnostic {
         return path;
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null) {
             return false;
@@ -135,7 +137,9 @@ public final class JavacDiagnostic {
             return true;
         } else if (o instanceof JavacDiagnostic) {
             JavacDiagnostic other = (JavacDiagnostic) o;
-            return kind == other.kind && position == other.position && endPosition == other.endPosition && fileName().equals(other.fileName()) && Objects.equals(message, other.message);
+            return kind == other.kind && position == other.position 
+                    && endPosition == other.endPosition && fileName().equals(
+                            other.fileName()) && Objects.equals(message, other.message);
         }
         return false;
     }

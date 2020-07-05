@@ -133,7 +133,19 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     }
 
     private static String findLexerGrammarName(AntlrGenerationResult res) {
+        if (res.mainGrammar.isLexer()) {
+            return res.mainGrammar.getRecognizerName();
+        }
+        Grammar g = findLexerGrammar(res);
+        if (g != null) {
+            return g.getRecognizerName();
+        }
         return res.mainGrammar.getOptionString("tokenVocab");
+    }
+
+    private static String findTargetName(AntlrGenerationResult res) {
+        String result = res.mainGrammar.getRecognizerName();
+        return result == null ? res.grammarName() : result;
     }
 
     @Override
@@ -146,7 +158,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 Grammar lexerGrammar = findLexerGrammar(res);
                 String lexerName = lexerGrammar == null ? findLexerGrammarName(res) : lexerGrammar.name;
                 ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs,
-                        res.packageName, res.grammarName(), lexerName);
+                        res.packageName, findTargetName(res), lexerName);
                 LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
                 if (LOG.isLoggable(Level.FINEST)) {
                     LOG.log(Level.FINEST, "OnBeforeCompilation", new Exception("Generation result " + System.identityHashCode(res)

@@ -48,7 +48,6 @@ abstract class AbstractAntlrRefactoringPlugin<R extends AbstractRefactoring>
         this.refactoring = notNull("refactoring", refactoring);
         this.extraction = notNull("extraction", extraction);
         this.file = notNull("file", file);
-        System.out.println("CREATE A " + getClass().getName() + " for " + refactoring + " and " + file.getNameExt());
     }
 
     protected Object[] getLookupContents() {

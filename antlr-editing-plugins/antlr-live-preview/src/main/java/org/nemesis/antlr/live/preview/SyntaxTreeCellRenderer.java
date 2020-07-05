@@ -17,6 +17,7 @@ package org.nemesis.antlr.live.preview;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.JList;
@@ -35,6 +36,7 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
 //    private final HtmlRenderer.Renderer ren = HtmlRenderer.createRenderer();
     private final TextCellCellRenderer ren = new TextCellCellRenderer();
     private final int limit;
+    private final RoundRectangle2D.Float ell = new RoundRectangle2D.Float();
 
     SyntaxTreeCellRenderer(int limit) {
         this.limit = limit;
@@ -61,7 +63,12 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
         Component result = ren;
         ren.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
         ren.setForeground(isSelected ? list.getForeground() : list.getForeground());
-        ren.setFont(list.getFont());
+        Font f = list.getFont();
+        ren.setFont(f);
+        FontMetrics fm = list.getFontMetrics(f);
+        int w = fm.getAscent();
+        ell.archeight = w / 2;
+        ell.arcwidth = w / 2;
         TextCell cell = ren.cell().withText(escaper.escape(truncate(value.toString())));
         if (value.isError()) {
             Color c = UIManager.getColor("nb.errorForeground");
@@ -73,7 +80,6 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
             cell.bold();
         }
         cell.bottomMargin(3);
-        FontMetrics fm = list.getFontMetrics(list.getFont());
         int asc = fm.getAscent();
         cell.indent(5);
         ren.setToolTipText(value.tooltip());
@@ -101,6 +107,15 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
             ren.setIcon(icon);
             icon.width = icon.height = asc;
         }
+        String mn = value.modeName();
+        if (mn != null) {
+            cell.append(mn, tc -> {
+                int jc = w / 2;
+                tc.scaleFont(0.75F).withForeground(modeBubbleForeground(list))
+                        .withBackground(modeBubbleBackground(list), ell)
+                        .leftMargin(jc).rightMargin(jc).indent(jc / 2);
+            });
+        }
         return result;
     }
 
@@ -113,6 +128,14 @@ class SyntaxTreeCellRenderer implements ListCellRenderer<SyntaxTreeListModel.Mod
         Color.RGBtoHSB(bg.getRed(), bg.getGreen(), bg.getBlue(), bgHsb);
         float[] changed = diff(selBgHsb, bgHsb, dist, totalDepth);
         return new Color(Color.HSBtoRGB(changed[0], changed[1], changed[2]));
+    }
+
+    private Color modeBubbleForeground(JList<?> list) {
+        return list.getSelectionForeground();
+    }
+
+    private Color modeBubbleBackground(JList<?> list) {
+        return RuleCellRenderer.deriveColor(list.getSelectionBackground(), 0.5F, true);
     }
 
     private float[] diff(float[] a, float[] b, float dist, float of) {

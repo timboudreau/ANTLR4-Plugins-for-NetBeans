@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.UIManager;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -36,6 +37,7 @@ import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
+import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.editor.BaseDocument;
@@ -62,7 +64,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     private final RequestProcessor.Task refreshErrorsTask;
 
     public AdhocErrorHighlighter(AdhocHighlighterManager mgr) {
-        super(mgr, ZOrder.BOTTOM_RACK.forPosition(2001));
+        super(mgr, ZOrder.TOP_RACK.forPosition(2001));
         bag = new OffsetsBag(mgr.document());
         refreshErrorsTask = mgr.threadPool().create(this);
     }
@@ -85,11 +87,18 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
         SimpleAttributeSet set = new SimpleAttributeSet();
         StyleConstants.setUnderline(set, true);
-        StyleConstants.setForeground(set, Color.red);
-        return errorColoring = set;
+        Color c = UIManager.getColor("nb.errorForeground");
+        if (c == null) {
+            c = new Color(255, 190, 190);
+        }
+        StyleConstants.setForeground(set, c);
+        StyleConstants.setBackground(set, new Color(120, 20, 20));
+        set.addAttribute(EditorStyleConstants.WaveUnderlineColor, c.darker());
+        return errorColoring = AttributesUtilities.createImmutable(set);
     }
 
     private static AttributeSet warning;
+
     public static AttributeSet warning() {
         if (warning != null) {
             return warning;
@@ -99,7 +108,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         if (warning == null) {
             SimpleAttributeSet sas = new SimpleAttributeSet();
             sas.addAttribute(EditorStyleConstants.WaveUnderlineColor, Color.YELLOW.darker());
-            warning = sas;
+            warning = AttributesUtilities.createImmutable(sas);
         }
         return warning;
     }
@@ -113,15 +122,19 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             return;
         }
         LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
-        OffsetsBag bag = new OffsetsBag(doc);
+        OffsetsBag bag = new OffsetsBag(doc, true);
+        AttributeSet attrs = coloring();
+        List<ErrorDescription> set = new ArrayList<>();
         if (!semantics.syntaxErrors().isEmpty()) {
-            AttributeSet attrs = coloring();
             for (AntlrProxies.ProxySyntaxError e : semantics.syntaxErrors()) {
+                SimpleAttributeSet ttip = new SimpleAttributeSet(attrs);
+                ttip.addAttribute(EditorStyleConstants.Tooltip, e.message());
+                AttributeSet finalAttrs = AttributesUtilities.createImmutable(ttip);
                 if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
                     AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
                     int start = Math.max(0, d.startIndex());
                     int end = Math.min(doc.getLength() - 1, d.stopIndex());
-                    bag.addHighlight(Math.min(start, end), Math.max(start, end) + 1, attrs);
+                    bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
                 } else {
                     if (doc instanceof LineDocument) {
                         LineDocument ld = (LineDocument) doc;
@@ -129,11 +142,23 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                             int start = LineDocumentUtils.getLineStart(ld, e.line())
                                     + e.charPositionInLine();
                             int end = LineDocumentUtils.getLineEnd(ld, e.line());
-                            bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
+                            bag.addHighlight(Math.min(start, end), Math.max(start, end), finalAttrs);
+                            LOG.log(Level.FINEST, "Add highlight for {0}", e);
+                            ErrorDescription ed = ErrorDescriptionFactory
+                                    .createErrorDescription(Severity.ERROR, e.message(), doc, e.line());
+                            set.add(ed);
                         } catch (BadLocationException ble) {
                             Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(Level.INFO, "BLE parsing " + e, ble);
                         }
                     }
+                }
+            }
+            for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
+                if (semantics.isErroneousToken(tok)) {
+                    int start = Math.max(0, tok.getStartIndex());
+                    int end = Math.min(doc.getLength() - 1, tok.getEndIndex());
+                    bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
+                    LOG.log(Level.FINEST, "Add bad token highlight {0}", tok);
                 }
             }
         }
@@ -150,10 +175,10 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             ErrorDescription ed = ErrorDescriptionFactory.createErrorDescription(Severity.WARNING, "Ambiguity in rule '" + amb.ruleName + "'", NbEditorUtilities.getFileObject(doc), amb.startOffset, amb.end());
             set.add(ed);
         }
+         */
         HintsController.setErrors(doc, "1", set);
         this.bag.setHighlights(bag);
         this.refreshErrorsTask.schedule(100);
-        */
     }
 
     public void run() {
@@ -188,7 +213,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 new Object[]{this, info});
 
 //        System.out.println("refresh source errors " + info.semantics.loggingInfo());
-
         if (proxy.isUnparsed()) {
             String msg = Bundle.buildFailed();
             ErrorDescription ed = ErrorDescriptionFactory

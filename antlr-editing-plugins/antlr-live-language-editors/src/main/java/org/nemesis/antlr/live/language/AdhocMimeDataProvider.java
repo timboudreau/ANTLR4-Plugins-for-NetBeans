@@ -60,7 +60,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         lookups.clear();
     }
 
-    void gooseLanguage(String mimeType) {
+    public void gooseLanguage(String mimeType) {
         Debug.run(this, "goose-language " + mimeType, () -> {
             MimeEntry me = lookups.get(mimeType);
             if (me != null) {
@@ -399,8 +399,8 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     static final class ReparseIC implements InstanceContent.Convertor<String, AdhocReparseListeners> {
 
         @Override
-        public AdhocReparseListeners convert(String obj) {
-            return new AdhocReparseListeners(obj);
+        public AdhocReparseListeners convert(String mimeType) {
+            return new AdhocReparseListeners(mimeType);
         }
 
         @Override
@@ -409,13 +409,13 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         }
 
         @Override
-        public String id(String obj) {
-            return AdhocReparseListeners.class.getName() + "-" + obj;
+        public String id(String mimeType) {
+            return AdhocReparseListeners.class.getName() + "-" + mimeType;
         }
 
         @Override
-        public String displayName(String obj) {
-            return id(obj);
+        public String displayName(String mimeType) {
+            return id(mimeType);
         }
     }
 }

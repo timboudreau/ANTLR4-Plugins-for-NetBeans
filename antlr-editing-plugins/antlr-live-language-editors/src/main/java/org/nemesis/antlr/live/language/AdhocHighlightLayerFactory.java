@@ -32,6 +32,10 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
     static final Logger LOG = Logger.getLogger(AdhocHighlightLayerFactory.class.getName());
     private static final String DOC_PROP_HIGHLIGHTS_LAYERS = "adhoc-highlight-layers";
 
+    static {
+        LOG.setLevel(Level.ALL);
+    }
+
     public AdhocHighlightLayerFactory(String mimeType) {
         this.mimeType = mimeType;
         LOG.log(Level.INFO, "Create highlight layer factory for {0}", mimeType);

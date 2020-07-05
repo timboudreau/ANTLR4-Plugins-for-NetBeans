@@ -45,11 +45,11 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 /**
  * This class is not called directly by the module; rather, it is used as a
  * template (the symlink named ParserExtractor.template will be included in the
- * JAR as source). ExtractionCodeGenerator will modify its contents for the right
- * class and package names, and remove parser class references in the case that
- * only a lexer was generated, and copy it next to the generated Antlr lexer and
- * parser before compiling. This class is then called reflectively in an
- * isolating classloader that is discarded afterwards, to extract information
+ * JAR as source). ExtractionCodeGenerator will modify its contents for the
+ * right class and package names, and remove parser class references in the case
+ * that only a lexer was generated, and copy it next to the generated Antlr
+ * lexer and parser before compiling. This class is then called reflectively in
+ * an isolating classloader that is discarded afterwards, to extract information
  * from the grammar. Lines prefixed with //parser are omitted when handling a
  * lexer grammar for which no parser class will exist. No Antlr types may leak
  * out of the isolating classloader, so all objects (including exception types)
@@ -60,7 +60,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * lexer-only grammars should be postfixed with a comment so they can be
  * automatically removed during generation. Classes from the same package as
  * this class must be referenced by FQN or they will not be resolvable when
- * repackaged during generation.  If classes from the module are needed, they
+ * repackaged during generation. If classes from the module are needed, they
  * must be added to the classloader in ProxiesInvocationRunner.
  *
  * @author Tim Boudreau
@@ -98,8 +98,9 @@ public class ParserExtractor {
                 String ln = DummyLanguageLexer.VOCABULARY.getLiteralName(tokenType);
                 proxies.addTokenType(tokenType, dn, sn, ln);
             }
+            String errName = org.nemesis.antlr.live.parsing.extract.AntlrProxies.ERRONEOUS_TOKEN_NAME;
+            proxies.addTokenType(max, errName, errName, errName);
             // The channel names are simply a string array - safe enough
-//            proxies.channelNames(DummyLanguageLexer.channelNames);
             try {
                 // Turns out, if a grammar doesn't use channels, this field
                 // does not exist.  So, find it reflectively.
@@ -115,29 +116,89 @@ public class ParserExtractor {
             // Same for the rule names
             proxies.setParserRuleNames(DummyLanguageParser.ruleNames); //parser
             proxies.setLexerRuleNames(DummyLanguageLexer.ruleNames);
+            int defaultMode = DummyLanguageLexer.DEFAULT_MODE;
+            String[] modeNames = DummyLanguageLexer.modeNames;
+            proxies.setModeInfo(defaultMode, modeNames);
+            int[] lineEnds = null;
+            int lineCount = -1;
             // We may have been called just to build a lexer vocabulary w/o text
             // to parse
             if (text != null) {
                 // Use deprecated ANTLRInputStream rather than 4.7's CharStreams,
                 // since we may be running against an older version of Antlr where
                 // that call would fail
-                DummyLanguageLexer lex = new DummyLanguageLexer(new CharSequenceCharStream(text));
+                CharSequenceCharStream charStream = new CharSequenceCharStream(text);
+                DummyLanguageLexer lex = new DummyLanguageLexer(charStream);
                 lex.removeErrorListeners();
                 // Collect all of the tokens
-                ErrL errorListener = new ErrL(proxies);
+                ErrL errorListener = new ErrL(proxies, charStream);
                 lex.addErrorListener(errorListener);
                 Token tok;
                 int tokenIndex = 0;
-//                if ("ignoreme.placeholder.DummyLanguageLexer".equals(lex.getClass().getName())) {
-//                    throw new IllegalStateException("Lexer name not replaced correctly: " + lex.getClass().getName());
-//                }
+                org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //lexerOnly
+                        lexerTreeBuilder = proxies.treeBuilder(); //lexerOnly
+                System.out.println("\nUsing lexer code for " + GRAMMAR_PATH + "\n"); //lexerOnly
+                System.out.println("\nUsing parser code for " + GRAMMAR_PATH + "\n"); //parser
+                int prevStop = -1;
                 do {
                     tok = lex.nextToken();
                     int type = tok.getType();
                     int start = tok.getStartIndex();
                     int stop = tok.getStopIndex();
+                    // If there are syntax errors, there will be gaps in the text
+                    // that's tokenized.  NetBeans lexers REALLY don't like that.
+                    // While we have some magic in AdhocLexer to deal with this,
+                    // it is best handled here
+                    if (type != DummyLanguageLexer.EOF && start > prevStop + 1) {
+                        // Synthesize a dummy token here
+                        int erroneousType = max;
+                        if (lineEnds == null) {
+                            lineEnds = new int[Math.max(100, text.length() / 45)];
+                            int cursor = 0;
+                            lineCount = 0;
+                            for (int i = 0; i < text.length(); i++) {
+                                if (text.charAt(i) == '\n') {
+                                    // It would be nice to use IntList but that
+                                    // would drag in a bunch of dependencies we have
+                                    // to load in our lockless isolating classloader,
+                                    // so do it the hard way
+                                    if (cursor > lineEnds.length) {
+                                        lineEnds = Arrays.copyOf(lineEnds, lineEnds.length * 2);
+                                    }
+                                    lineEnds[cursor++] = i;
+                                    lineCount++;
+                                }
+                            }
+                        }
+                        int errorBeginLine = 0;
+                        int errorCharPosition = 0;
+                        for (int i = 0; i < lineCount; i++) {
+                            int prevLineEnd = i == 0 ? 0 : lineEnds[i - 1];
+                            int currLineEnd = lineEnds[i];
+                            if (prevStop == prevLineEnd) {
+                                errorBeginLine = i + 1;
+                                break;
+                            } else if (prevStop > prevLineEnd && prevStop < currLineEnd) {
+                                errorBeginLine = i;
+                                errorCharPosition = prevStop - prevLineEnd;
+                                break;
+                            }
+                        }
+                        if (prevStop + 1 != start - 1) {
+                            System.out.println(" emit error token " + errorBeginLine + "@" + errorCharPosition
+                                    + " pos " + (prevStop + 1) + ":" + (start - 1) + "'"
+                                    + text.subSequence(prevStop + 1, (start - 1)));
+                        } else {
+                            System.out.println(" emit error token " + errorBeginLine + "@" + errorCharPosition
+                                    + " pos " + (prevStop + 1) + ":" + (start - 1));
+                        }
+                        proxies.onToken(erroneousType, errorBeginLine,
+                                errorCharPosition, 0, tokenIndex++,
+                                prevStop + 1, start - 1, 0, 0);
+                    }
+                    prevStop = stop;
+                    errorListener.updateTokenIndex(tokenIndex, type);
                     int trim = 0;
-//                    String txt = tok.getText();
                     if (type == -1) {
                         // EOF has peculiar behavior in Antlr - the start
                         // offset is less than the end offset
@@ -158,11 +219,18 @@ public class ParserExtractor {
                     proxies.onToken(type,
                             tok.getLine(), tok.getCharPositionInLine(),
                             tok.getChannel(), tokenIndex++,
-                            start, stop, trim);
+                            start, stop, trim, lex._mode);
+                    if (type != DummyLanguageLexer.EOF) { //lexerOnly
+                        lexerTreeBuilder.addTerminalNode(tokenIndex - 1, tok.getText(), 1); //lexerOnly
+                    } //lexerOnly
                 } while (tok.getType() != DummyLanguageLexer.EOF);
-                lex.reset();
+                lexerTreeBuilder.build(); //lexerOnly
+                lex.reset(); //parser
+                errorListener.updateTokenIndex(0, -1);
                 // Now lex again to run the parser
-                DummyLanguageParser parser = new DummyLanguageParser(new CommonTokenStream(lex, 0)); //parser
+                CommonTokenStream cts = new CommonTokenStream(lex, 0); // parser
+                errorListener.cts = cts;
+                DummyLanguageParser parser = new DummyLanguageParser(cts); //parser
                 parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION); //parser
                 parser.removeErrorListeners(); //parser
                 parser.addErrorListener(errorListener); //parser
@@ -185,20 +253,56 @@ public class ParserExtractor {
     private static class ErrL implements ANTLRErrorListener {
 
         private final org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies;
+        private final CharSequenceCharStream stream;
+        private int tokenIndex = 0;
+        private int lastTokenType = -1;
+        private CommonTokenStream cts;
 
-        ErrL(org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies) {
+        ErrL(org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies, CharSequenceCharStream stream) {
             this.proxies = proxies;
+            this.stream = stream;
+        }
+
+        void reset() {
+            tokenIndex = 0;
+        }
+
+        void updateTokenIndex(int index, int type) {
+            tokenIndex++;
+            lastTokenType = type;
         }
 
         @Override
         public void syntaxError(Recognizer<?, ?> rcgnzr, Object offendingSymbol, int line,
                 int charPositionInLine, String message, RecognitionException re) {
+            Token t = null;
             if (offendingSymbol instanceof Token) {
-                Token t = (Token) offendingSymbol;
-                proxies.onSyntaxError(message, line, charPositionInLine, t.getTokenIndex(),
-                        t.getType(), t.getStartIndex(), t.getStopIndex());
+                t = (Token) offendingSymbol;
             } else {
-                proxies.onSyntaxError(message, line, charPositionInLine);
+                if (cts != null) {
+                    t = cts.get(cts.index());
+                }
+            }
+            if (t != null) {
+                int start = t.getStartIndex();
+                int stop = t.getStopIndex();
+                if (start > stop || start < 0 || stop < 0) {
+                    if (t.getType() == DummyLanguageLexer.EOF) {
+                        start = stream.index() - 1;
+                        stop = start + 1;
+                    } else {
+                        start = stream.index();
+                        stop = start + 1;
+                    }
+                }
+                proxies.onSyntaxError(message, line, charPositionInLine, t.getTokenIndex(),
+                        t.getType(), start, stop);
+            } else {
+                boolean atEnd = stream.index() >= stream.size() - 1;
+                int start = atEnd ? stream.size() - 1 : stream.index();
+                int end = start + 1;
+//                proxies.onSyntaxError(message, line, charPositionInLine, stream.index());
+                proxies.onSyntaxError(message, line, charPositionInLine, tokenIndex, lastTokenType, start, end);
             }
         }
 

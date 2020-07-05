@@ -82,7 +82,11 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
      * @param type The proxy token
      * @return A category
      */
+    @SuppressWarnings("StringEquality")
     public static String categorize(ProxyTokenType type) {
+        if (AntlrProxies.ERRONEOUS_TOKEN_NAME== type.name()) {
+            return "errors";
+        }
         if (type.isDelimiterLike()) {
             return "delimiters";
         }

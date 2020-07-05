@@ -234,6 +234,13 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                                 this.undoRedo = prov.get();
                                 super.firePropertyChange("undoRedo", UndoRedo.NONE, undoRedo);
                             }
+                            pnl.addPropertyChangeListener("undoRedo", (evt) -> {
+                                UndoRedo old = this.undoRedo;
+                                if (evt.getNewValue() != null && evt.getNewValue() != old) {
+                                    this.undoRedo = (UndoRedo) evt.getNewValue();
+                                    super.firePropertyChange("undoRedo", UndoRedo.NONE, this.undoRedo);
+                                }
+                            });
                             this.lkp.setAdditional(pnl.getLookup());
                             saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
                             saveCookieResult.addLookupListener(this);

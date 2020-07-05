@@ -97,7 +97,6 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
         if (result) {
             for (RefactoringPluginGenerator<?> gen : entries) {
                 if (gen.matches(type)) {
-                    System.out.println("HAVE A GENERATOR " + gen + " matching " + type.getSimpleName());
                     result = true;
                     break;
                 }

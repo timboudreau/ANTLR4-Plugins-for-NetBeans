@@ -15,38 +15,74 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.io.IOException;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.Icon;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.StyledDocument;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.common.AntlrConstants;
+import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.language.AdhocMimeDataProvider;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
+import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.openide.cookies.EditorCookie;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataObject;
 import org.openide.text.Line;
+import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
+import org.openide.util.NbBundle.Messages;
 import org.openide.windows.FoldHandle;
 import org.openide.windows.IOColorLines;
 import org.openide.windows.IOColors;
+import org.openide.windows.IOColors.OutputType;
 import org.openide.windows.IOFolding;
 import org.openide.windows.IOProvider;
 import org.openide.windows.IOSelect;
@@ -87,7 +123,9 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
     void update(EmbeddedAntlrParserResult res) {
         // Ensure both are updated atomically by wrapping the update of the
         // second in an update of the first
-        info.set(res);
+        if (res != null) {
+            info.set(res);
+        }
     }
 
     static final class ParseInfo {
@@ -106,35 +144,68 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         if (ifo != null) {
             updateErrorsInOutputWindow(ifo);
         }
+        // Ensure we don't leak the data - it's one and done
+        info.compareAndSet(ifo, null);
     }
 
+    private static final Consumer<FileObject> INV = SourceInvalidator.create();
+    private final Action[] actions = new Action[]{new RerunAction()};
+
+    private final Map<String, Reference<InputOutput>> ioForName = new HashMap<>();
+
+    InputOutput io(String name) {
+        Reference<InputOutput> ioRef = ioForName.get(name);
+        InputOutput result = ioRef != null ? ioRef.get() : null;
+        if (result == null) {
+            result = IOProvider.getDefault().getIO(Bundle.io_tab(name), actions);
+            ioForName.put(name, new WeakReference<>(result));
+        }
+        if (IOTab.isSupported(result)) {
+            IOTab.setToolTipText(result, Bundle.tip());
+            IOTab.setIcon(result, AntlrConstants.parserIcon());
+        }
+        return result;
+    }
+
+    private String tabName(EmbeddedAntlrParserResult info, ParseTreeProxy proxy) {
+        return proxy != null ? proxy.grammarName() : info.grammarName();
+    }
+
+    @Messages({
+        "# {0} - grammarName",
+        "# {1} - timestamp",
+        "outputHeader=Reaprse of {0} at {1}"
+    })
     private void updateErrorsInOutputWindow(EmbeddedAntlrParserResult info) {
-        if (info == null || info.proxy() == null) {
+        if (info == null) {
             return;
         }
-        if (Thread.interrupted()) {
-            return;
-        }
-        InputOutput io = IOProvider.getDefault().getIO(Bundle.io_tab(info.proxy().grammarName()), false);
-        if (IOTab.isSupported(io)) {
-            IOTab.setToolTipText(io, Bundle.tip());
-            IOTab.setIcon(io, AntlrConstants.parserIcon());
-        }
+//        if (Thread.interrupted()) {
+//            return;
+//        }
+        // XXX this is a disorganized mess
+        // XXX use AntlrLoggers and fold the output for voluminous output
+        // like Antlr's logging, and fold it closed by default
         ParseTreeProxy proxy = info.proxy();
-        boolean failure = info.proxy().isUnparsed() || !info.proxy().syntaxErrors().isEmpty();
+        InputOutput io = io(tabName(info, proxy));
+
+        boolean failure = proxy == null ? true : proxy.isUnparsed() || !proxy.syntaxErrors().isEmpty();
         boolean folds = IOFolding.isSupported(io);
         if (writingFirstOutputWindowOutput && failure) {
             if (IOSelect.isSupported(io)) {
-                IOSelect.select(io, EnumSet.of(IOSelect.AdditionalOperation.OPEN, IOSelect.AdditionalOperation.REQUEST_VISIBLE));
+                IOSelect.select(io, EnumSet.of(IOSelect.AdditionalOperation.OPEN,
+                        IOSelect.AdditionalOperation.REQUEST_VISIBLE));
             } else {
                 io.setOutputVisible(true);
 //                io.setFocusTaken(true);
             }
             writingFirstOutputWindowOutput = false;
         }
+        boolean genErrorsShown = false;
         try (final OutputWriter writer = io.getOut()) {
+            printOutputHeader(info, io);
             writer.reset();
-            if (proxy.isUnparsed()) {
+            if (proxy != null && proxy.isUnparsed()) {
                 // XXX get the full result and print compiler diagnostics?
                 ioPrint(io, Bundle.unparsed(), IOColors.OutputType.ERROR);
                 GrammarRunResult<?> buildResult = info.runResult();
@@ -142,37 +213,9 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                     boolean wasGenerate = !buildResult.genResult().isUsable();
                     if (wasGenerate) {
                         ioPrint(io, Bundle.generationFailed(), IOColors.OutputType.LOG_DEBUG);
+                        genErrorsShown = true;
                         List<ParsedAntlrError> errors = buildResult.genResult().grammarGenerationErrors();
-                        for (ParsedAntlrError err : errors) {
-                            ioPrint(io, err.message(), IOColors.OutputType.ERROR, new OutputListener() {
-                                @Override
-                                public void outputLineSelected(OutputEvent oe) {
-                                    // do nothing
-                                }
-
-                                @Override
-                                public void outputLineAction(OutputEvent oe) {
-                                    Path pth = err.path();
-                                    GrammarSource<?> src = GrammarSource.find(pth, "text/x-g4");
-                                    Optional<Document> doc = src.lookup(Document.class);
-                                    if (doc.isPresent()) {
-                                        Document d = doc.get();
-                                        JTextComponent comp = EditorRegistry.findComponent(d);
-                                        if (comp != null) {
-                                            TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, comp);
-                                            Line ln = NbEditorUtilities.getLine(d, err.fileOffset(), true);
-                                            ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
-                                            tc.requestActive();
-                                        }
-                                    }
-                                }
-
-                                @Override
-                                public void outputLineCleared(OutputEvent oe) {
-                                    //do nothing
-                                }
-                            });
-                        }
+                        ioPrintErrors(errors, io);
                         String genOut = buildResult.generationOutput();
                         if (genOut != null) {
                             ioPrint(io, genOut, IOColors.OutputType.LOG_WARNING);
@@ -208,31 +251,99 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             } else if (proxy != null && proxy.syntaxErrors().isEmpty()) {
                 ioPrint(io, Bundle.success(), IOColors.OutputType.LOG_SUCCESS);
             }
-            if (proxy != null && proxy.syntaxErrors() != null) {
-                FoldHandle fold = null;
-                if (folds) {
-                    fold = IOFolding.startFold(io, true);
+            GrammarRunResult<?> rr = info.runResult();
+            if (rr != null) {
+                for (JavacDiagnostic j : rr.diagnostics()) {
+                    ioPrint(io, j.toString(), IOColors.OutputType.ERROR);
                 }
+                AntlrGenerationAndCompilationResult g = rr.genResult();
+                if (g != null) {
+                    AntlrGenerationResult gen = g.generationResult();
+                    if (gen != null) {
+                        if (!genErrorsShown) {
+                            genErrorsShown = true;
+                            ioPrintErrors(gen.errors(), io);
+                        }
+                        List<String> msgs = gen.infoMessages();
+                        for (String msg : msgs) {
+                            ioPrint(io, msg, OutputType.OUTPUT);
+                        }
+                    }
+                }
+                if (g.thrown().isPresent()) {
+                    ioPrint(io, Strings.toString(g.thrown().get()), OutputType.ERROR);
+                }
+                String genOut = rr.generationOutput();
+                if (genOut != null) {
+                    ioPrint(io, Bundle.antlrRunOutput(), OutputType.OUTPUT);
+                    FoldHandle fold = null;
+                    if (folds) {
+                        fold = IOFolding.startFold(io, false);
+                    }
+                    ioPrint(io, genOut, IOColors.OutputType.LOG_WARNING);
+                    if (fold != null) {
+                        fold.finish();
+                    }
+                }
+            }
+            if (proxy != null && proxy.syntaxErrors() != null && !proxy.syntaxErrors().isEmpty()) {
                 for (AntlrProxies.ProxySyntaxError e : proxy.syntaxErrors()) {
                     ErrOutputListener listener = listenerForError(io, proxy, e);
                     assert listener != null;
                     ioPrint(io, e.message(), IOColors.OutputType.HYPERLINK_IMPORTANT, listener);
-                    FoldHandle innerFold = null;
-                    if (folds && fold != null) {
-                        innerFold = fold.startFold(true);
-                    }
                     listener.printDescription(writer);
-                    if (innerFold != null) {
-                        innerFold.finish();
-                    }
-                }
-                if (fold != null) {
-                    fold.finish();
                 }
             }
         } catch (IOException ioe) {
             Exceptions.printStackTrace(ioe);
         }
+    }
+
+    @Messages("antlrRunOutput=Antlr Run Output (expand)")
+    void printOutputHeader(EmbeddedAntlrParserResult res, InputOutput io) throws IOException {
+        long timestamp;
+        if (res.runResult() != null) {
+            timestamp = res.runResult().timestamp();
+        } else {
+            timestamp = System.currentTimeMillis();
+        }
+        LocalDateTime ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+        String gn = res.proxy().grammarName();
+        String ts = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(ldt);
+        ioPrint(io, Bundle.outputHeader(gn, ts), OutputType.OUTPUT);
+    }
+
+    void ioPrintErrors(List<ParsedAntlrError> errors, InputOutput io) throws IOException {
+        for (ParsedAntlrError err : errors) {
+            ioPrint(io, err.message(), IOColors.OutputType.ERROR, new AntlrErrorLineListener(err));
+        }
+    }
+
+    private static int offsetsOf(ParsedAntlrError error, StyledDocument sdoc, IntBiConsumer startEnd) {
+        int docLength = sdoc.getLength();
+        Element el = NbDocument.findLineRootElement(sdoc);
+        int lineNumber = error.lineNumber() - 1 >= el.getElementCount()
+                ? el.getElementCount() - 1 : error.lineNumber() - 1;
+        if (lineNumber < 0) {
+            lineNumber = error.lineNumber();
+            if (lineNumber < 0) {
+                lineNumber = 0;
+            }
+        }
+        int lineOffsetInDocument = NbDocument.findLineOffset(sdoc, lineNumber);
+        int errorStartOffset = Math.max(0, lineOffsetInDocument + error.lineOffset());
+        int errorEndOffset = Math.min(docLength - 1, errorStartOffset + error.length());
+        if (errorStartOffset < errorEndOffset) {
+            startEnd.accept(Math.min(docLength - 1, errorStartOffset), Math.min(docLength - 1, errorEndOffset));
+        } else {
+            Logger.getLogger(ErrorUpdater.class.getName()).log(Level.INFO, "Computed nonsensical error start offsets "
+                    + "{0}:{1} for line {2} of {3} for error {4}",
+                    new Object[]{
+                        errorStartOffset, errorEndOffset,
+                        lineNumber, el.getElementCount(), error
+                    });
+        }
+        return docLength;
     }
 
     private static void ioPrint(InputOutput io, String s, IOColors.OutputType type, OutputListener l) throws IOException {
@@ -280,7 +391,12 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             }
         }
 
-        @NbBundle.Messages(value = {"# {0} - the line number", "# {1} - the character position within the line", "lineinfo=\tat {0}:{1}", "# {0} - The token type (symbolic, literal, display names and code)", "type=\tType: {0}", "# {0} - the list of rules this token particpates in", "rules=\tRules: {0}", "# {0} - the token text", "text=\tText: '{0}'"})
+        @NbBundle.Messages(value = {"# {0} - the line number",
+            "# {1} - the character position within the line",
+            "lineinfo=\tat {0}:{1}",
+            "# {0} - The token type (symbolic, literal, display names and code)",
+            "type=\tType: {0}", "# {0} - the list of rules this token particpates in",
+            "rules=\tRules: {0}", "# {0} - the token text", "text=\tText: '{0}'"})
         void printDescription(OutputWriter out) throws IOException {
             AntlrProxies.ProxyToken tok = null;
             print(Bundle.lineinfo(Integer.valueOf(e.line()), Integer.valueOf(e.charPositionInLine())), IOColors.OutputType.LOG_FAILURE);
@@ -353,4 +469,104 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         }
     }
 
+    static class AntlrErrorLineListener implements OutputListener {
+
+        private final ParsedAntlrError err;
+
+        public AntlrErrorLineListener(ParsedAntlrError err) {
+            this.err = err;
+        }
+
+        @Override
+        public void outputLineAction(OutputEvent oe) {
+            Path pth = err.path();
+            GrammarSource<?> src = GrammarSource.find(pth, "text/x-g4");
+            Optional<StyledDocument> doc = src.lookup(StyledDocument.class);
+            if (doc.isPresent()) {
+                StyledDocument d = doc.get();
+                JTextComponent comp = EditorRegistry.findComponent(d);
+                if (comp != null) {
+                    TopComponent tc = NbEditorUtilities.getOuterTopComponent(comp);
+//                    TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, comp);
+                    offsetsOf(err, d, (start, end) -> {
+                        Line ln = NbEditorUtilities.getLine(d, start, false);
+                        ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+                        tc.requestActive();
+                    });
+                }
+            }
+
+        }
+
+        @Override
+        public void outputLineSelected(OutputEvent oe) {
+            // do nothing
+        }
+
+        @Override
+        public void outputLineCleared(OutputEvent oe) {
+            // do nothing
+        }
+    }
+
+    @Messages("rerun=Force Reparse")
+    class RerunAction extends AbstractAction implements Runnable, Icon {
+
+        @SuppressWarnings({"LeakingThisInConstructor", "OverridableMethodCallInConstructor"})
+        RerunAction() {
+            putValue(Action.NAME, Bundle.rerun());
+            putValue(Action.SHORT_DESCRIPTION, Bundle.rerun());
+            putValue(Action.LONG_DESCRIPTION, Bundle.rerun());
+            putValue(Action.SMALL_ICON, this);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            PreviewPanel pp = (PreviewPanel) SwingUtilities.getAncestorOfClass(PreviewPanel.class, editorPane);
+            if (pp != null) {
+                pp.outputThreadPool().submit(this);
+            }
+        }
+
+        @Override
+        public void run() {
+            // Invalidate and start from scratch on EVERYTHING
+            Path grammarSource = AdhocMimeTypes.grammarFilePathForMimeType(editorPane.getContentType());
+            FileObject grammarFileObject = FileUtil.toFileObject(grammarSource.toFile());
+            INV.accept(grammarFileObject);
+            AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
+            FileObject sampleFile = NbEditorUtilities.getFileObject(editorPane.getDocument());
+            INV.accept(sampleFile);
+            try {
+                DataObject grammarDob = DataObject.find(grammarFileObject);
+                EditorCookie ck = grammarDob.getLookup().lookup(EditorCookie.class);
+                ParsingUtils.parse(ck.openDocument());
+                ParsingUtils.parse(editorPane.getDocument());
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D gg = (Graphics2D) g;
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(162, 245, 162));
+            int[] xpts = new int[]{x + 2, x + 20, x + 2};
+            int[] ypts = new int[]{y + 2, y + 10, y + 20};
+            g.fillPolygon(xpts, ypts, 3);
+            g.setColor(UIManager.getColor("controlShadow"));
+            g.drawPolygon(xpts, ypts, 3);
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 24;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 24;
+        }
+    }
 }

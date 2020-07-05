@@ -1,18 +1,25 @@
 
+Preview lookup needs to merge that of both editors, and merge the UndoRedo.Manager of both, and the SaveCookies of both.
+
+Partial name completion is broken.
+
+Superfluous parens hint should not be present if rule has outer parentheses, contains an OR and is followed by -> pushMode or similar
+
 CompletionsSupplier should NOT be in the default lookup, it should use Lookups.forPath() or MimeLookup or
 we will wind up mixing completions for different languages.
 
-Preview sometimes doesn't re-attach listeners and updating sidebars breaks.
-
 Add EOF hint is using weird choice of rules to add it to.
-
-Add auto-insert closing [.
 
 Colon insert editor feature should not be active when next token is a colon.
 
 Fixes add error method should report BadLocationExceptions not propagate them - adds tons of noise to error handlers.
 
-Format with an options {} block inserts a leading space before first rule name.
+format two character sets with second notted does not get a space between, e.g. [/]~[x] and shouldx
+format: channel, type, pushMode following a comma should have a space prepended
+format: #-labels now causing or on next line to be indented:
+attrBody
+    : attrLabeled #AttrSingleValue
+        | ( attrPath AttrLeftParen ( attrStringLiteral | attrIntLiteral )
 
 Format with space inside parens does not put a space in first paren if a label comes after, e.g.
  : (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) 
