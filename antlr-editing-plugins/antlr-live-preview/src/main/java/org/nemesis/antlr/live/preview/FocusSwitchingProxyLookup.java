@@ -42,11 +42,6 @@ class FocusSwitchingProxyLookup extends ProxyLookup implements FocusListener {
         this.b = b;
         aGroup = ArrayUtils.prepend(aLookup, more);
         bGroup = ArrayUtils.prepend(bLookup, more);
-//        if (a.hasFocus()) {
-//            setLookups(aGroup);
-//        } else if (b.hasFocus()) {
-//            setLookups(bGroup);
-//        }
         a.addFocusListener(this);
         b.addFocusListener(this);
     }

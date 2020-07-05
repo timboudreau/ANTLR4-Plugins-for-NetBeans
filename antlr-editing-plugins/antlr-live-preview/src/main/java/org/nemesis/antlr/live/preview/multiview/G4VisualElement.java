@@ -204,10 +204,10 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                     Lookup lkp = MimeLookup.getLookup(MimePath.parse(mime));
                     // Force init of lookup contents ahead of time
                     EditorKit kit = lkp.lookup(EditorKit.class);
-                    Object o;
-                    for (Object ob : lkp.lookupAll(Object.class)) {
-                        o = ob; // ensure the compiler doesn't optimize this away
-                    }
+//                    Object o;
+//                    for (Object ob : lkp.lookupAll(Object.class)) {
+//                        o = ob; // ensure the compiler doesn't optimize this away
+//                    }
                     // Find or create a sample file to work with
                     DataObject sampleFileDataObject = SampleFiles.sampleFile(mime);
                     // Get the colorings for this grammar's pseudo-mime-type, creating
@@ -228,7 +228,8 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.FINEST,
                                     "Lazy load completed in {0} ms", new Object[]{
                                         System.currentTimeMillis() - then});
-                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), sampleFileDataObject, doc, colorings, kit, lkp);
+                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), 
+                                    sampleFileDataObject, doc, colorings, kit, lkp);
                             UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
                             if (prov != null) {
                                 this.undoRedo = prov.get();
@@ -359,7 +360,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                     if (all.isEmpty()) {
                         callback.updateTitle(obj.getName());
                     } else {
-                        callback.updateTitle("<b>" + obj.getName() + "-hey*");
+                        callback.updateTitle("<b>" + obj.getName());
                     }
                 }
             });

@@ -27,7 +27,6 @@ import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.IntStream;
-import static org.antlr.v4.runtime.IntStream.UNKNOWN_SOURCE_NAME;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
@@ -137,8 +136,8 @@ public class ParserExtractor {
                 int tokenIndex = 0;
                 org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //lexerOnly
                         lexerTreeBuilder = proxies.treeBuilder(); //lexerOnly
-                System.out.println("\nUsing lexer code for " + GRAMMAR_PATH + "\n"); //lexerOnly
-                System.out.println("\nUsing parser code for " + GRAMMAR_PATH + "\n"); //parser
+//                System.out.println("\nUsing lexer code for " + GRAMMAR_PATH + "\n"); //lexerOnly
+//                System.out.println("\nUsing parser code for " + GRAMMAR_PATH + "\n"); //parser
                 int prevStop = -1;
                 do {
                     tok = lex.nextToken();
@@ -183,14 +182,6 @@ public class ParserExtractor {
                                 errorCharPosition = prevStop - prevLineEnd;
                                 break;
                             }
-                        }
-                        if (prevStop + 1 != start - 1) {
-                            System.out.println(" emit error token " + errorBeginLine + "@" + errorCharPosition
-                                    + " pos " + (prevStop + 1) + ":" + (start - 1) + "'"
-                                    + text.subSequence(prevStop + 1, (start - 1)));
-                        } else {
-                            System.out.println(" emit error token " + errorBeginLine + "@" + errorCharPosition
-                                    + " pos " + (prevStop + 1) + ":" + (start - 1));
                         }
                         proxies.onToken(erroneousType, errorBeginLine,
                                 errorCharPosition, 0, tokenIndex++,
