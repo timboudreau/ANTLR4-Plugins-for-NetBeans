@@ -97,7 +97,7 @@ public class BasicFormatting extends AbstractFormatter {
                 .wherePreviousTokenType(RBRACE)
                 .priority(200)
                 .format(PREPEND_NEWLINE);
-                ;
+        ;
 
         rules.onTokenType(LEXCOM_MODE)
                 .format(spaceOrWrap);
@@ -129,7 +129,11 @@ public class BasicFormatting extends AbstractFormatter {
                 .format(spaceOrWrap.and(APPEND_SPACE));
 
         rules.onTokenType(ANTLRv4Lexer.NOT, DOT, LEXER_CHAR_SET)
-                .wherePreviousTokenTypeNot(LPAREN, LBRACE, LEXER_CHAR_SET, NOT)
+                .wherePreviousTokenTypeNot(LPAREN, LBRACE, NOT)
+                .format(spaceOrWrap);
+
+        rules.onTokenType(LEXCOM_PUSHMODE, LEXCOM_MORE, LEXCOM_POPMODE, LEXCOM_CHANNEL, LEXCOM_TYPE, LEXCOM_SKIP)
+                .wherePreviousTokenType(COMMA)
                 .format(spaceOrWrap);
 
         rules.onTokenType(GRAMMAR, LEXER, PARSER)
@@ -188,11 +192,9 @@ public class BasicFormatting extends AbstractFormatter {
         });
 
         rules.onTokenType(OR)
-//                .whenInParserRule(ANTLRv4Parser.RULE_parserRuleLabeledAlternative)
                 .wherePreviousTokenType(ANTLRv4Lexer.ID)
                 .when(DISTANCE_TO_PRECEDING_SHARP)
-                .isEqualTo(-1) //XXX should be 2!
-                .priority(1500)
+                .isEqualTo(1)
                 .named("newline-double-indent-after-alternative-label")
                 .format(prependNewlineAndDoubleIndent);
 
@@ -237,7 +239,8 @@ public class BasicFormatting extends AbstractFormatter {
     @Override
     protected void state(LexingStateBuilder<AntlrCounters, ?> bldr) {
         bldr.computeTokenDistance(DISTANCE_TO_PRECEDING_SHARP)
-                .onEntering(ID, OR).toPreceding(SHARP)
+                .onEntering(criteria.anyOf(OR, ID))
+                .toPreceding(SHARP)
                 .ignoringWhitespace();
 
         bldr

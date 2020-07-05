@@ -1303,11 +1303,13 @@ FullIntLiteral :
                DEC_DIGITS INT_SUFFIX?
                | HexLiteralPrefix
                    Underscore*
-                   [0-9a-fA-F][0-9a-fA-F_]*
+                   [0-9a-fA-F]
+                   [0-9a-fA-F_]*
                | OctalLiteralPrefix
-                   Underscore* [0-7][0-7_]*
+                   Underscore* [0-7]
+                   [0-7_]*
                | BitsLiteralPrefix
-                   Underscore* [01][01_]*
+                   Underscore* [01] [01_]*
                ;
 
 // Some lookahead is required here. ANTLR does not support this
@@ -1324,7 +1326,7 @@ FullIntLiteral :
 //     later reject it, though.
 //
 FloatLiteral :
-             DEC_DIGITS Dot [0-9][0-9_]*
+             DEC_DIGITS Dot [0-9] [0-9_]*
                  EXPONENT?
              | DEC_DIGITS (Dot {
         /* dot followed by another dot is a range, not a float */
@@ -1346,9 +1348,10 @@ fragment SIMPLE_ESCAPE :
 
 fragment CHAR :
               ~['"\r\n\\\ud800-\udfff]// a single BMP character other than a backslash, newline, or quote
-              | [\ud800-\udbff][\udc00-\udfff]// a single non-BMP character (hack for Java)
+              | [\ud800-\udbff]
+                  [\udc00-\udfff]// a single non-BMP character (hack for Java)
               | SIMPLE_ESCAPE
-              | '\\x' [0-7][0-9a-fA-F]
+              | '\\x' [0-7] [0-9a-fA-F]
               | '\\u{' [0-9a-fA-F]+
                   RightBrace
               ;
@@ -1372,7 +1375,8 @@ fragment STRING_ELEMENT :
 
 fragment RAW_CHAR :
                   ~[\ud800-\udfff]// any BMP character
-                  | [\ud800-\udbff][\udc00-\udfff]
+                  | [\ud800-\udbff]
+                      [\udc00-\udfff]
                   ; // any non-BMP character (hack for Java)
 // Here we use a non-greedy match to implement the
 // (non-regular) rules about raw string syntax.
@@ -1393,7 +1397,8 @@ fragment BYTE :
               | Circumflex
               | [_-~]
               | SIMPLE_ESCAPE
-              | '\\x' [0-9a-fA-F][0-9a-fA-F]
+              | '\\x' [0-9a-fA-F]
+                  [0-9a-fA-F]
               ;
 
 fragment BYTE_STRING_ELEMENT :
@@ -1412,7 +1417,7 @@ fragment RAW_BYTE_STRING_BODY :
                               ;
 
 fragment DEC_DIGITS :
-                    [0-9][0-9_]*
+                    [0-9] [0-9_]*
                     ;
 
 fragment INT_SUFFIX :
@@ -1420,8 +1425,8 @@ fragment INT_SUFFIX :
                     ;
 
 fragment EXPONENT :
-                  [Ee][+-]? Underscore*
-                      [0-9][0-9_]*
+                  [Ee] [+-]? Underscore*
+                      [0-9] [0-9_]*
                   ;
 
 fragment FLOAT_SUFFIX :

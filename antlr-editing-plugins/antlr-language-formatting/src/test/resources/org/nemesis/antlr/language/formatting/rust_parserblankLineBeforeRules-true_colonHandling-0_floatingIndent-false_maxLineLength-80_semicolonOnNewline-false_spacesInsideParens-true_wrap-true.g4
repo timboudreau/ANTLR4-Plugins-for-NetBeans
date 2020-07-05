@@ -598,8 +598,8 @@ ByteStringLiteral : ByteStringPrefix BYTE_STRING_ELEMENT* Quote | 'br'
 BareIntLiteral : DEC_DIGITS;
 
 FullIntLiteral : DEC_DIGITS INT_SUFFIX? | HexLiteralPrefix Underscore*
-        [0-9a-fA-F][0-9a-fA-F_]* | OctalLiteralPrefix Underscore* [0-7][0-7_]* |
-        BitsLiteralPrefix Underscore* [01][01_]*;
+        [0-9a-fA-F] [0-9a-fA-F_]* | OctalLiteralPrefix Underscore* [0-7] [0-7_]*
+        | BitsLiteralPrefix Underscore* [01] [01_]*;
 
 // Some lookahead is required here. ANTLR does not support this
 // except by injecting some Java code into the middle of the pattern.
@@ -614,7 +614,7 @@ FullIntLiteral : DEC_DIGITS INT_SUFFIX? | HexLiteralPrefix Underscore*
 //     so that `1.abs()` parses a method call. The type checker will
 //     later reject it, though.
 //
-FloatLiteral : DEC_DIGITS Dot [0-9][0-9_]* EXPONENT? | DEC_DIGITS ( Dot {
+FloatLiteral : DEC_DIGITS Dot [0-9] [0-9_]* EXPONENT? | DEC_DIGITS ( Dot {
         /* dot followed by another dot is a range, not a float */
                                         _input.LA(1) != Dot &&
                                         /* dot followed by an identifier is an integer with a function call, not a float */
@@ -627,8 +627,8 @@ FloatLiteral : DEC_DIGITS Dot [0-9][0-9_]* EXPONENT? | DEC_DIGITS ( Dot {
 fragment SIMPLE_ESCAPE : Backslash [0nrt'"\\];
 
 fragment CHAR : ~['"\r\n\\\ud800-\udfff]// a single BMP character other than a backslash, newline, or quote
-| [\ud800-\udbff][\udc00-\udfff]// a single non-BMP character (hack for Java)
-| SIMPLE_ESCAPE | '\\x' [0-7][0-9a-fA-F] | '\\u{' [0-9a-fA-F]+ RightBrace;
+| [\ud800-\udbff] [\udc00-\udfff]// a single non-BMP character (hack for Java)
+| SIMPLE_ESCAPE | '\\x' [0-7] [0-9a-fA-F] | '\\u{' [0-9a-fA-F]+ RightBrace;
 
 fragment OTHER_STRING_ELEMENT : SingleQuote | Backslash CarriageReturn? Newline
         [ \t]* | CarriageReturn | Newline;
@@ -636,7 +636,7 @@ fragment OTHER_STRING_ELEMENT : SingleQuote | Backslash CarriageReturn? Newline
 fragment STRING_ELEMENT : CHAR | OTHER_STRING_ELEMENT;
 
 fragment RAW_CHAR : ~[\ud800-\udfff]// any BMP character
-| [\ud800-\udbff][\udc00-\udfff];
+| [\ud800-\udbff] [\udc00-\udfff];
 
  // any non-BMP character (hack for Java)
 // Here we use a non-greedy match to implement the
@@ -646,18 +646,18 @@ fragment RAW_STRING_BODY : Quote RAW_CHAR*? Quote | Hash RAW_STRING_BODY Hash;
 fragment BYTE : Space// any ASCII character from 32 (space) to 126 (`~`),
 | Bang// except 34 (double quote), 39 (single quote), and 92 (backslash)
 | [#-&] | [(-[] | RightBracket | Circumflex | [_-~] | SIMPLE_ESCAPE | '\\x'
-        [0-9a-fA-F][0-9a-fA-F];
+        [0-9a-fA-F] [0-9a-fA-F];
 
 fragment BYTE_STRING_ELEMENT : BYTE | OTHER_STRING_ELEMENT;
 
 fragment RAW_BYTE_STRING_BODY : Quote [\t\r\n -~]*? Quote | Hash
         RAW_BYTE_STRING_BODY Hash;
 
-fragment DEC_DIGITS : [0-9][0-9_]*;
+fragment DEC_DIGITS : [0-9] [0-9_]*;
 
 fragment INT_SUFFIX : [ui] ( '8Pipe16Pipe32Pipe64Pipesize' );
 
-fragment EXPONENT : [Ee][+-]? Underscore* [0-9][0-9_]*;
+fragment EXPONENT : [Ee] [+-]? Underscore* [0-9] [0-9_]*;
 
 fragment FLOAT_SUFFIX : F32 | F64;
 

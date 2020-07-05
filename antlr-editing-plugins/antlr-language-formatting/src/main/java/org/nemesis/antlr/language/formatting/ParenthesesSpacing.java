@@ -58,6 +58,9 @@ final class ParenthesesSpacing extends AbstractFormatter {
         rules.onTokenType(ruleOpeners).wherePreviousTokenType(LPAREN)
                 .priority(100)
                 .format(PREPEND_SPACE);
+        rules.onTokenType(ID).wherePreviousTokenType(LPAREN)
+                .priority(100)
+                .format(PREPEND_SPACE);
         rules.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
                 .priority(100)
                 .format(PREPEND_SPACE);

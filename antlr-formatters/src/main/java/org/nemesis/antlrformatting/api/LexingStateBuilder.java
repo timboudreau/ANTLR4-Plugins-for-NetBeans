@@ -457,7 +457,7 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
 
         @Override
         public void accept(Token t, LexerScanner u) {
-            if (matcher.test(0)) {
+            if (matcher.test(t.getType())) {
                 int distance;
                 if (forward) {
                     distance = u.tokenCountToNext(ignoreWhitespace, distanceTo);

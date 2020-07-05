@@ -197,7 +197,6 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                         IOSelect.AdditionalOperation.REQUEST_VISIBLE));
             } else {
                 io.setOutputVisible(true);
-//                io.setFocusTaken(true);
             }
             writingFirstOutputWindowOutput = false;
         }

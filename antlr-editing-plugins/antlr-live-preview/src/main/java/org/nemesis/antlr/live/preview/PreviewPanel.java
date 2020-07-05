@@ -995,8 +995,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         return result == null ? fallback : result;
     }
 
+    private boolean splitAndScrollPositionsInitialized;
     void updateSplitScrollAndCaretPositions() {
-        if (initialAdd) {
+        if (initialAdd && !splitAndScrollPositionsInitialized) {
             // Until the first layout has happened, which will be after the
             // event queue cycle that calls addNotify() completes, it is useless
             // to set the split location, because the UI delegate will change it
@@ -1042,6 +1043,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                             }
                         }
                     }
+                    splitAndScrollPositionsInitialized = true;
                 }
             });
         }
