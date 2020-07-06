@@ -126,7 +126,7 @@ class UIModel {
         "spacesInParens=Spaces Inside Innermost &Parentheses",
         "reflowLineComments=&Reflow Line Comments",
         "semicolonOnNewline=&Semicolon On New Line",
-        "orHandling=Or Handling"
+        "orHandling=Or and Parenthesis Handling"
     })
     public JPanel createFormattingPanel() {
 

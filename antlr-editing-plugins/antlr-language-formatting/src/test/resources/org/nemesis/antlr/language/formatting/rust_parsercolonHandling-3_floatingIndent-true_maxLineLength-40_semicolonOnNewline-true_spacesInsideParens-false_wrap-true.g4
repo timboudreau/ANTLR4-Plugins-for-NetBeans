@@ -95,9 +95,8 @@ for_loop :
          (For var=variable_name In range=(RangeExclusive
              | RangeInclusive)(statement
              | block)) #ForRanged
-             | (For var=variable_name In
-             expr=expression (statement |
-             block)) #ForExpression
+         | (For var=variable_name In expr=expression
+             (statement | block)) #ForExpression
          ;
 
 return_statement :
@@ -107,16 +106,16 @@ return_statement :
 variable_binding :
                  (Let props=variable_props
                      name=variable_spec) #UnassignedBinding
-                     | (Let props=variable_props
+                 | (Let props=variable_props
                      pattern=variable_pattern
                      Equals
                      assignedToPattern=expression_pattern) #PatternBinding
-                     | (Let props=variable_props
+                 | (Let props=variable_props
                      name=variable_spec
                      Equals aprops=assignee_props
                      assignedTo=expression
                      cast=variable_cast?) #SingleBinding
-                     | (Let props=variable_props
+                 | (Let props=variable_props
                      type_spec pattern=variable_pattern
                      ((Equals aprops=assignee_props
                      name=variable_name)
@@ -176,28 +175,25 @@ variable_name :
 
 array_literal :
               (LeftBracket RightBracket) #EmptyArray
-                  | (LeftBracket
+              | (LeftBracket
                   StringLiteral (Comma
                   StringLiteral)*
                   RightBracket) #StringArray
-                  | (LeftBracket
-                  int_literal (Comma
-                  int_literal)*
+              | (LeftBracket int_literal
+                  (Comma int_literal)*
                   RightBracket) #IntArray
-                  | (LeftBracket
+              | (LeftBracket
                   float_literal (Comma
                   float_literal)*
                   RightBracket) #FloatArray
-                  | (LeftBracket
+              | (LeftBracket
                   BooleanLiteral (Comma
                   BooleanLiteral)*
                   RightBracket) #BooleanArray
-                  | (LeftBracket
-                  ByteLiteral (Comma
-                  ByteLiteral)*
+              | (LeftBracket ByteLiteral
+                  (Comma ByteLiteral)*
                   RightBracket) #ByteArray
-                  | (LeftBracket
-                  expression (Comma
+              | (LeftBracket expression (Comma
                   expression)*
                   RightBracket) #ExpressionArray
               ;
@@ -218,24 +214,22 @@ match_case :
            (first=literal (Pipe more=literal)*
                FatArrow (statement_body |
                expression | block)) #MultiCaseLiteral
-               | (range=RangeExclusive
+           | (range=RangeExclusive
                FatArrow (statement_body |
                expression | block)) #ExclusiveRangeCase
-               | (range=MatchRangeInclusive
+           | (range=MatchRangeInclusive
                FatArrow (statement_body |
                expression | block)) #InclusiveRangeCase
-               | (var=variable_name_pattern
+           | (var=variable_name_pattern
                If boolean_expression
                FatArrow (statement_body |
                expression | block)) #PatternCase
-               | (exp=expression (Pipe
-               more=expression)* If
-               boolean_expression
+           | (exp=expression (Pipe more=expression)*
+               If boolean_expression
                FatArrow (statement_body |
                expression | block)) #ExpressionCase
-               | (first=expression (Pipe
-               more=expression)* FatArrow
-               (statement_body |
+           | (first=expression (Pipe more=expression)*
+               FatArrow (statement_body |
                expression | block)) #MultiCaseExpression
            ;
 
@@ -248,35 +242,30 @@ default_match_case :
 
 expression :
            literal cast=variable_cast? #LiteralExpression
-               | match cast=variable_cast? #MatchExpression
-               | closure cast=variable_cast? #ClosureExpression
-               | struct_instantiation
-               cast=variable_cast? #StructExpression
-               | function_invocation cast=variable_cast? #FunctionInvocationExpression
-               | assignment_expression
-               cast=variable_cast? #AssignmentExpression
-               | tuple_expression #TupleExpressions
-               | unsafe_expression #UnsafeExpression
-               | unsafe_block #UnsafeBlockExpression
-               | exp=variable_expression
-               cast=variable_cast? #VariableExpression
-               | exp=variable_expression
-               Dot index=BareIntLiteral
-               cast=variable_cast? #TupleFieldExpression
-               | leftSide=expression
+           | match cast=variable_cast? #MatchExpression
+           | closure cast=variable_cast? #ClosureExpression
+           | struct_instantiation cast=variable_cast? #StructExpression
+           | function_invocation cast=variable_cast? #FunctionInvocationExpression
+           | assignment_expression cast=variable_cast? #AssignmentExpression
+           | tuple_expression #TupleExpressions
+           | unsafe_expression #UnsafeExpression
+           | unsafe_block #UnsafeBlockExpression
+           | exp=variable_expression cast=variable_cast? #VariableExpression
+           | exp=variable_expression Dot
+               index=BareIntLiteral cast=variable_cast? #TupleFieldExpression
+           | leftSide=expression
                arithmetic_operator
                rightSide=expression #ArithmeticExpression
-               | Minus? LeftParen
-               leftSide=expression
+           | Minus? LeftParen leftSide=expression
                arithmetic_operator
                rightSide=expression
                RightParen #ParenthesizedArithmeticExpression
-               | leftSide=expression
+           | leftSide=expression
                shift_operator rightSide=expression #ShiftExpression
-               | leftSide=expression
+           | leftSide=expression
                comparison_operator
                rightSide=expression #BooleanExpression
-               | Bang? LeftParen ls=expression
+           | Bang? LeftParen ls=expression
                comparison_operator rs=expression
                RightParen #ParentheizedBooleanExpression
            ;
@@ -300,12 +289,12 @@ function_invocation :
                         LeftParen
                         invocation_args
                         RightParen) #UnqualifiedFunctionInvocation
-                        | (qualifier=path_head?
+                    | (qualifier=path_head?
                         func=Ident
                         LeftParen
                         invocation_args
                         RightParen) #QualifiedFunctionInvocation
-                        | (qualifier=type_hint?
+                    | (qualifier=type_hint?
                         DoubleColon func=Ident
                         LeftParen
                         invocation_args
@@ -338,10 +327,10 @@ tuple_expression :
 
 boolean_expression :
                    Bang? BooleanLiteral #BLiteral
-                       | leftSide=expression
+                   | leftSide=expression
                        comparison_operator
                        rightSide=expression #BExpression
-                       | Bang? LeftParen
+                   | Bang? LeftParen
                        boolean_expression
                        RightParen #ParenthesizedBExpression
                    ;
@@ -362,19 +351,19 @@ variable_name_pattern :
 
 literal :
         float_literal #FloatLiteral
-            | BooleanLiteral #BooleanLiteral
-            | ByteLiteral #ByteLiteral
-            | int_literal #IntLiteral
-            | StringLiteral #StringLiteral
-            | array_literal #ArrayLiteral
+        | BooleanLiteral #BooleanLiteral
+        | ByteLiteral #ByteLiteral
+        | int_literal #IntLiteral
+        | StringLiteral #StringLiteral
+        | array_literal #ArrayLiteral
         ;
 
 int_literal :
             (neg=Minus?? value=(BareIntLiteral
                 | FullIntLiteral) type=signed_int_subtype?
                 cast=int_cast?) #SignedIntLiteral
-                | (value=(BareIntLiteral
-                | FullIntLiteral)(type=unsigned_int_subtype)?
+            | (value=(BareIntLiteral |
+                FullIntLiteral)(type=unsigned_int_subtype)?
                 cast=int_cast) #UnsignedIntLiteral
             ;
 
@@ -496,8 +485,7 @@ struct_instantiation_item :
                               Colon
                               params=param_props
                               expression) #ExplictStructItem
-                              | (DotDot
-                              name=Ident) #CopyStructItem
+                          | (DotDot name=Ident) #CopyStructItem
                           ;
 
 lifetime_spec :
@@ -524,10 +512,10 @@ visibility_restriction :
                        LeftParen
                            restrictedTo=Crate
                            RightParen #CrateVisibility
-                           | LeftParen
+                       | LeftParen
                            restrictedTo=Super
                            RightParen #SuperVisibility
-                           | LeftParen In
+                       | LeftParen In
                            restrictedTo=Ident
                            RightParen #ExplicitVisibility
                        ;
@@ -562,8 +550,8 @@ type_pattern :
 
 type_spec :
           path=path_head? type=Ident { referencedTypes.add(_ctx.getText()); } #Named
-              | type=intrinsic_type #Intrinsic
-              | LeftParen RightParen #Unit
+          | type=intrinsic_type #Intrinsic
+          | LeftParen RightParen #Unit
           ;
 
 extern_import :

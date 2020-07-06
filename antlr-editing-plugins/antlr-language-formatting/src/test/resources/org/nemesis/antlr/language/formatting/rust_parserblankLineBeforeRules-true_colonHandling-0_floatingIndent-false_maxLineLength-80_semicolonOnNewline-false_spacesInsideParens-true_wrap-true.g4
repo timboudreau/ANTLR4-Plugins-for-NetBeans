@@ -46,8 +46,8 @@ while_loop : While boolean_expression block;
 
 if_let : If Let exp=expression Equals var=variable_name ( statement | block );
 
-for_loop : ( For var=variable_name In range= ( RangeExclusive | RangeInclusive )
-        ( statement | block )) #ForRanged
+for_loop : ( For var=variable_name In range=( RangeExclusive | RangeInclusive ) ( statement
+        | block )) #ForRanged
         | ( For var=variable_name In expr=expression ( statement | block )) #ForExpression;
 
 return_statement : Return exp=expression?;
@@ -162,9 +162,9 @@ literal : float_literal #FloatLiteral
         | StringLiteral #StringLiteral
         | array_literal #ArrayLiteral;
 
-int_literal : ( neg=Minus?? value= ( BareIntLiteral | FullIntLiteral ) type=signed_int_subtype?
+int_literal : ( neg=Minus?? value=( BareIntLiteral | FullIntLiteral ) type=signed_int_subtype?
         cast=int_cast? ) #SignedIntLiteral
-        | ( value= ( BareIntLiteral | FullIntLiteral ) ( type=unsigned_int_subtype )?
+        | ( value=( BareIntLiteral | FullIntLiteral ) ( type=unsigned_int_subtype )?
         cast=int_cast ) #UnsignedIntLiteral;
 
 float_literal : value=FloatLiteral type=float_subtype? cast=float_cast;

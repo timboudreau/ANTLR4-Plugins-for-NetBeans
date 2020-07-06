@@ -83,7 +83,7 @@ public abstract class FormattingContext {
 
     public abstract void prependDoubleNewlineAndIndent();
 
-    public abstract void prependDoubleNewlineAndIndentBy(int amt);
+    public abstract void prependDoubleNewlineAndIndentBy(int indentStops);
 
     /**
      * Prepend a newline and indent by a specific number of characters.

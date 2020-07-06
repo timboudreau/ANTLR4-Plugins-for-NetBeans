@@ -45,7 +45,7 @@ public class TestFormatting {
     public void test() throws IOException, Exception {
         AntlrFormattingHarness<Preferences, AntlrCounters> harn = harness(AntlrSampleFiles.SENSORS_PARSER);
 
-        harn.debugLogOn(this::block);
+//        harn.debugLogOn(this::block);
 //        harn.logFormattingActions();
         System.out.println(harn.reformat(MockPreferences.of(
                 AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_AFTER,

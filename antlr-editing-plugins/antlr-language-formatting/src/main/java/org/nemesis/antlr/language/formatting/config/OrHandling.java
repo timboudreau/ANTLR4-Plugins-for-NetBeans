@@ -24,13 +24,38 @@ import org.openide.util.NbBundle.Messages;
  */
 @Messages({
     "NO_HANDLING=None",
-    "INDENT=Indent",
-    "ALIGN_WITH_PARENTHESES=Align With Parentheses"
+    "INDENT=Indent |'s",
+    "ALIGN_WITH_PARENTHESES=Align | With Parentheses",
+    "ALIGN_PARENTHESES_AND_ORS=Align Parentheses AND |'s"
 })
 public enum OrHandling {
     NO_HANDLING,
     INDENT,
-    ALIGN_WITH_PARENTHESES;
+    ALIGN_WITH_PARENTHESES, //    ALIGN_PARENTHESES_AND_ORS
+    ;
+
+    public boolean isAlign() {
+        switch (this) {
+            case ALIGN_WITH_PARENTHESES:
+//            case ALIGN_PARENTHESES_AND_ORS:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public boolean isAlignParentheses() {
+        return false;
+//        return this == ALIGN_PARENTHESES_AND_ORS;
+    }
+
+    public boolean isIndent() {
+        return this == INDENT;
+    }
+
+    public boolean isOff() {
+        return this == NO_HANDLING;
+    }
 
     @Override
     public String toString() {

@@ -219,13 +219,38 @@ public final class FormattingRule implements Comparable<FormattingRule> {
 
     /**
      * Boost the priority of this rule - if there are two which are similar
-     * specificity and this one should take precedence.
+     * specificity and this one should take precedence; in general, you
+     * should define your rules and the specificity and order they are
+     * applied in so as not to need to adjust priority - the purpose of
+     * priorities is to allow <i>optional sets of rules</i> to take precedence
+     * when a user-defined formatting setting is set - so you define a base
+     * set of rules that should always be applied, and then subsequent sets
+     * that overlay and take priority over the base rules when matched.
      *
      * @param priority The additional priority
+     * @see FormattingRules.adjustPriority
      * @return this
      */
     public FormattingRule priority(int priority) {
         this.priority = priority;
+        return this;
+    }
+
+    /**
+     * Adjust the priority of this rule upwards or downwards from any
+     * previously set value (default 0) by some amount; in general, you
+     * should define your rules and the specificity and order they are
+     * applied in so as not to need to adjust priority - the purpose of
+     * priorities is to allow <i>optional sets of rules</i> to take precedence
+     * when a user-defined formatting setting is set - so you define a base
+     * set of rules that should always be applied, and then subsequent sets
+     * that overlay and take priority over the base rules when matched.
+     *
+     * @param priority The additional priority
+     * @return this
+     */
+    public FormattingRule adjustPriority(int by) {
+        this.priority += by;
         return this;
     }
 

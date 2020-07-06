@@ -15,19 +15,10 @@
  */
 package org.nemesis.antlr.language.formatting;
 
-import static org.nemesis.antlr.ANTLRv4Lexer.ASSIGN;
-import static org.nemesis.antlr.ANTLRv4Lexer.COLON;
-import static org.nemesis.antlr.ANTLRv4Lexer.ID;
-import static org.nemesis.antlr.ANTLRv4Lexer.INT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LANGUAGE;
-import static org.nemesis.antlr.ANTLRv4Lexer.LPAREN;
-import static org.nemesis.antlr.ANTLRv4Lexer.RPAREN;
-import static org.nemesis.antlr.ANTLRv4Lexer.SEMI;
-import static org.nemesis.antlr.ANTLRv4Lexer.SUPER_CLASS;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_LABEL_TYPE;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOKEN_VOCAB;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AbstractFormatter.MODE_OPTIONS;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.lineComments;
+import static org.nemesis.antlr.language.formatting.AntlrCriteria.mode;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
@@ -46,33 +37,34 @@ final class ParenthesesSpacing extends AbstractFormatter {
 
     @Override
     protected void rules(FormattingRules rules) {
-        rules.onTokenType(LPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.matching(LPAREN)))
-                .whereNextTokenTypeNot(LPAREN)
-                .priority(100)
-                .format(spaceOrWrap);
-        rules.onTokenType(LPAREN).wherePreviousTokenType(COLON).format(PREPEND_SPACE);
-        rules.onTokenType(ID)
-                .wherePreviousTokenType(COLON)
-                .priority(100)
-                .format(PREPEND_SPACE);
-        rules.onTokenType(ruleOpeners).wherePreviousTokenType(LPAREN)
-                .priority(100)
-                .format(PREPEND_SPACE);
-        rules.onTokenType(ID).wherePreviousTokenType(LPAREN)
-                .priority(100)
-                .format(PREPEND_SPACE);
-        rules.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(criteria.anyOf(RPAREN, LPAREN)))
-                .priority(100)
-                .format(PREPEND_SPACE);
+        rules.withAdjustedPriority(100, rls -> {
+            rls.onTokenType(LPAREN).wherePreviousTokenTypeNot(lineComments()
+                    .or(criteria.anyOf(LPAREN, ASSIGN)))
+                    .whereNextTokenTypeNot(LPAREN)
+                    .format(spaceOrWrap);
+            rls.onTokenType(LPAREN).wherePreviousTokenType(COLON).format(PREPEND_SPACE);
+            rls.onTokenType(ID)
+                    .wherePreviousTokenType(COLON)
+                    .format(PREPEND_SPACE);
+            rls.onTokenType(ruleOpeners).wherePreviousTokenType(LPAREN)
+                    .format(PREPEND_SPACE);
+            rls.onTokenType(ID).wherePreviousTokenType(LPAREN)
+                    .format(PREPEND_SPACE);
+            rls.onTokenType(RPAREN).wherePreviousTokenTypeNot(lineComments().or(
+                    criteria.anyOf(RPAREN, LPAREN)))
+                    .format(PREPEND_SPACE);
+        });
 
         rules.onTokenType(criteria.matching(INT))
                 .wherePreviousTokenType(criteria.matching(LPAREN))
                 .format(PREPEND_SPACE);
 
-        rules.whenInMode(AntlrCriteria.mode(MODE_OPTIONS), fr -> {
-            fr.onTokenType(ASSIGN).wherePreviousTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE))
+        rules.whenInMode(mode(MODE_OPTIONS), fr -> {
+            fr.onTokenType(ASSIGN).wherePreviousTokenType(criteria.anyOf(SUPER_CLASS,
+                    LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE))
                     .format(spaceOrWrap);
-            fr.onTokenType(ID).wherePreviousTokenType(ASSIGN)
+            fr.onTokenType(ID)
+                    .wherePreviousTokenType(ASSIGN)
                     .format(spaceOrWrap);
             fr.onTokenType(criteria.anyOf(SUPER_CLASS, LANGUAGE, TOKEN_VOCAB, TOKEN_LABEL_TYPE))
                     .wherePreviousTokenType(SEMI)

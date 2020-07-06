@@ -46,6 +46,8 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.language.formatting.AntlrCriteria.ALL_WHITESPACE;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlr.language.formatting.config.ColonHandling;
+import static org.nemesis.antlr.language.formatting.config.OrHandling.ALIGN_WITH_PARENTHESES;
+import static org.nemesis.antlr.language.formatting.config.OrHandling.INDENT;
 import org.nemesis.antlrformatting.api.GoldenFiles;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 
@@ -196,7 +198,7 @@ public class GoldenFilesTest {
     }
 
     @Test
-    public void testParserWithdTokenVocab1() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+    public void testParserWithTokenVocab1() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
         MockPreferences prefs = MockPreferences.of(
                 AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.STANDALONE,
                 AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
@@ -210,7 +212,7 @@ public class GoldenFilesTest {
     }
 
     @Test
-    public void testParserWithdTokenVocab2() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+    public void testParserWithTokenVocab2() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
         MockPreferences prefs = MockPreferences.of(
                 AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,
                 AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
@@ -221,6 +223,37 @@ public class GoldenFilesTest {
                 AntlrFormatterConfig.KEY_MAX_LINE, 80
         );
         testOne(AntlrSampleFiles.MARKDOWN_PARSER, prefs);
+    }
+
+    @Test
+    public void testOrFormattingAlign() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_OR_HANDLING, ALIGN_WITH_PARENTHESES,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.RUST_PARSER, prefs);
+    }
+
+    @Test
+    public void testOrFormattingIndent() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, false,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, true,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_OR_HANDLING, INDENT,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.RUST_PARSER, prefs);
+        testOne(AntlrSampleFiles.MARKDOWN_LEXER_2, prefs);
     }
 
     private void testOne(AntlrSampleFiles f, MockPreferences prefs) throws IOException, DiffException, org.antlr.runtime.RecognitionException {

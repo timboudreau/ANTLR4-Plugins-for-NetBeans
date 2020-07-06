@@ -265,28 +265,20 @@ public final class FormattingRules {
 
     FormattingRules applyRuleProcessor(Consumer<FormattingRule> ruleProc, Consumer<FormattingRules> applier) {
         Consumer<FormattingRule> old = ruleProcessor;
-        setRuleProcessor(ruleProc);
+        if (old != null) {
+            ruleProc = old.andThen(ruleProc);
+        }
+        ruleProcessor = ruleProc;
+//        setRuleProcessor(ruleProc);
         try {
             applier.accept(this);
         } finally {
-            setRuleProcessor(old);
+            ruleProcessor = old;
         }
         return this;
     }
 
     private Consumer<FormattingRule> ruleProcessor;
-
-    void setRuleProcessor(Consumer<FormattingRule> c) {
-        if (ruleProcessor != null) {
-            if (c == null) {
-                ruleProcessor = null;
-            } else {
-                ruleProcessor = ruleProcessor.andThen(c);
-            }
-        } else {
-            ruleProcessor = c;
-        }
-    }
 
     private List<Replacer> replacers;
 
@@ -592,6 +584,30 @@ public final class FormattingRules {
         return this;
     }
 
+    /**
+     * Adjust the priority of rules added within the passed consumer, by the passed
+     * amount.
+     *
+     * @param prio The priority adjustment
+     * @param cons A consumer
+     * @return A set of rules
+     */
+    public FormattingRules withAdjustedPriority(int prio, Consumer<FormattingRules> cons) {
+        applyRuleProcessor(rule -> {
+            rule.adjustPriority(prio);
+        }, cons);
+        return this;
+    }
+
+    /**
+     * Apply rules added within the closure of the passed consumer only when the
+     * <a href="https://www.oilshell.org/blog/2017/12/17.html">lexer <i>mode</i></a>
+     * number matches the passed predicate.
+     *
+     * @param modePredicate A predicate that takes the mode number
+     * @param cons A consumer which will add rules to the FormattingRules passed to it
+     * @return this
+     */
     public FormattingRules whenInMode(IntPredicate modePredicate, Consumer<FormattingRules> cons) {
         applyRuleProcessor(rule -> {
             rule.whereMode(modePredicate);

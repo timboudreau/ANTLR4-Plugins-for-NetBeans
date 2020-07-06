@@ -90,12 +90,9 @@ public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv
     public void configure(LexingStateBuilder<AntlrCounters, ?> stateBuilder, FormattingRules rules, Preferences config) {
         AntlrFormatterConfig cfig = new AntlrFormatterConfig(config);
         delegates = delegates(cfig);
-//        System.out.println("CONFIG: " + cfig);
-//        System.out.println("DELEGATES: " + delegates);
         delegates.forEach((f) -> {
             f.configure(stateBuilder, rules);
         });
-//        System.out.println("RULES: " + rules);
     }
 
     private List<AbstractFormatter> delegates(AntlrFormatterConfig config) {

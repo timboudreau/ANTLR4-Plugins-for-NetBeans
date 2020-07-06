@@ -61,7 +61,6 @@ public enum SimpleFormattingAction implements FormattingAction {
      * Prepend a newline and two tab stops to the current token.
      */
     PREPEND_NEWLINE_AND_DOUBLE_INDENT,
-
     /**
      * Prepend two blank lines and start a new line.
      */
@@ -222,7 +221,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                         }
                     }
                     break;
-                case PREPEND_TRIPLE_NEWLINE :
+                case PREPEND_TRIPLE_NEWLINE:
                     if (spacesNotStops) {
                         ctx.prependTripleNewline();
                         if (amount > 0) {
@@ -260,6 +259,27 @@ public enum SimpleFormattingAction implements FormattingAction {
             throw new IllegalArgumentException("Not supported for keys: " + this);
         }
         return new KeyAction<>(amountKey, this);
+    }
+
+    /**
+     * For constants that support indenting, specify the number of tab stops to
+     * indent based on a value fetched from the LexingState. This must be an
+     * enum constant that you set up in your LexingStateBuilder when configuring
+     * your formatter. If unset, no indenting will be performed.
+     *
+     * @param <T> The enum type
+     * @param add An amount to add to the number of indent stops indented
+     * based on the value from the indent key
+     * @param amountKey The key to use to look up the number of tab stops to
+     * indent
+     * @throws IllegalArgumentException if this enum does not do any indenting
+     * @return A wrapper for this formatting action
+     */
+    public <T extends Enum<T>> FormattingAction by(int add, T amountKey) {
+        if (!KeyAction.SUPPORTED.contains(this)) {
+            throw new IllegalArgumentException("Not supported for keys: " + this);
+        }
+        return new KeyAction<>(amountKey, this, false, add);
     }
 
     /**
@@ -444,9 +464,9 @@ public enum SimpleFormattingAction implements FormattingAction {
                 case INDENT:
                     if (amt > 0) {
                         if (spacesNotStops) {
-                            ctx.indentBySpaces(amt);
+                            ctx.indentBySpaces(amt + adjustment);
                         } else {
-                            ctx.indentBy(amt);
+                            ctx.indentBy(amt + adjustment);
                         }
                     }
                     break;
@@ -456,7 +476,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                             ctx.prependNewline();
                             ctx.indentBySpaces(amt + adjustment);
                         } else {
-                            ctx.prependNewlineAndIndentBy(amt);
+                            ctx.prependNewlineAndIndentBy(amt + adjustment);
                         }
                     } else {
                         ctx.prependNewline();
@@ -468,7 +488,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                             ctx.prependDoubleNewline();
                             ctx.indentBySpaces(amt + adjustment);
                         } else {
-                            ctx.prependDoubleNewlineAndIndentBy(amt);
+                            ctx.prependDoubleNewlineAndIndentBy(amt + adjustment);
                         }
                     } else {
                         ctx.prependDoubleNewline();
@@ -492,7 +512,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                             ctx.appendNewline();
                             ctx.indentBySpaces(amt + adjustment);
                         } else {
-                            ctx.appendNewlineAndIndentBy(amt);
+                            ctx.appendNewlineAndIndentBy(amt + adjustment);
                         }
                     } else {
                         ctx.appendNewline();
@@ -508,7 +528,7 @@ public enum SimpleFormattingAction implements FormattingAction {
                             ctx.indentBy(amt + 1 + adjustment);
                         }
                     } else {
-                        ctx.appendDoubleNewline();;
+                        ctx.appendNewlineAndDoubleIndent();;
                     }
                     break;
                 default:
@@ -556,8 +576,9 @@ public enum SimpleFormattingAction implements FormattingAction {
             case PREPEND_DOUBLE_NEWLINE_AND_INDENT:
                 t.prependDoubleNewlineAndIndent();
                 break;
-            case PREPEND_TRIPLE_NEWLINE :
-                t.prependTripleNewline();;
+            case PREPEND_TRIPLE_NEWLINE:
+                t.prependTripleNewline();
+                ;
                 break;
             default:
                 throw new AssertionError(this);
