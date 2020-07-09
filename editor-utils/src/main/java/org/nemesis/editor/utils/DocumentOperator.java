@@ -15,21 +15,14 @@
  */
 package org.nemesis.editor.utils;
 
-import com.mastfrog.function.throwing.ThrowingBiConsumer;
+import com.mastfrog.function.IntBiConsumer;
 import com.mastfrog.function.throwing.ThrowingFunction;
-import com.mastfrog.util.collections.CollectionUtils;
-import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,9 +30,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.JScrollPane;
-import javax.swing.RepaintManager;
-import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
@@ -50,24 +40,40 @@ import javax.swing.text.NavigationFilter;
 import javax.swing.text.Position;
 import javax.swing.text.Position.Bias;
 import javax.swing.text.StyledDocument;
-import javax.swing.undo.AbstractUndoableEdit;
-import javax.swing.undo.CannotRedoException;
-import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoableEdit;
-import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
+import org.netbeans.spi.editor.caret.CaretMoveHandler;
+import org.netbeans.spi.lexer.MutableTextInput;
+
+import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.awt.KeyboardFocusManager;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.function.Consumer;
+import javax.swing.JScrollPane;
+import javax.swing.RepaintManager;
+import javax.swing.SwingUtilities;
+import javax.swing.undo.AbstractUndoableEdit;
+import javax.swing.undo.CannotRedoException;
+import javax.swing.undo.CannotUndoException;
+import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.AWTTreeLocker;
+import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.CaretPositionUndoableEdit;
+import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.UndoTransaction;
+import static org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.render;
+import static org.nemesis.editor.utils.DocumentPreAndPostProcessor.NO_OP;
+import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.caret.MoveCaretsOrigin;
 import org.netbeans.api.editor.document.CustomUndoDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
-import org.netbeans.spi.editor.caret.CaretMoveHandler;
-import org.netbeans.spi.lexer.MutableTextInput;
+import org.netbeans.editor.BaseDocument;
 import org.netbeans.spi.lexer.TokenHierarchyControl;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.NbDocument;
-
-import static com.mastfrog.util.preconditions.Checks.notNull;
+import org.openide.util.Exceptions;
 
 /**
  * Run reentrant operations against a document, employing a number of settable
@@ -75,13 +81,9 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
  * <ul>
  * <li><b>Block repaints</b> &mdash; Try to avoid editor repaints until all
  * operations are completed</li>
- * <li><b>Write lock</b> &mdash; Write lock the document, running with
- * <code>NbDocument.runAtomic()</code> (mutually exclusive with <i>write lock as
- * user</i>)</li>
- * <li><b>Write lock as user</b> &mdash; Write lock the document as the user
- * (behaves differently with guarded blocks than plain write lock), running the
- * operation with <code>NbDocument.runAtomicAsUser()</code> (mutually exclusive
- * with <i>write lock</i>)</li>
+ * <li><b>locAtomic</b> &mdash; Write lock the document, the document operation
+ * inside a call to <code>NbDocument.runAtomic()</code> (mutually exclusive with
+ * <i>lockAtomic() as user, which handles guarded blocks differently</i>)</li>
  * <li><b>Read lock</b> &mdash; Read-lock the document, running the operation
  * inside of <code>Document.render()</code>. <i>Not</i> mutually exclusive with
  * write locking.</li>
@@ -91,28 +93,32 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
  * <li><b>Preserve caret position</b> &mdash; Try to restore the caret position
  * after performing changes, so that the editor caret position is restored to
  * its current location (otherwise, inserts or deletions will cause it to move);
- * in combination with
+ * in combination with (note, DocumentOperatorBuilder also allows for providing
+ * an implementation which recomputes the caret position after modification).
  * <i>block repaints</i> the editor on-screen will "jump" minimally if at all.
  * (this also generates a re-scrolling undo event which repositions the caret
  * and scroll position)</li>
  * <li><b>Disable token hierarchy updates</b> &mdash; This blocks the lexer
  * infrastructure from initiating a re-lex or re-parse until all operations have
- * been completed.</li>
+ * been completed, which considerably speeds up a series of multiple
+ * modifications, since multiple things won't be trying to re-parse the document
+ * .</li>
  * </ul>
  * <p>
  * Reentrant calls will not acquire the same lock or similar for the same
- * document twice; reentry is handled
- * with ThreadLocals, so that is the case whether or not code is reentering the
- * same or a different document operator.  <i>Same document</i> in this case
- * means identity equality, not <code>equals()</code> equality.
+ * document twice; reentry is handled with ThreadLocals, so that is the case
+ * whether or not code is reentering the same or a different document operator.
+ * <i>Same document</i> in this case means identity equality, not
+ * <code>equals()</code> equality.
  * </p>
  *
  * @author Tim Boudreau
  */
 public final class DocumentOperator {
 
-    static final Logger LOG = Logger.getLogger( DocumentOperator.class.getName() );
-    private final Set<Props> props;
+    static final Logger LOG = Logger.getLogger(DocumentOperator.class.getName());
+
+    private final Set<? extends Function<StyledDocument, DocumentPreAndPostProcessor>> props;
 
     /**
      * A default instance for modifying a document which is open in the editor,
@@ -120,17 +126,33 @@ public final class DocumentOperator {
      * caret moves.
      */
     public static final DocumentOperator NON_JUMP_REENTRANT_UPDATE_DOCUMENT
-            = new DocumentOperator( EnumSet.of(
-                    Props.WRITE_LOCK,
-                    Props.PRESERVE_CARET_POSITION,
-                    Props.ACQUIRE_AWT_TREE_LOCK,
-                    Props.READ_LOCK,
-                    Props.DISABLE_MTI,
-                    Props.ONE_UNDOABLE_EDIT,
-                    Props.BLOCK_REPAINTS ) );
+            = new DocumentOperator(EnumSet.of(BuiltInDocumentOperations.WRITE_LOCK,
+                    BuiltInDocumentOperations.PRESERVE_CARET_POSITION,
+                    BuiltInDocumentOperations.ACQUIRE_AWT_TREE_LOCK,
+                    BuiltInDocumentOperations.ATOMIC_AS_USER,
+                    BuiltInDocumentOperations.WRITE_LOCK,
+                    BuiltInDocumentOperations.DISABLE_MTI,
+                    BuiltInDocumentOperations.ONE_UNDOABLE_EDIT,
+                    BuiltInDocumentOperations.BLOCK_REPAINTS));
 
-    DocumentOperator( Set<Props> props ) {
+    DocumentOperator(Set<? extends Function<StyledDocument, DocumentPreAndPostProcessor>> props) {
         this.props = props;
+//        this.props = props instanceof EnumSet<?>
+//                ? new LinkedHashSet<>(CollectionUtils.reversed(new ArrayList<>(props))) : props;
+    }
+
+    private static void eqRun(BadLocationRunnable r) throws BadLocationException {
+        if (EventQueue.isDispatchThread()) {
+            r.run();
+        } else {
+            EventQueue.invokeLater(() -> {
+                try {
+                    r.run();
+                } catch (BadLocationException ex) {
+                    LOG.log(Level.INFO, null, ex);
+                }
+            });
+        }
     }
 
     private static void runOnEq(Runnable r) {
@@ -148,11 +170,11 @@ public final class DocumentOperator {
      * @param doc A document
      * @param run A runnable
      */
-    public void runOnEventQueue( StyledDocument doc, Runnable run ) {
-        DocumentOperation x = operateOn( doc );
-        runOnEq( () -> {
-            x.run( run );
-        } );
+    void runOnEventQueue(StyledDocument doc, Runnable run) {
+        DocumentOperation x = operateOn(doc);
+        runOnEq(() -> {
+            x.run(run);
+        });
     }
 
     /**
@@ -161,13 +183,13 @@ public final class DocumentOperator {
      * @param doc A document
      * @param run A runnable
      */
-    public void run( StyledDocument doc, Runnable run ) {
-        operateOn( doc ).run( run );
+    public void run(StyledDocument doc, Runnable run) {
+        operateOn(doc).run(run);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + Strings.join( ", ", props ) + ")";
+        return getClass().getSimpleName() + "(" + Strings.join(", ", props) + ")";
     }
 
     /**
@@ -175,72 +197,71 @@ public final class DocumentOperator {
      *
      * @param <T> The return type of the operation
      * @param <E> The exception type of the operation (use RuntimeException if
-     *            the operation does not throw any checked exception)
-     * @param doc A document to run against
+     * the operation does not throw any checked exception)
+     * @param doc A document to runPostOperationsOnEventQueue against
      *
      * @return An operation
      */
-    public <T, E extends Exception> DocumentOperation<T, E> operateOn( StyledDocument doc ) {
-        return new DocumentOperation<>( notNull( "doc", doc ), props );
+    public <T, E extends Exception> DocumentOperation<T, E> operateOn(StyledDocument doc) {
+        return new DocumentOperation<>(notNull("doc", doc), props);
     }
 
-    static <T, E extends Exception> BleFunction<T, E> runner( StyledDocument doc, Props... props ) {
-        Arrays.sort( props, Comparator.<Props>naturalOrder().reversed() );
-        return ( DocumentProcessor<T, E> supp ) -> {
-            LOG.log( Level.FINE, "Apply {0} to {1} with {2}", new Object[]{ supp, doc, Arrays.asList( props ) } );
-            for ( Props p : props ) {
-                supp = p.apply( doc ).wrap( supp );
+    static <T, E extends Exception> BleFunction<T, E> runner(StyledDocument doc, Iterable<? extends Function<StyledDocument, DocumentPreAndPostProcessor>> props) {
+//        Arrays.sort(props, Comparator.<Props>naturalOrder().reversed());
+        return (DocumentProcessor<T, E> supp) -> {
+            DocumentOperationContext ctx = new DocumentOperationContext(doc, DocumentOperator::sendUndoableEdit);
+            LOG.log(Level.FINE, "Apply {0} to {1} with {2}", new Object[]{supp, doc, props});
+            for (Function<StyledDocument, DocumentPreAndPostProcessor> p : props) {
+                supp = p.apply(doc).wrap(supp);
             }
-            supp = new PostRunOperations<>( supp );
-            return supp.get();
+            supp = new PostRunOperations<>(supp);
+            return supp.get(ctx);
         };
     }
 
-    private static final ThreadLocal<List<Runnable>> POST_OPS = new ThreadLocal<>();
+    static <T, E extends Exception> BleFunction<T, E> runner(StyledDocument doc, BuiltInDocumentOperations... props) {
+        DocumentOperationContext ctx = new DocumentOperationContext(doc, DocumentOperator::sendUndoableEdit);
+        Arrays.sort(props, Comparator.<BuiltInDocumentOperations>naturalOrder().reversed());
+        return (DocumentProcessor<T, E> supp) -> {
+            LOG.log(Level.FINE, "Apply {0} to {1} with {2}", new Object[]{supp, doc, Arrays.asList(props)});
+            for (BuiltInDocumentOperations p : props) {
+                supp = p.apply(doc).wrap(supp);
+            }
+            supp = new PostRunOperations<>(supp);
+            return supp.get(ctx);
+        };
+    }
 
-    static void addPostRunOperation( Runnable r ) {
-        List<Runnable> ops = POST_OPS.get();
-        if ( ops == null ) {
-            throw new AssertionError( "Called outside scope with " + r );
+    static void sendUndoableEdit(Document doc, UndoableEdit edit) {
+        CustomUndoDocument customUndoDocument
+                = LineDocumentUtils.as(doc,
+                        CustomUndoDocument.class);
+        if (customUndoDocument != null) {
+            customUndoDocument.addUndoableEdit(edit);
         }
-        ops.add( r );
     }
 
     static class PostRunOperations<T, E extends Exception> implements DocumentProcessor<T, E> {
+
         private final DocumentProcessor<T, E> delegate;
 
-        public PostRunOperations( DocumentProcessor<T, E> delegate ) {
+        public PostRunOperations(DocumentProcessor<T, E> delegate) {
             this.delegate = delegate;
         }
 
-        private void postOpRun( Runnable r ) {
-            runOnEq( r );
-        }
-
         @Override
-        public T get() throws E, BadLocationException {
-            List<Runnable> ops = POST_OPS.get();
-            boolean wasNull = ops == null;
-            if ( wasNull ) {
-                ops = new ArrayList<>();
-                POST_OPS.set( ops );
-            }
+        @SuppressWarnings("FinallyDiscardsException")
+        public T get(DocumentOperationContext ctx) throws E, BadLocationException {
             try {
-                return delegate.get();
+                T result = delegate.get(ctx);
+                return result;
             } finally {
-                if ( wasNull ) {
-                    POST_OPS.remove();
-                }
-                if ( !ops.isEmpty() ) {
-                    final List<Runnable> all = new ArrayList<>( ops );
-                    LOG.log( Level.FINE, "Run {0} post-run operations on eq: {1}",
-                             new Object[]{ all.size(), all } );
-                    postOpRun( () -> {
-                        for ( Runnable run : all ) {
-                            run.run();
-                        }
-                    } );
-                }
+                eqRun(() -> {
+                    ctx.enterExitAtomicLock(ctx.document(), () -> {
+                        ctx.runPostOperationsOnEventQueue(LOG);
+                        ctx.flushPendingEdits();
+                    });
+                });
             }
         }
     }
@@ -252,106 +273,95 @@ public final class DocumentOperator {
     interface BleFunction<T, E extends Exception> extends ThrowingFunction<DocumentProcessor<T, E>, T> {
 
         @Override
-        T apply( DocumentProcessor<T, E> arg ) throws BadLocationException, E;
+        T apply(DocumentProcessor<T, E> arg) throws BadLocationException, E;
 
     }
 
-    enum Props implements Function<StyledDocument, BeforeAfter> {
+    /**
+     * Built in wrapper before/after operations.
+     */
+    enum BuiltInDocumentOperations implements Function<StyledDocument, DocumentPreAndPostProcessor> {
         // These are in a very specific order they need to be
-        // applied in
-        ACQUIRE_AWT_TREE_LOCK, // dangerous off EQ but blocks all revalidation - run in synchronized(comp.getTreeLock())
-        BLOCK_REPAINTS, // this should run first - does not depend on doc contents
-        WRITE_LOCK, // NbDocument.runAtomic
-        WRITE_LOCK_AS_USER, // NbDocument.runAtomicAsUser
-        READ_LOCK, // read lock must be acquired after write lock
+        // applied in (this list is the reverse order)
         DISABLE_MTI, // mti must be touched under read and write lock
-        ONE_UNDOABLE_EDIT, // need to be in the undo transaction before we add our caret restoring edit
         PRESERVE_CARET_POSITION, // Try to reset the caret position to someplace sane
+        ONE_UNDOABLE_EDIT, // need to be in the undo transaction before we add our caret restoring edit
+        RENDER, // render after atomic?
+        ATOMIC_AS_USER, // NbDocument.runAtomicAsUser
+        ATOMIC, // NbDocument.runAtomicAsUser
+        WRITE_LOCK, // basedocument.extwriteLock()
+        ACQUIRE_AWT_TREE_LOCK, // dangerous off EQ but blocks all revalidation - runPostOperationsOnEventQueue in synchronized(comp.getTreeLock())
+        BLOCK_REPAINTS, // this should runPostOperationsOnEventQueue first - does not depend on doc contents
         ;
 
         @Override
-        public BeforeAfter apply( StyledDocument doc ) {
-            switch ( this ) {
-                case READ_LOCK:
-                    return new DocumentWriteLocker( doc, false, false );
+        public DocumentPreAndPostProcessor apply(StyledDocument doc) {
+            switch (this) {
+                case ATOMIC:
+                    return new DocumentLockProcessor3(doc, false, false);
                 case WRITE_LOCK:
-                    return new DocumentWriteLocker( doc, true, false );
-                case WRITE_LOCK_AS_USER:
-                    return new DocumentWriteLocker( doc, true, true );
+                    if (!(doc instanceof BaseDocument)) {
+                        return NO_OP;
+                    }
+                    return new DocumentLockProcessor3(doc, true, false);
+                case ATOMIC_AS_USER:
+                    return new DocumentLockProcessor3(doc, false, true);
+                case RENDER:
+                    return new DocumentReadLocker(doc);
                 case BLOCK_REPAINTS:
-                    return new BlockRepaints( doc );
+                    return new BlockRepaints(doc);
                 case ONE_UNDOABLE_EDIT:
-                    return new UndoTransaction( doc );
+                    return new UndoTransaction(doc);
                 case DISABLE_MTI:
-                    return new DisableMTI( doc );
+                    return new DisableMTI(doc);
                 case PRESERVE_CARET_POSITION:
-                    return new PreserveCaret( doc );
+                    return new PreserveCaret(doc, new DefaultCaretPositionCalculator());
                 case ACQUIRE_AWT_TREE_LOCK:
-                    return new AWTTreeLocker( doc );
+                    return new AWTTreeLocker(doc);
                 default:
-                    throw new AssertionError( this );
+                    throw new AssertionError(this);
             }
         }
     }
 
-    static abstract class SingleEntryBeforeAfter implements BeforeAfter {
+    static abstract class SingleEntryBeforeAfter implements DocumentPreAndPostProcessor {
 
-        static final Map<Class<?>, ThreadLocal<Set<Integer>>> ACTIVES
-                = CollectionUtils.concurrentSupplierMap( ()
-                        -> ThreadLocal.withInitial( HashSet::new )
-                );
         protected final StyledDocument doc;
         protected final int idHash;
 
-        protected SingleEntryBeforeAfter( StyledDocument doc ) {
+        protected SingleEntryBeforeAfter(StyledDocument doc) {
             this.doc = doc;
-            idHash = System.identityHashCode( doc );
+            idHash = System.identityHashCode(doc);
         }
 
-        protected Set<Integer> actives() {
-            ThreadLocal<Set<Integer>> actives = ACTIVES.get( getClass() );
-            return actives.get();
+        public String toString() {
+            return getClass().getSimpleName();
         }
 
-        protected boolean alreadyActive() {
-            return actives().contains( idHash );
+        String id() {
+            return getClass().getSimpleName() + "-" + idHash;
+        }
+
+        private <T, E extends Exception> DocumentProcessor<T, E> superWrap(DocumentProcessor<T, E> toWrap) {
+            return DocumentPreAndPostProcessor.super.wrap(toWrap);
         }
 
         @Override
-        public <T, E extends Exception> DocumentProcessor<T, E> wrap( DocumentProcessor<T, E> toWrap ) {
-            Set<Integer> active = actives();
-            if ( active.contains( idHash ) ) {
-                return toWrap;
-            } else {
-                DocumentProcessor<T, E> wrapped = BeforeAfter.super.wrap( toWrap );
-                return new Wrapper<>( wrapped, active );
-            }
-        }
-
-        final class Wrapper<T, E extends Exception> implements DocumentProcessor<T, E> {
-
-            private final DocumentProcessor<T, E> wrapped;
-            private final Set<Integer> active;
-
-            public Wrapper( DocumentProcessor<T, E> wrapped, Set<Integer> active ) {
-                this.wrapped = wrapped;
-                this.active = active;
-            }
-
-            @Override
-            public T get() throws E, BadLocationException {
-                active.add( idHash );
-                try {
-                    return wrapped.get();
-                } finally {
-                    active.remove( idHash );
+        public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+            return new DocumentProcessor<T, E>() {
+                @Override
+                public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                    if (ctx.wasEntered(id())) {
+                        return toWrap.get(ctx);
+                    }
+                    ctx.markEntered(id());
+                    return superWrap(toWrap).get(ctx);
                 }
-            }
 
-            @Override
-            public String toString() {
-                return "Wrapper(" + SingleEntryBeforeAfter.this.toString() + ")";
-            }
+                public String toString() {
+                    return id() + "-" + toWrap.getClass().getSimpleName();
+                }
+            };
         }
     }
 
@@ -360,8 +370,8 @@ public final class DocumentOperator {
         private MutableTextInput mti;
         private boolean active;
 
-        public DisableMTI( StyledDocument doc ) {
-            super( doc );
+        public DisableMTI(StyledDocument doc) {
+            super(doc);
         }
 
         @Override
@@ -370,167 +380,321 @@ public final class DocumentOperator {
         }
 
         @Override
-        public void before() throws BadLocationException {
-            mti = ( MutableTextInput ) doc.getProperty( MutableTextInput.class );
-            LOG.log( Level.FINER, "{0} before on {1}",
-                     new Object[]{ this, Thread.currentThread() } );
-            if ( mti != null ) {
+        public void before(DocumentOperationContext ctx) throws BadLocationException {
+            mti = (MutableTextInput) doc.getProperty(MutableTextInput.class);
+            LOG.log(Level.FINER, "{0} before on {1}",
+                    new Object[]{this, Thread.currentThread()});
+            if (mti != null) {
                 TokenHierarchyControl ctrl = mti.tokenHierarchyControl();
                 active = ctrl.isActive();
-                ctrl.setActive( false );
+                ctrl.setActive(false);
             }
         }
 
         @Override
-        public void after() throws BadLocationException {
-            LOG.log( Level.FINER, "{0} after on {1}",
-                     new Object[]{ this, Thread.currentThread() } );
-            if ( mti != null ) {
-                LOG.log( Level.FINEST, "Set active {0} on {1}",
-                         new Object[]{ active, mti } );
-                mti.tokenHierarchyControl().setActive( active );
+        public void after(DocumentOperationContext ctx) throws BadLocationException {
+            LOG.log(Level.FINER, "{0} after on {1}",
+                    new Object[]{this, Thread.currentThread()});
+            if (mti != null) {
+                LOG.log(Level.FINEST, "Set active {0} on {1}",
+                        new Object[]{active, mti});
+                mti.tokenHierarchyControl().setActive(active);
             }
+        }
+    }
+
+    /**
+     * Find the most recently used text editor of a document, <i>including ones
+     * which are not in the editor registry if they are the focus owner</i>.
+     *
+     * @param doc A document
+     * @return A text component
+     */
+    public static JTextComponent findComponent(Document doc) {
+        // For the Antlr preview, in which the document does not show up as
+        // a member of EditorRegistry, because it's just a JEditorPane with
+        // the kit set on it, we need to first try to find the component
+        // as the current focus onwer - otherwise we wind up getting the
+        // caret position from the wrong JTextComponent
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (focusOwner instanceof JTextComponent) {
+            JTextComponent jtc = (JTextComponent) focusOwner;
+            if (jtc.getDocument() == doc) {
+                return jtc;
+            }
+        }
+        focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getPermanentFocusOwner();
+        if (focusOwner instanceof JTextComponent) {
+            JTextComponent jtc = (JTextComponent) focusOwner;
+            if (jtc.getDocument() == doc) {
+                return jtc;
+            }
+        }
+        JTextComponent comp = EditorRegistry.lastFocusedComponent();
+        if (comp != null && comp.getDocument() == doc) {
+            return comp;
+        }
+        // Pending - scan current focus cycle root?
+        return EditorRegistry.findComponent(doc);
+    }
+
+    private static class DefaultCaretPositionCalculator implements CaretPositionCalculator {
+
+        @Override
+        public Consumer<IntBiConsumer> createPostEditPositionFinder(CaretInformation caret, JTextComponent comp, Document doc) {
+            return bc -> {
+                bc.accept(caret.dot(), caret.mark());
+            };
+        }
+
+        public String toString() {
+            return getClass().getSimpleName();
+        }
+    }
+
+    static final class EditorCaretInformation implements CaretInformation {
+
+        final CaretInfo info;
+
+        public EditorCaretInformation(CaretInfo info) {
+            this.info = info;
+        }
+
+        public String toString() {
+            return getClass().getSimpleName() + "(" + info.getDot() + " / " + info.getMark() + ")";
+        }
+
+        @Override
+        public int dot() {
+            return info.getDot();
+        }
+
+        @Override
+        public int mark() {
+            return info.getMark();
+        }
+
+        @Override
+        public Bias dotBias() {
+            return info.getDotBias();
+        }
+
+        @Override
+        public Bias markBias() {
+            return info.getMarkBias();
+        }
+
+        @Override
+        public int selectionStart() {
+            return info.getSelectionStart();
+        }
+
+        @Override
+        public int selectionEnd() {
+            return info.getSelectionEnd();
+        }
+    }
+
+    static final class SwingCaretInformation implements CaretInformation {
+
+        private final Position dotPos;
+        private final Position markPos;
+        private final boolean forward;
+
+        SwingCaretInformation(Caret caret, Document doc) throws BadLocationException {
+            int mark = caret.getMark();
+            int dot = caret.getDot();
+            dotPos = doc.createPosition(dot);
+            forward = mark >= dot;
+            if (mark == dot) {
+                markPos = dotPos;
+            } else {
+                markPos = doc.createPosition(mark);
+            }
+        }
+
+        @Override
+        public int dot() {
+            return dotPos.getOffset();
+        }
+
+        @Override
+        public int mark() {
+            return markPos.getOffset();
+        }
+
+        @Override
+        public Bias dotBias() {
+            return forward ? Position.Bias.Backward
+                    : Position.Bias.Forward;
+        }
+
+        @Override
+        public Bias markBias() {
+            return forward ? Position.Bias.Forward
+                    : Position.Bias.Backward;
+        }
+
+        public String toString() {
+            return getClass().getSimpleName() + "(" + dot() + " / " + mark() + ")";
         }
     }
 
     static class PreserveCaret extends SingleEntryBeforeAfter implements DocumentListener {
 
-        private BeforeAfter handler;
+        private DocumentPreAndPostProcessor handler;
         UndoableEdit edit;
         JTextComponent comp;
+        private final CaretPositionCalculator calc;
+        private boolean beforeRun;
+        private boolean afterRun;
 
-        public PreserveCaret( StyledDocument doc ) {
-            super( doc );
+        public PreserveCaret(StyledDocument doc, CaretPositionCalculator calc, JTextComponent comp) {
+            this(doc, calc);
+            this.comp = comp;
+        }
+
+        public PreserveCaret(StyledDocument doc, CaretPositionCalculator calc) {
+            super(doc);
+            this.calc = calc == null ? new DefaultCaretPositionCalculator() : calc;
+        }
+
+        @Override
+        String id() {
+            JTextComponent c = comp();
+            return c == null ? super.id() : super.id() + "-" + System.identityHashCode(c);
+        }
+
+        private JTextComponent comp() {
+            return this.comp == null ? this.comp = findComponent(doc) : this.comp;
         }
 
         private boolean isEditorCaret() {
-            JTextComponent comp = EditorRegistry.findComponent( doc );
-            return comp != null && ( comp.getCaret() instanceof EditorCaret );
+            JTextComponent comp = comp();
+            return comp != null && (comp.getCaret() instanceof EditorCaret);
         }
 
         @Override
         public String toString() {
-            return "PRESERVE-CARET(" + ( isEditorCaret() ? "EDITOR" : "SWING" ) + ")";
+            return "PRESERVE-CARET(" + (isEditorCaret() ? "EDITOR" : "SWING") + ")";
         }
 
         @Override
-        public void before() throws BadLocationException {
-            comp = EditorRegistry.findComponent( doc );
-            LOG.log( Level.FINER, "{0} before with {1} on {2}",
-                     new Object[]{ this, doc, Thread.currentThread() } );
-            if ( comp != null ) {
-                doc.addDocumentListener( this );
-                Caret caret = comp.getCaret();
-                if ( caret != null ) {
-                    edit = new CaretPositionUndoableEdit( comp, doc );
-                    LOG.log( Level.FINEST, "Added caret position undo" );
-//                    sendUndoableEdit( doc, edit );
-                    if ( caret instanceof EditorCaret ) {
-                        LOG.log( Level.FINEST, "Using editor caret strategy" );
-                        handler = new EditorCaretHandler( comp, ( EditorCaret ) caret );
-                    } else {
-                        LOG.log( Level.FINEST, "Using swing caret strategy" );
-                        handler = new SwingCaretHandler( comp, caret );
-                    }
-                }
-                if ( handler != null ) {
-                    handler.before();
-                }
+        public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+            if (beforeRun) {
+                return toWrap;
+            } else {
+                return super.wrap(toWrap);
             }
         }
 
         @Override
-        public void after() throws BadLocationException {
-            LOG.log( Level.FINER, "{0} after on {1}", new Object[]{ this, Thread.currentThread() } );
-            if ( handler != null ) {
-                sendUndoableEdit( doc, edit );
-                doc.removeDocumentListener( this );
-                handler.after();
+        public void before(DocumentOperationContext ctx) throws BadLocationException {
+            if (beforeRun) {
+                return;
+            }
+            beforeRun = true;
+            if (comp == null) {
+                comp = this.comp == null ? findComponent(doc) : comp;
+            }
+            LOG.log(Level.FINER, "{0} before with {1} on {2}",
+                    new Object[]{this, doc, Thread.currentThread()});
+            JTextComponent c = comp();
+            if (c != null) {
+                doc.addDocumentListener(this);
+                Caret caret = c.getCaret();
+                if (caret != null) {
+                    edit = new CaretPositionUndoableEdit(c, doc);
+//                    ctx.sendUndoableEdit(edit);
+//                    EditorUtilities.addCaretUndoableEdit(doc, comp.getCaret());
+                    LOG.log(Level.FINEST, "Added caret position undo");
+                    ctx.sendUndoableEdit(edit);
+                    if (caret instanceof EditorCaret) {
+                        LOG.log(Level.FINEST, "Using editor caret strategy");
+                        handler = new EditorCaretHandler(doc, c, (EditorCaret) caret, calc);
+                    } else {
+                        LOG.log(Level.FINEST, "Using swing caret strategy");
+                        handler = new SwingCaretHandler(c, caret, calc);
+                    }
+                }
+                if (handler != null) {
+                    handler.before(ctx);
+                }
             } else {
-                addPostRunOperation( () -> {
-                    doc.removeDocumentListener( this );
-                } );
+            }
+        }
+
+        @Override
+        public void after(DocumentOperationContext ctx) throws BadLocationException {
+            if (afterRun) {
+                return;
+            }
+            afterRun = true;
+            LOG.log(Level.FINER, "{0} after on {1}", new Object[]{this, Thread.currentThread()});
+            if (handler != null) {
+                doc.removeDocumentListener(this);
+                handler.after(ctx);
+//                ctx.sendUndoableEdit(edit);
+            } else {
+                ctx.add(() -> {
+                    doc.removeDocumentListener(this);
+                });
             }
         }
 
         private void docChanged() {
-            if ( comp != null ) {
-                JScrollPane pane = ( JScrollPane ) SwingUtilities.getAncestorOfClass( JScrollPane.class, comp );
-                if ( pane != null ) {
-                    RepaintManager.currentManager( pane ).removeInvalidComponent( pane );
-                    RepaintManager.currentManager( pane.getViewport() ).removeInvalidComponent( pane.getViewport() );
-                    RepaintManager.currentManager( pane ).markCompletelyClean( pane );
-                    RepaintManager.currentManager( pane.getViewport() ).markCompletelyClean( pane.getViewport() );
+            if (comp != null) {
+                JScrollPane pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, comp);
+                if (pane != null) {
+                    RepaintManager.currentManager(pane).removeInvalidComponent(pane);
+                    RepaintManager.currentManager(pane.getViewport()).removeInvalidComponent(pane.getViewport());
+                    RepaintManager.currentManager(pane).markCompletelyClean(pane);
+                    RepaintManager.currentManager(pane.getViewport()).markCompletelyClean(pane.getViewport());
                 }
-                RepaintManager.currentManager( comp ).removeInvalidComponent( comp );
-                RepaintManager.currentManager( comp ).markCompletelyClean( comp );
-                LOG.log( Level.FINEST,
-                         "{0} got doc change, attempting to "
-                         + "preempt repaint and revalidate from "
-                         + "RepaintManager for {1}",
-                         new Object[]{ this, comp } );
+                RepaintManager.currentManager(comp).removeInvalidComponent(comp);
+                RepaintManager.currentManager(comp).markCompletelyClean(comp);
+                LOG.log(Level.FINEST,
+                        "{0} got doc change, attempting to "
+                        + "preempt repaint and revalidate from "
+                        + "RepaintManager for {1}",
+                        new Object[]{this, comp});
             }
         }
 
         @Override
-        public void insertUpdate( DocumentEvent e ) {
+        public void insertUpdate(DocumentEvent e) {
             docChanged();
         }
 
         @Override
-        public void removeUpdate( DocumentEvent e ) {
+        public void removeUpdate(DocumentEvent e) {
             docChanged();
         }
 
         @Override
-        public void changedUpdate( DocumentEvent e ) {
+        public void changedUpdate(DocumentEvent e) {
             // do nothing
         }
 
-        static final class EditorCaretHandler extends NavigationFilter implements BeforeAfter, CaretMoveHandler {
+        static final class EditorCaretHandler extends NavigationFilter implements DocumentPreAndPostProcessor, CaretMoveHandler {
 
-            private final JTextComponent comp;
-            private final EditorCaret caret;
-            private List<CaretInfo> infos = new ArrayList<>( 5 );
+            final JTextComponent comp;
+            final EditorCaret caret;
+            List<CaretInfo> infos = new ArrayList<>(5);
+            private final Map<CaretInfo, Integer> origCaretPositions = new HashMap<>();
             private NavigationFilter filter1;
             private NavigationFilter filter2;
             private boolean wasCaretUpdated;
-//            Position caretPos;
-//            Position markPos;
-            private final Map<CaretInfo, CaretPositions> positionsForCaret = new HashMap<>();
+            private final CaretPositionCalculator calc;
+            private final List<Consumer<IntBiConsumer>> positionCalcs = new ArrayList<>(5);
+            private final StyledDocument doc;
+            private boolean caretsUpdated;
 
-            static class CaretPositions {
-
-                private final Position dot;
-                private final Position mark;
-                private final Bias dotBias;
-                private final Bias markBias;
-
-                CaretPositions( CaretInfo info, Document doc ) throws BadLocationException {
-                    dot = doc.createPosition( info.getDot() );
-                    mark = doc.createPosition( info.getMark() );
-                    dotBias = info.getDotBias();
-                    markBias = info.getMarkBias();
-                }
-
-                boolean apply( CaretInfo info, CaretMoveContext cmc ) {
-                    boolean result = cmc.setDotAndMark( info, dot, dotBias,
-                                                        mark, markBias );
-                    LOG.log( Level.FINEST, "Update caret {0} to {1} {2} / {3}, {4}",
-                             new Object[]{ info, dot.getOffset(),
-                                 dotBias, mark.getOffset(), markBias } );
-                    return result;
-                }
-
-                public String toString() {
-                    return "CaretPositions(" + dot + " " + dotBias + ","
-                           + mark + " " + markBias + ")";
-                }
-            }
-
-            public EditorCaretHandler( JTextComponent comp, EditorCaret caret ) {
+            public EditorCaretHandler(StyledDocument doc, JTextComponent comp, EditorCaret caret, CaretPositionCalculator calc) {
                 this.comp = comp;
+                this.doc = doc;
                 this.caret = caret;
+                this.calc = calc == null ? new DefaultCaretPositionCalculator() : calc;
             }
 
             @Override
@@ -538,105 +702,155 @@ public final class DocumentOperator {
                 return "EDITOR-CARET";
             }
 
-            @Override
-            public void before() throws BadLocationException {
-                LOG.log( Level.FINER, "{0} before on {1}", new Object[]{ this, Thread.currentThread() } );
-                this.infos.addAll( caret.getSortedCarets() );
-                for ( CaretInfo info : infos ) {
-                    positionsForCaret.put( info, new CaretPositions( info, comp.getDocument() ) );
-                }
-                LOG.log( Level.FINEST, "Editor caret info {0}", positionsForCaret );
-                filter1 = EditorCaret.getNavigationFilter( comp, MoveCaretsOrigin.DEFAULT );
-                EditorCaret.setNavigationFilter( comp, MoveCaretsOrigin.DEFAULT, this );
-                filter2 = EditorCaret.getNavigationFilter( comp, MoveCaretsOrigin.DISABLE_FILTERS );
-                EditorCaret.setNavigationFilter( comp, MoveCaretsOrigin.DEFAULT, this );
-                caret.setVisible( false );
+            String id() {
+                return "carets-" + System.identityHashCode(doc)
+                        + "-" + System.identityHashCode(comp)
+                        + "-" + System.identityHashCode(caret);
             }
 
             @Override
-            public void after() throws BadLocationException {
-                LOG.log( Level.FINER, "{0} after restore caret navigation filters {1}, {2}"
-                                      + " on {3}",
-                         new Object[]{ this, filter1, filter2, Thread.currentThread() } );
-                EditorCaret.setNavigationFilter( comp, MoveCaretsOrigin.DEFAULT, filter1 );
-                EditorCaret.setNavigationFilter( comp, MoveCaretsOrigin.DISABLE_FILTERS, filter1 );
-                caret.moveCarets( this, MoveCaretsOrigin.DEFAULT );
-                if ( !wasCaretUpdated ) {
-                    LOG.log( Level.FINEST, "Caret {0} not updated, use brute force method", caret );
-                    addPostRunOperation( this::bruteForceCaretUpdate );
+            public void before(DocumentOperationContext ctx) throws BadLocationException {
+                LOG.log(Level.FINER, "{0} before on {1} with {2}", new Object[]{this, Thread.currentThread(), calc});
+                this.infos.addAll(caret.getSortedCarets());
+                for (CaretInfo info : infos) {
+                    origCaretPositions.put(info, info.getDot());
+//                    positionsForCaret.put(info, new CaretPositions(info, comp.getDocument()));
+                    CaretInformation ci = new EditorCaretInformation(info);
+                    positionCalcs.add(calc.createPostEditPositionFinder(ci, comp, comp.getDocument()));
+                }
+                LOG.log(Level.FINEST, "Editor caret info {0}", infos);
+
+                caretsUpdated = ctx.ifNotEntered(id(), () -> {
+                    LOG.log(Level.FINEST, "Add caret navigation filters");
+                    filter1 = EditorCaret.getNavigationFilter(comp, MoveCaretsOrigin.DEFAULT);
+                    EditorCaret.setNavigationFilter(comp, MoveCaretsOrigin.DEFAULT, this);
+                    filter2 = EditorCaret.getNavigationFilter(comp, MoveCaretsOrigin.DISABLE_FILTERS);
+                    EditorCaret.setNavigationFilter(comp, MoveCaretsOrigin.DEFAULT, this);
+                    caret.setVisible(false);
+                });
+            }
+
+            @Override
+            public void after(DocumentOperationContext ctx) throws BadLocationException {
+                LOG.log(Level.FINER, "{0} after restore caret navigation filters {1}, {2}"
+                        + " on {3}",
+                        new Object[]{this, filter1, filter2, Thread.currentThread()});
+
+                if (caretsUpdated) {
+//                    if (filter1 != null) {
+                    EditorCaret.setNavigationFilter(comp, MoveCaretsOrigin.DEFAULT, filter1);
+//                    }
+//                    if (filter2 != null) {
+                    EditorCaret.setNavigationFilter(comp, MoveCaretsOrigin.DISABLE_FILTERS, filter2);
+//                    }
+                    // Do all of this in an end / EQ task?
+                    int moveCaretsResult = caret.moveCarets(this, MoveCaretsOrigin.DISABLE_FILTERS);
+                    if (!wasCaretUpdated) {
+                        ctx.add(() -> {
+                            int moveCaretsResult2 = caret.moveCarets(this, MoveCaretsOrigin.DISABLE_FILTERS);
+                            if (!wasCaretUpdated) {
+                                bruteForceCaretUpdate();
+                            }
+                        });
+                    }
+                } else {
                 }
             }
 
             private void bruteForceCaretUpdate() {
-                if ( !positionsForCaret.isEmpty() ) {
-                    CaretPositions c = positionsForCaret.entrySet().iterator().next().getValue();
-                    LOG.log( Level.FINEST, "Run brute force reposition caret {0} on eq from {1}",
-                             new Object[]{ c, Thread.currentThread() } );
-                    int mark = c.mark.getOffset();
-                    int dot = c.dot.getOffset();
-                    LOG.log( Level.FINEST, "On eq update caret {0} / {1} ",
-                             new Object[]{ mark, dot } );
-                    caret.setDot( mark );
-                    if ( mark != dot ) {
-                        caret.moveDot( mark );
-                    }
-                } else {
-                    CaretInfo info = infos.isEmpty() ? null : infos.get( 0 );
-                    int mark = info.getMark();
-                    int dot = info.getDot();
-                    caret.setDot( mark );
-                    if ( mark != dot ) {
-                        caret.moveDot( dot );
+                if (!infos.isEmpty()) {
+                    int max = this.infos.size();
+                    for (int i = 0; i < max; i++) {
+                        Consumer<IntBiConsumer> curr = positionCalcs.get(i);
+                        CaretInfo info = infos.get(i);
+                        curr.accept((dot, mark) -> {
+                            LOG.log(Level.INFO, "Attempt brute force update of {0} to {1}, {2} on {3}",
+                                    new Object[]{info, dot, mark, caret});
+                            caret.setDot(mark);
+                            if (mark != dot) {
+                                caret.moveDot(dot);
+                            }
+                            wasCaretUpdated = caret.getDot() == dot;
+                        });
                     }
                 }
             }
 
             @Override
-            public void moveCarets( CaretMoveContext cmc ) {
-                wasCaretUpdated = false;
-                if ( !positionsForCaret.isEmpty() ) {
-                    for ( Map.Entry<CaretInfo, CaretPositions> e : positionsForCaret.entrySet() ) {
-                        wasCaretUpdated |= e.getValue().apply( e.getKey(), cmc );
-                    }
-                    LOG.log( Level.FINEST, "Update carets with editor carets "
-                                           + "api success? {0}", wasCaretUpdated );
+            public void moveCarets(CaretMoveContext cmc) {
+                int max = this.infos.size();
+                assert max == this.positionCalcs.size() : "Mismatched set of calcs";
+                Document doc = comp.getDocument();
+                if (doc.getLength() == 0) {
+                    // don't move it and don't try again
+                    wasCaretUpdated = true;
+                    return;
+                }
+                for (int i = 0; i < max; i++) {
+                    Consumer<IntBiConsumer> curr = positionCalcs.get(i);
+                    CaretInfo info = infos.get(i);
+                    curr.accept((dot, mark) -> {
+                        dot = Math.max(0, Math.min(doc.getLength() - 1, dot));
+                        mark = Math.max(0, Math.min(doc.getLength() - 1, mark));
+                        try {
+                            Position markPos = doc.createPosition(mark);
+                            Position dotPos = doc.createPosition(dot);
+                            boolean updated = cmc.setDotAndMark(info, dotPos, info.getDotBias(), markPos, info.getMarkBias());
+                            if (!updated) {
+//                                // brute force - this will trash multiple
+//                                // carets if present
+//                                caret.setDot(mark);
+//                                if (mark != dot) {
+//                                    caret.moveDot(dot);
+//                                }
+//                                updated = caret.getDot() == dot;
+                            }
+                            wasCaretUpdated |= updated;
+                        } catch (BadLocationException ex) {
+                            LOG.log(Level.INFO, "Bad location attempting to restore caret position to " + dot
+                                    + ", " + mark + " in " + doc, ex);
+                        }
+                    });
                 }
             }
 
             @Override
-            public int getNextVisualPositionFrom( JTextComponent text, int pos, Position.Bias bias, int direction,
-                    Position.Bias[] biasRet ) throws BadLocationException {
-                if ( infos.size() > 0 ) {
-                    return infos.get( 0 ).getDot();
+            public int getNextVisualPositionFrom(JTextComponent text, int pos, Position.Bias bias, int direction,
+                    Position.Bias[] biasRet) throws BadLocationException {
+                if (infos.size() > 0) {
+                    return origCaretPositions.get(infos.get(0));
                 }
                 return pos;
             }
 
             @Override
-            public void moveDot( FilterBypass fb, int dot, Position.Bias bias ) {
+            public void moveDot(FilterBypass fb, int dot, Position.Bias bias) {
                 // do nothing
-                LOG.log( Level.FINE, "{0} Preventing dot move to {1}",
-                         new Object[]{ this, dot } );
+                LOG.log(Level.FINE, "{0} Preventing dot move to {1}",
+                        new Object[]{this, dot});
             }
 
             @Override
-            public void setDot( FilterBypass fb, int dot, Position.Bias bias ) {
+            public void setDot(FilterBypass fb, int dot, Position.Bias bias) {
                 // do nothing
-                LOG.log( Level.FINE, "{0} Preventing dot set to {1}",
-                         new Object[]{ this, dot } );
+                LOG.log(Level.FINE, "{0} Preventing dot set to {1}",
+                        new Object[]{this, dot});
             }
         }
 
-        static final class SwingCaretHandler implements BeforeAfter, Runnable {
+        static final class SwingCaretHandler implements DocumentPreAndPostProcessor, Runnable {
 
-            private final JTextComponent comp;
-            private final Caret caret;
+            final JTextComponent comp;
+            final Caret caret;
             private Position dot;
             private Position mark;
+            private final CaretPositionCalculator calc;
+            private final List<Consumer<IntBiConsumer>> finders = new ArrayList<>();
 
-            public SwingCaretHandler( JTextComponent comp, Caret caret ) {
+            public SwingCaretHandler(JTextComponent comp, Caret caret, CaretPositionCalculator calc) {
                 this.comp = comp;
                 this.caret = caret;
+                this.calc = calc == null ? new DefaultCaretPositionCalculator() : calc;
             }
 
             @Override
@@ -645,28 +859,44 @@ public final class DocumentOperator {
             }
 
             @Override
-            public void before() throws BadLocationException {
-                LOG.log( Level.FINER, "{0} before", this );
+            public void before(DocumentOperationContext ctx) throws BadLocationException {
+                LOG.log(Level.FINER, "{0} before", this);
                 Document doc = comp.getDocument();
                 Caret caret = comp.getCaret();
-                if ( caret != null ) {
-                    dot = doc.createPosition( caret.getDot() );
-                    mark = doc.createPosition( caret.getMark() );
+                if (caret != null) {
+                    List<CaretInformation> caretInfo = CaretInformation.create(comp);
+                    for (CaretInformation info : caretInfo) {
+                        Consumer<IntBiConsumer> finder = calc.createPostEditPositionFinder(info, comp, doc);
+                        if (finder != null) {
+                            finders.add(finder);
+                        }
+                    }
+                    dot = doc.createPosition(caret.getDot());
+                    mark = doc.createPosition(caret.getMark());
                 }
             }
 
             @Override
-            public void after() throws BadLocationException {
-                LOG.log( Level.FINER, "{0} after", this );
-                if ( dot != null ) {
-                    addPostRunOperation( this );
+            public void after(DocumentOperationContext ctx) throws BadLocationException {
+                LOG.log(Level.FINER, "{0} after", this);
+                if (dot != null) {
+                    ctx.add(this);
                 }
             }
 
             @Override
             public void run() {
-                caret.setDot( mark.getOffset() );
-                caret.moveDot( dot.getOffset() );
+                if (!finders.isEmpty()) {
+                    for (Consumer<IntBiConsumer> c : finders) {
+                        c.accept((dot, mark) -> {
+                            caret.setDot(mark);
+                            caret.moveDot(dot);
+                        });
+                    }
+                } else {
+                    caret.setDot(mark.getOffset());
+                    caret.moveDot(dot.getOffset());
+                }
             }
         }
     }
@@ -675,12 +905,22 @@ public final class DocumentOperator {
 
         private JTextComponent comp;
 
-        public BlockRepaints( StyledDocument doc ) {
-            super( doc );
+        public BlockRepaints(StyledDocument doc) {
+            super(doc);
         }
 
         public String toString() {
             return "BLOCK-REPAINTS";
+        }
+
+        private JTextComponent comp() {
+            return comp == null ? comp = findComponent(doc) : comp;
+        }
+
+        @Override
+        String id() {
+            JTextComponent c = comp();
+            return c == null ? super.id() : super.id() + "-" + System.identityHashCode(c);
         }
 
         Point viewPosition;
@@ -688,469 +928,559 @@ public final class DocumentOperator {
         private int distanceToTop = -1;
 
         @Override
-        public void before() {
-            LOG.log( Level.FINER, "{0} before on {1}", new Object[]{ this, Thread.currentThread() } );
-            comp = EditorRegistry.findComponent( doc );
-            if ( comp != null ) {
-                LOG.log( Level.FINER, "{0} before", this );
-                int caretPos = comp.getCaretPosition();
-                caretVisible = comp.getCaret().isVisible();
-                LOG.log( Level.FINEST, "Caret position {0} visible {1}",
-                         new Object[]{ caretPos, caretVisible } );
-                comp.getCaret().setVisible( false );
-
-                JScrollPane pane = ( JScrollPane ) SwingUtilities.getAncestorOfClass( JScrollPane.class, comp );
-                if ( pane != null ) {
-                    pane.setIgnoreRepaint( true );
-                    pane.getViewport().setIgnoreRepaint( true );
+        public void before(DocumentOperationContext ctx) {
+            LOG.log(Level.FINER, "{0} before on {1}", new Object[]{this, Thread.currentThread()});
+            JTextComponent textComp = comp();
+            if (textComp != null) {
+                boolean visibilityChanged = false;
+                boolean paintsDisabled = false;
+                JScrollPane pane = null;
+                try {
+                    LOG.log(Level.FINER, "{0} before", this);
+                    int caretPos = textComp.getCaretPosition();
+                    caretVisible = textComp.getCaret().isVisible();
+                    LOG.log(Level.FINEST, "Caret position {0} visible {1}",
+                            new Object[]{caretPos, caretVisible});
+                    textComp.getCaret().setVisible(false);
+                    visibilityChanged = true;
+                    pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, textComp);
+                    if (pane != null) {
+                        pane.setIgnoreRepaint(true);
+                        pane.getViewport().setIgnoreRepaint(true);
+                        paintsDisabled = true;
 //                    pane.getViewport().addChangeListener(ce -> {
 //                        new Exception("VP CHANGE: " + pane.getViewport().getViewPosition()).printStackTrace();
 //                    });
 //                    comp.getCaret().addChangeListener(ce -> {
 //                        new Exception("CARET CHANGE: " + comp.getCaret().getDot()).printStackTrace();
 //                    });
-                    viewPosition = pane.getViewport().getViewPosition();
-                    try {
-                        Rectangle r = comp.modelToView( caretPos );
-                        distanceToTop = r.y - viewPosition.y;
-                        LOG.log( Level.FINEST, "Collectioned component info {0}, {1}, {2}",
-                                 new Object[]{ viewPosition, distanceToTop, r } );
-                    } catch ( BadLocationException ex ) {
-                        LOG.log( Level.SEVERE, null, ex );
+                        viewPosition = pane.getViewport().getViewPosition();
+                        LOG.log(Level.FINEST, "Repaints blocked; view-position {0}", viewPosition);
+                        try {
+                            Rectangle r = textComp.modelToView(caretPos);
+                            distanceToTop = r.y - viewPosition.y;
+                            LOG.log(Level.FINEST, "Collectioned component info {0}, {1}, {2}",
+                                    new Object[]{viewPosition, distanceToTop, r});
+                        } catch (BadLocationException ex) {
+                            LOG.log(Level.SEVERE, null, ex);
+                        }
                     }
+                    textComp.setIgnoreRepaint(true);
+                } catch (Exception ex) {
+                    if (visibilityChanged) {
+                        textComp.getCaret().setVisible(caretVisible);
+                    }
+                    if (paintsDisabled) {
+                        pane.setIgnoreRepaint(false);
+                        pane.getViewport().setIgnoreRepaint(false);
+                    }
+                    LOG.log(Level.INFO, "Exception disabling repaints", ex);
                 }
-                comp.setIgnoreRepaint( true );
             }
         }
 
         @Override
-        public void after() {
-            LOG.log( Level.FINER, "{0} after on {1}", new Object[]{ this, Thread.currentThread() } );
-            if ( comp != null ) {
-                addPostRunOperation( this );
+        public void after(DocumentOperationContext ctx) {
+            LOG.log(Level.FINER, "{0} after on {1}", new Object[]{this, Thread.currentThread()});
+            if (comp != null) {
+                ctx.add(this);
+//                run();
             }
         }
 
         @Override
         public void run() {
-            JScrollPane pane = ( JScrollPane ) SwingUtilities.getAncestorOfClass( JScrollPane.class, comp );
-            int caretPos = comp.getCaretPosition();
-            LOG.log( Level.FINER, "{0} after-on-eq", this );
-            if ( pane != null ) {
-                if ( distanceToTop > 0 ) {
-                    try {
-                        Rectangle newCaretBounds = comp.modelToView( caretPos );
-                        LOG.log( Level.FINEST, "view position was {0} old "
-                                               + "distance to top {1} new caret bounds {2}",
-                                 new Object[]{ viewPosition, distanceToTop, newCaretBounds } );
-                        newCaretBounds.y -= distanceToTop;
-                        viewPosition = new Point( viewPosition.x, newCaretBounds.y );
-                        LOG.log( Level.FINEST, "view position now {0}", viewPosition );
-                    } catch ( BadLocationException ex ) {
-                        LOG.log( Level.SEVERE, null, ex );
+            try {
+                JScrollPane pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, comp);
+                int caretPos = comp.getCaretPosition();
+                LOG.log(Level.FINER, "{0} after-on-eq", this);
+                if (pane != null) {
+                    if (distanceToTop > 0) {
+                        try {
+                            Rectangle newCaretBounds = comp.modelToView(caretPos);
+                            LOG.log(Level.FINEST, "view position was {0} old "
+                                    + "distance to top {1} new caret bounds {2}",
+                                    new Object[]{viewPosition, distanceToTop, newCaretBounds});
+                            newCaretBounds.y -= distanceToTop;
+                            viewPosition = new Point(viewPosition.x, Math.max(0, newCaretBounds.y));
+                            LOG.log(Level.FINEST, "view position now {0}", viewPosition);
+                        } catch (BadLocationException ex) {
+                            LOG.log(Level.SEVERE, null, ex);
+                        }
+                    } else {
                     }
+                    pane.getViewport().setViewPosition(viewPosition);
+                    comp.setIgnoreRepaint(false);
+                    pane.setIgnoreRepaint(false);
+                    pane.getViewport().setIgnoreRepaint(false);
+                    pane.repaint();
+                } else {
+                    comp.setIgnoreRepaint(false);
+                    comp.repaint();
                 }
-                pane.getViewport().setViewPosition( viewPosition );
-                comp.setIgnoreRepaint( false );
-                pane.setIgnoreRepaint( false );
-                pane.getViewport().setIgnoreRepaint( false );
-                pane.repaint();
-            } else {
-                comp.setIgnoreRepaint( false );
-                comp.repaint();
+            } finally {
+                comp.getCaret().setVisible(true);
             }
-            comp.getCaret().setVisible( caretVisible );
         }
     }
 
-    static class DocumentWriteLocker implements BeforeAfter {
+    static class DocumentReadLocker implements DocumentPreAndPostProcessor {
 
-        static ThreadLocal<Set<Integer>> alreadyReadLocked = ThreadLocal.withInitial( HashSet::new );
-        static ThreadLocal<Set<Integer>> alreadyWriteLocked = ThreadLocal.withInitial( HashSet::new );
-        private final StyledDocument doc;
-        private final boolean writeLock;
-        private final int idHash;
-        private final boolean asUser;
+        private final Document doc;
 
-        public DocumentWriteLocker( StyledDocument doc, boolean writeLock, boolean asUser ) {
+        public DocumentReadLocker(Document doc) {
             this.doc = doc;
+        }
+
+        @Override
+        public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+            return new DocumentProcessor<T, E>() {
+                @Override
+                @SuppressWarnings("UseSpecificCatch")
+                public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                    LOG.log(Level.FINE, "Enter document-read-lock {0}", doc);
+//                    if (doc instanceof BaseDocument && ((BaseDocument) doc).isAtomicLock()) {
+//                        LOG.log(Level.FINER, "Already in atomic lock, don't need read lock, run {0} on {1}",
+//                                new Object[]{toWrap, doc});
+//                        return toWrap.get(ctx);
+//                    }
+                    return ctx.enterReadLockIfNotAlreadyLocked(doc, (shouldLock, onLockAcquired) -> {
+                        if (shouldLock) {
+                            T result = render(doc, () -> {
+                                return toWrap.get(ctx);
+                            });
+                            return result;
+                        } else {
+                            T result = toWrap.get(ctx);
+                            onLockAcquired.run();
+                            return result;
+                        }
+                    });
+                }
+
+                @Override
+                public String toString() {
+                    return "read-lock-by-render(" + toWrap + ")";
+                }
+            };
+        }
+    }
+
+    static class DocumentLockProcessor3 extends SingleEntryBeforeAfter {
+
+        final boolean writeLock;
+        final boolean asUser;
+        volatile boolean didLock;
+
+        DocumentLockProcessor3(StyledDocument doc, boolean writeLock, boolean asUser) {
+            super(doc);
             this.writeLock = writeLock;
-            idHash = System.identityHashCode( doc );
             this.asUser = asUser;
         }
 
         @Override
+        public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+            return new LockProcessor(toWrap);
+        }
+
         public String toString() {
-            return writeLock ? asUser ? "WRITE-LOCK-AS-USER" : "WRITE-LOCK" : "READ-LOCK";
+            if (writeLock) {
+                return "WRITE-LOCK";
+            } else if (asUser) {
+                return "ATOMIC-AS-USER";
+            } else {
+                return "ATOMIC";
+            }
         }
 
-        @Override
-        public <T, E extends Exception> DocumentProcessor<T, E> wrap( DocumentProcessor<T, E> toWrap ) {
-            return new LockingDocumentProcessor<>( toWrap );
-        }
+        private class LockProcessor<T, E extends Exception> implements DocumentProcessor<T, E> {
 
-        private class LockingDocumentProcessor<T, E extends Exception> implements DocumentProcessor<T, E> {
             private final DocumentProcessor<T, E> toWrap;
 
-            public LockingDocumentProcessor( DocumentProcessor<T, E> toWrap ) {
+            public LockProcessor(DocumentProcessor<T, E> toWrap) {
                 this.toWrap = toWrap;
             }
 
             @Override
             public String toString() {
-                return DocumentWriteLocker.this + "(" + toWrap + ")";
+                return DocumentLockProcessor3.this + "(" + toWrap + ")";
             }
 
             @Override
-            public T get() throws E, BadLocationException {
-                ThreadLocal<Set<Integer>> reentrantLockedDocs = writeLock ? alreadyWriteLocked : alreadyReadLocked;
-                Set<Integer> currentlyLocked = reentrantLockedDocs.get();
-                boolean entry = currentlyLocked.add( idHash );
-                try {
-                    if ( !entry ) {
-                        LOG.log( Level.FINEST, "Reentrant {0}", DocumentWriteLocker.this );
-                        return toWrap.get();
-                    } else {
-                        LOG.log( Level.FINER, "{0} before {1}",
-                                 new Object[]{ DocumentWriteLocker.this, Thread.currentThread() } );
-                        BleBiConsumer runIt;
-                        if ( writeLock ) {
-                            if ( asUser ) {
-                                LOG.log( Level.FINEST, "Will use NbDocument.runAtomicAsUser()" );
-                                runIt = NbDocument::runAtomicAsUser;
-                            } else {
-                                LOG.log( Level.FINEST, "Will use NbDocument.runAtomic()" );
-                                runIt = NbDocument::runAtomic;
+            public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                if (writeLock && ctx.document() instanceof BaseDocument) {
+                    return ctx.enterWriteLockIfNotAlreadyLocked(ctx.document(), new AtomicLockFunction<T, E>() {
+                        @Override
+                        public T apply(boolean needLock, Runnable onLocked) throws E, BadLocationException {
+                            if (!needLock) {
+                                T result = toWrap.get(ctx);
+                                // This will probably always be a no-op in the write lock,
+                                // but for consistency...
+                                onLocked.run();
+                                return result;
                             }
-                        } else {
-                            LOG.log( Level.FINEST, "Will use Document.render()" );
-                            runIt = BleBiConsumer.render();
+                            T result = runWriteLocked(doc, () -> {
+                                return toWrap.get(ctx);
+                            });
+                            return result;
                         }
-                        Hold<T, E> hold = new Hold<T, E>();
-                        runIt.accept( doc, () -> {
-                                  try {
-                                      LOG.log( Level.FINEST, "Invoke under lock: {0}", toWrap );
-                                      hold.set( toWrap.get() );
-                                  } catch ( Exception ex ) {
-                                      hold.thrown( ex );
-                                  }
-                              } );
-                        return hold.get();
-                    }
-                } finally {
-                    if ( entry ) {
-                        currentlyLocked.remove( idHash );
-                    }
+
+                        public String toString() {
+                            return "ALF(" + DocumentLockProcessor3.this.toString()
+                                    + "-" + toWrap.getClass().getSimpleName() + ")";
+                        }
+                    });
+                } else if (writeLock) {
+                    // XXX - do what?  writeLock() is protected in AbstractDocument
+                    // render() is perhaps as good as it gets, but in practice,
+                    // it will likely almost always be a BaseDocument unless
+                    // someone implements their own EditorKit and Document from
+                    // scratch
+                    T result = render(ctx.document(), () -> {
+                        return toWrap.get(ctx);
+                    });
+                    return result;
+                } else if (asUser) {
+                    return ctx.enterAtomicLockIfNotAlreadyLocked(ctx.document(), new AtomicLockFunction<T, E>() {
+                        @Override
+                        public T apply(boolean needLock, Runnable onLockAcquired) throws E, BadLocationException {
+                            if (needLock) {
+                                return runAtomicAsUser(ctx.document(), () -> {
+                                    try {
+                                        return toWrap.get(ctx);
+                                    } finally {
+                                        onLockAcquired.run();
+                                    }
+                                });
+                            } else {
+                                T result = toWrap.get(ctx);
+                                onLockAcquired.run();
+                                return result;
+                            }
+                        }
+
+                        public String toString() {
+                            return "ALF(" + DocumentLockProcessor3.this.toString()
+                                    + "-" + toWrap.getClass().getSimpleName() + ")";
+                        }
+
+                    });
+                } else {
+                    return ctx.enterAtomicLockIfNotAlreadyLocked(ctx.document(), new AtomicLockFunction<T, E>() {
+                        @Override
+                        public T apply(boolean needLock, Runnable onLockAcquired) throws E, BadLocationException {
+                            if (needLock) {
+                                return runAtomic(ctx.document(), () -> {
+                                    try {
+                                        return toWrap.get(ctx);
+                                    } finally {
+                                        onLockAcquired.run();
+                                    }
+                                });
+                            } else {
+                                T result = toWrap.get(ctx);
+                                onLockAcquired.run();
+                                return result;
+                            }
+                        }
+
+                        public String toString() {
+                            return "ALF(" + DocumentLockProcessor3.this.toString()
+                                    + "-" + toWrap.getClass().getSimpleName() + ")";
+                        }
+                    });
                 }
             }
         }
-    }
 
-    static final class AWTTreeLocker extends SingleEntryBeforeAfter {
-        AWTTreeLocker( StyledDocument doc ) {
-            super( doc );
-        }
+        static final class AWTTreeLocker extends SingleEntryBeforeAfter {
 
-        @Override
-        public <T, E extends Exception> DocumentProcessor<T, E> wrap( DocumentProcessor<T, E> toWrap ) {
-            DocumentProcessor<T, E> superWrap = super.wrap( toWrap );
-            if ( superWrap != toWrap ) {
-                // non-reentrant
-                Component c = EditorRegistry.findComponent( doc );
-                if ( c != null ) {
-                    return new WithTreeLock( superWrap, c );
-                }
-            }
-            // reentrant call, just do the thing
-            return toWrap;
-        }
-
-        @Override
-        public String toString() {
-            return "AWT-TREE-LOCK";
-        }
-
-        static class WithTreeLock<T, E extends Exception> implements DocumentProcessor<T, E> {
-            private final DocumentProcessor<T, E> delegate;
-            private final Component comp;
-
-            public WithTreeLock( DocumentProcessor<T, E> delegate, Component comp ) {
-                this.delegate = delegate;
-                this.comp = comp;
+            AWTTreeLocker(StyledDocument doc) {
+                super(doc);
             }
 
             @Override
-            public T get() throws E, BadLocationException {
-                T result;
-                LOG.log( Level.FINER, "{0} on {1} with {2} ENTER",
-                         new Object[]{ this, Thread.currentThread(), comp } );
-                synchronized ( comp.getTreeLock() ) {
-                    result = delegate.get();
+            public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+                DocumentProcessor<T, E> superWrap = super.wrap(toWrap);
+                if (superWrap != toWrap) {
+                    // non-reentrant
+                    Component c = findComponent(doc);
+                    if (c != null) {
+                        return new WithTreeLock(superWrap, c);
+                    }
                 }
-                LOG.log( Level.FINER, "{0} on {1} with {2} EXIT",
-                         new Object[]{ this, Thread.currentThread(), comp } );
+                // reentrant call, just do the thing
+                return toWrap;
+            }
+
+            @Override
+            public String toString() {
+                return "AWT-TREE-LOCK";
+            }
+
+            static class WithTreeLock<T, E extends Exception> implements DocumentProcessor<T, E> {
+
+                private final DocumentProcessor<T, E> delegate;
+                private final Component comp;
+
+                public WithTreeLock(DocumentProcessor<T, E> delegate, Component comp) {
+                    this.delegate = delegate;
+                    this.comp = comp;
+                }
+
+                @Override
+                public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                    T result;
+                    LOG.log(Level.FINER, "{0} on {1} with {2} ENTER",
+                            new Object[]{this, Thread.currentThread(), comp});
+                    synchronized (comp.getTreeLock()) {
+                        result = delegate.get(ctx);
+                    }
+                    LOG.log(Level.FINER, "{0} on {1} with {2} EXIT",
+                            new Object[]{this, Thread.currentThread(), comp});
 //                EventQueue.invokeLater(() -> {
 //                comp.invalidate();
 //                comp.revalidate();
 //                comp.repaint();
 //                });
-                return result;
+                    return result;
+                }
+
+                @Override
+                public String toString() {
+                    return "AWT-TREE-LOCK(" + delegate + ")";
+                }
+            }
+        }
+
+        static class Hold<T, E extends Exception> implements Supplier<T> {
+
+            T obj;
+            Exception thrown;
+
+            void set(T obj) {
+                this.obj = obj;
+            }
+
+            void thrown(Exception e) {
+                this.thrown = e;
+            }
+
+            void rethrow() {
+                if (thrown != null) {
+                    com.mastfrog.util.preconditions.Exceptions.chuck(thrown);
+                }
+            }
+
+            public T get() {
+                rethrow();
+                return obj;
+            }
+        }
+
+        static <T, E extends Exception> T render(Document doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+            Hold<T, E> hold = new Hold<>();
+            doc.render(() -> {
+                try {
+                    hold.set(supp.get());
+                } catch (Exception ex) {
+                    hold.thrown(ex);
+                }
+            });
+            return hold.get();
+        }
+
+        static <T, E extends Exception> T runAtomic(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+            Hold<T, E> hold = new Hold<>();
+            NbDocument.runAtomic(doc, () -> {
+                try {
+                    hold.set(supp.get());
+                } catch (Exception ex) {
+                    hold.thrown(ex);
+                }
+            });
+            return hold.get();
+        }
+
+        static <T, E extends Exception> T runAtomicAsUser(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+            Hold<T, E> hold = new Hold<>();
+            NbDocument.runAtomicAsUser(doc, () -> {
+                try {
+                    hold.set(supp.get());
+                } catch (Exception ex) {
+                    hold.thrown(ex);
+                }
+            });
+            return hold.get();
+        }
+
+        static <T, E extends Exception> T runWriteLocked(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+            if (!(doc instanceof BaseDocument)) {
+                return supp.get();
+            }
+            BaseDocument bd = (BaseDocument) doc;
+            bd.extWriteLock();;
+            try {
+                return supp.get();
+            } finally {
+                bd.extWriteUnlock();
+            }
+        }
+
+        static boolean isAtomicLocked(Document doc) {
+            return doc instanceof BaseDocument && ((BaseDocument) doc).isAtomicLock();
+        }
+
+        static final class UndoTransaction extends SingleEntryBeforeAfter {
+
+            public UndoTransaction(StyledDocument doc) {
+                super(doc);
+            }
+
+            @Override
+            String id() {
+                return getClass().getSimpleName();
+            }
+
+            @Override
+            public void before(DocumentOperationContext ctx) {
+                LOG.log(Level.FINER, "{0} before on {1}", new Object[]{this, Thread.currentThread()});
+                ctx.sendUndoableEdit(CloneableEditorSupport.BEGIN_COMMIT_GROUP);
+            }
+
+            @Override
+            public void after(DocumentOperationContext ctx) {
+                LOG.log(Level.FINER, "{0} after on {1}", new Object[]{this, Thread.currentThread()});
+
+//            ctx.sendUndoableEdit(CloneableEditorSupport.END_COMMIT_GROUP);
             }
 
             @Override
             public String toString() {
-                return "AWT-TREE-LOCK(" + delegate + ")";
-            }
-        }
-    }
-
-    static class Hold<T, E extends Exception> implements Supplier<T> {
-
-        T obj;
-        Exception thrown;
-
-        void set( T obj ) {
-            this.obj = obj;
-        }
-
-        void thrown( Exception e ) {
-            this.thrown = e;
-        }
-
-        void rethrow() {
-            if ( thrown != null ) {
-                Exceptions.chuck( thrown );
+                return "ONE-UNDO-TRANSACTION";
             }
         }
 
-        public T get() {
-            rethrow();
-            return obj;
-        }
-    }
+        /**
+         * We could use the method in EditorUtilities, except that at the time
+         * it would add the event, we don't know if the reason for having this
+         * edit has succeeded or not; with this, we can create the event before
+         * any modifications are made, and only apply it if the transaction
+         * succeeds.
+         */
+        static final class CaretPositionUndoableEdit extends AbstractUndoableEdit {
 
-    interface BleBiConsumer extends ThrowingBiConsumer<StyledDocument, Runnable> {
+            private int dot;
+            private int mark;
+            private Rectangle undoRect;
+            private final JTextComponent comp;
+            private Caret caret;
+            private Position redoPosition;
+            private Position redoMark;
+            private Rectangle redoRect;
+            private Document doc;
+            private boolean undone;
 
-        @Override
-        void accept( StyledDocument a, Runnable b ) throws BadLocationException;
-
-        static BleBiConsumer render() {
-            return ( a, b ) -> {
-                a.render( b );
-            };
-        }
-    }
-
-    interface BeforeAfter {
-
-        default void before() throws BadLocationException {
-
-        }
-
-        default void after() throws BadLocationException {
-
-        }
-
-        default <T, E extends Exception> DocumentProcessor<T, E> wrap( DocumentProcessor<T, E> toWrap ) {
-            return new WrappedDocChewingSupplier<>( this, toWrap );
-        }
-
-        default BeforeAfter then( BeforeAfter next ) {
-            return new ChainedBeforeAfter( this, next );
-        }
-    }
-
-    static final class WrappedDocChewingSupplier<T, E extends Exception> implements DocumentProcessor<T, E> {
-
-        private final BeforeAfter be;
-        private final DocumentProcessor<T, E> delegate;
-
-        public WrappedDocChewingSupplier( BeforeAfter be, DocumentProcessor<T, E> delegate ) {
-            this.be = be;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public T get() throws E, BadLocationException {
-            LOG.log( Level.FINEST, "Run {0} wrapped by {1}", new Object[]{ delegate, be } );
-            be.before();
-            try {
-                return delegate.get();
-            } finally {
-                be.after();
+            public CaretPositionUndoableEdit(JTextComponent comp, Document doc) throws BadLocationException {
+                this.caret = comp.getCaret();
+                // We do NOT want to use a Position instance for these - Antlr
+                // reformatting, and potentially other things do a wholesale replacement
+                // of the document contents, in which case all Positions created
+                // prior to the operation are either 0 or document-length.
+                this.dot = caret.getDot();
+                this.mark = caret.getMark();
+                this.undoRect = comp.getVisibleRect();
+                this.comp = comp;
+                this.doc = doc;
             }
-        }
 
-        @Override
-        public String toString() {
-            return be + " -> " + delegate;
-        }
-    }
-
-    static final class ChainedBeforeAfter implements BeforeAfter {
-
-        private final BeforeAfter a;
-        private final BeforeAfter b;
-
-        public ChainedBeforeAfter( BeforeAfter a, BeforeAfter b ) {
-            this.a = a;
-            this.b = b;
-        }
-
-        @Override
-        public void before() throws BadLocationException {
-            a.before();
-            b.before();
-        }
-
-        @Override
-        public void after() throws BadLocationException {
-            a.after();
-            b.after();
-        }
-
-        @Override
-        public String toString() {
-            return a + ", " + b;
-        }
-    }
-
-    static void addCaretUndoableEdit( JTextComponent comp, Document document ) throws BadLocationException {
-        sendUndoableEdit( document, new CaretPositionUndoableEdit( comp, document ) );
-    }
-
-    static final class UndoTransaction extends SingleEntryBeforeAfter {
-
-        public UndoTransaction( StyledDocument doc ) {
-            super( doc );
-        }
-
-        @Override
-        public void before() throws BadLocationException {
-            LOG.log( Level.FINER, "{0} before on {1}", new Object[]{ this, Thread.currentThread() } );
-            sendUndoableEdit( doc, CloneableEditorSupport.BEGIN_COMMIT_GROUP );
-        }
-
-        @Override
-        public void after() throws BadLocationException {
-            LOG.log( Level.FINER, "{0} after on {1}", new Object[]{ this, Thread.currentThread() } );
-            sendUndoableEdit( doc, CloneableEditorSupport.END_COMMIT_GROUP );
-        }
-
-        @Override
-        public String toString() {
-            return "ONE-UNDO-TRANSACTION";
-        }
-    }
-
-    private static void sendUndoableEdit( Document doc, UndoableEdit edit ) throws BadLocationException {
-        CustomUndoDocument customUndoDocument
-                = LineDocumentUtils.as( doc,
-                                        CustomUndoDocument.class );
-        if ( customUndoDocument != null ) {
-            customUndoDocument.addUndoableEdit( edit );
-        }
-    }
-
-    static final class CaretPositionUndoableEdit extends AbstractUndoableEdit {
-
-        private Position dot;
-        private Position mark;
-        private Rectangle undoRect;
-        private final JTextComponent comp;
-        private Caret caret;
-        private Position redoPosition;
-        private Position redoMark;
-        private Rectangle redoRect;
-        private Document doc;
-        private boolean undone;
-
-        public CaretPositionUndoableEdit( JTextComponent comp, Document doc ) throws BadLocationException {
-            this.caret = comp.getCaret();
-            this.dot = doc.createPosition( caret.getDot() );
-            this.mark = doc.createPosition( caret.getMark() );
-            this.undoRect = comp.getVisibleRect();
-            this.comp = comp;
-            this.doc = doc;
-        }
-
-        @Override
-        public void die() {
-            dot = null;
-            mark = null;
-            caret = null;
-            redoPosition = null;
-            redoMark = null;
-            doc = null;
-            undoRect = null;
-            redoRect = null;
-        }
-
-        private void updateRedoInfo() {
-            try {
-                redoPosition = doc.createPosition( caret.getDot() );
-                redoMark = doc.createPosition( caret.getMark() );
-                redoRect = comp.getVisibleRect();
-                LOG.log( Level.FINEST, "Collect caret redo info {0}, {1}, {2}",
-                         new Object[]{ redoPosition, redoMark, redoRect } );
-            } catch ( BadLocationException ex ) {
-                LOG.log( Level.SEVERE, null, ex );
+            @Override
+            public void die() {
+                caret = null;
+                redoPosition = null;
+                redoMark = null;
+                doc = null;
+                undoRect = null;
+                redoRect = null;
             }
-        }
 
-        @Override
-        public void undo() throws CannotUndoException {
-            undone = true;
-            EventQueue.invokeLater( () -> {
+            private void updateRedoInfo() {
                 try {
-                    LOG.log( Level.FINE, "Caret-undo to {0}, {1}", new Object[]{ mark, dot } );
-                    updateRedoInfo();
-                    updateCaret( dot, mark );
-                } finally {
-                    comp.scrollRectToVisible( undoRect );
-                }
-            } );
-        }
-
-        private void updateCaret( Position position, Position mark ) {
-            int pos = position.getOffset();
-            int mk = mark.getOffset();
-            if ( mk == pos ) {
-                caret.setDot( pos );
-            } else {
-                caret.setDot( mk );
-                if ( mk != pos ) {
-                    caret.moveDot( pos );
+                    redoPosition = doc.createPosition(caret.getDot());
+                    redoMark = doc.createPosition(caret.getMark());
+                    redoRect = comp.getVisibleRect();
+                    LOG.log(Level.FINEST, "Collect caret redo info {0}, {1}, {2}",
+                            new Object[]{redoPosition, redoMark, redoRect});
+                } catch (BadLocationException ex) {
+                    LOG.log(Level.SEVERE, null, ex);
                 }
             }
-        }
 
-        @Override
-        public boolean canUndo() {
-            return !undone && doc != null && dot != null;
-        }
+            @Override
+            public void undo() throws CannotUndoException {
+                undone = true;
+                EventQueue.invokeLater(() -> {
+                    try {
+                        LOG.log(Level.FINE, "Caret-undo to {0}, {1}", new Object[]{mark, dot});
+                        updateRedoInfo();
+                        Position dotPos = NbDocument.createPosition(doc, dot, dot < mark ? Bias.Forward : Bias.Backward);
+                        Position markPos = dot == mark ? dotPos
+                                : NbDocument.createPosition(doc, mark, dot < mark ? Bias.Backward : Bias.Forward);
+                        updateCaret(dotPos, markPos);
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                    comp.scrollRectToVisible(undoRect);
+                });
+            }
 
-        @Override
-        public void redo() throws CannotRedoException {
-            undone = false;
-            EventQueue.invokeLater( () -> {
-                try {
-                    updateCaret( redoPosition, redoMark );
-                } finally {
-                    comp.scrollRectToVisible( redoRect );
+            private void updateCaret(Position dotPosition, Position markPosition) {
+                if (caret instanceof EditorCaret) {
+                    EditorCaret ec = (EditorCaret) caret;
+                    ec.moveCarets((CaretMoveContext context) -> {
+                        CaretInfo ct = context.getOriginalLastCaret();
+                        context.setDotAndMark(ct, dotPosition, Bias.Forward, markPosition, Bias.Backward);
+                    }, MoveCaretsOrigin.DISABLE_FILTERS);
+                } else {
+                    int pos = dotPosition.getOffset();
+                    int mk = markPosition.getOffset();
+                    if (mk == pos) {
+                        caret.setDot(pos);
+                    } else {
+                        caret.setDot(mk);
+                        if (mk != pos) {
+                            caret.moveDot(pos);
+                        }
+                    }
                 }
+            }
 
-            } );
-        }
+            @Override
+            public boolean canUndo() {
+                return !undone && doc != null;
+            }
 
-        @Override
-        public boolean canRedo() {
-            return undone && doc != null && redoPosition != null;
-        }
+            @Override
+            public void redo() throws CannotRedoException {
+                undone = false;
+                EventQueue.invokeLater(() -> {
+                    try {
+                        updateCaret(redoPosition, redoMark);
+                    } finally {
+                        comp.scrollRectToVisible(redoRect);
+                    }
+                });
+            }
 
-        @Override
-        public boolean isSignificant() {
-            return false;
+            @Override
+            public boolean canRedo() {
+                return undone && doc != null && redoPosition != null;
+            }
+
+            @Override
+            public boolean isSignificant() {
+                return false;
+            }
         }
     }
 }

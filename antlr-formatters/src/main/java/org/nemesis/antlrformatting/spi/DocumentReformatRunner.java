@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlrformatting.spi;
 
-import java.util.Arrays;
 import java.util.logging.Level;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -26,12 +25,16 @@ import org.nemesis.antlrformatting.api.FormattingResult;
 import org.nemesis.antlrformatting.impl.CaretFixer;
 import org.nemesis.antlrformatting.impl.CaretInfo;
 import org.nemesis.antlrformatting.impl.FormattingAccessor;
-import com.mastfrog.function.throwing.ThrowingRunnable;
-import org.netbeans.api.editor.EditorRegistry;
+import java.util.logging.Logger;
+import javax.swing.text.StyledDocument;
+import org.nemesis.editor.utils.CaretInformation;
+import org.nemesis.editor.utils.DocumentOperationContext;
+import org.nemesis.editor.utils.DocumentOperator;
+import org.nemesis.editor.utils.DocumentPreAndPostProcessor;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.indent.api.Reformat;
 import org.netbeans.modules.editor.indent.spi.Context;
-import org.netbeans.spi.lexer.MutableTextInput;
+import org.openide.util.NbBundle.Messages;
 import org.openide.util.Parameters;
 
 /**
@@ -42,6 +45,7 @@ import org.openide.util.Parameters;
  */
 final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
 
+    private static final Logger LOG = Logger.getLogger(DocumentReformatRunner.class.getName());
     private final AntlrFormatterProvider<C, StateEnum> prov;
 
     DocumentReformatRunner(AntlrFormatterProvider<C, StateEnum> prov) {
@@ -52,7 +56,7 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         AntlrFormatterProvider.RulesAndState rs = prov.populate(config);
         String[] modeNames = prov.modeNames();
         if (modeNames == null || modeNames.length == 0) {
-            throw new IllegalStateException(prov + " does not correctly implement modeNames() - got " + arrToString(modeNames));
+            throw new IllegalStateException(prov + " does not correctly implement modeNames()");
         }
         return FormattingAccessor.getDefault().reformat(start, end,
                 prov.indentSize(config), rs.rules, rs.state,
@@ -65,96 +69,53 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
      *
      * @param cntxt The editing context
      */
+    @Messages({"reformatFailed=Reformat failed", "reformatSucceeded=Reformatted"})
     void reformat(Context cntxt) {
-        // Ask the provider to create a configuration object for us - outside of
-        // unit tests or custom implementation, it will be the preferences returned
-        // by CodeStylePreferences
-        C config = prov.configuration(cntxt);
-        Document document = (Document) cntxt.document();
-        int start = cntxt.startOffset();
-        int end = cntxt.endOffset();
-        // Find the editor (may be null in case of a batch reformat - all
-        // code that takes it checks that)
-        JTextComponent comp = EditorRegistry.findComponent(document);
-        // An IntConsumer we can pass into FormattingContextImpl, which will set
-        // the offset of the original caret position in the new document
-        CaretFixer caretFixer = CaretFixer.forContext(cntxt);
-        EditorScrollPositionManager scrollHandler = new EditorScrollPositionManager(comp, caretFixer);
         try {
-            scrollHandler.invokeWithEditorDisabled((currentCursorPos) -> {
-                withDocumentLockedandInputDisabledAndReformatLock(document, () -> {
-                    try {
+            C config = prov.configuration(cntxt);
+            int start = cntxt.startOffset();
+            int end = cntxt.endOffset();
+            CaretFixer fixer = CaretFixer.forContext(cntxt);
+            StyledDocument document = (StyledDocument) cntxt.document();
+            Boolean reformatSuccess = DocumentOperator.builder()
+                    .restoringCaretPosition((CaretInformation caret, JTextComponent comp, Document doc) -> {
+                        return ibc -> {
+                            CaretInfo ifo = fixer.get();
+                            LOG.log(Level.FINER, "Restore caret position to {0}", ifo);
+                            ibc.accept(ifo.start(), ifo.end());
+                        };
+                    })
+                    .add(ReformatLocker::new)
+                    .acquireAWTTreeLock()
+                    .disableTokenHierarchyUpdates()
+                    .blockIntermediateRepaints()
+                    .lockAtomic()
+                    .writeLock()
+                    .singleUndoTransaction()
+                    .build().<Boolean, RuntimeException>operateOn(document)
+                    .operate((DocumentOperationContext ctx) -> {
                         Lexer lexer = prov.createLexer(document);
                         RuleNode ruleNode = prov.parseAndExtractRootRuleNode(lexer);
                         if (ruleNode != null) {
                             lexer = prov.createLexer(document);
                         }
                         lexer.removeErrorListeners();
-                        FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config, currentCursorPos, caretFixer, ruleNode);
-//                        System.out.println("GOT RESULT " + reformatted);
-                        boolean updated = replaceTextInDocument(document, reformatted);
-                        if (updated) {
-                            scrollHandler.addCaretPositionUndoableEdit();
+                        FormattingResult reformatted = populateAndRunReformat(lexer, start, end, config,
+                                fixer.get(), fixer, ruleNode);
+                        boolean result = replaceTextInDocument(document, reformatted);
+                        if (result) {
+                            CaretInfo ci2 = fixer.get();
+                            cntxt.setCaretOffset(ci2.start());
                         }
-                    } catch (Throwable t) {
-                        t.printStackTrace(System.out);
-                    }
-                });
-            });
-        } catch (Throwable e) {
-            AntlrFormatterProvider.LOGGER.log(Level.SEVERE, "Exception replacing text", e);
-        }
-    }
-
-    private static void withMutableTextInputDisabled(Document document, ThrowingRunnable run) throws Exception {
-        MutableTextInput<?> mti = (MutableTextInput<?>) document.getProperty(MutableTextInput.class);
-        if (mti != null) {
-            mti.tokenHierarchyControl().setActive(false);
-        }
-        try {
-            run.run();
-        } finally {
-            if (mti != null) {
-                mti.tokenHierarchyControl().setActive(true);
+                        return result;
+                    });
+            if (reformatSuccess == null || !reformatSuccess) {
+//                StatusDisplayer.getDefault().setStatusText(Bundle.reformatFailed());
+            } else {
+//                StatusDisplayer.getDefault().setStatusText(Bundle.reformatSucceeded());
             }
-        }
-    }
-
-    private static void withReformatLock(Document doc, ThrowingRunnable run) throws Exception {
-        // Not sure this does anything other than discover that we return null from
-        // ExtraLock on our task and return
-        Reformat r = Reformat.get(doc);
-        r.lock();
-        try {
-            run.run();
-        } finally {
-            r.unlock();
-        }
-    }
-
-    /**
-     * Does *all* the locking needed to perform a reformat
-     *
-     * @param document The document
-     * @param run The thing to run once locks are acquired
-     * @throws Exception If something goes wrong
-     */
-    private static void withDocumentLockedandInputDisabledAndReformatLock(Document document, ThrowingRunnable run) throws Exception {
-        withReformatLock(document, () -> {
-            withDocumentLock(document, () -> {
-                withMutableTextInputDisabled(document, () -> {
-                    run.run();
-                });
-            });
-        });
-    }
-
-    private static void withDocumentLock(Document doc, ThrowingRunnable run) throws Exception {
-        // In theory, it will always be a BaseDocument
-        if (doc instanceof BaseDocument) {
-            ((BaseDocument) doc).runAtomic(tryCatch(run));
-        } else {
-            doc.render(tryCatch(run));
+        } catch (Exception ex) {
+            LOG.log(Level.INFO, "Exception reformatting " + cntxt.document(), ex);
         }
     }
 
@@ -179,14 +140,8 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
 
 //        System.out.println("DOCSTART " + docStart + " DOCEND " + docEnd + " reformat " + start
 //                + ":" + end);
-
         if (start > docStart || end < docEnd - 1) {
-            // Working over a selection
             String text = doc.getText(start, end - start);
-//            System.out.println("\n\nREPLACE TEXT");
-//            System.out.println(text);
-//            System.out.println("\nWITH");
-//            System.out.println(replacement);
             if (!replacement.equals(text)) {
                 if (doc instanceof BaseDocument) {
                     ((BaseDocument) doc).replace(start, end - start, replacement, null);
@@ -211,66 +166,27 @@ final class DocumentReformatRunner<C, StateEnum extends Enum<StateEnum>> {
         return false;
     }
 
-    static String arrToString(String[] arr) {
-        if (arr == null) {
-            return "null";
-        }
-        return Arrays.toString(arr);
-    }
+    static class ReformatLocker implements DocumentPreAndPostProcessor {
 
-    static boolean tryCatchRun(ThrowingRunnable r) {
-        FailableRunnable result = tryCatch(r);
-        result.run();
-        return !result.failed();
-    }
+        private final Reformat reformat;
 
-    static FailableRunnable tryCatch(ThrowingRunnable r) {
-        return new FailableRunnable(r);
-    }
-
-    // We call a bunch of things on the EDT or in document locks which take
-    // runnables that can fail, and in most cases there is nothing to do
-    // about it (we're calling foreign code that could do anything) - so this
-    // just logs it, and eliminates mountains of nested try-catches which would
-    // all just log the exception anyway
-    static class FailableRunnable implements Runnable {
-
-        private final ThrowingRunnable run;
-        private Throwable failure;
-
-        FailableRunnable(ThrowingRunnable run) {
-            this.run = run;
-        }
-
-        public boolean failed() {
-            return failure() != null;
-        }
-
-        public synchronized Throwable failure() {
-            return failure;
+        ReformatLocker(StyledDocument doc) {
+            this.reformat = Reformat.get(doc);
         }
 
         @Override
+        public void before(DocumentOperationContext ctx) throws BadLocationException {
+            reformat.lock();
+        }
+
+        @Override
+        public void after(DocumentOperationContext ctx) throws BadLocationException {
+            reformat.unlock();
+        }
+
         public String toString() {
-            return "FailableRunnable{" + run + "}";
-        }
-
-        @Override
-        public void run() {
-            try {
-                run.run();
-            } catch (Throwable ex) {
-                AntlrFormatterProvider.LOGGER.log(Level.SEVERE, "Exception processing " + run, ex);
-                ex.printStackTrace(System.out);
-                synchronized (this) {
-                    failure = ex;
-                }
-                if (ex instanceof Error) {
-                    throw ((Error) ex);
-                } else if (ex instanceof ThreadDeath) {
-                    throw ((ThreadDeath) ex);
-                }
-            }
+            return "REFORMAT-LOCK";
         }
     }
+
 }

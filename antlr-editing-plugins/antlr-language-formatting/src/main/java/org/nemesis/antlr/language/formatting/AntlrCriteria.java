@@ -23,18 +23,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.IntPredicate;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.CHN_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.DOC_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_P_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.ID_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.IMPORT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LEXCOM_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.OPT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOK_BLOCK_COMMENT;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import com.mastfrog.antlr.utils.Criterion;
 
 /**
@@ -42,6 +31,31 @@ import com.mastfrog.antlr.utils.Criterion;
  * @author Tim Boudreau
  */
 public final class AntlrCriteria {
+
+    public static final int[] ALL_WHITESPACE = new int[]{
+        WS,
+        CHN_WS,
+        FRAGDEC_WS,
+        HDR_IMPRT_WS,
+        TYPE_WS,
+        HEADER_P_WS,
+        HEADER_WS,
+        ID_WS,
+        IMPORT_WS,
+        LEXCOM_WS,
+        OPT_WS,
+        PARDEC_OPT_WS,
+        PARDEC_WS,
+        TOKDEC_WS,
+        TOK_WS,};
+    public static final int[] ALL_BLOCK_COMMENTS = new int[]{
+        BLOCK_COMMENT, CHN_BLOCK_COMMENT, DOC_COMMENT,
+        HEADER_BLOCK_COMMENT, ID_BLOCK_COMMENT,
+        HEADER_P_BLOCK_COMMENT,
+        LEXCOM_BLOCK_COMMENT, IMPORT_BLOCK_COMMENT,
+        OPT_BLOCK_COMMENT, PARDEC_BLOCK_COMMENT,
+        PARDEC_OPT_BLOCK_COMMENT, TOK_BLOCK_COMMENT
+    };
 
     static Criterion lineComments() {
         return LINE_COMMENTS;
@@ -124,49 +138,40 @@ public final class AntlrCriteria {
 
     static boolean isLineComment(int type) {
         switch (type) {
-            case ANTLRv4Lexer.LINE_COMMENT:
-            case ANTLRv4Lexer.CHN_LINE_COMMENT:
-            case ANTLRv4Lexer.FRAGDEC_LINE_COMMENT:
-            case ANTLRv4Lexer.HDR_IMPRT_LINE_COMMENT:
-            case ANTLRv4Lexer.HEADER_P_LINE_COMMENT:
-            case ANTLRv4Lexer.ID_LINE_COMMENT:
-            case ANTLRv4Lexer.HEADER_LINE_COMMENT:
-            case ANTLRv4Lexer.HDR_PCKG_LINE_COMMENT:
-            case ANTLRv4Lexer.IMPORT_LINE_COMMENT:
-            case ANTLRv4Lexer.LEXCOM_LINE_COMMENT:
-            case ANTLRv4Lexer.OPT_LINE_COMMENT:
-            case ANTLRv4Lexer.PARDEC_LINE_COMMENT:
-            case ANTLRv4Lexer.PARDEC_OPT_LINE_COMMENT:
-            case ANTLRv4Lexer.TOK_LINE_COMMENT:
-            case ANTLRv4Lexer.TYPE_LINE_COMMENT:
+            case LINE_COMMENT:
+            case CHN_LINE_COMMENT:
+            case FRAGDEC_LINE_COMMENT:
+            case HDR_IMPRT_LINE_COMMENT:
+            case HEADER_P_LINE_COMMENT:
+            case ID_LINE_COMMENT:
+            case HEADER_LINE_COMMENT:
+            case HDR_PCKG_LINE_COMMENT:
+            case IMPORT_LINE_COMMENT:
+            case LEXCOM_LINE_COMMENT:
+            case OPT_LINE_COMMENT:
+            case PARDEC_LINE_COMMENT:
+            case PARDEC_OPT_LINE_COMMENT:
+            case TOK_LINE_COMMENT:
+            case TYPE_LINE_COMMENT:
                 return true;
             default:
                 return false;
         }
     }
 
-    static int[] ALL_BLOCK_COMMENTS = new int[]{
-        BLOCK_COMMENT, CHN_BLOCK_COMMENT, DOC_COMMENT,
-        HEADER_BLOCK_COMMENT, ID_BLOCK_COMMENT,
-        HEADER_P_BLOCK_COMMENT,
-        LEXCOM_BLOCK_COMMENT, IMPORT_BLOCK_COMMENT,
-        OPT_BLOCK_COMMENT, PARDEC_BLOCK_COMMENT,
-        PARDEC_OPT_BLOCK_COMMENT, TOK_BLOCK_COMMENT
-    };
-
     static boolean isBlockComment(int type) {
         switch (type) {
-            case ANTLRv4Lexer.CHN_BLOCK_COMMENT:
-            case ANTLRv4Lexer.HEADER_BLOCK_COMMENT:
-            case ANTLRv4Lexer.HEADER_P_BLOCK_COMMENT:
-            case ANTLRv4Lexer.ID_BLOCK_COMMENT:
-            case ANTLRv4Lexer.IMPORT_BLOCK_COMMENT:
-            case ANTLRv4Lexer.OPT_BLOCK_COMMENT:
-            case ANTLRv4Lexer.LEXCOM_BLOCK_COMMENT:
-            case ANTLRv4Lexer.PARDEC_BLOCK_COMMENT:
-            case ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT:
-            case ANTLRv4Lexer.TOK_BLOCK_COMMENT:
-            case ANTLRv4Lexer.BLOCK_COMMENT:
+            case CHN_BLOCK_COMMENT:
+            case HEADER_BLOCK_COMMENT:
+            case HEADER_P_BLOCK_COMMENT:
+            case ID_BLOCK_COMMENT:
+            case IMPORT_BLOCK_COMMENT:
+            case OPT_BLOCK_COMMENT:
+            case LEXCOM_BLOCK_COMMENT:
+            case PARDEC_BLOCK_COMMENT:
+            case PARDEC_OPT_BLOCK_COMMENT:
+            case TOK_BLOCK_COMMENT:
+            case BLOCK_COMMENT:
                 return true;
             default:
                 return false;
@@ -217,40 +222,23 @@ public final class AntlrCriteria {
         }
     }
 
-    public static int[] ALL_WHITESPACE = new int[]{
-        ANTLRv4Lexer.WS,
-        ANTLRv4Lexer.CHN_WS,
-        ANTLRv4Lexer.FRAGDEC_WS,
-        ANTLRv4Lexer.HDR_IMPRT_WS,
-        ANTLRv4Lexer.TYPE_WS,
-        ANTLRv4Lexer.HEADER_P_WS,
-        ANTLRv4Lexer.HEADER_WS,
-        ANTLRv4Lexer.ID_WS,
-        ANTLRv4Lexer.IMPORT_WS,
-        ANTLRv4Lexer.LEXCOM_WS,
-        ANTLRv4Lexer.OPT_WS,
-        ANTLRv4Lexer.PARDEC_OPT_WS,
-        ANTLRv4Lexer.PARDEC_WS,
-        ANTLRv4Lexer.TOKDEC_WS,
-        ANTLRv4Lexer.TOK_WS,};
-
     static boolean isWhitespace(int tokenType) {
         switch (tokenType) {
-            case ANTLRv4Lexer.WS:
-            case ANTLRv4Lexer.CHN_WS:
-            case ANTLRv4Lexer.FRAGDEC_WS:
-            case ANTLRv4Lexer.HDR_IMPRT_WS:
-            case ANTLRv4Lexer.TYPE_WS:
-            case ANTLRv4Lexer.HEADER_P_WS:
-            case ANTLRv4Lexer.HEADER_WS:
-            case ANTLRv4Lexer.ID_WS:
-            case ANTLRv4Lexer.IMPORT_WS:
-            case ANTLRv4Lexer.LEXCOM_WS:
-            case ANTLRv4Lexer.OPT_WS:
-            case ANTLRv4Lexer.PARDEC_OPT_WS:
-            case ANTLRv4Lexer.PARDEC_WS:
-            case ANTLRv4Lexer.TOKDEC_WS:
-            case ANTLRv4Lexer.TOK_WS:
+            case WS:
+            case CHN_WS:
+            case FRAGDEC_WS:
+            case HDR_IMPRT_WS:
+            case TYPE_WS:
+            case HEADER_P_WS:
+            case HEADER_WS:
+            case ID_WS:
+            case IMPORT_WS:
+            case LEXCOM_WS:
+            case OPT_WS:
+            case PARDEC_OPT_WS:
+            case PARDEC_WS:
+            case TOKDEC_WS:
+            case TOK_WS:
                 return true;
             default:
                 return false;

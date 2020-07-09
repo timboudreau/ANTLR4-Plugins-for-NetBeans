@@ -31,6 +31,7 @@ import static org.nemesis.antlr.refactoring.AbstractRefactoringContext.escapeHtm
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.editor.utils.DocumentOperation;
+import org.nemesis.editor.utils.DocumentOperationContext;
 import org.nemesis.editor.utils.DocumentOperator;
 import org.nemesis.editor.utils.DocumentProcessor;
 import org.nemesis.extraction.AttributedForeignNameReference;
@@ -162,7 +163,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
         // JDK 8 javac does not like a lambda here
         return new DocumentProcessor<Void, IOException>() {
             @Override
-            public Void get() throws IOException, BadLocationException {
+            public Void get(DocumentOperationContext ctx) throws IOException, BadLocationException {
                 for (PositionBounds pb : bounds) {
                     if (!enablement.containsKey(pb)) {
                         pb.setText(text);
@@ -187,7 +188,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
                 DocumentOperation<Void, IOException> op = DocumentOperator.NON_JUMP_REENTRANT_UPDATE_DOCUMENT.operateOn(document);
                 op.operate(op(newText, snapshotAtPerform));
             } else {
-                op(newText, snapshotAtPerform).get();
+                op(newText, snapshotAtPerform).get(null);
             }
         } catch (IOException | BadLocationException ioe) {
             throw new IllegalStateException("Failed refactoring " + file.getNameExt(), ioe);
@@ -205,7 +206,7 @@ public class ReplaceRanges extends SimpleRefactoringElementImplementation {
                 DocumentOperation<Void, IOException> op = DocumentOperator.NON_JUMP_REENTRANT_UPDATE_DOCUMENT.operateOn(document);
                 op.operate(op(oldText, snapshotAtPerform));
             } else {
-                op(oldText, snapshotAtPerform).get();
+                op(oldText, snapshotAtPerform).get(null);
             }
         } catch (IOException | BadLocationException ioe) {
             throw new IllegalStateException("Failed refactoring " + file.getNameExt(), ioe);

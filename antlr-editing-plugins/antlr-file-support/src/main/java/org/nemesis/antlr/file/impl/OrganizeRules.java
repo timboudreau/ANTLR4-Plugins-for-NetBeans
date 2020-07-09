@@ -22,12 +22,10 @@ import com.mastfrog.graph.StringGraph;
 import com.mastfrog.util.collections.IntSet;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FontMetrics;
 import java.awt.Frame;
-import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
@@ -39,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -50,12 +49,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.Caret;
+import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import javax.swing.text.Position;
 import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
 import org.antlr.v4.runtime.ANTLRErrorListener;
@@ -77,10 +74,9 @@ import static org.nemesis.antlr.file.AntlrKeys.RULE_NAME_REFERENCES;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.editor.utils.CaretInformation;
 import org.nemesis.editor.utils.DocumentOperator;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.api.editor.caret.CaretMoveContext;
-import org.netbeans.api.editor.caret.EditorCaret;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
 import org.openide.awt.ActionID;
@@ -105,7 +101,7 @@ import org.openide.windows.WindowManager;
         asynchronous = false
 )
 @ActionReferences({
-    @ActionReference(path = "Editors/text/x-g4/Popup", position=300)
+    @ActionReference(path = "Editors/text/x-g4/Popup", position = 300)
 })
 @Messages({"CTL_OrganizeRules=Organize Rules",
     "ttlWarning=Organize Rules Caveats",
@@ -211,6 +207,8 @@ public final class OrganizeRules implements ActionListener {
             EditorCookie ck = context.getLookup().lookup(EditorCookie.class);
             StyledDocument doc = ck.openDocument();
             int currentCaretPosition = findCaretPosition(ck, doc);
+            System.out.println("START WITH CARET POSITION " + currentCaretPosition);
+            AtomicReference<CaretRelativeToRuleName> caretRelative = new AtomicReference<>();
             proc.submit(() -> {
                 // Do ALL of our work in the document with the document lock,
                 // and ensure no jumping or unexpected parser invocations occur,
@@ -218,17 +216,45 @@ public final class OrganizeRules implements ActionListener {
                 // DocumentOperator's caret position preserving code, as
                 // it will interfere with our own which puts the caret
                 // in the same rule, wherever that rule has moved to
-                DocumentOperator op = DocumentOperator.builder().acquireAWTTreeLock()
-                        .blockIntermediateRepaints().disableTokenHierarchyUpdates()
+                DocumentOperator op = DocumentOperator.builder()
+                        .acquireAWTTreeLock()
+                        .lockAtomic()
+                        .writeLock()
+                        .restoringCaretPosition((CaretInformation caret, JTextComponent comp, Document doc1) -> {
+
+                            return ibc -> {
+                                CaretRelativeToRuleName info = caretRelative.get();
+                                if (info == null) {
+                                    ibc.accept(currentCaretPosition, currentCaretPosition);
+                                }
+                                try {
+                                    Extraction revisedExtraction = NbAntlrUtils.parseImmediately(doc1);
+                                    NamedSemanticRegions<RuleTypes> revisedRegions = revisedExtraction.namedRegions(RULE_BOUNDS);
+                                    NamedSemanticRegion<RuleTypes> targetRegion = revisedRegions.regionFor(info.rule);
+                                    System.out.println("RECOMPUTE RELATIVE POSITION FOR " + info.rule + " rel " + info.relativePosition);
+                                    if (targetRegion == null) {
+                                        System.out.println("NULL TARGET REGION");
+                                        ibc.accept(caret.dot(), caret.mark());
+                                    } else {
+                                        int start = targetRegion.start();
+                                        System.out.println("TARGET REGION");
+                                        int pos = Math.min(doc1.getLength() - 1, Math.max(0, start + info.relativePosition));
+                                        System.out.println("NEW START " + (start + info.relativePosition) + " = " + pos);
+                                        // XXX preserve the selection?
+                                        ibc.accept(pos, pos);
+                                    }
+                                } catch (Exception ex) {
+                                    Exceptions.printStackTrace(ex);
+                                }
+                            };
+                        })
+                        .blockIntermediateRepaints()
+                        .disableTokenHierarchyUpdates()
                         .singleUndoTransaction().writeLock()
                         .build();
                 op.run(doc, () -> {
                     try {
-                        String caretRuleName = organizeRules(doc, currentCaretPosition);
-                        if (caretRuleName != null) {
-                            System.out.println("Reposition caret to " + caretRuleName);
-                            repositionCaret(ck, doc, caretRuleName, currentCaretPosition);
-                        }
+                        organizeRules(doc, currentCaretPosition, caretRelative);
                     } catch (Exception ex) {
                         Exceptions.printStackTrace(ex);
                     }
@@ -239,101 +265,55 @@ public final class OrganizeRules implements ActionListener {
         }
     }
 
-    private void repositionCaret(EditorCookie ck, StyledDocument doc, String caretRule, int oldCaretPosition) throws Exception {
-        if (true) {
-            // FIXME:  This is wreaking some kind of bizarre havoc with the editor caret -
-            // specifically, the caret can still be used for typing, but no longer
-            // responds to arrow keys - and/or becomes irretrievably invisible
-            return;
-        }
-        // Parse the updated document
-        Extraction ext = NbAntlrUtils.parseImmediately(doc);
-        NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(RULE_BOUNDS);
-        NamedSemanticRegion<RuleTypes> rule = ruleBounds.regionFor(caretRule);
-
-        int targetPosition = rule == null ? oldCaretPosition : rule.start();
-
-        if (targetPosition > 0 && targetPosition < doc.getLength()) {
-            Position ps = doc.createPosition(targetPosition);
-            EventQueue.invokeLater(() -> {
-                JEditorPane ed = findEditorPane(ck, doc);
-                if (ed != null) {
-                    Caret caret = ed.getCaret();
-                    if (caret instanceof EditorCaret) {
-                        EditorCaret ec = (EditorCaret) caret;
-                        ec.moveCarets((CaretMoveContext context1) -> {
-                            context1.setDot(ec.getLastCaret(), ps, Position.Bias.Forward);
-                            // For some reason, the caret gets hidden - probably by the
-                            // containing DocumentOperation
-                            ec.setVisible(true);
-                        });
-                    } else {
-                        caret.setDot(ps.getOffset());
-                        caret.setVisible(true);
-                    }
-                }
-            });
-        }
-    }
-
     private int findCaretPosition(EditorCookie ck, StyledDocument doc) {
-        JEditorPane pane = findEditorPane(ck, doc);
+        JTextComponent pane = findEditorPane(ck, doc);
         if (pane != null) {
             return pane.getCaret().getDot();
         }
         return -1;
     }
 
-    private JEditorPane findEditorPane(EditorCookie ck, StyledDocument doc) {
-        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getPermanentFocusOwner();
-        if (focusOwner == null) {
-            JTextComponent[] comp = ck.getOpenedPanes();
-            if (comp != null && comp.length > 0) {
-                for (JTextComponent jt : comp) {
-                    if (jt instanceof JEditorPane) {
-                        return (JEditorPane) jt;
-                    }
-                }
-            }
-            return null;
+    private JTextComponent findEditorPane(EditorCookie ck, StyledDocument doc) {
+        JTextComponent comp = DocumentOperator.findComponent(doc);
+        if (comp == null && ck.getOpenedPanes() != null && ck.getOpenedPanes().length > 0) {
+            comp = ck.getOpenedPanes()[0];
         }
-        if (!(focusOwner instanceof JEditorPane)) {
-            JEditorPane anc = (JEditorPane) SwingUtilities.getAncestorOfClass(JEditorPane.class,
-                    focusOwner);
-            focusOwner = anc;
+        return comp;
+    }
+
+    private static class CaretRelativeToRuleName {
+
+        final int relativePosition;
+        final String rule;
+
+        CaretRelativeToRuleName(int relativePosition, String rule) {
+            this.relativePosition = relativePosition;
+            this.rule = rule;
         }
-        if (focusOwner instanceof JEditorPane) {
-            JEditorPane jep = (JEditorPane) focusOwner;
-            if (doc == jep.getDocument()) {
-                return jep;
-            }
-        }
-        return null;
     }
 
     @Messages("grammarParsedWithErrors=Grammar contains syntax or parse errors that could cause "
             + "the reorganized rules to change the semantics. Cannot organize rules now.")
-    private static String organizeRules(StyledDocument doc, int caretPosition) throws Exception {
+    private static boolean organizeRules(StyledDocument doc, int caretPosition, AtomicReference<CaretRelativeToRuleName> caretRef) throws Exception {
         // we are in the document lock here.
         Extraction ext = NbAntlrUtils.parseImmediately(doc);
         NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(RULE_BOUNDS);
         if (ruleBounds.isEmpty()) {
-            return null;
+            return false;
         }
         String caretRuleName = null;
-        if (caretPosition > 0) {
-            NamedSemanticRegion<RuleTypes> caretRuleRegion = ruleBounds.at(caretPosition);
-            if (caretRuleRegion == null) {
-                boolean found = false;
-                for (NamedSemanticRegion<RuleTypes> ns : ruleBounds.index()) {
-                    if (ns.start() >= caretPosition) {
-                        found = true;
-                        caretRuleRegion = ns;
-                    }
-                }
-            }
+        int caretRelativePosition = 0;
+        if (caretPosition >= 0) {
+
+            NamedSemanticRegion<RuleTypes> caretRuleRegion = ruleBounds.index().nearestPreceding(caretPosition);
+            System.out.println("RULE REGION AT " + caretPosition + ": " + caretRuleRegion);
             if (caretRuleRegion != null) {
                 caretRuleName = caretRuleRegion.name();
+                caretRelativePosition = caretPosition - caretRuleRegion.start();
+                caretRef.set(new CaretRelativeToRuleName(caretRelativePosition, caretRuleName));
+                System.out.println("  HAVE CARET RULE " + caretRuleName + " @ " + caretRelativePosition);
+            } else {
+                System.out.println("NO CARET RULE REGION IN " + ruleBounds);
             }
         }
         StringGraph graph = ext.referenceGraph(RULE_NAME_REFERENCES);
@@ -342,10 +322,10 @@ public final class OrganizeRules implements ActionListener {
             EventQueue.invokeLater(() -> {
                 JOptionPane.showMessageDialog(WindowManager.getDefault().getMainWindow(), Bundle.grammarParsedWithErrors());
             });
-            return null;
+            return false;
         }
         updateDocument(ruleBounds, doc, entries);
-        return caretRuleName;
+        return true;
     }
 
     static void updateDocument(NamedSemanticRegions<RuleTypes> ruleBounds, StyledDocument doc, List<RuleEntry> entries) throws BadLocationException {
@@ -894,7 +874,7 @@ public final class OrganizeRules implements ActionListener {
                     int codePoint = Integer.parseInt(remainder, 16);
                     return Character.toString((char) codePoint);
                 } catch (NumberFormatException nfe) {
-                    
+
                 }
             }
             return txt;

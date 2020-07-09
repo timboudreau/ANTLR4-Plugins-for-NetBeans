@@ -482,20 +482,18 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
             switch (gg.type()) {
                 case COMBINED:
-                    String firstRuleName = regions.get(0);
-
-                    List<? extends SemanticRegion<UnknownNameReference<RuleTypes>>> eofMentions = unks.collect((unk) -> "EOF".equals(unk.name()));
+                    NamedSemanticRegion<RuleTypes> firstRuleBounds = regions.index().first();
+                    List<? extends SemanticRegion<UnknownNameReference<RuleTypes>>> eofMentions
+                            = unks.collect((unk) -> "EOF".equals(unk.name()));
                     if (eofMentions.isEmpty()) {
                         extraction.source().lookup(Document.class, doc -> {
                             try {
-                                NamedSemanticRegion<RuleTypes> firstRuleBounds
-                                        = regions.regionFor(firstRuleName);
                                 int insertPoint = firstRuleBounds.stop();
-                                String msg = Bundle.eofUnhandled(extraction.source().name(), firstRuleName);
+                                String msg = Bundle.eofUnhandled(extraction.source().name(), firstRuleBounds.name());
                                 fixes.addWarning("no-eof", firstRuleBounds, msg, Bundle::detailsNoEof, fixen -> {
                                     try {
                                         String toInsert = EOFInsertionStringGenerator.getEofInsertionString(doc);
-                                        fixen.addInsertion(Bundle.insertEof(toInsert, firstRuleName),
+                                        fixen.addInsertion(Bundle.insertEof(toInsert, firstRuleBounds.name()),
                                                 insertPoint, insertPoint, toInsert);
                                     } catch (IOException ex) {
                                         Exceptions.printStackTrace(ex);

@@ -19,6 +19,7 @@ import java.awt.Rectangle;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
 import com.mastfrog.function.throwing.ThrowingConsumer;
+import javax.swing.text.Caret;
 
 /**
  *
@@ -44,6 +45,14 @@ public final class CaretInfo {
     private CaretInfo() {
         this.start = -1;
         this.end = -1;
+    }
+
+    public static CaretInfo create(Caret caret) {
+        int selStart = Math.min(caret.getDot(), caret.getMark());
+        int selEnd = Math.min(caret.getDot(), caret.getMark());
+        int caretPosition = selStart;
+        return selStart == selEnd ? new CaretInfo(caretPosition)
+                : new CaretInfo(selStart, selEnd);
     }
 
     public static CaretInfo create(JTextComponent comp) {

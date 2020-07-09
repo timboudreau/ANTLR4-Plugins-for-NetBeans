@@ -62,6 +62,13 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                     closingToken = RPAREN,
                     name = "Delete matching paren if empty",
                     ignoring = {WS, PARDEC_WS},
+                    description = "Delete Matching Delimiters"),
+            @DelimiterPair(
+                    category = "Delimiters",
+                    openingToken = LEXER_CHAR_SET,
+                    closingToken = LEXER_CHAR_SET,
+                    name = "Delete matching [ if empty",
+                    ignoring = {WS, PARDEC_WS, LEXER_CHAR_SET},
                     description = "Delete Matching Delimiters")
         },
         insertBoilerplate = {
@@ -73,7 +80,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                     onChar = ' ',
                     whenPrecedingToken = {TOKEN_ID, PARSER_RULE_ID},
                     inserting = " : ^;",
-                    whenCurrentTokenNot = {STRING_LITERAL, LINE_COMMENT, BLOCK_COMMENT, LPAREN, ACTION_CONTENT, LBRACE, LEXER_CHAR_SET},
+                    whenCurrentTokenNot = {STRING_LITERAL, LINE_COMMENT, BLOCK_COMMENT, LPAREN, ACTION_CONTENT, LBRACE, LEXER_CHAR_SET, COLON},
                     whenFollowedByPattern = "<| SEMI {PARSER_RULE_ID TOKEN_ID} ! COLON ? PARDEC_WS ID_WS IMPORT_WS CHN_WS FRAGDEC_WS HDR_IMPRT_WS HDR_PCKG_WS HEADER_P_WS HEADER_WS LEXCOM_WS OPT_WS PARDEC_OPT_WS TOK_WS TOKDEC_WS TYPE_WS WS LINE_COMMENT BLOCK_COMMENT CHN_BLOCK_COMMENT FRAGDEC_LINE_COMMENT CHN_LINE_COMMENT DOC_COMMENT HDR_IMPRT_LINE_COMMENT HDR_PCKG_LINE_COMMENT HEADER_BLOCK_COMMENT HEADER_LINE_COMMENT HEADER_P_BLOCK_COMMENT HEADER_P_LINE_COMMENT ID_BLOCK_COMMENT ID_LINE_COMMENT IMPORT_BLOCK_COMMENT IMPORT_LINE_COMMENT LEXCOM_BLOCK_COMMENT LEXCOM_LINE_COMMENT OPT_BLOCK_COMMENT OPT_LINE_COMMENT PARDEC_LINE_COMMENT PARDEC_BLOCK_COMMENT PARDEC_OPT_LINE_COMMENT PARDEC_OPT_BLOCK_COMMENT TOK_BLOCK_COMMENT TOK_LINE_COMMENT TYPE_LINE_COMMENT"
             ),
             @Boilerplate(

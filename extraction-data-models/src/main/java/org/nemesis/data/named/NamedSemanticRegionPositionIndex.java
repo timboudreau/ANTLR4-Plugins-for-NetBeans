@@ -55,4 +55,13 @@ public interface NamedSemanticRegionPositionIndex<K extends Enum<K>> extends Ite
      */
     public NamedSemanticRegion<K> first();
 
+    /**
+     * Find the nearest item whose start is less than or equal to the passed
+     * position, whether or not that position is contained within the returned
+     * region.
+     *
+     * @param position A position >= 0
+     * @return A region, if any such exists
+     */
+    public NamedSemanticRegion<K> nearestPreceding(int position);
 }

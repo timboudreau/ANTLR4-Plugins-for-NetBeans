@@ -63,7 +63,7 @@ import org.openide.util.NbBundle;
  */
 public class InlineRefactoringPlugin extends AbstractRefactoringContext implements RefactoringPlugin {
 
-    private static final Logger LOG = Logger.getLogger(InlineRuleRefactoring.class.getName());
+    private static final Logger LOG = Logger.getLogger(InlineRefactoringPlugin.class.getName());
     private final PositionBounds bounds;
     private Extraction extraction;
     private final AbstractRefactoring refactoring;

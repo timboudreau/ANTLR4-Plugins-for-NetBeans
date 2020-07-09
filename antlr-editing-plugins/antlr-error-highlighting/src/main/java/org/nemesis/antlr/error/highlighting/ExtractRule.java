@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.nemesis.antlr.error.highlighting;
 
 import com.mastfrog.util.strings.Strings;
@@ -84,7 +83,7 @@ final class ExtractRule implements FixImplementation, Runnable, DocumentListener
     }
 
     private String newRuleName() {
-        return newRuleName == null ?  "new_rule" : newRuleName;
+        return newRuleName == null ? "new_rule" : newRuleName;
     }
 
     private int newRuleInsertPosition() {
@@ -110,13 +109,15 @@ final class ExtractRule implements FixImplementation, Runnable, DocumentListener
         int pos = newRuleInsertPosition();
         String newText = newRuleText();
         toSelect = PositionBoundsRange.createBounds(extraction.source(), pos, pos + name.length());
-        DocumentOperator.builder().disableTokenHierarchyUpdates().readLock().writeLock().singleUndoTransaction().blockIntermediateRepaints().acquireAWTTreeLock().build().operateOn((StyledDocument) document).operate(() -> {
+        DocumentOperator.builder().disableTokenHierarchyUpdates().lockAtomic().writeLock()
+                .singleUndoTransaction().blockIntermediateRepaints()
+                .acquireAWTTreeLock().build().operateOn((StyledDocument) document).operate((ctx) -> {
             for (PositionBoundsRange bds : ranges) {
                 edits.replace(document, bds.start(), bds.end(), name);
             }
             int newTextStart = toSelect.getBegin().getOffset();
             document.addPostModificationDocumentListener(this);
-            edits.insert(document, newTextStart, '\n' + name + " : " + newText + (newText.endsWith(";") ? "\n": ";\n"));
+            edits.insert(document, newTextStart, '\n' + name + " : " + newText + (newText.endsWith(";") ? "\n" : ";\n"));
             return null;
         });
     }

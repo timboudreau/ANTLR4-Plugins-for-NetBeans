@@ -25,6 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import org.nemesis.antlr.ANTLRv4Lexer;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.language.formatting.AbstractFormatter.*;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import org.nemesis.antlrformatting.api.FormattingRules;
@@ -36,7 +37,22 @@ import org.nemesis.antlrformatting.spi.AntlrFormatterStub;
  *
  * @author Tim Boudreau
  */
-@AntlrFormatterRegistration(mimeType = "text/x-g4")
+@AntlrFormatterRegistration(mimeType = "text/x-g4",
+        whitespaceTokens = {WS,
+            CHN_WS,
+            FRAGDEC_WS,
+            HDR_IMPRT_WS,
+            TYPE_WS,
+            HEADER_P_WS,
+            HEADER_WS,
+            ID_WS,
+            IMPORT_WS,
+            LEXCOM_WS,
+            OPT_WS,
+            PARDEC_OPT_WS,
+            PARDEC_WS,
+            TOKDEC_WS,
+            TOK_WS})
 public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv4Lexer> {
 
     private static final String[] EXPECTED_MODE_NAMES = {

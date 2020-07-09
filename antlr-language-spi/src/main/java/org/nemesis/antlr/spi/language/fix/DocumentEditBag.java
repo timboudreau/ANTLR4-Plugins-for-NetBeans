@@ -22,6 +22,7 @@ import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
 import com.mastfrog.function.throwing.ThrowingConsumer;
 import com.mastfrog.function.throwing.ThrowingRunnable;
+import org.nemesis.editor.utils.DocumentOperationContext;
 import org.netbeans.editor.BaseDocument;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.SaveCookie;
@@ -68,7 +69,7 @@ public abstract class DocumentEditBag {
         len[ 0 ] = doc.getLength();
         return DocumentOperator.NON_JUMP_REENTRANT_UPDATE_DOCUMENT
                 .<int[], Exception>operateOn( ( StyledDocument ) doc )
-                .operate( () -> {
+                .operate( (DocumentOperationContext ctx) -> {
                     ble.run();
                     len[ 1 ] = doc.getLength();
                     return len;

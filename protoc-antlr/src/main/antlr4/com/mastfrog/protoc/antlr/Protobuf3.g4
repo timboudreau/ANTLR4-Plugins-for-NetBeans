@@ -30,8 +30,8 @@ proto
                |   topLevelDef
                |   emptyStatement
                )*
-        EOF
     ;
+
 
 //
 // Syntax

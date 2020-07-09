@@ -44,6 +44,7 @@ import org.nemesis.data.impl.ArrayUtil;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
 import com.mastfrog.abstractions.list.IndexedResolvable;
+import org.nemesis.data.impl.ArrayUtil.Bias;
 import org.nemesis.data.impl.SizedArrayValueSupplier;
 import static org.nemesis.distance.LevenshteinDistance.sortByDistance;
 
@@ -1393,13 +1394,24 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return indices.length == 0 ? null : new IndexNamedSemanticRegionImpl(indices[0]);
         }
 
+        @Override
         public NamedSemanticRegion<K> withStart(int start) {
             int offset = Arrays.binarySearch(starts, 0, size, start);
             return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
         }
 
+        @Override
         public NamedSemanticRegion<K> withEnd(int end) {
             int offset = Arrays.binarySearch(ends, 0, size, end);
+            return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
+        }
+
+        @Override
+        public NamedSemanticRegion<K> nearestPreceding(int position) {
+            if (position < 0) {
+                return null;
+            }
+            int offset = ArrayUtil.lastOffsetLessThanOrEqualTo(position, starts, size, Bias.FORWARD);
             return offset < 0 ? null : new IndexNamedSemanticRegionImpl(indices[offset]);
         }
 

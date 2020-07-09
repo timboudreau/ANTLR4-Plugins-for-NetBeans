@@ -16,8 +16,13 @@
 package org.nemesis.antlrformatting.impl;
 
 import java.util.function.Supplier;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Caret;
 import javax.swing.text.Document;
+import javax.swing.text.JTextComponent;
+import org.nemesis.editor.utils.DocumentOperator;
 import org.netbeans.modules.editor.indent.spi.Context;
+import org.openide.util.Exceptions;
 
 /**
  * A holder that can be updated with a revised caret position based on how the
@@ -50,10 +55,34 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
         int start = ctx.startOffset();
         int end = ctx.endOffset();
         int len = doc.getLength();
-        if (start == 0 && (end == len - 1 || end == len)) {
-            return new WholeDocumentCaretFixer(start);
+        Caret caret = null;
+        JTextComponent comp = DocumentOperator.findComponent(doc);
+        if (comp != null) {
+            caret = comp.getCaret();
+            // It seems that frequently the Context instance arrives with zero
+            // as the caret position for no discernable reason
+            if (ctx.caretOffset() != caret.getDot() && ctx.caretOffset() != caret.getMark()) {
+                try {
+                    ctx.setCaretOffset(caret.getDot());
+                } catch (BadLocationException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
         }
-        return new SelectionCaretFixer();
+        System.out.println("CREATE CF start / end / len / caretOffset: " + start + " / " + end + " / "
+            + len + " / " + ctx.caretOffset());
+        if (start == 0 && (end == len - 1 || end == len)) {
+            System.out.println("Use whole");
+            if (caret != null) {
+                return new WholeDocumentCaretFixer(CaretInfo.create(caret));
+            }
+            return new WholeDocumentCaretFixer(ctx.caretOffset());
+        }
+        System.out.println("Use selection");
+        if (caret != null) {
+            return new SelectionCaretFixer(CaretInfo.create(caret));
+        }
+        return new SelectionCaretFixer(new CaretInfo(ctx.caretOffset()));
     }
 
     public abstract void updateStart(int start);
@@ -66,6 +95,9 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
 
         private CaretInfo caret;
 
+        WholeDocumentCaretFixer(CaretInfo info) {
+            this.caret = info;
+        }
         WholeDocumentCaretFixer(int caretPos) {
             caret = new CaretInfo(caretPos);
         }
@@ -76,6 +108,7 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
         }
 
         public synchronized void updateStart(int start) {
+            System.out.println("WholeDocumentCaretFixer updateStart " + start);
             int old = caret == null ? -1 : caret.start();
             caret = new CaretInfo(start);
             if (start == 0 && old > start) {
@@ -94,6 +127,14 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
     private static final class SelectionCaretFixer extends CaretFixer {
 
         private CaretInfo caret = CaretInfo.NONE;
+
+        SelectionCaretFixer() {
+
+        }
+
+        SelectionCaretFixer(CaretInfo info) {
+            this.caret = info;
+        }
 
         @Override
         public synchronized CaretInfo get() {

@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlrformatting.api;
 
-import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
@@ -80,7 +79,7 @@ final class FastStreamRewriter implements StreamRewriterFacade {
      */
     FastStreamRewriter(EverythingTokenStream stream) {
         this.stream = stream;
-        rewritesForToken = CollectionUtils.intMap(stream.size(), true, RewriteInfo::new);
+        rewritesForToken = IntMap.create(stream.size(), true, RewriteInfo::new);
         newlinePositions = IntList.create(stream.size() + stream.size() / 2);
         startPositions = IntList.create(stream.size());
         int pos = 0;
