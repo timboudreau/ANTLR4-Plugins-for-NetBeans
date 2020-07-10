@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
-import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import java.util.Collection;
@@ -31,7 +30,7 @@ import java.util.Set;
  */
 class IntSetMapping {
 
-    private final IntMap<IntSet> values = CollectionUtils.intMap(12, true, () -> IntSet.create(5));
+    private final IntMap<IntSet> values = IntMap.create(12, true, () -> IntSet.create(5));
 
     boolean isEmpty() {
         if (values.isEmpty()) {

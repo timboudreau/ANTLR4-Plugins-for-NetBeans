@@ -17,6 +17,7 @@ package org.nemesis.data.impl;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.function.IntConsumer;
 import java.util.function.IntUnaryOperator;
 import static org.nemesis.data.impl.ArrayUtil.Bias.BACKWARD;
 import static org.nemesis.data.impl.ArrayUtil.Bias.FORWARD;
@@ -444,4 +445,129 @@ public final class ArrayUtil {
         BACKWARD,
         NONE;
     }
+
+    public static int prefixBinarySearch(String[] sortedList, String prefix, IntConsumer results) {
+        if (sortedList.length == 0) {
+            return 0;
+        }
+        if (prefix.isEmpty()) {
+            for (int i = 0; i < sortedList.length; i++) {
+                results.accept(i);
+            }
+            return sortedList.length;
+        }
+        char zeroth = prefix.charAt(0);
+        if (sortedList[0].charAt(0) > zeroth) {
+            return 0;
+        }
+        return prefixBinarySearch(sortedList, 0, sortedList.length - 1, prefix, zeroth, results);
+    }
+
+    private static int prefixBinarySearch(String[] sortedList, int start, int end, String prefix, char zeroth, IntConsumer results) {
+        if (start == end) {
+            if (sortedList[start].startsWith(prefix)) {
+                results.accept(start);
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+        String test = sortedList[start];
+        char initial = test.charAt(0);
+        if (initial == zeroth) {
+            return scan(sortedList, start, initial, prefix, results);
+        } else if (initial > zeroth) {
+            return 0;
+        }
+        int mid = start + ((end - start) / 2);
+        if (mid != start && mid != end) {
+            test = sortedList[mid];
+            initial = test.charAt(0);
+            if (initial > zeroth) {
+                return prefixBinarySearch(sortedList, start + 1, mid - 1, prefix, zeroth, results);
+            } else if (initial < zeroth) {
+                return prefixBinarySearch(sortedList, mid + 1, end, prefix, zeroth, results);
+            } else {
+                if (test.startsWith(prefix)) {
+                    return scan(sortedList, mid, zeroth, prefix, results);
+                } else {
+                    test = sortedList[end];
+                    if (test.charAt(0) == zeroth) {
+                        return prefixBinarySearch(sortedList, start + 1, end, prefix, zeroth, results);
+                    }
+                    return prefixBinarySearch(sortedList, start + 1, mid - 1, prefix, zeroth, results);
+                }
+            }
+        }
+        test = sortedList[end];
+        initial = test.charAt(0);
+        if (initial == zeroth) {
+            return scan(sortedList, start, zeroth, prefix, results);
+        }
+        return 0;
+    }
+
+    private static int scan(String[] sortedList, int start, char zeroth, String prefix, IntConsumer c) {
+        int origStart = start;
+        while (start > 0 && sortedList[start - 1].startsWith(prefix)) {
+            start--;
+        }
+        if (origStart == start) {
+            while (start < sortedList.length - 1 && !sortedList[start].startsWith(prefix)) {
+                start++;
+            }
+            if (start >= sortedList.length || sortedList[start].charAt(0) != zeroth) {
+                return 0;
+            }
+        }
+        int count = 0;
+        for (int i = start; i < sortedList.length; i++) {
+            if (i <= origStart && sortedList[i].startsWith(prefix)) {
+                c.accept(i);
+                count++;
+            } else if (sortedList[i].startsWith(prefix)) {
+                c.accept(i);
+                count++;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
+    /*
+
+    static void charsBinarySearch(String pfx, String[] in, IntBiConsumer range) {
+        charsBinarySearch(0, in.length-1, pfx, pfx.charAt(0), in, 0, range);
+    }
+
+    static void charsBinarySearch(int start, int stop, String pfx, char pfxChar, String[] in, int charIndex, IntBiConsumer range) {
+        String first = in[start];
+        char test = first.charAt(charIndex);
+    }
+
+    static int findFirst(int start, int stop, char pfxChar, int charIndex, String[] in) {
+        String first = in[start];
+        if (first.length() <= charIndex) {
+            if (start+1 < stop) {
+                return findFirst(start+1, stop, pfxChar, charIndex, in);
+            }
+        }
+        char test = first.charAt(charIndex);
+        if (test < pfxChar && stop - start > 1) {
+            int mid = start + (((stop + 1) - start)/2);
+
+            String next = in[mid];
+
+            char test2 = next.charAt(charIndex);
+
+
+        } else if (test > pfxChar) {
+            return 0;
+        } else {
+            return start;
+        }
+        return 0;
+    }
+     */
 }

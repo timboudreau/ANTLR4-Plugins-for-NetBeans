@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.completion;
 
+import com.mastfrog.antlr.code.completion.spi.CaretToken;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.search.Bias;
 import com.mastfrog.util.strings.Strings;
@@ -29,7 +30,7 @@ import org.antlr.v4.runtime.Token;
  *
  * @author Tim Boudreau
  */
-public class CaretTokenInfo {
+public class CaretTokenInfo implements CaretToken {
 
     public static final CaretTokenInfo EMPTY;
 
@@ -41,21 +42,13 @@ public class CaretTokenInfo {
     private final Token token;
     private final int caretPositionInDocument;
     private final List<? extends Token> toks;
+    private String cachedLeading;
+    private String cachedTrailing;
 
     CaretTokenInfo(Token token, int caretPositionInDocument, List<? extends Token> toks) {
         this.token = token;
         this.caretPositionInDocument = caretPositionInDocument;
         this.toks = toks;
-    }
-
-    public boolean isWhitespace() {
-        String txt = tokenText();
-        for (int i = 0; i < txt.length(); i++) {
-            if (!Character.isWhitespace(i)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -74,10 +67,12 @@ public class CaretTokenInfo {
                 + "' }";
     }
 
+    @Override
     public int tokenType() {
         return token.getType();
     }
 
+    @Override
     public int tokenStart() {
         if (!isUserToken()) {
             return -1;
@@ -85,22 +80,12 @@ public class CaretTokenInfo {
         return token.getStartIndex();
     }
 
+    @Override
     public int tokenStop() {
         if (!isUserToken()) {
             return -1;
         }
         return token.getStopIndex();
-    }
-
-    public int tokenEnd() {
-        if (!isUserToken()) {
-            return -1;
-        }
-        return token.getStopIndex() + 1;
-    }
-
-    public int tokenLength() {
-        return Math.max(0, tokenEnd() - tokenStart());
     }
 
     /**
@@ -123,6 +108,7 @@ public class CaretTokenInfo {
      * @param bias The bias - FORWARD and BACKWARD are relevant
      * @return A caret token info, never null
      */
+    @Override
     public CaretTokenInfo biasedBy(Bias bias) {
         if (!isUserToken()) {
             return this;
@@ -161,44 +147,13 @@ public class CaretTokenInfo {
     }
 
     /**
-     * If the token ends with whitespace,
-     *
-     * @return
-     */
-    public String trailingNewlinesAndWhitespace() {
-        String body = token.getText();
-        int newlinePos = -1;
-        for (int pos = body.length() - 1; pos >= 0; pos--) {
-            char c = body.charAt(pos);
-            if (c == '\n') {
-                newlinePos = pos;
-            } else if (!Character.isWhitespace(c)) {
-                break;
-            }
-        }
-        if (newlinePos == 0) {
-            return body;
-        } else if (newlinePos > 0) {
-            return body.substring(newlinePos);
-        } else {
-            return "";
-        }
-    }
-
-    public enum CaretTokenRelation {
-        AT_TOKEN_START,
-        WITHIN_TOKEN,
-        AT_TOKEN_END,
-        UNRELATED;
-    }
-
-    /**
      * Return a CaretTokenInfo for this instance's token which reports the caret
      * position as the first position <i>after</i>
      * the stop position of the token.
      *
      * @return A CaretTokenInfo
      */
+    @Override
     public CaretTokenInfo after() {
         return new CaretTokenInfo(token, token.getStopIndex() + 1, toks);
     }
@@ -210,6 +165,7 @@ public class CaretTokenInfo {
      *
      * @return A CaretTokenInfo
      */
+    @Override
     public CaretTokenInfo before() {
         if (token.getTokenIndex() > 0) {
             Token prev = toks.get(token.getTokenIndex() - 1);
@@ -219,59 +175,12 @@ public class CaretTokenInfo {
     }
 
     /**
-     * Determine if the token consists only of characters which are neither
-     * letters, nor digits, nor whitespace, nor ISO control characters.
-     *
-     * @return
-     */
-    public boolean isPunctuation() {
-        boolean result = isUserToken();
-        if (result) {
-            String name = token.getText();
-            result = name.length() > 0;
-            if (result) {
-                for (int i = 0; i < name.length(); i++) {
-                    char c = name.charAt(i);
-                    if (Character.isLetter(c) || Character.isDigit(c) || Character.isWhitespace(c) || Character.isISOControl(c)) {
-                        result = false;
-                        break;
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Get the relationship of the caret position to the token. Note that
-     * instances returned by TokenUtils directly will <i>never</i>
-     * return CaretTokenRelation.AT_TOKEN_END from this method, because that
-     * indicates the caret is positioned <i>after</i> the last token, in which
-     * case TokenUtils will have returned the <i>next</i> token. Use the methods
-     * on this class or TokenUtils that take a Bias to get one such.
-     *
-     * @return The caret token relation
-     */
-    public CaretTokenRelation caretRelation() {
-        int start = token.getStartIndex();
-        int stop = token.getStopIndex();
-        if (caretPositionInDocument < start || caretPositionInDocument > stop + 1) {
-            return CaretTokenRelation.UNRELATED;
-        } else if (caretPositionInDocument == start) {
-            return CaretTokenRelation.AT_TOKEN_START;
-        } else if (caretPositionInDocument == stop + 1) {
-            return CaretTokenRelation.AT_TOKEN_END;
-        } else {
-            return CaretTokenRelation.WITHIN_TOKEN;
-        }
-    }
-
-    /**
      * Get the caret position within the document this instance was created
      * with.
      *
      * @return The caret position
      */
+    @Override
     public int caretPositionInDocument() {
         return caretPositionInDocument;
     }
@@ -285,6 +194,7 @@ public class CaretTokenInfo {
         return token;
     }
 
+    @Override
     public int tokenIndex() {
         return token.getTokenIndex();
     }
@@ -294,6 +204,7 @@ public class CaretTokenInfo {
      *
      * @return The token text
      */
+    @Override
     public String tokenText() {
         if (!isUserToken()) {
             return "";
@@ -307,25 +218,9 @@ public class CaretTokenInfo {
      *
      * @return Whether or not this is a user token
      */
+    @Override
     public boolean isUserToken() {
         return token.getType() >= Token.MIN_USER_TOKEN_TYPE && token.getStartIndex() <= token.getStopIndex();
-    }
-
-    /**
-     * Get the text occurring at or after the caret in this token.
-     *
-     * @return The trailing text
-     */
-    public String trailingTokenText() {
-        if (!isUserToken()) {
-            return "";
-        }
-        int relPos = Math.max(0, caretPositionInDocument - token.getStartIndex());
-        return token.getText().substring(relPos);
-    }
-
-    public boolean containsNewline() {
-        return !isUserToken() ? false : token.getText().contains("\n");
     }
 
     /**
@@ -333,13 +228,23 @@ public class CaretTokenInfo {
      *
      * @return
      */
+    @Override
     public String leadingTokenText() {
         if (!isUserToken()) {
             return "";
         }
-        String txt = token.getText();
-        int relPos = Math.min(txt.length(), Math.max(0, caretPositionInDocument - token.getStartIndex()));
-        return txt.substring(0, relPos);
+        if (cachedLeading != null) {
+            return cachedLeading;
+        }
+        return cachedLeading = CaretToken.super.leadingTokenText();
+    }
+
+    @Override
+    public String trailingTokenText() {
+        if (cachedTrailing != null) {
+            return cachedTrailing;
+        }
+        return cachedTrailing = CaretToken.super.trailingTokenText();
     }
 
     /**
@@ -387,20 +292,4 @@ public class CaretTokenInfo {
                 throw new AssertionError(bias);
         }
     }
-
-    /**
-     * Get the number of characters preceding the caret position to the token
-     * start position. Note that for instances created by biasedBy() the result
-     * may be greater than the length of the token.
-     *
-     * @return The relative position
-     */
-    public int caretDistanceBackwardsToTokenStart() {
-        return caretPositionInDocument - token.getStartIndex();
-    }
-
-    public int caretDistanceForwardsToTokenEnd() {
-        return Math.max(0, token.getStopIndex() - caretPositionInDocument);
-    }
-
 }

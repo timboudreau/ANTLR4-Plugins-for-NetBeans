@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
-import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
 import java.util.ArrayList;
@@ -33,7 +32,7 @@ import java.util.Set;
  */
 final class IntArrayMapping {
 
-    private final IntMap<IntList> values = CollectionUtils.intMap(12, true, () -> IntList.create(16));
+    private final IntMap<IntList> values = IntMap.create(12, true, () -> IntList.create(16));
 
     public IntList get(int key0) {
         return values.getIfPresent(key0, null);

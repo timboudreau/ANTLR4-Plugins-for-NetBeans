@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.mastfrog.antlr.utils;
+package com.mastfrog.antlr.code.completion.spi;
 
+import com.mastfrog.util.collections.IntList;
+import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -46,15 +48,9 @@ public abstract class CompletionsSupplier {
         return Dummy.INSTANCE;
     }
 
-    public interface Completer {
-
-        public void namesForRule(int parserRuleId, String optionalPrefix,
-                int maxResultsPerKey, String optionalSuffix, BiConsumer<String, Enum<?>> names);
-    }
-
     private static final class Dummy extends CompletionsSupplier implements Completer {
 
-        private static final Dummy INSTANCE = new Dummy();
+        static final Dummy INSTANCE = new Dummy();
 
         @Override
         public Completer forDocument(Document document) {
@@ -62,7 +58,7 @@ public abstract class CompletionsSupplier {
         }
 
         @Override
-        public void namesForRule(int parserRuleId, String optionalPrefix, 
+        public void namesForRule(int parserRuleId, String optionalPrefix,
                 int maxResultsPerKey, String optionalSuffix,
                 BiConsumer<String, Enum<?>> names) {
             // do nothing
@@ -86,11 +82,16 @@ public abstract class CompletionsSupplier {
             return new MetaCompleter(completers);
         }
 
+        public String toString() {
+            return "MetaSupplier(" + Strings.join(',', all, supp -> {
+                return supp.getClass().getName();
+            }) + ")";
+        }
     }
 
     private static final class MetaCompleter implements Completer {
 
-        private final List<Completer> completers;
+        final List<Completer> completers;
 
         private MetaCompleter(List<Completer> completers) {
             this.completers = completers;
@@ -101,6 +102,26 @@ public abstract class CompletionsSupplier {
             for (Completer c : completers) {
                 c.namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, names);
             }
+        }
+
+        @Override
+        public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix, IntList rulePath, BiConsumer<String, Enum<?>> names) {
+            for (Completer c : completers) {
+                c.namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, rulePath, names);
+            }
+        }
+
+        @Override
+        public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) {
+            for (Completer c : completers) {
+                c.apply(parserRuleId, token, maxResultsPerKey, rulePath, addTo);
+            }
+        }
+
+        public String toString() {
+            return "MetaCompleter(" + Strings.join(',', completers, supp -> {
+                return supp.getClass().getName();
+            }) + ")";
         }
     }
 }

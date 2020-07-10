@@ -25,6 +25,6 @@ import javax.swing.text.BadLocationException;
 @FunctionalInterface
 public interface BadLocationRunnable {
 
-    public void run() throws BadLocationException;
+    void run() throws BadLocationException;
 
 }

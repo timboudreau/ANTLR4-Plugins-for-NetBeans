@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.spi.language.impl;
 
-import com.mastfrog.antlr.utils.CompletionsSupplier;
+import com.mastfrog.antlr.code.completion.spi.Completer;
+import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
+import java.util.function.BiConsumer;
 import javax.swing.text.Document;
 import org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
@@ -38,11 +40,26 @@ public final class CompletionsSupplierImplementation extends CompletionsSupplier
             try {
                 Extraction ext =
                         NbAntlrUtils.parseImmediately( document );
-                return ext::namesForRule;
+                return new CP(ext);
             } catch ( Exception ex ) {
                 Exceptions.printStackTrace( ex );
             }
         }
         return noop();
+    }
+
+    static class CP implements Completer {
+        private final Extraction ext;
+
+        public CP( Extraction ext ) {
+            this.ext = ext;
+        }
+
+        @Override
+        public void namesForRule( int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix,
+                BiConsumer<String, Enum<?>> names ) {
+            ext.namesForRule( parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, names );
+        }
+
     }
 }

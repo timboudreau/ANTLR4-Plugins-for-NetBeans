@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.nemesis.editor.utils;
 
+import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
 
 /**
+ * A supplier which throws a BadLocationException or other declared exception.
  *
  * @author Tim Boudreau
  */
@@ -26,4 +27,16 @@ import javax.swing.text.BadLocationException;
 public interface BadLocationSupplier<T, E extends Exception> {
 
     T get() throws E, BadLocationException;
+
+    default T run(Consumer<Runnable> runner) throws E, BadLocationException {
+        Hold<T, E> hold = new Hold<>();
+        runner.accept(() -> {
+            try {
+                hold.set(get());
+            } catch (Exception ex) {
+                hold.thrown(ex);
+            }
+        });
+        return hold.get();
+    }
 }

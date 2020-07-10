@@ -16,19 +16,14 @@
 package org.nemesis.antlr.file.impl;
 
 import com.mastfrog.function.TriConsumer;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
-import org.antlr.v4.runtime.BufferedTokenStream;
-import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
@@ -55,12 +50,10 @@ import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.LexerModes;
-import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.Extractor;
 import org.nemesis.extraction.ExtractorBuilder;
 import org.nemesis.extraction.NamedRegionData;
-import org.nemesis.source.api.GrammarSource;
 
 /**
  *
@@ -346,7 +339,7 @@ public final class AntlrExtractor {
             return;
         }
     }
-
+/*
     public Extraction extract(GrammarFileContext ctx, GrammarSource<?> src) {
         Supplier<TokenStream> streamSource = () -> {
             try {
@@ -379,10 +372,10 @@ public final class AntlrExtractor {
     }
 
     private static final AntlrExtractor INSTANCE = new AntlrExtractor();
-
     public static AntlrExtractor getDefault() {
         return INSTANCE;
     }
+*/
 
     private static boolean hasAncestor(ParserRuleContext ctx, Class<? extends ParserRuleContext> anc) {
         boolean found = false;

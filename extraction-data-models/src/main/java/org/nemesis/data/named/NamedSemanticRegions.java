@@ -44,6 +44,7 @@ import org.nemesis.data.impl.ArrayUtil;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
 import com.mastfrog.abstractions.list.IndexedResolvable;
+import java.util.function.Consumer;
 import org.nemesis.data.impl.ArrayUtil.Bias;
 import org.nemesis.data.impl.SizedArrayValueSupplier;
 import static org.nemesis.distance.LevenshteinDistance.sortByDistance;
@@ -186,6 +187,30 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
         this.ends = null;
         this.size = -1;
         this.names = null;
+    }
+
+    public int matchingPrefix(String prefix, Consumer<? super NamedSemanticRegion<K>> c) {
+        if (prefix.isEmpty()) {
+            for (int i = 0; i < size; i++) {
+                c.accept(new IndexNamedSemanticRegionImpl(i));
+            }
+            return size;
+        }
+        return ArrayUtil.prefixBinarySearch(nameArray(), prefix, ix -> {
+            c.accept(new IndexNamedSemanticRegionImpl(ix));
+        });
+    }
+
+    public int matchingSuffix(String suffix, Consumer<? super NamedSemanticRegion<K>> c) {
+        int result = 0;
+        for (int i = 0; i < size; i++) {
+            String nm = names[i];
+            if (nm.length() > suffix.length() && nm.endsWith(suffix)) {
+                result++;
+                c.accept(new IndexNamedSemanticRegionImpl(i));
+            }
+        }
+        return result;
     }
 
     public boolean areRegionSizesNameLengths() {
@@ -661,7 +686,8 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
     }
 
     /**
-     * Determine if this NamedSemanticRegions instance contains a particular name.
+     * Determine if this NamedSemanticRegions instance contains a particular
+     * name.
      *
      * @param name The name
      * @return true if it is present

@@ -15,9 +15,12 @@
  */
 package org.nemesis.extraction;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.source.api.GrammarSource;
 
 /**
  * Object returned when you resolve unknown references on an Extraction.
@@ -40,6 +43,15 @@ public final class Attributions<R, I extends IndexAddressable.NamedIndexAddressa
 
     public boolean hasUnresolved() {
         return unresolved != null && unresolved.isEmpty();
+    }
+
+    public Map<GrammarSource<?>, Extraction> dependencies() {
+        Map<GrammarSource<?>, Extraction> result = new HashMap<>();
+        resolved.forEach(item -> {
+            Extraction ext = item.key().foundIn();
+            result.put(ext.source(), ext);
+        });
+        return result;
     }
 
     @Override

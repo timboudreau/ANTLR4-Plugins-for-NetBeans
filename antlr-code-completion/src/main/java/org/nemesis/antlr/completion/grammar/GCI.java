@@ -27,53 +27,85 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
-import org.nemesis.antlr.completion.CaretTokenInfo;
-import static org.nemesis.antlr.completion.CaretTokenInfo.CaretTokenRelation.AT_TOKEN_START;
-import static org.nemesis.antlr.completion.CaretTokenInfo.CaretTokenRelation.WITHIN_TOKEN;
-import org.netbeans.editor.BaseDocument;
+import com.mastfrog.antlr.code.completion.spi.CaretToken;
+import com.mastfrog.antlr.code.completion.spi.CaretTokenRelation;
+import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.AT_TOKEN_START;
+import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.WITHIN_TOKEN;
+import com.mastfrog.antlr.code.completion.spi.CompletionItems;
+import com.mastfrog.antlr.code.completion.spi.CompletionItems.CompletionApplier;
+import javax.swing.text.Caret;
+import javax.swing.text.StyledDocument;
+import org.netbeans.api.editor.caret.CaretMoveContext;
+import org.netbeans.api.editor.caret.EditorCaret;
+import org.netbeans.api.editor.caret.MoveCaretsOrigin;
 import org.netbeans.spi.editor.completion.CompletionItem;
 import org.netbeans.spi.editor.completion.CompletionTask;
 import org.openide.awt.HtmlRenderer;
+import org.openide.text.NbDocument;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class GCI implements CompletionItem {
+final class GCI implements CompletionItem, CompletionApplier {
 
     private final String name;
-    private final CaretTokenInfo tokenInfo;
+    private final CaretToken tokenInfo;
     private final Document doc;
     private final String desc;
     private boolean onlyItem;
+    private CompletionItems.CompletionApplier applier;
 
-    GCI(String name, CaretTokenInfo tokenInfo, Document doc, String desc) {
+    GCI(String name, CaretToken tokenInfo, Document doc, String desc) {
         this(name, tokenInfo, doc, desc, false);
     }
 
-    GCI(String name, CaretTokenInfo tokenInfo, Document doc, String desc, boolean onlyItem) {
+    GCI(String name, CaretToken tokenInfo, Document doc, String desc, boolean onlyItem) {
+        this(name, tokenInfo, doc, desc, onlyItem, null);
+    }
+
+    GCI(String name, CaretToken tokenInfo, Document doc, String desc, boolean onlyItem, CompletionItems.CompletionApplier applier) {
         this.name = name;
         this.tokenInfo = tokenInfo;
         this.doc = doc;
         this.desc = desc;
         this.onlyItem = onlyItem;
+        this.applier = applier == null ? this : applier;
+    }
+
+    String itemText() {
+        return name;
     }
 
     @Override
-    public void defaultAction(JTextComponent component) {
-        BaseDocument doc = (BaseDocument) component.getDocument();
-        doc.runAtomicAsUser(() -> {
+    public void apply(JTextComponent comp, StyledDocument doc) {
+        NbDocument.runAtomic((StyledDocument) doc, () -> {
             try {
                 int end = applyToDocument(doc);
+                Position endPosition = NbDocument.createPosition(doc, end, Position.Bias.Backward);
                 if (isCommonEnclosingPair()) {
-                    EventQueue.invokeLater(() -> {
-                        component.getCaret().setDot(end-1);
-                    });
+                    Caret caret = comp.getCaret();
+                    if (caret instanceof EditorCaret) {
+                        EditorCaret ec = (EditorCaret) caret;
+                        ec.moveCarets((CaretMoveContext context) -> {
+                            context.setDotAndMark(ec.getLastCaret(), endPosition,
+                                    Position.Bias.Forward, endPosition, Position.Bias.Backward);
+                        }, MoveCaretsOrigin.DISABLE_FILTERS);
+                    } else {
+                        EventQueue.invokeLater(() -> {
+                            comp.getCaret().setDot(end - 1);
+                        });
+                    }
                 }
             } catch (BadLocationException ex) {
                 Exceptions.printStackTrace(ex);
             }
         });
+    }
+
+    @Override
+    public void defaultAction(JTextComponent component) {
+        applier.apply(component, (StyledDocument) component.getDocument());
     }
 
     enum Op {
@@ -87,10 +119,11 @@ public class GCI implements CompletionItem {
         APPEND_PREFIX_AND_SUFFIX;
     }
 
-    private int applyToDocument(BaseDocument doc) throws BadLocationException {
+    private int applyToDocument(Document doc) throws BadLocationException {
         StringBuilder sb = new StringBuilder(name);
         Set<Op> ops = insertionOps();
-        Position pos = doc.createPosition(tokenInfo.caretPositionInDocument(), Position.Bias.Forward);
+        Position pos = NbDocument.createPosition(doc,
+                tokenInfo.caretPositionInDocument(), Position.Bias.Forward);
         for (Op o : ops) {
             switch (o) {
                 case ELIDE_PREFIX:
@@ -114,12 +147,13 @@ public class GCI implements CompletionItem {
                 case DELETE_SUFFIX:
                     doc.remove(tokenInfo.caretPositionInDocument(), tokenInfo.trailingTokenText().length());
                     break;
-                case APPEND_PREFIX_AND_SUFFIX :
-                    sb.append(tokenInfo.leadingTokenText() + tokenInfo.trailingTokenText());
+                case APPEND_PREFIX_AND_SUFFIX:
+                    sb.append(tokenInfo.leadingTokenText()).append(tokenInfo.trailingTokenText());
             }
         }
         int offset = pos.getOffset();
         String toInsert = sb.toString();
+        System.out.println("INSERT '" + toInsert + "' at " + offset + " for " + ops + " rel " + tokenInfo.caretRelation());
         doc.insertString(pos.getOffset(), toInsert, null);
         return offset + toInsert.length();
     }
@@ -149,20 +183,33 @@ public class GCI implements CompletionItem {
         return false;
     }
 
+    private int sharedStartLength(String a, String b) {
+        int max = Math.min(a.length(), b.length());
+        for (int i = 0; i < max; i++) {
+            if (a.charAt(i) != b.charAt(i)) {
+                return  i;
+            }
+        }
+        return max;
+    }
+
     private Set<Op> insertionOps() {
         Set<Op> result = EnumSet.noneOf(Op.class);
         String pfx = tokenInfo.leadingTokenText();
         String sfx = tokenInfo.trailingTokenText();
-        CaretTokenInfo prev = tokenInfo.before();
-        CaretTokenInfo next = tokenInfo.after();
-        CaretTokenInfo.CaretTokenRelation rel = tokenInfo.caretRelation();
-        if (prev.isWhitespace() && !isPunctuation()) {
+        CaretToken prev = tokenInfo.before();
+        CaretToken next = tokenInfo.after();
+        CaretTokenRelation rel = tokenInfo.caretRelation();
+        if (prev.isWhitespace() && !isPunctuation() && rel != CaretTokenRelation.WITHIN_TOKEN) {
             result.add(Op.PREPEND_SPACE);
         }
         switch (rel) {
             case WITHIN_TOKEN:
-                if (name.startsWith(pfx)) {
+                if (!pfx.isEmpty() && name.startsWith(pfx)) {
                     result.add(Op.ELIDE_PREFIX);
+                    result.add(Op.DELETE_SUFFIX);
+                }
+                if (pfx.isEmpty() && !sfx.isEmpty() && sharedStartLength(name, sfx) > 3) {
                     result.add(Op.DELETE_SUFFIX);
                 }
                 if (tokenInfo.isWhitespace()) {

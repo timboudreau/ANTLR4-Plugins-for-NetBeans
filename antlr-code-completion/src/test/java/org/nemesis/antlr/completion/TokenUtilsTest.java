@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
-import org.nemesis.antlr.completion.CaretTokenInfo.CaretTokenRelation;
+import com.mastfrog.antlr.code.completion.spi.CaretTokenRelation;
 import org.nemesis.antlr.sample.AntlrSampleFiles;
 import org.nemesis.simple.SampleFile;
 
@@ -111,7 +111,7 @@ public class TokenUtilsTest {
 
                     assertEquals(t.getText(), info.trailingTokenText());
                     assertEquals("", info.leadingTokenText());
-                    assertEquals(CaretTokenInfo.CaretTokenRelation.AT_TOKEN_START,
+                    assertEquals(CaretTokenRelation.AT_TOKEN_START,
                             info.caretRelation());
                 } else if (pos == t.getStopIndex()) {
                     CaretTokenInfo forward = info.biasedBy(Bias.FORWARD);
@@ -143,7 +143,7 @@ public class TokenUtilsTest {
                     assertEquals(new String(new char[]{t.getText().charAt(
                         t.getText().length() - 1)}), info.trailingTokenText());
 
-                    assertEquals(CaretTokenInfo.CaretTokenRelation.WITHIN_TOKEN,
+                    assertEquals(CaretTokenRelation.WITHIN_TOKEN,
                             info.caretRelation());
                 }
             } else {

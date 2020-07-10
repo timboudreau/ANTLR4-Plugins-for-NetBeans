@@ -60,10 +60,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.undo.AbstractUndoableEdit;
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
-import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.AWTTreeLocker;
-import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.CaretPositionUndoableEdit;
-import org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.UndoTransaction;
-import static org.nemesis.editor.utils.DocumentOperator.DocumentLockProcessor3.render;
 import static org.nemesis.editor.utils.DocumentPreAndPostProcessor.NO_OP;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.caret.MoveCaretsOrigin;
@@ -1192,295 +1188,270 @@ public final class DocumentOperator {
                 }
             }
         }
+    }
 
-        static final class AWTTreeLocker extends SingleEntryBeforeAfter {
+    static final class AWTTreeLocker extends SingleEntryBeforeAfter {
 
-            AWTTreeLocker(StyledDocument doc) {
-                super(doc);
+        AWTTreeLocker(StyledDocument doc) {
+            super(doc);
+        }
+
+        @Override
+        public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
+            DocumentProcessor<T, E> superWrap = super.wrap(toWrap);
+            if (superWrap != toWrap) {
+                // non-reentrant
+                Component c = findComponent(doc);
+                if (c != null) {
+                    return new WithTreeLock(superWrap, c);
+                }
+            }
+            // reentrant call, just do the thing
+            return toWrap;
+        }
+
+        @Override
+        public String toString() {
+            return "AWT-TREE-LOCK";
+        }
+
+        static class WithTreeLock<T, E extends Exception> implements DocumentProcessor<T, E> {
+
+            private final DocumentProcessor<T, E> delegate;
+            private final Component comp;
+
+            public WithTreeLock(DocumentProcessor<T, E> delegate, Component comp) {
+                this.delegate = delegate;
+                this.comp = comp;
             }
 
             @Override
-            public <T, E extends Exception> DocumentProcessor<T, E> wrap(DocumentProcessor<T, E> toWrap) {
-                DocumentProcessor<T, E> superWrap = super.wrap(toWrap);
-                if (superWrap != toWrap) {
-                    // non-reentrant
-                    Component c = findComponent(doc);
-                    if (c != null) {
-                        return new WithTreeLock(superWrap, c);
-                    }
+            public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                T result;
+                LOG.log(Level.FINER, "{0} on {1} with {2} ENTER",
+                        new Object[]{this, Thread.currentThread(), comp});
+                synchronized (comp.getTreeLock()) {
+                    result = delegate.get(ctx);
                 }
-                // reentrant call, just do the thing
-                return toWrap;
-            }
-
-            @Override
-            public String toString() {
-                return "AWT-TREE-LOCK";
-            }
-
-            static class WithTreeLock<T, E extends Exception> implements DocumentProcessor<T, E> {
-
-                private final DocumentProcessor<T, E> delegate;
-                private final Component comp;
-
-                public WithTreeLock(DocumentProcessor<T, E> delegate, Component comp) {
-                    this.delegate = delegate;
-                    this.comp = comp;
-                }
-
-                @Override
-                public T get(DocumentOperationContext ctx) throws E, BadLocationException {
-                    T result;
-                    LOG.log(Level.FINER, "{0} on {1} with {2} ENTER",
-                            new Object[]{this, Thread.currentThread(), comp});
-                    synchronized (comp.getTreeLock()) {
-                        result = delegate.get(ctx);
-                    }
-                    LOG.log(Level.FINER, "{0} on {1} with {2} EXIT",
-                            new Object[]{this, Thread.currentThread(), comp});
+                LOG.log(Level.FINER, "{0} on {1} with {2} EXIT",
+                        new Object[]{this, Thread.currentThread(), comp});
 //                EventQueue.invokeLater(() -> {
 //                comp.invalidate();
 //                comp.revalidate();
 //                comp.repaint();
 //                });
-                    return result;
-                }
-
-                @Override
-                public String toString() {
-                    return "AWT-TREE-LOCK(" + delegate + ")";
-                }
-            }
-        }
-
-        static class Hold<T, E extends Exception> implements Supplier<T> {
-
-            T obj;
-            Exception thrown;
-
-            void set(T obj) {
-                this.obj = obj;
-            }
-
-            void thrown(Exception e) {
-                this.thrown = e;
-            }
-
-            void rethrow() {
-                if (thrown != null) {
-                    com.mastfrog.util.preconditions.Exceptions.chuck(thrown);
-                }
-            }
-
-            public T get() {
-                rethrow();
-                return obj;
-            }
-        }
-
-        static <T, E extends Exception> T render(Document doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
-            Hold<T, E> hold = new Hold<>();
-            doc.render(() -> {
-                try {
-                    hold.set(supp.get());
-                } catch (Exception ex) {
-                    hold.thrown(ex);
-                }
-            });
-            return hold.get();
-        }
-
-        static <T, E extends Exception> T runAtomic(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
-            Hold<T, E> hold = new Hold<>();
-            NbDocument.runAtomic(doc, () -> {
-                try {
-                    hold.set(supp.get());
-                } catch (Exception ex) {
-                    hold.thrown(ex);
-                }
-            });
-            return hold.get();
-        }
-
-        static <T, E extends Exception> T runAtomicAsUser(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
-            Hold<T, E> hold = new Hold<>();
-            NbDocument.runAtomicAsUser(doc, () -> {
-                try {
-                    hold.set(supp.get());
-                } catch (Exception ex) {
-                    hold.thrown(ex);
-                }
-            });
-            return hold.get();
-        }
-
-        static <T, E extends Exception> T runWriteLocked(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
-            if (!(doc instanceof BaseDocument)) {
-                return supp.get();
-            }
-            BaseDocument bd = (BaseDocument) doc;
-            bd.extWriteLock();;
-            try {
-                return supp.get();
-            } finally {
-                bd.extWriteUnlock();
-            }
-        }
-
-        static boolean isAtomicLocked(Document doc) {
-            return doc instanceof BaseDocument && ((BaseDocument) doc).isAtomicLock();
-        }
-
-        static final class UndoTransaction extends SingleEntryBeforeAfter {
-
-            public UndoTransaction(StyledDocument doc) {
-                super(doc);
-            }
-
-            @Override
-            String id() {
-                return getClass().getSimpleName();
-            }
-
-            @Override
-            public void before(DocumentOperationContext ctx) {
-                LOG.log(Level.FINER, "{0} before on {1}", new Object[]{this, Thread.currentThread()});
-                ctx.sendUndoableEdit(CloneableEditorSupport.BEGIN_COMMIT_GROUP);
-            }
-
-            @Override
-            public void after(DocumentOperationContext ctx) {
-                LOG.log(Level.FINER, "{0} after on {1}", new Object[]{this, Thread.currentThread()});
-
-//            ctx.sendUndoableEdit(CloneableEditorSupport.END_COMMIT_GROUP);
+                return result;
             }
 
             @Override
             public String toString() {
-                return "ONE-UNDO-TRANSACTION";
+                return "AWT-TREE-LOCK(" + delegate + ")";
+            }
+        }
+    }
+
+
+    static <T, E extends Exception> T render(Document doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        Hold<T, E> hold = new Hold<>();
+        doc.render(() -> {
+            try {
+                hold.set(supp.get());
+            } catch (Exception ex) {
+                hold.thrown(ex);
+            }
+        });
+        return hold.get();
+    }
+
+    static <T, E extends Exception> T runAtomic(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        Hold<T, E> hold = new Hold<>();
+        NbDocument.runAtomic(doc, () -> {
+            try {
+                hold.set(supp.get());
+            } catch (Exception ex) {
+                hold.thrown(ex);
+            }
+        });
+        return hold.get();
+    }
+
+    static <T, E extends Exception> T runAtomicAsUser(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        Hold<T, E> hold = new Hold<>();
+        NbDocument.runAtomicAsUser(doc, () -> {
+            try {
+                hold.set(supp.get());
+            } catch (Exception ex) {
+                hold.thrown(ex);
+            }
+        });
+        return hold.get();
+    }
+
+    static <T, E extends Exception> T runWriteLocked(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        if (!(doc instanceof BaseDocument)) {
+            return supp.get();
+        }
+        BaseDocument bd = (BaseDocument) doc;
+        bd.extWriteLock();;
+        try {
+            return supp.get();
+        } finally {
+            bd.extWriteUnlock();
+        }
+    }
+
+    static boolean isAtomicLocked(Document doc) {
+        return doc instanceof BaseDocument && ((BaseDocument) doc).isAtomicLock();
+    }
+
+    static final class UndoTransaction extends SingleEntryBeforeAfter {
+
+        public UndoTransaction(StyledDocument doc) {
+            super(doc);
+        }
+
+        @Override
+        String id() {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public void before(DocumentOperationContext ctx) {
+            LOG.log(Level.FINER, "{0} before on {1}", new Object[]{this, Thread.currentThread()});
+            ctx.sendUndoableEdit(CloneableEditorSupport.BEGIN_COMMIT_GROUP);
+        }
+
+        @Override
+        public void after(DocumentOperationContext ctx) {
+            LOG.log(Level.FINER, "{0} after on {1}", new Object[]{this, Thread.currentThread()});
+
+//            ctx.sendUndoableEdit(CloneableEditorSupport.END_COMMIT_GROUP);
+        }
+
+        @Override
+        public String toString() {
+            return "ONE-UNDO-TRANSACTION";
+        }
+    }
+
+    /**
+     * We could use the method in EditorUtilities, except that at the time it
+     * would add the event, we don't know if the reason for having this edit has
+     * succeeded or not; with this, we can create the event before any
+     * modifications are made, and only apply it if the transaction succeeds.
+     */
+    static final class CaretPositionUndoableEdit extends AbstractUndoableEdit {
+
+        private int dot;
+        private int mark;
+        private Rectangle undoRect;
+        private final JTextComponent comp;
+        private Caret caret;
+        private Position redoPosition;
+        private Position redoMark;
+        private Rectangle redoRect;
+        private Document doc;
+        private boolean undone;
+
+        public CaretPositionUndoableEdit(JTextComponent comp, Document doc) throws BadLocationException {
+            this.caret = comp.getCaret();
+            // We do NOT want to use a Position instance for these - Antlr
+            // reformatting, and potentially other things do a wholesale replacement
+            // of the document contents, in which case all Positions created
+            // prior to the operation are either 0 or document-length.
+            this.dot = caret.getDot();
+            this.mark = caret.getMark();
+            this.undoRect = comp.getVisibleRect();
+            this.comp = comp;
+            this.doc = doc;
+        }
+
+        @Override
+        public void die() {
+            caret = null;
+            redoPosition = null;
+            redoMark = null;
+            doc = null;
+            undoRect = null;
+            redoRect = null;
+        }
+
+        private void updateRedoInfo() {
+            try {
+                redoPosition = doc.createPosition(caret.getDot());
+                redoMark = doc.createPosition(caret.getMark());
+                redoRect = comp.getVisibleRect();
+                LOG.log(Level.FINEST, "Collect caret redo info {0}, {1}, {2}",
+                        new Object[]{redoPosition, redoMark, redoRect});
+            } catch (BadLocationException ex) {
+                LOG.log(Level.SEVERE, null, ex);
             }
         }
 
-        /**
-         * We could use the method in EditorUtilities, except that at the time
-         * it would add the event, we don't know if the reason for having this
-         * edit has succeeded or not; with this, we can create the event before
-         * any modifications are made, and only apply it if the transaction
-         * succeeds.
-         */
-        static final class CaretPositionUndoableEdit extends AbstractUndoableEdit {
-
-            private int dot;
-            private int mark;
-            private Rectangle undoRect;
-            private final JTextComponent comp;
-            private Caret caret;
-            private Position redoPosition;
-            private Position redoMark;
-            private Rectangle redoRect;
-            private Document doc;
-            private boolean undone;
-
-            public CaretPositionUndoableEdit(JTextComponent comp, Document doc) throws BadLocationException {
-                this.caret = comp.getCaret();
-                // We do NOT want to use a Position instance for these - Antlr
-                // reformatting, and potentially other things do a wholesale replacement
-                // of the document contents, in which case all Positions created
-                // prior to the operation are either 0 or document-length.
-                this.dot = caret.getDot();
-                this.mark = caret.getMark();
-                this.undoRect = comp.getVisibleRect();
-                this.comp = comp;
-                this.doc = doc;
-            }
-
-            @Override
-            public void die() {
-                caret = null;
-                redoPosition = null;
-                redoMark = null;
-                doc = null;
-                undoRect = null;
-                redoRect = null;
-            }
-
-            private void updateRedoInfo() {
+        @Override
+        public void undo() throws CannotUndoException {
+            undone = true;
+            EventQueue.invokeLater(() -> {
                 try {
-                    redoPosition = doc.createPosition(caret.getDot());
-                    redoMark = doc.createPosition(caret.getMark());
-                    redoRect = comp.getVisibleRect();
-                    LOG.log(Level.FINEST, "Collect caret redo info {0}, {1}, {2}",
-                            new Object[]{redoPosition, redoMark, redoRect});
+                    LOG.log(Level.FINE, "Caret-undo to {0}, {1}", new Object[]{mark, dot});
+                    updateRedoInfo();
+                    Position dotPos = NbDocument.createPosition(doc, dot, dot < mark ? Bias.Forward : Bias.Backward);
+                    Position markPos = dot == mark ? dotPos
+                            : NbDocument.createPosition(doc, mark, dot < mark ? Bias.Backward : Bias.Forward);
+                    updateCaret(dotPos, markPos);
                 } catch (BadLocationException ex) {
-                    LOG.log(Level.SEVERE, null, ex);
+                    Exceptions.printStackTrace(ex);
                 }
-            }
+                comp.scrollRectToVisible(undoRect);
+            });
+        }
 
-            @Override
-            public void undo() throws CannotUndoException {
-                undone = true;
-                EventQueue.invokeLater(() -> {
-                    try {
-                        LOG.log(Level.FINE, "Caret-undo to {0}, {1}", new Object[]{mark, dot});
-                        updateRedoInfo();
-                        Position dotPos = NbDocument.createPosition(doc, dot, dot < mark ? Bias.Forward : Bias.Backward);
-                        Position markPos = dot == mark ? dotPos
-                                : NbDocument.createPosition(doc, mark, dot < mark ? Bias.Backward : Bias.Forward);
-                        updateCaret(dotPos, markPos);
-                    } catch (BadLocationException ex) {
-                        Exceptions.printStackTrace(ex);
-                    }
-                    comp.scrollRectToVisible(undoRect);
-                });
-            }
-
-            private void updateCaret(Position dotPosition, Position markPosition) {
-                if (caret instanceof EditorCaret) {
-                    EditorCaret ec = (EditorCaret) caret;
-                    ec.moveCarets((CaretMoveContext context) -> {
-                        CaretInfo ct = context.getOriginalLastCaret();
-                        context.setDotAndMark(ct, dotPosition, Bias.Forward, markPosition, Bias.Backward);
-                    }, MoveCaretsOrigin.DISABLE_FILTERS);
+        private void updateCaret(Position dotPosition, Position markPosition) {
+            if (caret instanceof EditorCaret) {
+                EditorCaret ec = (EditorCaret) caret;
+                ec.moveCarets((CaretMoveContext context) -> {
+                    CaretInfo ct = context.getOriginalLastCaret();
+                    context.setDotAndMark(ct, dotPosition, Bias.Forward, markPosition, Bias.Backward);
+                }, MoveCaretsOrigin.DISABLE_FILTERS);
+            } else {
+                int pos = dotPosition.getOffset();
+                int mk = markPosition.getOffset();
+                if (mk == pos) {
+                    caret.setDot(pos);
                 } else {
-                    int pos = dotPosition.getOffset();
-                    int mk = markPosition.getOffset();
-                    if (mk == pos) {
-                        caret.setDot(pos);
-                    } else {
-                        caret.setDot(mk);
-                        if (mk != pos) {
-                            caret.moveDot(pos);
-                        }
+                    caret.setDot(mk);
+                    if (mk != pos) {
+                        caret.moveDot(pos);
                     }
                 }
             }
+        }
 
-            @Override
-            public boolean canUndo() {
-                return !undone && doc != null;
-            }
+        @Override
+        public boolean canUndo() {
+            return !undone && doc != null;
+        }
 
-            @Override
-            public void redo() throws CannotRedoException {
-                undone = false;
-                EventQueue.invokeLater(() -> {
-                    try {
-                        updateCaret(redoPosition, redoMark);
-                    } finally {
-                        comp.scrollRectToVisible(redoRect);
-                    }
-                });
-            }
+        @Override
+        public void redo() throws CannotRedoException {
+            undone = false;
+            EventQueue.invokeLater(() -> {
+                try {
+                    updateCaret(redoPosition, redoMark);
+                } finally {
+                    comp.scrollRectToVisible(redoRect);
+                }
+            });
+        }
 
-            @Override
-            public boolean canRedo() {
-                return undone && doc != null && redoPosition != null;
-            }
+        @Override
+        public boolean canRedo() {
+            return undone && doc != null && redoPosition != null;
+        }
 
-            @Override
-            public boolean isSignificant() {
-                return false;
-            }
+        @Override
+        public boolean isSignificant() {
+            return false;
         }
     }
 }

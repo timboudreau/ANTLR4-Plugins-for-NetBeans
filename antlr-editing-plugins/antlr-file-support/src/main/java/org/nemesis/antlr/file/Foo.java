@@ -42,7 +42,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                     whenNotIn = {STRING_LITERAL, ACTION_CONTENT, LEXER_CHAR_SET}),
             @Elision(
                     backward = false,
-                    name = "Skip extract :'s",
+                    name = "Ignore a colon typed right before another colon",
                     onKeyTyped = ':',
                     category = "Elisions",
                     whenNotIn = {STRING_LITERAL, ACTION_CONTENT, LEXER_CHAR_SET}),
@@ -61,15 +61,22 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                     openingToken = LPAREN,
                     closingToken = RPAREN,
                     name = "Delete matching paren if empty",
-                    ignoring = {WS, PARDEC_WS},
-                    description = "Delete Matching Delimiters"),
+                    ignoring = {WS, PARDEC_WS, LEXCOM_WS},
+                    description = "Delete Matching Parentheses"),
             @DelimiterPair(
                     category = "Delimiters",
                     openingToken = LEXER_CHAR_SET,
                     closingToken = LEXER_CHAR_SET,
                     name = "Delete matching [ if empty",
-                    ignoring = {WS, PARDEC_WS, LEXER_CHAR_SET},
-                    description = "Delete Matching Delimiters")
+                    ignoring = {WS, PARDEC_WS, LEXCOM_WS},
+                    description = "Delete Matching Brackets"),
+            @DelimiterPair(
+                    category = "Delimiters",
+                    openingToken = BEGIN_ACTION,
+                    closingToken = END_ACTION,
+                    name = "Delete matching } if empty",
+                    ignoring = {WS, PARDEC_WS, LEXCOM_WS},
+                    description = "Delete Matching Brackets")
         },
         insertBoilerplate = {
             @Boilerplate(
@@ -169,7 +176,18 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
                         ANTLRv4Lexer.LEXCOM_BLOCK_COMMENT,
                         ANTLRv4Lexer.LEXCOM_LINE_COMMENT
                     }
-            )
+            ),
+            @Boilerplate(
+                    category = "Boilerplate",
+                    name = "Insert parens after pushMode",
+                    onChar = 'e',
+                    whenPrecedingToken = {ANTLRv4Lexer.LEXCOM_PUSHMODE},
+                    inserting = "(^)",
+                    whenCurrentTokenNot = {
+                        ANTLRv4Lexer.LPAREN
+                    }
+            ),
+
         }
 )
 //@ActionBindings(mimeType = "text/x-g4", bindings = {

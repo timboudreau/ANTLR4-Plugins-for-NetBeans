@@ -13,18 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.nemesis.editor.utils;
-
-import javax.swing.text.BadLocationException;
+package com.mastfrog.antlr.code.completion.spi;
 
 /**
- * Variant of a consumer that throws a BadLocationException.
+ * Relationships the caret can have with a token.
  *
  * @author Tim Boudreau
  */
-@FunctionalInterface
-public interface BadLocationConsumer<T> {
-
-    void accept(T obj) throws BadLocationException;
+public enum CaretTokenRelation {
+    /**
+     * The caret precedes the first character of the token.
+     */
+    AT_TOKEN_START,
+    /**
+     * The caret is at a position after the start and less thane the end of the
+     * token.
+     */
+    WITHIN_TOKEN,
+    /**
+     * The caret is at the position immediately subsequent to the last character
+     * of the token.
+     */
+    AT_TOKEN_END,
+    /**
+     * The caret is not contained within or at the start or end of the token.
+     */
+    UNRELATED
 }

@@ -285,6 +285,7 @@ limitations under the License.
         <module>swing-utils</module>
         <module>antlr-utils</module>
         <module>editor-features</module>
+        <module>antlr-code-completion-spi</module>
     </modules>
     <repositories>
         <repository>
@@ -349,6 +350,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>adhoc-mime-types</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-code-completion-spi</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -21,8 +21,20 @@ import javax.swing.JOptionPane;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_altList;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_block;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnfSuffix;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleIdentifier;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_identifier;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_labeledParserRuleElement;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComPushMode;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleAtom;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElement;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleAtom;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleIdentifier;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -129,19 +141,32 @@ import org.nemesis.localizers.annotations.Localize;
                     TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
                     TYPE_LINE_COMMENT},
                 preferredRules = {
-                    //                    ANTLRv4Parser.RULE_ebnf,
-                    ANTLRv4Parser.RULE_ebnfSuffix,
-                    ANTLRv4Parser.RULE_identifier,
-                    ANTLRv4Parser.RULE_parserRuleIdentifier,
-                    ANTLRv4Parser.RULE_fragmentRuleIdentifier,
-                    ANTLRv4Parser.RULE_tokenRuleIdentifier, //                    ANTLRv4Parser.RULE_block,
-                //                    ANTLRv4Parser.RULE_parserRuleAtom,
-                //                    ANTLRv4Parser.RULE_labeledParserRuleElement,
+                    RULE_ebnfSuffix,
+                    RULE_identifier,
+                    RULE_parserRuleIdentifier,
+                    RULE_fragmentRuleIdentifier,
+                    RULE_tokenRuleIdentifier,
+                    RULE_block,
+                    RULE_parserRuleAtom,
+                    RULE_lexerRuleAtom,
+                    RULE_lexerRuleElement,
+                    RULE_labeledParserRuleElement,
+                    RULE_altList,
+                    RULE_lexComPushMode,
+                    RULE_lexComMode,
+//                    RULE_parserRuleSpec, // right after colon
+//                    RULE_tokenRuleSpec, // right after colon
+//                    RULE_fragmentRuleSpec, // right after colon
+
                 },
                 tokenCompletions = {
                     @SupplementaryTokenCompletion(
                             tokenId = OR,
                             text = "|"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = ANTLRv4Lexer.RARROW,
+                            text = "->"
                     ),
                     @SupplementaryTokenCompletion(
                             tokenId = BEGIN_ACTION,
@@ -155,25 +180,38 @@ import org.nemesis.localizers.annotations.Localize;
                             tokenId = END_ACTION,
                             text = "}"
                     ),
-//                    @SupplementaryTokenCompletion (
-//                        tokenId=SEMI,
-//                        text=";"
-//                    ),
-//                    @SupplementaryTokenCompletion (
-//                        tokenId=DOT,
-//                        text="."
-//                    ),
-//                    @SupplementaryTokenCompletion (
-//                        tokenId=SHARP,
-//                        text="#"
-//                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = SEMI,
+                            text = ";"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = DOT,
+                            text = "."
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = SHARP,
+                            text = "#"
+                    ),
                     @SupplementaryTokenCompletion(
                             tokenId = NOT,
                             text = "~"
-                    ),},
+                    )
+                },
                 ruleSubstitutions = {
                     @RuleSubstitutions(
                             complete = RULE_parserRuleReference,
+                            withCompletionsOf = RULE_parserRuleIdentifier
+                    ),
+                    @RuleSubstitutions(
+                            complete = RULE_parserRuleAtom,
+                            withCompletionsOf = RULE_parserRuleIdentifier
+                    ),
+                    @RuleSubstitutions(
+                            complete = RULE_lexerRuleAtom,
+                            withCompletionsOf = RULE_tokenRuleIdentifier
+                    ),
+                    @RuleSubstitutions(
+                            complete = RULE_labeledParserRuleElement,
                             withCompletionsOf = RULE_parserRuleIdentifier
                     )
                 }

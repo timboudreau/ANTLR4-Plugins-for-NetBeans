@@ -102,6 +102,7 @@ public final class Extraction implements Externalizable {
     private String mimeType;
     private final IntSet availableRuleIds = IntSet.create(5);
     private final List<RuleIdMapping<?>> ruleIdMappings = new ArrayList<>(3);
+    private long lastModified;
 
     Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash, Class<? extends ParserRuleContext> documentRootType, String mimeType) {
         this.extractorsHash = extractorsHash;
@@ -109,6 +110,51 @@ public final class Extraction implements Externalizable {
         this.tokensHash = tokensHash;
         this.documentRootType = documentRootType;
         this.mimeType = mimeType;
+        this.lastModified = lastModifiedOf(source);
+    }
+
+    /**
+     * Determine if the last modified date of the source this extraction was
+     * created from is greater than it was when this extraction was created; in
+     * case of an error (file no longer exists or similar), returns true.
+     *
+     * @return true if it is modified
+     */
+    public boolean isSourceProbablyModifiedSinceCreation() {
+        if (lastModified == 0) {
+            return true;
+        }
+        long lmo = lastModifiedOf(source);
+        return lmo == 0 ? true : lmo > lastModified;
+    }
+
+    public long sourceLastModifiedAtExtractionTime() {
+        return lastModified;
+    }
+
+    /**
+     * Determine if this extraction and another extraction have the same tokens
+     * hash - while timestamps may have changed, the sequence of tokens in the
+     * documents has not. This can determine if two extractions are effectively
+     * the same - they will have the same contents, but does <i>not</i> test
+     * whether any dependencies of the document described by this extraction
+     * have changed, which may affect what contents are errors vs foreign
+     * references, etc.
+     *
+     * @param other Another extraction
+     * @return True if the tokens hash created during extraction is identical
+     */
+    public boolean isSameTokensHash(Extraction other) {
+        return tokensHash.equals(other.tokensHash);
+    }
+
+    static long lastModifiedOf(GrammarSource<?> gs) {
+        try {
+            return gs.lastModified();
+        } catch (IOException ex) {
+            Logger.getLogger(Extraction.class.getName()).log(Level.INFO, null, ex);
+            return 0;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -954,7 +1000,7 @@ public final class Extraction implements Externalizable {
                 sb.append("\n\t");
             }
             System.out.println("ADD " + sb);
-            */
+             */
             ruleIdsForKeys.values().forEach(availableRuleIds::addAll);
 //            System.out.println("ALL mappings now " + ruleIdMappings);
         }

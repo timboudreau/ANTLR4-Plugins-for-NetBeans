@@ -43,7 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import org.antlr.v4.runtime.misc.IntegerList;
 import org.antlr.v4.runtime.misc.Interval;
-import org.nemesis.antlr.completion.CaretTokenInfo;
+import com.mastfrog.antlr.code.completion.spi.CaretToken;
 
 /**
  * Borrowed from
@@ -201,7 +201,7 @@ public class CodeCompletionCore {
         return -1;
     }
 
-    public CandidatesCollection collectCandidates(CaretTokenInfo info, ParserRuleContext context) {
+    public CandidatesCollection collectCandidates(CaretToken info, ParserRuleContext context) {
         return collectCandidates(info.tokenIndex(), context);
     }
 

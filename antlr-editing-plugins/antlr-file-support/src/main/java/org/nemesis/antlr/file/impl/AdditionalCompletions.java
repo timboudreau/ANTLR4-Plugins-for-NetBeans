@@ -15,8 +15,8 @@
  */
 package org.nemesis.antlr.file.impl;
 
-import com.mastfrog.antlr.utils.CompletionsSupplier;
-import com.mastfrog.antlr.utils.CompletionsSupplier.Completer;
+import com.mastfrog.antlr.code.completion.spi.Completer;
+import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
 import java.util.function.BiConsumer;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
