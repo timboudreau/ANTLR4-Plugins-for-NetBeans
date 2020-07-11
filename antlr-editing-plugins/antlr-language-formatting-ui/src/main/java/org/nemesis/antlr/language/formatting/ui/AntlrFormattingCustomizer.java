@@ -20,17 +20,20 @@ import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JPanel;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.formatPreviewText;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.indent.api.Reformat;
 import org.netbeans.modules.options.editor.spi.PreferencesCustomizer;
 import org.netbeans.modules.options.editor.spi.PreviewProvider;
 import org.openide.text.CloneableEditorSupport;
+import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.HelpCtx;
 import org.openide.util.NbBundle;
@@ -113,20 +116,9 @@ public class AntlrFormattingCustomizer implements PreferencesCustomizer, Preview
     @Override
     public void refreshPreview() {
         JEditorPane preview = (JEditorPane) getPreviewComponent();
-//        String text = formatPreviewText(ui.config().preferences(), previewText());
-//        System.out.println("PREVIEW TEXT:\n" + text);
-//        try {
-//            preview.getDocument().remove(0, preview.getDocument().getLength());
-//            preview.getDocument().insertString(0, text, null);
-//        } catch (BadLocationException ex) {
-//            Exceptions.printStackTrace(ex);
-//        }
-
-//        /*
-//        preview.setText();
-        BaseDocument doc = (BaseDocument) preview.getDocument();
+        StyledDocument doc = (StyledDocument) preview.getDocument();
         String text = previewText();
-        doc.runAtomic(() -> {
+        NbDocument.runAtomic(doc, () -> {
             try {
                 doc.remove(0, doc.getLength());
                 doc.insertString(0, text, null);
@@ -137,13 +129,10 @@ public class AntlrFormattingCustomizer implements PreferencesCustomizer, Preview
         Reformat reformat = Reformat.get(doc);
         reformat.lock();
         try {
-            doc.runAtomic(() -> {
-                try {
-                    reformat.reformat(0, doc.getLength());
-                } catch (BadLocationException ex) {
-                    Exceptions.printStackTrace(ex);
-                }
-            });
+            reformat.reformat(0, doc.getLength());
+        } catch (BadLocationException ex) {
+            Logger.getLogger(AntlrFormattingCustomizer.class.getName())
+                    .log(Level.INFO, "Reformatting preview", ex);
         } finally {
             reformat.unlock();
         }

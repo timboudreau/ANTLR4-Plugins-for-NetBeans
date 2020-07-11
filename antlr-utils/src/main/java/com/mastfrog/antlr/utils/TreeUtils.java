@@ -15,8 +15,14 @@
  */
 package com.mastfrog.antlr.utils;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
 
 /**
  * Utilities for scanning the parents of an antlr parse tree node and
@@ -87,6 +93,123 @@ public final class TreeUtils {
     }
 
     /**
+     * Find the outermost ancestor of type T, of the passed rule context, before
+     * encountering one of the passed stop types or the top of the parse tree.
+     *
+     * @param <T> The type
+     * @param ctx A rule context
+     * @param targetType The type sought
+     * @param stopTypes Types at which the search should cease and any
+     * encountered result be returned, if encountered
+     * @return An instance of T or null
+     */
+    public static <T> T findOutermostAncestor(ParserRuleContext ctx, Class<T> targetType, Class<?>... stopTypes) {
+        ParserRuleContext curr = ctx.getParent();
+        Set<Class<?>> types = stopTypes.length == 0 ? Collections.emptySet() : new HashSet<>(Arrays.asList(stopTypes));
+        T result = null;
+        while (curr != null && !types.contains(curr.getClass())) {
+            if (targetType.isInstance(curr)) {
+                result = targetType.cast(curr);
+            }
+            curr = curr.getParent();
+        }
+        return result;
+    }
+
+    /**
+     * Find the outermost ancestor of type T, of the passed rule context, before
+     * reaching the top of the parse tree.
+     *
+     * @param <T> The type
+     * @param ctx A rule context
+     * @param targetType The type sought
+     * @return An instance of T or null
+     */
+    public static <T> T findOutermostAncestor(ParserRuleContext ctx, Class<T> targetType) {
+        ParserRuleContext curr = ctx;
+        T result = null;
+        while (curr != null) {
+            if (targetType.isInstance(curr)) {
+                result = targetType.cast(curr);
+            }
+            curr = curr.getParent();
+        }
+        return result;
+    }
+
+    /**
+     * Find a sibling of the outermost ancestor of type T which is of type R and
+     * is the next child of the parent of that ancestor.
+     *
+     * @param <T> The ancestor type
+     * @param <R> The target type
+     * @param ctx The rule to start searching the hierarchy upward from
+     * @param ancestorType The ancestor type
+     * @param siblingType The sibling type
+     * @param stopTypes Types to stop searching for the ancestor at
+     * @return An instance of R or null
+     */
+    public static <T extends ParserRuleContext, R> R findRightAdjacentSiblingOfOutermostAncestor(ParserRuleContext ctx, Class<T> ancestorType, Class<R> siblingType, Class<?>... stopTypes) {
+        T ancestor = findOutermostAncestor(ctx, ancestorType, stopTypes);
+        if (ancestor == null) {
+            return null;
+        }
+        ParserRuleContext parent = ancestor.getParent();
+        if (parent != null) {
+            List<ParseTree> kids = parent.children;
+            if (kids != null) {
+                int ix = kids.indexOf(ancestor);
+                if (ix < 0 || ix == kids.size() - 1) {
+                    return null;
+                }
+                ParseTree next = kids.get(ix + 1);
+                if (next != null && siblingType.isInstance(next)) {
+                    return siblingType.cast(next);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find a sibling of the outermost ancestor of type T which is of type R and
+     * is the next child of the parent of that ancestor.
+     *
+     * @param <T> The ancestor type
+     * @param <R> The target type
+     * @param ctx The rule to start searching the hierarchy upward from
+     * @param ancestorType The ancestor type
+     * @param siblingType The sibling type
+     * @param stopTypes Types to stop searching for the ancestor at
+     * @return An instance of R or null
+     */
+    public static <T extends ParserRuleContext, R> R findLeftAdjacentSiblingOfOutermostAncestor(ParserRuleContext ctx, Class<T> ancestorType, Class<R> siblingType, Class<?>... stopTypes) {
+        T ancestor = findOutermostAncestor(ctx, ancestorType, stopTypes);
+        if (ancestor == null) {
+            return null;
+        }
+        ParserRuleContext parent = ancestor.getParent();
+        if (parent != null) {
+            List<ParseTree> kids = parent.children;
+            if (kids != null) {
+                int ix = kids.indexOf(ancestor);
+                if (ix == 0) {
+                    return null;
+                }
+                ParseTree prev = kids.get(ix - 1);
+                if (prev != null && siblingType.isInstance(prev)) {
+                    return siblingType.cast(prev);
+                }
+            }
+        }
+        return null;
+    }
+
+    public static <T extends ParserRuleContext, R> boolean hasRightAdjacentSiblingOfOutrmostAncestor(ParserRuleContext ctx, Class<T> ancestorType, Class<R> siblingType, Class<?>... stopTypes) {
+        return findRightAdjacentSiblingOfOutermostAncestor(ctx, ancestorType, siblingType, stopTypes) != null;
+    }
+
+    /**
      * Flexibly search the ancestor nodes to the passed tree node, using the
      * passed function to determine whether to continue, succed or fail.
      *
@@ -98,7 +221,7 @@ public final class TreeUtils {
      */
     public static TreeNodeSearchResult searchParentTree(ParserRuleContext ctx, Function<ParserRuleContext, TreeNodeSearchResult> test) {
         ParserRuleContext curr = ctx.getParent();
-        TreeNodeSearchResult result = TreeNodeSearchResult.UNANSWERED;
+        TreeNodeSearchResult result;
         while (curr != null) {
             result = test.apply(curr);
             switch (result) {
@@ -114,7 +237,78 @@ public final class TreeUtils {
             }
         }
         return TreeNodeSearchResult.UNANSWERED;
+    }
 
+    public static <T extends ParseTree> T nextSibling(ParserRuleContext ctx, Class<T> type) {
+        ParseTree next = nextSibling(ctx);
+        if (next != null && type.isInstance(next)) {
+            return type.cast(next);
+        }
+        return null;
+    }
+
+    public static <T extends ParseTree> T prevSibling(ParserRuleContext ctx, Class<T> type) {
+        ParseTree next = prevSibling(ctx);
+        if (next != null && type.isInstance(next)) {
+            return type.cast(next);
+        }
+        return null;
+    }
+
+    public static ParseTree nextSibling(ParserRuleContext ctx) {
+        ParserRuleContext parent = ctx.getParent();
+        if (parent == null) {
+            return null;
+        }
+        int ix = parent.children.indexOf(ctx);
+        int size = parent.children.size();
+        if (ix < size - 1) {
+            return parent.getChild(ix + 1);
+        }
+        return null;
+    }
+
+    public static ParseTree prevSibling(ParserRuleContext ctx) {
+        ParserRuleContext parent = ctx.getParent();
+        if (parent == null) {
+            return null;
+        }
+        int ix = parent.children.indexOf(ctx);
+        if (ix > 0) {
+            return parent.getChild(ix - 1);
+        }
+        return null;
+    }
+
+    public static boolean isSingleChildDescendants(ParseTree ctx) {
+        if (ctx.getChildCount() == 0) {
+            return true;
+        }
+        if (ctx.getChildCount() == 1) {
+            return isSingleChildDescendants(ctx.getChild(0));
+        }
+        return false;
+    }
+
+    public static String stringify(ParserRuleContext ctx) {
+        return stringify(ctx, new StringBuilder(), 0, ctx.depth()).toString();
+    }
+
+    public static StringBuilder stringify(ParserRuleContext ctx, StringBuilder into, int depth, int offset) {
+        char[] c = new char[depth * 2];
+        Arrays.fill(c, ' ');
+        into.append(c);
+        into.append(depth + offset).append(". ").append(ctx.getClass().getSimpleName())
+                .append(": ").append(ctx.getText()).append("'\n");
+        int ct = ctx.getChildCount();
+        for (int i = 0; i < ct; i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof ParserRuleContext) {
+                ParserRuleContext prc = (ParserRuleContext) child;
+                stringify(prc, into, depth + 1, offset);
+            }
+        }
+        return into;
     }
 
     /**

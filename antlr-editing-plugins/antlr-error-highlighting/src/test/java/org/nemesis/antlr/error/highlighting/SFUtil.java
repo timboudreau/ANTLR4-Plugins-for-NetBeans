@@ -52,7 +52,7 @@ public class SFUtil {
         ChannelsAndSkipExtractors.populateBuilder(eb);
         Extractor<ANTLRv4Parser.GrammarFileContext> ext = eb.build();
         List<Token> tokens = new ArrayList<>();
-        ANTLRv4Lexer lex = AntlrSampleFiles.PROTOBUF_3.lexer();
+        ANTLRv4Lexer lex = AntlrSampleFiles.NESTED_MAPS_WITH_SUPERFLUOUS_PARENTHESES.lexer();
         int ix = 0;
         for (Token t = lex.nextToken(); t.getType() != ANTLRv4Lexer.EOF; t = lex.nextToken()) {
             CommonToken ct = new CommonToken(t);

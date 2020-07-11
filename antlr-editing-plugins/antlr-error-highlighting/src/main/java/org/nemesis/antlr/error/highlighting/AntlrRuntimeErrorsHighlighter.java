@@ -125,7 +125,7 @@ import org.openide.util.WeakListeners;
  */
 public class AntlrRuntimeErrorsHighlighter implements Subscriber {
 
-    // XXX this class has grown gargantuan and should be split into pluggable
+    // XXX this class isTopLevelWithAlternatives grown gargantuan and should be split into pluggable
     // pieces that deal with specific things.
     protected final OffsetsBag bag;
     private final AttributeSet errorHighlight;

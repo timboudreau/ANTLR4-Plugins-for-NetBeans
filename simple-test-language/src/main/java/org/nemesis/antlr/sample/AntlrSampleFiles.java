@@ -23,6 +23,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
@@ -56,8 +58,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     MARKDOWN_LEXER("MarkdownLexer.g4"),
     MARKDOWN_PARSER("MarkdownParser.g4"),
     RETURNS_TEST("ReturnsTest.g4"),
-    PROTOBUF_3("Protobuf3.g4")
-    ;
+    PROTOBUF_3("Protobuf3.g4");
     private final String fileName;
 
     AntlrSampleFiles(String pathFromRoot) {
@@ -183,11 +184,83 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
         return null;
     }
 
+    public static SampleFile<ANTLRv4Lexer, ANTLRv4Parser> create(String text) {
+
+        Pattern np = Pattern.compile("[^\\s]grammar (\\w+);");
+        Matcher m = np.matcher(text);
+
+        final String name = m.find() ? m.group(1) : "Unknown";
+
+        return new SampleFile<ANTLRv4Lexer, ANTLRv4Parser>() {
+            @Override
+            public CharStream charStream() throws IOException {
+                return CharStreams.fromString(text());
+            }
+
+            public String toString() {
+                return name;
+            }
+
+            @Override
+            public SampleFile related(String name) {
+                return null;
+            }
+
+            @Override
+            public InputStream inputStream() {
+                try {
+                    return new ByteArrayInputStream(text().getBytes(UTF_8));
+                } catch (IOException ex) {
+                    throw new AssertionError(ex);
+                }
+            }
+
+            @Override
+            public int length() throws IOException {
+                return text().getBytes(UTF_8).length;
+            }
+
+            @Override
+            public ANTLRv4Lexer lexer() throws IOException {
+                ANTLRv4Lexer lex = new ANTLRv4Lexer(charStream());
+                lex.removeErrorListeners();
+                return lex;
+            }
+
+            @Override
+            public ANTLRv4Lexer lexer(ANTLRErrorListener l) throws IOException {
+                ANTLRv4Lexer lex = lexer();
+                lex.addErrorListener(l);
+                return lex;
+            }
+
+            @Override
+            public ANTLRv4Parser parser() throws IOException {
+                ANTLRv4Lexer lex = lexer();
+                CommonTokenStream cts = new CommonTokenStream(lex);
+                ANTLRv4Parser parser = new ANTLRv4Parser(cts);
+                parser.removeErrorListeners();
+                return parser;
+            }
+
+            @Override
+            public String text() throws IOException {
+                return text;
+            }
+
+            @Override
+            public String fileName() {
+                return toString();
+            }
+        };
+    }
+
     /**
      * Create an in-memory copy of the original grammar with modifications to
      * its content made by the passed function.
      *
-     * @param processor A function to alter the original grammar text in some way
+     * @param processor A function to alter the original grammar text in some
+     * way
      * @return A Sample File
      */
     public SampleFile<ANTLRv4Lexer, ANTLRv4Parser> withText(Function<String, String> processor) {

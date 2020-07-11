@@ -15,10 +15,12 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import com.mastfrog.antlr.utils.TreeUtils;
 import com.mastfrog.antlr.utils.TreeUtils.TreeNodeSearchResult;
 import static com.mastfrog.antlr.utils.TreeUtils.ancestor;
-import static com.mastfrog.antlr.utils.TreeUtils.hasAncestor;
 import static com.mastfrog.antlr.utils.TreeUtils.isSingleChildAncestors;
+import static com.mastfrog.antlr.utils.TreeUtils.nextSibling;
+import static com.mastfrog.antlr.utils.TreeUtils.prevSibling;
 import com.mastfrog.util.strings.Strings;
 import java.util.Objects;
 import java.util.function.BiPredicate;
@@ -49,6 +51,14 @@ import org.nemesis.extraction.ExtractorBuilder;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.localizers.annotations.Localize;
 import static com.mastfrog.antlr.utils.TreeUtils.searchParentTree;
+import java.util.List;
+import org.nemesis.antlr.ANTLRv4Parser.BlockContext;
+import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerCommandContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleAltContext;
+import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleElementContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
 
 /**
  *
@@ -147,95 +157,229 @@ public class ChannelsAndSkipExtractors {
 
         bldr.extractingRegionsUnder(SUPERFLUOUS_PARENTEHSES)
                 .whenRuleType(ANTLRv4Parser.BlockContext.class)
-                .extractingBoundsFromRuleAndKeyWith(block -> {
-                    if (!(block.getParent() instanceof EbnfContext) || ((block.getParent() instanceof EbnfContext && ((EbnfContext) block.getParent()).ebnfSuffix() == null))) {
-                        if (block.getParent() instanceof ANTLRv4Parser.LabeledParserRuleElementContext) {
-                            LabeledParserRuleElementContext ctx = (LabeledParserRuleElementContext) block.getParent();
-                            if (ctx.identifier() != null) {
-                                return null;
-                            }
-                        }
-                        return spId(block);
-                    }
-                    return null;
-                })
+                .extractingBoundsFromRuleAndKeyWith(ChannelsAndSkipExtractors::checkSuperfluous)
                 .whenRuleType(LexerRuleBlockContext.class)
-                .extractingKeyAndBoundsWith((blockContext, consumer) -> {
-                    boolean isInLexerRuleBlock = hasAncestor(blockContext, LexerRuleBlockContext.class);
-                    TreeNodeSearchResult testRes = searchParentTree(blockContext, ctx -> {
-                        assert ctx != blockContext : "Got same node";
-                        if (ctx instanceof LexerRuleElementBlockContext) {
-                            LexerRuleElementBlockContext bl = (LexerRuleElementBlockContext) ctx;
-                            if (bl.LPAREN() != null && bl.RPAREN() != null && bl.getChildCount() == 3) {
-                                return TreeNodeSearchResult.CONTINUE;
-                            } else {
-                                return TreeNodeSearchResult.FAIL;
-                            }
-                        }
-                        if (ctx instanceof LexerRuleElementsContext) {
-                            LexerRuleElementsContext els = (LexerRuleElementsContext) ctx;
-                            if (els.getChildCount() == 1) {
-                                return TreeNodeSearchResult.OK;
-                            } else {
-                                ParseTree node = els.getChild(0);
-                                if (ancestor(blockContext, node.getClass()) == node) {
-                                    return TreeNodeSearchResult.OK;
-                                } else {
-                                    return TreeNodeSearchResult.FAIL;
-                                }
-                            }
-                        }
-                        TreeNodeSearchResult result = ctx.getChildCount() == 1 ? TreeNodeSearchResult.CONTINUE : TreeNodeSearchResult.FAIL;
-                        return result;
-                    });
-                    boolean isSingleChildAncestorsToLexerRuleBlock = testRes.isSuccess();
-                    if (isInLexerRuleBlock && isSingleChildAncestorsToLexerRuleBlock) {
-                        LexerRuleElementBlockContext anc = ancestor(blockContext, LexerRuleElementBlockContext.class);
-                        int[] offsets = new int[]{anc.start.getStartIndex(),
-                            anc.stop.getStopIndex() + 1};
-                        return consumer.test(spId(blockContext), offsets);
-                    }
-                    return false;
-                })
-                /*
-                .whenRuleType(LexerRuleAtomContext.class)
-                .extractingKeyAndBoundsWith((atom, consumer) -> {
-                    LexerRuleElementContext parentElement = ancestor(atom, LexerRuleElementContext.class);
-                    if (parentElement != null) {
-                        switch (parentElement.getChildCount()) {
-                            case 1:
-                                break;
-                            case 2:
-                                if (!(parentElement.getChild(1) instanceof ANTLRv4Parser.EbnfSuffixContext)) {
-                                    return false;
-                                }
-                                break;
-                            default:
-                                return false;
-                        }
-                        if (isSingleChildAncestors(atom, LexerRuleBlockContext.class)) {
-                            LexerRuleBlockContext blockAncestor = ancestor(atom, LexerRuleBlockContext.class);
-                            if (blockAncestor.getChildCount() > 1) {
-                                return false;
-                            }
-                            if (hasAncestor(blockAncestor, LexerRuleBlockContext.class)) {
-                                LexerRuleElementBlockContext boundsAncestor = ancestor(blockAncestor, LexerRuleElementBlockContext.class);
-                                if (boundsAncestor != null) {
-                                    int[] offsets = new int[]{boundsAncestor.LPAREN().getSymbol().getStartIndex(),
-                                        boundsAncestor.RPAREN().getSymbol().getStopIndex() + 1
-                                    };
-                                    System.out.println("SUPERF PARENS C '" + blockAncestor.getText() + "' at "
-                                            + offsets[0] + ":" + offsets[1]);
-                                    return consumer.test(spId(boundsAncestor), offsets);
-                                }
-                            }
-                        }
-                    }
-                    return false;
-                })
-                 */
+                .whenAncestorRuleOf(LexerRuleElementBlockContext.class)
+                .extractingKeyAndBoundsWith(ChannelsAndSkipExtractors::checkSuperfluous)
                 .finishRegionExtractor();
-        ;
+    }
+
+    static Integer checkSuperfluous(ANTLRv4Parser.BlockContext block) {
+        if (!(block.getParent() instanceof EbnfContext) || ((block.getParent() instanceof EbnfContext && ((EbnfContext) block.getParent()).ebnfSuffix() == null))) {
+            if (block.getParent() instanceof ANTLRv4Parser.LabeledParserRuleElementContext) {
+                LabeledParserRuleElementContext ctx = (LabeledParserRuleElementContext) block.getParent();
+                if (ctx.identifier() != null) {
+                    return null;
+                }
+            }
+            ParserRuleElementContext sibling = TreeUtils.findRightAdjacentSiblingOfOutermostAncestor(block, ParserRuleElementContext.class, ParserRuleElementContext.class, ParserRuleSpecContext.class, GrammarFileContext.class);
+            // parentheses may be needed preceding an action block to guarantee
+            // it runs for any of the parenthesized elements.
+            // XXX could refine this to only be active if an OR token is encountered
+            // within the parentheses
+            if (sibling != null && sibling.actionBlock() != null) {
+                return null;
+            }
+            if (hasSiblingAlternatives(block)) {
+                return null;
+            }
+            return spId(block);
+        }
+        if (hasSiblingAlternatives(block)) return spId(block);
+        return null;
+    }
+
+    static boolean isTopLevelWithAlternatives(ANTLRv4Parser.BlockContext block) {
+        ParserRuleLabeledAlternativeContext alt = ancestor(block, ParserRuleLabeledAlternativeContext.class);
+        if (alt != null) {
+            if (alt.getParent() instanceof ParserRuleDefinitionContext) {
+                ParserRuleDefinitionContext ctx = (ParserRuleDefinitionContext) alt.getParent();
+                List<ParserRuleLabeledAlternativeContext> list = ctx.parserRuleLabeledAlternative();
+                if (list != null && list.size() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static boolean hasSiblingAlternatives(ANTLRv4Parser.BlockContext block) {
+        boolean topLevel = ancestor(block, BlockContext.class) == null;
+        if (block.altList() != null) {
+            if (block.altList() != null && block.altList().parserRuleAlternative() != null
+                    && block.altList().parserRuleAlternative().size() <= 1) {
+                return false;
+            }
+            ParserRuleLabeledAlternativeContext alternativeAncestor = ancestor(block, ParserRuleLabeledAlternativeContext.class);
+            if (alternativeAncestor != null) {
+                boolean top2 = alternativeAncestor.getParent() instanceof ParserRuleDefinitionContext;
+                ParseTree sib = TreeUtils.nextSibling(alternativeAncestor);
+                ParseTree psib = TreeUtils.prevSibling(alternativeAncestor);
+
+                if (sib instanceof TerminalNode) {
+                    TerminalNode term = (TerminalNode) sib;
+                    switch(term.getSymbol().getType()) {
+                        case ANTLRv4Lexer.OR :
+                            return true;
+                    }
+                }
+                if (psib instanceof TerminalNode) {
+                    TerminalNode term = (TerminalNode) psib;
+                    switch(term.getSymbol().getType()) {
+                        case ANTLRv4Lexer.OR :
+                            return true;
+                    }
+                }
+                if (topLevel && top2) {
+                    return false;
+                }
+            }
+        }
+        boolean result = isTopLevelWithAlternatives(block);
+        if (!result && topLevel) {
+            EbnfContext ebnf = ancestor(block, EbnfContext.class);
+            if (ebnf != null) {
+                EbnfSuffixContext suffix = ebnf.ebnfSuffix();
+                if (suffix == null) {
+                    return false;
+                }
+                if (suffix.QUESTION() != null || suffix.PLUS() != null || suffix.STAR() != null) {
+                    return true;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    static boolean checkSuperfluous(LexerRuleBlockContext blockContext, BiPredicate<Integer, int[]> consumer) {
+        boolean hasOrs = blockContext.OR() != null && !blockContext.OR().isEmpty();
+
+        LexerRuleElementBlockContext immediateBlockAncestor
+                = ancestor(blockContext, LexerRuleElementBlockContext.class);
+        LexerRuleElementBlockContext topBlockAncestor
+                = TreeUtils.findOutermostAncestor(blockContext,
+                        LexerRuleElementBlockContext.class,
+                        TokenRuleSpecContext.class,
+                        FragmentRuleSpecContext.class, GrammarFileContext.class);
+
+        boolean topLevel = immediateBlockAncestor == topBlockAncestor;
+        if (hasEbnf(blockContext)) {
+            return false;
+        }
+        if (topLevel && hasActionOrLexerCommands(blockContext)) {
+            if (hasOrs) {
+                return false;
+            }
+        } else if (topLevel) {
+//            return true;
+        }
+        LexerRuleAltContext altAncestor = ancestor(blockContext, LexerRuleAltContext.class);
+        if (hasOrs && altAncestor != null) {
+            TerminalNode term = nextSibling(altAncestor, TerminalNode.class);
+            if (term == null) {
+                term = prevSibling(altAncestor, TerminalNode.class);
+            }
+            if (term != null) {
+                switch (term.getSymbol().getType()) {
+                    case ANTLRv4Lexer.OR:
+                        return false;
+                    case ANTLRv4Lexer.LPAREN:
+                    case ANTLRv4Lexer.RPAREN:
+                }
+            }
+        }
+        if (!hasOrs || TreeUtils.isSingleChildDescendants(blockContext)) {
+            boolean tres = writeBlockAncestor(immediateBlockAncestor, consumer, blockContext);
+            return true;
+        }
+        TreeNodeSearchResult testRes = searchParentTree(blockContext, ctx -> {
+            assert ctx != blockContext : "Got same node";
+            if (ctx instanceof LexerRuleElementBlockContext) {
+                LexerRuleElementBlockContext bl = (LexerRuleElementBlockContext) ctx;
+                if (bl.LPAREN() != null && bl.RPAREN() != null && bl.getChildCount() == 3) {
+                    return TreeNodeSearchResult.CONTINUE;
+                } else {
+                    return TreeNodeSearchResult.FAIL;
+                }
+            }
+            if (ctx instanceof LexerRuleElementsContext) {
+                LexerRuleElementsContext els = (LexerRuleElementsContext) ctx;
+                if (els.getParent() instanceof LexerRuleAltContext) {
+                    LexerRuleAltContext alt = (LexerRuleAltContext) els.getParent();
+                    if (alt.lexerCommands() != null) {
+                        if (blockContext.OR() != null && !blockContext.OR().isEmpty()) {
+                            if (topLevel) {
+                                return TreeNodeSearchResult.OK;
+                            }
+                            return TreeNodeSearchResult.FAIL;
+                        }
+                    }
+                }
+                if (els.getChildCount() == 1) {
+                    return TreeNodeSearchResult.OK;
+                } else {
+                    ParseTree node = els.getChild(0);
+                    if (ancestor(blockContext, node.getClass()) == node) {
+                        return TreeNodeSearchResult.OK;
+                    } else {
+                        return TreeNodeSearchResult.FAIL;
+                    }
+                }
+            }
+            return ctx.getChildCount() == 1 ? TreeNodeSearchResult.CONTINUE : TreeNodeSearchResult.FAIL;
+        });
+        if (testRes.isSuccess()) {
+            // immediateBlockAncestor
+            return writeBlockAncestor(immediateBlockAncestor, consumer, blockContext);
+        }
+        return false;
+    }
+
+    static boolean writeBlockAncestor(LexerRuleElementBlockContext immediateBlockAncestor, BiPredicate<Integer, int[]> consumer, LexerRuleBlockContext blockContext) {
+        int[] offsets = new int[]{immediateBlockAncestor.start.getStartIndex(),
+            immediateBlockAncestor.stop.getStopIndex() + 1};
+        return consumer.test(spId(blockContext), offsets);
+    }
+
+    static boolean hasActionOrLexerCommands(LexerRuleBlockContext blockContext) {
+        boolean hasLexerCommands = TreeUtils.hasRightAdjacentSiblingOfOutrmostAncestor(blockContext, LexerRuleElementsContext.class, LexerCommandContext.class, GrammarFileContext.class, TokenRuleSpecContext.class);
+        if (hasLexerCommands) {
+            return false;
+        }
+        LexerRuleAltContext altContext = ancestor(blockContext, LexerRuleAltContext.class);
+        if (altContext != null) {
+            // This may catch ancestors behind another block context, so make sure there is no
+            // block between us and the alt we're dealing with
+            LexerRuleBlockContext ancestorBlock = ancestor(blockContext, LexerRuleBlockContext.class);
+            if (ancestorBlock == null || ancestorBlock.depth() < altContext.depth()) {
+                if (altContext.lexerCommands() != null) {
+                    if (blockContext.OR() != null && !blockContext.OR().isEmpty()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasEbnf(LexerRuleBlockContext blockContext) {
+        if (blockContext.getParent() != null && blockContext.getParent() instanceof LexerRuleElementBlockContext) {
+            LexerRuleElementBlockContext parentBlock = (LexerRuleElementBlockContext) blockContext.getParent();
+            if (parentBlock.getParent() != null && parentBlock.getParent() instanceof LexerRuleElementContext) {
+                LexerRuleElementContext parentParent = (LexerRuleElementContext) parentBlock.getParent();
+                int ix = parentParent.children.indexOf(parentBlock);
+                if (parentParent.children.size() > ix + 1) {
+                    if (parentParent.getChild(ix + 1) instanceof EbnfSuffixContext) {
+                        EbnfSuffixContext suffix = (EbnfSuffixContext) parentParent.getChild(ix + 1);
+                        if (suffix.QUESTION() != null || suffix.PLUS() != null || suffix.STAR() != null) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static int spId(ParserRuleContext ctx) {
@@ -244,7 +388,6 @@ public class ChannelsAndSkipExtractors {
 
     private static String ruleName(ParserRuleContext ctx) {
         do {
-//            System.out.println("CHECK FOR NAME " + ctx.getClass().getSimpleName() + " " + Escaper.CONTROL_CHARACTERS.escape(ctx.getText()));
             if (ctx instanceof ANTLRv4Parser.ParserRuleSpecContext) {
                 ParserRuleSpecContext decl = (ParserRuleSpecContext) ctx;
                 if (decl.parserRuleDeclaration() != null && decl.parserRuleDeclaration().parserRuleIdentifier() != null) {
