@@ -166,6 +166,7 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
                 cell.withText(Bundle.makeRepeating())
                         .append(insertText.get(), kid -> {
                             kid.withForeground(new Color(180, 240, 180))
+                                    .monospaced()
                                     .leftMargin(12).italic();
                         });
             }).build((JTextComponent comp, StyledDocument doc1) -> {
