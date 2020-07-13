@@ -30,6 +30,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.geom.RectangularShape;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.swing.UIManager;
 import org.nemesis.swing.html.HtmlRenderer;
 
 /**
@@ -64,8 +65,30 @@ public class TextCell {
     private boolean strikethrough;
     private boolean shapeOutlinePainted;
     private int topMargin;
+    private boolean monospaced;
     private AffineTransform scaleFont;
     private AffineTransform lastScaleFont;
+    private static Font monospacedFont;
+
+    Font monospacedFont() {
+        if (monospacedFont != null) {
+            return monospacedFont;
+        }
+        Font f = UIManager.getFont("EditorPane.font");
+        // in a bare swing application, this happens
+        if ("Dialog".equals(f.getName())) {
+            f = null;
+        }
+        if (f == null) {
+//            f = new Font("Monospaced", Font.PLAIN, 12);
+            f = new Font("Courier New", Font.PLAIN, 12);
+        } else {
+            if (f.getStyle() != Font.PLAIN) {
+                f = f.deriveFont(Font.PLAIN);
+            }
+        }
+        return monospacedFont = f;
+    }
 
     TextCell(String text, boolean isChild) {
         this.text = text;
@@ -74,6 +97,11 @@ public class TextCell {
 
     public TextCell(String text) {
         this.text = text;
+    }
+
+    public TextCell monospaced() {
+        this.monospaced = true;
+        return this;
     }
 
     public TextCell reset(String newText) {
@@ -95,6 +123,7 @@ public class TextCell {
             lastScaleFont = scaleFont;
         }
         child = null;
+        monospaced = false;
         strikethrough = false;
         foreground = null;
         background = null;
@@ -139,6 +168,7 @@ public class TextCell {
         nue.rightMargin = rightMargin;
         nue.shapeOutlinePainted = shapeOutlinePainted;
         nue.lastScaleFont = lastScaleFont;
+        nue.monospaced = monospaced;
         return nue;
     }
 
@@ -362,8 +392,28 @@ public class TextCell {
         return this;
     }
 
+    private Font baseFont(Font initialFont) {
+        Font result;
+        if (font == null) {
+            if (monospaced) {
+                result = monospacedFont();
+                if (result.getSize2D() != initialFont.getSize2D() || result.getStyle() != initialFont.getStyle()) {
+                    result = result.deriveFont(initialFont.getStyle(), initialFont.getSize2D());
+                }
+                if (initialFont.isTransformed()) {
+                    result = result.deriveFont(initialFont.getTransform());
+                }
+            } else {
+                result = initialFont;
+            }
+        } else {
+            result = font;
+        }
+        return result;
+    }
+
     private Font _font(Font initialFont) {
-        Font f = font == null ? initialFont : font;
+        Font f = baseFont(initialFont);
         if (bold && italic && (!f.isBold() || !f.isItalic())) {
             f = f.deriveFont(Font.BOLD | Font.ITALIC);
         } else if (bold && !f.isBold()) {

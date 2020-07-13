@@ -380,7 +380,7 @@ public class TextCellLabel extends JComponent {
                     .rightMargin(10).strikethrough();
         });
         cell.append("Goodbye", tx -> {
-            tx.italic().withBackground(Color.GRAY).withForeground(Color.WHITE).indent(12).rightMargin(12)
+            tx.monospaced().withBackground(Color.GRAY).withForeground(Color.WHITE).indent(12).rightMargin(12)
                     .strikethrough();
         });
         cell.append("Wonderful", tx -> {
