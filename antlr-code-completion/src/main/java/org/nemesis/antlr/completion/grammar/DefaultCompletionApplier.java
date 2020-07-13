@@ -201,6 +201,9 @@ final class DefaultCompletionApplier implements CompletionApplier {
                 if (tokenInfo.isWhitespace() && pfx.isEmpty() && !prev.isWhitespace()) {
                     result.add(Op.PREPEND_SPACE);
                 }
+                if (!next.isWhitespace() && !next.isPunctuation()) {
+                    result.add(Op.PREPEND_SPACE);
+                }
 //                if (!pfx.isEmpty() && !tokenInfo.isWhitespace() && !next.isWhitespace() && !next.isPunctuation()) {
 //                    result.add(Op.APPEND_SPACE);
 //                }

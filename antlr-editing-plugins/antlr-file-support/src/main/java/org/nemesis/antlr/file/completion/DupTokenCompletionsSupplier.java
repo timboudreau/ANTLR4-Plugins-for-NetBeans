@@ -47,7 +47,7 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
     @Override
     public Completer forDocument(Document document) {
         if (ANTLR_MIME_TYPE.equals(NbEditorUtilities.getMimeType(document))) {
-            return SimpleCompletionsSupplier.AntlrCompleter.find(document);
+            return DTCompleter.find(document);
         }
         return noop();
     }
@@ -86,10 +86,13 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
                     isLexer = true;
                     break;
                 default:
+                    System.out.println("NO GO " + ANTLRv4Parser.ruleNames[parserRuleId]);
                     return;
             }
+            System.out.println("try to do the thing " + token);
             if (token.tokenType() == ANTLRv4Lexer.SEMI) {
                 token = token.before();
+                System.out.println(" on semi, back up to " + token);
                 if (token == null) {
                     return;
                 }
@@ -98,11 +101,12 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
             // Should search for a matching literal constant for the name we have.
             // We have all the string literal ruls in the extraction, but the key is
             // elsewhere I think
-            Position pos = NbDocument.createPosition(doc, token.tokenEnd(), Position.Bias.Backward);
             Obj<CaretToken> preceding = Obj.create();
             if (!isAfterFirstAtom(token, preceding)) {
+                System.out.println("  after first atom, bail");
                 return;
             }
+            Position pos = NbDocument.createPosition(doc, token.tokenEnd(), Position.Bias.Backward);
             char[] delimChar = new char[]{','};
             Supplier<String> insertText = () -> {
                 CaretToken tk = preceding.get();
