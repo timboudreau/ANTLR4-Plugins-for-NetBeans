@@ -15,14 +15,8 @@
  */
 package com.mastfrog.antlr.code.completion.spi;
 
-import com.mastfrog.util.collections.IntList;
-import com.mastfrog.util.strings.Strings;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.function.BiConsumer;
 import javax.swing.text.Document;
-import org.openide.util.Lookup;
 
 /**
  * Generic code completion, registerable in the default lookup.
@@ -31,15 +25,8 @@ import org.openide.util.Lookup;
  */
 public abstract class CompletionsSupplier {
 
-    public static CompletionsSupplier forMimeType(String mimeType) {
-        Collection<? extends CompletionsSupplier> all = Lookup.getDefault().lookupAll(CompletionsSupplier.class);
-        if (all.isEmpty()) {
-            return Dummy.INSTANCE;
-        } else if (all.size() == 1) {
-            return all.iterator().next();
-        } else {
-            return new MetaSupplier(all);
-        }
+    public static boolean isNoOp(Completer completer) {
+        return completer == Dummy.INSTANCE;
     }
 
     public abstract Completer forDocument(Document document);
@@ -62,66 +49,6 @@ public abstract class CompletionsSupplier {
                 int maxResultsPerKey, String optionalSuffix,
                 BiConsumer<String, Enum<?>> names) {
             // do nothing
-        }
-    }
-
-    private static final class MetaSupplier extends CompletionsSupplier {
-
-        private final Collection<? extends CompletionsSupplier> all;
-
-        public MetaSupplier(Collection<? extends CompletionsSupplier> all) {
-            this.all = all;
-        }
-
-        @Override
-        public Completer forDocument(Document document) {
-            List<Completer> completers = new ArrayList<>(all.size());
-            for (CompletionsSupplier c : all) {
-                completers.add(c.forDocument(document));
-            }
-            return new MetaCompleter(completers);
-        }
-
-        public String toString() {
-            return "MetaSupplier(" + Strings.join(',', all, supp -> {
-                return supp.getClass().getName();
-            }) + ")";
-        }
-    }
-
-    private static final class MetaCompleter implements Completer {
-
-        final List<Completer> completers;
-
-        private MetaCompleter(List<Completer> completers) {
-            this.completers = completers;
-        }
-
-        @Override
-        public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix, BiConsumer<String, Enum<?>> names) {
-            for (Completer c : completers) {
-                c.namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, names);
-            }
-        }
-
-        @Override
-        public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix, IntList rulePath, BiConsumer<String, Enum<?>> names) {
-            for (Completer c : completers) {
-                c.namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, rulePath, names);
-            }
-        }
-
-        @Override
-        public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) {
-            for (Completer c : completers) {
-                c.apply(parserRuleId, token, maxResultsPerKey, rulePath, addTo);
-            }
-        }
-
-        public String toString() {
-            return "MetaCompleter(" + Strings.join(',', completers, supp -> {
-                return supp.getClass().getName();
-            }) + ")";
         }
     }
 }

@@ -25,6 +25,7 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_altList;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_block;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnfSuffix;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleIdentifier;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_identifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_labeledParserRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
@@ -34,7 +35,9 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleAtom;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleIdentifier;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleSpec;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -154,12 +157,45 @@ import org.nemesis.localizers.annotations.Localize;
                     RULE_altList,
                     RULE_lexComPushMode,
                     RULE_lexComMode,
-//                    RULE_parserRuleSpec, // right after colon
-//                    RULE_tokenRuleSpec, // right after colon
-//                    RULE_fragmentRuleSpec, // right after colon
+                    RULE_parserRuleSpec, // right after colon
+                    RULE_tokenRuleSpec, // right after colon
+                    RULE_fragmentRuleSpec, // right after colon
+                    ANTLRv4Parser.RULE_lexerCommands,
+                    ANTLRv4Parser.RULE_lexerCommand,
+                    ANTLRv4Parser.RULE_channelsSpec,
+                    ANTLRv4Parser.RULE_lexerRuleBlock,
+                    ANTLRv4Parser.RULE_lexerRuleElements,
+                    ANTLRv4Parser.RULE_ebnf,
+                    ANTLRv4Parser.RULE_modeDec,
+                    ANTLRv4Parser.RULE_parserRuleAlternative,
+                    ANTLRv4Parser.RULE_parserRuleReference,
 
                 },
                 tokenCompletions = {
+                    @SupplementaryTokenCompletion(
+                            tokenId = LEXCOM_MORE,
+                            text = "more"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = LEXCOM_MODE,
+                            text = "mode"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = LEXCOM_PUSHMODE,
+                            text = "pushMode()"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = LEXCOM_POPMODE,
+                            text = "popMode"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = LEXCOM_TYPE,
+                            text = "type()"
+                    ),
+                    @SupplementaryTokenCompletion(
+                            tokenId = FRAGMENT,
+                            text = "fragment"
+                    ),
                     @SupplementaryTokenCompletion(
                             tokenId = OR,
                             text = "|"

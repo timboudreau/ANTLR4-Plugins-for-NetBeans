@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -36,7 +35,6 @@ import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import com.mastfrog.util.search.Bias;
 import com.mastfrog.util.strings.Strings;
-import java.util.HashMap;
 import java.util.PrimitiveIterator;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Vocabulary;
@@ -45,13 +43,24 @@ import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.AT_TOKEN
 import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.UNRELATED;
 import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.WITHIN_TOKEN;
 import com.mastfrog.antlr.code.completion.spi.Completer;
+import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
+import com.mastfrog.antlr.code.completion.spi.CompletionItemBuilder;
 import com.mastfrog.antlr.code.completion.spi.CompletionItems;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.completion.TokenUtils;
 import org.nemesis.localizers.api.Localizers;
+import org.nemesis.swing.cell.TextCell;
 import org.netbeans.spi.editor.completion.CompletionResultSet;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionQuery;
+import org.openide.util.Exceptions;
+import org.openide.util.Lookup;
 
 /**
  *
@@ -66,13 +75,13 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
     private final IntPredicate ignoredRules;
     private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache;
     private final IntMap<String> supplemental;
-    private final IntIntMap ruleSubstitutions;
+    private final com.mastfrog.util.collections.IntIntMap ruleSubstitutions;
 
     GrammarCompletionQuery(String mimeType,
             ParserAndRuleContextProvider<?, ?> parserProvider,
             IntPredicate preferredRules, IntPredicate ignoredRules,
             Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache,
-            IntMap<String> supplemental, IntIntMap ruleSubstitutions) {
+            IntMap<String> supplemental, com.mastfrog.util.collections.IntIntMap ruleSubstitutions) {
         this.mimeType = mimeType;
         this.parserProvider = parserProvider;
         this.preferredRules = preferredRules;
@@ -128,47 +137,74 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
         if (!tokenInfo.isUserToken()) {
             return;
         }
+        System.out.println("ORIG TOKEN " + tokenInfo);
         if (tokenInfo.isWhitespace()) {
             switch (tokenInfo.caretRelation()) {
                 case AT_TOKEN_START:
-                    tokenInfo = tokenInfo.biasedBy(Bias.BACKWARD);
+//                    tokenInfo = tokenInfo.biasedBy(Bias.BACKWARD);
                     break;
                 case WITHIN_TOKEN:
+//                    tokenInfo = tokenInfo.after();
                     tokenInfo = tokenInfo.after();
                     break;
                 case UNRELATED:
                     return;
             }
         }
+        System.out.println("BIASED TOKEN " + tokenInfo);
 
         processCodeCompletion(doc, tokenInfo, allTokens, p, resultSet, frequencies, provider);
     }
 
+    private Map<? extends Completer, ? extends CompletionItemsImpl> completers(StyledDocument doc, CaretToken token) {
+        Collection<? extends CompletionsSupplier> all = Lookup.getDefault().lookupAll(CompletionsSupplier.class);
+        Map<Completer, CompletionItemsImpl> result = new IdentityHashMap<>(all.size());
+        for (CompletionsSupplier c : all) {
+            Completer completer = c.forDocument(doc);
+            if (!CompletionsSupplier.isNoOp(completer)) {
+                result.put(completer, new CompletionItemsImpl(token, doc));
+            }
+        }
+        return result;
+    }
+
     private <P extends Parser, R extends ParserRuleContext> void processCodeCompletion(
             StyledDocument doc,
-            CaretToken tokenInfo, List<Token> tokens, P p, CompletionResultSet resultSet,
+            CaretToken caretToken, List<Token> tokens, P p, CompletionResultSet resultSet,
             int[] frequencies, ParserAndRuleContextProvider<P, R> provider) throws IOException {
-        CodeCompletionCore.CandidatesCollection result = processCodeCompletion(p, tokenInfo, provider, tokens);
+        CodeCompletionCore.CandidatesCollection result = processCodeCompletion(p, caretToken, provider, tokens);
 
-        System.out.println("TARGET " + tokenInfo + " " + p.getVocabulary()
-                .getDisplayName(tokenInfo.tokenType()));
+        if (result.isEmpty()) {
+            return;
+        }
+
+        System.out.println("TARGET " + caretToken + " " + p.getVocabulary()
+                .getDisplayName(caretToken.tokenType()));
 
         System.out.println("candidates: " + result);
-        CompletionsSupplier supp = CompletionsSupplier.forMimeType(mimeType);
-        System.out.println("COMPLETIONS SUPPLIER " + supp);
 
-        Map<Enum<?>, String> descriptors = new HashMap<>();
+        CompletionItemsImpl completionItems = new CompletionItemsImpl(caretToken, doc);
+        // We keep a mapping of completer to its items, so that the scores from
+        // each set can be normalized to a mutually comparable 0-1
+        Map<? extends Completer, ? extends CompletionItemsImpl> itemsForCompleters
+                = completers(doc, caretToken);
 
-        CompletionItemsImpl completionItems = new CompletionItemsImpl(descriptors, resultSet, tokenInfo, doc);
-
-        Completer completer = supp.forDocument(doc);
-
-        System.out.println("Completer is " + completer);
+        IntSet blacklist = IntSet.create(-1, Math.max(2, itemsForCompleters.size()));
 
         result.rules.forEach((int ruleId, IntList callStack) -> {
             RulesMapping<?> mapping = RulesMapping.forMimeType(mimeType);
             System.out.println("CANDIDATE-RULE: " + ruleId + " " + rulesToString(mapping, ruleId, callStack));
-            completer.apply(ruleId, tokenInfo, 30, callStack, completionItems);
+            itemsForCompleters.forEach((completer, items) -> {
+                if (blacklist.contains(System.identityHashCode(completer))) {
+                    return;
+                }
+                try {
+                    completer.apply(ruleId, caretToken, 30, callStack, items);
+                } catch (Exception ex) {
+                    blacklist.add(System.identityHashCode(completer));
+                    Exceptions.printStackTrace(ex);
+                }
+            });
         });
 
         result.tokens.forEach((int tokenId, IntSet list) -> {
@@ -176,47 +212,64 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
             if (tokenId < Token.MIN_USER_TOKEN_TYPE) {
                 return;
             }
+            IntSet added = IntSet.create(3);
             int effectiveTokenId = ruleSubstitutions.getOrDefault(tokenId, tokenId);
 
-            String symName = p.getVocabulary().getLiteralName(effectiveTokenId);
+            String literalName = p.getVocabulary().getLiteralName(effectiveTokenId);
             String dispName = p.getVocabulary().getDisplayName(effectiveTokenId);
-            if (symName != null) {
-                System.out.println("SYMBOL: " + symName);
-//                resultSet.addItem(new GrammarCompletionItem(
-//                        strip(symName), caretTok, frequencies[tokenId]));
-                completionItems.completionItemCount++;
-                resultSet.addItem(completionItems.last = new GCI(
-                        Strings.deSingleQuote(symName), tokenInfo, doc, dispName));
+            if (literalName != null) {
+                System.out.println("SYMBOL: " + literalName + " (" + p.getVocabulary().getSymbolicName(effectiveTokenId) + ")");
+                added.add(effectiveTokenId);
+                completionItems.add(new GCI(
+                        Strings.deSingleQuote(literalName), caretToken, doc, dispName), 0);
             } else {
                 String suppliedToken = supplemental.get(effectiveTokenId);
                 if (suppliedToken != null) {
                     System.out.println("Have supplied token " + effectiveTokenId + " " + suppliedToken);
-                    completionItems.completionItemCount++;
-                    resultSet.addItem(completionItems.last = new GCI(suppliedToken,
-                            tokenInfo, doc, null));
+                    added.add(effectiveTokenId);
+                    completionItems.add(new GCI(suppliedToken, caretToken, doc, null), 0.01F);
+//                    completionItems.add(suppliedToken).withScore(0.1F)
+//                            .withRenderer(tc -> {
+//                                tc.withText(suppliedToken)
+//                                        .italic()
+//                                        .append("Woo hoo", tcd -> {
+//                                            tcd.withBackground(Color.BLUE, new Ellipse2D.Double())
+//                                                    .withForeground(Color.WHITE);
+//                                        });
+//                            }).build((jtc, d) -> {
+//                        d.insertString(caretToken.caretPositionInDocument(), suppliedToken, null);
+//                    });
+//                    completionItems.add(new GCI(suppliedToken, caretToken, doc, null), 0);
                 } else {
                     System.out.println("Not completing token "
                             + p.getVocabulary().getDisplayName(effectiveTokenId) + " - not a predefined symbol");
                 }
             }
 
-            list.forEach((IntConsumer) i -> {
+            list.forEachInt(i -> {
                 if (i < Token.MIN_USER_TOKEN_TYPE) {
                     return;
                 }
+                // XXX this looks wrong
                 Token tok = tokens.get(i);
-                String id = p.getVocabulary().getDisplayName(effectiveTokenId);
+                if (added.contains(tok.getType())) {
+                    return;
+                }
+                int eff = ruleSubstitutions.getOrDefault(tok.getType(), tok.getType());
+                String id = p.getVocabulary().getDisplayName(eff);
                 System.out.println("ADDTL: " + id);
-//                resultSet.addItem(new GrammarCompletionItem(
-//                        tok, caretTok, frequencies[tokenId]));
-                completionItems.completionItemCount++;
-                resultSet.addItem(completionItems.last = new GCI(tok.getText(),
-                        tokenInfo, doc, null));
+                completionItems.add(new GCI(tok.getText(),
+                        caretToken, doc, null), 0);
             });
-            if (completionItems.completionItemCount == 1) {
-                completionItems.last.setOnly(true);
-            }
         });
+        List<SortableCompletionItem> allItems = completionItems.items(0.5F);
+        itemsForCompleters.forEach((completer, items) -> {
+            allItems.addAll(items.items(completer.scoreMultiplier()));
+        });
+        if (allItems.size() == 1) {
+            allItems.get(0).setInstant();;
+        }
+        resultSet.addAllItems(allItems);
     }
 
     private String tokensToString(Vocabulary vocab, int tokenId, IntSet kids) {
@@ -284,45 +337,79 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
         super.prepareQuery(component);
     }
 
-    private class CompletionItemsImpl implements CompletionItems {
+    private static class CompletionItemsImpl implements CompletionItems {
 
-        private final Map<Enum<?>, String> descriptors;
-        private final CompletionResultSet resultSet;
         private final CaretToken tokenInfo;
-        private final Document doc;
+        private final StyledDocument doc;
+        private final Set<SortableCompletionItem> items = new LinkedHashSet<>();
+        private float minScore;
+        private float maxScore;
+        private final Map<Enum<?>, String> descriptors = new HashMap<>();
 
-        public CompletionItemsImpl(Map<Enum<?>, String> descriptors, CompletionResultSet resultSet, CaretToken tokenInfo, Document doc) {
-            this.descriptors = descriptors;
-            this.resultSet = resultSet;
+        public CompletionItemsImpl(CaretToken tokenInfo, StyledDocument doc) {
             this.tokenInfo = tokenInfo;
             this.doc = doc;
         }
-        int completionItemCount;
-        GCI last;
+
+        List<SortableCompletionItem> items(float multiplier) {
+            float range = maxScore - minScore;
+            List<SortableCompletionItem> result = new ArrayList<>(items);
+            if (range > 0) {
+                for (SortableCompletionItem ci : result) {
+                    float sc = ci.relativeScore() - minScore;
+                    float normScore = (sc / range) * multiplier;
+                    ci.score(normScore);
+                }
+            }
+            Collections.sort(result);
+            return result;
+        }
+
+        int size() {
+            return items.size();
+        }
 
         @Override
-        public CompletionItems add(String itemText, Enum<?> kind) {
+        public CompletionItems add(String itemText, Enum<?> kind, float score) {
             String desc = descriptors.get(kind);
             if (desc == null) {
                 desc = Localizers.displayName(kind);
                 descriptors.put(kind, desc);
             }
-            return add(itemText, desc);
+            return add(itemText, desc, score);
+        }
+
+        private void add(SortableCompletionItem item, float score) {
+            minScore = Math.min(score, minScore);
+            maxScore = Math.min(score, maxScore);
+            items.add(item);
         }
 
         @Override
-        public CompletionItems add(String itemText, String description) {
-            System.out.println("ADD ITEM '" + itemText + " '" + description + "'");
-            completionItemCount++;
-            resultSet.addItem(last = new GCI(itemText, tokenInfo, doc, description));
+        public CompletionItems add(String itemText, String description, float score) {
+            add(new GCI(itemText, tokenInfo, doc, score, description), score);
             return this;
         }
 
         @Override
-        public CompletionItems add(String itemText, String description, CompletionItems.CompletionApplier applier) {
-            completionItemCount++;
-            resultSet.addItem(last = new GCI(itemText, tokenInfo, doc, description, false, applier));
+        public CompletionItems add(String itemText, String description, float score, CompletionApplier applier) {
+            add(new GCI(itemText, tokenInfo, doc, description, false, score, applier), score);
             return this;
+        }
+
+        CompletionApplier defaultApplier(String toInsert) {
+            return new DefaultCompletionApplier(tokenInfo, toInsert);
+        }
+
+        @Override
+        public CompletionItemBuilder<? extends TextCell, ? extends CompletionItems> add(String displayText) {
+            return new CompletionItemBuilderImpl<CompletionItems>(displayText, item -> {
+                if (item instanceof CompletionItemImpl) {
+                    ((CompletionItemImpl) item).ensureApplier(this::defaultApplier);
+                }
+                add(item, item.relativeScore());
+                return this;
+            });
         }
     }
 

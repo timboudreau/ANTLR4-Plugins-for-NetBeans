@@ -30,7 +30,7 @@ import org.antlr.v4.runtime.Token;
  *
  * @author Tim Boudreau
  */
-public class CaretTokenInfo implements CaretToken {
+final class CaretTokenInfo implements CaretToken {
 
     public static final CaretTokenInfo EMPTY;
 

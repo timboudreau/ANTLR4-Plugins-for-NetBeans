@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
@@ -133,8 +132,6 @@ public final class DocumentOperator {
 
     DocumentOperator(Set<? extends Function<StyledDocument, DocumentPreAndPostProcessor>> props) {
         this.props = props;
-//        this.props = props instanceof EnumSet<?>
-//                ? new LinkedHashSet<>(CollectionUtils.reversed(new ArrayList<>(props))) : props;
     }
 
     private static void eqRun(BadLocationRunnable r) throws BadLocationException {
@@ -181,6 +178,16 @@ public final class DocumentOperator {
      */
     public void run(StyledDocument doc, Runnable run) {
         operateOn(doc).run(run);
+    }
+
+    /**
+     * Run the operation on a document, logging any exceptions.
+     *
+     * @param doc A document
+     * @param run A runnable
+     */
+    public void runOp(StyledDocument doc, BadLocationRunnable run) {
+        operateOn(doc).runOp(run);
     }
 
     @Override
@@ -924,6 +931,7 @@ public final class DocumentOperator {
         private int distanceToTop = -1;
 
         @Override
+        @SuppressWarnings("deprecation")
         public void before(DocumentOperationContext ctx) {
             LOG.log(Level.FINER, "{0} before on {1}", new Object[]{this, Thread.currentThread()});
             JTextComponent textComp = comp();
@@ -944,12 +952,6 @@ public final class DocumentOperator {
                         pane.setIgnoreRepaint(true);
                         pane.getViewport().setIgnoreRepaint(true);
                         paintsDisabled = true;
-//                    pane.getViewport().addChangeListener(ce -> {
-//                        new Exception("VP CHANGE: " + pane.getViewport().getViewPosition()).printStackTrace();
-//                    });
-//                    comp.getCaret().addChangeListener(ce -> {
-//                        new Exception("CARET CHANGE: " + comp.getCaret().getDot()).printStackTrace();
-//                    });
                         viewPosition = pane.getViewport().getViewPosition();
                         LOG.log(Level.FINEST, "Repaints blocked; view-position {0}", viewPosition);
                         try {
@@ -1035,11 +1037,6 @@ public final class DocumentOperator {
                 @SuppressWarnings("UseSpecificCatch")
                 public T get(DocumentOperationContext ctx) throws E, BadLocationException {
                     LOG.log(Level.FINE, "Enter document-read-lock {0}", doc);
-//                    if (doc instanceof BaseDocument && ((BaseDocument) doc).isAtomicLock()) {
-//                        LOG.log(Level.FINER, "Already in atomic lock, don't need read lock, run {0} on {1}",
-//                                new Object[]{toWrap, doc});
-//                        return toWrap.get(ctx);
-//                    }
                     return ctx.enterReadLockIfNotAlreadyLocked(doc, (shouldLock, onLockAcquired) -> {
                         if (shouldLock) {
                             T result = render(doc, () -> {
@@ -1227,6 +1224,9 @@ public final class DocumentOperator {
 
             @Override
             public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                if (Thread.holdsLock(comp.getTreeLock())) {
+                    return delegate.get(ctx);
+                }
                 T result;
                 LOG.log(Level.FINER, "{0} on {1} with {2} ENTER",
                         new Object[]{this, Thread.currentThread(), comp});
@@ -1250,7 +1250,6 @@ public final class DocumentOperator {
         }
     }
 
-
     static <T, E extends Exception> T render(Document doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
         Hold<T, E> hold = new Hold<>();
         doc.render(() -> {
@@ -1264,6 +1263,11 @@ public final class DocumentOperator {
     }
 
     static <T, E extends Exception> T runAtomic(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        // If we are already locked, don't attempt it twice - we may wind up acquiring
+        // locks out-of-order
+        if (isAtomicLocked(doc)) {
+            return supp.get();
+        }
         Hold<T, E> hold = new Hold<>();
         NbDocument.runAtomic(doc, () -> {
             try {
@@ -1276,6 +1280,11 @@ public final class DocumentOperator {
     }
 
     static <T, E extends Exception> T runAtomicAsUser(StyledDocument doc, BadLocationSupplier<T, E> supp) throws BadLocationException, E {
+        // If we are already locked, don't attempt it twice - we may wind up acquiring
+        // locks out-of-order
+        if (isAtomicLocked(doc)) {
+            return supp.get();
+        }
         Hold<T, E> hold = new Hold<>();
         NbDocument.runAtomicAsUser(doc, () -> {
             try {

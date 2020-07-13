@@ -37,6 +37,46 @@ public final class TreeUtils {
     }
 
     /**
+     * Determine if a parse tree is or is an ancestor of a given other parse
+     * tree.
+     *
+     * @param possibleAncestor The possible ancestor
+     * @param target The three which might be a descendat
+     * @return true if they are related
+     */
+    public static boolean isAncestor(ParseTree possibleAncestor, ParseTree target) {
+        if (target == null) {
+            return false;
+        }
+        if (possibleAncestor == target) {
+            return true;
+        }
+        return isAncestor(possibleAncestor, target.getParent());
+    }
+
+    /**
+     * Returns true if the passed context is not the only child of its parent.
+     *
+     * @param ctx The rule context
+     * @return
+     */
+    public static boolean hasSibling(ParserRuleContext ctx) {
+        return sibling(ctx) != null;
+    }
+
+    /**
+     * Return either the next element or previous element if there are any trees
+     * adjacent to this one in its parent.
+     *
+     * @param orig A parse tree
+     * @return the sibling or null
+     */
+    public static ParseTree sibling(ParserRuleContext orig) {
+        ParseTree result = nextSibling(orig);
+        return result == null ? TreeUtils.prevSibling(orig) : result;
+    }
+
+    /**
      * Determine if a rule has an ancestor of a given type.
      *
      * @param ctx The rule

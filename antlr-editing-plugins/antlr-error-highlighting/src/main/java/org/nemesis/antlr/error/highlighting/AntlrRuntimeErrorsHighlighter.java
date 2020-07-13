@@ -24,6 +24,7 @@ import com.mastfrog.range.Range;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.strings.Escaper;
+import com.mastfrog.util.strings.LevenshteinDistance;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.deSingleQuote;
 import java.awt.Color;
@@ -60,6 +61,7 @@ import javax.swing.text.Element;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
+import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.AntlrConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
@@ -91,7 +93,6 @@ import org.nemesis.data.named.NamedRegionReferenceSets;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
-import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
@@ -457,6 +458,17 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
         }
         return 0;
     }
+
+    private void flagATNRegionsThatWillBeOptimizedAway(ANTLRv4Parser.GrammarFileContext tree,
+            String mimeType, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes) {
+        if (res != null && res.mainGrammar != null) {
+            Grammar main = res.mainGrammar();
+
+        }
+    }
+
 
     @Messages({
         "# {0} - grammarName",

@@ -177,12 +177,15 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         assert extraction != null : "extraction null";
         assert tree != null : "tree null";
         assert cancelled != null : "cancelled null";
-        boolean wasCancelled = cancelled.getAsBoolean();
+        boolean wasCancelled = false; //cancelled.getAsBoolean();
         boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
+        System.out.println( "WAS CANCELLED? " + wasCancelled + " postprocess? " + postprocess + " for " + extraction
+                .source() );
+
         LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1} "
-                + "postprocessingEnabled? {2}",
+                             + "postprocessingEnabled? {2}",
                  new Object[]{ extraction.source(), wasCancelled,
-                 postprocess} );
+                     postprocess } );
         if ( !wasCancelled && postprocess ) {
             // Ensure the tree gets fully walked and the parse fully run, so
             // all errors are collected
@@ -193,8 +196,8 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                 } else if ( extraction.source().source() instanceof Snapshot ) {
                     doc = ( ( Snapshot ) extraction.source().source() ).getSource().getDocument( false );
                 } else {
-                    Optional<Document> optDoc = extraction.source().lookup(Document.class);
-                    if (optDoc.isPresent()) {
+                    Optional<Document> optDoc = extraction.source().lookup( Document.class );
+                    if ( optDoc.isPresent() ) {
                         doc = optDoc.get();
                     }
                 }
@@ -220,7 +223,8 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                 }
             }
         } else {
-            LOG.log( Level.FINEST, "Not using parse result {0} due to cancellation", populate );
+            LOG.log( Level.FINEST, "Not post processing {0} due to cancelled {1} postprocess {2}",
+                     new Object[]{ extraction.source(), wasCancelled, postprocess } );
         }
     }
 

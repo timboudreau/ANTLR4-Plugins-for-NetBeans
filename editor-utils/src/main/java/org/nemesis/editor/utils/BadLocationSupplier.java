@@ -15,6 +15,7 @@
  */
 package org.nemesis.editor.utils;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
 
@@ -38,5 +39,22 @@ public interface BadLocationSupplier<T, E extends Exception> {
             }
         });
         return hold.get();
+    }
+
+    /**
+     * Perform a get() catching any exception and returning either the string
+     * value of the return value of get() or the exception. For logging
+     * purposes.
+     *
+     * @return
+     */
+    default String toStringGet() {
+        Object obj;
+        try {
+            obj = get();
+        } catch (Exception ex) {
+            obj = ex;
+        }
+        return Objects.toString(obj);
     }
 }

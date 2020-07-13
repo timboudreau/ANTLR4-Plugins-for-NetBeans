@@ -42,7 +42,7 @@ public class GrammarCompletionProvider implements CompletionProvider {
     private final IntPredicate ignoredRules;
     private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache = new HashMap<>(3);
     private final IntMap<String> supplemental;
-    private final IntIntMap ruleSubstitutions;
+    private final com.mastfrog.util.collections.IntIntMap ruleSubstitutions;
 
     protected <P extends Parser, R extends ParserRuleContext> GrammarCompletionProvider(
             String mimeType,
@@ -66,7 +66,8 @@ public class GrammarCompletionProvider implements CompletionProvider {
         this.preferredRules = preferredRules;
         this.ignoredRules = ignoredRules;
         supplemental = IntMap.of(supplementalTokenKeys, supplementalTokenTexts);
-        ruleSubstitutions = new IntIntMap(ruleSubstitutionKeys, ruleSubstitutionValues);
+        // XXX replace with com.mastfrog.util.collections.IntIntMap.createUnsafe()
+        ruleSubstitutions = com.mastfrog.util.collections.IntIntMap.createUnsafe(ruleSubstitutionKeys, ruleSubstitutionValues);
     }
 
     @Override

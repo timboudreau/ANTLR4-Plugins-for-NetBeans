@@ -250,7 +250,7 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
 
             @Override
             public String fileName() {
-                return toString();
+                return toString() + ".g4";
             }
         };
     }

@@ -1,4 +1,6 @@
 
+Textcell should have withFontName() so font name can be changed - or at least monospaced()
+
 Preview lookup needs to merge that of both editors, and merge the UndoRedo.Manager of both, and the SaveCookies of both.
 
 Partial name completion is broken.

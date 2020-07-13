@@ -41,49 +41,7 @@ import org.antlr.v4.runtime.Token;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import static org.nemesis.antlr.ANTLRv4Lexer.BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.CHN_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.CHN_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.CHN_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.DOC_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.FRAGDEC_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.FRAGDEC_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.HDR_IMPRT_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HDR_IMPRT_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.HDR_PCKG_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HDR_PCKG_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_P_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_P_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_P_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.HEADER_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.ID_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.ID_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.ID_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.IMPORT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.IMPORT_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.IMPORT_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.LEXCOM_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LEXCOM_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.LEXCOM_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.OPT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.OPT_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.OPT_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_OPT_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_OPT_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_OPT_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.PARDEC_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOKDEC_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOK_BLOCK_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOK_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.TOK_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.TYPE_LINE_COMMENT;
-import static org.nemesis.antlr.ANTLRv4Lexer.TYPE_WS;
-import static org.nemesis.antlr.ANTLRv4Lexer.WS;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.completion.grammar.CodeCompletionCore.CandidatesCollection;
 import org.nemesis.antlr.completion.grammar.CodeCompletionCore.FollowSetsHolder;
@@ -93,12 +51,12 @@ public class CodeCompletionCoreTest {
 
     @Test
     public void testSample() throws Exception {
-        testSample(AntlrSampleFiles.DUMMY_LANGUAGE);
+        testSample(AntlrSampleFiles.SENSORS);
     }
 
     public void testSample(AntlrSampleFiles sample) throws Exception {
         System.out.println("SAMPLE: \n" + sample.text());
-        CCLog.enable(true);
+//        CCLog.enable(true);
         boolean foundAnyOpt = false;
         boolean foundAnyOrig = false;
 
@@ -158,7 +116,7 @@ public class CodeCompletionCoreTest {
             if (!failing.isEmpty()) {
                 fail(CCLog.mismatch(orig, core));
             }
-            System.out.println("OK " + i);
+//            System.out.println("OK " + i);
         }
 //        }
 

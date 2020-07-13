@@ -23,6 +23,17 @@
                     <moduleType>autoload</moduleType>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!--<java.awt.headless>false</java.awt.headless>-->
+                        <netbeans.moduleitem.dontverifyclassloader>true</netbeans.moduleitem.dontverifyclassloader>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>            
         </plugins>
     </build>
     <dependencies>
@@ -44,6 +55,11 @@
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-api-annotations-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor</artifactId>
         </dependency>
         <dependency>
@@ -57,6 +73,27 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-document</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.modules</groupId>
+            <artifactId>org-netbeans-modules-editor-plain</artifactId>
+            <scope>test</scope>
+            <type>jar</type>
         </dependency>
     </dependencies>
 </project>

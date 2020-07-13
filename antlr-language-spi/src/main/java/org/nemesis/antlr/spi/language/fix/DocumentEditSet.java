@@ -40,7 +40,6 @@ public final class DocumentEditSet {
     }
 
     public final DocumentEditSet delete( int start, int end ) throws Exception {
-        // XXX could use a comparable runnable and keep these sorted by position
         Position startPos = doc.createPosition( start );
         Position endPos = doc.createPosition( end );
         all.add( ComparableRunnable.of(start, end, () -> {

@@ -26,6 +26,8 @@ final class IntIntMap {
     private final int[] keys;
     private final int[] vals;
 
+    // XXX replace with com.mastfrog.util.collections.IntIntMap.createUnsafe()
+
     public IntIntMap(int[] keys, int[] vals) {
         this.keys = keys;
         this.vals = vals;

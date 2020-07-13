@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion;
+package com.mastfrog.antlr.code.completion.spi;
 
-import java.util.function.BiFunction;
+import com.mastfrog.function.throwing.ThrowingBiConsumer;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.JTextComponent;
+import javax.swing.text.StyledDocument;
 
 /**
  *
  * @author Tim Boudreau
  */
-public interface Stringifier<I> extends BiFunction<StringKind, I, String> {
+public interface CompletionApplier extends ThrowingBiConsumer<JTextComponent, StyledDocument> {
 
-    @Override
-    String apply(StringKind kind, I item);
+    void accept(JTextComponent comp, StyledDocument doc) throws BadLocationException;
 
 }

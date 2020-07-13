@@ -44,7 +44,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.ANTLRv4Lexer;
@@ -204,6 +203,153 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
 
     private static final String COMBINED_PARSER_INNER_DOUBLE_NESTED_SUPERFLUOUS = "parser grammar Foo;\n\n"
             + "compilation_unit : (things (dogs)) (shoes) | ennui;\n";
+
+    private static final String PARSER_LABELED = "grammar UseTest;\n\nuse\n"
+            + "    : UseStatement ( path=usePath | simple=UseIdent ) target=useTarget? UseExit;";
+
+    private static final String PARSER_LABELED_SINGLE = "grammar UseTest;\n\nuse\n"
+            + "    : UseStatement ( path=usePath ) target=useTarget? UseExit;";
+
+    private static final String PARSER_INNER_OR = "grammar RTest;\n\nreserved\n"
+            + "    :   RESERVED (ranges | fieldNames) SEMI;";
+
+    private static final String ORS_INCLUSIVE_A = "grammar OrTest;\n\nlineClose\n"
+            + "    : ( Stuff | Something | Something Weird | Weird | (Weird Stuff));";
+
+    private static final String ORS_INCLUSIVE_B = "grammar OrTest2;lineOpen\n"
+            + "    : ( This Is | I Am | ( You Are ) | ( They Are ));";
+
+    private static final String ORS_INCLUSIVE_C = "grammar OrTest2;lineOpen\n"
+            + "    : Think ( This Is | I Am | ( You Are ) | ( They Are ));";
+
+    private static final String BUG_1 = "grammar HrTest;\n\nHorizontalRule\n"
+            + "    : ( DASH DASH DASH+\n"
+            + "      | ASTERISK ASTERISK ASTERISK+\n"
+            + "      | DASH SPACE DASH SPACE ( DASH SPACE )+\n"
+            + "      | ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* )\n"
+            + "        HorizontalRuleTail;";
+
+    private static final String SEQ_GROUPS = "grammar Groups;\n\n"
+            + "line\n"
+            + "    :  (This Is | I Am | You Are | They Are) \n"
+            + "       (Stuff | Something | Something Weird | Weird | Weird Stuff ) Punc?;\n";
+
+    private static final String SEQ_GROUPS2 = "grammar Groups;\n\n"
+            + "line\n"
+            + "    :  (This Is | I Am | You Are | They Are) \n"
+            + "       (Stuff | Something | Something Weird | Weird | Weird Stuff );\n";
+
+    @Test
+    public void testTwoGroups() throws Exception {
+        testDynamic(SEQ_GROUPS, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+            assertTrue(regs.isEmpty());
+        });
+    }
+
+    @Test
+    public void testTwoGroupsNoFollowing() throws Exception {
+        testDynamic(SEQ_GROUPS2, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+            assertTrue(regs.isEmpty());
+        });
+    }
+
+    @Test
+    public void testBug1() throws Exception {
+        testDynamic(BUG_1, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "HorizontalRule");
+            int st = BUG_1.indexOf('(');
+            int en = BUG_1.lastIndexOf(')');
+            String exp = BUG_1.substring(st, en + 1);
+            assertExpectedRegions(regs, sampleFile, grammar, exp);
+        });
+    }
+
+    @Test
+    public void testInclusiveOrs() throws Exception {
+        testDynamic(ORS_INCLUSIVE_A, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "lineClose");
+            assertExpectedRegions(regs, sampleFile, grammar,
+                    "( Stuff | Something | Something Weird | Weird | (Weird Stuff))",
+                    "(Weird Stuff)");
+        });
+    }
+
+    @Test
+    public void testInclusiveOrs2() throws Exception {
+        testDynamic(ORS_INCLUSIVE_B, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "lineOpen");
+            assertExpectedRegions(regs, sampleFile, grammar, "( This Is | I Am | ( You Are ) | ( They Are ))",
+                    "( You Are )", "( They Are )");
+        });
+    }
+
+    @Test
+    public void testInclusiveOrs3() throws Exception {
+        testDynamic(ORS_INCLUSIVE_C, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "lineOpen");
+            assertExpectedRegions(regs, sampleFile, grammar,
+                    "( You Are )", "( They Are )");
+        });
+    }
+
+    @Test
+    public void testCombinedParserEbnfInSuperfluous() throws Exception {
+        testDynamic(COMBINED_PARSER_EBNF_IN_SUPERFLUOUS, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "compilation_unit");
+            assertExpectedRegions(regs, sampleFile, grammar, "(dogs)", "(shoes)", "(things (dogs)+)");
+        });
+    }
+
+    @Test
+    public void testCombinedParserEbnfs() throws Exception {
+        testDynamic(COMBINED_PARSER_EBNFS, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+        });
+    }
+
+    @Test
+    public void testCombinedParserEbnfs2() throws Exception {
+        testDynamic(COMBINED_PARSER_EBNFS2, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "compilation_unit");
+            assertExpectedRegions(regs, sampleFile, grammar, "(shoes (dogs shoes)*)");
+        });
+    }
+
+    @Test
+    public void testParserInnerOr() throws Exception {
+        testDynamic(PARSER_INNER_OR, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+        });
+    }
+
+    @Test
+    public void testParserLabeled() throws Exception {
+        testDynamic(PARSER_LABELED, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+        });
+    }
+
+    @Test
+    public void testParserLabeledSingle() throws Exception {
+        testDynamic(PARSER_LABELED_SINGLE, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "use");
+            assertExpectedRegions(regs, sampleFile, grammar, "( path=usePath )");
+        });
+    }
 
     @Test
     public void testParserOuterSuperfluous() throws Exception {
@@ -434,7 +580,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         });
     }
 
-    @Test
+//    @Test
     public void testDetection() throws Exception {
         String txt = sampleFile.text();
         System.out.println("TEXT: " + txt);
@@ -469,6 +615,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         allRegions.insert(0, "All detected regions: ");
         if (!unexpected.isEmpty() || !all.isEmpty()) {
             StringBuilder sb = new StringBuilder(allRegions.toString());
+            sb.append("\n in full text: ").append(sf.text());
             if (!all.isEmpty()) {
                 for (String notFound : all) {
                     if (sb.length() > 0) {
@@ -704,7 +851,15 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
                 }
                 if (node instanceof ParserRuleContext) {
                     ParserRuleContext ctx = (ParserRuleContext) node;
-                    IntRange rng = Range.ofCoordinates(ctx.getStart().getStartIndex(), ctx.getStop().getStopIndex() + 1);
+                    Token start = ctx.getStart();
+                    Token stop = ctx.getStop();
+                    if (stop == null) {
+                        stop = start;
+                    }
+                    if (start == null) {
+                        throw new IllegalStateException("NO tokens atatched to " + ctx.getClass().getSimpleName() + " " + ctx);
+                    }
+                    IntRange rng = Range.ofCoordinates(start.getStartIndex(), stop.getStopIndex() + 1);
                     RangeRelation rel = rng.relationTo(region);
                     switch (rel) {
                         case EQUAL:
@@ -749,7 +904,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         Arrays.fill(c, ' ');
         into.append(c);
         into.append(depth + offset).append(". ").append(ctx.getClass().getSimpleName())
-                .append(": ").append(truncate(ctx.getText(), 36)).append("'\n");
+                .append(": '").append(truncate(ctx.getText(), 36)).append("'\n");
         int ct = ctx.getChildCount();
         for (int i = 0; i < ct; i++) {
             ParseTree child = ctx.getChild(i);
@@ -767,7 +922,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         return text;
     }
 
-    @BeforeAll
+//    @BeforeAll
     public static void setup() throws IOException {
         ext = buildExtraction();
     }

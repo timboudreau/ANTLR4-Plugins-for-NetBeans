@@ -35,8 +35,8 @@
             <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.netbeans.api</groupId>
-            <artifactId>org-openide-util-lookup</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>swing-utils</artifactId>
         </dependency>
     </dependencies>
 </project>

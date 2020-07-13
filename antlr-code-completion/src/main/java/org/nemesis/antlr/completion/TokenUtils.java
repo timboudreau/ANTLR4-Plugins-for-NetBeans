@@ -59,11 +59,9 @@ public final class TokenUtils {
      */
     public static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream, Bias bias) {
         if (stream.isEmpty()) {
-            System.out.println("Empty token list");
             return CaretTokenInfo.EMPTY;
         }
         if (stream.size() == 1) {
-            System.out.println("One token in list.");
             Token t = stream.get(0);
             int tokenIndex = caret >= t.getStartIndex() && caret <= t.getStopIndex()
                     ? t.getTokenIndex() : -1;
@@ -71,7 +69,6 @@ public final class TokenUtils {
                 CaretTokenInfo result = new CaretTokenInfo(t, caret, stream);
                 return result.biasedBy(bias);
             }
-            System.out.println("single token on-match");
             return CaretTokenInfo.EMPTY;
         }
         Token first = stream.get(0);
@@ -80,7 +77,6 @@ public final class TokenUtils {
             return caretTokenInfo(caret, stream, first.getTokenIndex(), last.getTokenIndex())
                     .biasedBy(bias);
         }
-        System.out.println("first "+ first + " last " + last + " non-match for " + caret);
         return CaretTokenInfo.EMPTY;
     }
 
@@ -136,20 +132,16 @@ public final class TokenUtils {
             return CaretTokenInfo.EMPTY;
         }
         int tok = findCaretToken(caret, stream, start, stop);
-        System.out.println("  findCaretToken gets " + tok + " for " + start + ":" + stop);
         if (tok < 0) {
-            System.out.println("caret token for " + caret + " < 0 w/ startstop " + start + ":" + stop);
             return CaretTokenInfo.EMPTY;
         }
         if (tok == stream.size() - 1 && stream.size() > 1) {
             Token t = stream.get(tok);
             if (Token.EOF == t.getType()) {
-                System.out.println("  is eof, back up");
                 t = stream.get(tok - 1);
                 return new CaretTokenInfo(t, caret, stream).after();
             }
         }
-        System.out.println("  returning info for " + stream.get(tok));
         return new CaretTokenInfo(stream.get(tok), caret, stream);
     }
 

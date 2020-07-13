@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.parsing.extract;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
+import com.mastfrog.util.strings.LevenshteinDistance;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,7 +32,6 @@ import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.debug.api.Debug;
-import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 

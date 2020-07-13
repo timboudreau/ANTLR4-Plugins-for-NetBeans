@@ -219,10 +219,10 @@ public final class EpsilonAnalysis {
                     tokenParts.add(txt);
                 }
             }
-            CommonTree t = ast;
-            while (t != null) {
-                t = (CommonTree) t.getParent();
-            }
+//            CommonTree t = ast;
+//            while (t != null) {
+//                t = (CommonTree) t.getParent();
+//            }
 
             CommonTree curr = ast;
             while (!(curr instanceof RuleAST) && curr != null) {

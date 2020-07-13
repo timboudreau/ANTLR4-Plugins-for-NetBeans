@@ -243,7 +243,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     .build()
                     .testMember("mimeType")
                     .addPredicate("Mime type", mir -> {
-                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(),  null, mir);
+                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
                         String value = utils().annotationValue(mir, "mimeType", String.class);
                         return mimeTest.test(value);
                     })
@@ -537,7 +537,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         GRAMMAR_SOURCE.qname(),
                         MIME_REGISTRATION.qname(),
                         COMPLETION_PROVIDER.qname(),
-                        INT_PREDICATES.qname(),
                         parser.parserClassFqn(),
                         CRITERIA.qname()
                 ).extending(GRAMMAR_COMPLETION_PROVIDER.simpleName())
@@ -546,8 +545,12 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .addClassArgument("service", COMPLETION_PROVIDER.simpleName());
                 })
                 .withModifier(PUBLIC, FINAL)
+                .conditionally(utils().annotationValues(codeCompletion, "preferredRules", Integer.class).isEmpty()
+                        || utils().annotationValues(codeCompletion, "ignoreTokens", Integer.class).isEmpty(), cbb -> {
+                    cbb.importing(INT_PREDICATES.qname());
+                })
                 .staticImport(lexer.lexerClassFqn() + ".*")
-//                .generateDebugLogCode()
+                //                .generateDebugLogCode()
                 .privateMethod("createParser", mb -> {
                     mb.withModifier(STATIC)
                             .addArgument(DOCUMENT.simpleName(), "doc")
@@ -582,8 +585,19 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 //                                        .withArgument("lexer").withArgument(streamChannel)
 //                                        .inScope().as("CommonTokenStream");
 //
-                                bb.returningInvocationOf("new " + parser.parserClassSimple()).withArgument("stream").inScope();
+                                bb.declare("parser").initializedWithNew(nb -> {
+                                    nb.withArgument("stream").ofType(parser.parserClassSimple());
+                                }).as(parser.parserClassSimple());
 
+                                // XXX fix impoerative NewBuilder - this is wrong
+//                                bb.declare("parser")
+//                                        .initializedWithNew(parser.parserClassSimple())
+//                                        .withArgument("stream")
+//                                        .inScope();
+
+                                bb.invoke("removeErrorListeners").on("parser");
+//                                bb.returningInvocationOf("new " + parser.parserClassSimple()).withArgument("stream").inScope();
+                                bb.returning("parser");
                             });
                 })
                 .field("CRITERIA", fb -> {
@@ -599,7 +613,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             sup = sup.withArgument(generatedClassName + "::createParser");
                             Set<Integer> preferredRules = new TreeSet<>(utils().annotationValues(codeCompletion, "preferredRules", Integer.class));
                             if (!preferredRules.isEmpty()) {
-                                sup = sup.withArgumentFromInvoking("anyOf", ib -> {
+                                // Criteria.rulesMatchPredicate(ANTLRv4Parser.ruleNames,
+                                sup = sup.withArgumentFromInvoking("rulesMatchPredicate", ib -> {
+                                    ib.withArgument().field("ruleNames").of(parser.parserClassSimple());
                                     for (Integer i : preferredRules) {
                                         String fieldName
                                                 = parser.ruleFieldForRuleId(i.intValue());
@@ -611,7 +627,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                                 = parser.parserClassSimple() + "." + parser.ruleFieldForRuleId(i.intValue());
                                         ib = ib.withArgument(fieldQual);
                                     }
-                                    ib.on(INT_PREDICATES.simpleName());
+                                    ib.on(CRITERIA.simpleName());
                                 });
                             } else {
                                 sup = sup.withArgumentFromInvoking("alwaysFalse", ib -> {
@@ -635,7 +651,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
                                 int[] keys = tokenCompletions.keysArray();
                                 for (int i = 0; i < keys.length; i++) {
-                                    avb.number(keys[i]);
+                                    avb.expression(lexer.tokenFieldReference(keys[i]));
+//                                    avb.number(keys[i]);
                                 }
                             });
                             sup.withNewArrayArgument("String", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
@@ -647,13 +664,15 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
                                 int[] keys = ruleSubstitutions.keysArray();
                                 for (int i = 0; i < keys.length; i++) {
-                                    avb.number(keys[i]);
+//                                    avb.number(keys[i]);
+                                    avb.expression(parser.parserClassSimple() + "." + parser.ruleFieldForRuleId(keys[i]));
                                 }
                             });
                             sup.withNewArrayArgument("int", (ClassBuilder.ArrayValueBuilder<?> avb) -> {
                                 Object[] vals = ruleSubstitutions.valuesArray();
                                 for (int i = 0; i < vals.length; i++) {
-                                    avb.number((Integer) vals[i]);
+                                    avb.expression(parser.parserClassSimple() + "." + parser.ruleFieldForRuleId((Integer) vals[i]));
+//                                    avb.number((Integer) vals[i]);
                                 }
                             });
                         };
@@ -1582,6 +1601,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         PARSING_BAG.qname(),
                         UTIL_EXCEPTIONS.qname(),
                         CHANGE_LISTENER.qname(),
+                        SOURCE.qname(),
                         entryPointType,
                         PARSER_FACTORY.qname(),
                         //                        "org.netbeans.modules.parsing.spi.ParserFactory",
@@ -1663,9 +1683,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 });
                             });
                 })
-                .staticBlock(sb -> {
-                    sb.invoke("setLevel").withArgument("Level.ALL").on("LOGGER").endBlock();
-                })
+                //                .staticBlock(sb -> {
+                //                    sb.invoke("setLevel").withArgument("Level.ALL").on("LOGGER").endBlock();
+                //                })
                 .constructor().annotatedWith(SUPPRESS_WARNINGS.simpleName()).addArgument("value", "LeakingThisInConstructor").closeAnnotation().setModifier(PUBLIC)
                 .body(bb -> {
                     if (changeSupport) {
@@ -1691,33 +1711,51 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .body(block -> {
                                 block.statement("assert snapshot != null")
                                         .log("{0}.parse({1}) for {2}", Level.FINER, "this", "snapshot", "task");
+                                block.lineComment("Use a short-lived AtomicBoolean to allow cancellation of");
+                                block.lineComment("the parse to notify the plumbing that it was cancelled");
                                 block.declare("cancelled").initializedWithNew(nb -> {
                                     nb.ofType(ATOMIC_BOOLEAN.simpleName());
                                 }).as(ATOMIC_BOOLEAN.simpleName());
+
                                 block.debugLog("Parse");
-                                block.invoke("put")
-                                        .withArgumentFromInvoking("getSource").on("snapshot")
-                                        .withArgument("cancelled").on("CANCELLATION_FOR_SOURCE")
-                                        //                                        .invoke("set").withArgument("false").on("cancelled")
-                                        .declare("snapshotSource").initializedByInvoking("find")
+                                block.lineComment("Get the source we're going to parse");
+                                block.declare("src").initializedByInvoking("getSource").on("snapshot")
+                                        .as(SOURCE.simpleName());
+                                //                                        .invoke("set").withArgument("false").on("cancelled")
+                                block.declare("snapshotSource").initializedByInvoking("find")
                                         .withArgument("snapshot").withArgument(tokenTypeName + ".MIME_TYPE")
-                                        .on(GRAMMAR_SOURCE.simpleName()).as(GRAMMAR_SOURCE.parametrizedName("?"))
-                                        .declare("bag").initializedByInvoking("forGrammarSource")
+                                        .on(GRAMMAR_SOURCE.simpleName()).as(GRAMMAR_SOURCE.parametrizedName("?"));
+                                block.lineComment("ParsingBag allows independent components of the parsing process");
+                                block.lineComment("to share data");
+                                block.declare("bag").initializedByInvoking("forGrammarSource")
                                         .withArgument("snapshotSource")
-                                        .on(PARSING_BAG.simpleName()).as(PARSING_BAG.simpleName())
-                                        .trying().declare("result").initializedByInvoking("parse")
+                                        .on(PARSING_BAG.simpleName()).as(PARSING_BAG.simpleName());
+                                block.lineComment("Store the source and canceller temporarily in the map of source to canceller");
+                                block.invoke("put")
+                                        .withArgument("src")
+                                        .withArgument("cancelled").on("CANCELLATION_FOR_SOURCE");
+                                block.trying().declare("result").initializedByInvoking("parse")
                                         .withArgument("bag").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
                                         .ifNotNull("result")
-                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
+                                        //                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
                                         .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
                                         .synchronizeOn("this")
                                         .statement("lastResult = result")
                                         .endBlock().endIf()
                                         .catching("Exception")
-                                        .invoke("printStackTrace").withArgument("thrown")
-                                        .on(UTIL_EXCEPTIONS.simpleName())
+                                        .log("Exception thrown parsing \" + src + \"", Level.SEVERE, "thrown")
+                                        //                                        .invoke("printStackTrace").withArgument("thrown")
+                                        //                                        .on(UTIL_EXCEPTIONS.simpleName())
+                                        .fynalli().synchronizeOn("CANCELLATION_FOR_SOURCE")
+                                        .iff(ifb -> {
+                                            ifb.invoke("get").withArgument("src").on("CANCELLATION_FOR_SOURCE")
+                                                    .equals().expression("cancelled").endCondition()
+                                                    .invoke("remove").withArgument("src")
+                                                    .on("CANCELLATION_FOR_SOURCE").endIf();
+                                        })
+                                        .endBlock()
                                         //                                        .statement("Exceptions.printStackTrace(thrown)")
-                                        .endTryCatch().endBlock();
+                                        .endBlock();
                             });
                 })
                 .method("parse", mb -> {
@@ -1742,6 +1780,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         //                                        .initializedWith("new CommonTokenStream(tokenSource, " + streamChannel + ")")
                                         .as(COMMON_TOKEN_STREAM.simpleName());
                                 bb.declare("parser").initializedWith("new " + parser.parserClassSimple() + "(stream)").as(parser.parserClassSimple());
+                                bb.lineComment("By default, ANTLR parsers come with a listener that writes to stdout attached.  Remove it");
+                                bb.invoke("removeErrorListeners").on("parser");
                                 bb.blankLine();
                                 bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
                                 bb.lineComment("configure the parser or lexer before using them.");
@@ -1775,23 +1815,50 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.lineComment("Run extraction, pulling out data needed to create navigator panels,");
                                 bb.lineComment("code folds, etc.  Anything needing the extracted sets of regions and data");
                                 bb.lineComment("can get it from the parse result");
-                                bb.declare("extraction").initializedByInvoking("extract")
+
+                                bb.declare("extraction").as(EXTRACTION.simpleName());
+
+                                bb.trying().assign("extraction").toInvocation("extract")
                                         .withArgument("tree")
                                         .withArgumentFromInvoking("source").on("bag")
-                                        .withArgument("cancelled")
                                         .withArgument("tokenSource")
-                                        //.withArgument("bag.source()")
-                                        //                                        .withLambdaArgument().body().returning("new CommonTokenStream(lexer, -1)").endBlock()
-                                        .on("extractor").as("Extraction");
-                                bb.lineComment("// discard the cached tokens used for token extraction");
-                                bb.invoke("dispose").on("tokenSource");
-                                bb.blankLine();
+                                        .on("extractor")
+                                        .fynalli()
+                                        .lineComment("discard the cached tokens used for token extraction")
+                                        .invoke("dispose").on("tokenSource")
+                                        .endBlock();
+
+//                                bb.trying(tri -> {
+//                                    tri.assign("extraction").toInvocation("extract")
+//                                            .withArgument("tree")
+//                                            .withArgumentFromInvoking("source").on("bag")
+//                                            .withArgument("tokenSource")
+//                                            .on("extractor");
+//                                    tri.fynalli(fin -> {
+//                                        fin.lineComment("discard the cached tokens used for token extraction");
+//                                        fin.invoke("dispose").on("tokenSource");
+//                                        // XXX should not be needed
+//                                        fin.endBlock();
+//                                    });
+//                                });
+//                                bb.declare("extraction").initializedByInvoking("extract")
+//                                        .withArgument("tree")
+//                                        .withArgumentFromInvoking("source").on("bag")
+//                                        .withArgument("cancelled")
+//                                        .withArgument("tokenSource")
+//                                        .on("extractor").as("Extraction");
+//                                bb.lineComment("discard the cached tokens used for token extraction");
+//                                bb.invoke("dispose").on("tokenSource");
+//                                bb.blankLine();
                                 bb.lineComment("Now create a parser result and object to populate it, and allow the");
                                 bb.lineComment("helper's hook method to add anything it needs, such as semantic error");
                                 bb.lineComment("checking, or other data resolved from the extraction or parse tree - ");
                                 bb.lineComment("this allows existing Antlr code to be used.");
                                 bb.declare("result").initializedWith("new AntlrParseResult[1]").as("AntlrParseResult[]");
                                 bb.declare("thrown").initializedWith("new Exception[1]").as("Exception[]");
+                                bb.lineComment("Doing this via " + prefix + "Hierarchy simply ensures that");
+                                bb.lineComment("we don't publicly expose a method for constructing parser results");
+                                bb.lineComment("which ought to be private to this module.");
                                 bb.invoke("newParseResult").withArgument("snapshot")
                                         .withArgument("extraction").withLambdaArgument().withArgument("pr").withArgument("contents").body()
                                         .trying()
@@ -2547,10 +2614,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .method("setInitialStackedModeNumber").override().withModifier(PUBLIC).addArgument(proxy.lexerClassSimple(), "lexer")
                 .addArgument("int", "modeNumber").body(
                 bb -> {
+                    // XXX proxy should detect if there are multiple mode names and
+                    // if so, warn the module author that they should add these methods,
+                    // if they are still used
                     if (proxy.hasInitialStackedModeNumberMethods(utils())) {
-                        bb.lineComment("This method will be exposed on the implementation type")
-                                .lineComment("but is not exposed in the parent class Lexer")
-                                .statement("lexer.setInitialStackedModeNumber(modeNumber)");
+                        bb.lineComment("This method does not exist by default in ANTLR lexers, but is");
+                        bb.lineComment("detected by the annotation processor, and can be used to ensure correct");
+                        bb.lineComment("lexer restarting in the presence of a lexer grammar that has mode.");
+                        bb.statement("lexer.setInitialStackedModeNumber(modeNumber)");
                     } else {
                         bb.lineComment("If the lexer contains a @lexer::members block defining a getter/setter pair for initialStackedModeNumber");
                         bb.lineComment("an implementation will be generated for this method to call it, e.g.");
@@ -2561,14 +2632,18 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         bb.lineComment("public void setInitialStackedModeNumber(int initialStackedModeNumber) {");
                         bb.lineComment("    this.initialStackedModeNumber = initialStackedModeNumber;");
                         bb.lineComment("}");
+                        bb.lineComment(" ");
+                        bb.lineComment("It is only needed in the case of lexer grammars that have modes, to ensure");
+                        bb.lineComment("NetBeans restartable lexers restart lexing in the correct state");
                     }
                 })
                 .overridePublic("getInitialStackedModeNumber").returning("int").addArgument(proxy.lexerClassSimple(), "lexer")
                 .body(bb -> {
                     if (proxy.hasInitialStackedModeNumberMethods(utils())) {
-                        bb.lineComment("This method will be exposed on the implementation type")
-                                .lineComment("but is not exposed in the parent class Lexer")
-                                .returning("lexer.getInitialStackedModeNumber()").endBlock();
+                        bb.lineComment("This method does not exist by default in ANTLR lexers, but is");
+                        bb.lineComment("detected by the annotation processor, and can be used to ensure correct");
+                        bb.lineComment("lexer restarting in the presence of a lexer grammar that has mode.");
+                        bb.returning("lexer.getInitialStackedModeNumber()").endBlock();
                     } else {
                         bb.lineComment("If the lexer contains a @lexer::members block defining a getter/setter pair for initialStackedModeNumber");
                         bb.lineComment("an implementation will be generated for this method to call it, e.g.");
@@ -2579,6 +2654,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         bb.lineComment("public void setInitialStackedModeNumber(int initialStackedModeNumber) {");
                         bb.lineComment("    this.initialStackedModeNumber = initialStackedModeNumber;");
                         bb.lineComment("}");
+                        bb.lineComment("It is only needed in the case of lexer grammars that have modes, to ensure");
+                        bb.lineComment("NetBeans restartable lexers restart lexing in the correct state");
                         bb.returning(-1);
                     }
                 })
@@ -2588,6 +2665,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .addArgument("Extraction", "extraction")
                             .addArgument(callbackType, "receiver")
                             .body(bb -> {
+                                bb.lineComment("This method simply allows classes in this package to have access to");
+                                bb.lineComment("the createParseResult() super method of " + NB_LEXER_ADAPTER.simpleName());
+                                bb.lineComment("without exposing it to any code that can see this package");
                                 bb.invoke("createParseResult")
                                         .withArgument("snapshot")
                                         .withArgument("extraction")

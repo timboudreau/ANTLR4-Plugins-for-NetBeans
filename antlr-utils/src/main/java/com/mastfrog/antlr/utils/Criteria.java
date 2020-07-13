@@ -16,6 +16,7 @@
 package com.mastfrog.antlr.utils;
 
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.function.IntPredicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -94,6 +95,62 @@ public final class Criteria {
      */
     public Criterion noneOf(int... ints) {
         return Criterion.noneOf(vocab, ints);
+    }
+
+    public static IntPredicate rulesMatchPredicate(String[] ruleNames, int... rules) {
+        return new RulesMatch(ruleNames, rules);
+    }
+
+    private static final class RulesMatch implements IntPredicate {
+
+        private final BitSet bits;
+        private final String[] ruleNames;
+
+        RulesMatch(String[] ruleNames, int... rules) {
+            this.ruleNames = ruleNames;
+            bits = new BitSet(ruleNames.length);
+            for (int i = 0; i < rules.length; i++) {
+                bits.set(rules[i]);
+            }
+        }
+
+        @Override
+        public boolean test(int value) {
+            return bits.get(value);
+        }
+
+        @Override
+        public int hashCode() {
+            return bits.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj ? true : obj == null ? false : !(obj instanceof RulesMatch) ? false
+                    : ((RulesMatch) obj).bits.equals(bits);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("Rules(");
+            for (int bit = bits.nextSetBit(0); bit >= 0; bit = bits.nextSetBit(bit + 1)) {
+                String name = null;
+                if (sb.length() > 6) {
+                    sb.append(", ");
+                }
+                if (bit < ruleNames.length) {
+                    name = ruleNames[bit];
+                    if (name != null) {
+                        sb.append(name).append('[').append(bit).append(']');
+                    } else {
+                        sb.append(bit);
+                    }
+                } else {
+                    sb.append(bit);
+                }
+            }
+            return sb.append(')').toString();
+        }
     }
 
     // Criterion implementation types placed here so they don't become

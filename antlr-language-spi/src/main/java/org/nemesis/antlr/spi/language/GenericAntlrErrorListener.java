@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import javax.swing.text.Document;
-import javax.swing.text.Element;
-import javax.swing.text.StyledDocument;
 import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
@@ -32,8 +30,9 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.netbeans.api.editor.document.LineDocument;
+import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.modules.parsing.api.Snapshot;
-import org.openide.text.NbDocument;
 
 /**
  *
@@ -53,20 +52,32 @@ final class GenericAntlrErrorListener implements ANTLRErrorListener, Supplier<Li
     }
 
     static boolean offsetsOf( Document doc, Token tok, IntBiConsumer startEnd ) {
-        if ( doc instanceof StyledDocument ) { // always will be outside some tests
-            StyledDocument sdoc = ( StyledDocument ) doc;
-            Element el = NbDocument.findLineRootElement( sdoc );
-            int lineNumber = tok.getLine() >= el.getElementCount()
-                                     ? el.getElementCount() - 1 : tok.getLine();
-            int lineOffsetInDocument = NbDocument.findLineOffset( ( StyledDocument ) doc, lineNumber );
-            int errorStartOffset = Math.max( 0, lineOffsetInDocument + tok.getLine() );
-            int errorEndOffset = Math.min( doc.getLength() - 1,
-                                           errorStartOffset + ( tok.getStopIndex() - tok
-                                           .getStartIndex() ) + 1 );
-            startEnd.accept( errorStartOffset, errorEndOffset );
-            return true;
+        LineDocument lineDoc = LineDocumentUtils.as( doc, LineDocument.class );
+        if (lineDoc == null) {
+            return false;
         }
-        return false;
+        int lineCount = LineDocumentUtils.getLineCount( lineDoc );
+
+        int lineNumber = tok.getLine() >= lineCount ? Math.max( 0, lineCount - 1 )
+                                 : tok.getLine();
+        int lineOffsetInDocument = LineDocumentUtils.getLineStartFromIndex( lineDoc, lineNumber );
+        int errorStartOffset = Math.max( 0, lineOffsetInDocument + tok.getCharPositionInLine() );
+
+        int len = ( tok.getStopIndex() - tok.getStartIndex() ) + 1;
+        int errorEndOffset = Math.min( doc.getLength() - 1, errorStartOffset + len );
+        startEnd.accept( errorStartOffset, errorEndOffset );
+        return true;
+//            StyledDocument sdoc = ( StyledDocument ) doc;
+//            Element el = NbDocument.findLineRootElement( sdoc );
+//            int lineNumber = tok.getLine() >= el.getElementCount()
+//                                     ? el.getElementCount() - 1 : tok.getLine();
+//            int lineOffsetInDocument = NbDocument.findLineOffset( ( StyledDocument ) doc, lineNumber );
+//            int errorStartOffset = Math.max( 0, lineOffsetInDocument + tok.getLine() );
+//            int errorEndOffset = Math.min( doc.getLength() - 1,
+//                                           errorStartOffset + ( tok.getStopIndex() - tok
+//                                           .getStartIndex() ) + 1 );
+//            startEnd.accept( errorStartOffset, errorEndOffset );
+//            return true;
     }
 
     @Override

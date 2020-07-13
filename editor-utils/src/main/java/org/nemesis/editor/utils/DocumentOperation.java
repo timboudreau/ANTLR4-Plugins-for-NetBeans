@@ -246,6 +246,26 @@ public final class DocumentOperation<T, E extends Exception> {
         }
     }
 
+    public void runOp(BadLocationRunnable run) {
+        DocumentProcessor<T, E> wrapped = new DocumentProcessor<T, E>() {
+            @Override
+            public T get(DocumentOperationContext ctx) throws E, BadLocationException {
+                run.run();
+                return null;
+            }
+
+            public String toString() {
+                return "Runnable(" + run + ")";
+            }
+        };
+        try {
+            operate(wrapped);
+        } catch (Exception e) {
+            DocumentOperator.LOG.log(Level.SEVERE, run.toString(), e);
+        }
+    }
+
+
     public void run(Consumer<DocumentOperationContext> r) {
         DocumentProcessor<T, E> wrapped = new DocumentProcessor<T, E>() {
             @Override

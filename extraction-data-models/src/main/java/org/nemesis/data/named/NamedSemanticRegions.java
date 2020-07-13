@@ -44,10 +44,10 @@ import org.nemesis.data.impl.ArrayUtil;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
 import com.mastfrog.abstractions.list.IndexedResolvable;
+import static com.mastfrog.util.strings.LevenshteinDistance.sortByDistance;
 import java.util.function.Consumer;
 import org.nemesis.data.impl.ArrayUtil.Bias;
 import org.nemesis.data.impl.SizedArrayValueSupplier;
-import static org.nemesis.distance.LevenshteinDistance.sortByDistance;
 
 /**
  * Maps pairs of start/end offsets to a set of strings. Use with care: in

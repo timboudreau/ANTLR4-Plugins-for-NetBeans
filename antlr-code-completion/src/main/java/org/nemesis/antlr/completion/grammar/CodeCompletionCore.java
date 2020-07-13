@@ -168,6 +168,7 @@ public class CodeCompletionCore {
         this.atn = parser.getATN();
         this.vocabulary = parser.getVocabulary();
         this.ruleNames = parser.getRuleNames();
+        System.out.println("PREFERRED RULES: " + preferredRules);
         if (preferredRules != null) {
             this.preferredRules = preferredRules;
         } else {
@@ -233,8 +234,8 @@ public class CodeCompletionCore {
         TokenStream tokenStream = this.parser.getInputStream();
 
         int currentIndex = tokenStream.index();
-        System.out.println("token stream " + tokenStream + " current index " + currentIndex + " tokenStartIndex " + this.tokenStartIndex
-                + " caretTokenIndex " + caretTokenIndex);
+//        System.out.println("token stream " + tokenStream + " current index " + currentIndex + " tokenStartIndex " + this.tokenStartIndex
+//                + " caretTokenIndex " + caretTokenIndex);
 
         if (currentIndex != 0) {
             tokenStream.seek(Math.max(0, this.tokenStartIndex));
@@ -249,7 +250,7 @@ public class CodeCompletionCore {
             CCLog.log(this, token);
             toks.add(token);
             if (token.getTokenIndex() >= caretTokenIndex || token.getType() == Token.EOF) {
-                System.out.println("  STOP LOOKING FOR TOKEN AT " + token + " offset " + offset);
+//                System.out.println("  STOP LOOKING FOR TOKEN AT " + token + " offset " + offset);
                 break;
             }
         }
@@ -263,7 +264,6 @@ public class CodeCompletionCore {
         CCLog.log(this, "Start", (this.tokens.isEmpty() ? "emptytokens" : this.tokens.get(this.tokens.size() - 1)), " toks ", this.tokens.size());
         IntList callStack = IntList.create(64);
         int startRule = context != null ? context.getRuleIndex() : 0;
-        System.out.println("START RULE " + startRule);
         this.processRule(this.atn.ruleToStartState[startRule], 0, callStack, "\n");
 
         tokenStream.seek(Math.max(0, currentIndex));
@@ -790,7 +790,7 @@ public class CodeCompletionCore {
         }
     }
 
-    private String[] atnStateTypeMap = new String[]{
+    private static final String[] atnStateTypeMap = new String[]{
         "invalid",
         "basic",
         "rule start",

@@ -15,9 +15,12 @@
  */
 package org.nemesis.antlr.file.completion;
 
+import com.mastfrog.antlr.code.completion.spi.CaretToken;
 import com.mastfrog.antlr.code.completion.spi.Completer;
+import com.mastfrog.antlr.code.completion.spi.CompletionItems;
 import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
 import com.mastfrog.util.collections.IntList;
+import com.mastfrog.util.strings.LevenshteinDistance;
 import com.mastfrog.util.strings.Strings;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -27,7 +30,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
@@ -42,7 +44,6 @@ import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
-import org.nemesis.distance.LevenshteinDistance;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.SingletonEncounters;
@@ -58,18 +59,36 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = CompletionsSupplier.class, position = 1)
 public class SimpleCompletionsSupplier extends CompletionsSupplier {
 
-    public SimpleCompletionsSupplier() {
-        System.out.println("CREATE SIMPLE COMPS SUPPLIER");
-    }
-
     @Override
     public Completer forDocument(Document document) {
-        System.out.println("  FOR DOCUMENT " + document);
         if (ANTLR_MIME_TYPE.equals(NbEditorUtilities.getMimeType(document))) {
-            System.out.println("   MATCHED");
             return AntlrCompleter.find(document);
         }
         return noop();
+    }
+
+    @SuppressWarnings("unchecked")
+    static Extraction extractionFor(Document doc) {
+        WeakReference<Extraction> cached = (WeakReference<Extraction>) doc.getProperty("_ext");
+        Extraction result = null;
+        if (cached != null) {
+            result = cached.get();
+            if (result != null) {
+                if (!result.isSourceProbablyModifiedSinceCreation()) {
+                    return result;
+                }
+            }
+        }
+        try {
+            result = NbAntlrUtils.parseImmediately(doc);
+            if (result != null) {
+                doc.putProperty("_ext", new WeakReference<>(result));
+            }
+
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        }
+        return result;
     }
 
     static class AntlrCompleter implements Completer {
@@ -78,30 +97,6 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
 
         public AntlrCompleter(Document doc) {
             this.doc = doc;
-        }
-
-        @SuppressWarnings("unchecked")
-        static Extraction extractionFor(Document doc) {
-            WeakReference<Extraction> cached = (WeakReference<Extraction>) doc.getProperty("_ext");
-            Extraction result = null;
-            if (cached != null) {
-                result = cached.get();
-                if (result != null) {
-                    if (!result.isSourceProbablyModifiedSinceCreation()) {
-                        return result;
-                    }
-                }
-            }
-            try {
-                result = NbAntlrUtils.parseImmediately(doc);
-                if (result != null) {
-                    doc.putProperty("_ext", new WeakReference<>(result));
-                }
-
-            } catch (Exception ex) {
-                Exceptions.printStackTrace(ex);
-            }
-            return result;
         }
 
         static AntlrCompleter find(Document doc) {
@@ -165,13 +160,16 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         }
 
         @Override
-        public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
-                String optionalSuffix, IntList rulePath, BiConsumer<String, Enum<?>> names) {
+        public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) throws Exception {
+            String optionalPrefix = nullBlanks(token.leadingTokenText());
+            String optionalSuffix = nullBlanks(token.trailingTokenText());
             System.out.println("NAMES FOR RULE " + ANTLRv4Parser.ruleNames[parserRuleId]
                     + " pfx '" + optionalPrefix + "' sfx '" + optionalSuffix + "'");
             findNames(parserRuleId, nullBlanks(optionalPrefix), maxResultsPerKey,
-                    nullBlanks(optionalSuffix), rulePath, names);
+                    nullBlanks(optionalSuffix), rulePath, addTo);
+
         }
+
 
         private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
             recursivelyFindRegionSets(parserRuleId, ext, new HashSet<>(), use, types);
@@ -192,7 +190,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         }
 
         public void findNamesForModes(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
-                String optionalSuffix, IntList rulePath, Extraction ext, BiConsumer<String, Enum<?>> names) {
+                String optionalSuffix, IntList rulePath, Extraction ext, CompletionItems names) {
             if (optionalPrefix != null && optionalPrefix.trim().equals("(")) {
                 optionalPrefix = null;
             }
@@ -201,7 +199,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
             }
             NamedSemanticRegions<LexerModes> regions = ext.namedRegions(AntlrKeys.MODES);
             Consumer<NamedSemanticRegion<LexerModes>> c = mode -> {
-                names.accept(mode.name(), mode.kind());
+                names.add(mode.name(), mode.kind());
             };
             if (optionalPrefix != null) {
                 regions.matchingPrefix(optionalPrefix, c);
@@ -213,7 +211,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         }
 
         public void findNames(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
-                String optionalSuffix, IntList rulePath, BiConsumer<String, Enum<?>> names) {
+                String optionalSuffix, IntList rulePath, CompletionItems names) {
             Extraction ext = extractionFor(doc);
             if (ext != null) {
                 switch (parserRuleId) {
@@ -222,7 +220,6 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                         findNamesForModes(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, rulePath, ext, names);
                         return;
                 }
-                System.out.println("FIND NAMES " + ext.source());
                 Set<NamedSemanticRegions<RuleTypes>> use = new HashSet<>();
                 Set<RuleTypes> types = EnumSet.noneOf(RuleTypes.class);
                 recursivelyFindRegionSets(parserRuleId, ext, use, types);
@@ -258,14 +255,19 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                         });
                     }
                 }
-                System.out.println("COLLECTED " + items.size() + " ITEMS");
                 List<CompEntry> all = new ArrayList<>(items);
                 Collections.sort(all);
                 if (all.size() > maxResultsPerKey) {
 //                    all = all.subList(0, maxResultsPerKey);
                 }
+                float minScore = Float.MAX_VALUE;
+                float maxScore = Float.MIN_VALUE;
                 for (CompEntry ce : all) {
-                    names.accept(ce.name, ce.type);
+                    minScore = Math.min(minScore, ce.score());
+                    maxScore = Math.max(maxScore, ce.score());
+                }
+                for (CompEntry ce : all) {
+                    names.add(ce.name, ce.type, ce.contextualScore(minScore, maxScore));
                 }
             }
         }

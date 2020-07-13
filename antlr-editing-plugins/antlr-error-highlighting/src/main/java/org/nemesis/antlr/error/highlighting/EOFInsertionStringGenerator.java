@@ -75,7 +75,8 @@ final class EOFInsertionStringGenerator extends ANTLRv4BaseVisitor<CharSequence>
     private void finishResult() {
         switch (tokenTypePrecedingTokenPrecedingSemi) {
             case ANTLRv4Lexer.OR:
-                sb.append(" | EOF");
+                sb.append("| EOF");
+                break;
             default:
                 sb.append(" EOF");
         }

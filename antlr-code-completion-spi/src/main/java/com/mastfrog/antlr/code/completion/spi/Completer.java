@@ -37,7 +37,7 @@ public interface Completer {
      */
     default void namesForRule(int parserRuleId, String optionalPrefix,
             int maxResultsPerKey, String optionalSuffix,
-            BiConsumer<String, Enum<?>> names) {
+            BiConsumer<String, Enum<?>> names) throws Exception {
         System.out.println("namesForRule noList for " + parserRuleId);
     }
 
@@ -56,7 +56,7 @@ public interface Completer {
      */
     default void namesForRule(int parserRuleId, String optionalPrefix,
             int maxResultsPerKey, String optionalSuffix, IntList rulePath,
-            BiConsumer<String, Enum<?>> names) {
+            BiConsumer<String, Enum<?>> names) throws Exception {
         System.out.println("namesForRule withList for " + parserRuleId);
         namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey,
                 optionalSuffix, names);
@@ -72,9 +72,24 @@ public interface Completer {
      * @param addTo A CompletionItems to add to
      */
     default void apply(int parserRuleId, CaretToken token, int maxResultsPerKey,
-            IntList rulePath, CompletionItems addTo) {
+            IntList rulePath, CompletionItems addTo) throws Exception {
         System.out.println("APPLY " + parserRuleId);
         namesForRule(parserRuleId, token.leadingTokenText(), maxResultsPerKey,
                 token.trailingTokenText(), rulePath, addTo::add);
+    }
+
+    /**
+     * Each completion item from a completer can have a score relative to other
+     * items it returned (for example, the Levenshtein distance of a string to
+     * the one under the caret); a given completer may also produce more or less
+     * important results than others, so the value returned here is used to
+     * multiply the scores of all items produced by this completer after they
+     * are normalized and before they are merged with those produced by other
+     * completers, and sorted.
+     *
+     * @return A score, default 1 (1 = do nothing)
+     */
+    default float scoreMultiplier() {
+        return 1;
     }
 }

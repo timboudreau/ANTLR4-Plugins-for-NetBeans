@@ -18,6 +18,8 @@ package org.nemesis.antlr.error.highlighting;
 import com.mastfrog.antlr.utils.TreeUtils;
 import com.mastfrog.antlr.utils.TreeUtils.TreeNodeSearchResult;
 import static com.mastfrog.antlr.utils.TreeUtils.ancestor;
+import static com.mastfrog.antlr.utils.TreeUtils.hasSibling;
+import static com.mastfrog.antlr.utils.TreeUtils.isAncestor;
 import static com.mastfrog.antlr.utils.TreeUtils.isSingleChildAncestors;
 import static com.mastfrog.antlr.utils.TreeUtils.nextSibling;
 import static com.mastfrog.antlr.utils.TreeUtils.prevSibling;
@@ -57,6 +59,7 @@ import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
 import org.nemesis.antlr.ANTLRv4Parser.LexerCommandContext;
 import org.nemesis.antlr.ANTLRv4Parser.LexerRuleAltContext;
 import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAlternativeContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleElementContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
 
@@ -164,28 +167,132 @@ public class ChannelsAndSkipExtractors {
                 .finishRegionExtractor();
     }
 
-    static Integer checkSuperfluous(ANTLRv4Parser.BlockContext block) {
-        if (!(block.getParent() instanceof EbnfContext) || ((block.getParent() instanceof EbnfContext && ((EbnfContext) block.getParent()).ebnfSuffix() == null))) {
+    static boolean containsOrs(BlockContext block) {
+        ANTLRv4Parser.AltListContext ctx = block.altList();
+        if (ctx == null || ctx.getChildCount() == 0) {
+            return false;
+        }
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode term = (TerminalNode) child;
+                if (term.getSymbol() != null && term.getSymbol().getType() == ANTLRv4Lexer.OR) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasEbnfs(BlockContext block) {
+        if (!(block.getParent() instanceof EbnfContext)) {
+            return false;
+        }
+        EbnfContext ebnfContext = (EbnfContext) block.getParent();
+
+        if (ebnfContext.ebnfSuffix() == null) {
+            return false;
+        }
+        EbnfSuffixContext suffix = ebnfContext.ebnfSuffix();
+        return suffix.STAR() != null || suffix.PLUS() != null || suffix.QUESTION() != null;
+    }
+
+    static boolean isSingleClause(BlockContext block) {
+        ANTLRv4Parser.AltListContext ctx = block.altList();
+        if (ctx == null || ctx.getChildCount() == 0) {
+            return false;
+        }
+        List<ANTLRv4Parser.ParserRuleAlternativeContext> alts = ctx.parserRuleAlternative();
+        if (alts == null || alts.size() < 2) {
+            return true;
+        }
+        return false;
+    }
+
+    static boolean isFinalClauseInParentBlock(BlockContext block) {
+        BlockContext anc = ancestor(block, BlockContext.class);
+        if (anc != null) {
+            ANTLRv4Parser.AltListContext alts = anc.altList();
+            if (alts != null && !alts.isEmpty()) {
+                List<ParserRuleAlternativeContext> clauses = alts.parserRuleAlternative();
+                if (clauses != null) {
+                    ParserRuleAlternativeContext ctx = clauses.get(clauses.size() - 1);
+                    return isAncestor(ctx, block);
+                }
+            }
+        }
+        return true;
+    }
+
+    static int blockAlternativeCount(BlockContext block) {
+        return block.altList().parserRuleAlternative().size();
+    }
+
+    static int childSiblingCount(BlockContext block) {
+        int result = 0;
+        for (ParserRuleAlternativeContext alt : block.altList().parserRuleAlternative()) {
+            result += alt.parserRuleElement().size();
+        }
+        return result;
+    }
+
+    static int ancestorBlockSize(BlockContext block) {
+        BlockContext anc = ancestor(block, BlockContext.class);
+        if (anc != null) {
+            ANTLRv4Parser.AltListContext alts = anc.altList();
+            if (alts != null && !alts.isEmpty()) {
+                List<ParserRuleAlternativeContext> clauses = alts.parserRuleAlternative();
+                return clauses == null ? 0 : clauses.size() - 1;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Just returns a suitable unique id for an error message, if
+     * the parens can be eliminated.
+     *
+     * @param block The block
+     * @return An id or null
+     */
+    static Integer checkSuperfluous(BlockContext block) {
+        boolean containsOrs = containsOrs(block);
+
+        // If no ors, an ebnf on the block is ok
+        boolean hasEbnf = hasEbnfs(block);
+        boolean single = isSingleClause(block);
+//        boolean isFinal = isFinalClauseInParentBlock(block);
+//        int altCount = blockAlternativeCount(block);
+//        int ancestorBlockSize = ancestorBlockSize(block);
+        int childSiblingCount = childSiblingCount(block);
+
+        if (!containsOrs && single) {
+            if (!hasEbnf || childSiblingCount <= 1) {
+                return spId(block);
+            }
+        }
+
+        if (!hasEbnf || (hasEbnf && !containsOrs)) {
             if (block.getParent() instanceof ANTLRv4Parser.LabeledParserRuleElementContext) {
                 LabeledParserRuleElementContext ctx = (LabeledParserRuleElementContext) block.getParent();
                 if (ctx.identifier() != null) {
                     return null;
                 }
             }
-            ParserRuleElementContext sibling = TreeUtils.findRightAdjacentSiblingOfOutermostAncestor(block, ParserRuleElementContext.class, ParserRuleElementContext.class, ParserRuleSpecContext.class, GrammarFileContext.class);
-            // parentheses may be needed preceding an action block to guarantee
-            // it runs for any of the parenthesized elements.
-            // XXX could refine this to only be active if an OR token is encountered
-            // within the parentheses
-            if (sibling != null && sibling.actionBlock() != null) {
-                return null;
+            ParserRuleElementContext altAncestor = ancestor(block, ParserRuleElementContext.class);
+            if (altAncestor != null) {
+                if (hasSibling(altAncestor) && (containsOrs | hasEbnf)) {
+                    return null;
+                }
             }
             if (hasSiblingAlternatives(block)) {
                 return null;
             }
             return spId(block);
         }
-        if (hasSiblingAlternatives(block)) return spId(block);
+        if (!containsOrs && hasSiblingAlternatives(block)) {
+            return spId(block);
+        }
         return null;
     }
 
@@ -218,15 +325,15 @@ public class ChannelsAndSkipExtractors {
 
                 if (sib instanceof TerminalNode) {
                     TerminalNode term = (TerminalNode) sib;
-                    switch(term.getSymbol().getType()) {
-                        case ANTLRv4Lexer.OR :
+                    switch (term.getSymbol().getType()) {
+                        case ANTLRv4Lexer.OR:
                             return true;
                     }
                 }
                 if (psib instanceof TerminalNode) {
                     TerminalNode term = (TerminalNode) psib;
-                    switch(term.getSymbol().getType()) {
-                        case ANTLRv4Lexer.OR :
+                    switch (term.getSymbol().getType()) {
+                        case ANTLRv4Lexer.OR:
                             return true;
                     }
                 }
@@ -248,7 +355,6 @@ public class ChannelsAndSkipExtractors {
                 }
             }
         }
-
         return result;
     }
 
