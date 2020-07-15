@@ -240,7 +240,9 @@ public final class AntlrExtractor {
                 // Just collect the offsets of all BlockContext trees, in a nested data structure
                 .extractingRegionsUnder(AntlrKeys.BLOCKS)
                 .summingTokensFor(ANTLRv4Lexer.VOCABULARY)
-                .whenRuleType(ANTLRv4Parser.BlockContext.class)
+                .whenRuleType(ANTLRv4Parser.AltListContext.class)
+                .extractingBoundsFromRule()
+                .whenRuleType(ANTLRv4Parser.LexerRuleBlockContext.class)
                 .extractingBoundsFromRule()
                 .finishRegionExtractor()
                 // More complex nested region extraction for EBNF contexts, so we can progressively

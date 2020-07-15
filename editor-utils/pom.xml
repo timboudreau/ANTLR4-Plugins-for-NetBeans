@@ -17,7 +17,10 @@
                 <extensions>true</extensions>
                 <configuration>
                     <publicPackages>
-                        <publicPackage>org.nemesis.editor.utils</publicPackage>
+                        <publicPackage>org.nemesis.editor.edit</publicPackage>
+                        <publicPackage>org.nemesis.editor.ops</publicPackage>
+                        <publicPackage>org.nemesis.editor.function</publicPackage>
+                        <publicPackage>org.nemesis.editor.position</publicPackage>
                     </publicPackages>
                     <useOSGiDependencies>false</useOSGiDependencies>
                     <moduleType>autoload</moduleType>
@@ -29,7 +32,7 @@
                 <version>2.22.2</version>
                 <configuration>
                     <systemPropertyVariables>
-                        <!--<java.awt.headless>false</java.awt.headless>-->
+                        <java.awt.headless>true</java.awt.headless>
                         <netbeans.moduleitem.dontverifyclassloader>true</netbeans.moduleitem.dontverifyclassloader>
                     </systemPropertyVariables>
                 </configuration>
@@ -40,6 +43,14 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-loaders</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-util-lookup</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

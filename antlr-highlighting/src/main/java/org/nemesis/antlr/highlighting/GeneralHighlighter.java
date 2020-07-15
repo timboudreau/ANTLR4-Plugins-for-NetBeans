@@ -230,7 +230,11 @@ abstract class GeneralHighlighter<T> implements Runnable {
                 // when the document picks up changes fired by the bag
                 // on a non-EQ thread
                 EventQueue.invokeLater(() -> {
-                    papasGotA.setHighlights(brandNewBag);
+                    try {
+                        papasGotA.setHighlights(brandNewBag);
+                    } finally {
+                        brandNewBag.discard();
+                    }
                 });
             }
         } else {

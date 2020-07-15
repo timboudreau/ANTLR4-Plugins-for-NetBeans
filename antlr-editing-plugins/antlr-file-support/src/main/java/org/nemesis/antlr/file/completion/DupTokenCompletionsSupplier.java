@@ -31,11 +31,11 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import org.nemesis.editor.utils.BadLocationSupplier;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.text.NbDocument;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.ServiceProvider;
+import org.nemesis.editor.function.DocumentSupplier;
 
 /**
  *
@@ -174,7 +174,7 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
                                     .leftMargin(12).italic();
                         });
             }).build((JTextComponent comp, StyledDocument doc1) -> {
-                BadLocationSupplier<Void, RuntimeException> sp = () -> {
+                DocumentSupplier<Void, RuntimeException> sp = () -> {
                     doc1.insertString(pos.getOffset(), insertText.get(), null);
                     return null;
                 };

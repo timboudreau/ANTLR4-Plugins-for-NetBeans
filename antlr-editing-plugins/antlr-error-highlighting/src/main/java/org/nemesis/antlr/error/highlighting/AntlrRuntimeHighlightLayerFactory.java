@@ -48,5 +48,4 @@ public class AntlrRuntimeHighlightLayerFactory implements HighlightsLayerFactory
             true, hl.bag())
         };
     }
-
 }

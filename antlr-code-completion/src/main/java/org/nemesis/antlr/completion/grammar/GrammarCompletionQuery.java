@@ -141,7 +141,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
         if (tokenInfo.isWhitespace()) {
             switch (tokenInfo.caretRelation()) {
                 case AT_TOKEN_START:
-//                    tokenInfo = tokenInfo.biasedBy(Bias.BACKWARD);
+                    tokenInfo = tokenInfo.biasedBy(Bias.BACKWARD);
                     break;
                 case WITHIN_TOKEN:
 //                    tokenInfo = tokenInfo.after();

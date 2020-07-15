@@ -50,6 +50,7 @@ import org.netbeans.spi.editor.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
 
@@ -177,7 +178,13 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
          */
         HintsController.setErrors(doc, "1", set);
-        this.bag.setHighlights(bag);
+        Mutex.EVENT.readAccess(() -> {
+            try {
+                this.bag.setHighlights(bag);
+            } finally {
+                bag.discard();
+            }
+        });
         this.refreshErrorsTask.schedule(100);
     }
 

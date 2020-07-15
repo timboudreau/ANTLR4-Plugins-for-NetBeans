@@ -15,47 +15,67 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import java.util.EnumSet;
+import java.util.Set;
 import org.nemesis.localizers.annotations.Localize;
 
 /**
  *
  * @author Frédéric Yvon Vinet
  */
-@Localize(displayName="Grammar Type", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
+@Localize(displayName = "Grammar Type", iconPath = "org/nemesis/antlr/common/antlr-g4-file-type.png")
 public enum GrammarType {
-    @Localize(displayName="Lexer Grammar")
+    @Localize(displayName = "Lexer Grammar")
     LEXER("lexer"),
-    @Localize(displayName="Parser Grammar")
+    @Localize(displayName = "Parser Grammar")
     PARSER("parser"),
-    @Localize(displayName="Combined Grammar")
+    @Localize(displayName = "Combined Grammar")
     COMBINED("combined"),
-    @Localize(displayName="Unrecognized Grammar Type")
+    @Localize(displayName = "Unrecognized Grammar Type")
     UNDEFINED("undefined");
-        
+
     private final String value;
-    GrammarType (String value) {
+
+    GrammarType(String value) {
         this.value = value;
     }
-        
+
     @Override
     public String toString() {
         return value;
     }
-    
-    
+
+    public Set<RuleTypes> legalRuleTypes() {
+        switch (this) {
+            case UNDEFINED:
+            case COMBINED:
+                return EnumSet.allOf(RuleTypes.class);
+            case LEXER:
+                return EnumSet.of(RuleTypes.LEXER, RuleTypes.PARSER);
+            case PARSER:
+                return EnumSet.of(RuleTypes.PARSER, RuleTypes.NAMED_ALTERNATIVES);
+            default:
+                throw new AssertionError(this);
+        }
+    }
+
+    public boolean canContain(RuleTypes type) {
+        return legalRuleTypes().contains(type);
+    }
+
     public static GrammarType toGrammarType(String grammarTypeString) {
         GrammarType grammarType;
         switch (grammarTypeString) {
-           case "lexer":
+            case "lexer":
                 grammarType = GrammarType.LEXER;
                 break;
-           case "parser":
+            case "parser":
                 grammarType = GrammarType.PARSER;
                 break;
-           case "combined":
+            case "combined":
                 grammarType = GrammarType.COMBINED;
                 break;
-           default:
+            default:
                 grammarType = GrammarType.UNDEFINED;
         }
         return grammarType;

@@ -84,7 +84,7 @@ final class IntArrayMapping {
     }
 
     void forEach(IntMap.IntMapConsumer<? super IntList> c) {
-        values.forEach(c);
+        values.forEachPair(c);
     }
 
     boolean forSome(IntMap.IntMapAbortableConsumer<? super IntList> c) {

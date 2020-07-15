@@ -23,6 +23,8 @@ import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_altList;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_block;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_channelsSpec;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnf;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnfSuffix;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleSpec;
@@ -30,8 +32,14 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_identifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_labeledParserRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComPushMode;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommand;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommands;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleAtom;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleBlock;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElement;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElements;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_modeDec;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleAlternative;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleAtom;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
@@ -157,19 +165,19 @@ import org.nemesis.localizers.annotations.Localize;
                     RULE_altList,
                     RULE_lexComPushMode,
                     RULE_lexComMode,
+                    RULE_ebnf,
                     RULE_parserRuleSpec, // right after colon
                     RULE_tokenRuleSpec, // right after colon
                     RULE_fragmentRuleSpec, // right after colon
-                    ANTLRv4Parser.RULE_lexerCommands,
-                    ANTLRv4Parser.RULE_lexerCommand,
-                    ANTLRv4Parser.RULE_channelsSpec,
-                    ANTLRv4Parser.RULE_lexerRuleBlock,
-                    ANTLRv4Parser.RULE_lexerRuleElements,
-                    ANTLRv4Parser.RULE_ebnf,
-                    ANTLRv4Parser.RULE_modeDec,
-                    ANTLRv4Parser.RULE_parserRuleAlternative,
-                    ANTLRv4Parser.RULE_parserRuleReference,
-
+                    RULE_lexerCommands,
+                    RULE_lexerCommand,
+                    RULE_channelsSpec,
+                    RULE_lexerRuleBlock,
+                    RULE_lexerRuleElements,
+                    RULE_ebnf,
+                    RULE_modeDec,
+                    RULE_parserRuleAlternative,
+                    RULE_parserRuleReference,
                 },
                 tokenCompletions = {
                     @SupplementaryTokenCompletion(
@@ -542,6 +550,23 @@ import org.nemesis.localizers.annotations.Localize;
                                 bg = {142, 96, 96},
                                 fg = {245, 245, 245}
                         )
+                    }
+            ),
+            @TokenCategory(name = "unused",
+                    tokenIds = {},
+                    colors = {
+                        @Coloration(
+                                derivedFrom = "mod-unused",
+                                waveUnderline = {0, 0, 0},
+                                themes = {
+                                    POPULAR_BRIGHT_THEMES
+                                }),
+                        @Coloration(
+                                derivedFrom = "mod-unused",
+                                waveUnderline = {140, 140, 140},
+                                themes = {
+                                    POPULAR_DARK_THEMES
+                                })
                     }
             ),
             @TokenCategory(name = "warning",

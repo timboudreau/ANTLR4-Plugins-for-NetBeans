@@ -22,6 +22,7 @@ import java.util.List;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
@@ -46,23 +47,39 @@ public class SuperfluousParenthesesDetectionTest {
             String txt = text.substring(reg.start(), reg.end());
             toElide.add(txt);
         }
-        /*
-1685125976 '( map ( Comma map )* )' 50:72
-760413008 '( Colon value )' 164:179
--466325160 '( Minus? Digits )' 369:386
-101309344 '( STRING | STRING2 )' 416:436
-1514614016 '( '{' )' 493:500
-347418080 '( 'a'..'z' | 'A'..'Z' | '_' )' 826:855        
-         */
         List<String> expect = Arrays.asList(
                 "( map ( Comma map )* )",
                 "( Colon value )",
+                "(String)",
                 "( Minus? Digits )",
                 "( STRING | STRING2 )",
                 "( '{' )",
                 "( 'a'..'z' | 'A'..'Z' | '_' )"
         );
-        assertEquals(expect, toElide);
+        assertLists(expect, toElide);
+    }
+
+    private static void assertLists(List<String> a, List<String> b) {
+        for (int i = 0; i < Math.min(a.size(), b.size()); i++) {
+            String aa = a.get(i);
+            String bb = b.get(i);
+            assertText(i + ".", aa, bb);
+        }
+        assertEquals(a, b);
+    }
+
+    private static void assertText(String msg, String a, String b) {
+        if (!a.equals(b)) {
+            for (int i = 0; i < Math.min(a.length(), b.length()); i++) {
+                char aa = a.charAt(i);
+                char bb = b.charAt(i);
+                if (a != b) {
+                    fail(msg + ": Mismatch at char " + i + " '" + aa + "' vs '" + bb + "' in\n" + a + "'\n'" + b + "'");
+                }
+            }
+
+            fail(msg + ": Strings do not match:\n'" + a + "'\n'" + b + "'");
+        }
     }
 
     private void out(ParserRuleContext ctx) {

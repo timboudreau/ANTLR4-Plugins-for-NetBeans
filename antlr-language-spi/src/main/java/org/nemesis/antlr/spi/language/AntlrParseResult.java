@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import java.io.IOException;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -202,7 +203,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         }
 
         @Override
-        Fixes fixes() {
+        Fixes fixes() throws IOException {
             return Fixes.create(extraction, this);
         }
     }

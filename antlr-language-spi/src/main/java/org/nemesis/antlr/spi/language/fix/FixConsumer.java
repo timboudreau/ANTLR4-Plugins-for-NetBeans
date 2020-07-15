@@ -15,139 +15,119 @@
  */
 package org.nemesis.antlr.spi.language.fix;
 
-import java.util.Optional;
-import java.util.function.BiConsumer;
+import java.util.Collections;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
-import org.nemesis.extraction.Extraction;
-import com.mastfrog.function.throwing.ThrowingFunction;
-import com.mastfrog.range.IntRange;
-import java.util.ArrayList;
-import java.util.Collection;
-import org.netbeans.editor.BaseDocument;
-import org.openide.filesystems.FileObject;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
+import org.nemesis.editor.edit.Applier;
+import org.nemesis.editor.edit.EditBag;
+import org.nemesis.editor.function.DocumentConsumer;
+import org.nemesis.editor.ops.CaretPositionCalculator;
+import org.nemesis.editor.ops.DocumentOperator;
+import org.netbeans.spi.editor.hints.Fix;
 import org.openide.text.NbDocument;
+import org.openide.util.Exceptions;
+
+import static com.mastfrog.util.preconditions.Checks.notNull;
 
 /**
  * Consumer for proposed fixes which will apply hints.
  *
  * @author Tim Boudreau
  */
-public abstract class FixConsumer implements BiConsumer<ThrowingFunction<BaseDocument, String>, FixImplementation> {
+public final class FixConsumer {
+    private static final DocumentOperator CARET_PRESERVING = DocumentOperator.NON_JUMP_REENTRANT_UPDATE_DOCUMENT;
 
-    FixConsumer() {
+    private static final DocumentOperator NO_SPECIAL_CARET_HANDLING = DocumentOperator.builder()
+            .acquireAWTTreeLock()
+            .blockIntermediateRepaints()
+            .disableTokenHierarchyUpdates()
+            .lockAtomicAsUser()
+            .singleUndoTransaction()
+            .writeLock()
+            .build();
+
+    private List<Fix> fixes;
+    final StyledDocument doc;
+
+    FixConsumer( StyledDocument doc ) {
+        this.doc = doc;
     }
 
-    /**
-     * Add a proposed fix.
-     *
-     * @param describer   A supplier for the fix description
-     * @param implementer The code to run to implement the fix
-     *
-     * @return this
-     */
-    public final FixConsumer add( ThrowingFunction<BaseDocument, String> describer, FixImplementation implementer ) {
-        accept( describer, implementer );
+    List<Fix> entries() {
+        return fixes == null ? Collections.emptyList() : fixes;
+    }
+
+    public FixConsumer addFix( Fix fix ) {
+        if ( fixes == null ) {
+            fixes = new CopyOnWriteArrayList<>();
+        }
+        fixes.add( fix );
         return this;
     }
 
-    /**
-     * Add a proposed fix.
-     *
-     * @param describer   The fix description
-     * @param implementer The code to run to implement the fix
-     *
-     * @return this
-     */
-    public final FixConsumer add( String description, FixImplementation implementer ) {
-        accept( staticName( description ), implementer );
+    public FixConsumer addFix( String description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        return addFix( false, () -> description, bagConsumer );
+    }
+
+    public FixConsumer addFix( Supplier<? extends CharSequence> description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        addFix( false, description, bagConsumer );
         return this;
     }
 
-    private ThrowingFunction<BaseDocument, String> staticName( String name ) {
-        return new StaticName( name );
+    public FixConsumer addFix( boolean selectAlteredRegion, String description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        return addFix( selectAlteredRegion, () -> description, bagConsumer );
     }
 
-    // For loggability
-    private static final class StaticName implements ThrowingFunction<BaseDocument, String> {
-        private final String name;
-
-        public StaticName( String name ) {
-            this.name = name;
+    public FixConsumer addFix( boolean selectAlteredRegion, Supplier<? extends CharSequence> description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        Applier applier = new Applier( selectAlteredRegion
+                                               ? NO_SPECIAL_CARET_HANDLING
+                                               : CARET_PRESERVING );
+        EditBag bag = new EditBag( doc, applier );
+        try {
+            bagConsumer.accept( bag );
+            if ( !bag.isEmpty() ) {
+                addFix( new FixImpl( applier, description, bag, selectAlteredRegion ) );
+            }
+        } catch ( BadLocationException ex ) {
+            Exceptions.printStackTrace( ex );
         }
+        return this;
+    }
 
-        @Override
-        public String apply( BaseDocument in ) {
-            return name;
+    public FixConsumer addFix( CaretPositionCalculator calc, String description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        return addFix( calc, () -> description, bagConsumer );
+    }
+
+    public FixConsumer addFix( CaretPositionCalculator calc, Supplier<? extends CharSequence> description,
+            DocumentConsumer<EditBag> bagConsumer ) {
+        Applier applier = new Applier( () -> {
+            return DocumentOperator.builder()
+                    .acquireAWTTreeLock()
+                    .blockIntermediateRepaints()
+                    .disableTokenHierarchyUpdates()
+                    .lockAtomicAsUser()
+                    .singleUndoTransaction()
+                    .writeLock()
+                    .restoringCaretPosition( notNull( "calc", calc ) ).build();
+        } );
+        EditBag bag = new EditBag( doc, applier );
+        try {
+            bagConsumer.accept( bag );
+            if ( !bag.isEmpty() ) {
+                addFix( new FixImpl( applier, description, bag, false ) );
+            }
+        } catch ( BadLocationException ex ) {
+            Exceptions.printStackTrace( ex );
         }
-
-        public String toString() {
-            return name;
-        }
-    }
-
-    public final FixConsumer addReplacement( String description, int start, int end, String replacementText ) {
-        return add( description, replacement( start, end, replacementText ) );
-    }
-
-    public final FixConsumer addDeletion( String description, int start, int end ) {
-        return add( description, deletion( start, end ) );
-    }
-
-    public final FixConsumer addDeletions( String description, Collection<? extends IntRange<? extends IntRange>> ranges ) {
-        return add( description, deletions( ranges ) );
-    }
-
-    public final FixConsumer addInsertion( String description, int start, int end, String insertionText ) {
-        return add( description, insertion( start, end, insertionText ) );
-    }
-
-    public final FixConsumer addReplacement( ThrowingFunction<BaseDocument, String> describer, int start, int end,
-            String replacementText ) {
-        return add( describer, replacement( start, end, replacementText ) );
-    }
-
-    public final FixConsumer addDeletion( ThrowingFunction<BaseDocument, String> describer, int start, int end ) {
-        return add( describer, deletion( start, end ) );
-    }
-
-    public final FixConsumer addDeletions( ThrowingFunction<BaseDocument, String> describer,
-            Collection<? extends IntRange<? extends IntRange>> ranges ) {
-        return add( describer, deletions( ranges ) );
-    }
-
-    public final FixConsumer addInsertion( ThrowingFunction<BaseDocument, String> describer, int start, int end,
-            String insertionText ) {
-        return add( describer, insertion( start, end, insertionText ) );
-    }
-
-    static FixImplementation replacement( int start, int end, String replacementText ) {
-        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
-            edits.replace( document, start, end, replacementText );
-        };
-    }
-
-    static FixImplementation insertion( int start, int end, String insertedText ) {
-        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
-            edits.insert( document, start, insertedText );
-        };
-    }
-
-    static FixImplementation deletion( int start, int end ) {
-        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
-            edits.delete( document, start, end );
-        };
-    }
-
-    static FixImplementation deletions( Collection<? extends IntRange<? extends IntRange>> ranges ) {
-        ArrayList<IntRange<? extends IntRange>> all = new ArrayList<>( ranges );
-        return ( BaseDocument document, Optional<FileObject> file, Extraction extraction, DocumentEditBag edits ) -> {
-            edits.multiple( document, e -> {
-                        for ( IntRange<? extends IntRange> r : all ) {
-                            e.delete( r.start(), r.end() );
-                        }
-                    } );
-        };
+        return this;
     }
 
     /**
@@ -163,7 +143,7 @@ public abstract class FixConsumer implements BiConsumer<ThrowingFunction<BaseDoc
      *
      * @return
      */
-    public final int lineNumberForDisplay( BaseDocument doc, int offset ) throws BadLocationException {
+    public final int lineNumberForDisplay( int offset ) throws BadLocationException {
         int line = NbDocument.findLineNumber( ( StyledDocument ) doc, offset );
         if ( offset > 0 && doc.getText( offset - 1, 1 ).charAt( 0 ) == '\n' ) {
             line++;

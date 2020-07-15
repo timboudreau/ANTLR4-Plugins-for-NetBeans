@@ -16,9 +16,11 @@
 package org.nemesis.antlr.spi.language.fix;
 
 import com.mastfrog.range.IntRange;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.text.BadLocationException;
+import org.nemesis.editor.function.DocumentConsumer;
+import org.nemesis.editor.position.PositionFactory;
+import org.nemesis.editor.position.PositionRange;
 import org.netbeans.spi.editor.hints.Severity;
 
 import static com.mastfrog.util.preconditions.Checks.notNull;
@@ -31,14 +33,12 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 public class FixBuilder {
     final Fixes fixes;
     final Severity severity;
+    final PositionFactory positions;
 
-    FixBuilder( Fixes fixes, Severity severity ) {
+    FixBuilder( Fixes fixes, Severity severity, PositionFactory positions ) {
         this.fixes = fixes;
         this.severity = severity;
-    }
-
-    static FixBuilder from( Fixes fixes, Severity severity ) {
-        return new FixBuilder( fixes, severity );
+        this.positions = positions;
     }
 
     /**
@@ -53,7 +53,7 @@ public class FixBuilder {
      * @return
      */
     public DescribableFixBuilder withErrorId( String errorId ) {
-        return new DescribableFixBuilder( fixes, severity, errorId );
+        return new DescribableFixBuilder( fixes, severity, errorId, positions );
     }
 
     /**
@@ -65,7 +65,7 @@ public class FixBuilder {
      *
      * @return a builder
      */
-    public FinishableFixBuilder withLocation( int location ) {
+    public FinishableFixBuilder withLocation( int location ) throws BadLocationException {
         return withBounds( location, location );
     }
 
@@ -79,8 +79,22 @@ public class FixBuilder {
      *
      * @return a builder
      */
-    public FinishableFixBuilder withBounds( IntRange<? extends IntRange> bounds ) {
+    public FinishableFixBuilder withBounds( IntRange<? extends IntRange> bounds ) throws BadLocationException {
         return withBounds( notNull( "bounds", bounds ).start(), bounds.end() );
+    }
+
+    /**
+     * Set the error bounds to a <i>character range</i> within the document, and return a
+     * finishable builder which allows you to provide fixes and the
+     * error message. Note that all of the extraction collection element types implement
+     * IntRange, so it is possible to pass one directly.
+     *
+     * @param location A character position
+     *
+     * @return a builder
+     */
+    public FinishableFixBuilder withBounds( PositionRange bounds ) {
+        return new FinishableFixBuilder( null, fixes, severity, null, bounds );
     }
 
     /**
@@ -92,19 +106,19 @@ public class FixBuilder {
      *
      * @return a builder
      */
-    public FinishableFixBuilder withBounds( int start, int end ) {
+    public FinishableFixBuilder withBounds( int start, int end ) throws BadLocationException {
         if ( end < start ) {
             throw new IllegalArgumentException( "end is < start: " + start + "," + end );
         }
-        return new FinishableFixBuilder( null, fixes, severity, null, start, end );
+        return new FinishableFixBuilder( null, fixes, severity, null, positions.range( start, end ) );
     }
 
     public static class DescribableFixBuilder extends FixBuilder {
         final String errorId;
         Supplier<? extends CharSequence> details;
 
-        public DescribableFixBuilder( Fixes fixes, Severity severity, String errorId ) {
-            super( fixes, severity );
+        public DescribableFixBuilder( Fixes fixes, Severity severity, String errorId, PositionFactory positions ) {
+            super( fixes, severity, positions );
             this.errorId = notNull( "errorId", errorId );
         }
 
@@ -148,11 +162,15 @@ public class FixBuilder {
             return this;
         }
 
-        public FinishableFixBuilder withBounds( int start, int end ) {
+        public FinishableFixBuilder withBounds( int start, int end ) throws BadLocationException {
             if ( end < start ) {
                 throw new IllegalArgumentException( "end is < start: " + start + "," + end );
             }
-            return new FinishableFixBuilder( errorId, fixes, severity, details, start, end );
+            return new FinishableFixBuilder( errorId, fixes, severity, details, positions.range( start, end ) );
+        }
+
+        public FinishableFixBuilder withBounds( PositionRange bounds ) {
+            return new FinishableFixBuilder( errorId, fixes, severity, details, bounds );
         }
 
         /**
@@ -160,6 +178,7 @@ public class FixBuilder {
          * this builder.
          *
          * @param errorId The error id
+         *
          * @return an exception is thrown
          */
         @Override
@@ -173,27 +192,26 @@ public class FixBuilder {
         private final Fixes fixes;
         private final Severity severity;
         private final Supplier<? extends CharSequence> details;
-        private final int start;
-        private final int end;
-        private Consumer<FixConsumer> lazyFixes;
+        private final PositionRange range;
+        private DocumentConsumer<FixConsumer> lazyFixes;
 
         FinishableFixBuilder( String id, Fixes fixes, Severity severity,
-                Supplier<? extends CharSequence> details, int start, int end ) {
+                Supplier<? extends CharSequence> details, PositionRange range ) {
             this.id = id;
             this.fixes = fixes;
             this.severity = severity;
             this.details = details;
-            this.start = start;
-            this.end = end;
+            this.range = range;
         }
 
         /**
          * Provide a consumer which can offer fixes for the user to invoke.
          *
          * @param consumer A consumer
+         *
          * @return this
          */
-        public FinishableFixBuilder creatingFixesWith( Consumer<FixConsumer> consumer ) {
+        public FinishableFixBuilder creatingFixesWith( DocumentConsumer<FixConsumer> consumer ) {
             this.lazyFixes = notNull( "consumer", consumer );
             return this;
         }
@@ -202,11 +220,13 @@ public class FixBuilder {
          * Set the error message, and add the fix to the Fixes.
          *
          * @param msg
+         *
          * @return
+         *
          * @throws BadLocationException
          */
-        public Fixes withMessage( String msg ) throws BadLocationException {
-            fixes.add( id, severity, msg, start, end, details, lazyFixes );
+        public Fixes withMessage( String msg ) {
+            fixes.add( id, severity, msg, range, details, lazyFixes );
             return fixes;
         }
     }

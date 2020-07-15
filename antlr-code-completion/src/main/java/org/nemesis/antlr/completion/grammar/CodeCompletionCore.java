@@ -168,7 +168,6 @@ public class CodeCompletionCore {
         this.atn = parser.getATN();
         this.vocabulary = parser.getVocabulary();
         this.ruleNames = parser.getRuleNames();
-        System.out.println("PREFERRED RULES: " + preferredRules);
         if (preferredRules != null) {
             this.preferredRules = preferredRules;
         } else {
@@ -301,10 +300,10 @@ public class CodeCompletionCore {
                 endOffset = tokens.get(endToken - 1).getStopIndex() + 1;
             }
             candidates.rulePositions.put(ruleId, startOffset, endOffset);
-            assert candidates.rulePositions.containsKey(ruleId);
-            assert candidates.rulePositions.get(ruleId) != null : "" + ruleId + " in " + candidates.rulePositions.get(ruleId);
-            assert candidates.rulePositions.get(ruleId).contains(startOffset);
-            assert candidates.rulePositions.get(ruleId).contains(endOffset);
+//            assert candidates.rulePositions.containsKey(ruleId);
+//            assert candidates.rulePositions.get(ruleId) != null : "" + ruleId + " in " + candidates.rulePositions.get(ruleId);
+//            assert candidates.rulePositions.get(ruleId).contains(startOffset);
+//            assert candidates.rulePositions.get(ruleId).contains(endOffset);
         }
 
         if (this.showResult && logger.isLoggable(Level.FINE)) {
@@ -333,7 +332,7 @@ public class CodeCompletionCore {
 
             candidates.tokens.forEach((key, set) -> {
                 logMessage.append("  ").append(this.vocabulary.getDisplayName(key));
-                set.forEach((int following) -> {
+                set.forEachInt((int following) -> {
                     logMessage.append(" ").append(this.vocabulary.getDisplayName(following));
                 });
                 logMessage.append("\n");
@@ -381,10 +380,10 @@ public class CodeCompletionCore {
                 if (addNew) {
                     int rule = ruleStack.get(i);
                     this.candidates.rules.put(rule, path);
-                    assert this.candidates.rules.containsKey(rule) : "absent key " + rule;
-                    assert this.candidates.rules.get(rule) != null : "absent after put: " + rule + " with " + path;
-                    assert this.candidates.rules.get(rule).containsAll(path) : "items for " + rule + " absent after put which should add all: "
-                            + this.candidates.rules.get(rule) + " missing some of " + path;
+//                    assert this.candidates.rules.containsKey(rule) : "absent key " + rule;
+//                    assert this.candidates.rules.get(rule) != null : "absent after put: " + rule + " with " + path;
+//                    assert this.candidates.rules.get(rule).containsAll(path) : "items for " + rule + " absent after put which should add all: "
+//                            + this.candidates.rules.get(rule) + " missing some of " + path;
 
                     if (showDebugOutput && logger.isLoggable(Level.FINE)) {
                         logger.log(Level.FINE, "=====> collected: {0}", this.ruleNames[i]);
@@ -665,7 +664,7 @@ public class CodeCompletionCore {
                 switch (transition.getSerializationType()) {
                     case Transition.RULE: {
                         IntSet endStatus = this.processRule(transition.target, currentEntry.tokenIndex, callStack, indentation);
-                        endStatus.forEach((int position) -> {
+                        endStatus.forEachInt((int position) -> {
                             statePipeline.addLast(new PipelineEntry(((RuleTransition) transition).followState, position));
                         });
                         break;
@@ -686,7 +685,7 @@ public class CodeCompletionCore {
                                     int token = il.get(i);
                                     if (!this.ignoredTokens.test(token)) {
                                         this.candidates.tokens.putReplace(token, IntSet.create(3));
-                                        assert candidates.tokens.containsKey(token) : "no " + token + " in " + candidates.tokens.keySet();
+//                                        assert candidates.tokens.containsKey(token) : "no " + token + " in " + candidates.tokens.keySet();
                                     }
                                 }
                             }
@@ -722,18 +721,18 @@ public class CodeCompletionCore {
                                             if (addFollowing) {
                                                 IntList foll = this.getFollowingTokens(transition);
                                                 this.candidates.tokens.putReplace(symbol, foll);
-                                                assert candidates.tokens.containsKey(symbol);
-                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "" + symbol;
-                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() == foll.isEmpty() : "sym " + symbol
-                                                        + " " + foll + " " + this.candidates.tokens.getIfPresent(symbol);
-                                                assert ((this.candidates.tokens.getIfPresent(symbol).isEmpty() && foll.isEmpty())
-                                                        || this.candidates.tokens.getIfPresent(symbol).containsAll(foll)) : " non-match "
-                                                        + this.candidates.tokens.getIfPresent(symbol) + " expected " + foll;
+//                                                assert candidates.tokens.containsKey(symbol);
+//                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "" + symbol;
+//                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() == foll.isEmpty() : "sym " + symbol
+//                                                        + " " + foll + " " + this.candidates.tokens.getIfPresent(symbol);
+//                                                assert ((this.candidates.tokens.getIfPresent(symbol).isEmpty() && foll.isEmpty())
+//                                                        || this.candidates.tokens.getIfPresent(symbol).containsAll(foll)) : " non-match "
+//                                                        + this.candidates.tokens.getIfPresent(symbol) + " expected " + foll;
                                             } else {
                                                 this.candidates.tokens.put(symbol, IntSet.create(5));
-                                                assert this.candidates.tokens.containsKey(symbol) : "no key " + symbol;
-                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "no " + symbol;
-                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() : "no " + symbol;
+//                                                assert this.candidates.tokens.containsKey(symbol) : "no key " + symbol;
+//                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "no " + symbol;
+//                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() : "no " + symbol;
                                             }
                                         } else {
                                             logger.log(Level.FINE, "====> collected: Ignoring token: {0}", symbol);
@@ -776,13 +775,13 @@ public class CodeCompletionCore {
                     set.following = IntList.create(5);
                 }
                 this.candidates.tokens.put(symbol, set.following); // Following is empty if there is more than one entry in the set.
-                assert candidates.tokens.containsKey(symbol);
+//                assert candidates.tokens.containsKey(symbol);
             } else {
                 // More than one following list for the same symbol.
                 if (!this.candidates.tokens.get(symbol).equals(set.following)) { // XXX js uses !=
                     this.candidates.tokens.putReplace(symbol, IntSet.create(5));
-                    assert candidates.tokens.containsKey(symbol);
-                    assert candidates.tokens.getIfPresent(symbol).isEmpty();
+//                    assert candidates.tokens.containsKey(symbol);
+//                    assert candidates.tokens.getIfPresent(symbol).isEmpty();
                 }
             }
         } else {

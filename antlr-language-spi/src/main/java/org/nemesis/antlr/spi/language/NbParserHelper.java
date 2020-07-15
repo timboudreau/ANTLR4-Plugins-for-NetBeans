@@ -191,6 +191,8 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
             // all errors are collected
             try {
                 Document doc = null;
+                // Avoid openining the document if the parse is incidental to
+                // parsing something else
                 if ( extraction.source().source() instanceof Document ) {
                     doc = ( Document ) extraction.source().source();
                 } else if ( extraction.source().source() instanceof Snapshot ) {
@@ -209,7 +211,9 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                         errorSupplier } );
                     populate.setSyntaxErrors( errors, this );
                 }
-                Fixes fixes = populate.fixes();
+                // No sense in attaching error annotations unless there is a document to
+                // show them on
+                Fixes fixes = doc == null ? Fixes.empty() : populate.fixes();
                 ParseResultHook.runForMimeType( mimeType, tree, extraction, populate, fixes );
                 onParseCompleted( tree, extraction, populate, fixes, cancelled );
                 LOG.log( Level.FINEST, "Post-processing complete with {0} "

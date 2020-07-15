@@ -29,6 +29,9 @@ import org.netbeans.spi.lexer.EmbeddingPresence;
  * Register an Antlr-based language, generating all necessary configuration and
  * implementation classes for a basic implementation of language support and
  * syntax highlighting.
+ * <p>
+ * Creating full featured IDE support for a language starts here.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -40,13 +43,14 @@ public @interface AntlrLanguageRegistration {
      * The language name - used as a prefix in generated file names.
      *
      * @return The name
-     * @deprecated This can cause severe problems in that annotations processed
+     *
+     * @deprecated Unused. This can cause severe problems in that annotations processed
      * separatey cannot guess what this value is, but may need to access generated
      * classes such as the LanguageHierarchy or Token subclasses generated from
-     * this annotation, but will not have any way to guess it.  The preferred
+     * this annotation, but will not have any way to guess it. The preferred
      * way of handling this is to embed it in the MIME type as a key-value pair,
      * which at least stands a better chance of being portable - e.g.
-     * <code>text/x-g4;prefix=Antlr</code>.  By default, the back half of the
+     * <code>text/x-g4;prefix=Antlr</code>. By default, the back half of the
      * MIME type is used, omitting any leading <code>x-</code>, so
      * <code>text/x-g4</code> results in <code>G4DataObject</code>,
      * <code>G4LanguageHierarchy</code>, etc.
@@ -64,7 +68,7 @@ public @interface AntlrLanguageRegistration {
      * modules not knowing the prefix to derive the name of the language's
      * LanguageHierarchy or DataObject subclasses, in practice, every
      * annotation that needs to do this also knows the lexer class and can
-     * figure it out for itself.  Nonetheless, it is off by default.
+     * figure it out for itself. Nonetheless, it is off by default.
      * </p><p>
      * If this is not set, and no prefix is specified in the mime type,
      * the back half of the MIME type, sans any leading <code>x-</code>
@@ -73,13 +77,13 @@ public @interface AntlrLanguageRegistration {
      * </p>
      *
      * @return true if, if no prefix= pair is present in the mime type,
-     * the prefix should be derived from the grammar name as implied
-     * by the lexer name
+     *         the prefix should be derived from the grammar name as implied
+     *         by the lexer name
      */
     boolean useImplicitLanguageNameFromLexerName() default false;
 
     /**
-     * The mime type this language is registered under.  To ensure that
+     * The mime type this language is registered under. To ensure that
      * the generated API classes are named reasonably intuitively, the
      * mime type may contain a key-value pair "prefix=..." - for example,
      * <code>text/x-g4;prefix=Antlr</code> and the class name prefix
@@ -144,7 +148,11 @@ public @interface AntlrLanguageRegistration {
 
     /**
      * Causes an ExtSyntax from the editor api to be generated, which impacts
-     * a few standard editor features (specifies whitespace tokens, etc.)
+     * a few standard editor features (specifies whitespace tokens, etc.) The
+     * list of whitespace tokens is also provided here, and several things
+     * make use of that (without it, the system will attempt to figure it out
+     * based on the literal names of tokens and other ways, all of which are
+     * slower than querying a bitset or binary searching an int[]).
      *
      * @return A syntax info
      */
@@ -213,10 +221,23 @@ public @interface AntlrLanguageRegistration {
          * Antlr-generated parser with names that start with
          * <code>RULE_</code>) which you are interested in
          * completions for - and <i>for which your extraction
-         * will capture names</i>. If you are not directly
+         * will capture names</i>, or you are providing a CompletionSupplier
+         * that is interested in and can return completions for. If you are not directly
          * capturing names, you can also implement CompletionsSupplier
          * and it will be used in place of looking up names from
          * your extraction.
+         * <p>
+         * This is an important and fairly touchy thing to set up -
+         * the code completion engine does a combination of using
+         * and simulating Antlr's predictions for what the next rule
+         * and/or token might be. If you are not seeing code completion
+         * for some place you expect to, turn on generation of the
+         * syntax tree navigator panel, and, when running, switch to
+         * that and place the caret in the spot you expect to see
+         * code completion. Most likely the rule that the syntax tree
+         * shows the caret to be "in" (in can mean "immediately adjacent to"),
+         * and make sure the constant for that rule is listed here.
+         * </p>
          *
          * @return The set of rules to complete
          */
@@ -232,8 +253,13 @@ public @interface AntlrLanguageRegistration {
          * <a href="https://github.com/antlr/antlr4/blob/master/doc/lexer-rules.md#type">type lexer command</a>, you
          * will wind up with tokens which have a fixed,
          * always-the-same value, but have no symbolic name reported by the
-         * vocabulary. This (rarely needed) method allows you to fill those
-         * back in.
+         * vocabulary. This method allows you to fill those
+         * back in; and also to provide useful supplementary text - for example,
+         * the Antlr lexer command <code>pushMode</code> takes an argument in
+         * parentheses, but to Antlr, the <code>()</code> are something
+         * separate - what you want is to insert <code>pushMode()</code> and
+         * place the caret between the parentheses (the default insertion
+         * engine special-cases caret handling for things that end in "()").
          *
          * @return A set of supplementary token completions
          */
@@ -276,6 +302,11 @@ public @interface AntlrLanguageRegistration {
         }
     }
 
+    /**
+     * While the ExtSyntax which is generated does little in the IDE today,
+     * the lists of tokens defined here are used by various other parts of
+     * the system to know what to skip.
+     */
     public @interface SyntaxInfo {
 
         /**
@@ -384,8 +415,8 @@ public @interface AntlrLanguageRegistration {
 
         /**
          * If true (the default), syntax errors will automatically be
-         * highlighted; set to false if you want to provide your own error
-         * highlighting in place of that.
+         * highlighted, with descriptions taken from the Antlr parse errors; set to false if you want to provide your
+         * own error highlighting in place of that.
          *
          * @return true by default
          */

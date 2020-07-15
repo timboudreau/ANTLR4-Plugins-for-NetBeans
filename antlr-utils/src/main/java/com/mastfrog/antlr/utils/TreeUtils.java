@@ -20,9 +20,15 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.RuleNode;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 /**
  * Utilities for scanning the parents of an antlr parse tree node and
@@ -349,6 +355,57 @@ public final class TreeUtils {
             }
         }
         return into;
+    }
+
+    public static int visitAllTokens(ParserRuleContext ctx, Consumer<Token> tokens) {
+        ctx.accept(new V(tokens));
+        return 0;
+    }
+
+    static class V extends AbstractParseTreeVisitor<Void> {
+
+        private final Consumer<Token> tokens;
+
+        public V(Consumer<Token> tokens) {
+            this.tokens = tokens;
+        }
+
+        @Override
+        protected boolean shouldVisitNextChild(RuleNode node, Void currentResult) {
+            return true;
+        }
+
+        @Override
+        public Void visitTerminal(TerminalNode node) {
+            tokens.accept(node.getSymbol());
+            return null;
+        }
+    }
+
+    public static int visitTokens(ParserRuleContext ctx, Predicate<Token> tokens) {
+        ctx.accept(new V1(tokens));
+        return 0;
+    }
+
+    static class V1 extends AbstractParseTreeVisitor<Void> {
+
+        private final Predicate<Token> tokens;
+        private boolean keepGoing = true;
+
+        public V1(Predicate<Token> tokens) {
+            this.tokens = tokens;
+        }
+
+        @Override
+        protected boolean shouldVisitNextChild(RuleNode node, Void currentResult) {
+            return keepGoing;
+        }
+
+        @Override
+        public Void visitTerminal(TerminalNode node) {
+            keepGoing = tokens.test(node.getSymbol());
+            return null;
+        }
     }
 
     /**

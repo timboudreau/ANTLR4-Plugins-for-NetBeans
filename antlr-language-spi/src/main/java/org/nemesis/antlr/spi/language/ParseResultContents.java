@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import java.io.IOException;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.List;
 import java.util.Optional;
@@ -79,7 +80,7 @@ public abstract class ParseResultContents {
 
     abstract <T> void _put(AntlrParseResult.Key<T> key, T obj);
 
-    abstract Fixes fixes();
+    abstract Fixes fixes() throws IOException;
 
     /**
      * For use with ParserResultHooks that are run against an already
@@ -125,6 +126,5 @@ public abstract class ParseResultContents {
         Fixes fixes() {
             return Fixes.empty();
         }
-
     }
 }

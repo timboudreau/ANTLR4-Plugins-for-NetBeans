@@ -35,7 +35,7 @@ final class XorSummingFunction implements SummingFunction {
 
     @Override
     public long updateSum(long previousValue, int offset, Token token) {
-        return a.updateSum(previousValue, offset, token) | b.updateSum(previousValue, offset, token);
+        return a.updateSum(previousValue, offset, token) ^ b.updateSum(previousValue, offset, token);
     }
 
     @Override
@@ -73,9 +73,6 @@ final class XorSummingFunction implements SummingFunction {
         if (!Objects.equals(this.b, other.b)) {
             return false;
         }
-        if (!Objects.equals(this.a, other.a)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.a, other.a);
     }
 }

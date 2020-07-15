@@ -30,7 +30,7 @@ proto
                |   topLevelDef
                |   emptyStatement
                )*
-    ;
+      EOF;
 
 
 //
@@ -41,6 +41,8 @@ syntax
     :   SYNTAX ASSIGN (PROTO3_DOUBLE | PROTO3_SINGLE ) SEMI
     ;
 
+
+glark : (PROTO3_DOUBLE | PROTO3_SINGLE );
 //
 // Import Statement
 //
@@ -385,7 +387,7 @@ Decimals
 
 fragment
 Exponent
-    :   ('e' | 'E') ('+' | '-')? Decimals
+    :   'e' | 'E' ('+' | '-')? Decimals
     ;
 
 // Boolean

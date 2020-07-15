@@ -15,6 +15,9 @@
  */
 package org.nemesis.editor.utils;
 
+import org.nemesis.editor.ops.CaretInformation;
+import org.nemesis.editor.ops.DocumentOperator;
+import org.nemesis.editor.edit.EditBag;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.strings.Escaper;
 import java.awt.BorderLayout;
@@ -45,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.nemesis.editor.utils.EditBag.Applier;
+import org.nemesis.editor.edit.Applier;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.api.editor.caret.EditorCaretEvent;
@@ -55,6 +58,7 @@ import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.spi.editor.caret.CaretMoveHandler;
 import org.openide.text.NbDocument;
+import org.nemesis.editor.function.DocumentConsumer;
 
 /**
  *
@@ -128,7 +132,7 @@ public class EditBagTest {
         });
     }
 
-    private void performEdits(BadLocationConsumer<EditBag> c) throws Exception {
+    private void performEdits(DocumentConsumer<EditBag> c) throws Exception {
         int docCaretNotifs = docCaretWait.notifications();
         int styledCaretNotifs = styledCaretWait.notifications();
         StringBuilder sb = new StringBuilder();

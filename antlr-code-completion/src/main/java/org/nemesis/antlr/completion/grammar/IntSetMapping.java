@@ -60,7 +60,7 @@ class IntSetMapping {
     }
 
     void forEach(IntMap.IntMapConsumer<? super IntSet> cons) {
-        values.forEach(cons);
+        values.forEachPair(cons);
     }
 
     void clear() {

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import com.mastfrog.antlr.utils.TreeUtils;
 import com.mastfrog.function.state.Int;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.function.throwing.ThrowingTriConsumer;
@@ -39,6 +40,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -239,6 +241,28 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
             + "    :  (This Is | I Am | You Are | They Are) \n"
             + "       (Stuff | Something | Something Weird | Weird | Weird Stuff );\n";
 
+    private static final String BUG_2 = "grammar Bug2;\n\n"
+            + "bubba\n"
+            + "    : (UseIdent UseDoubleColon)*;";
+
+    @Test
+    public void testBug2() throws Exception {
+        testDynamic(BUG_2, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext);
+            assertTrue(regs.isEmpty());
+        });
+    }
+
+    @Test
+    public void testCombinedParserEbnfInSuperfluous() throws Exception {
+        testDynamic(COMBINED_PARSER_EBNF_IN_SUPERFLUOUS, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "compilation_unit");
+            assertExpectedRegions(regs, sampleFile, grammar, "(dogs)", "(shoes)", "(things (dogs)+)");
+        });
+    }
+
     @Test
     public void testTwoGroups() throws Exception {
         testDynamic(SEQ_GROUPS, (sampleFile, grammar, ext) -> {
@@ -297,15 +321,6 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
                     grammar, ext, "lineOpen");
             assertExpectedRegions(regs, sampleFile, grammar,
                     "( You Are )", "( They Are )");
-        });
-    }
-
-    @Test
-    public void testCombinedParserEbnfInSuperfluous() throws Exception {
-        testDynamic(COMBINED_PARSER_EBNF_IN_SUPERFLUOUS, (sampleFile, grammar, ext) -> {
-            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
-                    grammar, ext, "compilation_unit");
-            assertExpectedRegions(regs, sampleFile, grammar, "(dogs)", "(shoes)", "(things (dogs)+)");
         });
     }
 
@@ -982,6 +997,24 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         lex.reset();
         ANTLRv4Parser parser = sampleFileLocal.parser();
         GrammarFileContext grammarLocal = parser.grammarFile();
+
+        Set<Token> all = new TreeSet<>((a, b) -> {
+            return Integer.compare(a.getTokenIndex(), b.getTokenIndex());
+        });
+        for (int i = 0; i < ANTLRv4Lexer.VOCABULARY.getMaxTokenType(); i++) {
+            for (TerminalNode tn : grammarLocal.getTokens(i)){
+                all.add(tn.getSymbol());
+            }
+        }
+        System.out.println("LAL TOKS " + all);
+
+        StringBuilder sb = new StringBuilder();
+        TreeUtils.visitAllTokens(grammarLocal, tok -> {
+            sb.append(tok.getText()).append(' ');
+        });
+        System.out.println("\nALL TOKENS: " + sb + "\n");
+        System.out.println("TEXT: " + sampleFileLocal.text());
+
         assertNotNull(grammarLocal);
         Extraction extraction = ext.extract(grammarLocal,
                 GrammarSource.find(sampleFileLocal.charStream(),

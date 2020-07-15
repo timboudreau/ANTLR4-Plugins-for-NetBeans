@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.common.extractiontypes;
 
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.nemesis.localizers.annotations.Localize;
 
@@ -22,17 +24,16 @@ import org.nemesis.localizers.annotations.Localize;
  *
  * @author Tim Boudreau
  */
-@Localize(displayName="Rule", iconPath="org/nemesis/antlr/common/antlr-g4-file-type.png")
+@Localize(displayName = "Rule", iconPath = "org/nemesis/antlr/common/antlr-g4-file-type.png")
 public enum RuleTypes implements Supplier<String> {
-    @Localize(displayName="Fragment", iconPath="org/nemesis/antlr/common/fragment.png")
-    FRAGMENT, 
-    @Localize(displayName="Lexer", iconPath="org/nemesis/antlr/common/lexer.png")
+    @Localize(displayName = "Fragment", iconPath = "org/nemesis/antlr/common/fragment.png")
+    FRAGMENT,
+    @Localize(displayName = "Lexer", iconPath = "org/nemesis/antlr/common/lexer.png")
     LEXER,
-    @Localize(displayName="Parser", iconPath="org/nemesis/antlr/common/parser.png")
+    @Localize(displayName = "Parser", iconPath = "org/nemesis/antlr/common/parser.png")
     PARSER,
-    @Localize(displayName="Alternative", iconPath="org/nemesis/antlr/common/alternative.png")
-    NAMED_ALTERNATIVES
-    ;
+    @Localize(displayName = "Alternative", iconPath = "org/nemesis/antlr/common/alternative.png")
+    NAMED_ALTERNATIVES;
 
     // only used for names, not bounds
     @Override
@@ -44,18 +45,40 @@ public enum RuleTypes implements Supplier<String> {
         return this != NAMED_ALTERNATIVES;
     }
 
+    public boolean canAppearIn(GrammarType type) {
+        return type.canContain(this);
+    }
+
+    public Set<GrammarType> legalIn() {
+        switch (this) {
+            case FRAGMENT:
+            case LEXER:
+                return EnumSet.of(GrammarType.COMBINED, GrammarType.LEXER, GrammarType.UNDEFINED);
+            case NAMED_ALTERNATIVES:
+            case PARSER:
+                return EnumSet.of(GrammarType.COMBINED, GrammarType.PARSER, GrammarType.UNDEFINED);
+            default:
+                throw new AssertionError(this);
+        }
+    }
+
+    /**
+     * Used for some purpose in creating folds - should be replaced with localize hints.
+     *
+     * @return a string
+     */
     @Override
     public String get() {
-        switch(this) {
-            case FRAGMENT :
+        switch (this) {
+            case FRAGMENT:
                 return "fragment-rule-name";
-            case LEXER :
+            case LEXER:
                 return "lexer-rule-name";
-            case PARSER :
+            case PARSER:
                 return "parser-rule-name";
-            case NAMED_ALTERNATIVES :
+            case NAMED_ALTERNATIVES:
                 return "alternatives";
-            default :
+            default:
                 return "default";
         }
     }

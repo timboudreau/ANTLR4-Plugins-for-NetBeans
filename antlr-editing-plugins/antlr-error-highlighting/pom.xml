@@ -52,6 +52,9 @@ limitations under the License.
                 <extensions>true</extensions>
                 <configuration>
                     <moduleType>normal</moduleType>
+                    <publicPackages>
+                        <publicPackage>org.nemesis.antlr.highlighting.spi</publicPackage>
+                    </publicPackages>
                 </configuration>
             </plugin>
             <plugin>
@@ -76,6 +79,10 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-editor-lib2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-modules-editor-util</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

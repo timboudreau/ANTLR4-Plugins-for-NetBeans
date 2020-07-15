@@ -24,6 +24,7 @@ import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.IntGraphVisitor;
 import com.mastfrog.abstractions.list.IndexedResolvable;
 import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * A graph of container and containee, where the types of the two are
@@ -183,7 +184,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
         @Override
         public Set<TI> children(RI obj) {
-            return toSetFirst(tree.children(bitSetIndex(obj)));
+            int bis = bitSetIndex(obj);
+            if (bis >= tree.size()) {
+                return Collections.emptySet();
+            }
+            return toSetFirst(tree.children(bis));
         }
 
         @Override
@@ -223,7 +228,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
         @Override
         public int childCount(RI obj) {
-            return tree.children(bitSetIndex(obj)).cardinality();
+            int bis = bitSetIndex(obj);
+            if (bis >= tree.size()) {
+                return 0;
+            }
+            return tree.children(bis).cardinality();
         }
     }
 
@@ -244,7 +253,11 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
         }
 
         public Set<RI> children(TI obj) {
-            return toSetSecond(tree.children(obj.index()));
+            int bis = obj.index();
+            if (bis >= tree.size()) {
+                return Collections.emptySet();
+            }
+            return toSetSecond(tree.children(bis));
         }
 
         @Override
@@ -284,6 +297,9 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
 
         @Override
         public int childCount(TI obj) {
+            if (tree.size() <= obj.index()) {
+                return 0;
+            }
             return tree.children(obj.index()).cardinality();
         }
     }

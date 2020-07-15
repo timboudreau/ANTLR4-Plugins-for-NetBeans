@@ -85,6 +85,8 @@ final class DefaultCompletionApplier implements CompletionApplier {
     }
 
     private int applyToDocument(Document doc) throws BadLocationException {
+
+        System.out.println("\n----------------------- REF-INSERT ------------------------");
         StringBuilder sb = new StringBuilder(name);
         Set<Op> ops = insertionOps();
         Position pos = NbDocument.createPosition(doc,
@@ -120,6 +122,7 @@ final class DefaultCompletionApplier implements CompletionApplier {
         String toInsert = sb.toString();
         System.out.println("INSERT '" + toInsert + "' at " + offset + " for " + ops + " rel " + tokenInfo.caretRelation());
         doc.insertString(pos.getOffset(), toInsert, null);
+        System.out.println("--------------------------------------------------\n");
         return offset + toInsert.length();
     }
 
@@ -168,10 +171,16 @@ final class DefaultCompletionApplier implements CompletionApplier {
         if (prev.isWhitespace() && !isPunctuation() && rel != CaretTokenRelation.WITHIN_TOKEN) {
             result.add(Op.PREPEND_SPACE);
         }
+        System.out.println("REL " + rel + " for " + tokenInfo);
         switch (rel) {
             case WITHIN_TOKEN:
                 if (!pfx.isEmpty() && name.startsWith(pfx)) {
                     result.add(Op.ELIDE_PREFIX);
+                    result.add(Op.DELETE_SUFFIX);
+                } else if (!pfx.isEmpty()) {
+                    result.add(Op.DELETE_PREFIX);
+                }
+                if (!sfx.isEmpty()) {
                     result.add(Op.DELETE_SUFFIX);
                 }
                 if (pfx.isEmpty() && !sfx.isEmpty() && sharedStartLength(name, sfx) > 3) {
@@ -198,18 +207,22 @@ final class DefaultCompletionApplier implements CompletionApplier {
                 }
                 break;
             case AT_TOKEN_START:
-                if (tokenInfo.isWhitespace() && pfx.isEmpty() && !prev.isWhitespace()) {
+                if (tokenInfo.isWhitespace() && pfx.isEmpty() && !tokenInfo.isPunctuation()) {
                     result.add(Op.PREPEND_SPACE);
                 }
                 if (!next.isWhitespace() && !next.isPunctuation()) {
+                    result.add(Op.APPEND_SPACE);
+                }
+                if (!prev.isWhitespace() && !prev.isPunctuation()) {
                     result.add(Op.PREPEND_SPACE);
                 }
 //                if (!pfx.isEmpty() && !tokenInfo.isWhitespace() && !next.isWhitespace() && !next.isPunctuation()) {
 //                    result.add(Op.APPEND_SPACE);
 //                }
+                break;
             case AT_TOKEN_END:
                 if (tokenInfo.isWhitespace()) {
-                    if (!next.isWhitespace() && !next.isPunctuation()) {
+                    if (next != null && !next.isWhitespace() && !next.isPunctuation()) {
                         result.add(Op.APPEND_SPACE);
                     }
                 } else {

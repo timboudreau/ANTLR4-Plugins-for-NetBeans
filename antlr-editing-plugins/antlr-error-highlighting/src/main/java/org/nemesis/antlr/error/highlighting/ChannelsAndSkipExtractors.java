@@ -249,8 +249,8 @@ public class ChannelsAndSkipExtractors {
     }
 
     /**
-     * Just returns a suitable unique id for an error message, if
-     * the parens can be eliminated.
+     * Just returns a suitable unique id for an error message, if the parens can
+     * be eliminated.
      *
      * @param block The block
      * @return An id or null
@@ -261,14 +261,11 @@ public class ChannelsAndSkipExtractors {
         // If no ors, an ebnf on the block is ok
         boolean hasEbnf = hasEbnfs(block);
         boolean single = isSingleClause(block);
-//        boolean isFinal = isFinalClauseInParentBlock(block);
-//        int altCount = blockAlternativeCount(block);
-//        int ancestorBlockSize = ancestorBlockSize(block);
         int childSiblingCount = childSiblingCount(block);
 
         if (!containsOrs && single) {
-            if (!hasEbnf || childSiblingCount <= 1) {
-                return spId(block);
+            if (!hasEbnf && childSiblingCount <= 1) {
+                return superfluousParenUniqueID(block);
             }
         }
 
@@ -281,17 +278,20 @@ public class ChannelsAndSkipExtractors {
             }
             ParserRuleElementContext altAncestor = ancestor(block, ParserRuleElementContext.class);
             if (altAncestor != null) {
-                if (hasSibling(altAncestor) && (containsOrs | hasEbnf)) {
+                if (hasSibling(altAncestor) && (containsOrs | (hasEbnf && childSiblingCount > 1))) {
                     return null;
                 }
             }
             if (hasSiblingAlternatives(block)) {
                 return null;
             }
-            return spId(block);
+            if (childSiblingCount > 1 && hasEbnf) {
+                return null;
+            }
+            return superfluousParenUniqueID(block);
         }
         if (!containsOrs && hasSiblingAlternatives(block)) {
-            return spId(block);
+            return superfluousParenUniqueID(block);
         }
         return null;
     }
@@ -445,7 +445,7 @@ public class ChannelsAndSkipExtractors {
     static boolean writeBlockAncestor(LexerRuleElementBlockContext immediateBlockAncestor, BiPredicate<Integer, int[]> consumer, LexerRuleBlockContext blockContext) {
         int[] offsets = new int[]{immediateBlockAncestor.start.getStartIndex(),
             immediateBlockAncestor.stop.getStopIndex() + 1};
-        return consumer.test(spId(blockContext), offsets);
+        return consumer.test(superfluousParenUniqueID(blockContext), offsets);
     }
 
     static boolean hasActionOrLexerCommands(LexerRuleBlockContext blockContext) {
@@ -488,11 +488,12 @@ public class ChannelsAndSkipExtractors {
         return false;
     }
 
-    private static int spId(ParserRuleContext ctx) {
-        return ctx.getRuleIndex() * (ctx.start.getTokenIndex() + (3775311 * ctx.stop.getTokenIndex()));
+    private static int superfluousParenUniqueID(ParserRuleContext ctx) {
+        return ctx.getRuleIndex() * (ctx.start.getTokenIndex() + (3775311 * ctx.stop.getTokenIndex()))
+                + ctx.depth();
     }
 
-    private static String ruleName(ParserRuleContext ctx) {
+    public static String ruleName(ParserRuleContext ctx) {
         do {
             if (ctx instanceof ANTLRv4Parser.ParserRuleSpecContext) {
                 ParserRuleSpecContext decl = (ParserRuleSpecContext) ctx;
@@ -519,11 +520,11 @@ public class ChannelsAndSkipExtractors {
         return null;
     }
 
-    static class TermCtx {
+    public static class TermCtx {
 
-        final String text;
-        final int start;
-        final int end;
+        public final String text;
+        public final int start;
+        public final int end;
 
         TermCtx(TerminalNode nd) {
             Token tok = nd.getSymbol();
@@ -537,13 +538,13 @@ public class ChannelsAndSkipExtractors {
         }
     }
 
-    static class SingleTermCtx {
+    public static class SingleTermCtx {
 
-        final String text;
-        final int start;
-        final int end;
-        final RuleTypes ruleType;
-        final String ruleName;
+        public final String text;
+        public final int start;
+        public final int end;
+        public final RuleTypes ruleType;
+        public final String ruleName;
 
         SingleTermCtx(TerminalNode nd, RuleTypes ruleType, String ruleName) {
             Token tok = nd.getSymbol();
@@ -583,7 +584,7 @@ public class ChannelsAndSkipExtractors {
         SKIP;
     }
 
-    static class ChannelOrSkipInfo {
+    public static class ChannelOrSkipInfo {
 
         private final ChSkip kind;
         private final String channelText;

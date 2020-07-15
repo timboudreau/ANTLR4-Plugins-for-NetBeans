@@ -318,7 +318,11 @@ final class InstantRenamePerformer implements DocumentListener, KeyListener, Ren
                     }
                 }
                 OffsetsBag bag = getHighlightsBag(doc);
-                bag.setHighlights(nue);
+                try {
+                    bag.setHighlights(nue);
+                } finally {
+                    nue.discard();
+                }
             }
         }
     }
