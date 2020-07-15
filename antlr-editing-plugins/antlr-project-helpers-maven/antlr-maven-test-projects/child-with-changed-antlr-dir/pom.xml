@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>parent-that-changes-antlr-dirs</artifactId>
-        <version>2.0.47</version>
+        <version>2.0.48</version>
         <relativePath>../parent-that-changes-antlr-dirs/pom.xml</relativePath>
     </parent>
     <artifactId>child-with-changed-antlr-dir</artifactId>
