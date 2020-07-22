@@ -17,6 +17,7 @@ package org.nemesis.antlr.stdio;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import java.util.Arrays;
 import java.util.Set;
@@ -59,7 +60,7 @@ public class ThreadMappedStdIOTest {
     private Msgr blMsg;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws UnsupportedEncodingException {
         phaser = new Phaser(MSGS.length + 3);
         latch = new CountDownLatch(MSGS.length + 2);
         startLatch = new CountDownLatch(MSGS.length + 2);
@@ -237,7 +238,12 @@ public class ThreadMappedStdIOTest {
     private static class PSFactory {
 
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        private final PrintStream print = new PrintStream(out, true, US_ASCII);
+//        private final PrintStream print = new PrintStream(out, true, US_ASCII);
+        private final PrintStream print;
+
+        PSFactory() throws UnsupportedEncodingException {
+            print = new PrintStream(out, true, "us-ascii");
+        }
 
         public String[] lines() {
             String s = new String(out.toByteArray(), US_ASCII);

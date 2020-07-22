@@ -538,10 +538,10 @@ public final class ThreadMappedStdIO {
             delegate.get().write(buf);
         }
 
-// JDK9        @Override
-        public void writeBytes(byte[] buf) {
-            delegate.get().writeBytes(buf);
-        }
+// JDK14        @Override
+//        public void writeBytes(byte[] buf) {
+//            delegate.get().writeBytes(buf);
+//        }
 
         @Override
         public void print(boolean b) {
