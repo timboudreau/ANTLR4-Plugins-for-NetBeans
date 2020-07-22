@@ -34,6 +34,7 @@ import org.nemesis.antlr.project.spi.AntlrConfigurationImplementation;
 import org.nemesis.antlr.project.spi.FolderLookupStrategyImplementation;
 import org.nemesis.antlr.project.spi.FolderQuery;
 import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
+import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -48,15 +49,7 @@ import org.openide.util.lookup.ServiceProvider;
  */
 public final class HeuristicFoldersHelperImplementation implements FolderLookupStrategyImplementation {
 
-    private static HeuristicFoldersHelperImplementation INSTANCE;
     private final Project project;
-
-    static HeuristicFoldersHelperImplementation getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new HeuristicFoldersHelperImplementation();
-        }
-        return INSTANCE;
-    }
     private FolderQuery initialQuery;
 
     HeuristicFoldersHelperImplementation(Project project, FolderQuery initialQuery) {
@@ -110,7 +103,6 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
             case TEST_RESOURCES:
                 return scan(folder, query, TEST_RESOURCES_CANDIDATES);
             case JAVA_TEST_GENERATED_SOURCES:
-
         }
         return empty();
     }
@@ -124,10 +116,13 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                 break;
             case CLASS_OUTPUT:
                 relPath = "src/main/java";
+                break;
             case RESOURCES:
                 relPath = "src/main/resources";
+                break;
             case TEST_RESOURCES:
                 relPath = "src/test/resources";
+                break;
             default:
                 return null;
         }
@@ -205,7 +200,7 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         "src/main/antlr4", "src/main/antlr3", "src/main/antlr",
         "source/main/antlr4", "src/antlr4", "src/antlr3", "src/antlr",
         "source/antlr4", "source/antlr3", "source/antlr",
-        "antlr", "antlr4", "antlrsrc"
+        "antlr", "antlr4", "antlrsrc", "grammar"
     };
     private static final String[] ANTLR_TEST_DIR_CANDIDATES = new String[]{
         "src/test/antlr4", "src/test/antlr3", "src/test/antlr",
@@ -215,7 +210,7 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
     private static final String[] ANTLR_TEST_IMPORT_DIR_CANDIDATES = new String[]{
         "src/test/antlr4/imports", "src/test/antlr3/imports", "src/test/antlr/imports",
         "source/test/antlr4/imports", "test/antlr4/imports", "test/antlr3/imports", "test/antlr/imports",
-        "test/antlr3/imports", "test/antlr/imports"
+        "test/antlr3/imports", "test/antlr/imports", "grammar/imports"
     };
 
     static final String[] ANTLR_IMPORT_DIR_CANDIDATES;
@@ -267,6 +262,31 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                     }
             }
         }
+        // Last resort:  guess the parent of the queried g4 file *is* the source dir
+        if (query.relativeTo() != null && query.relativeTo().toString().endsWith(".g4")
+                && folder == Folders.ANTLR_GRAMMAR_SOURCES) {
+
+            if (query.project() == null) {
+                FileObject fo = toFileObject(query.relativeTo());
+                if (fo != null) {
+                    Project proj = FileOwnerQuery.getOwner(fo);
+                    if (proj != null && proj != FileOwnerQuery.UNOWNED) {
+                        query = query.duplicate().project(proj);
+                    }
+                }
+            }
+            if (query.project() != null) {
+                InferredConfig inferred = InferredConfig.get(project, folder, query);
+                if (inferred != null) {
+                    Iterable<Path> result = inferred.query(folder, query);
+                    if (result.iterator().hasNext()) {
+                        return result;
+                    }
+                }
+            }
+            return iterable(query.relativeTo().getParent());
+        }
+
         return iterable(path);
     }
 
@@ -319,6 +339,8 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
             Paths.get("build.xml"),
             Paths.get("build.gradle"),
             Paths.get("Makefile")});
+
+        private static final FolderLookupStrategyImplementation INSTANCE = new HeuristicFoldersHelperImplementation();
 
         @Override
         public FolderLookupStrategyImplementation create(Project project, FolderQuery initialQuery) {

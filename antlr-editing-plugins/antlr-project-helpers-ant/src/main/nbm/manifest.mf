@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+OpenIDE-Module-Install: com/mastfrog/antlr/project/helpers/ant/Installer.class
+OpenIDE-Module-Layer: com/mastfrog/antlr/project/helpers/ant/layer.xml
+OpenIDE-Module-Localizing-Bundle: com/mastfrog/antlr/project/helpers/ant/Bundle.properties
+

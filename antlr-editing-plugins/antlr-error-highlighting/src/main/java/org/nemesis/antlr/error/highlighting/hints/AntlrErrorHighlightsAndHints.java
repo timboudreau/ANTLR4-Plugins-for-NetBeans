@@ -300,7 +300,10 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 }
                 Bool bl = Bool.create();
                 offsetsOf(doc, err, (start, end) -> {
-                    NamedSemanticRegion<RuleTypes> region = ext.namedRegions(AntlrKeys.RULE_BOUNDS).at(err.fileOffset());
+                    NamedSemanticRegion<RuleTypes> region = ext.namedRegions(AntlrKeys.RULE_BOUNDS).at(start);
+                    if (region == null) {
+                        return;
+                    }
                     PositionRange pr = positions.range(region);
                     if (region == null) {
                         bl.set(false);

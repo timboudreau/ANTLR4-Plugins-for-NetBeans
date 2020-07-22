@@ -229,7 +229,7 @@ public class ExtractionCodeGenerator {
         if (fo != null && Strings.charSequencesEqual(fo.getCharContent(true), code, false)) {
             LOG.log(Level.INFO, "Generating extractor. Passed lexer name: {0}, passed grammar name {1},"
                     + " found lexer: {2}, found grammar: {3}, package {4}", new Object[]{
-                        grammarName, lexerGrammarName, (foundLexer == null ? null : foundLexer.getName()),
+                        lexerGrammarName, grammarName, (foundLexer == null ? null : foundLexer.getName()),
                         (foundParser == null ? null : foundParser.getName()), pkg});
             // Avoid touching the file if we would regenerate the same content - it will
             // cause the test whether files have been modified and the parser should be

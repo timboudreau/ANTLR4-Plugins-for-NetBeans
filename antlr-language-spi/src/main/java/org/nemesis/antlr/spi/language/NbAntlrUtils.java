@@ -56,6 +56,9 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
  * @author Tim Boudreau
  */
 public final class NbAntlrUtils {
+    private static final ThreadLocal<Set<Object>> REPARSE_AFTER_DEFERRAL = ThreadLocal.withInitial( LinkedHashSet::new );
+    private static final ThreadLocal<PostprocessingMode> MODE = ThreadLocal.withInitial(
+            () -> PostprocessingMode.ENABLED );
 
     public static CharStream newCharStream( LexerInput input, String name ) {
         return new AntlrStreamAdapter( input, name );
@@ -226,9 +229,6 @@ public final class NbAntlrUtils {
             }
         }
     }
-
-    private static ThreadLocal<Set<Object>> REPARSE_AFTER_DEFERRAL = ThreadLocal.withInitial( LinkedHashSet::new );
-    private static ThreadLocal<PostprocessingMode> MODE = ThreadLocal.withInitial( () -> PostprocessingMode.ENABLED );
 
     /**
      * Disables post-processing of parser results - such as running parser result

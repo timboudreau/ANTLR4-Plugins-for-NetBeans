@@ -15,9 +15,6 @@
  */
 package org.nemesis.antlr.project.extensions.actions;
 
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,50 +30,43 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultComboBoxModel;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
 import org.nemesis.antlr.project.AntlrConfiguration;
-import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
+import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
+import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectUtils;
-import org.openide.DialogDisplayer;
-import org.openide.NotifyDescriptor;
-import org.openide.awt.Mnemonics;
 import org.openide.awt.StatusDisplayer;
 import org.openide.util.Exceptions;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.Utilities;
 
-public final class AddAntlrToProject extends AbstractAction {
+public final class AddAntlrToProjectAction extends AbstractAction {
 
     private final Project context;
     private final Function<NewAntlrConfigurationInfo, CompletionStage<Boolean>> adder;
-    private static final Logger LOG = Logger.getLogger(AddAntlrToProject.class.getName());
+    private static final Logger LOG = Logger.getLogger(AddAntlrToProjectAction.class.getName());
     private static final String DEFAULT_ANTLR = "4.7.2";
+    private final AddAntlrCapabilities capabilities;
 
-    public AddAntlrToProject(Project context) {
+    public AddAntlrToProjectAction(Project context) {
         super(Bundle.CTL_AddAntlrToProject());
         this.context = context;
+        capabilities = AntlrConfiguration.addAntlrCapabilities(context);
         adder = AntlrConfiguration.antlrAdder(context);
         setEnabled(adder != null);
+        putValue("hideWhenDisabled", Boolean.TRUE);
     }
 
     @Override
     public void actionPerformed(ActionEvent ev) {
         assert adder != null;
         String name = ProjectUtils.getInformation(context).getDisplayName();
-        NewAntlrConfigurationInfo info = Dlg.showDialog(name);
+        NewAntlrConfigurationInfo info = AddAntlrConfigurationDialog.showDialog(context, name, capabilities);
         if (info != null) {
             CompletionStage<Boolean> fut = adder.apply(info);
-            fut.handleAsync(new InfoNotifier(name));
+            fut.handleAsync(new InfoNotifier(name, info));
         }
     }
 
@@ -90,10 +80,12 @@ public final class AddAntlrToProject extends AbstractAction {
 
         private final String projectName;
         private volatile boolean result;
+        private final NewAntlrConfigurationInfo info;
 
-        public InfoNotifier(String projectName) {
+        public InfoNotifier(String projectName, NewAntlrConfigurationInfo info) {
             this.projectName = projectName;
             StatusDisplayer.getDefault().setStatusText(Bundle.adding_antlr(projectName));
+            this.info = info;
         }
 
         @Override
@@ -113,92 +105,6 @@ public final class AddAntlrToProject extends AbstractAction {
             } else {
                 StatusDisplayer.getDefault().setStatusText(Bundle.adding_antlr_failed(projectName));
             }
-        }
-    }
-
-    @Messages({"gen_listener=Generate &Listener Classes", "gen_visitor=Generate &Visitor Classes",
-        "gen_both=Generate &Both Listener and Visitor Classes", "antlr_version=&Antlr Version"})
-    static final class Dlg extends JPanel {
-
-        private final JRadioButton genListener = new JRadioButton(Bundle.gen_listener());
-        private final JRadioButton genVisitor = new JRadioButton(Bundle.gen_visitor());
-        private final JRadioButton genBoth = new JRadioButton(Bundle.gen_both());
-        private final JComboBox<String> versionBox = new JComboBox<>();
-        private final JLabel lbl = new JLabel(Bundle.antlr_version());
-        private final ButtonGroup grp = new ButtonGroup();
-        private static final Pattern PAT = Pattern.compile("[\\d.]+");
-
-        Dlg() {
-            super(new GridBagLayout());
-            lbl.setLabelFor(versionBox);
-            grp.add(genListener);
-            grp.add(genVisitor);
-            grp.add(genBoth);
-            genBoth.setSelected(true);
-            setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-            GridBagConstraints c = new GridBagConstraints();
-            c.insets = new Insets(5, 5, 5, 5);
-            c.gridwidth = 2;
-            c.anchor = GridBagConstraints.LINE_START;
-            c.weightx = 1.0;
-            c.gridx = 0;
-            c.gridy = 0;
-            c.fill = GridBagConstraints.BOTH;
-            for (JRadioButton b : new JRadioButton[]{genListener, genVisitor, genBoth}) {
-                add(b, c);
-                c.gridy++;
-                Mnemonics.setLocalizedText(b, b.getText());
-            }
-            c.gridwidth = 1;
-            add(lbl, c);
-            c.gridx++;
-            add(versionBox, c);
-            Mnemonics.setLocalizedText(lbl, lbl.getText());
-            DefaultComboBoxModel<String> mdl = new DefaultComboBoxModel<>();
-            Set<Version> av = antlrVersions();
-            if (!av.contains(new Version(false, "4.7.2", 4, 7, 2))) {
-                av.add(new Version(false, "4.7.2", 4, 7, 2));
-            }
-            for (Version v : av) {
-                mdl.addElement(v.toString());
-            }
-            List<Version> l = new ArrayList<Version>(av);
-            if (!l.isEmpty()) {
-                mdl.setSelectedItem(l.get(l.size() - 1).toString());
-            } else {
-                mdl.setSelectedItem("4.7.2");
-            }
-
-            versionBox.setModel(mdl);
-
-        }
-
-        @Messages({
-            "# {0} - The project name",
-            "add_antlr_support=Add Antlr Support to {0}"})
-        public static NewAntlrConfigurationInfo showDialog(String nm) {
-            Dlg dlg = new Dlg();
-            NotifyDescriptor no = new NotifyDescriptor(dlg, Bundle.add_antlr_support(nm),
-                    NotifyDescriptor.OK_CANCEL_OPTION,
-                    NotifyDescriptor.QUESTION_MESSAGE, new Object[]{NotifyDescriptor.OK_OPTION, NotifyDescriptor.CANCEL_OPTION},
-                    NotifyDescriptor.OK_OPTION);
-            Object result = DialogDisplayer.getDefault().notify(no);
-            if (NotifyDescriptor.OK_OPTION.equals(result)) {
-                return dlg.info();
-            }
-            return null;
-        }
-
-        public NewAntlrConfigurationInfo info() {
-
-            String version = ((String) versionBox.getSelectedItem()).trim();
-            if (version.isEmpty()) {
-                version = "4.7.2";
-            }
-            return new NewAntlrConfigurationInfo(
-                    genListener.isSelected() || genBoth.isSelected(),
-                    genVisitor.isSelected() || genBoth.isSelected(),
-                    version);
         }
     }
 

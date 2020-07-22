@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.48</version>
+    <version>2.0.49</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -30,7 +30,7 @@ limitations under the License.
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/../license-notice-apache-2.txt</netbeans.hint.licensePath>
         <!--<netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>-->
-        <antlr.version>4.7.2</antlr.version>
+        <antlr.version>4.8-1</antlr.version>
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
@@ -43,6 +43,13 @@ limitations under the License.
         <bcel.version>6.4.1</bcel.version>
         <hamcrest.version>1.3</hamcrest.version>
         <diffutils.version>3.0</diffutils.version>
+        <!--
+        These need to be kept up-to-date with the versions depended on by
+        Antlr.  They are filtered into the library descriptor where
+        antlr-project-helpers-ant embeds the library wrapped by antlr-wrapper.
+        -->
+        <st4.version>4.3</st4.version>
+        <treelayout.version>1.0.3</treelayout.version>
         <!--        <netbeans.hint.license>notice-apache-2</netbeans.hint.license>-->
     </properties>
     <licenses>
@@ -183,6 +190,16 @@ limitations under the License.
                     <artifactId>maven-enforcer-plugin</artifactId>
                     <version>3.0.0-M2</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.1.2</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
@@ -286,6 +303,7 @@ limitations under the License.
         <module>antlr-utils</module>
         <module>editor-features</module>
         <module>antlr-code-completion-spi</module>
+        <module>antlr-ant-task</module>
     </modules>
     <repositories>
         <repository>
@@ -344,6 +362,11 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-ant-task</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-utils</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -366,6 +389,11 @@ limitations under the License.
                 <groupId>${project.groupId}</groupId>
                 <artifactId>swing-utils</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.netbeans.api</groupId>
+                <artifactId>org-netbeans-api-progress</artifactId>
+                <version>${netbeans.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
@@ -550,6 +578,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-project-helpers-maven</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>antlr-project-helpers-ant</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -888,6 +921,11 @@ limitations under the License.
                 <version>${netbeans.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-java-api-common</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-parsing-indexing</artifactId>
                 <version>${netbeans.version}</version>
@@ -1122,6 +1160,11 @@ limitations under the License.
                 <artifactId>org.netbeans.bootstrap</artifactId>
                 <version>${netbeans.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.netbeans.modules</groupId>
+                <artifactId>org-netbeans-modules-java-j2seproject</artifactId>
+                <version>${netbeans.version}</version>
+            </dependency>
             <!-- This bathtub of dependencies allows tests to be run in Maven 3.6.2
             and forces the maven-embedder module to link against that, so it doesn't
             detonate on contact.  No, useSystemClassloader doesn't help.
@@ -1173,6 +1216,28 @@ limitations under the License.
                 <artifactId>plexus-utils</artifactId>
                 <version>3.3.0</version>
                 <scope>test</scope>
+            </dependency>
+            <!--
+            These are transitive dependencies of Antlr; we specify them
+            explicitly so that dependencyConvergence will fail the build if
+            the versions we're bundling as a J2SE library do not match
+            the ones depended on by the version of Antlr we're using.
+            Update when the Antlr version changes.
+            -->
+            <dependency>
+                <groupId>org.abego.treelayout</groupId>
+                <artifactId>org.abego.treelayout.core</artifactId>
+                <version>${treelayout.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>ST4</artifactId>
+                <version>${st4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.ant</groupId>
+                <artifactId>ant</artifactId>
+                <version>1.10.5</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

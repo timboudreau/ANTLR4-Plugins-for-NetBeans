@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,18 +40,20 @@ public abstract class AntlrMimeTypeRegistration {
 
     private final String type;
     private final Vocabulary vocabulary;
+    private final NbParserHelper<?, ?, ?, ?> helper;
 
-    protected AntlrMimeTypeRegistration( String type, Vocabulary vocabulary ) {
+    protected AntlrMimeTypeRegistration( String type, Vocabulary vocabulary, NbParserHelper<?, ?, ?, ?> helper ) {
         this.type = notNull( "type", type );
         this.vocabulary = vocabulary;
+        this.helper = helper;
     }
 
     @Override
     public final String toString() {
-        return getClass().getSimpleName() + '(' + get() + ')';
+        return getClass().getSimpleName() + '(' + mimeType() + ')';
     }
 
-    final String get() {
+    final String mimeType() {
         return type;
     }
 
@@ -61,14 +64,14 @@ public abstract class AntlrMimeTypeRegistration {
         } else if ( o == null ) {
             return false;
         } else if ( o instanceof AntlrMimeTypeRegistration ) {
-            return ( ( AntlrMimeTypeRegistration ) o ).get().equals( type );
+            return ( ( AntlrMimeTypeRegistration ) o ).mimeType().equals( type );
         }
         return false;
     }
 
     @Override
     public final int hashCode() {
-        return 37 * get().hashCode();
+        return 37 * mimeType().hashCode();
     }
 
     private static Registry registry;
@@ -109,10 +112,21 @@ public abstract class AntlrMimeTypeRegistration {
      * a dummy instance is returned.
      *
      * @param mimeType A mime type
+     *
      * @return a vocabulary
      */
     public static Vocabulary vocabulary( String mimeType ) {
-        return registry().vocabularyFor( notNull("mimeType", mimeType) );
+        return registry().vocabularyFor( notNull( "mimeType", mimeType ) );
+    }
+
+    public static <T> T runExclusiveForProject(
+            String mimeType,
+            Lookup.Provider project, Object projectIdentifier,
+            ThrowingSupplier<T> runExclusive ) throws Exception {
+        if ( project == null ) {
+            return runExclusive.get();
+        }
+        return registry().runExclusive( mimeType, project, projectIdentifier, runExclusive );
     }
 
     static class Registry implements LookupListener {
@@ -123,6 +137,19 @@ public abstract class AntlrMimeTypeRegistration {
         public Registry() {
             result = Lookup.getDefault().lookupResult( AntlrMimeTypeRegistration.class );
             result.addLookupListener( this );
+        }
+
+        <T> T runExclusive( String mimeType, Lookup.Provider project, Object projectIdentifier,
+                ThrowingSupplier<T> toRun ) throws Exception {
+            for ( AntlrMimeTypeRegistration reg : result.allInstances() ) {
+                if ( mimeType.equals( reg.type ) ) {
+                    if (reg.helper == null) {
+                        return toRun.get();
+                    }
+                    return reg.helper.runExclusiveForProject( project, projectIdentifier, toRun );
+                }
+            }
+            return toRun.get();
         }
 
         Vocabulary vocabularyFor( String mimeType ) {
@@ -149,7 +176,7 @@ public abstract class AntlrMimeTypeRegistration {
         Set<String> types() {
             if ( allMimeTypes.isEmpty() ) {
                 for ( AntlrMimeTypeRegistration reg : result.allInstances() ) {
-                    allMimeTypes.add( reg.get() );
+                    allMimeTypes.add( reg.mimeType() );
                 }
             }
             return allMimeTypes;

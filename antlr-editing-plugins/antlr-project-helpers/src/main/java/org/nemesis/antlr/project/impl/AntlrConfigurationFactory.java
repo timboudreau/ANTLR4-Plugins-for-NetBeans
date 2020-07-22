@@ -29,4 +29,8 @@ public abstract class AntlrConfigurationFactory {
             boolean atn, boolean forceATN, String includePattern, String excludePattern, Charset encoding,
             Path buildDir, String createdByStrategy, boolean isGuessedConfig,
             Path buildOutput, Path testOutput, Path sources, Path testSources);
+
+    protected abstract boolean evict(Path projectPath);
+
+    protected abstract boolean evict(AntlrConfiguration config);
 }

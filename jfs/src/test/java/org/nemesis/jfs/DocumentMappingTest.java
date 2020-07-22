@@ -15,20 +15,28 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.path.UnixPath;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_16;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Map;
 import javax.swing.text.Document;
+import javax.tools.JavaFileManager;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.nemesis.jfs.DocumentBytesStorageWrapper.EMPTY_BYTE_ARRAY_SHA_1;
@@ -44,8 +52,7 @@ public class DocumentMappingTest {
 
     @Test
     public void testStorageHashes() throws Exception {
-        System.out.println("UTL " + JFSUtilities.getDefault());
-
+        assertEquals(NbJFSUtilities.class, JFSUtilities.getDefault().getClass());
         assertArrayEquals(EMPTY_BYTE_ARRAY_SHA_1, sha1(new byte[0]));
         JFS jfs = new JFS(UTF_8);
         JFSStorage stor = jfs.storageForLocation(StandardLocation.SOURCE_PATH, true);
@@ -103,6 +110,39 @@ public class DocumentMappingTest {
             assertEquals(newText, s);
         }
         jfs.close();
+    }
+
+    @Test
+    public void testCanMapFromDefaultPackage() throws Throwable {
+        JFS jfs = new JFS(US_ASCII);
+        Document doc = new BaseDocument(false, "text/plain");
+        String txt = "Well hello there.\nI have no package";
+        doc.insertString(0, txt, null);
+        UnixPath up = UnixPath.get("Hello.txt");
+        JFSFileObject fo = jfs.masquerade(doc, SOURCE_PATH, up);
+        assertNotNull("Null fileobject from masquerade", fo);
+        assertEquals("Wrong name", up.toString(), fo.getName());
+        assertEquals("Wrong text in created fo", txt, fo.getCharContent(false).toString());
+        JFSFileObject fo2 = jfs.get(SOURCE_PATH, up);
+        assertEquals(fo, fo2);
+        assertEquals(up.toString(), fo2.getName());
+        Obj<JFSFileObject> ob = Obj.create();
+        jfs.list(SOURCE_PATH, (loc, fo3) -> {
+            assertNotNull("Null path in list", fo3);
+            assertSame("Wrong source path", SOURCE_PATH, loc);
+            ob.set(fo3);
+            assertEquals("Wrong path in list", up.toString(), fo3.getName());
+            try {
+                assertEquals("Wrong text in list", txt, fo3.getCharContent(false).toString());
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+        });
+        assertTrue(ob.isSet());
+        Map<JFSFileObject, JavaFileManager.Location> m = jfs.listAll();
+        assertFalse("Empty map from listAll",m.isEmpty());
+        assertEquals(1, m.size());
+        assertEquals("Wrong name from listAll", up.toString(), m.keySet().iterator().next().getName());
     }
 
     @BeforeClass

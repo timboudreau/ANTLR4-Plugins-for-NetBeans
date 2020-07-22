@@ -22,13 +22,17 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -98,6 +102,23 @@ final class AntlrConfigurationCache {
         }
     }
 
+    static boolean evict(Path path) {
+        AntlrConfigurationCache cache = INSTANCE;
+        if (cache == null) {
+            synchronized (AntlrConfigurationCache.class) {
+                cache = INSTANCE;
+            }
+        }
+        if (cache != null) {
+            boolean result = cache.cache.remove(path) != null;
+            if (result) {
+                cache.dirty();
+            }
+            return result;
+        }
+        return false;
+    }
+
     int size() {
         return cache.size();
     }
@@ -142,28 +163,59 @@ final class AntlrConfigurationCache {
     }
 
     void store() throws IOException {
-        try (FileChannel ch = FileChannel.open(file, WRITE, CREATE, TRUNCATE_EXISTING)) {
-            ByteBuffer numBuf = ByteBuffer.allocate(Integer.BYTES);
-            CacheFileUtils.writeNumber(MAGIC, ch, numBuf);
-            long pos = ch.position();
-            CacheFileUtils.writeNumber(0, ch, numBuf);
+        // Write a temporary file, so if the write is killed during process
+        // exit, we don't leave behind a half-written cache
+        Path temp = file.getParent().resolve(file.getFileName().toString() + ".1");
+        boolean success = false;
+        try {
+            try (FileChannel ch = FileChannel.open(temp, WRITE, CREATE, TRUNCATE_EXISTING)) {
+                ByteBuffer numBuf = ByteBuffer.allocate(Integer.BYTES);
+                CacheFileUtils.writeNumber(MAGIC, ch, numBuf);
+                long pos = ch.position();
+                CacheFileUtils.writeNumber(0, ch, numBuf);
 
-            TreeMap<Path, CacheEntry> snapshot = new TreeMap<>(cache);
+                TreeMap<Path, CacheEntry> snapshot = new TreeMap<>(cache);
 
-            int written = CacheFileUtils.writeNumber(snapshot.size(), ch, numBuf);
-            for (Map.Entry<Path, CacheEntry> e : snapshot.entrySet()) {
-                written += CacheFileUtils.writePath(e.getKey(), ch);
-                written += e.getValue().store(ch);
+                int written = CacheFileUtils.writeNumber(snapshot.size(), ch, numBuf);
+                for (Map.Entry<Path, CacheEntry> e : snapshot.entrySet()) {
+                    written += CacheFileUtils.writePath(e.getKey(), ch);
+                    written += e.getValue().store(ch);
+                }
+                long currPos = ch.position();
+                try {
+                    ch.position(pos);
+                    CacheFileUtils.writeNumber(written, ch, numBuf);
+                } finally {
+                    ch.position(currPos);
+                }
+                success = true;
             }
-            long currPos = ch.position();
-            try {
-                ch.position(pos);
-                CacheFileUtils.writeNumber(written, ch, numBuf);
-            } finally {
-                ch.position(currPos);
+            // use outer finally block so the channel is closed first
+        } finally {
+            if (success && Files.exists(file)) {
+                try {
+                    Files.move(temp, file, COPY_OPTS.toArray(new CopyOption[COPY_OPTS.size()]));
+                } catch (UnsupportedOperationException uoe) {
+                    COPY_OPTS.remove(StandardCopyOption.COPY_ATTRIBUTES);
+                    try {
+                        Files.move(temp, file, COPY_OPTS.toArray(new CopyOption[COPY_OPTS.size()]));
+                    } catch (UnsupportedOperationException uoe2) {
+                        COPY_OPTS.remove(StandardCopyOption.ATOMIC_MOVE);
+                        try {
+                            Files.move(temp, file, COPY_OPTS.toArray(new CopyOption[COPY_OPTS.size()]));
+                        } catch (UnsupportedOperationException uoe3) {
+                            uoe3.addSuppressed(uoe2);
+                            uoe3.addSuppressed(uoe);
+                            throw uoe3;
+                        }
+                    }
+
+                }
             }
         }
     }
+    private static Set<StandardCopyOption> COPY_OPTS
+            = EnumSet.of(StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
 
     private void dirty() {
         if (file != null) {

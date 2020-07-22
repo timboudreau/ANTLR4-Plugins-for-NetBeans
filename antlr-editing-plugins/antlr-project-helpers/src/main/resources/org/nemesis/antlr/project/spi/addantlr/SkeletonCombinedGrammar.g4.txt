@@ -1,0 +1,15 @@
+This file is used to generate one of the several possible grammar files
+created by SkeletonGrammarType, depending on whether a combined, lexer-only,
+parser + lexer or parser + lexer + fragments-in-import-directory is required.
+
+# parser
+compilationUnit : word+ EOF;
+word : WordChars+;
+
+# lexer
+WordChars : NON_WHITESPACE;
+Whitespace : WHITESPACE -> channel(1);
+
+# fragments
+fragment WHITESPACE : [ \r\n\t];
+fragment NON_WHITESPACE : ~[\r\n\t ];

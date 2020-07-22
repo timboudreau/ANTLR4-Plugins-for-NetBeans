@@ -104,13 +104,18 @@ public final class Extraction implements Externalizable {
     private final List<RuleIdMapping<?>> ruleIdMappings = new ArrayList<>(3);
     private long lastModified;
 
-    Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash, Class<? extends ParserRuleContext> documentRootType, String mimeType) {
+    Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash,
+            Class<? extends ParserRuleContext> documentRootType, String mimeType) {
         this.extractorsHash = extractorsHash;
         this.source = source;
         this.tokensHash = tokensHash;
         this.documentRootType = documentRootType;
         this.mimeType = mimeType;
         this.lastModified = lastModifiedOf(source);
+    }
+
+    public static Extraction empty(String mimeType) {
+        return new Extraction("-", GrammarSource.none(), "-", ParserRuleContext.class, mimeType);
     }
 
     /**

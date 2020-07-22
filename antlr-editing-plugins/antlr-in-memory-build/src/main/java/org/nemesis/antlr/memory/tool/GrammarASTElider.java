@@ -95,7 +95,7 @@ final class GrammarASTElider {
         if (elideTest.test(ast)) {
             ruleContainsElision = true;
             if (LOG.isLoggable(Level.FINE)) {
-                System.out.println(new String(c) + "**SKIP SUBTREE: " + textOf(ast));
+                LOG.log(Level.FINE, "{0} SKIP SUBTREE: {1}", new Object[]{new String(c), textOf(ast)});
             }
             return;
         }
@@ -103,7 +103,7 @@ final class GrammarASTElider {
             Tree kid = ast.getChild(i);
             if (ruleContainsElision && kid instanceof ActionAST) {
                 if (LOG.isLoggable(Level.FINE)) {
-                    System.out.println(new String(c) + "**SKIP SUBTREE: " + textOf(kid));
+                    LOG.log(Level.FINE, "{0} SKIP SUBTREE: {1}", new Object[]{new String(c), textOf(kid)});
                 }
                 continue;
             }

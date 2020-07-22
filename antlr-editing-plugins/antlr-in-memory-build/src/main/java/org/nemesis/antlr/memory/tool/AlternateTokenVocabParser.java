@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.memory.tool;
 
+import com.mastfrog.util.path.UnixPath;
 import org.antlr.runtime.Token;
 import org.antlr.v4.codegen.CodeGenerator;
 import org.antlr.v4.tool.ErrorType;
@@ -54,15 +55,18 @@ final class AlternateTokenVocabParser {
         } catch (FileNotFoundException fnfe) {
             // ok
         }
-        Path fn = filePath.getFileName();
-        String name = fn.toString();
-        int extIx = name.lastIndexOf('.');
-        if (extIx > 0) {
-            name = name.substring(0, extIx);
+        UnixPath unixPath = UnixPath.get(filePath);
+        String name = unixPath.rawName() + ".g4";
+        Path adjacent;
+        if (filePath.getParent() == null) {
+            adjacent = filePath instanceof UnixPath ? UnixPath.get(name) : Paths.get(name);
+        } else {
+            adjacent = filePath.getParent().resolve(name);
         }
-        name += ".g4";
+        System.out.println("PRE CRE " + filePath + " parent " + (filePath == null ? "null" : filePath.getParent())
+                + " name " + name + " type " + filePath.getClass().getName() + " adjacent " + adjacent
+                + " for grammar " + g.name + " / " + g.fileName);
 
-        Path adjacent = filePath.getParent().resolve(name);
         JFSFileObject fo = tool.getImportedGrammarFileObject(g, adjacent.toString());
         if (fo == null) {
             fo = tool.getImportedGrammarFileObject(g, name + ".g4");

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import com.mastfrog.function.throwing.ThrowingSupplier;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.List;
 import java.util.Optional;
@@ -31,11 +32,13 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.nemesis.antlr.spi.language.ParseLock.LockRunResult;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser.Result;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.LazyFixList;
+import org.openide.util.Lookup;
 
 /**
  * Helper class for intercepting parser creation and interacting with the syntax
@@ -46,8 +49,81 @@ import org.netbeans.spi.editor.hints.LazyFixList;
 public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
 
     private final Logger LOG = Logger.getLogger( getClass().getName() );
+    private final ParseLock parseLock = new ParseLock();
+    private final String mimeType;
 
-    protected NbParserHelper() {
+    protected NbParserHelper( String mimeType ) {
+        this.mimeType = mimeType;
+    }
+
+    protected String mimeType() {
+        return mimeType;
+    }
+
+    /**
+     * Very optimistic locking to block reparses of all documents of a particular MIME type
+     * within a particular project - there are very few operations where it is truly desirable
+     * to block all parsing for a while, but some exist (for example, creating and populating
+     * files, which with NetBeans FileObjects is never an atomic operation, and you don't really
+     * want something to start banging on a file half-way through writing it).
+     * <p>
+     * This uses a simple atomic thread reference as an extremely-low-overhead lock; and assumes
+     * there is essentially zero risk of two non-reentrant write operations occurring concurrently
+     * (reentrantly is fine), and simply throws an exception in that case.
+     * </p>
+     * <p>
+     * So, calling this method stops the parser for this mime type from returning real parse
+     * results while it is doing whatever it is doing. Reentrant parses from the owning thread
+     * will succeed; any other thread attempting a parse during that period will receive an
+     * empty parse result not post-processed by any of the usual things (hint generation, etc.).
+     * </p>
+     *
+     * @param <T>               The return type
+     * @param lexerVocab
+     * @param mimeType
+     * @param project
+     * @param projectIdentifier
+     * @param runExclusive
+     *
+     * @return Whatever the supplier returns
+     */
+    protected <T> T runExclusiveForProject(
+            Lookup.Provider project, Object projectIdentifier,
+            ThrowingSupplier<T> runExclusive ) throws Exception {
+        if ( project == null || projectIdentifier == null ) {
+            return runExclusive.get();
+        }
+        LockRunResult<T> runResult = parseLock.runLocked( project, projectIdentifier, runExclusive );
+        if ( !runResult.wasRun() ) {
+            throw new IllegalStateException(
+                    "Exclusive lock on files of type " + mimeType
+                    + " in project " + project + " already owned by " + runResult.owningThread() );
+        } else {
+            return runResult.result();
+        }
+    }
+
+    /**
+     * The other half of our very-optimistic locking: Unless another thread is inside
+     * <code>runExclusiveForProject</code> will return the parse result from the passed
+     * supplier that runs the parse normally. If another thread *does* have ownership,
+     * for files of this mime type within the same project as the passed one, then
+     * an empty dummy parse result is returned (it is up to the caller to notice this
+     * and trigger a reparse some time in the future).
+     *
+     * @param lexerVocab
+     * @param mimeType
+     * @param project
+     * @param projectIdentifier
+     * @param runner
+     *
+     * @return
+     */
+    protected AntlrParseResult runParsingTaskIfProjectNotLocked(
+            Lookup.Provider project, Object projectIdentifier,
+            ThrowingSupplier<AntlrParseResult> runner ) throws Exception {
+        AntlrParseResult res = parseLock.runIfUnlocked( project, runner );
+        return res == null ? AntlrParseResult.empty( mimeType ) : res;
     }
 
     /**

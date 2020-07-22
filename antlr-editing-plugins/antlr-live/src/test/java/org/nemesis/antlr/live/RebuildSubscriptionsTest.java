@@ -126,8 +126,6 @@ public class RebuildSubscriptionsTest {
         shutdownTestFixtures = initAntlrTestFixtures()
                 .verboseGlobalLogging()
                 .build();
-        ProjectTestHelper helper = ProjectTestHelper.relativeTo(SanityCheckPlumbingTest.class);
-
         proj = ProjectTestHelper.projectBuilder()
                 .writeStockTestGrammarSplit("com.foo").build("wookies");
         shutdownTestFixtures.andAlways(proj::delete);

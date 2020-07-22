@@ -19,16 +19,20 @@ import com.mastfrog.util.path.UnixPath;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.tools.JavaFileManager.Location;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import org.antlr.v4.codegen.CodeGenerator;
 import org.antlr.v4.tool.Grammar;
+import org.nemesis.antlr.stdio.ThreadMappedStdIO;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 
@@ -52,6 +56,7 @@ final class ToolContext {
     final Location outputLocation;
     final PrintStream logStream;
     static final ThreadLocal<Path> currentFile = new ThreadLocal<>();
+    private static final Logger LOG = Logger.getLogger(MemoryTool.class.getName());
 
     ToolContext(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {
         this.dir = dir;
@@ -59,6 +64,27 @@ final class ToolContext {
         this.inputLocation = inputLocation;
         this.outputLocation = outputLocation;
         this.logStream = logStream;
+    }
+
+    void logExternal(Level level, String msg, Object arg) {
+        // Ensure if console logger, it can actually access the real console
+        ThreadMappedStdIO.bypass(()
+                -> LOG.log(level, dir + ":" + jfs.id() + ":" + currentFile.get() + ": " + msg, arg));
+    }
+
+    void logExternal(Level level, String msg, Object[] args) {
+        ThreadMappedStdIO.bypass(()
+                -> LOG.log(level, dir + ":" + jfs.id() + ":" + currentFile.get() + ": " + msg, args));
+    }
+
+    void logExternal(Level level, String msg, Throwable thrown) {
+        ThreadMappedStdIO.bypass(()
+                -> LOG.log(level, dir + ":" + jfs.id() + ":" + currentFile.get() + ": " + msg, thrown));
+    }
+
+    void logExternal(Level level, Throwable thrown) {
+        ThreadMappedStdIO.bypass(()
+                -> LOG.log(level, dir + ":" + jfs.id(), thrown));
     }
 
     static ToolContext get(MemoryTool tool) {
@@ -72,6 +98,12 @@ final class ToolContext {
 
     static MemoryTool create(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
         ToolContext ctx = new ToolContext(dir, jfs, inputLocation, outputLocation, logStream);
+        for (String a : args) {
+            if (a.isEmpty()) {
+                throw new IllegalArgumentException("Empty string would cause Tool constructor "
+                        + "to throw an exception.  Arguments: " + Arrays.toString(args));
+            }
+        }
         MemoryTool result = new MemoryTool(ctx, args);
         CONTEXTS.put(result, ctx);
         result.initLog(ctx);

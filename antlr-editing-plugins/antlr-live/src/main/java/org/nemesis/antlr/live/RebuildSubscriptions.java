@@ -278,6 +278,13 @@ public final class RebuildSubscriptions {
                         mappings.add(map(fo, owner));
                         subscribed.add(fo);
                     });
+            Folders.ANTLR_IMPORTS.allFileObjects(in)
+                    .forEach(fo -> {
+                        if (!subscribed.contains(fo)) {
+                            mappings.add(map(fo, Folders.ANTLR_IMPORTS));
+                            subscribed.add(fo);
+                        }
+                    });
             if (!subscribed.contains(subscribeTo)) {
                 Folders owner = Folders.ownerOf(subscribeTo);
                 if (owner != null) {
@@ -406,7 +413,7 @@ public final class RebuildSubscriptions {
 
         private UnixPath pathFor(FileObject fo, Folders owner) {
             Path relativePath = owner == Folders.ANTLR_IMPORTS
-                    ? Paths.get("imports/" + fo.getNameExt()) : Folders.ownerRelativePath(fo);
+                    ? UnixPath.get("imports/" + fo.getNameExt()) : Folders.ownerRelativePath(fo);
             return relativePath == null ? null : UnixPath.get(relativePath);
         }
 
@@ -675,6 +682,7 @@ public final class RebuildSubscriptions {
             }
 
             private boolean mappingsInitialized;
+
             private void initMappings(JFS jfs) {
                 mappingsInitialized = true;
                 mappings.forEach((m) -> {
@@ -703,6 +711,9 @@ public final class RebuildSubscriptions {
                 }
 
                 Folders owner = Folders.ownerOf(fo);
+                if (owner == null) {
+                    owner = Folders.ANTLR_GRAMMAR_SOURCES;
+                }
                 LOG.log(Level.FINER, "Create JFS for {0} owned by {1} in generator ", new Object[]{fo.getName(), owner, id});
                 UnixPath relPath = UnixPath.get(owner == ANTLR_IMPORTS ? Paths.get("imports/" + fo.getNameExt())
                         : Folders.ownerRelativePath(fo));
@@ -792,21 +803,28 @@ public final class RebuildSubscriptions {
                         }
                     });
                 });
-                if (result.isUsable()) {
-                    Debug.success("Successful gen " + extraction.source(), result::toString);
-                } else {
-                    Debug.failure("Failed gen " + extraction.source(), result::toString);
+                if (Debug.isActive()) {
+                    if (result.isUsable()) {
+                        Debug.success("Successful gen " + extraction.source(), result::toString);
+                    } else {
+                        Debug.failure("Failed gen " + extraction.source(), result::toString);
+                    }
                 }
                 if (Thread.interrupted()) {
-                    Debug.failure("Thread interrupted, not passing to " + subscribers.size()
-                            + " subscribers", result::toString);
+                    if (Debug.isActive()) {
+                        Debug.failure("Thread interrupted, not passing to " + subscribers.size()
+                                + " subscribers", result::toString);
+                    }
+                    LOG.log(Level.FINE, "Thread interrupted, not passing to {0} subscribers{1}",
+                            new Object[]{subscribers.size(), result});
                     return true;
                 }
                 LOG.log(Level.FINER, "Reparse received by generator {0} for "
                         + "{1} placeholder {2} result usable {3} of "
                         + "{4} send to {5} subscribers",
                         new Object[]{id, extraction.source().name(),
-                            extraction.isPlaceholder(), result.isUsable(), result.grammarName, subscribers.size()});
+                            extraction.isPlaceholder(), result.isUsable(),
+                            result.grammarName, subscribers.size()});
                 subscribers.forEach((s) -> {
                     try {
                         LOG.log(Level.FINEST, "Call onRebuild() on {0} for {1}",
@@ -827,6 +845,7 @@ public final class RebuildSubscriptions {
     }
 
     private static void handleEiiE(Error ex, JFS jfs) {
+        // Sigh - RequestProcessor silently swallows Error throws
         try {
             LOG.log(Level.SEVERE, "Classpath: " + jfs.currentClasspath(), ex);
         } catch (Throwable t) {

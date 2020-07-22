@@ -20,9 +20,14 @@ import java.util.List;
 import org.antlr.runtime.CharStream;
 
 /**
- * Avoids copying JFS to CharBuffer to String to char[] to use one of
- * the built in stream types - since this can be done for multiple
- * grammar files for one parse, this gets expensive.
+ * Identical to Antlr v3's AntlrStringStream except that it doesn't
+ * copy the CharSequence's contents to a char[], avoiding one pointless
+ * memory-copy.  We may be passed CharBuffers from JFS, the CharSequence
+ * implementation provided from a Snapshot in Antlr's reference, or a
+ * CharSeq from the NetBeans editor, and none of these require making
+ * a copy - guessing Antlr does this for performance when reading disk
+ * files, to get the I/O done with at once, but that's not what's going
+ * on here, ever.
  */
 final class CharSequenceCharStream implements CharStream {
 
@@ -95,19 +100,13 @@ final class CharSequenceCharStream implements CharStream {
 
     @Override
     public void consume() {
-        //System.out.println("prev p="+p+", c="+(char)data[p]);
         if (p < n) {
             charPositionInLine++;
             if (data(p) == '\n') {
-                /*
-				System.out.println("newline char found on line: "+line+
-								   "@ pos="+charPositionInLine);
-                 */
                 line++;
                 charPositionInLine = 0;
             }
             p++;
-            //System.out.println("p moves to "+p+" (c='"+(char)data[p]+"')");
         }
     }
 
@@ -124,11 +123,8 @@ final class CharSequenceCharStream implements CharStream {
         }
 
         if ((p + i - 1) >= n) {
-            //System.out.println("char LA("+i+")=EOF; p="+p);
             return CharStream.EOF;
         }
-        //System.out.println("char LA("+i+")="+(char)data[p+i-1]+"; p="+p);
-        //System.out.println("LA("+i+"); p="+p+" n="+n+" data.length="+data.length);
         return data(p + i - 1);
     }
 

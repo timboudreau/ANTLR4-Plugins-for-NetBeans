@@ -29,6 +29,7 @@ import javax.swing.text.Document;
 import javax.swing.text.Position;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.misc.IntervalSet;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.netbeans.modules.parsing.api.Snapshot;
@@ -65,7 +66,7 @@ public final class SyntaxError implements Comparable<SyntaxError> {
         this.originalException = originalException;
     }
 
-    ErrorDescription toErrorDescription(Snapshot snapshot, NbLexerAdapter<?, ?> adapter, NbParserHelper helper) {
+    ErrorDescription toErrorDescription(Snapshot snapshot, Vocabulary lexerVocabulary, NbParserHelper helper) {
         if (helper != null) {
             ErrorDescription result = helper.convertError(snapshot, this);
             if (result != null) {
@@ -73,7 +74,7 @@ public final class SyntaxError implements Comparable<SyntaxError> {
             }
         }
         LazyFixList fixes = originalException != null && originalException.getOffendingState() != -1
-                ? new SyntaxFixes(adapter, snapshot) : Fixes.none();
+                ? new SyntaxFixes(lexerVocabulary, snapshot) : Fixes.none();
 
         FileObject fo = snapshot == null ? null : snapshot.getSource().getFileObject();
         if (fo != null) {
@@ -113,12 +114,12 @@ public final class SyntaxError implements Comparable<SyntaxError> {
     private class SyntaxFixes implements LazyFixList, Runnable {
 
         private final PropertyChangeSupport supp = new PropertyChangeSupport(this);
-        private final NbLexerAdapter<?, ?> adapter;
+        private final Vocabulary lexerVocabulary;
         private final Snapshot snapshot;
         private final AtomicBoolean submitted = new AtomicBoolean();
 
-        public SyntaxFixes(NbLexerAdapter<?, ?> adapter, Snapshot snapshot) {
-            this.adapter = adapter;
+        public SyntaxFixes(Vocabulary lexerVocabulary, Snapshot snapshot) {
+            this.lexerVocabulary = lexerVocabulary;
             this.snapshot = snapshot;
         }
 
@@ -221,7 +222,7 @@ public final class SyntaxError implements Comparable<SyntaxError> {
             List<InsertFix> computedFixes = new ArrayList<>(is.size());
             for (int i = 0; i < max; i++) {
                 int tokenId = is.get(i);
-                String literalName = adapter.vocabulary().getLiteralName(tokenId);
+                String literalName = lexerVocabulary.getLiteralName(tokenId);
                 if (literalName != null) {
                     computedFixes.add(new InsertFix(literalName));
                 }

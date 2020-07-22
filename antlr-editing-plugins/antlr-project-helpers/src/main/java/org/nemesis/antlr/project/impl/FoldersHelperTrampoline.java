@@ -15,15 +15,23 @@
  */
 package org.nemesis.antlr.project.impl;
 
+import com.mastfrog.util.strings.Escaper;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -33,13 +41,16 @@ import java.util.logging.Logger;
 import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.Folders;
 import org.nemesis.antlr.project.FoldersLookupStrategy;
+import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
 import org.nemesis.antlr.project.spi.AntlrConfigurationImplementation;
 import org.netbeans.api.project.Project;
 import org.openide.util.Lookup;
 import org.nemesis.antlr.project.spi.FolderLookupStrategyImplementation;
 import org.nemesis.antlr.project.spi.FolderQuery;
 import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
-import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
+import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
+import org.netbeans.api.project.ProjectInformation;
+import org.netbeans.api.project.ProjectUtils;
 import org.openide.util.Exceptions;
 
 /**
@@ -71,13 +82,7 @@ public abstract class FoldersHelperTrampoline {
         if (QUERY_SUPPLIER != null) {
             return QUERY_SUPPLIER;
         }
-        Class<?> type = FolderQuery.class;
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
+        ensureFolderQueryInitializesQuerySupplier();
         assert QUERY_SUPPLIER != null : "Not initialized correctly";
         return QUERY_SUPPLIER;
     }
@@ -119,6 +124,14 @@ public abstract class FoldersHelperTrampoline {
                 isGuessedConfig, buildOutput, testOutput, sources, testSources);
     }
 
+    public boolean evictConfiguration(Path projectPath) {
+        return configFactory().evict(projectPath);
+    }
+
+    public boolean evictConfiguration(AntlrConfiguration config) {
+        return configFactory().evict(config);
+    }
+
     public AntlrConfiguration antlrConfiguration(FolderLookupStrategyImplementation spi) {
         AntlrConfigurationImplementation config = spi.get(AntlrConfigurationImplementation.class);
         if (config != null) {
@@ -158,13 +171,7 @@ public abstract class FoldersHelperTrampoline {
         if (EMPTY_ITERABLE != null) {
             return EMPTY_ITERABLE;
         }
-        Class<?> type = FolderQuery.class;
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
+        ensureFolderQueryInitializesQuerySupplier();
         assert EMPTY_ITERABLE != null : "Not initialized correctly";
         return EMPTY_ITERABLE;
     }
@@ -173,6 +180,12 @@ public abstract class FoldersHelperTrampoline {
         if (SINGLE_ITERABLE_FACTORY != null) {
             return SINGLE_ITERABLE_FACTORY;
         }
+        ensureFolderQueryInitializesQuerySupplier();
+        assert SINGLE_ITERABLE_TEST != null : "Not initialized correctly";
+        return SINGLE_ITERABLE_FACTORY;
+    }
+
+    private static void ensureFolderQueryInitializesQuerySupplier() {
         Class<?> type = FolderQuery.class;
         try {
             Class.forName(type.getName(), true, type.getClassLoader());
@@ -180,21 +193,13 @@ public abstract class FoldersHelperTrampoline {
             Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
                     null, ex);
         }
-        assert SINGLE_ITERABLE_TEST != null : "Not initialized correctly";
-        return SINGLE_ITERABLE_FACTORY;
     }
 
     static Predicate<Iterable<?>> singleIterableTest() {
         if (SINGLE_ITERABLE_TEST != null) {
             return SINGLE_ITERABLE_TEST;
         }
-        Class<?> type = FolderQuery.class;
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
+        ensureFolderQueryInitializesQuerySupplier();
         assert SINGLE_ITERABLE_TEST != null : "Not initialized correctly";
         return SINGLE_ITERABLE_TEST;
     }
@@ -203,13 +208,7 @@ public abstract class FoldersHelperTrampoline {
         if (EMPTY_ITERABLE_TEST != null) {
             return EMPTY_ITERABLE_TEST;
         }
-        Class<?> type = FolderQuery.class;
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
+        ensureFolderQueryInitializesQuerySupplier();
         assert EMPTY_ITERABLE_TEST != null : "Not initialized correctly";
         return EMPTY_ITERABLE_TEST;
     }
@@ -219,6 +218,20 @@ public abstract class FoldersHelperTrampoline {
     }
 
     private static final Set<String> CHECKED = new HashSet<>();
+
+    public static AddAntlrCapabilities addAntlrCapabilities(Project project) {
+        for (FoldersLookupStrategyImplementationFactory factory : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
+            try {
+                Function<NewAntlrConfigurationInfo, CompletionStage<Boolean>> result = factory.antlrSupportAdder(project);
+                if (result != null) {
+                    return factory.addAntlrCapabilities();
+                }
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
+        return null;
+    }
 
     public static Function<NewAntlrConfigurationInfo, CompletionStage<Boolean>> antlrAdder(Project project) {
         for (FoldersLookupStrategyImplementationFactory factory : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
@@ -232,6 +245,100 @@ public abstract class FoldersHelperTrampoline {
             }
         }
         return null;
+    }
+
+    public static String findBestJavaPackageSuggestionForGrammarsWhenAddingAntlr(Project project) {
+        FolderQuery fq = querySupplier().get().duplicate().project(project);
+        Set<String> packageRoots = new TreeSet<>();
+        Set<Path> relativePackagePaths = new HashSet<>(5);
+        for (Path path : new HeuristicFoldersHelperImplementation(project, fq).find(Folders.JAVA_SOURCES, fq)) {
+            if (Files.isDirectory(path)) {
+                try {
+                    System.out.println("WALK " + path);
+                    FileVisitor<Path> scanner = new JavaSourceScanner(path, packageRoots, relativePackagePaths);
+                    Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 15, scanner);
+                } catch (IOException ex) {
+                    Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.FINE, null, ex);
+                }
+            }
+        }
+        List<Path> packagePaths = new ArrayList<>(relativePackagePaths);
+        Collections.sort(packagePaths, (a, b) -> {
+            int result = Integer.compare(a.getNameCount(), b.getNameCount());
+            if (result == 0) {
+                result = -a.toString().compareTo(b.toString());
+            }
+            return result;
+        });
+        System.out.println("packageRoots " + packageRoots);
+        System.out.println("packagePaths " + packagePaths);
+        if (!packagePaths.isEmpty()) {
+            return packagePaths.get(0).toString().replace('/', '.')
+                    .replace('\\', '.');
+        }
+
+        String basePackage = packageRoots.isEmpty() ? "com" : packageRoots.iterator().next();
+
+        ProjectInformation info = ProjectUtils.getInformation(project);
+        return basePackage + '.' + Escaper.JAVA_IDENTIFIER_DELIMITED.escape(info.getDisplayName()).toLowerCase();
+    }
+
+    static final class JavaSourceScanner implements FileVisitor<Path> {
+
+        private final Path root;
+        private final Set<String> packageRoots;
+        private final Set<Path> containingJavaFiles;
+        private int encounteredAt = Integer.MAX_VALUE;
+        private int currentDepth;
+
+        public JavaSourceScanner(Path root, Set<String> packageRoots, Set<Path> containingJavaFiles) {
+            this.root = root;
+            this.packageRoots = packageRoots;
+            this.containingJavaFiles = containingJavaFiles;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            if (root.equals(dir.getParent())) {
+                packageRoots.add(dir.getFileName().toString());
+            }
+            currentDepth++;
+            if (currentDepth > encounteredAt) {
+                currentDepth--;
+                return FileVisitResult.SKIP_SUBTREE;
+            } else {
+                return FileVisitResult.CONTINUE;
+            }
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            String nm = file.getFileName().toString();
+            if (nm.endsWith(".java") || nm.endsWith(".class") || nm.endsWith(".groovy")) {
+                Path rel = root.relativize(file.getParent());
+                if (rel != null && rel.toString().length() > 0) {
+                    containingJavaFiles.add(rel);
+                    encounteredAt = Math.min(encounteredAt, currentDepth);
+                    return FileVisitResult.SKIP_SIBLINGS;
+                }
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+            return FileVisitResult.TERMINATE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            currentDepth--;
+            if (exc != null) {
+                return FileVisitResult.TERMINATE;
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
     }
 
     public Set<Path> buildFileRelativePaths() {
@@ -262,17 +369,22 @@ public abstract class FoldersHelperTrampoline {
     }
 
     public FolderLookupStrategyImplementation implementationFor(Project project, FolderQuery initialQuery) {
-        FolderLookupStrategyImplementation projectImpl = project.getLookup().lookup(FolderLookupStrategyImplementation.class);
-        if (projectImpl != null) {
-            return projectImpl;
+        if (project == null) {
+            return NONE;
         }
-        for (FoldersLookupStrategyImplementationFactory factory : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
-            FolderLookupStrategyImplementation impl = factory.create(project, initialQuery);
-            if (impl != null) {
-                return impl;
+        FolderLookupStrategyImplementation result = project.getLookup().lookup(FolderLookupStrategyImplementation.class);
+        if (result == null) {
+            for (FoldersLookupStrategyImplementationFactory factory : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
+                FolderLookupStrategyImplementation impl = factory.create(project, initialQuery);
+                if (impl != null) {
+                    return impl;
+                }
             }
         }
-        return NONE;
+        if (result == null) {
+            result = new HeuristicFoldersHelperImplementation(project, initialQuery);
+        }
+        return result;
     }
 
     public boolean isRecognized(Project project) {
@@ -282,7 +394,7 @@ public abstract class FoldersHelperTrampoline {
 
     public static boolean isKnownImplementation(String name) {
         Set<String> set = new HashSet<>(10);
-        for (FoldersLookupStrategyImplementationFactory impl : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)){
+        for (FoldersLookupStrategyImplementationFactory impl : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
             impl.collectImplementationNames(set);
         }
         return set.contains(name);

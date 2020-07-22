@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-netbeans-parent</artifactId>
-        <version>2.0.48</version>
+        <version>2.0.49</version>
     </parent>
     <artifactId>antlr-suite</artifactId>
     <scm>
@@ -157,6 +157,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-project-helpers-maven</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-project-helpers-ant</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

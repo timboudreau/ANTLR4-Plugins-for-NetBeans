@@ -15,12 +15,15 @@
  */
 package org.nemesis.antlr.project.spi;
 
+import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
+import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
+import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.netbeans.api.project.Project;
 
 /**
@@ -89,4 +92,23 @@ public interface FoldersLookupStrategyImplementationFactory {
      * @param into
      */
     void collectImplementationNames(Set<? super String> into);
+
+    /**
+     * Determines what options are shown in the Add Antlr Support dialog.
+     *
+     * @return a new AddAntlrCapabilities which subclasses can customize
+     */
+    default AddAntlrCapabilities addAntlrCapabilities() {
+        return new AddAntlrCapabilities();
+    }
+
+    /**
+     * In the case something has changed, evict the cahced AntlrConfiguration
+     * for the passed project dir.
+     *
+     * @param dir A project dir
+     */
+    static void evict(Path dir) {
+        FoldersHelperTrampoline.getDefault().evictConfiguration(dir);
+    }
 }

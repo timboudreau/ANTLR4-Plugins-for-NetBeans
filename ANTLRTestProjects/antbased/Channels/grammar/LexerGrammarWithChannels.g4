@@ -9,3 +9,4 @@ channels { // a line comment
 } // a line comment
 
 T : 'a' -> channel(Channel2); // channel provided by channel statement must exist
+//goo

@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+
+Name: org/apache/tools/ant/taskdefs/optional/
+Extension-name: com.mastfrog.antlr.ant.task
+Specification-Title: Antlr-4 Ant Task
+Specification-Version: 1.0
+Specification-Vendor: Mastfrog Technologies
+Implementation-Title: com.mastfrog.antlr.ant.task
+Implementation-Version: 2.0.48
+Implementation-Vendor: Mastfrog Technologies

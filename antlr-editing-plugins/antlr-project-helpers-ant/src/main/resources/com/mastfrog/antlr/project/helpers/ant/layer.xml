@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE filesystem PUBLIC "-//NetBeans//DTD Filesystem 1.2//EN" "http://www.netbeans.org/dtds/filesystem-1_2.dtd">
+<filesystem>
+    <folder name="org-netbeans-api-project-libraries">
+        <folder name="Libraries">
+            <file name="antlr-complete-library.xml"
+                  url="antlr-complete-library.xml"/>
+            <file name="antlr-runtime-library.xml"
+                  url="antlr-runtime-library.xml"/>
+            <file name="antlr-ant-task.xml"
+                  url="antlr-ant-task.xml"/>
+        </folder>
+    </folder>
+</filesystem>

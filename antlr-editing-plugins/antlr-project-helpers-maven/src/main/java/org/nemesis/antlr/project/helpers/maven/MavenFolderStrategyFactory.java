@@ -26,7 +26,8 @@ import java.util.function.Function;
 import org.nemesis.antlr.project.spi.FolderLookupStrategyImplementation;
 import org.nemesis.antlr.project.spi.FolderQuery;
 import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
-import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
+import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
+import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
 import org.openide.util.RequestProcessor;
@@ -53,6 +54,11 @@ public final class MavenFolderStrategyFactory implements FoldersLookupStrategyIm
         // HeuristicFoldersHelperImplementation adds this too, but don't assume
         // it actually should and always will
         buildFileNameGatherer.add(Paths.get("pom.xml"));
+    }
+
+    @Override
+    public AddAntlrCapabilities addAntlrCapabilities() {
+        return FoldersLookupStrategyImplementationFactory.super.addAntlrCapabilities().canGenerateSkeletonGrammar(true);
     }
 
     @Override

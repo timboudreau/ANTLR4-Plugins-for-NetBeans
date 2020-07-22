@@ -27,9 +27,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import org.antlr.v4.runtime.Vocabulary;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.nemesis.source.api.GrammarSource;
+import org.netbeans.modules.editor.NbEditorDocument;
 import org.netbeans.modules.parsing.api.Snapshot;
+import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 
@@ -43,18 +47,46 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     private final Extraction extraction;
     private final List<SyntaxError> syntaxErrors = new ArrayList<>();
     private BiFunction<Snapshot, SyntaxError, ErrorDescription> errorConverter;
-    private final List<ErrorDescription> addedErrorDescriptions = new ArrayList<>(25);
+    private final List<ErrorDescription> addedErrorDescriptions = new ArrayList<>( 25 );
     private static volatile long IDS;
     private final long id = IDS++;
-    private final NbLexerAdapter<?,?> adapter;
+    private final Vocabulary lexerVocabulary;
     private NbParserHelper helper;
     private volatile boolean wasInvalidated;
 
-    AntlrParseResult(NbLexerAdapter<?,?> adapter, Snapshot _snapshot, Extraction extraction, Consumer<ParseResultContents> inputConsumer) {
-        super(_snapshot);
-        this.adapter = adapter;
+    AntlrParseResult( NbLexerAdapter<?, ?> adapter, Snapshot _snapshot, Extraction extraction,
+            Consumer<ParseResultContents> inputConsumer ) {
+        super( _snapshot );
+        this.lexerVocabulary = adapter.vocabulary();
         this.extraction = extraction;
-        inputConsumer.accept(input());
+        inputConsumer.accept( input() );
+    }
+
+    AntlrParseResult( Vocabulary lexerVocabulary, Snapshot _snapshot, Extraction extraction,
+            Consumer<ParseResultContents> inputConsumer ) {
+        super( _snapshot );
+        this.lexerVocabulary = lexerVocabulary;
+        this.extraction = extraction;
+        inputConsumer.accept( input() );
+    }
+
+    /**
+     * Create an empty parse result that appears to have a document and enough accoutrements
+     * to pass for a real one.
+     *
+     * @param mimeType The mimme type
+     * @return A fake parser result
+     */
+    static AntlrParseResult empty( String mimeType ) {
+        NbEditorDocument doc = new NbEditorDocument( mimeType );
+        Snapshot snap = Source.create( doc ).createSnapshot();
+        Extraction empty = Extraction.empty( mimeType );
+        return new AntlrParseResult( ( Vocabulary ) null, snap, empty, prc -> {
+                             } );
+    }
+
+    public boolean isEmptyParseResult() {
+        return extraction.source() == GrammarSource.none();
     }
 
     @Override
@@ -69,7 +101,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * @return A list of syntax errors
      */
     public List<? extends SyntaxError> syntaxErrors() {
-        return Collections.unmodifiableList(syntaxErrors);
+        return Collections.unmodifiableList( syntaxErrors );
     }
 
     /**
@@ -78,9 +110,9 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * @return A list of error descriptions
      */
     public List<? extends ErrorDescription> getErrorDescriptions() {
-        List<ErrorDescription> result = new ArrayList<>(getErrorDescriptions(errorConverter));
-        if (!addedErrorDescriptions.isEmpty()) {
-            result.addAll(addedErrorDescriptions);
+        List<ErrorDescription> result = new ArrayList<>( getErrorDescriptions( errorConverter ) );
+        if ( !addedErrorDescriptions.isEmpty() ) {
+            result.addAll( addedErrorDescriptions );
         }
         return result;
     }
@@ -90,15 +122,17 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * optionally converting them using the passed function.
      *
      * @param converter A conversion function
+     *
      * @return A list of error descriptions
      */
-    private List<? extends ErrorDescription> getErrorDescriptions(BiFunction<Snapshot, SyntaxError, ErrorDescription> converter) {
-        List<ErrorDescription> result = new ArrayList<>(syntaxErrors.size());
+    private List<? extends ErrorDescription> getErrorDescriptions(
+            BiFunction<Snapshot, SyntaxError, ErrorDescription> converter ) {
+        List<ErrorDescription> result = new ArrayList<>( syntaxErrors.size() );
         Snapshot snapshot = super.getSnapshot();
-        for (SyntaxError s : syntaxErrors) {
-            ErrorDescription ed = s.toErrorDescription(snapshot, adapter, helper);
-            if (ed != null) {
-                result.add(ed);
+        for ( SyntaxError s : syntaxErrors ) {
+            ErrorDescription ed = s.toErrorDescription( snapshot, lexerVocabulary, helper );
+            if ( ed != null ) {
+                result.add( ed );
             }
         }
         return result;
@@ -106,14 +140,14 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("AntlrParseResult{");
-        sb.append(id).append(" ");
-        sb.append("pairs=").append(pairs.size()).append(", snapshot=")
-                .append(getSnapshot()).append(", ")
-                .append("extraction=").append(extraction.logString())
-                .append(", errors=").append(syntaxErrors)
-                .append(", wasInvalidated=").append(wasInvalidated);
-        return sb.append('}').toString();
+        StringBuilder sb = new StringBuilder( "AntlrParseResult{" );
+        sb.append( id ).append( " " );
+        sb.append( "pairs=" ).append( pairs.size() ).append( ", snapshot=" )
+                .append( getSnapshot() ).append( ", " )
+                .append( "extraction=" ).append( extraction.logString() )
+                .append( ", errors=" ).append( syntaxErrors )
+                .append( ", wasInvalidated=" ).append( wasInvalidated );
+        return sb.append( '}' ).toString();
     }
 
     @Override
@@ -123,7 +157,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
     /**
      * Determine if this parse result is being used within the closure
-     * of the call to ParserManager that created it.  This is needed,
+     * of the call to ParserManager that created it. This is needed,
      * for example, for the Antlr live editor to determine if it is going
      * to be passed a new parser result via ParserResultHook, or if it needs to
      * call itself with the result, since it depends on triggering a
@@ -144,22 +178,21 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 //        helper = null;
     }
 
-    public static final <T> Key<T> key(String name, Class<T> type) {
-        return new Key<>(name == null ? type.getName() : name, type);
+    public static final <T> Key<T> key( String name, Class<T> type ) {
+        return new Key<>( name == null ? type.getName() : name, type );
     }
 
-    public <T> Optional<T> get(Key<T> key) {
-        Object result = pairs.get(key);
-        if (result == null) {
+    public <T> Optional<T> get( Key<T> key ) {
+        Object result = pairs.get( key );
+        if ( result == null ) {
             return Optional.empty();
         }
-        return Optional.of(key.type().cast(result));
+        return Optional.of( key.type().cast( result ) );
     }
 
     ParseResultContents input() {
         return new ParseResultInput();
     }
-
 
     /**
      * A (mostly) write-only input to the parser result, so it has no
@@ -171,18 +204,18 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     final class ParseResultInput extends ParseResultContents {
 
         @Override
-        <T> Optional<T> _get(Key<T> key) {
-            return AntlrParseResult.this.get(key);
+        <T> Optional<T> _get( Key<T> key ) {
+            return AntlrParseResult.this.get( key );
         }
 
         @Override
-        <T> void _put(Key<T> key, T obj) {
-            pairs.put(key, obj);
+        <T> void _put( Key<T> key, T obj ) {
+            pairs.put( key, obj );
         }
 
         @Override
-        void setSyntaxErrors(List<? extends SyntaxError> errors, NbParserHelper helper) {
-            syntaxErrors.addAll(errors);
+        void setSyntaxErrors( List<? extends SyntaxError> errors, NbParserHelper helper ) {
+            syntaxErrors.addAll( errors );
             AntlrParseResult.this.helper = helper;
         }
 
@@ -192,19 +225,19 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         }
 
         @Override
-        public final ParseResultContents addErrorDescription(ErrorDescription err) {
-            addedErrorDescriptions.add(err);
+        public final ParseResultContents addErrorDescription( ErrorDescription err ) {
+            addedErrorDescriptions.add( err );
             return this;
         }
 
         @Override
-        void addSyntaxError(SyntaxError err) {
-            syntaxErrors.add(err);
+        void addSyntaxError( SyntaxError err ) {
+            syntaxErrors.add( err );
         }
 
         @Override
         Fixes fixes() throws IOException {
-            return Fixes.create(extraction, this);
+            return Fixes.create( extraction, this );
         }
     }
 
@@ -213,7 +246,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         private final String name;
         private final Class<T> type;
 
-        private Key(String name, Class<T> type) {
+        private Key( String name, Class<T> type ) {
             this.name = name;
             this.type = type;
         }
@@ -227,7 +260,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         }
 
         public String toString() {
-            if (name.equals(type.getName())) {
+            if ( name.equals( type.getName() ) ) {
                 return "<" + type.getSimpleName() + ">";
             }
             return name + "<" + type.getSimpleName() + ">";
@@ -236,27 +269,27 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         @Override
         public int hashCode() {
             int hash = 5;
-            hash = 53 * hash + Objects.hashCode(this.name);
-            hash = 53 * hash + Objects.hashCode(this.type);
+            hash = 53 * hash + Objects.hashCode( this.name );
+            hash = 53 * hash + Objects.hashCode( this.type );
             return hash;
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
+        public boolean equals( Object obj ) {
+            if ( this == obj ) {
                 return true;
             }
-            if (obj == null) {
+            if ( obj == null ) {
                 return false;
             }
-            if (getClass() != obj.getClass()) {
+            if ( getClass() != obj.getClass() ) {
                 return false;
             }
-            final Key<?> other = (Key<?>) obj;
-            if (!Objects.equals(this.name, other.name)) {
+            final Key<?> other = ( Key<?> ) obj;
+            if ( !Objects.equals( this.name, other.name ) ) {
                 return false;
             }
-            return Objects.equals(this.type, other.type);
+            return Objects.equals( this.type, other.type );
         }
     }
 }

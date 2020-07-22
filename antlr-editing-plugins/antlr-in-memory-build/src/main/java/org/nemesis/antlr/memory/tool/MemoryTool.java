@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.memory.tool;
 
+import com.mastfrog.function.throwing.ThrowingFunction;
 import org.nemesis.antlr.memory.tool.epsilon.EpsilonAnalysis;
 import org.nemesis.antlr.memory.tool.ext.EpsilonRuleInfo;
 import com.mastfrog.util.path.UnixPath;
@@ -23,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Field;
 import java.nio.channels.ClosedByInterruptException;
@@ -34,9 +34,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -57,13 +60,13 @@ import org.antlr.v4.tool.ANTLRMessage;
 import org.antlr.v4.tool.ErrorManager;
 import org.antlr.v4.tool.ErrorSeverity;
 import org.antlr.v4.tool.ErrorType;
-import static org.antlr.v4.tool.ErrorType.CANNOT_FIND_TOKENS_FILE_REFD_IN_GRAMMAR;
 import org.antlr.v4.tool.Grammar;
 import org.antlr.v4.tool.GrammarTransformPipeline;
 import org.antlr.v4.tool.LexerGrammar;
 import org.antlr.v4.tool.ast.GrammarAST;
 import org.antlr.v4.tool.ast.GrammarRootAST;
 import static org.nemesis.antlr.memory.tool.ToolContext.currentFile;
+import org.nemesis.antlr.stdio.ThreadMappedStdIO;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.stringtemplate.v4.ST;
@@ -98,6 +101,13 @@ public final class MemoryTool extends Tool {
             ctx.logStream.println("Init " + getClass().getName() + " " + versionInfo());
             ctx.logStream.println("Over JFS with\n" + list());
         }
+    }
+
+    public static <T> T run(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String[] args, ThrowingFunction<MemoryTool, T> func) throws Exception {
+        return ThreadMappedStdIO.enter(logStream, () -> {
+            MemoryTool tool = create(dir, jfs, inputLocation, outputLocation, logStream, args);
+            return func.apply(tool);
+        });
     }
 
     public static MemoryTool create(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream, String... args) {
@@ -163,7 +173,6 @@ public final class MemoryTool extends Tool {
             ParsedAntlrError curr = errors.get(i);
             if (curr.code() == 50 && prev.code() == curr.code() && prev.lineNumber() == curr.lineNumber() && prev.lineOffset() + prev.length() == curr.lineOffset() && prev.path().equals(curr.path())) {
                 result.remove(result.size() - 1);
-//                System.out.println("coalesce " + prev + " and " + curr);
                 ParsedAntlrError nue = new ParsedAntlrError(prev.isError() || curr.isError(),
                         curr.code(), curr.path(), curr.lineNumber(), prev.lineOffset(), "Syntax error");
                 if (curr.hasFileOffset() && prev.hasFileOffset()) {
@@ -186,7 +195,6 @@ public final class MemoryTool extends Tool {
     }
 
     private void convertEpsilonIssuesToErrors(List<ParsedAntlrError> errors) {
-//        System.out.println("HAVE " + (epsilonIssues == null ? "null" : epsilonIssues.size()) + " EPSILON ISSUES");
         if (epsilonIssues != null) {
             boolean hasSelfViolations = false;
             boolean anyConverted = false;
@@ -199,7 +207,6 @@ public final class MemoryTool extends Tool {
                 if (!isSelfViolation) {
                     String key = e.victimRuleName() + ":" + e.culpritRuleName();
                     if (seen.contains(key)) {
-//                        System.out.println("  Seen - skip " + e);
                         continue;
                     }
                     seen.add(key);
@@ -318,10 +325,10 @@ public final class MemoryTool extends Tool {
     @Override
     public void log(String msg) {
         // do nothing
-//        ToolContext ctx = ToolContext.get(this);
-//        if (ctx.logStream != null) {
-//            ctx.logStream.println(msg);
-//        }
+        ToolContext ctx = ToolContext.get(this);
+        if (ctx.logStream != null) {
+            ctx.logStream.println(msg);
+        }
     }
 
     @Override
@@ -398,7 +405,14 @@ public final class MemoryTool extends Tool {
         return epsilonIssues == null ? Collections.emptyList() : epsilonIssues;
     }
 
+    private boolean loged;
+
     public Grammar loadGrammar(String fileName, Consumer<JFSFileObject> c) {
+        if (!loged) {
+            ThreadMappedStdIO.bypass(() -> {
+                System.out.println("BEGIN LOADS OVER\n" + listJFS());
+            });
+        }
         ToolContext ctx = ToolContext.get(this);
         JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, UnixPath.get(fileName));
         Set<LoadAttempt> attemptedPaths = new HashSet<>(3);
@@ -427,9 +441,6 @@ public final class MemoryTool extends Tool {
                             epsilonIssues = new ArrayList<>(issues.size());
                         }
                         epsilonIssues.add(epsilonIssue);
-//                    } else {
-//                        System.out.println("WRONG GRAMMAR: " + epsilonIssue
-//                                + " grammar name " + epsilonIssue.grammarName());
                     }
                 }
             }
@@ -471,6 +482,9 @@ public final class MemoryTool extends Tool {
                     + ":" + finalFile);
             try {
                 process(g, false);
+            } catch (Circularity cir) {
+                errMgr.toolError(ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR, cir.attemptedLoad, cir.from.toString());
+                cir.printStackTrace();
             } catch (NullPointerException ex) {
                 /*
                 A parser grammar with an illegal labeled element referencing
@@ -487,7 +501,7 @@ public final class MemoryTool extends Tool {
                         at org.antlr.v4.Tool.processNonCombinedGrammar(Tool.java:396)
                         at org.antlr.v4.Tool.process(Tool.java:369)
 
-                */
+                 */
                 ex.printStackTrace(ToolContext.get(this).logStream);
                 errMgr.toolError(ErrorType.INTERNAL_ERROR, ex);
             }
@@ -545,6 +559,9 @@ public final class MemoryTool extends Tool {
         return result;
     }
 
+    private static final UnixPath IMPORT = UnixPath.get("import");
+    private static final UnixPath IMPORTS = UnixPath.get("imports");
+
     private JFSFileObject getImportedGrammarFileObject(Grammar g, String fileName, Location loc, Set<? super LoadAttempt> failures, ToolContext ctx) {
         JFSFileObject fo = ctx.jfs.get(loc, ctx.dir.resolve(fileName));
         if (fo == null) {
@@ -554,19 +571,23 @@ public final class MemoryTool extends Tool {
                 fo = getFO(loc, nxt.getParent().resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, UnixPath.get("import").resolve(fileName), failures, ctx);
+                fo = getFO(loc, IMPORT.resolve(fileName), failures, ctx);
             }
             if (fo == null) {
-                fo = getFO(loc, UnixPath.get("imports").resolve(fileName), failures, ctx);
-            }
-            if (fo == null) {
-                fo = getFO(loc, UnixPath.get("import").resolve(g.fileName), failures, ctx);
-            }
-            if (fo == null) {
-                fo = getFO(loc, UnixPath.get("imports").resolve(g.fileName), failures, ctx);
+                fo = getFO(loc, IMPORTS.resolve(fileName), failures, ctx);
             }
             if (fo == null && libDirectory != null) {
-                fo = getFO(loc, UnixPath.get(libDirectory).resolve(g.fileName), failures, ctx);
+                if (libDirectory.isEmpty()) {
+                    fo = getFO(loc, UnixPath.get(fileName), failures, ctx);
+                } else {
+                    fo = getFO(loc, UnixPath.get(libDirectory).resolve(fileName), failures, ctx);
+                }
+                if (fo == null && !libDirectory.isEmpty()) {
+                    fo = getFO(loc, UnixPath.get(libDirectory).resolve(IMPORTS).resolve(fileName), failures, ctx);
+                }
+                if (fo == null && !libDirectory.isEmpty()) {
+                    fo = getFO(loc, UnixPath.get(libDirectory).resolve(IMPORT).resolve(fileName), failures, ctx);
+                }
             }
         }
         if (fo != null) {
@@ -597,43 +618,194 @@ public final class MemoryTool extends Tool {
         return sb.toString();
     }
 
+    private static final ThreadLocal<LinkedList<String>> loading = ThreadLocal.withInitial(LinkedList::new);
+
+    private boolean isSameGrammar(Grammar imported, String name) {
+        if (imported == null || name == null) {
+            return false;
+        }
+        if (imported.fileName != null) {
+            if (imported.fileName.equals(name)) {
+                return true;
+            }
+            if (UnixPath.get(imported.fileName).rawName().equals(name)) {
+                return true;
+            }
+        }
+        if (imported.name != null) {
+            if (imported.name.equals(name)) {
+                return true;
+            }
+            if (imported.name.equals(UnixPath.get(name).rawName()));
+        }
+        return false;
+    }
+
+    static class Circularity extends RuntimeException {
+
+        final String attemptedLoad;
+        final Path from;
+        final LinkedHashSet<String> loading;
+
+        Circularity(List<String> loading, String attemptedLoad, Path from) {
+            super("Circular load of '" + attemptedLoad + " when already loading " + loading + " from " + from);
+            this.attemptedLoad = attemptedLoad;
+            this.from = from;
+            this.loading = new LinkedHashSet<>(loading);
+        }
+    }
+
     @Override
     public Grammar loadImportedGrammar(Grammar g, GrammarAST nameNode) throws IOException {
         String name = nameNode.getText();
         if (name.equals(g.name)) {
             // Avoid a StaackOverflowError if the grammar imports itself
-            this.errMgr.emit(ErrorType.INVALID_IMPORT, new ANTLRMessage(ErrorType.INVALID_IMPORT, nameNode.token, name, name));
+            this.errMgr.emit(ErrorType.INVALID_IMPORT, new ANTLRMessage(ErrorType.INVALID_IMPORT, nameNode.token, nameNode.getToken(), name));
             return null;
         }
-        Grammar imported = importedGrammars().get(name);
-        if (imported == null) {
-            g.tool.log("grammar", "load " + name + " from " + g.fileName);
-            JFSFileObject importedFile = null;
-            for (String extension : ALL_GRAMMAR_EXTENSIONS) {
-                importedFile = getImportedGrammarFileObject(g, name + extension);
+        LinkedList<String> currentlyLoading = loading.get();
+        if (currentlyLoading.contains(name)) {
+            errMgr.grammarError(ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR, g.fileName, nameNode.getToken(), name);
+            throw new Circularity(currentlyLoading, name, currentFile.get());
+        }
+        Set<String> prevCurrentlyLoading = new HashSet<>(currentlyLoading);
+        currentlyLoading.push(name);
+        try {
+            Grammar imported = importedGrammars().get(name);
+            if (imported == g) {
+                return null;
+            }
+            if (isSameGrammar(imported, name)) {
+                return imported;
+            }
+            if (imported == null && !prevCurrentlyLoading.contains(name)) {
+                log("grammar", "load " + name + " from " + g.fileName);
+                JFSFileObject importedFile = null;
+                for (String extension : ALL_GRAMMAR_EXTENSIONS) {
+                    importedFile = getImportedGrammarFileObject(g, name + extension);
+                    if (importedFile != null) {
+                        break;
+                    }
+                }
                 if (importedFile != null) {
-                    break;
+                    JFSFileObject fo = importedFile;
+                    UnixPath path = UnixPath.get(importedFile.getName());
+                    return withCurrentPathThrowing(path, () -> {
+
+                        CharSequence chars = fo.getCharContent(true);
+                        try { // (InputStream in = fo.openInputStream()) {
+                            CharSequenceCharStream charStream = new CharSequenceCharStream(chars);
+//                            org.antlr.runtime.ANTLRInputStream charStream = new org.antlr.runtime.ANTLRInputStream(in, ToolContext.get(this).jfs.encoding().name());
+//                        ANTLRStringStream charStream = new org.antlr.runtime.ANTLRStringStream(chars.toString().toCharArray(), chars.length());
+                            GrammarRootAST grammarRootAST = parse(fo.getName(), charStream);
+                            final Grammar gg = createGrammar(grammarRootAST);
+//                            importedGrammars.put(name, gg);
+                            if (gg != null) {
+                                gg.fileName = Paths.get(fo.getName()).getFileName().toString();
+                                try {
+                                    process(gg, false);
+                                } catch (Circularity circ) {
+                                    // we don't want to abort THIS grammar, just not
+                                    // try to load an import that circles back
+                                    circ.printStackTrace();
+                                }
+                            }
+                            return gg;
+                        } catch (Exception ex) {
+                            IOException ex1 = new IOException("Exception reading " + path
+                                    + " JFS FO " + fo + " length " + fo.length()
+                                    + " isr with chars length " + chars.length(), ex);
+                            ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ex1);
+                            throw ex1;
+                        }
+
+//                    final Reader[] r = new Reader[1];
+//                    try (Reader reader = fo.openReader(true)) {
+//                        r[0] = reader;
+//                        org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(reader, fo.length(), 512);
+//                        GrammarRootAST grammarRootAST = parse(fo.getName(), charStream);
+//                        final Grammar gg = createGrammar(grammarRootAST);
+//                        if (gg != null) {
+//                            gg.fileName = Paths.get(fo.getName()).getFileName().toString();
+//                            process(gg, false);
+//                        }
+//                        return gg;
+//                    } catch (IndexOutOfBoundsException ex) {
+//                        StringBuilder sb = new StringBuilder("Input JFS:");
+//                        ToolContext.get(this).jfs.list(ToolContext.get(this).inputLocation, (loc, jfo) -> {
+//                            sb.append('\n').append(jfo.getName()).append(" len ").append(jfo.length());
+//                        });
+//                        IOException ex1 = new IOException("IOOBE reading " + path
+//                                + " JFS FO " + fo + " length " + fo.length()
+//                                + " isr with reader " + r[0], ex);
+//                        ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ex1);
+//                        throw ex1;
+//                    } catch (IOException ioe) {
+//                        ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ioe);
+//                        throw ioe;
+//                    }
+                    });
+                } else {
+                    errMgr.grammarError(ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR, g.fileName, nameNode.getToken(), name);
                 }
             }
-            if (importedFile != null) {
-                JFSFileObject fo = importedFile;
-                return withCurrentPathThrowing(UnixPath.get(importedFile.getName()), () -> {
-                    try (Reader reader = fo.openReader(true)) {
-                        org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(reader, fo.length(), 512);
-                        GrammarRootAST grammarRootAST = parse(fo.getName(), charStream);
-                        final Grammar gg = createGrammar(grammarRootAST);
-                        if (gg != null) {
-                            gg.fileName = Paths.get(fo.getName()).getFileName().toString();
-                            process(gg, false);
-                        }
-                        return gg;
-                    }
-                });
-            } else {
-                errMgr.grammarError(ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR, g.fileName, nameNode.getToken(), name);
+            return imported;
+        } finally {
+            currentlyLoading.pop();
+        }
+    }
+
+    private final Map<Grammar, Boolean> alreadyLoadedImportedGrammars = new WeakHashMap<>();
+
+    private void loadImportedGrammars(Grammar g) {
+        if (alreadyLoadedImportedGrammars.containsKey(g)) {
+            return;
+        }
+        alreadyLoadedImportedGrammars.put(g, true);
+        g.loadImportedGrammars();
+    }
+
+    @Override
+    public void process(Grammar g, boolean gencode) {
+        // A missing file will cause endless cycling, as the attempt to
+        // load grammars is repeated every time the grammar is traversed,
+        // so we have to override process() to avoid attempting to load
+        // imported grammars more than once
+        loadImportedGrammars(g);
+
+        GrammarTransformPipeline transform = new GrammarTransformPipeline(g, this);
+        transform.process();
+
+        LexerGrammar lexerg;
+        GrammarRootAST lexerAST;
+        if (g.ast != null && g.ast.grammarType == ANTLRParser.COMBINED
+                && !g.ast.hasErrors) {
+            lexerAST = transform.extractImplicitLexer(g); // alters g.ast
+            if (lexerAST != null) {
+                if (grammarOptions != null) {
+                    lexerAST.cmdLineOptions = grammarOptions;
+                }
+
+                lexerg = new LexerGrammar(this, lexerAST);
+                lexerg.fileName = g.fileName;
+                lexerg.originalGrammar = g;
+                g.implicitLexer = lexerg;
+                lexerg.implicitLexerOwner = g;
+                processNonCombinedGrammar(lexerg, gencode);
             }
         }
-        return imported;
+        if (g.implicitLexer != null) {
+            g.importVocab(g.implicitLexer);
+        }
+        processNonCombinedGrammar(g, gencode);
+    }
+
+    private String listJFS() {
+        StringBuilder sb = new StringBuilder("Input JFS:");
+        ToolContext.get(this).jfs.list(ToolContext.get(this).inputLocation, (loc, jfo) -> {
+            sb.append('\n').append(jfo.getName()).append(" len ").append(jfo.length());
+        });
+        return sb.toString();
     }
 
     public Grammar loadDependentGrammar(String name, JFSFileObject fo) throws IOException {
@@ -687,12 +859,23 @@ public final class MemoryTool extends Tool {
     }
 
     public static int attemptedExitCode(Throwable thrown) {
+        if (thrown == null) {
+            return 0;
+        }
         int result = 0;
         if (thrown instanceof AttemptedExit) {
             result = ((AttemptedExit) thrown).code();
-        } else if (thrown != null && thrown.getCause() != null) {
+        } else if (thrown.getCause() != null) {
             if (thrown.getCause() instanceof AttemptedExit) {
                 result = ((AttemptedExit) thrown.getCause()).code();
+            }
+        }
+        if (result == 0 && thrown != null && thrown.getSuppressed() != null
+                && thrown.getSuppressed().length > 0) {
+            for (Throwable t : thrown.getSuppressed()) {
+                if (t instanceof AttemptedExit) {
+                    result = ((AttemptedExit) t).code();
+                }
             }
         }
         return result;
@@ -767,16 +950,19 @@ public final class MemoryTool extends Tool {
                 case EPSILON_LR_FOLLOW:
                     hasEpsilonIssues = true;
                     break;
-            }
-            if (etype == CANNOT_FIND_TOKENS_FILE_REFD_IN_GRAMMAR) {
-                new Exception("Bingo " + msg).printStackTrace();
+                case INTERNAL_ERROR:
+                    if (msg.getCause() != null) {
+                        msg.getCause().printStackTrace(System.out);
+                        ToolContext.get((MemoryTool) tool).logExternal(
+                                Level.INFO, etype + ": " + msg.getMessageTemplate(true).render(), msg.getCause());
+                    }
             }
             msg.fileName = replaceWithPath(msg.fileName);
             Path supplied = currentFile.get();
-            if (msg.fileName == null && supplied == null || (msg.fileName != null && !msg.fileName.contains("/"))) {
-                new Exception("No qualified filename in " + msg.fileName + " - " + msg.getClass().getName()
-                        + " - " + msg).printStackTrace();
-            }
+//            if (msg.fileName == null && supplied == null || (msg.fileName != null && !msg.fileName.contains("/"))) {
+//                new Exception("No qualified filename in " + msg.fileName + " - " + msg.getClass().getName()
+//                        + " - '" + msg + "' currentFile " + supplied).printStackTrace();
+//            }
             Path pth = msg.fileName == null ? supplied == null
                     ? UnixPath.get("_no-file_") : supplied : UnixPath.get(msg.fileName);
             int charPositionInLine = msg.charPosition;

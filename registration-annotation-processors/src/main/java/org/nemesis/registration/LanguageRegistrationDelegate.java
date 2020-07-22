@@ -136,6 +136,7 @@ import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR;
 import static org.nemesis.registration.typenames.KnownTypes.EXTRACTOR_BUILDER;
 import static org.nemesis.registration.typenames.KnownTypes.EXT_SYNTAX_SUPPORT;
 import static org.nemesis.registration.typenames.KnownTypes.FILE_OBJECT;
+import static org.nemesis.registration.typenames.KnownTypes.FILE_OWNER_QUERY;
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_COMPLETION_PROVIDER;
 import static org.nemesis.registration.typenames.KnownTypes.GRAMMAR_SOURCE;
 import static org.nemesis.registration.typenames.KnownTypes.HIGHLIGHTER_KEY_REGISTRATION;
@@ -173,7 +174,7 @@ import static org.nemesis.registration.typenames.KnownTypes.PARSER_FACTORY;
 import static org.nemesis.registration.typenames.KnownTypes.PARSER_RULE_CONTEXT;
 import static org.nemesis.registration.typenames.KnownTypes.PARSE_RESULT_CONTENTS;
 import static org.nemesis.registration.typenames.KnownTypes.PARSE_TREE;
-import static org.nemesis.registration.typenames.KnownTypes.PARSING_BAG;
+import static org.nemesis.registration.typenames.KnownTypes.PROJECT;
 import static org.nemesis.registration.typenames.KnownTypes.PROXY_LOOKUP;
 import static org.nemesis.registration.typenames.KnownTypes.REGIONS_KEY;
 import static org.nemesis.registration.typenames.KnownTypes.SERVICE_PROVIDER;
@@ -402,6 +403,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
         AnnotationMirror parserHelper = utils().annotationValue(mirror, "parser", AnnotationMirror.class);
         ParserProxy parser = null;
+        String parserClassName = null;
         if (parserHelper != null) {
             parser = createParserProxy(parserHelper, utils());
             if (parser == null) {
@@ -411,11 +413,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 generateTokensClasses(mimeType, type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
                 return true;
             }
-            generateParserClasses(mimeType, parser, lexerProxy, type, mirror, parserHelper, prefix);
+            parserClassName = generateParserClasses(mimeType, parser, lexerProxy, type, mirror, parserHelper, prefix);
             writeOne(parser.createRuleTypeMapper(utils().packageName(type), prefix, mimeType));
         }
         tasks.set(mimeType, lexerProxy, parser, prefix, utils().packageName(type));
-        generateRegistration(prefix, mirror, mimeType, type, lexerProxy, parser);
+        generateRegistration(prefix, mirror, mimeType, type, lexerProxy, parser, parserClassName);
 
         generateTokensClasses(mimeType, type, mirror, lexerProxy, tokenCategorizerClass, prefix, parser);
 
@@ -442,7 +444,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
     private static final String ANTLR_MIME_REG_TYPE = "org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration";
 
-    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on, LexerProxy lexer, ParserProxy parser) throws IOException {
+    private void generateRegistration(String prefix, AnnotationMirror mirror, String mimeType, TypeElement on, LexerProxy lexer, ParserProxy parser, String nbParserClassName) throws IOException {
         String generatedClassName = prefix + "AntlrLanguageRegistration";
         String regSimple = simpleName(ANTLR_MIME_REG_TYPE);
         ClassBuilder<String> cb = ClassBuilder.forPackage(utils().packageName(on))
@@ -469,6 +471,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.invoke("super")
                                         .withStringLiteral(mimeType)
                                         .withArgument(lexer.lexerClassFqn() + ".VOCABULARY")
+                                        .withArgument(nbParserClassName == null ? "null" : nbParserClassName + ".HELPER")
                                         .inScope();
                             });
                 }).method("lexerType", mb -> {
@@ -594,7 +597,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 //                                        .initializedWithNew(parser.parserClassSimple())
 //                                        .withArgument("stream")
 //                                        .inScope();
-
                                 bb.invoke("removeErrorListeners").on("parser");
 //                                bb.returningInvocationOf("new " + parser.parserClassSimple()).withArgument("stream").inScope();
                                 bb.returning("parser");
@@ -1570,7 +1572,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
     }
 
     // Parser generation
-    private void generateParserClasses(String mimeType, ParserProxy parser, LexerProxy lexer,
+    private String generateParserClasses(String mimeType, ParserProxy parser, LexerProxy lexer,
             TypeElement type, AnnotationMirror mirror,
             AnnotationMirror parserInfo, String prefix) throws IOException {
         String nbParserName = prefix + "NbParser";
@@ -1598,7 +1600,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         SOURCE_MODIFICATION_EVENT.qname(),
                         //                        "javax.annotation.processing.Generated",
                         GRAMMAR_SOURCE.qname(),
-                        PARSING_BAG.qname(),
                         UTIL_EXCEPTIONS.qname(),
                         CHANGE_LISTENER.qname(),
                         SOURCE.qname(),
@@ -1621,6 +1622,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                         //                        "java.util.function.Supplier",
                         EXTRACTOR.qname(),
                         EXTRACTION.qname(),
+                        OPTIONAL.qname(),
+                        FILE_OBJECT.qname(),
+                        PROJECT.qname(),
+                        FILE_OWNER_QUERY.qname(),
                         //                        "org.nemesis.extraction.Extractor",
                         //                        "org.nemesis.extraction.Extraction",
                         COMMON_TOKEN_STREAM.qname(),
@@ -1646,11 +1651,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         }
         cl.field("HELPER")
                 .docComment("Helper class which can talk to the NetBeans adapter layer via protected methods which are not otherwise exposed.")
-                .withModifier(FINAL).withModifier(PRIVATE).withModifier(STATIC).initializedTo("new " + helperClassName + "()").ofType(helperClassName)
-                //                .field("cancelled").withModifier(FINAL).withModifier(PRIVATE).initializedWithNew(
-                //                nb -> {
-                //                    nb.ofType(ATOMIC_BOOLEAN.simpleName());
-                //                }).ofType(ATOMIC_BOOLEAN.simpleName())
+                .withModifier(FINAL).withModifier(STATIC).initializedTo("new " + helperClassName + "()").ofType(helperClassName)
                 .field("CANCELLATION_FOR_SOURCE", (FieldBuilder<?> fb) -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL);
                     cl.importing(SOURCE.qname(), WEAK_HASH_MAP.qname(), COLLECTIONS.qname());
@@ -1721,21 +1722,27 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 block.lineComment("Get the source we're going to parse");
                                 block.declare("src").initializedByInvoking("getSource").on("snapshot")
                                         .as(SOURCE.simpleName());
-                                //                                        .invoke("set").withArgument("false").on("cancelled")
+                                block.lineComment("Convert that into a GrammarSource<Snapshot> - GrammarSource is a ")
+                                        .lineComment("lingua fraca for things that can make a CharStream that can be fed ")
+                                        .lineComment("to an Antlr lexer, so that code elsewhere does not have to have special")
+                                        .lineComment("handling for being passed a String, File, Path, FileObject, Document, Source or Snapshot,")
+                                        .lineComment("any of which may represent the contents of a file, and all of which are")
+                                        .lineComment("tossed around freely by NetBeans' editor infrastructure")
+                                        .blankLine()
+                                        .lineComment("A GrammarSource also contains the language-specific code for looking up")
+                                        .lineComment("other files that are related to a given file - in Antlr imported grammars,")
+                                        .lineComment("or in Java, imported classes.  That logic can be separated from the code that")
+                                        .lineComment("simply translates between file-like things, but both get encapsulated into a")
+                                        .lineComment("GrammarSource.");
                                 block.declare("snapshotSource").initializedByInvoking("find")
                                         .withArgument("snapshot").withArgument(tokenTypeName + ".MIME_TYPE")
                                         .on(GRAMMAR_SOURCE.simpleName()).as(GRAMMAR_SOURCE.parametrizedName("?"));
-                                block.lineComment("ParsingBag allows independent components of the parsing process");
-                                block.lineComment("to share data");
-                                block.declare("bag").initializedByInvoking("forGrammarSource")
-                                        .withArgument("snapshotSource")
-                                        .on(PARSING_BAG.simpleName()).as(PARSING_BAG.simpleName());
                                 block.lineComment("Store the source and canceller temporarily in the map of source to canceller");
                                 block.invoke("put")
                                         .withArgument("src")
                                         .withArgument("cancelled").on("CANCELLATION_FOR_SOURCE");
                                 block.trying().declare("result").initializedByInvoking("parse")
-                                        .withArgument("bag").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
+                                        .withArgument("snapshotSource").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
                                         .ifNotNull("result")
                                         //                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
                                         .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
@@ -1759,14 +1766,89 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             });
                 })
                 .method("parse", mb -> {
-                    mb.docComment("Convenience method for initiating a parse programmatically rather than via the NetBeans parser infrastructure.");
-                    mb.addArgument("ParsingBag", "bag").throwing("Exception").addArgument("BooleanSupplier", "cancelled").returning("AntlrParseResult")
+                    mb.addArgument(GRAMMAR_SOURCE.parametrizedName("?"), "src")
+                            .throwing("Exception")
+                            .addArgument("BooleanSupplier", "cancelled")
+                            .returning(ANTLR_PARSE_RESULT.simpleName())
                             .withModifier(PUBLIC).withModifier(STATIC)
+                            .docComment("Convenience method for initiating a parse programmatically "
+                                    + "rather than via the NetBeans parser infrastructure.")
+                            .body(bb -> {
+                                bb.lineComment("This requires some explanation:")
+                                        .lineComment("  There are some rare cases where it is useful to *completely* disable the parsing plumbing")
+                                        .lineComment("  briefly, such as when creating new files from a template or when adding support to a project")
+                                        .lineComment("  where the file is going to be created (FileObject.createData()) as a zero-byte file, then")
+                                        .lineComment("  get populated, and possibly formatted.  Running a bunch of lexes and parses during that")
+                                        .lineComment("  is at best useless and at worst harmful.")
+                                        .blankLine()
+                                        .lineComment("  So, we have " + ANTLR_MIME_TYPE_REGISTRATION.qnameNotouch() + ".runExclusiveForProject which")
+                                        .lineComment("  will cause all parses of documents with a given MIME type *within a single project* to simply")
+                                        .lineComment("  return an empty parser result.")
+                                        .blankLine()
+                                        .lineComment("  Here, we wrap our parse in a call to HELPER's super method, which checks the locked state of")
+                                        .lineComment("  documents of our MIME type for the project that owns the document a parse request was initiated")
+                                        .lineComment("  for, and if locked, never does a parse at all, just returns a fake empty parser result.")
+                                        .blankLine()
+                                        .lineComment("  The locking involved is optimistic in the extreme (and thus, very low-overhead) - it")
+                                        .lineComment("  assumes that locking a mime type for a project is an extremely rare event, and while it is")
+                                        .lineComment("  reentrant, two threads trying to lock at the same time will simply result in the second arrival")
+                                        .lineComment("  throwing an exception.  Do not use except for the stated (and rare) use case.");
+
+                                bb.declare("foOpt").initializedByInvoking("lookup")
+                                        .withClassArgument(FILE_OBJECT.simpleName())
+                                        .on("src").as(OPTIONAL.parametrizedName(FILE_OBJECT.simpleName()));
+                                bb.lineComment("The GrammarSourceImplementation plumbing (you need to write it) needs to be smart")
+                                        .lineComment("enough to find a FileObject, Path, File or Document from instances of")
+                                        .lineComment("Snapshot, Source, Document, FileObject, File or Path")
+                                        .blankLine()
+                                        .lineComment("See AbstractFileObjectGrammarSourceImplementation in the antlr-input-nb module for inspiration");
+                                bb.iff(ifb -> {
+                                    ClassBuilder.IfBuilder<?> ibb = ifb.invokeAsBoolean("isPresent").on("foOpt");
+                                    ibb.lineComment("We may be running against an in-memory file, a wad of text, or")
+                                            .lineComment("a file that is not inside a project, so don't assume that")
+                                            .lineComment("there will actually BE a file, or a project.  If either one ")
+                                            .lineComment("is not present, this sort of locking is irrelevant and we should ")
+                                            .lineComment("just go ahead and run the parse.");
+                                    ibb.declare("project").initializedByInvoking("getOwner")
+                                            .withArgumentFromInvoking("get").on("foOpt")
+                                            .on(FILE_OWNER_QUERY.simpleName()).as(PROJECT.simpleName());
+                                    ibb.iff(ifProject -> {
+                                        ClassBuilder.IfBuilder<?> ifProjectBlock = ifProject.booleanExpression("project != null && project != FileOwnerQuery.UNOWNED");
+                                        ifProjectBlock.lineComment("Here is where we will get back an empty AntlrParserResult if our MIME type is locked for this project");
+                                        ifProjectBlock.returningInvocationOf("returnDummyResultIfProjectLocked")
+                                                .withArgument("project")
+                                                .withArgumentFromInvoking("getProjectDirectory").on("project")
+                                                .withLambdaArgument(lbb -> {
+                                                    lbb.body()
+                                                            .lineComment("This will only be called if the document was not locked at the time of invocation.")
+                                                            .blankLine()
+                                                            .lineComment("Technically, this can race (a thread started a parse before the locking was initiated)")
+                                                            .lineComment("but what we are after here is not to parse files created *while* locked, and those didn't ")
+                                                            .lineComment("exist at the point any thread might have entered here, so that is a non-problem.")
+                                                            .returningInvocationOf("reallyParse")
+                                                            .withArgument("src")
+                                                            .withArgument("cancelled")
+                                                            .inScope().endBlock();
+                                                })
+                                                .on("HELPER").endIf();
+                                    }).endIf();
+                                });
+                                bb.lineComment("Fallthrough: no project, or no file so just do it.");
+                                bb.returningInvocationOf("reallyParse").withArgument("src")
+                                        .withArgument("cancelled").inScope();
+                            });
+                })
+                .method("reallyParse", mb -> {
+                    mb.docComment("Convenience method for initiating a parse programmatically rather than via the NetBeans parser infrastructure.");
+                    mb.addArgument(GRAMMAR_SOURCE.parametrizedName("?"), "src")
+                            .throwing("Exception")
+                            .addArgument("BooleanSupplier", "cancelled")
+                            .returning(ANTLR_PARSE_RESULT.simpleName())
+                            .withModifier(PRIVATE).withModifier(STATIC)
                             .body(bb -> {
                                 bb.declare("lexer").initializedByInvoking("createAntlrLexer")
                                         .withArgumentFromInvoking("stream")
-                                        .onInvocationOf("source").on("bag")
-                                        //                                        .withArgument("bag.source().stream()")
+                                        .on("src")
                                         .on(prefix + "Hierarchy").as(lexer.lexerClassSimple());
                                 bb.declare("tokenSource").initializedByInvoking("createWrappedTokenSource")
                                         .withArgument("lexer")
@@ -1785,7 +1867,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.blankLine();
                                 bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
                                 bb.lineComment("configure the parser or lexer before using them.");
-                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withArgument("Snapshot.class").onInvocationOf("source").on("bag").as(OPTIONAL.parameterizedOn(SNAPSHOT).simpleName());
+                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withArgument("Snapshot.class").on("src").as(OPTIONAL.parameterizedOn(SNAPSHOT).simpleName());
                                 bb.blankLine();
                                 bb.lineComment("The registered GrammarSource implementations will synthesize a Snapshot if the GrammarSource");
                                 bb.lineComment("was not created from one (as happens in tests), if a Document or a FileObject is present.");
@@ -1820,7 +1902,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
                                 bb.trying().assign("extraction").toInvocation("extract")
                                         .withArgument("tree")
-                                        .withArgumentFromInvoking("source").on("bag")
+                                        .withArgument("src")
                                         .withArgument("tokenSource")
                                         .on("extractor")
                                         .fynalli()
@@ -1970,12 +2052,32 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             entryPointType));
             // <P extends Parser, L extends Lexer, R extends Result, T extends ParserRuleContext> {
             cl.importing(entryPointType, lexer.lexerClassFqn(), parser.parserClassFqn(),
-                    ANTLR_PARSE_RESULT.qname());
+                    ANTLR_PARSE_RESULT.qname(), "org.openide.util.Lookup.Provider");
             ClassBuilder<ClassBuilder<String>> cb = cl.innerClass(helperClassName)
                     .extending(helperExtends.simpleName())
-                    //                    .extending("NbParserHelper<" + parser.parserClassSimple() + ", " + lexer.lexerClassSimple()
-                    //                            + ", AntlrParseResult, " + entryPointSimple + ">")
-                    .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC);
+                    .withModifier(PRIVATE).withModifier(FINAL).withModifier(STATIC)
+                    .constructor(con -> {
+                        con.setModifier(PRIVATE).body().invoke("super").withStringLiteral(mimeType).inScope().endBlock();
+                    })
+                    .method("returnDummyResultIfProjectLocked", mb -> {
+                        cl.importing(KnownTypes.LOOKUP.qname() + ".Provider",
+                                KnownTypes.FILE_OBJECT.qname(),
+                                KnownTypes.THROWING_SUPPLIER.qname());
+
+                        mb.returning(ANTLR_PARSE_RESULT.simpleName()).throwing("Exception")
+                                .addArgument("Provider", "project")
+                                .addArgument(FILE_OBJECT.simpleName(), "projectIdentifier")
+                                .addArgument(KnownTypes.THROWING_SUPPLIER.parametrizedName(ANTLR_PARSE_RESULT.simpleName()), "supp")
+                                .body(bb -> {
+// return super.runParsingTaskIfProjectNotLocked(project, projectIdentifier, runner);
+                                    bb.returningInvocationOf("runParsingTaskIfProjectNotLocked")
+                                            .withArgument("project")
+                                            .withArgument("projectIdentifier")
+                                            .withArgument("supp")
+                                            .on("super");
+                                });
+
+                    });
 
             boolean useDefaultErrorHandling = utils()
                     .annotationValue(parserInfo, "defaultErrorHighlightingEnabled", Boolean.class, true);
@@ -2030,6 +2132,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         if (utils().annotationValue(parserInfo, "generateExtractionDebugNavigatorPanel", Boolean.class, false)) {
             generateExtractionDebugPanel(mimeType, type, mirror, parser.parserEntryPoint());
         }
+        return nbParserName;
     }
 
     // Navigator generation

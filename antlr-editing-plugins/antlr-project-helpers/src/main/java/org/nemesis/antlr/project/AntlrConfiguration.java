@@ -32,8 +32,9 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import org.nemesis.antlr.project.impl.AntlrConfigurationFactory;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
-import org.nemesis.antlr.project.spi.NewAntlrConfigurationInfo;
+import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.nemesis.antlr.common.cachefile.CacheFileUtils;
+import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
@@ -121,6 +122,31 @@ public final class AntlrConfiguration {
             result.add(projectPath.resolve(p));
         }
         return result;
+    }
+
+    boolean evict() {
+        // We don't actually know the project directory, so find it:
+        Path path = null;
+        for (Path p : new Path[]{this.antlrSourceDir, antlrImportDir, buildDir, sources, testSources}) {
+            if (p != null) {
+                path = p;
+                break;
+            }
+        }
+        if (path != null && Files.exists(path)) {
+            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+            if (fo != null) {
+                Project project = FileOwnerQuery.getOwner(fo);
+                if (project != null) {
+                    File file = FileUtil.toFile(project.getProjectDirectory());
+                    if (file != null) {
+                        Path p = file.toPath();
+                        return AntlrConfigurationCache.evict(path);
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public Path buildOutput() {
@@ -259,6 +285,10 @@ public final class AntlrConfiguration {
         return FoldersHelperTrampoline.antlrAdder(prj);
     }
 
+    public static AddAntlrCapabilities addAntlrCapabilities(Project context) {
+        return FoldersHelperTrampoline.addAntlrCapabilities(context);
+    }
+
     @Override
     public String toString() {
         return "AntlrPluginInfo{\n" + " importDir\t" + antlrImportDir
@@ -352,6 +382,14 @@ public final class AntlrConfiguration {
                     visitor, atn, forceATN, includePattern, excludePattern,
                     encoding, buildDir, createdBy, isGuessedConfig, buildOutput,
                     testOutput, sourceDir, testSources);
+        }
+
+        protected boolean evict(Path projectPath) {
+            return AntlrConfigurationCache.evict(projectPath);
+        }
+
+        protected boolean evict(AntlrConfiguration config) {
+            return config.evict();
         }
     }
 

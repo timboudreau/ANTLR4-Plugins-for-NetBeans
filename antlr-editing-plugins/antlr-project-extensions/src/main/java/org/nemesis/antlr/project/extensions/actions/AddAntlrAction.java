@@ -62,6 +62,7 @@ public class AddAntlrAction extends AbstractAction implements ContextAwareAction
         res = lkp.lookupResult(Project.class);
         res.addLookupListener(this);
         res.allInstances();
+        putValue("hideWhenDisabled", Boolean.TRUE);
     }
 
     public AddAntlrAction() {
@@ -78,7 +79,7 @@ public class AddAntlrAction extends AbstractAction implements ContextAwareAction
     @Override
     public Action createContextAwareInstance(Lookup actionContext) {
         Project p = lkp.lookup(Project.class);
-        AddAntlrToProject result = new AddAntlrToProject(p);
+        AddAntlrToProjectAction result = new AddAntlrToProjectAction(p);
         return result;
     }
 

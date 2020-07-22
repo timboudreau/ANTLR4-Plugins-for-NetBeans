@@ -1,44 +1,39 @@
+: insertion does not work in a fragment definition.
 
-Textcell should have withFontName() so font name can be changed - or at least monospaced()
+Duplicate lexer rule hashing can now pick up the same block twice - need to filter those
+cases so we don't generate a hint suggesting to consolidate a single occurrenc.
 
-Preview lookup needs to merge that of both editors, and merge the UndoRedo.Manager of both, and the SaveCookies of both.
+Errors without an endpoint such as 
+ava.lang.Exception: No qualified filename in ReturnsLabels.g4 - org.antlr.v4.tool.GrammarSemanticsMessage - 'Message{errorType=NONCONFORMING_LR_RULE, args=[e], e=null, fileName='ReturnsLabels.g4', line=23, charPosition=0}' currentFile ReturnsLabels.g4
+should get full line underline / interpret line end as error end.
 
-Partial name completion is broken.
+Need to elide TokenLabelType when generating the same way we do with "returns" statements.
 
-Superfluous parens hint should not be present if rule has outer parentheses, contains an OR and is followed by -> pushMode or similar
+
+Need timed throttling of reparses in the case an antlr build result is unusable - right now this thrashes endlessly - 
+ probably due to the logic that does not cache an invalid parse result when using ParserExtractor.  The best place
+ for this may actually be in RebuildSubscriptions, since that can invalidate the cache if a dependency grammar changes
+ since in knows what they are.
+
+Annotation processor is generating stripMime(mimeType) based prefix for layer entry for goto declaration action
+when its name is derived from the prefix in the annotation, not the mime type.
 
 CompletionsSupplier should NOT be in the default lookup, it should use Lookups.forPath() or MimeLookup or
-we will wind up mixing completions for different languages.
+we will wind up mixing completions for different languages.  Tolerable for now, but each implementation
+has to check the mime type.  Think originally the idea was for this to be generic to any extraction-parsable
+language, but it hasn't worked out that way.
 
-Add EOF hint is using weird choice of rules to add it to.
-
-Colon insert editor feature should not be active when next token is a colon.
-
-Fixes add error method should report BadLocationExceptions not propagate them - adds tons of noise to error handlers.
-
-format two character sets with second notted does not get a space between, e.g. [/]~[x] and shouldx
-format: channel, type, pushMode following a comma should have a space prepended
-format: #-labels now causing or on next line to be indented:
-attrBody
-    : attrLabeled #AttrSingleValue
-        | ( attrPath AttrLeftParen ( attrStringLiteral | attrIntLiteral )
-
-Format with space inside parens does not put a space in first paren if a label comes after, e.g.
+Still valid? Antlr formatter: Format with space inside parens does not put a space in first paren if a label comes after, e.g.
  : (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) 
 
-Formatting option to align # alternative names (would need a justify pass).
-
-If opened against an un-parseable grammar, syntax tree in preview never gets updated once it is made usable.
+Formatting option to align # alternative names (would need a justify phase, since we need max positions,
+or would need a very smart custom format executor that can see what will happen - save this for later).
 
 Need tests for hetero object graph
-
-Hint to unwrap blocks which are solo w/o any EBNF, e.g. foo: (bar baz); or a : b (c)?)
 
 Finish ebnf suggestions parser - generated text is broken
 
 Error 184 for overlapped rules - should offer to consolidate.
-
-
 
 # Refactoring
 

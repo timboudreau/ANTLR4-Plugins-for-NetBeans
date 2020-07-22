@@ -157,13 +157,22 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
         "WRONG_FOLDER=Preview only available for grammars under the main Antlr source folder of the project",
         "DETECTING_FOLDERS=Checking Antlr Configuration",
         "REGISTER_LANGUAGE=Registering dynamic language config",
-        "OPENING_EDITOR=Registering dynamic language config"
+        "OPENING_EDITOR=Registering dynamic language config",
+        "COULD_NOT_UNDERSTAND_PROJECT_LAYOUT=Cannot understand project grammar layout"
     })
     void veryLazyInit(Consumer<JComponent> onEqWhenDone) {
         long then = System.currentTimeMillis();
         Thread.currentThread().setName("G4VisualElement-init-" + obj.getName());
         if (obj.isValid()) {
             Folders flds = Folders.ownerOf(obj.getPrimaryFile());
+            if (flds == null) {
+                flds = Folders.ANTLR_GRAMMAR_SOURCES;
+                EventQueue.invokeLater(() -> {
+                    loadingLabel.setText(Bundle.COULD_NOT_UNDERSTAND_PROJECT_LAYOUT());
+                    onEqWhenDone.accept(loadingLabel);
+                });
+                return;
+            }
             superLazy.status(Bundle.DETECTING_FOLDERS());
             switch (flds) {
                 case ANTLR_TEST_GRAMMAR_SOURCES:

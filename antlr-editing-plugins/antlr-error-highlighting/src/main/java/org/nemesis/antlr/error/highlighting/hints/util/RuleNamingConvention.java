@@ -98,6 +98,22 @@ public enum RuleNamingConvention {
         }
     }
 
+    public boolean isFullySpecified() {
+        switch(this) {
+            case LEXER_RULES_MIXED_CASE :
+            case LEXER_RULES_MIXED_CASE_PARSER_RULES_BICAPITALIZED :
+            case LEXER_RULES_MIXED_CASE_PARSER_RULES_UNDERSCORES :
+            case LEXER_RULES_UPPER_CASE_PARSER_RULES_BICAPITALIZED :
+            case LEXER_RULES_UPPER_CASE_PARSER_RULES_UNDERSCORES :
+            case LEXER_RULES_UPPER_CASE :
+            case PARSER_RULES_BICAPITALIZED :
+            case PARSER_RULES_UNDERSCORES :
+                return true;
+            default :
+                return false;
+        }
+    }
+
     public boolean fragmentRulesUpperCase() {
         return lexerRulesBiCapitalized();
     }
@@ -329,7 +345,7 @@ public enum RuleNamingConvention {
             default:
                 throw new AssertionError(type);
         }
-        return new NamingConventionResult(result, incomplete);
+        return new NamingConventionResult(result, result == UNKNOWN ? false : incomplete);
     }
 
     public RuleTypes identify(String name) {
@@ -366,7 +382,9 @@ public enum RuleNamingConvention {
 
         public NamingConventionResult(RuleNamingConvention convention, boolean confident) {
             this.convention = convention;
-            this.confident = confident;
+            this.confident = confident && convention.isFullySpecified();
+            assert convention == RuleNamingConvention.UNKNOWN ? !confident : true
+                    : "Unknown naming convention may not be confident";
         }
 
         @Override

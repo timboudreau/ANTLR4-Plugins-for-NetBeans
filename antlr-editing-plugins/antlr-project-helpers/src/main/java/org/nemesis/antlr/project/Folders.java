@@ -36,18 +36,19 @@ import org.openide.filesystems.FileUtil;
  * @author Tim Boudreau
  */
 public enum Folders {
-    ANTLR_TEST_IMPORTS,
-    ANTLR_TEST_GRAMMAR_SOURCES,
-    JAVA_TEST_GENERATED_SOURCES,
-    JAVA_GENERATED_SOURCES,
     ANTLR_IMPORTS,
     ANTLR_GRAMMAR_SOURCES,
-    JAVA_TEST_SOURCES,
+    JAVA_GENERATED_SOURCES,
     JAVA_SOURCES,
     RESOURCES,
     TEST_RESOURCES,
+    JAVA_TEST_GENERATED_SOURCES,
+    JAVA_TEST_SOURCES,
     CLASS_OUTPUT,
-    TEST_CLASS_OUTPUT;
+    ANTLR_TEST_IMPORTS,
+    ANTLR_TEST_GRAMMAR_SOURCES,
+    TEST_CLASS_OUTPUT
+    ;
 
     public boolean isAntlrSourceFolder() {
         switch(this) {

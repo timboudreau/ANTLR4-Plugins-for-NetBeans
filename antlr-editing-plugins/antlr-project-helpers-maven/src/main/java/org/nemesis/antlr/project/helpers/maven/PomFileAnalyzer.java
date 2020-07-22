@@ -129,7 +129,56 @@ final class PomFileAnalyzer {
                 .addSingletonChild("argument", "gnu");
         top.go(parent, d, true);
         parent.appendChild(d.createTextNode("\n"));
+        if (!hasDependency(d, "antlr4-runtime")) {
+            addAntlrDependency(d, version);
+        }
         return d;
+    }
+
+    private boolean hasDependency(Document doc, String artifactId) throws XPathExpressionException {
+        XPathFactory fac = XPathFactory.newInstance();
+        XPath xpath = fac.newXPath();
+        XPathExpression findDependencyIds = xpath.compile(
+                "/project/dependencies/dependency[artifactId='" + artifactId + "']");
+        NodeList nl = (NodeList) findDependencyIds.evaluate(doc, XPathConstants.NODESET);
+        return nl.getLength() > 0;
+    }
+
+    private void addAntlrDependency(Document doc, String version) throws IOException, XPathExpressionException {
+        XPathFactory fac = XPathFactory.newInstance();
+        XPath xpath = fac.newXPath();
+        XPathExpression findDeps = xpath.compile(
+                "/project/dependencies");
+
+        Element depNode = doc.createElement("dependency");
+        Element groupIdNode = doc.createElement("groupId");
+        groupIdNode.setTextContent("org.antlr");
+        Element artifactIdNode = doc.createElement("artifactId");
+        artifactIdNode.setTextContent("antlr4-runtime");
+        Element versionNode = doc.createElement("version");
+        versionNode.setTextContent(version);
+        depNode.appendChild(indentNode(doc, 3));
+        depNode.appendChild(groupIdNode);
+        depNode.appendChild(indentNode(doc, 3));
+        depNode.appendChild(artifactIdNode);
+        depNode.appendChild(indentNode(doc, 3));
+        depNode.appendChild(versionNode);
+        depNode.appendChild(indentNode(doc, 2));
+        Node depsNode = (Node) findDeps.evaluate(doc, XPathConstants.NODE);
+        if (depsNode == null) {
+            Element deps = doc.createElement("dependencies");
+            deps.appendChild(indentNode(doc, 2));
+            deps.appendChild(depNode);
+            XPathExpression findProject = xpath.compile(
+                    "/project");
+            Node projectNode = (Node) findProject.evaluate(doc, XPathConstants.NODE);
+            projectNode.appendChild(deps);
+            depsNode.appendChild(indentNode(doc, 2));
+        } else {
+            depsNode.appendChild(doc.createTextNode("    "));
+            depsNode.appendChild(depNode);
+            depsNode.appendChild(indentNode(doc, 1));
+        }
     }
 
     static String stringify(Document doc) throws TransformerConfigurationException, TransformerException {

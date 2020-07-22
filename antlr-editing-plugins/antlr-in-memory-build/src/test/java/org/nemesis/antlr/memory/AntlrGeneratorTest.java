@@ -54,9 +54,6 @@ public class AntlrGeneratorTest {
 
     @Test
     public void testGeneration() throws Throwable {
-        if (true) {
-            return;
-        }
         AntlrGenerationResult result = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, new PrintStream(out), true);
         Thread.sleep(1200);
 //        System.out.println(output());
