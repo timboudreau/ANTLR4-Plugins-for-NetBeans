@@ -6,8 +6,6 @@
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/ANTLRTestProjects/antbased/Channels/grammar/LexerGrammarWithChannels.g4</file>
             <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/ANTLRTestProjects/antbased/Channels/build/generated-sources/antlr4/LexerGrammarWithChannels.java</file>
         </group>
-        <group name="icons">
-            <file>file:/home/tim/work/foreign/ANTLR4-Plugins-for-NetBeans/ANTLRTestProjects/antbased/Channels/nbproject/project.properties</file>
-        </group>
+        <group name="icons"/>
     </open-files>
 </project-private>

@@ -51,8 +51,6 @@ public class FileQueryTest {
                 "Resolving lexer grammar from parser grammar searching file "
                 + "parent succeeded, but with wrong file");
 
-        System.out.println("\n\n");
-
         resolved = FileQuery.find("ANTLRv4")
                 .forPathsIn(Folders.ANTLR_GRAMMAR_SOURCES, Folders.ANTLR_IMPORTS)
                 .relativeTo(antlrLexerGrammar);

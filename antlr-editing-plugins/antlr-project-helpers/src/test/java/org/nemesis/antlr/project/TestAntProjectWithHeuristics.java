@@ -51,13 +51,10 @@ public class TestAntProjectWithHeuristics {
                 boolean isImport = fo.getParent().getName().equals("imports");
 
                 AntlrConfiguration config = AntlrConfiguration.forFile(fo);
-                System.out.println("huer config\n" + config);
                 Folders owner = Folders.ownerOf(fo);
                 assertNotNull(owner);
                 assertEquals(isImport ? Folders.ANTLR_IMPORTS : Folders.ANTLR_GRAMMAR_SOURCES, owner,
                         "Wrong owner for " + f + ": " + owner + " in " + config);
-                System.out.println("OWNER  " + owner + " for " + fo);
-                System.out.println("CONFIG:  " + config);
 
                 assertEquals(prj.dir().resolve("grammar"), config.antlrSourceDir);
                 if (config.antlrImportDir != null || isImport) {
@@ -147,7 +144,6 @@ public class TestAntProjectWithHeuristics {
             for (String name : prj.names()) {
                 Path path = prj.file(name);
                 assertNotNull(path);
-                System.out.println("OK " + prj + ":" + name);
             }
         }
     }

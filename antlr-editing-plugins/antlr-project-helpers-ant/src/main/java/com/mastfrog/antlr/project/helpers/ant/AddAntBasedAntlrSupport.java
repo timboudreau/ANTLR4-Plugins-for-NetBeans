@@ -26,13 +26,18 @@ import static com.mastfrog.antlr.project.helpers.ant.AntFoldersHelperImplementat
 import static com.mastfrog.antlr.project.helpers.ant.AntFoldersHelperImplementation.VERSION_PROPERTY;
 import static com.mastfrog.antlr.project.helpers.ant.AntFoldersHelperImplementation.asAuxProp;
 import com.mastfrog.function.throwing.ThrowingTriConsumer;
+import com.mastfrog.util.path.UnixPath;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +48,7 @@ import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration;
 import org.nemesis.antlr.wrapper.AntlrVersion;
+import org.netbeans.api.annotations.common.StaticResource;
 import org.netbeans.api.progress.ProgressHandle;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
@@ -75,6 +81,12 @@ import org.w3c.dom.NodeList;
  * @author Tim Boudreau
  */
 final class AddAntBasedAntlrSupport implements Runnable {
+
+    @StaticResource
+    private static final String BUILD_SCRIPT_LOCATION
+            = "com/mastfrog/antlr/project/helpers/ant/antlr-build-impl.xml";
+    static String BUILD_EXTENSION_HASH;
+    static final String CUSTOM_NAMESPACE = "http://mastfrog.com/ns/antlr-ant-extension/1";
 
     private final Project project;
     private final FileObject dir;
@@ -217,14 +229,14 @@ final class AddAntBasedAntlrSupport implements Runnable {
 
             progress.progress(Bundle.stepAddingBuildExtension(), 3);
             FileObject antlrBuildImpl;
-            try (InputStream in = AddAntBasedAntlrSupport.class.getResourceAsStream("antlr-build-impl.xml")) {
+            try (InputStream in = buildScriptStream()) {
                 if (in == null) {
-                    throw new IOException("antlr-build-impl.xml not adjacent to "
+                    throw new IOException(buildExtensionFileName() + " not adjacent to "
                             + getClass().getName() + " on classpath");
                 }
-                antlrBuildImpl = nbproject.getFileObject("antlr-build-impl", "xml");
+                antlrBuildImpl = nbproject.getFileObject(buildExtensionFileName());
                 if (antlrBuildImpl == null) {
-                    antlrBuildImpl = nbproject.createData("antlr-build-impl", "xml");
+                    antlrBuildImpl = nbproject.createData(buildExtensionFileName());
                 }
                 try (OutputStream out = antlrBuildImpl.getOutputStream()) {
                     FileUtil.copy(in, out);
@@ -238,6 +250,9 @@ final class AddAntBasedAntlrSupport implements Runnable {
             addOrUpdateAntlrTaskProperties(grammarDirName, importDirName);
 
             ensureBuiltClassesExcludesGrammarFiles();
+
+            writeTrackingInfo();
+
             ProjectManager.getDefault().saveProject(project);
 
             if (info.skeletonType().isGenerate()) {
@@ -270,15 +285,7 @@ final class AddAntBasedAntlrSupport implements Runnable {
         }
 
         void writeTrackingInfo() {
-            String uri = "http://mastfrog.com/antlr-ant/1";
-            Document doc = XMLUtil.createDocument("x", "http://mastfrog.com/antlr-ant/1", null, null);
-            Element el = doc.createElementNS(uri, "antlr-info");
-            Element child = doc.createElementNS(uri, "revinfo");
-            child.setAttribute("moduleversion", AntlrVersion.moduleVersion());
-            child.setAttribute("antlrversion", AntlrVersion.version());
-//            el.appendChild(child);
-            doc.getDocumentElement().appendChild(el);
-            acon.putConfigurationFragment(el, true);
+            AddAntBasedAntlrSupport.writeTrackingInfo(acon);
         }
 
         void addOrUpdateAntlrTaskProperties(String grammarDirName, String importDirName) {
@@ -414,5 +421,63 @@ final class AddAntBasedAntlrSupport implements Runnable {
         boolean res = result == null ? false : result;
         adder.finish(res);
         return res;
+    }
+
+    static String buildExtensionFileName() {
+        return UnixPath.get(BUILD_SCRIPT_LOCATION).getFileName().toString();
+    }
+
+    static UnixPath buildExtensionProjectRelativePath() {
+        UnixPath path = UnixPath.get(BUILD_SCRIPT_LOCATION).getFileName();
+        return UnixPath.get(AntProjectHelper.PROJECT_PROPERTIES_PATH).getParent().resolve(path);
+    }
+
+    static String buildExtensionHash() {
+        if (BUILD_EXTENSION_HASH == null) {
+            try (InputStream in = buildScriptStream()) {
+                BUILD_EXTENSION_HASH = hashStream(in);
+            } catch (IOException | NoSuchAlgorithmException ex) {
+                throw new AssertionError(ex);
+            }
+        }
+        return BUILD_EXTENSION_HASH;
+    }
+
+    static String hashStream(InputStream in) throws IOException, NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream(2560)) {
+            FileUtil.copy(in, out);;
+            return Base64.getUrlEncoder().encodeToString(digest.digest(out.toByteArray()));
+        }
+    }
+
+    static void writeTrackingInfo(AuxiliaryConfiguration acon) {
+        Document doc = XMLUtil.createDocument("antlr", CUSTOM_NAMESPACE, null, null);
+        Element moduleInfo = doc.createElementNS(CUSTOM_NAMESPACE, "module");
+        moduleInfo.setAttribute("version", AntlrVersion.moduleVersion());
+        moduleInfo.setAttribute("antlrversion", AntlrVersion.version());
+        moduleInfo.setAttribute("buildextensionhash", buildExtensionHash());
+
+        Element dependentProps = doc.createElementNS(CUSTOM_NAMESPACE, "versiondependentproperties");
+
+        Element antlibInfo = doc.createElementNS(CUSTOM_NAMESPACE, "property");
+        antlibInfo.setAttribute("name", "ant.customtasks.libs");
+        antlibInfo.setAttribute("prefix", "antlr-");
+        antlibInfo.setAttribute("suffix", "-runtime");
+        dependentProps.appendChild(antlibInfo);
+
+        Element classpathInfo = doc.createElementNS(CUSTOM_NAMESPACE, "property");
+        classpathInfo.setAttribute("name", "javac.classpath");
+        classpathInfo.setAttribute("prefix", "libs.antlr-");
+        classpathInfo.setAttribute("suffix", "-runtime.classpath");
+        dependentProps.appendChild(classpathInfo);
+        doc.getDocumentElement().appendChild(moduleInfo);
+        doc.getDocumentElement().appendChild(dependentProps);
+
+        acon.putConfigurationFragment(doc.getDocumentElement(), true);
+    }
+
+    static InputStream buildScriptStream() {
+        return AddAntBasedAntlrSupport.class.getResourceAsStream(buildExtensionFileName());
     }
 }

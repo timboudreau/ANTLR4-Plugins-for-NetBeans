@@ -56,8 +56,6 @@ public class AntlrConfigurationTest {
         try (FileChannel ch = FileChannel.open(path, READ)) {
             loaded = AntlrConfiguration.readFrom(ch);
         }
-        System.out.println("deserialized:\n" + loaded);
-
         assertNotNull(loaded);
         assertEquals(config, loaded);
     }

@@ -15,17 +15,26 @@
  */
 package com.mastfrog.antlr.project.helpers.ant;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.openide.util.Lookup;
 
 /**
  *
  * @author Tim Boudreau
  */
 public class LambdaUtils {
+
+    public static <T> Supplier<T> lkp(Lookup.Provider p, Class<T> type) {
+        return () -> p.getLookup().lookup(type);
+    }
 
     public static <T, R> R ifNotNull(Supplier<T> supp, Function<T, R> func) {
         return ifNotNull(null, supp, func);
@@ -37,6 +46,108 @@ public class LambdaUtils {
             return func.apply(obj);
         } else {
             System.out.println(logString);
+        }
+        return null;
+    }
+
+    public static <R> R ifTrue(String logString, BooleanSupplier supp, Supplier<R> func) {
+        if (supp.getAsBoolean()) {
+            return func.get();
+        } else {
+            System.out.println(logString);
+        }
+        return null;
+    }
+
+    public static <R> R ifEquals(Object expect, Supplier<?> compareTo, Supplier<R> func) {
+        return ifTrue(() -> Objects.equals(expect, compareTo.get()), func);
+    }
+
+    public static <R> R ifEquals(String msg, Object expect, Supplier<?> compareTo, Supplier<R> func) {
+        return ifTrue(msg, () -> Objects.equals(expect, compareTo.get()), func);
+    }
+
+    public static <R> R ifNotEquals(Object expect, Supplier<?> compareTo, Supplier<R> func) {
+        return ifUntrue(() -> Objects.equals(expect, compareTo.get()), func);
+    }
+
+    public static <R> R ifNotEquals(String msg, Object expect, Supplier<?> compareTo, Supplier<R> func) {
+        return ifUntrue(msg, () -> Objects.equals(expect, compareTo.get()), func);
+    }
+
+    public static <T, R> Map<T, R> map(Iterable<? extends R> coll, Function<? super R, ? extends T> xform) {
+        Map<T, R> result = new HashMap<>();
+        coll.forEach((R item) -> {
+            T key = xform.apply(item);
+            if (key != null) {
+                result.put(key, item);
+            }
+        });
+        return result;
+    }
+
+    public static <T, R> Map<T, R> map(Iterable<? extends R> coll, Predicate<? super T> test, Function<? super R, ? extends T> xform) {
+        Map<T, R> result = new HashMap<>();
+        coll.forEach((R item) -> {
+            T key = xform.apply(item);
+            if (key != null && test.test(key)) {
+                result.put(key, item);
+            }
+        });
+        return result;
+    }
+
+    public static <R> R ifTrue(BooleanSupplier supp, Supplier<R> func) {
+        if (supp.getAsBoolean()) {
+            return func.get();
+        }
+        return null;
+    }
+
+    public static <R> R ifTrue(String logString, boolean val, Supplier<R> func) {
+        if (val) {
+            return func.get();
+        } else {
+            System.out.println(logString);
+        }
+        return null;
+    }
+
+    public static <R> R ifTrue(boolean val, Supplier<R> func) {
+        if (val) {
+            return func.get();
+        }
+        return null;
+    }
+
+    public static <R> R ifUntrue(String logString, BooleanSupplier supp, Supplier<R> func) {
+        if (!supp.getAsBoolean()) {
+            return func.get();
+        } else {
+            System.out.println(logString);
+        }
+        return null;
+    }
+
+    public static <R> R ifUntrue(BooleanSupplier supp, Supplier<R> func) {
+        if (!supp.getAsBoolean()) {
+            return func.get();
+        }
+        return null;
+    }
+
+    public static <R> R ifUntrue(String logString, boolean val, Supplier<R> func) {
+        if (!val) {
+            return func.get();
+        } else {
+            System.out.println(logString);
+        }
+        return null;
+    }
+
+    public static <R> R ifUntrue(boolean val, Supplier<R> func) {
+        if (!val) {
+            return func.get();
         }
         return null;
     }

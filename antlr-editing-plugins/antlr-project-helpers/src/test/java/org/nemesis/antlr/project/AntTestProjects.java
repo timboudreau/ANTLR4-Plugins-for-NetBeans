@@ -30,6 +30,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -229,8 +230,6 @@ public enum AntTestProjects implements Iterable<GrammarFileEntry> {
         if (project != null) {
             return project;
         }
-        System.out.println("DIR IS " + dir());
-        System.out.println("PROJECT XML " + projectXML() + " for " + name());
         Document doc = loadProjectXml(projectXML().toAbsolutePath().toFile());
         assertNotNull(doc, "Loaded null for doc " + dir().resolve("build.xml").toAbsolutePath());
         AntProjectHelper helper = AntBasedProjectFactorySingleton.HELPER_CALLBACK.createHelper(projectDir(), doc, new ProjectStateImpl(), projectType());
@@ -279,13 +278,11 @@ public enum AntTestProjects implements Iterable<GrammarFileEntry> {
                         new Object[]{projectDiskFile, namespace, baos});
 //                dumpFields(projectXml);
 //                dumpFields(projectEl);
-                System.out.println("PROJECT NS NOT NAMESPACE");
                 return null;
             }
             if (!"project".equals(projectEl.getLocalName())) { // NOI18N
                 LOG.log(Level.FINE, "{0} had wrong root element name {1} when parsed from {2}",
                         new Object[]{projectDiskFile, projectEl.getLocalName(), baos});
-                System.out.println("WRONT ROOT ELEMENT");
                 return null;
             }
             ProjectXMLKnownChecksums checksums = new ProjectXMLKnownChecksums();
@@ -362,10 +359,30 @@ public enum AntTestProjects implements Iterable<GrammarFileEntry> {
         throw new IllegalArgumentException("No such file " + name + " in " + name());
     }
 
+    static Class<?> testClass;
+
+    public static void setTestClass(Class<?> type) {
+        testClass = type;
+    }
+
     public Path dir() throws URISyntaxException, IOException {
-        Path testHelperDir = ProjectTestHelper.projectBaseDir();
+        Path testHelperDir;
+        if (testClass != null) {
+            // For cases running as test-jar, where we wind up with a path like
+            // /home/tim/.m2/repository/com/mastfrog/antlr-project-helpers/../../
+            testHelperDir = Paths.get(testClass
+                    .getProtectionDomain().getCodeSource()
+                    .getLocation().toURI()).getParent().getParent();
+
+        } else {
+            testHelperDir = ProjectTestHelper.projectBaseDir();
+        }
         Path rel = testHelperDir.resolve("../../ANTLRTestProjects/antbased/" + name());
-        assertTrue(Files.exists(rel), rel.toString() + "   abs " + rel.toAbsolutePath());
+        if (!Files.exists(rel)){
+            rel = testHelperDir.resolve("../ANTLRTestProjects/antbased/" + name());
+        }
+        assertTrue(Files.exists(rel), rel.toString() + "   abs " + rel.toAbsolutePath()
+                + " relative to " + testHelperDir + " abs abs  " + rel.toFile().getAbsoluteFile().getCanonicalFile().toPath());
         assertTrue(Files.isDirectory(rel));
         return rel.toFile().getAbsoluteFile().getCanonicalFile().toPath();
     }
@@ -477,7 +494,7 @@ public enum AntTestProjects implements Iterable<GrammarFileEntry> {
         }
     }
      */
-    private static class ProjectStateImpl implements ProjectState {
+    public static final class ProjectStateImpl implements ProjectState {
 
         public ProjectStateImpl() {
         }

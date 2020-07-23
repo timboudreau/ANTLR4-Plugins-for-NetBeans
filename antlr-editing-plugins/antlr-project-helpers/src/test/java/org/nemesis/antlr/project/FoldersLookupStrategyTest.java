@@ -118,14 +118,12 @@ public class FoldersLookupStrategyTest {
         assertNotNull(p, "Heuristic should have recognized src dir");
         AntlrConfiguration config = str.antlrConfig();
         assertNotNull(config);
-        System.out.println("CONFIG: " + config);
     }
 
     @Test
     public void testGrammarProjectHasGuessedConfig() throws Exception {
         AntlrConfiguration cfig = FoldersLookupStrategy.get(grammarProject).antlrConfig();
         assertNotNull(cfig);
-        System.out.println("CONFIG: \n" + cfig);
     }
 
     private static void assertSize(int size, Iterable<?> iter) {
@@ -214,9 +212,7 @@ public class FoldersLookupStrategyTest {
         grammarProject = ProjectManager.getDefault().findProject(FileUtil.toFileObject(FileUtil.normalizeFile(realMavenProject.toFile())));
         assertNotNull(grammarProject, "Project manager could not resolve maven project");
 
-        System.out.println("\nGUESSED CONFIG:");
         AntlrConfiguration config = AntlrConfiguration.forProject(grammarProject);
-        System.out.println(config);
         Path expectedSourceDir = realMavenProject.resolve("src/main/antlr4");
         assertEquals(expectedSourceDir, config.antlrSourceDir());
         Path expectedImportDir = realMavenProject.resolve("src/main/antlr4/imports");
@@ -227,8 +223,6 @@ public class FoldersLookupStrategyTest {
         assertEquals(expectedAntlrOutputDir, config.antlrSourceOutputDir());
         Path expectedClassesDir = realMavenProject.resolve("target/classes");
         assertEquals(expectedClassesDir, config.buildOutput());
-
-        System.out.println("\n\n");
     }
 
     @AfterAll

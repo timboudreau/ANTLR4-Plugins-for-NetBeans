@@ -23,6 +23,7 @@ import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifNotNull;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifNotPresentOr;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifNull;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifPresent;
+import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.lkp;
 import com.mastfrog.util.cache.Answerer;
 import com.mastfrog.util.cache.MapSupplier;
 import com.mastfrog.util.cache.TimedCache;
@@ -76,12 +77,17 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
     private final TimedCache<Project, AntFoldersHelperImplementationResult, RuntimeException> implCache
             = TimedCache.<Project, AntFoldersHelperImplementationResult>create(30000, this, this);
 
-    private static AntFoldersHelperImplementationFactory INSTANCE;
+    static AntFoldersHelperImplementationFactory INSTANCE;
 
     public AntFoldersHelperImplementationFactory() {
         // We will be weakly cached by the default lookup, and the cache is
         // useless if it is continually recreated
         INSTANCE = this;
+        UpgradableProjectDetector.ensureListening();
+    }
+
+    void wipeCache() { // for tests
+        implCache.clear();
     }
 
     @Override
@@ -168,32 +174,35 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
         String pd = projectDir.getName();
         return ifNotPresentOr("Have an impl", implCache.cachedValue(project),
                 AntFoldersHelperImplementationResult::isNonViable, ()
-                -> ifNotNull(lkp(project, AuxiliaryConfiguration.class),
+                -> ifNotNull("no aux config", lkp(project, AuxiliaryConfiguration.class),
                         acon
-                        -> ifNotNull(lkp(project, AuxiliaryProperties.class),
+                        -> ifNotNull("no aux props", lkp(project, AuxiliaryProperties.class),
                                 auxProps
-                                -> ifNotNull(lkp(project, AntBuildExtender.class),
+                                -> ifNotNull("no ant build ext", lkp(project, AntBuildExtender.class),
                                         extender
-                                        -> ifNotNull(pd, lkp(project, ProjectClassPathExtender.class),
+                                        -> ifNotNull("no cp extender" + pd, lkp(project, ProjectClassPathExtender.class),
                                                 classpathExtender
-                                                -> ifNotNull(pd, () -> projectDir.getFileObject("nbproject"),
+                                                -> ifNotNull("no nbproject dir " + pd,
+                                                        () -> projectDir.getFileObject("nbproject"),
                                                         nbproject
-                                                        -> ifNotNull(() -> Hacks.helperFor(project),
+                                                        -> ifNotNull("no project helper " + pd,
+                                                                () -> Hacks.helperFor(project),
                                                                 antProjectHelper
-                                                                -> ifNull(() -> nbproject.getFileObject(ANTLR_BUILD_EXTENSION_NAME),
-                                                                        () -> ifNotNull(
+                                                                -> ifNull("already has antlr-build-impl.xml",
+                                                                        () -> nbproject.getFileObject(ANTLR_BUILD_EXTENSION_NAME),
+                                                                        () -> ifNotNull("no antlr runtime library",
                                                                                 () -> LibraryManager.getDefault().getLibrary(antlrRuntimeLibraryName()),
                                                                                 runtimeLib
-                                                                                -> ifNotNull(
+                                                                                -> ifNotNull("no antlr task library",
                                                                                         () -> LibraryManager.getDefault().getLibrary(ANTLR_ANT_TASK_LIB_NAME),
                                                                                         taskLib
-                                                                                        -> ifNotNull(
+                                                                                        -> ifNotNull("no antlr tool library",
                                                                                                 () -> LibraryManager.getDefault().getLibrary(antlrCompleteLibraryName()),
                                                                                                 antlrToolLib
-                                                                                                -> ifNotNull(
+                                                                                                -> ifNotNull("no aux config element",
                                                                                                         () -> acon.getConfigurationFragment("data", "http://www.netbeans.org/ns/j2se-project/3", true),
                                                                                                         configurationElement
-                                                                                                        -> ifPresent(evaluator(project),
+                                                                                                        -> ifPresent("no property evaluator", evaluator(project),
                                                                                                                 eval
                                                                                                                 -> newAntlrConfigInfo -> {
                                                                                                                     CompletableFuture<Boolean> fut = new CompletableFuture<>();
@@ -217,10 +226,6 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
                                                                                                                     return fut;
                                                                                                                 }
                                                                                                         )))))))))))));
-    }
-
-    <T> Supplier<T> lkp(Project p, Class<T> type) {
-        return () -> p.getLookup().lookup(type);
     }
 
     static final class AntFoldersHelperImplementationResult implements Supplier<AntFoldersHelperImplementation> {

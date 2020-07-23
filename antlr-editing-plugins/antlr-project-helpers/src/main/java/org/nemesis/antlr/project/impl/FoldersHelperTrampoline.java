@@ -254,7 +254,6 @@ public abstract class FoldersHelperTrampoline {
         for (Path path : new HeuristicFoldersHelperImplementation(project, fq).find(Folders.JAVA_SOURCES, fq)) {
             if (Files.isDirectory(path)) {
                 try {
-                    System.out.println("WALK " + path);
                     FileVisitor<Path> scanner = new JavaSourceScanner(path, packageRoots, relativePackagePaths);
                     Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 15, scanner);
                 } catch (IOException ex) {
@@ -270,8 +269,6 @@ public abstract class FoldersHelperTrampoline {
             }
             return result;
         });
-        System.out.println("packageRoots " + packageRoots);
-        System.out.println("packagePaths " + packagePaths);
         if (!packagePaths.isEmpty()) {
             return packagePaths.get(0).toString().replace('/', '.')
                     .replace('\\', '.');
