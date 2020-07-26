@@ -161,7 +161,7 @@ final class Name {
     }
 
     public UnixPath toPath() {
-        return UnixPath.get(toString());
+        return prefix.resolve(getName());
     }
 
     @Override

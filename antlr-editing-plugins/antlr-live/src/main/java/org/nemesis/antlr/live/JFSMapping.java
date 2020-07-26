@@ -16,7 +16,8 @@
 package org.nemesis.antlr.live;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
-import com.mastfrog.function.throwing.ThrowingSupplier;
+import com.mastfrog.function.throwing.io.IORunnable;
+import com.mastfrog.function.throwing.io.IOSupplier;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -107,7 +108,7 @@ class JFSMapping {
         return JFS.builder().withCharset(UTF_8).build();
     }
 
-    <T> T whileLocked(JFS jfs, ThrowingSupplier<T> run) throws Exception {
+    <T> T whileReadLocked(JFS jfs, IOSupplier<T> run) throws Exception {
         ProjectReference target = null;
         synchronized (this) {
             for (ProjectReference ref : refs.values()) {
@@ -118,6 +119,19 @@ class JFSMapping {
             }
         }
         return target == null ? run.get() : target.whileLocked(run);
+    }
+
+    <T> T whileWriteLocked(JFS jfs, IOSupplier<T> run) throws Exception {
+        ProjectReference target = null;
+        synchronized (this) {
+            for (ProjectReference ref : refs.values()) {
+                if (ref.jfs == jfs) {
+                    target = ref;
+                    break;
+                }
+            }
+        }
+        return target == null ? run.get() : target.whileWriteLocked(run);
     }
 
     static class ProjectReference extends WeakReference<Project> implements Runnable, Delayed {
@@ -159,12 +173,12 @@ class JFSMapping {
             return p;
         }
 
-        Project whileLocked(ThrowingRunnable run) throws Exception {
+        Project whileLocked(IORunnable run) throws IOException {
             // Ensure the referent can't be garbage collected
             // while running - unlikely but would be a potent
             // heisenbug
             Project p = get();
-            ThrowingSupplier<Void> x = () -> {
+            IOSupplier<Void> x = () -> {
                 run.run();
                 return null;
             };
@@ -172,15 +186,32 @@ class JFSMapping {
             return p;
         }
 
-        <T> T whileLocked(ThrowingSupplier<T> run) throws Exception {
+        Project whileWriteLocked(IORunnable run) throws IOException {
+            // Ensure the referent can't be garbage collected
+            // while running - unlikely but would be a potent
+            // heisenbug
+            Project p = get();
+            IOSupplier<Void> x = () -> {
+                run.run();
+                return null;
+            };
+            whileWriteLocked(x);
+            return p;
+        }
+
+        <T> T whileLocked(IOSupplier<T> run) throws IOException {
             return whileLocked(run, new Project[1]);
         }
 
-        private <T> T whileLocked(ThrowingSupplier<T> run, Project[] p) throws Exception {
+        <T> T whileWriteLocked(IOSupplier<T> run) throws IOException {
+            return whileWriteLocked(run, new Project[1]);
+        }
+
+        private <T> T whileLocked(IOSupplier<T> run, Project[] p) throws IOException {
             touch();
             p[0] = get();
             LOG.log(Level.FINEST, "Lock {0} for {1}", new Object[]{jfs, run});
-            return Debug.runObjectThrowing(jfs, "lock-jfs", () -> {
+            return Debug.runObjectIO(jfs, "lock-jfs", () -> {
                 StringBuilder sb = new StringBuilder("JFS-").append(jfs.id());
                 if (p[0] != null) {
                     sb.append(" for ").append(p[0].getProjectDirectory().getName());
@@ -191,13 +222,38 @@ class JFSMapping {
                 });
                 return sb.toString();
             }, () -> {
-                lock.lock();
-                try {
-                    return run.get();
-                } finally {
-                    lock.unlock();
-                    LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
+                return jfs.whileReadLocked(() -> {
+                    try {
+                        return run.get();
+                    } finally {
+                        LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
+                    }
+                });
+            });
+        }
+
+        private <T> T whileWriteLocked(IOSupplier<T> run, Project[] p) throws IOException {
+            touch();
+            p[0] = get();
+            LOG.log(Level.FINEST, "Lock {0} for {1}", new Object[]{jfs, run});
+            return Debug.runObjectIO(jfs, "lock-jfs", () -> {
+                StringBuilder sb = new StringBuilder("JFS-").append(jfs.id());
+                if (p[0] != null) {
+                    sb.append(" for ").append(p[0].getProjectDirectory().getName());
                 }
+                sb.append('\n');
+                jfs.listAll((loc, fo) -> {
+                    sb.append(loc).append(": ").append(fo);
+                });
+                return sb.toString();
+            }, () -> {
+                return jfs.whileWriteLocked(() -> {
+                    try {
+                        return run.get();
+                    } finally {
+                        LOG.log(Level.FINEST, "Unlocked {0} for {1}", new Object[]{jfs, run});
+                    }
+                });
             });
         }
 

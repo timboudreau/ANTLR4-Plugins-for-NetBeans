@@ -15,6 +15,7 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.function.throwing.io.IOBiConsumer;
 import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -70,6 +71,12 @@ final class JFSStorage {
         this.fileSystemId = jfs.id();
         this.filesystem = jfs;
         this.listener = listener;
+    }
+
+    void forEach(IOBiConsumer<Name, JFSFileObjectImpl> c) throws IOException{
+        for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
+            c.accept(e.getKey(), e.getValue());
+        }
     }
 
     boolean close() throws IOException {
@@ -224,7 +231,7 @@ final class JFSStorage {
 
     JFSFileObjectImpl addRealFile(UnixPath localName, Path realFile, Charset encoding) {
         Name name = Name.forPath(localName);
-        boolean java = name.kind() == CLASS || name.kind() == SOURCE;
+        boolean java = shouldBeJavaFileObject(name);
         FileBytesStorageWrapper wrapper = new FileBytesStorageWrapper(this,
                 realFile, encoding);
         JFSFileObjectImpl fo
@@ -239,7 +246,7 @@ final class JFSStorage {
 
     JFSFileObject addDocument(UnixPath asPath, Document doc) {
         Name name = Name.forPath(asPath);
-        boolean java = name.kind() == CLASS || name.kind() == SOURCE;
+        boolean java = shouldBeJavaFileObject(name);
         DocumentBytesStorageWrapper wrapper = new DocumentBytesStorageWrapper(this, doc);
         JFSFileObjectImpl fo
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding())
@@ -269,11 +276,26 @@ final class JFSStorage {
     }
 
     JFSFileObjectImpl find(Name name, boolean create) {
+        boolean java = shouldBeJavaFileObject(name);
         JFSFileObjectImpl result = files.get(name);
         if (result == null && create) {
-            result = allocate(name, false);
+            result = allocate(name, java);
+        } else if (result != null && java && !(result instanceof JavaFileObject)) {
+            result = result.toJavaFileObject();
+            files.put(name, result);
         }
         return result;
+    }
+
+    private boolean shouldBeJavaFileObject(Name name) {
+        switch(name.kind()) {
+            case CLASS :
+            case HTML :
+            case SOURCE :
+                return true;
+            default :
+                return false;
+        }
     }
 
     JFSJavaFileObjectImpl findJavaFileObject(Name name) {

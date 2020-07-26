@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.project.spi;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -23,13 +24,24 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
+import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 
 /**
  * A query which can be used for a lookup strategy implementation to store hints
  * about where to look for files. One is passed to the factory that creates a
  * FoldersLookupStrategyImplementation to store basic information and things
  * that were expensive to compute. Another one is passed for each file query.
+ * <p>
+ * So, basically, a FolderQuery may be used in two directions - to figure out a
+ * particular folder given just a project (i.e. you will read the project
+ * configuration to answer the query), OR, for the case of Antlr files randomly
+ * found in unknown types of projects, to <i>infer</i> a reasonable structure of
+ * antlr source and other folders to build a usable mapping of those files into
+ * a JFS to be able to build the grammar in-memory and use it.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -38,6 +50,7 @@ public final class FolderQuery {
     private Project project;
     private Path relativeTo;
     private Set<String> hints;
+    public static String HINT_OWNERSHIP_QUERY = "_ownership";
 
     FolderQuery() {
 
@@ -51,6 +64,20 @@ public final class FolderQuery {
     public boolean isEmpty() {
         return project == null && relativeTo == null
                 && (hints == null || hints.isEmpty());
+    }
+
+    public FolderQuery unset(String hint) {
+        if (hints != null) {
+            hints.remove(hint);
+        }
+        return this;
+    }
+
+    public FolderQuery withUnset(String hint) {
+        if (hints != null && hints.contains(hint)) {
+            return duplicate().unset(hint);
+        }
+        return this;
     }
 
     public FolderQuery updateFrom(FolderQuery other) {
@@ -129,6 +156,46 @@ public final class FolderQuery {
     public FolderQuery relativeTo(Path file) {
         this.relativeTo = file;
         return this;
+    }
+
+    public boolean hasProject() {
+        return project != null;
+    }
+
+    public boolean hasFile() {
+        return relativeTo != null;
+    }
+
+    private static FileObject toFileObject(Path path) {
+        // Fix me - centralize all this path conversion nsomewhere
+        File f = FileUtil.normalizeFile(path.toFile());
+        if (f != null) {
+            return FileUtil.toFileObject(f);
+        }
+        return null;
+    }
+
+    /**
+     * If a file is present but no project is set, return a copy of this query
+     * with the owning project of the file, if any.
+     *
+     * @return A new query or this
+     */
+    public FolderQuery withProjectAttachedIfFilePresent() {
+        if (project != null) {
+            return this;
+        }
+        FolderQuery query = this;
+        if (!hasProject() && hasFile()) {
+            FileObject fo = toFileObject(relativeTo());
+            if (fo != null) {
+                Project proj = FileOwnerQuery.getOwner(fo);
+                if (proj != null && proj != FileOwnerQuery.UNOWNED) {
+                    query = query.duplicate().project(proj);
+                }
+            }
+        }
+        return query;
     }
 
     static {

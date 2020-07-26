@@ -51,10 +51,6 @@ public class AntlrOutputProcessorFactory implements OutputProcessorFactory {
 
     private static final Logger LOG = Logger.getLogger(AntlrOutputProcessorFactory.class.getName());
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     @Override
     public Set<? extends OutputProcessor> createProcessorsSet(Project prjct) {
         if (prjct != null && prjct.getLookup().lookup(HideAntlrSourceDirsFromMavenOtherSources.class) == null) {

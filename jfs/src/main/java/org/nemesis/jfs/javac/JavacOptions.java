@@ -40,18 +40,16 @@ public class JavacOptions {
     private Charset encoding = UTF_8;
     private int sourceLevel = 8;
     private int targetLevel = 8;
+    private boolean verbose;
+    private boolean ideMode = true;
+    private boolean suppressAbortOnBadClassFile = true;
 
     public JavacOptions() {
 
     }
 
     private JavacOptions(JavacOptions x) {
-        this.debug = x.debug;
-        this.warn = x.warn;
-        this.maxWarnings = x.maxWarnings;
-        this.maxErrors = x.maxErrors;
-        this.runAnnotationProcessors = x.runAnnotationProcessors;
-        this.encoding = x.encoding;
+        setFrom(x);
     }
 
     void setFrom(JavacOptions opts) {
@@ -66,6 +64,18 @@ public class JavacOptions {
         encoding = opts.encoding;
         sourceLevel = opts.sourceLevel;
         targetLevel = opts.targetLevel;
+        verbose = opts.verbose;
+        ideMode = opts.ideMode;
+    }
+
+    public JavacOptions nonIdeMode() {
+        ideMode = false;
+        return this;
+    }
+
+    public JavacOptions verbose() {
+        this.verbose = true;
+        return this;
     }
 
     public JavacOptions sourceAndTargetLevel(int tgt) {
@@ -113,6 +123,11 @@ public class JavacOptions {
         return this;
     }
 
+    public JavacOptions abortOnBadClassFile() {
+        suppressAbortOnBadClassFile = false;
+        return this;
+    }
+
     public enum DebugInfo {
         NONE, LINES, VARS, SOURCE;
 
@@ -128,14 +143,34 @@ public class JavacOptions {
         return Integer.toString(sourceOrTarget);
     }
 
+    @Override
+    public String toString() {
+        List<String> opts = options(null);
+        StringBuilder sb = new StringBuilder();
+        for (String opt : opts) {
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            sb.append(opt);
+        }
+        return sb.toString();
+    }
+
     public List<String> options(JavaCompiler compiler) {
         // Borrowed from NetBeans
         List<String> options = new ArrayList<>(9);
-        // Javac runs inside the IDE
-        options.add("-XDide");
+        if (verbose) {
+            options.add("-verbose");
+        }
+        if (ideMode) {
+            // Javac runs inside the IDE
+            options.add("-XDide");
+        }
         //        options.add("-XDsave-parameter-names");
         // When a class file cannot be read, produce an error type instead of failing with an exception
-        options.add("-XDsuppressAbortOnBadClassFile");
+        if (suppressAbortOnBadClassFile) {
+            options.add("-XDsuppressAbortOnBadClassFile");
+        }
         // performance - disable debug info
         options.add("-g:" + debug.toString());
         if (!warn) {
@@ -168,7 +203,7 @@ public class JavacOptions {
         for (Iterator<String> iter = options.iterator(); iter.hasNext();) {
             String opt = iter.next();
             if (opt.startsWith("-")) {
-                if (compiler.isSupportedOption(opt) == -1) {
+                if (compiler != null && compiler.isSupportedOption(opt) == -1) {
                     LOG.log(Level.FINE, "Remove unsupported javac arg ''{0}''", opt);
                     iter.remove();
                     lastWasRemoved = true;

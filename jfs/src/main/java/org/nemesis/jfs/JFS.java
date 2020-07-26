@@ -15,8 +15,11 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.function.throwing.io.IORunnable;
+import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
+import com.mastfrog.util.preconditions.Exceptions;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -27,8 +30,12 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -40,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
@@ -114,6 +122,7 @@ public final class JFS implements JavaFileManager {
     private final JFSStorageAllocator<?> allocator;
     private final BiConsumer<Location, FileObject> listener;
     private final StandardJavaFileManager delegate;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     static final Logger LOG = Logger.getLogger(JFS.class.getName());
 
     JFS() {
@@ -147,6 +156,102 @@ public final class JFS implements JavaFileManager {
     @Override
     public String toString() {
         return "JFS-" + this.fsid + "-" + allocator.encoding() + "-" + allocator;
+    }
+
+    /**
+     * JFS instances have a ReentrantReadWriteLock which can be used for
+     * exclusive read or write access; this method offers to run something under
+     * read access. Note: This lock does not protect against concurrent
+     * modifications to masqueraded files or documents which are mapped into the
+     * JFS namespace.
+     *
+     * @param <T> The type to return
+     * @param supplier A supplier
+     * @return The result of the supplier
+     * @throws IOException If something goes wrong
+     */
+    public <T> T whileReadLocked(IOSupplier<T> supplier) throws IOException {
+        ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+        readLock.lock();
+        try {
+            return supplier.get();
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * JFS instances have a ReentrantReadWriteLock which can be used for
+     * exclusive read or write access; this method offers to run something under
+     * <i>write</i> access. Note: This lock does not protect against concurrent
+     * modifications to masqueraded files or documents which are mapped into the
+     * JFS namespace.
+     *
+     * @param <T> The type to return
+     * @param supplier A supplier
+     * @return The result of the supplier
+     * @throws IOException If something goes wrong
+     */
+    public <T> T whileWriteLocked(IOSupplier<T> supplier) throws IOException {
+        ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+        writeLock.lock();
+        try {
+            return supplier.get();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * JFS instances have a ReentrantReadWriteLock which can be used for
+     * exclusive read or write access; this method offers to run something under
+     * write access, then downgrade the lock as described in the javadoc for
+     * ReentrantReadWriteLock without unlocking. Note: This lock does not
+     * protect against concurrent modifications to masqueraded files or
+     * documents which are mapped into the JFS namespace.
+     * <p>
+     * This method guarantees that the JFS will be locked continuously once
+     * runUnderWrite is entered until runUnderRead exits; runUnderRead will not
+     * run if runUnderWrite throws a Throwable, in which case the write lock is
+     * exited and the exception or error is rethrown.
+     * </p>
+     *
+     * @param <T> The type to return
+     * @param runUnderWrite A runnable to run under the write lock
+     * @param runUnderRead A result-returning Supplier which runs under the read
+     * lock subsequent to runUnderWrite, assuming no Throwable is thrown by
+     * runUnderWrite
+     * @return The result of the supplier
+     * @throws IOException If something goes wrong
+     */
+    @SuppressWarnings("FinallyDiscardsException")
+    public <T> T whileLockedWithWithLockDowngrade(IORunnable runUnderWrite, IOSupplier<T> runUnderRead) throws IOException {
+        ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+        ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+        writeLock.lock();
+        Throwable thrown = null;
+        try {
+            runUnderWrite.run();
+        } catch (Exception | Error ex) {
+            thrown = ex;
+        } finally {
+            if (thrown == null) {
+                readLock.lock();
+            }
+            writeLock.unlock();
+            if (thrown != null) {
+                // This will rethrow whatever it is (including
+                // undeclared throwables from other calls to Exceptions.chuck()
+                // made by runUnderWrite) - despite appearances, the exception
+                // is rethrown here.
+                return Exceptions.chuck(thrown);
+            }
+            try {
+                return runUnderRead.get();
+            } finally {
+                readLock.unlock();
+            }
+        }
     }
 
     private JFS(JFSStorageAllocator<?> allocator, BiConsumer<Location, FileObject> listener, Locale locale) {
@@ -782,13 +887,59 @@ public final class JFS implements JavaFileManager {
         return getFileForOutput(loc, nm.packageName(), nm.getName(), null);
     }
 
+    /**
+     * For debugging purposes, copy the contents (some locations of) this JFS to
+     * disk somewhere.
+     *
+     * @param dir A folder The destination folder the folder structure of this
+     * JFS will be recreated in.
+     * @param locs The set of locations to dump
+     * @return The set of files written
+     * @throws IOException If something goes wrong
+     */
+    public Set<Path> dumpToDisk(Path dir, Location... locs) throws IOException {
+        assert Files.isDirectory(dir) : "Not a directory: " + dir;
+        if (locs.length == 0) {
+            return Collections.emptySet();
+        }
+        Set<Path> result = new HashSet<>();
+        Set<Location> all = new HashSet<>(Arrays.asList(locs));
+        for (Location loc : all) {
+            JFSStorage stor = storageForLocation.get(loc);
+            if (stor != null) {
+                stor.forEach((name, file) -> {
+                    Path up = dir.resolve(name.toPath().toNativePath());
+                    if (!Files.exists(up.getParent())) {
+                        Files.createDirectories(up.getParent());
+                    }
+                    Files.write(up, file.asBytes(), CREATE,
+                            TRUNCATE_EXISTING, WRITE);
+                    result.add(up);
+                });
+            }
+        }
+        return result;
+    }
+
     @Override
     public JFSFileObject getFileForOutput(Location location, String packageName, String relativeName, FileObject sibling) throws IOException {
         Name name = Name.forFileName(packageName, relativeName);
         JFSStorage stor = storageForLocation(location, true);
-        JFSFileObjectImpl result = stor.find(name, true);
-        LOG.log(Level.FINEST, "getFileForOutput {0} {1} gets {2}",
-                new Object[]{location, packageName, result});
+        boolean java = false;
+        switch (name.kind()) {
+            case CLASS:
+            case SOURCE:
+            case HTML:
+                java = true;
+        }
+        JFSFileObject result;
+        if (java) {
+            result = stor.findJavaFileObject(name, true);
+        } else {
+            result = stor.find(name, true);
+        }
+        LOG.log(Level.FINEST, "getFileForOutput {0} {1} - {2} gets {3} kind {4}",
+                new Object[]{location, packageName, name, result, name.kind()});
         return result;
     }
 

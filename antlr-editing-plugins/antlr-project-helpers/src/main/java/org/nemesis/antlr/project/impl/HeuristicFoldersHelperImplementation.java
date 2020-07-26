@@ -15,6 +15,9 @@
  */
 package org.nemesis.antlr.project.impl;
 
+import com.mastfrog.function.state.Obj;
+import com.mastfrog.util.path.UnixPath;
+import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +25,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +38,7 @@ import org.nemesis.antlr.project.spi.AntlrConfigurationImplementation;
 import org.nemesis.antlr.project.spi.FolderLookupStrategyImplementation;
 import org.nemesis.antlr.project.spi.FolderQuery;
 import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
-import org.netbeans.api.project.FileOwnerQuery;
+import org.nemesis.antlr.project.spi.OwnershipQuery;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -44,17 +48,42 @@ import org.openide.util.lookup.ServiceProvider;
 /**
  * Attempts to find Maven folders based on heuristics about where such folders
  * frequently live. A real implementation is preferred.
+ * <p>
+ * This class does a whole bunch of guesswork to try to arrive at some sort of
+ * folder layout that could possibly work to map into a JFS and build in-memory.
+ * <pre>
+ * 1. When queried, try a list of well-known common project-relative paths
+ * for various types of files, and see if they exist.  If they do, great, take
+ * the least of them in terms of path-name-depth and done.
+ *
+ * 2. If not, create an InferredConfig.  What that does is:
+ *  A. Walk the SourceGroups of the project (if any)
+ *  B. If a file was included in the query (or whenever it gets one that is),
+ *     Walk the file tree of the project looking for java and grammar files,
+ *     and classify what it finds.  The InferredConfig is weakly mapped to
+ *     the project, so it will live as long as the project does.
+ * </pre>
+ * <p>
+ * The folder name "imports" is special-cased to map to the Antlr imports folder
+ * if any are found.
+ * </p>
+ * We are handling all sorts of bizarre potential cases here - antlr files
+ * sprinkled all over a project, things missing, things in strange places, and
+ * trying to come up with a reasonable model of where to find things regardless.
+ * It is an imprerfect world.
+ * </p>
  *
  * @author Tim Boudreau
  */
-public final class HeuristicFoldersHelperImplementation implements FolderLookupStrategyImplementation {
+public final class HeuristicFoldersHelperImplementation implements FolderLookupStrategyImplementation, OwnershipQuery {
 
+    static final Logger LOG = Logger.getLogger(HeuristicFoldersHelperImplementation.class.getName());
     private final Project project;
     private FolderQuery initialQuery;
 
     HeuristicFoldersHelperImplementation(Project project, FolderQuery initialQuery) {
         this.project = project;
-        this.initialQuery = initialQuery;
+        this.initialQuery = initialQuery.withUnset(FolderQuery.HINT_OWNERSHIP_QUERY);
     }
 
     FolderQuery initialQuery() {
@@ -70,7 +99,26 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         if (AntlrConfigurationImplementation.class == type) {
             return type.cast(new HeuristicAntlrConfigurationImplementation(this));
         }
+        if (OwnershipQuery.class == type) {
+            return type.cast(this);
+        }
         return FolderLookupStrategyImplementation.super.get(type);
+    }
+
+    static Path checkAbsolute(Path path) {
+        assert path.isAbsolute();
+        return path;
+    }
+
+    static Iterable<Path> checkAbsolute(Iterable<Path> paths) {
+        boolean asserts = false;
+        assert asserts = true;
+        if (asserts) {
+            for (Path p : paths) {
+                checkAbsolute(p);
+            }
+        }
+        return paths;
     }
 
     @Override
@@ -81,30 +129,65 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                 return iterable(result);
             }
         }
+        if (!initialQuery.hasFile() && query.hasFile()) {
+            switch (Folders.primaryFolderFor(query.relativeTo())) {
+                case ANTLR_GRAMMAR_SOURCES:
+                case JAVA_SOURCES:
+                    LOG.log(Level.FINEST, "Improve initial query with {0}", query.relativeTo());
+                    initialQuery = initialQuery.updateFrom(query);
+                    if (project != null) {
+                        InferredConfig inf = InferredConfig.getCached(project);
+                        if (inf != null && !inf.isScanned()) {
+                            // let it update itself ahead of time
+                            inf.query(folder, query, null);
+                        }
+                    }
+            }
+        }
         switch (folder) {
             case JAVA_SOURCES:
                 return sourceDir(folder, query);
             case ANTLR_GRAMMAR_SOURCES:
-                return scan(folder, query, ANTLR_DIR_CANDIDATES);
-            case ANTLR_IMPORTS:
-                return scan(folder, query, ANTLR_IMPORT_DIR_CANDIDATES);
             case CLASS_OUTPUT:
-                return scan(folder, query, CLASS_OUTPUT_CANDIDATES);
-            case JAVA_GENERATED_SOURCES:
-                return scan(folder, query, GEN_SOURCES_CANDIDATES);
+            case ANTLR_IMPORTS:
             case ANTLR_TEST_GRAMMAR_SOURCES:
-                return scan(folder, query, ANTLR_TEST_DIR_CANDIDATES);
             case ANTLR_TEST_IMPORTS:
-                return scan(folder, query, ANTLR_TEST_IMPORT_DIR_CANDIDATES);
+            case JAVA_GENERATED_SOURCES:
             case JAVA_TEST_SOURCES:
-                return scan(folder, query, TEST_SOURCE_DIR_CANDIDATES);
             case RESOURCES:
-                return scan(folder, query, RESOURCES_CANDIDATES);
             case TEST_RESOURCES:
-                return scan(folder, query, TEST_RESOURCES_CANDIDATES);
             case JAVA_TEST_GENERATED_SOURCES:
+                return scan(folder, query, candidatesFor(folder));
+            default:
+                return empty();
         }
-        return empty();
+    }
+
+    private String[] candidatesFor(Folders folder) {
+        switch (folder) {
+            case ANTLR_GRAMMAR_SOURCES:
+                return ANTLR_DIR_CANDIDATES;
+            case ANTLR_IMPORTS:
+                return ANTLR_IMPORT_DIR_CANDIDATES;
+            case CLASS_OUTPUT:
+                return CLASS_OUTPUT_CANDIDATES;
+            case JAVA_GENERATED_SOURCES:
+                return GEN_SOURCES_CANDIDATES;
+            case ANTLR_TEST_GRAMMAR_SOURCES:
+                return ANTLR_TEST_DIR_CANDIDATES;
+            case ANTLR_TEST_IMPORTS:
+                return ANTLR_TEST_IMPORT_DIR_CANDIDATES;
+            case JAVA_TEST_SOURCES:
+                return TEST_SOURCE_DIR_CANDIDATES;
+            case RESOURCES:
+                return RESOURCES_CANDIDATES;
+            case TEST_RESOURCES:
+                return TEST_RESOURCES_CANDIDATES;
+            case JAVA_TEST_GENERATED_SOURCES:
+                return TEST_GENERATED_CANDIDATES;
+            default:
+                return new String[0];
+        }
     }
 
     private Path maybeFindMavenFolders(Folders folder) {
@@ -185,6 +268,14 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         "build/test/classes",
         "target/test-classes"
     };
+    private static final String[] TEST_GENERATED_CANDIDATES = new String[]{
+        "build/test/unit/generated-sources",
+        "build/test/generated-sources",
+        "build/test-generated-sources",
+        "build/test/generated",
+        "target/test-generated-sources"
+    };
+
     private static final String[] TEST_RESOURCES_CANDIDATES = new String[]{
         "test/resources",
         "src/test/resources",
@@ -233,61 +324,178 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
         return scan(folder, query, SOURCE_DIR_CANDIDATES);
     }
 
+    @Override
+    public Folders findOwner(Path file) {
+        FileObject fo = toFileObject(file);
+        if (fo != null) {
+            FolderQuery q = FoldersHelperTrampoline.getDefault().newQuery()
+                    .relativeTo(file);
+            if (project != null) {
+                q.project(project);
+            } else {
+                q = q.withProjectAttachedIfFilePresent();
+            }
+            q.set(FolderQuery.HINT_OWNERSHIP_QUERY);
+            Folders primary = Folders.primaryFolderFor(fo);
+            find(primary, q);
+            if (q.hasProject()) {
+                InferredConfig ic = InferredConfig.getCached(q.project());
+                if (ic != null) {
+                    Obj<Folders> actualOwner = Obj.create();
+                    ic.query(primary, q, actualOwner);
+                    if (!actualOwner.isSet()) {
+                        actualOwner.set(ic.matchingParent(file));
+                    }
+                    if (actualOwner.isSet()) {
+                        return actualOwner.get();
+                    }
+                }
+            }
+        }
+        // Let the regular scan try to find it
+        return null;
+    }
+
     private Iterable<Path> scan(Folders folder, FolderQuery query, String[] candidates) {
-        if (project == null) {
+        if (query.hasFile() && (query.hasProject() || project != null)) {
+            Project p = query.hasProject() ? query.project() : project;
+            query = query.project(project);
+            InferredConfig inf = InferredConfig.getCached(p);
+            if (inf != null) {
+                Iterable<Path> inferredResult = inf.query(folder, query, null);
+                if (inferredResult.iterator().hasNext()) {
+                    LOG.log(Level.FINER, "Use existing inferences {0} for {1} {2}", new Object[]{folder, query});
+                    return checkAbsolute(inferredResult);
+                }
+            }
+        }
+        LOG.log(Level.FINER, "Scan {0} query {1} candidates [{2}] on {3}", new Object[]{
+            folder,
+            query,
+            Strings.lazyCharSequence(() -> Arrays.toString(candidates)),
+            this
+        });
+        Project project = this.project;
+        if (project == null && !query.hasProject()) {
+            LOG.log(Level.FINEST, "Null project, return empty");
             return empty();
+        } else {
+            LOG.log(Level.FINEST, "Use project from the query {0}", project);
+            query = query.duplicate().project(project);
         }
         FileObject dir = project.getProjectDirectory();
         Path path = toPath(findFirst(dir, candidates));
         if (path != null) {
             switch (folder) {
                 case JAVA_GENERATED_SOURCES:
+                case JAVA_TEST_GENERATED_SOURCES:
                     boolean useSubfolders = false;
                     Path annos = path.resolve("annotations");
                     if (Files.exists(annos)) {
                         useSubfolders = true;
                     } else {
-                        if (Files.exists(path.resolve("antlr4"))) {
-                            useSubfolders = true;
-                        }
+                        useSubfolders = Files.exists(path.resolve("antlr4"))
+                                || Files.exists(path.resolve("antlr"));
                     }
                     if (useSubfolders) {
                         List<Path> all = new ArrayList<>();
                         try (Stream<Path> str = Files.list(path)) {
-                            str.filter(pth -> Files.isDirectory(pth)).forEach(all::add);
+                            str.filter(pth -> Files.isDirectory(pth)).forEach(currPath -> {
+                                all.add(checkAbsolute(currPath));
+                            });
                         } catch (IOException ex) {
                             Exceptions.printStackTrace(ex);
                         }
-                        return all;
+                        return checkAbsolute(all);
                     }
             }
         }
-        // Last resort:  guess the parent of the queried g4 file *is* the source dir
-        if (query.relativeTo() != null && query.relativeTo().toString().endsWith(".g4")
-                && folder == Folders.ANTLR_GRAMMAR_SOURCES) {
 
-            if (query.project() == null) {
-                FileObject fo = toFileObject(query.relativeTo());
-                if (fo != null) {
-                    Project proj = FileOwnerQuery.getOwner(fo);
-                    if (proj != null && proj != FileOwnerQuery.UNOWNED) {
-                        query = query.duplicate().project(proj);
+        boolean queryHasGrammarFile = isG4FileRelative(query);
+
+        /*
+        LOG.log(Level.FINER, "Querying for a grammar file in {0} ", folder);
+        if (queryHasGrammarFile && folder == Folders.JAVA_SOURCES) {
+            System.out.println("QUERY FOR GRAMMAR FILE IN JAVA SOURCES " + query);
+            InferredConfig inferred = InferredConfig.get(project, folder, query);
+            if (inferred != null) {
+                FolderQuery dup = query.withProjectAttachedIfFilePresent();
+                if (dup.project() == null) {
+                    dup = dup.project(project);
+                }
+                if (dup.project() != null) {
+                    if (inferred.isMismatch(folder, query.relativeTo())) {
+                        LOG.log(Level.FINEST, "Have mismatch {0} and {1}", new Object[]{folder, query.relativeTo()});
+                        // XXX make this lazy
+                        Path parent = query.relativeTo().getParent();
+                        if (parent != null) {
+                            List<Path> files = new ArrayList<>();
+                            try {
+                                Files.list(parent).forEach(pth -> {
+                                    if (isG4File(pth)) {
+                                        files.add(pth);
+                                    }
+                                });
+                            } catch (IOException ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
+                            if (!files.isEmpty()) {
+                                LOG.log(Level.FINEST, "Returning {0}", files);
+                                return files;
+                            }
+                        }
                     }
                 }
             }
-            if (query.project() != null) {
-                InferredConfig inferred = InferredConfig.get(project, folder, query);
+        }
+         */
+        // XXX 
+        // Last resort:  guess the parent of the queried g4 file *is* the source dir
+//        if (queryHasGrammarFile
+//                && folder == Folders.ANTLR_GRAMMAR_SOURCES) {
+        if (path == null && initialQuery.hasFile() && !query.hasFile()) {
+            query = query.duplicate().relativeTo(initialQuery.relativeTo());
+        }
+        if (path == null && query.hasFile()) {
+            FolderQuery withProjectAttached = query.withProjectAttachedIfFilePresent();
+            if (!withProjectAttached.hasProject() && project != null) {
+                withProjectAttached = withProjectAttached.project(project);
+            }
+            if (withProjectAttached.project() != null) {
+                LOG.log(Level.FINEST, "Try with InferredConfig: {0} for {1}", new Object[]{folder, query});
+                InferredConfig inferred = InferredConfig.get(project, folder, withProjectAttached);
                 if (inferred != null) {
-                    Iterable<Path> result = inferred.query(folder, query);
+                    Iterable<Path> result = inferred.query(folder, withProjectAttached, null);
                     if (result.iterator().hasNext()) {
                         return result;
                     }
                 }
             }
-            return iterable(query.relativeTo().getParent());
+//            return iterable(query.relativeTo().getParent());
         }
+        LOG.log(Level.FINE, "Return {0} for {1}", new Object[]{path, folder});
+        return path == null ? Collections.emptySet() : iterable(checkAbsolute(path));
+//        return iterable(path);
+    }
 
-        return iterable(path);
+    static boolean isG4FileRelative(FolderQuery q) {
+        Path path = q.relativeTo();
+        if (path != null) {
+            return isG4File(path);
+        }
+        return false;
+    }
+
+    static boolean isG4File(Path path) {
+        String ext = UnixPath.get(path).extension();
+        if (ext != null) {
+            switch (ext) {
+                case "g":
+                case "g4":
+                    return true;
+            }
+        }
+        return false;
     }
 
     private static FileObject findFirst(FileObject dir, String... subdirs) {

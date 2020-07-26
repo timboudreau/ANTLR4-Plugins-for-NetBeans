@@ -59,6 +59,9 @@ final class ToolContext {
     private static final Logger LOG = Logger.getLogger(MemoryTool.class.getName());
 
     ToolContext(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {
+        if (dir == null) {
+            throw new IllegalArgumentException("Null source dir for " + jfs);
+        }
         this.dir = dir;
         this.jfs = jfs;
         this.inputLocation = inputLocation;

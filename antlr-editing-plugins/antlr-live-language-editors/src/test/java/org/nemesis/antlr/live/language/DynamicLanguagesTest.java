@@ -49,6 +49,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
+import javax.tools.StandardLocation;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -64,10 +65,15 @@ import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
+import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
+import org.nemesis.antlr.compilation.AntlrGeneratorAndCompilerBuilder;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
+import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
+import org.nemesis.antlr.live.execution.InvocationRunner;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
@@ -77,8 +83,11 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
+import org.nemesis.antlr.memory.AntlrGenerator;
+import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.nb.NbJFSUtilities;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
@@ -128,7 +137,7 @@ public class DynamicLanguagesTest {
             + "meaning: '42', \n"
             + "thing: 51 }";
 
-    @Test
+//    @Test
     public void testMimeResolverIsPresent() throws IOException, InvalidMimeTypeRegistrationException, DataObjectNotFoundException, InterruptedException, ParseException, BadLocationException {
 
         Collection<? extends MIMEResolver> all = Lookup.getDefault().lookupAll(MIMEResolver.class);
@@ -253,7 +262,13 @@ public class DynamicLanguagesTest {
         Path gp = AdhocMimeTypes.grammarFilePathForMimeType(mime);
         assertEquals(gp, gen.get("NestedMaps.g4"));
 
-        gen.replaceString("NestedMaps.g4", "Number", "Puppy").replaceString("NestedMaps.g4", "booleanValue", "dogCow");
+//        gen.replaceString("NestedMaps.g4", "Number", "Puppy").replaceString("NestedMaps.g4", "booleanValue", "dogCow");
+        gen.updateText("NestedMaps.g4", txt -> {
+            txt = Strings.literalReplaceAll("Number", "Puppy", txt);
+            txt = Strings.literalReplaceAll("booleanValue", "dogCow", txt);
+            return txt;
+        });
+
 
         EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
         CountDownLatch parserEnvironmentReplaced = new CountDownLatch(1);
@@ -297,6 +312,7 @@ public class DynamicLanguagesTest {
                 int ic2 = System.identityHashCode(Language.find(mime));
                 if (ic2 == ic) {
                     try {
+
                         findReferenceGraphPathsTo(Language.find(mime), mimeLookup);
                     } catch (InterruptedException ex) {
                         org.openide.util.Exceptions.printStackTrace(ex);
@@ -364,6 +380,15 @@ public class DynamicLanguagesTest {
         assertNotSame(p, p1, "Should not have gotten cached parser result");
 
         AntlrProxies.ParseTreeProxy ptp1 = p1.parseTree();
+
+        System.out.println("P1 IS " + p1);
+        JFS jfs = p1.result().runResult().jfs();
+        Path temp = Files.createTempDirectory("jfs-dump-");
+        System.out.println("DUMPING TO DISK: " + temp);
+        Set<Path> files = jfs.dumpToDisk(temp, StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT, StandardLocation.CLASS_OUTPUT);
+        System.out.println("DUMP: " + files);
+
+
         assertTrue(ptp1.allRuleNames().contains("dogCow"));
         assertTrue(ptp1.allRuleNames().contains("Puppy"));
 
@@ -577,7 +602,14 @@ public class DynamicLanguagesTest {
             assertNotNull(result);
             assertTrue(result instanceof AdhocParserResult);
             res = (AdhocParserResult) result;
-            assertFalse(res.parseTree().isUnparsed());
+            if (res.parseTree().isUnparsed()){
+                try {
+                    res.result().runResult().rethrow();
+                } catch (Throwable ex) {
+                    throw new AssertionError(res.result().toString(), ex);
+                }
+            }
+//            assertFalse(res.parseTree().isUnparsed());
         }
     }
 
@@ -605,7 +637,28 @@ public class DynamicLanguagesTest {
                 //                .includeLogs("AdhocMimeDataProvider", "AdhocLanguageHierarchy", "AntlrLanguageFactory")
                 .build();
         gen = ProjectTestHelper.projectBuilder()
-                .verboseLogging()
+                .hackModuleSystemNotToStart()
+                .insanelyVerboseLogging()
+                .verboseLogging(
+                    ParsingUtils.class,
+                    RebuildSubscriptions.class,
+                    AntlrRunSubscriptions.class,
+                    AntlrGenerator.class,
+                    JFS.class,
+                    "org.nemesis.antlr.memory.tool.ToolContext",
+                    "org.nemesis.antlr.project.AntlrConfigurationCache",
+                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+                    "org.nemesis.antlr.project.impl.InferredConfig",
+                    AntlrGeneratorAndCompiler.class,
+                    AntlrGeneratorBuilder.class,
+                    AntlrGeneratorAndCompilerBuilder.class,
+                    InvocationRunner.class,
+                    "org.nemesis.antlr.live.JFSMapping",
+                    "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
+                    ProxiesInvocationRunner.class,
+                    DynamicLanguages.class
+                )
                 .writeStockTestGrammar("com.foo")
                 .build("foo");
         grammarFile = gen.get("NestedMaps.g4");

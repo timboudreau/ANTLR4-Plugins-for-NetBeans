@@ -91,6 +91,14 @@ public final class GrammarSource<T> implements Serializable {
         };
     }
 
+    public final <R> R lookupOrDefault(Class<R> type, Supplier<R> defaultResult) {
+        if (type.isInstance(this)) {
+            return type.cast(this);
+        }
+        R result = GSAccessor.getDefault().lookup(impl, type);
+        return result == null ? defaultResult.get() : result;
+    }
+
     public final <R> Optional<R> lookup(Class<R> type) {
         if (type.isInstance(this)) {
             return Optional.of(type.cast(this));
@@ -314,6 +322,11 @@ public final class GrammarSource<T> implements Serializable {
         @Override
         public long lastModified() throws IOException {
             return 0;
+        }
+
+        @Override
+        public <T> T computeId() {
+            return (T) "NONE";
         }
     }
 

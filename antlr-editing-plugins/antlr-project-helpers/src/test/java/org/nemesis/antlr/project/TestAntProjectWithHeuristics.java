@@ -16,7 +16,6 @@
 package org.nemesis.antlr.project;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
-import com.mastfrog.mock.named.services.MockNamedServices;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -29,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.project.AntTestProjects.FOQ;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation;
+import org.nemesis.antlr.project.impl.InferredConfig;
+import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
 import org.openide.filesystems.FileObject;
@@ -44,18 +45,23 @@ public class TestAntProjectWithHeuristics {
     @Test
     public void testProjectsResovable() throws Throwable {
         for (AntTestProjects prj : AntTestProjects.values()) {
+            System.out.println("\n------------------- " + prj.name() + " -------------------");
             Project p = prj.project();
             assertNotNull(p);
             for (AntTestProjects.GrammarFileEntry f : prj) {
+                System.out.println("\n  ****************** " + f.name() + " ******************");
                 FileObject fo = prj.fileObject(f.name());
                 boolean isImport = fo.getParent().getName().equals("imports");
 
-                AntlrConfiguration config = AntlrConfiguration.forFile(fo);
+                System.out.println("    OWNER OF " + fo.getPath());
                 Folders owner = Folders.ownerOf(fo);
                 assertNotNull(owner);
+                System.out.println("\n  -- \n");
                 assertEquals(isImport ? Folders.ANTLR_IMPORTS : Folders.ANTLR_GRAMMAR_SOURCES, owner,
-                        "Wrong owner for " + f + ": " + owner + " in " + config);
+                        () -> "Wrong owner for " + f + ": " + owner + " in " + AntlrConfiguration.forFile(fo)
+                            + " project " + prj.name());
 
+                AntlrConfiguration config = AntlrConfiguration.forFile(fo);
                 assertEquals(prj.dir().resolve("grammar"), config.antlrSourceDir);
                 if (config.antlrImportDir != null || isImport) {
                     assertEquals(prj.dir().resolve("grammar/imports"), config.antlrImportDir);
@@ -63,6 +69,8 @@ public class TestAntProjectWithHeuristics {
                 assertEquals("Heuristic", config.createdByStrategy);
                 assertTrue(config.visitor);
                 assertTrue(config.listener);
+
+                System.out.println("\n\nTHE CONFIG:\n" + config + "\n\n");
 
                 switch (prj) {
                     case Channels:
@@ -79,11 +87,11 @@ public class TestAntProjectWithHeuristics {
                         assertEquals(prj.dir().resolve("build/classes"), config.buildOutput);
                         assertEquals(prj.dir().resolve("build"), config.buildDir);
                 }
-                switch(prj) {
+                switch (prj) {
                     case Options:
                         assertEquals("anotherorg.anotherpackage", FoldersHelperTrampoline.findBestJavaPackageSuggestionForGrammarsWhenAddingAntlr(p));
                         break;
-                    case CodeCompletion :
+                    case CodeCompletion:
                         assertEquals("mypackage", FoldersHelperTrampoline.findBestJavaPackageSuggestionForGrammarsWhenAddingAntlr(p));
                         break;
                 }
@@ -110,9 +118,12 @@ public class TestAntProjectWithHeuristics {
     @BeforeAll
     public static void setup() throws ClassNotFoundException {
 //        Class<?> type = Class.forName("org.netbeans.modules.project.ant.AntBasedGenericType.class");
-        teardown = MockNamedServices.builder()
-                //                .add("Services/AntBasedProjectTypes", type)
-                .build(
+        teardown = new TestFixtures()
+                .verboseGlobalLogging(
+                        HeuristicFoldersHelperImplementation.class,
+                        InferredConfig.class,
+                        FoldersHelperTrampoline.class)
+                .addToDefaultLookup(
                         FOQ.class,
                         FoldersLookupStrategyTest.PF.class,
                         FoldersLookupStrategyTest.TestStrategyFactory.class,
@@ -130,7 +141,7 @@ public class TestAntProjectWithHeuristics {
                         org.netbeans.modules.java.j2seplatform.libraries.J2SELibrarySourceLevelQueryImpl.class,
                         org.netbeans.modules.java.j2seplatform.queries.DefaultSourceLevelQueryImpl.class,
                         org.netbeans.modules.java.j2seplatform.platformdefinition.J2SEPlatformFactory.Provider.class
-                );
+                ).build();
     }
 
     @AfterAll

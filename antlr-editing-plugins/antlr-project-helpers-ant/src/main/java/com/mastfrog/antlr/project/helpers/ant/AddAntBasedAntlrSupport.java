@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.UnsupportedCharsetException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -264,6 +265,12 @@ final class AddAntBasedAntlrSupport implements Runnable {
         }
 
         private Charset findCharset() {
+            if (Boolean.getBoolean("unit.test")) {
+                // Need to do this to avoid failing to look up keybinding settings
+                // and initializing the module system in tests by
+                // FileEncodingQuery triggering the loading of a bunch of stuff
+                return UTF_8;
+            }
             Charset charset = null;
             String enc = eval.evaluate("source.encoding");
             if (enc != null) {
@@ -281,7 +288,7 @@ final class AddAntBasedAntlrSupport implements Runnable {
                     charset = FileEncodingQuery.getDefaultEncoding();
                 }
             }
-            return charset;
+            return charset == null ? UTF_8 : charset;
         }
 
         void writeTrackingInfo() {

@@ -70,15 +70,22 @@ class HeuristicAntlrConfigurationImplementation implements AntlrConfigurationImp
         return true;
     }
 
-    private static Path first(Iterable<Path> p) {
+    private Path first(Iterable<Path> p) {
         if (FoldersHelperTrampoline.getDefault().isEmptyIterable(p)) {
             return null;
         }
         Iterator<Path> it = p.iterator();
-        return it.hasNext() ? it.next() : null;
+        if (it.hasNext()) {
+            Path result = p.iterator().next();
+            if (!result.isAbsolute()) {
+                throw new IllegalStateException(impl + " returning a non-absolute path: " + p);
+            }
+            return result;
+        }
+        return null;
     }
 
-    private static Path firstParent(Iterable<Path> p) {
+    private Path firstParent(Iterable<Path> p) {
         Path result = first(p);
         if (result != null) {
             result = result.getParent();
@@ -86,11 +93,11 @@ class HeuristicAntlrConfigurationImplementation implements AntlrConfigurationImp
         return result;
     }
 
-    private static Path bestMatch(Iterable<Path> p, String matching) {
+    private Path bestMatch(Iterable<Path> p, String matching) {
         if (FoldersHelperTrampoline.getDefault().isEmptyIterable(p)) {
             return null;
         }
-        for (Path path : p) {
+        for (Path path : InferredConfig.depthFirst(p)) {
             if (path.getFileName().toString().contains(matching)) {
                 return path;
             }

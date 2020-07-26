@@ -48,6 +48,7 @@ import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.jfs.JFS;
 import org.netbeans.junit.NbTestCase;
 import org.nemesis.extraction.Extraction;
+
 /**
  *
  * @author Tim Boudreau
@@ -83,6 +84,8 @@ public class RebuildSubscriptionsTest {
 
         SimulatedEditorReparse rep = new SimulatedEditorReparse(doc);
         doc.insertString(0, "// a line comment\n", null);
+        // Note: Whether this should be 1 or 2 seems to vary by whether
+        // we are running synchronously or not
         sub.assertRebuilt(2);
         unsubscribe.run();
         doc.insertString(0, "// another line comment\n", null);
@@ -106,7 +109,10 @@ public class RebuildSubscriptionsTest {
         }
 
         public void assertRebuilt(int count) throws InterruptedException {
-            await();
+            if (this.count.get() < count) {
+                await();
+                assertEquals(count, this.count.get());
+            }
             assertEquals(count, this.count.get());
         }
 
@@ -123,7 +129,7 @@ public class RebuildSubscriptionsTest {
 
     @BeforeEach
     public void setup() throws URISyntaxException, IOException, ClassNotFoundException {
-        shutdownTestFixtures = initAntlrTestFixtures()
+        shutdownTestFixtures = initAntlrTestFixtures(true)
                 .verboseGlobalLogging()
                 .build();
         proj = ProjectTestHelper.projectBuilder()

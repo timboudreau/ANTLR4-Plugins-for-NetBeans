@@ -21,10 +21,8 @@ import com.mastfrog.util.preconditions.Exceptions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import java.text.MessageFormat;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,11 +36,13 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
 import java.util.logging.LogManager;
-import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.core.NbLoaderPool;
+import org.netbeans.core.startup.MainLookup;
 import org.netbeans.core.startup.NbRepository;
 import org.netbeans.junit.MockServices;
 import org.netbeans.modules.editor.document.StubImpl;
@@ -69,6 +69,8 @@ import org.openide.util.lookup.ProxyLookup;
 import org.openide.util.lookup.implspi.NamedServicesProvider;
 
 /**
+ * A way to go beyond MockServices, and provide custom contents for mime lookups
+ * and path-based lookups and more.
  *
  * @author Tim Boudreau
  */
@@ -85,8 +87,23 @@ public class TestFixtures {
     private static final Map<String, Lookup> namedLookups = new HashMap<>();
     private static Map<String, Lookup> mimeLookupsByPath = new HashMap<>();
     private boolean logging = false;
+    private boolean avoidStartingModuleSystem = true;
+    private final Set<String> classNamesToInitializeLoggingOn = new HashSet<>();
+    private final Set<Class<?>> classesToInitializeLoggingOn = new HashSet<>();
+    private final Set<Logger> loggersToInitialize = new HashSet<>();
 
-    public TestFixtures verboseGlobalLogging() {
+    /**
+     * Replace the global logging config with one which is simple and readable.
+     *
+     * @classesOrClassNamesOrLoggersToPreconfigure A set of class objects,
+     * String class names, or Logger instances which should be pre-initialized
+     * before the logging configuration is replaced and set to Level.ALL. If any
+     * are not found, a stack trace will be printed but the test will proceed.
+     *
+     * @return this
+     */
+    public TestFixtures verboseGlobalLogging(Object... classesOrClassNamesOrLoggersToPreconfigure) {
+        addLoggingClassesLoggersOrClassNames(classesOrClassNamesOrLoggersToPreconfigure);
         logging = true;
         return this;
     }
@@ -105,10 +122,48 @@ public class TestFixtures {
         EditorMimeTypesImpl.class,
         MockMimeDataProvider.class,
         NbRepository.class,
+        MockModuleSystem.class,
         ProxyURLStreamHandlerFactory.class,
         DefaultURLMapperProxy.class,
         CurrentDocumentScheduler.class,
         SelectedNodesScheduler.class,};
+
+    static void hackModuleSystemAlreadyStarted(boolean val) {
+        try {
+            Field f = MainLookup.class.getDeclaredField("started");
+            f.setAccessible(true);
+            f.set(null, val);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * If you call something that directly or indirectly calls
+     * Lookup.getDefault().lookup(ModuleInfo.class), or ModuleSystem.class or
+     * Module.class, that will trigger the entire NetBeans module system trying
+     * to bootstrap itself inside a unit test, which is almost always a recipe
+     * for disaster. This hacks the "started" field in MainLookup to make it
+     * think the module system is already loaded, and ensures that a single fake
+     * ModuleInfo will be returned from all lookups it can satisfy. Note a
+     * lookup of Module or ModuleSystem will still return null.
+     *
+     * @return this
+     */
+    public TestFixtures avoidStartingModuleSystem() {
+        this.avoidStartingModuleSystem = true;
+        return this;
+    }
+
+    /**
+     * Turns off the hack to avoid initializing the module system.
+     *
+     * @return this
+     */
+    public TestFixtures dontAvoidStartingModuleSystem() {
+        this.avoidStartingModuleSystem = false;
+        return this;
+    }
 
     public TestFixtures() {
         MockNamedServicesImpl.builder()
@@ -119,24 +174,40 @@ public class TestFixtures {
     }
 
     public ThrowingRunnable build() {
-        if (logging) {
-            initLogging();
-        }
         DocumentFactory fact = new DocumentFactoryImpl();
         includedLogs.addAll(includeLogs);
         excludedLogs.addAll(excludeLogs);
         addToMimeLookup("", fact);
         addToMimeLookup("text/plain", new PlainKit());
         Set<Class<?>> set = new LinkedHashSet<>(DEFAULT_LOOKUP_CONTENTS.length + defaultLookupContents.size());
+        if (avoidStartingModuleSystem) {
+            set.add(MockModuleSystem.class);
+        }
         set.addAll(Arrays.asList(DEFAULT_LOOKUP_CONTENTS));
         set.addAll(defaultLookupContents);
         MockServices.setServices(set.toArray(new Class[set.size()]));
+        // XXX this is right, but can cause weird deadlocks.
+        // better to just run tests in their own isolated JVM and use
+        // test-class level initialization of services - too much of the
+        // NetBeans plumbing simply isn't prepared to be de-initialized cleanly
 //        onShutdown.andAlwaysRun(() -> MockServices.setServices(new Class[0]));
+        if (avoidStartingModuleSystem) {
+            hackModuleSystemAlreadyStarted(avoidStartingModuleSystem);
+        }
         // Force init
         assertNotNull(Lookup.getDefault().lookup(ActiveDocumentProvider.class));
+        if (logging) {
+            preinitializeLogging();
+            initLogging();
+            preinitializeLogging();
+        }
+
         onShutdown.andAlwaysFirst(() -> {
             try {
                 MockErrorManager.onTestCompleted();
+                if (avoidStartingModuleSystem) {
+                    hackModuleSystemAlreadyStarted(false);
+                }
             } catch (Throwable ex) {
                 Exceptions.chuck(ex);
             } finally {
@@ -186,8 +257,26 @@ public class TestFixtures {
         onShutdown.run();
     }
 
-    static void initLogging() {
+    static void initLogging(Object... init) {
+        initLogging(false, init);
+    }
+
+    static void initLogging(boolean insanelyVerbose, Object... init) {
+        if (init != null && init.length > 0) {
+            Set<Class<?>> classesToInitializeLoggingOn = new HashSet<>();
+            Set<String> classNamesToInitializeLoggingOn = new HashSet<>();
+            Set<Logger> loggersToInitialize = new HashSet<>();
+            addLoggingClassesLoggersOrClassNames(init, classNamesToInitializeLoggingOn, classesToInitializeLoggingOn, loggersToInitialize);
+            preinitializeLogging(insanelyVerbose, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
+        }
         LogManager logManager = LogManager.getLogManager();
+        configureLogManager(logManager);
+        logManager.addConfigurationListener(() -> {
+            new Exception("Log manager reconfigured: ").printStackTrace();
+        });
+    }
+
+    private static void configureLogManager(LogManager logManager) {
         Properties loggingProps = new Properties();
         String consoleHandler = ConsoleHandler.class.getName();
         loggingProps.setProperty("handlers", consoleHandler);
@@ -201,6 +290,7 @@ public class TestFixtures {
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+
     }
 
     Set<String> excludeLogs = new HashSet<>();
@@ -222,60 +312,6 @@ public class TestFixtures {
 
     static Set<String> excludedLogs = new HashSet<>();
     static Set<String> includedLogs = new HashSet<>();
-
-    public static final class Fmt extends java.util.logging.Formatter {
-
-        String pad(long val) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(Long.toString(val));
-            while (sb.length() < 4) {
-                sb.insert(0, '0');
-            }
-            return sb.toString();
-        }
-
-        private boolean nbeventsLogged;
-
-        @Override
-        public String format(LogRecord record) {
-            StringBuilder sb = new StringBuilder()
-                    .append(pad(record.getSequenceNumber())).append(":");
-            String nm = record.getLoggerName();
-            if (!nbeventsLogged && "NbEvents".equals(nm)) {
-                nbeventsLogged = true;
-                new Exception("Got message from " + nm + " - "
-                        + " something is attempting to start the full IDE.").printStackTrace();
-            }
-            if (nm.indexOf('.') > 0 && nm.indexOf('.') < nm.length() - 1) {
-                nm = nm.substring(nm.lastIndexOf('.') + 1);
-            }
-            if (!excludedLogs.isEmpty() && excludedLogs.contains(nm)) {
-                return "";
-            }
-            if (!includedLogs.isEmpty() && !includedLogs.contains(nm)) {
-                return "";
-            }
-            sb.append(nm).append(": ");
-            String msg = record.getMessage();
-            if (msg != null && record.getParameters() != null && record.getParameters().length > 0) {
-                msg = MessageFormat.format(msg, record.getParameters());
-            }
-            if (msg != null) {
-                sb.append(msg);
-            }
-            if (record.getThrown() != null) {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                try (PrintStream ps = new PrintStream(out, true, "UTF-8")) {
-                    record.getThrown().printStackTrace(ps);
-                } catch (UnsupportedEncodingException ex) {
-                    ex.printStackTrace();
-                }
-                sb.append(new String(out.toByteArray(), UTF_8));
-            }
-            return sb.append('\n').toString();
-        }
-
-    }
 
     public static final class ActiveDocument implements ActiveDocumentProvider {
 
@@ -608,6 +644,129 @@ public class TestFixtures {
             } finally {
                 ERROR_MANAGERS.clear();
             }
+        }
+    }
+
+    private void addLoggingClassesLoggersOrClassNames(Object[] all) {
+        addLoggingClassesLoggersOrClassNames(all, classNamesToInitializeLoggingOn, classesToInitializeLoggingOn, loggersToInitialize);
+    }
+
+    private static void addLoggingClassesLoggersOrClassNames(Object[] all, Set<String> classNamesToInitializeLoggingOn, Set<Class<?>> classesToInitializeLoggingOn, Set<Logger> loggersToInitialize) {
+        for (Object o : all) {
+            if (o == null) {
+                continue;
+            } else if (o instanceof String) {
+                classNamesToInitializeLoggingOn.add((String) o);
+            } else if (o instanceof Logger) {
+                loggersToInitialize.add((Logger) o);
+            } else if (o instanceof Class<?>) {
+                classesToInitializeLoggingOn.add((Class<?>) o);
+            } else {
+                throw new AssertionError("Don't know how to "
+                        + "initialize logging on a " + o.getClass().getName() + ": " + o);
+            }
+        }
+    }
+
+    private static Class<?> preinitOneClassForLogging(Class<?> type) {
+        try {
+            return Class.forName(type.getName(), true, type.getClassLoader());
+        } catch (Exception | Error ex) {
+            ex.printStackTrace();
+            return null;
+        }
+    }
+
+    private static Logger findLogger(Class<?> type) {
+        try {
+            for (Field f : type.getDeclaredFields()) {
+                if (f.getType() == Logger.class && (f.getModifiers() & Modifier.STATIC) != 0) {
+                    f.setAccessible(true);
+                    Logger logger = (Logger) f.get(null);
+                    System.out.println("verbose-log-on: " + type.getName() + "." + f.getName());
+                    return logger;
+                }
+            }
+
+        } catch (Exception | Error ex) {
+            ex.printStackTrace();
+        }
+        return null;
+    }
+
+    private void preinitializeLogging() {
+        preinitializeLogging(insanelyVerboseLogging, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
+    }
+
+    private boolean insanelyVerboseLogging = false;
+
+    /**
+     * If called, and you also set verbose logging, this will walk the parents
+     * of each logger down to the root and turn on verbose logging for ALL of
+     * them, effectively putting EVERY SINGLE LOGGER into the most verbose mode
+     * possible. It will definitely tell you what's happening, if it is logged,
+     * and if you can actually find it.
+     *
+     * @return this
+     */
+    public TestFixtures insanelyVerboseLogging() {
+        insanelyVerboseLogging = true;
+        return this;
+    }
+
+    private static void preinitializeLogging(boolean parents, Set<Class<?>> classesToInitializeLoggingOn, Set<String> classNamesToInitializeLoggingOn, Set<Logger> loggersToInitialize) {
+        try {
+            Set<Class<?>> toInitialize = new HashSet<>();
+            Set<String> namesInitialized = new HashSet<>();
+            for (Class<?> type : classesToInitializeLoggingOn) {
+                Class<?> res = preinitOneClassForLogging(type);
+                if (res != null) {
+                    toInitialize.add(res);
+                    namesInitialized.add(res.getName());
+                }
+            }
+            for (String name : classNamesToInitializeLoggingOn) {
+                if (!namesInitialized.contains(name)) {
+                    ClassLoader cl = Thread.currentThread().getContextClassLoader();
+                    try {
+                        Class<?> c = Class.forName(name, true, cl);
+                        namesInitialized.add(c.getName());
+                        toInitialize.add(c);
+                    } catch (Exception | Error ex1) {
+                        ex1.printStackTrace();
+                    }
+                }
+            }
+            Set<Logger> loggers = new HashSet<>(loggersToInitialize);
+            for (Class<?> toInit : toInitialize) {
+                Logger logger = findLogger(toInit);
+                if (logger != null) {
+                    loggers.add(logger);
+                }
+            }
+            for (Logger lg : loggers) {
+                setLevel(lg, Level.ALL, parents);
+            }
+
+        } catch (Exception | Error ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private static final ConsoleHandler handler = new ConsoleHandler();
+
+    private static void setLevel(Logger logger, Level level, boolean parents) {
+        if (logger == null) {
+            return;
+        }
+        logger.setLevel(level);
+//        for (Handler handler : logger.getHandlers()) {
+//            logger.removeHandler(handler);
+//        }
+//        logger.setUseParentHandlers(false);
+//        logger.addHandler(fmt);
+        if (parents) {
+            setLevel(logger.getParent(), level, parents);
         }
     }
 }

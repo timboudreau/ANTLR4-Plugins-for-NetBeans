@@ -20,6 +20,7 @@ import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
 import java.io.File;
 import java.io.IOException;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
@@ -105,6 +106,10 @@ public class CompileJavaSources {
         return compile(jfs, null, sourceLocations);
     }
 
+    public CompileResult compile(Writer compilerOutput, JFS jfs, Location... sourceLocations) {
+        return compile(compilerOutput, jfs, null, sourceLocations);
+    }
+
     private Iterable<JavaFileObject> singleSource(JFS jfs, UnixPath loc, Location... sourceLocations) {
         JavaFileObject target;
         for (Location l : sourceLocations.length == 0 ? new Location[]{StandardLocation.SOURCE_PATH} : sourceLocations) {
@@ -121,6 +126,10 @@ public class CompileJavaSources {
     }
 
     public CompileResult compile(JFS jfs, UnixPath singleSource, Location... sourceLocations) {
+        return compile(null, jfs, singleSource, sourceLocations);
+    }
+
+    public CompileResult compile(Writer compilerOutput, JFS jfs, UnixPath singleSource, Location... sourceLocations) {
         CompileResult.Builder result = CompileResult.builder(Paths.get(""));
         result.setInitialFileStatus(jfs.status(setOf(sourceLocations)));
         try {
@@ -131,10 +140,10 @@ public class CompileJavaSources {
             L diagnosticListener = new L(result);
             JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
             List<String> compilerOptions = this.options.copy().withCharset(jfs.encoding()).options(compiler);
-            Iterable<JavaFileObject> toCompile = singleSource != null 
+            Iterable<JavaFileObject> toCompile = singleSource != null
                     ? singleSource(jfs, singleSource, sourceLocations)
                     : sourceLocations(jfs, sourceLocations);
-            JavaCompiler.CompilationTask task = compiler.getTask(null,
+            JavaCompiler.CompilationTask task = compiler.getTask(compilerOutput,
                     jfs, diagnosticListener, compilerOptions, null,
                     toCompile);
             List<Path> paths = new LinkedList<>();

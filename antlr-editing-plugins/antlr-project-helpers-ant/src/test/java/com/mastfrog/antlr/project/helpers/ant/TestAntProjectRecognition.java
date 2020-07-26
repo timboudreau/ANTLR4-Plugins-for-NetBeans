@@ -19,7 +19,6 @@ import static com.mastfrog.antlr.project.helpers.ant.AddAntBasedAntlrSupport.bui
 import static com.mastfrog.antlr.project.helpers.ant.AddAntBasedAntlrSupport.hashStream;
 import static com.mastfrog.antlr.project.helpers.ant.ProjectUpgrader.configurationFragment;
 import com.mastfrog.function.throwing.ThrowingRunnable;
-import com.mastfrog.mock.named.services.MockNamedServices;
 import static com.mastfrog.util.collections.CollectionUtils.map;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.path.UnixPath;
@@ -39,7 +38,9 @@ import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -73,15 +74,17 @@ import org.nemesis.antlr.project.Folders;
 import org.nemesis.antlr.project.impl.BuildFileFinderImpl;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation;
+import org.nemesis.antlr.project.impl.InferredConfig;
 import org.nemesis.antlr.project.spi.FolderLookupStrategyImplementation;
+import org.nemesis.antlr.project.spi.FolderQuery;
 import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
 import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
 import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.nemesis.antlr.project.spi.addantlr.SkeletonGrammarType;
 import org.nemesis.antlr.wrapper.AntlrVersion;
+import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.ProxyURLStreamHandlerFactory;
 import org.netbeans.api.project.Project;
-import org.netbeans.core.startup.NbResourceStreamHandler;
 import org.netbeans.modules.java.j2seproject.J2SEProject;
 import org.netbeans.modules.project.ant.AntBasedProjectFactorySingleton;
 import static org.netbeans.modules.project.ant.AntBasedProjectFactorySingleton.LOG;
@@ -97,6 +100,7 @@ import org.netbeans.spi.project.libraries.LibraryImplementation;
 import org.netbeans.spi.project.libraries.LibraryProvider;
 import org.netbeans.spi.project.support.ant.AntBasedProjectType;
 import org.netbeans.spi.project.support.ant.AntProjectHelper;
+import org.netbeans.spi.queries.FileEncodingQueryImplementation;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.modules.SpecificationVersion;
@@ -337,21 +341,24 @@ public class TestAntProjectRecognition {
 //            return mfs;
 //        }
 //    }
-
     @BeforeAll
     public static void setup() throws ClassNotFoundException, SAXException {
         AntTestProjects.setTestClass(TestAntProjectRecognition.class);
-        teardown = MockNamedServices.builder()
-//                .add("URLStreamHandler/nbinst", NbinstURLStreamHandler.class)
-                .add("URLStreamHandler/nbres", NbResourceStreamHandler.class)
-//                .add("URLStreamHandler/nbresloc", NbResourceStreamHandler.class)
-                .build(
+        teardown = new TestFixtures()
+                //                .add("URLStreamHandler/nbinst", NbinstURLStreamHandler.class)
+                //                .addToNamedLookup("URLStreamHandler/nbres", NbResourceStreamHandler.class)
+                .verboseGlobalLogging(
+                        HeuristicFoldersHelperImplementation.class,
+                        AntlrConfiguration.class,
+                        InferredConfig.class,
+                        "org.nemesis.antlr.project.AntlrConfigurationCache",
+                        FolderQuery.class)
+                .avoidStartingModuleSystem()
+                .addToDefaultLookup(
                         MockAntlrAntLibraryProvider.class,
-//                        ProjectLibraryProvider.class,
-//                        LibrariesStorage.class,
                         FQ.class,
                         FOQ.class,
-//                        MF.class,
+                        FEQI.class,
                         BuildFileFinderImpl.class,
                         AntFoldersHelperImplementationFactory.class,
                         NbProjectManager.class,
@@ -366,7 +373,7 @@ public class TestAntProjectRecognition {
                         org.netbeans.modules.java.j2seplatform.libraries.J2SELibrarySourceLevelQueryImpl.class,
                         org.netbeans.modules.java.j2seplatform.queries.DefaultSourceLevelQueryImpl.class,
                         org.netbeans.modules.java.j2seplatform.platformdefinition.J2SEPlatformFactory.Provider.class
-                );
+                ).build();
         ProxyURLStreamHandlerFactory.register();
     }
 
@@ -473,6 +480,10 @@ public class TestAntProjectRecognition {
     }
 
     static Path genericAntProjectSkeleton(String name) throws IOException {
+        return genericAntProjectSkeleton(name, teardown);
+    }
+
+    static Path genericAntProjectSkeleton(String name, ThrowingRunnable teardown) throws IOException {
         Path dir = FileUtils.newTempDir(name);
         teardown.andAlways(() -> {
             FileUtils.deltree(dir);
@@ -705,5 +716,14 @@ public class TestAntProjectRecognition {
             }
             return null;
         }
+    }
+
+    public static final class FEQI extends FileEncodingQueryImplementation {
+
+        @Override
+        public Charset getEncoding(FileObject file) {
+            return UTF_8;
+        }
+
     }
 }

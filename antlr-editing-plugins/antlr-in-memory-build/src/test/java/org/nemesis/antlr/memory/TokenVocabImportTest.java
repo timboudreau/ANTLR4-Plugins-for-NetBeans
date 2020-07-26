@@ -83,7 +83,7 @@ public class TokenVocabImportTest {
             assertNotNull(tokensFile);
             assertEquals(2, parserResult.allGrammars.size(), parserResult.allGrammars::toString);
 
-            assertTrue(parserResult.newlyGeneratedFiles.contains(tokensFile), parserResult.newlyGeneratedFiles::toString);
+            assertTrue(parserResult.newlyGeneratedFiles.contains(tokensFile.getName()), parserResult.newlyGeneratedFiles::toString);
             assertTrue(parserResult.errors.isEmpty(), parserResult.errors::toString);
             assertTrue(parserResult.isUsable(), parserResult::toString);
             Set<String> jfsContents = new HashSet<>();
@@ -92,8 +92,7 @@ public class TokenVocabImportTest {
                 System.out.println('"' + file.getName() + "\",");
                 jfsContents.add(file.getName());
             });
-            parserResult.newlyGeneratedFiles.forEach(jfsFo -> {
-                String nm = jfsFo.getName();
+            parserResult.newlyGeneratedFiles.forEach(nm -> {
                 assertFalse(nm.endsWith(".g4"), nm);
                 generatedFilesAccordingToParserResult.add(nm);
             });

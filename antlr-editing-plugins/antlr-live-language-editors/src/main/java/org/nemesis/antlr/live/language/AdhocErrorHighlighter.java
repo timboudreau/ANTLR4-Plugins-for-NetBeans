@@ -60,6 +60,7 @@ import org.openide.util.RequestProcessor;
  */
 public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements Runnable {
 
+    private static final int REFRESH_ERRORS_DELAY=750;
     protected final OffsetsBag bag;
     private static AttributeSet errorColoring;
     private final RequestProcessor.Task refreshErrorsTask;
@@ -185,7 +186,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 bag.discard();
             }
         });
-        this.refreshErrorsTask.schedule(100);
+        this.refreshErrorsTask.schedule(REFRESH_ERRORS_DELAY);
     }
 
     public void run() {

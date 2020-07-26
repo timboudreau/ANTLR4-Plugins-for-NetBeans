@@ -33,9 +33,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Segment;
 import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.impl.DeadEmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.debug.api.Trackables;
 import org.nemesis.extraction.Extraction;
@@ -239,7 +241,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 @Override
                 public void run(ResultIterator ri) throws Exception {
                     EmbeddedParsingEnvironment info = environment.get();
-//            ParserManager.parse(toParse, userTask);
+//                    info.runResult.jfs().whileLockedWithWithLockDowngrade(() -> {
+//
+//                    }, () -> null);
+
                     ReentrantReadWriteLock.WriteLock writeLock = parseLock.writeLock();
                     ReentrantReadWriteLock.ReadLock readLock = parseLock.readLock();
                     writeLock.lock();
@@ -294,6 +299,14 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     }
 
     private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
+
+        if (info.runResult != null && info.runResult.genResult() != null
+                && info.runResult.genResult().generationResult() != null) {
+            AntlrGenerationResult toCheck = info.runResult.genResult().generationResult();
+            if (RebuildSubscriptions.isThrottled(toCheck)) {
+                return false;
+            }
+        }
         return Debug.runBooleanThrowing(this, logName + "-force-reparse-" + info.grammarTokensHash, () -> {
             FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
             if (fo != null) {
@@ -403,6 +416,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         return rev.get();
     }
 
+    @Override
     public boolean isDisposed() {
         return disposed;
     }

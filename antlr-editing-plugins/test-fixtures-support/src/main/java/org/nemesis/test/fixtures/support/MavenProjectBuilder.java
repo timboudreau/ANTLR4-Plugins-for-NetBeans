@@ -15,6 +15,7 @@
  */
 package org.nemesis.test.fixtures.support;
 
+import com.mastfrog.util.collections.ArrayUtils;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.streams.Streams;
@@ -196,12 +197,28 @@ public final class MavenProjectBuilder {
             Files.write(toWrite, body.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             result.map.put(toWrite.getFileName().toString(), toWrite);
         }
+        if (hackModuleSystem) {
+            TestFixtures.hackModuleSystemAlreadyStarted(true);
+        }
         if (verboseLogging) {
             TestFixtures.excludedLogs.addAll(logExclude);
             TestFixtures.includedLogs.addAll(logInclude);
-            TestFixtures.initLogging();
+            TestFixtures.initLogging(insanelyVerboseLogging, initLoggers);
         }
         return result;
+    }
+
+    private boolean insanelyVerboseLogging;
+    private boolean hackModuleSystem;
+
+    public MavenProjectBuilder insanelyVerboseLogging() {
+        this.insanelyVerboseLogging = true;
+        return this;
+    }
+
+    public MavenProjectBuilder hackModuleSystemNotToStart() {
+        this.hackModuleSystem = hackModuleSystem;
+        return this;
     }
 
     static void assertNotNull(Object o, String msg) {
@@ -212,7 +229,14 @@ public final class MavenProjectBuilder {
 
     private boolean verboseLogging;
 
-    public MavenProjectBuilder verboseLogging() {
+    private Object[] initLoggers = new Object[0];
+
+    public MavenProjectBuilder verboseLogging(Object... init) {
+        if (initLoggers.length == 0) {
+            initLoggers = init;
+        } else {
+            initLoggers = ArrayUtils.concatenate(initLoggers, init);
+        }
         this.verboseLogging = true;
         return this;
     }

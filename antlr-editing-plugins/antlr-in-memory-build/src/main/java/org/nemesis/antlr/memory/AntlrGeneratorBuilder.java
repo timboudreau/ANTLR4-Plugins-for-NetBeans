@@ -18,6 +18,7 @@ package org.nemesis.antlr.memory;
 import com.mastfrog.util.path.UnixPath;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.function.Function;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileManager.Location;
@@ -46,6 +47,8 @@ public final class AntlrGeneratorBuilder<T> {
     JavaFileManager.Location javaSourceOutputLocation = StandardLocation.SOURCE_OUTPUT;
     UnixPath sourcePath;
     UnixPath importDir;
+    Path originalFile;
+    String tokensHash;
     private final Function<? super AntlrGeneratorBuilder<T>, T> convert;
 
     AntlrGeneratorBuilder(JFS jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
@@ -67,6 +70,16 @@ public final class AntlrGeneratorBuilder<T> {
         AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
                 (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourceDir(), res.importDir()));
         return result;
+    }
+
+    public AntlrGeneratorBuilder<T> withTokensHash(String tokensHash) {
+        this.tokensHash = tokensHash;
+        return this;
+    }
+
+    public AntlrGeneratorBuilder<T> withOriginalFile(Path originalFile) {
+        this.originalFile = originalFile;
+        return this;
     }
 
     public AntlrGeneratorBuilder<T> javaSourceOutputLocation(Location output) {

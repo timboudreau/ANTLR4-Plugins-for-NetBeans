@@ -19,12 +19,10 @@ import com.mastfrog.util.strings.Escaper;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -51,6 +49,7 @@ import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
 import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.netbeans.api.project.ProjectInformation;
 import org.netbeans.api.project.ProjectUtils;
+import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
 
 /**
@@ -60,6 +59,7 @@ import org.openide.util.Exceptions;
 public abstract class FoldersHelperTrampoline {
 
     public static FoldersHelperTrampoline DEFAULT;
+    private static final Logger LOG = Logger.getLogger(FoldersHelperTrampoline.class.getName());
 
     public static FoldersHelperTrampoline getDefault() {
         if (DEFAULT != null) {
@@ -69,8 +69,7 @@ public abstract class FoldersHelperTrampoline {
         try {
             Class.forName(type.getName(), true, type.getClassLoader());
         } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
+            LOG.log(Level.SEVERE, null, ex);
         }
         assert DEFAULT != null : "The DEFAULT field must be initialized";
         return DEFAULT;
@@ -101,8 +100,7 @@ public abstract class FoldersHelperTrampoline {
         try {
             Class.forName(type.getName(), true, type.getClassLoader());
         } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
+            LOG.log(Level.SEVERE, null, ex);
         }
         assert antlrConfigFactory != null : "Not initialized correctly";
         return antlrConfigFactory;
@@ -135,6 +133,12 @@ public abstract class FoldersHelperTrampoline {
     public AntlrConfiguration antlrConfiguration(FolderLookupStrategyImplementation spi) {
         AntlrConfigurationImplementation config = spi.get(AntlrConfigurationImplementation.class);
         if (config != null) {
+            if (LOG.isLoggable(Level.FINEST)) {
+                LOG.log(Level.FINEST, "Null config from " + spi + " - use empty",
+                        new Exception("Using null config for " + spi));
+            } else if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "Null config from {0} - use empty", spi);
+            }
             return newAntlrConfiguration(config.antlrImportDir(), config.antlrSourceDir(),
                     config.antlrOutputDir(), config.listener(), config.visitor(),
                     config.atn(), config.forceATN(), config.includePattern(),
@@ -190,8 +194,7 @@ public abstract class FoldersHelperTrampoline {
         try {
             Class.forName(type.getName(), true, type.getClassLoader());
         } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
+            LOG.log(Level.SEVERE, null, ex);
         }
     }
 
@@ -227,7 +230,7 @@ public abstract class FoldersHelperTrampoline {
                     return factory.addAntlrCapabilities();
                 }
             } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
+                LOG.log(Level.SEVERE, "Antlr addr capabilities for project " + project, ex);
             }
         }
         return null;
@@ -241,7 +244,7 @@ public abstract class FoldersHelperTrampoline {
                     return result;
                 }
             } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
+                LOG.log(Level.SEVERE, "Antlr addr for project " + project, ex);
             }
         }
         return null;
@@ -254,10 +257,10 @@ public abstract class FoldersHelperTrampoline {
         for (Path path : new HeuristicFoldersHelperImplementation(project, fq).find(Folders.JAVA_SOURCES, fq)) {
             if (Files.isDirectory(path)) {
                 try {
-                    FileVisitor<Path> scanner = new JavaSourceScanner(path, packageRoots, relativePackagePaths);
+                    FileVisitor<Path> scanner = new ApiAgnosticJavaSourceRootDetector(path, packageRoots, relativePackagePaths);
                     Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), 15, scanner);
                 } catch (IOException ex) {
-                    Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.FINE, null, ex);
+                    LOG.log(Level.FINE, null, ex);
                 }
             }
         }
@@ -280,64 +283,6 @@ public abstract class FoldersHelperTrampoline {
         return basePackage + '.' + Escaper.JAVA_IDENTIFIER_DELIMITED.escape(info.getDisplayName()).toLowerCase();
     }
 
-    static final class JavaSourceScanner implements FileVisitor<Path> {
-
-        private final Path root;
-        private final Set<String> packageRoots;
-        private final Set<Path> containingJavaFiles;
-        private int encounteredAt = Integer.MAX_VALUE;
-        private int currentDepth;
-
-        public JavaSourceScanner(Path root, Set<String> packageRoots, Set<Path> containingJavaFiles) {
-            this.root = root;
-            this.packageRoots = packageRoots;
-            this.containingJavaFiles = containingJavaFiles;
-        }
-
-        @Override
-        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-            if (root.equals(dir.getParent())) {
-                packageRoots.add(dir.getFileName().toString());
-            }
-            currentDepth++;
-            if (currentDepth > encounteredAt) {
-                currentDepth--;
-                return FileVisitResult.SKIP_SUBTREE;
-            } else {
-                return FileVisitResult.CONTINUE;
-            }
-        }
-
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            String nm = file.getFileName().toString();
-            if (nm.endsWith(".java") || nm.endsWith(".class") || nm.endsWith(".groovy")) {
-                Path rel = root.relativize(file.getParent());
-                if (rel != null && rel.toString().length() > 0) {
-                    containingJavaFiles.add(rel);
-                    encounteredAt = Math.min(encounteredAt, currentDepth);
-                    return FileVisitResult.SKIP_SIBLINGS;
-                }
-            }
-            return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-            return FileVisitResult.TERMINATE;
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-            currentDepth--;
-            if (exc != null) {
-                return FileVisitResult.TERMINATE;
-            }
-            return FileVisitResult.CONTINUE;
-        }
-
-    }
-
     public Set<Path> buildFileRelativePaths() {
         Set<Path> all = new HashSet<>(10);
         for (FoldersLookupStrategyImplementationFactory factory
@@ -351,7 +296,7 @@ public abstract class FoldersHelperTrampoline {
                     if (asString.length() > 0 && asString.charAt(0) == '/') {
                         IOException ioe = new IOException(factory + " (" + factory + ") returns a "
                                 + "non-relative build file path '" + p + "'. Fix the module.");
-                        Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.WARNING,
+                        LOG.log(Level.WARNING,
                                 "Invalid build file relative paths", ioe);
                         p = Paths.get(asString.substring(1));
                     }
@@ -379,6 +324,7 @@ public abstract class FoldersHelperTrampoline {
             }
         }
         if (result == null) {
+            LOG.log(Level.FINE, "Use failover heuristic impl for {0} and {1}", new Object[]{project, initialQuery});
             result = new HeuristicFoldersHelperImplementation(project, initialQuery);
         }
         return result;
@@ -386,6 +332,9 @@ public abstract class FoldersHelperTrampoline {
 
     public boolean isRecognized(Project project) {
         FolderLookupStrategyImplementation impl = implementationFor(project, newQuery());
+        if (impl == null) {
+            LOG.log(Level.FINE, "Project not recognized: {0} using {1}", new Object[]{project, impl});
+        }
         return impl != null && impl != NONE && !(impl instanceof HeuristicFoldersHelperImplementation);
     }
 
@@ -416,6 +365,10 @@ public abstract class FoldersHelperTrampoline {
 
     public Iterable<Path> allFiles(FolderLookupStrategyImplementation spi, Folders type) {
         return spi.allFiles(type);
+    }
+
+    public Iterable<Path> allFiles(FolderLookupStrategyImplementation spi, Folders type, FileObject relativeTo) {
+        return spi.allFiles(type, relativeTo);
     }
 
     static final class NoImplementation implements FolderLookupStrategyImplementation {

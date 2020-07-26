@@ -27,20 +27,22 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
+import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
+import org.nemesis.antlr.compilation.AntlrGeneratorAndCompilerBuilder;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
+import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.RebuildSubscriptions;
+import org.nemesis.antlr.memory.AntlrGenerator;
+import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
-import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
@@ -82,9 +84,11 @@ public class AntlrRunSubscriptionsTest {
         Runnable unsub = is.subscribe(fo, bic);
         assertNotNull(unsub);
         assertNotNull(IR.IR);
+        System.out.println("\nSUBS\n" + RebuildSubscriptions.info());
+//        System.out.println("\nCONFIG: \n" + AntlrConfiguration.forFile(fo));
+
         GrammarRunResult<Map> r = bic.assertExtracted();
         JFS jfs = r.jfs();
-
 
         JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/foo/bar/NestedMaps.g4"));
         assertNotNull(jfo);
@@ -122,29 +126,45 @@ public class AntlrRunSubscriptionsTest {
                 if (latch.await(1000, TimeUnit.MILLISECONDS)) {
                     latch.reset(1);
                     if (map != null) {
+                        System.out.println("  HAVE IT");
                         break;
                     }
                 }
             }
             GrammarRunResult<Map> result = map;
             map = null;
-            assertNotNull(result);
+            assertNotNull(result, "Generation may have failed:\n" + FakeAntlrLoggers.lastText());
             return result;
         }
 
         @Override
         public void accept(Extraction t, GrammarRunResult<Map> u) {
-            System.out.println("accept " + u);
+            System.out.println("\n\nBIC ACCEPT " + u + "\n\n");
             map = u;
             latch.countDown();
         }
     }
 
     @BeforeEach
-    public void setup() throws IOException {
+    public void setup() throws IOException, ClassNotFoundException {
         onShutdown = initAntlrTestFixtures()
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(Map.class), IR.class)
-                .verboseGlobalLogging()
+                .verboseGlobalLogging(
+                        ParsingUtils.class,
+                        RebuildSubscriptions.class,
+                        AntlrRunSubscriptions.class,
+                        AntlrGenerator.class,
+                        FakeAntlrLoggers.class,
+                        "org.nemesis.antlr.memory.tool.ToolContext",
+                        "org.nemesis.antlr.project.AntlrConfigurationCache",
+                        "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+                        "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+                        "org.nemesis.antlr.project.impl.InferredConfig",
+                        AntlrGeneratorAndCompiler.class,
+                        AntlrGeneratorBuilder.class,
+                        AntlrGeneratorAndCompilerBuilder.class,
+                        InvocationRunner.class
+                )
                 .excludeLogs("KeyMapsStorage", "KeyBindingSettingsImpl")
                 .build();
         genProject = ProjectTestHelper.projectBuilder().writeStockTestGrammarSplit("com.foo.bar")
@@ -167,7 +187,21 @@ public class AntlrRunSubscriptionsTest {
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
         TestFixtures fixtures = new TestFixtures();
         if (verbose) {
-            fixtures.verboseGlobalLogging();
+            fixtures.verboseGlobalLogging(
+                    ParsingUtils.class,
+                    RebuildSubscriptions.class,
+                    AntlrRunSubscriptions.class,
+                    AntlrGenerator.class,
+                    "org.nemesis.antlr.memory.tool.ToolContext",
+                    "org.nemesis.antlr.project.AntlrConfigurationCache",
+                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+                    "org.nemesis.antlr.project.impl.InferredConfig",
+                    AntlrGeneratorAndCompiler.class,
+                    AntlrGeneratorBuilder.class,
+                    AntlrGeneratorAndCompilerBuilder.class,
+                    InvocationRunner.class
+            );
         }
         DocumentFactory fact = new DocumentFactoryImpl();
         return fixtures.addToMimeLookup("", fact)
@@ -176,25 +210,11 @@ public class AntlrRunSubscriptionsTest {
                 .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
                         new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder())
                 .addToDefaultLookup(
+                        FakeAntlrLoggers.class,
                         FakeG4DataLoader.class,
                         MavenFolderStrategyFactory.class,
                         NbMavenProjectFactory.class,
                         AntlrFileObjectRelativeResolver.class
                 );
-    }
-
-    static {
-        // Preinitialize its logger
-        preinit(RebuildSubscriptions.class);
-        preinit(AntlrRunSubscriptions.class);
-    }
-
-    static void preinit(Class<?> type) {
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
     }
 }

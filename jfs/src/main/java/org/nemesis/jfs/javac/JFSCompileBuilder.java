@@ -19,6 +19,7 @@ import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.File;
 import java.io.IOException;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -41,12 +42,24 @@ public class JFSCompileBuilder {
 
     private final Set<ClasspathEntry> classpath = new LinkedHashSet<>();
     private final JFS jfs;
-    private JavacOptions options = new JavacOptions();
+    private final JavacOptions options = new JavacOptions();
     private final Set<Location> locationsToCompile = new HashSet<>();
+    private Writer compilerOutputWriter;
 
     public JFSCompileBuilder(JFS jfs) {
         this.jfs = jfs;
         options.withCharset(jfs.encoding());
+    }
+
+    public String toString() {
+        StringBuilder result = new StringBuilder("JFSCompileBuilder(")
+                .append(jfs.id()).append("\nOptions: ")
+                .append(options).append("\nCompile-loctions: ")
+                .append(locationsToCompile).append("\nClasspath:\n");
+        for (ClasspathEntry ce : classpath) {
+            result.append(ce).append('\n');
+        }
+        return result.toString();
     }
 
     public JFSCompileBuilder addSourceLocation(Location location) {
@@ -118,6 +131,26 @@ public class JFSCompileBuilder {
         return this;
     }
 
+    public JFSCompileBuilder verbose() {
+        options.verbose();
+        return this;
+    }
+
+    public JFSCompileBuilder nonIdeMode() {
+        options.nonIdeMode();
+        return this;
+    }
+
+    public JFSCompileBuilder compilerOutput(Writer writer) {
+        this.compilerOutputWriter = writer;
+        return this;
+    }
+
+    public JFSCompileBuilder abortOnBadClassFile() {
+        options.abortOnBadClassFile();
+        return this;
+    }
+
     private List<File> classpath() {
         List<File> allFiles = new ArrayList<>(classpath.size());
         for (ClasspathEntry e : classpath) {
@@ -132,14 +165,14 @@ public class JFSCompileBuilder {
     public CompileResult compileSingle(UnixPath path) throws IOException {
         CompileJavaSources compiler = new CompileJavaSources(options);
         jfs.setClasspathTo(classpath());
-        return compiler.compile(jfs, path, locationsToCompile.toArray(
+        return compiler.compile(compilerOutputWriter, jfs, path, locationsToCompile.toArray(
                 new Location[locationsToCompile.size()]));
     }
 
     public CompileResult compile() throws IOException {
         CompileJavaSources compiler = new CompileJavaSources(options);
         jfs.setClasspathTo(classpath());
-        return compiler.compile(jfs, locationsToCompile.toArray(
+        return compiler.compile(compilerOutputWriter, jfs, locationsToCompile.toArray(
                 new Location[locationsToCompile.size()]));
     }
 

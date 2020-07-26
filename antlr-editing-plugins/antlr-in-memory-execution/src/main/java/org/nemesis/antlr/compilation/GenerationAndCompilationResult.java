@@ -30,7 +30,7 @@ final class GenerationAndCompilationResult implements ProcessingResult {
     final ByteArrayOutputStream output;
     final AntlrGenerationAndCompilationResult genAndCompileResult;
 
-    public GenerationAndCompilationResult(ByteArrayOutputStream output, AntlrGenerationAndCompilationResult genAndCompileResult) {
+    GenerationAndCompilationResult(ByteArrayOutputStream output, AntlrGenerationAndCompilationResult genAndCompileResult) {
         this.output = output;
         this.genAndCompileResult = genAndCompileResult;
     }

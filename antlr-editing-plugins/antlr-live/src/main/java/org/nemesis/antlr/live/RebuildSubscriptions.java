@@ -17,6 +17,8 @@ package org.nemesis.antlr.live;
 
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
+import static com.mastfrog.util.preconditions.Checks.notNull;
+import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -31,8 +33,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -41,10 +45,12 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.tools.StandardLocation;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
+import static org.nemesis.antlr.live.ParsingUtils.toPath;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerator;
 import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
+import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.Folders;
 import static org.nemesis.antlr.project.Folders.ANTLR_GRAMMAR_SOURCES;
 import static org.nemesis.antlr.project.Folders.ANTLR_IMPORTS;
@@ -83,11 +89,22 @@ import org.openide.util.WeakSet;
  */
 public final class RebuildSubscriptions {
 
+    private static final UnixPath IMPORTS = UnixPath.get("imports");
     private static final Logger LOG = Logger.getLogger(RebuildSubscriptions.class.getName());
     private final JFSMapping mapping = new JFSMapping();
     private static final RequestProcessor RP = new RequestProcessor("rebuild-antlr-subscriptions", 4, true);
     private final Map<Project, Generator> generatorForMapping
             = new WeakHashMap<>();
+    private final BrokenSourceThrottle throttle = new BrokenSourceThrottle();
+
+    public static boolean isThrottled(Path filePath, String tokensHash) {
+        return instance().isThrottled(filePath, tokensHash);
+    }
+
+    public static boolean maybeThrottled(Path filePath, String tokensHash) {
+        return instance().throttle.maybeThrottle(filePath, tokensHash);
+    }
+
 
     static Supplier<RebuildSubscriptions> INSTANCE_SUPPLIER
             = CachingSupplier.of(RebuildSubscriptions::new);
@@ -173,6 +190,17 @@ public final class RebuildSubscriptions {
         return result == -1 ? fo.lastModified().getTime() : result;
     }
 
+    public static BrokenSourceThrottle throttle() {
+        return instance().throttle;
+    }
+
+    public static boolean isThrottled(AntlrGenerationResult res) {
+        if (!res.isUsable()) {
+            return throttle().maybeThrottle(res.originalFilePath, res.tokensHash);
+        }
+        return false;
+    }
+
     // XXX need general subscribe to mime type / all
     private Runnable _subscribe(FileObject fo, Subscriber sub) {
         LOG.log(Level.FINE, "Subscribe {0} to rebuilds of {1}", new Object[]{sub, fo});
@@ -232,6 +260,7 @@ public final class RebuildSubscriptions {
     static class Generator extends FileChangeAdapter {
 
         private final Set<Mapping> mappings = new HashSet<>();
+        private final Map<FileObject, Mapping> mappingForFile = new ConcurrentHashMap<>();
         private final RebuildHook hook;
         private final JFSMapping mapping;
         private final Charset encoding;
@@ -241,6 +270,11 @@ public final class RebuildSubscriptions {
 
         boolean kill(JFS jfs) {
             killed = true;
+            for (FileObject fo : mappingForFile.keySet()) {
+                fo.removeFileChangeListener(this);
+            }
+            mappings.clear();
+            mappingForFile.clear();
             return true;
         }
 
@@ -254,6 +288,11 @@ public final class RebuildSubscriptions {
                 sb.append("\n  ").append(m);
             }
             return sb.append(')').toString();
+        }
+
+        private void addMapping(FileObject file, Mapping mapping) {
+            mappings.add(notNull("mapping", mapping));
+            mappingForFile.put(file, mapping);
         }
 
         @SuppressWarnings("LeakingThisInConstructor")
@@ -270,27 +309,65 @@ public final class RebuildSubscriptions {
             // the file (it's open in the editor), otherwise masquerade the file,
             // and listen for document creation to replace the masquerade as
             // needed
-            Folders.ANTLR_GRAMMAR_SOURCES.allFileObjects(in)
+            Folders.ANTLR_GRAMMAR_SOURCES.allFileObjects(in, subscribeTo)
                     .forEach(fo -> {
                         // Antlr imports may be underneath antlr sources,
                         // so don't map twice
                         Folders owner = Folders.ownerOf(fo);
-                        mappings.add(map(fo, owner));
-                        subscribed.add(fo);
-                    });
-            Folders.ANTLR_IMPORTS.allFileObjects(in)
-                    .forEach(fo -> {
-                        if (!subscribed.contains(fo)) {
-                            mappings.add(map(fo, Folders.ANTLR_IMPORTS));
+                        if (owner == null) {
+                            owner = Folders.ANTLR_GRAMMAR_SOURCES;
+                        }
+                        Mapping m = map(fo, owner);
+                        if (m != null) {
+                            addMapping(fo, m);
                             subscribed.add(fo);
+                        } else {
+                            LOG.log(Level.FINE, "No path to {0} for {1}",
+                                    new Object[]{owner, fo.getNameExt(),
+                                        Strings.lazyCharSequence(AntlrConfiguration.forFile(fo)::toString)});
+                        }
+                    });
+            Folders.ANTLR_IMPORTS.allFileObjects(in, subscribeTo)
+                    .forEach(fo -> {
+                        if (!subscribed.contains(fo) && !mappingForFile.containsKey(fo)) {
+                            Mapping imapping = map(fo, Folders.ANTLR_IMPORTS);
+                            if (imapping != null) {
+                                addMapping(fo, imapping);
+                                subscribed.add(fo);
+                            } else {
+                                LOG.log(Level.FINE, "No mapping for {0}", fo.getPath());
+                            }
                         }
                     });
             if (!subscribed.contains(subscribeTo)) {
                 Folders owner = Folders.ownerOf(subscribeTo);
+                // Corner case - there is nothing that makes sense as the file owner
+                // This can sometimes happen in the case of Antlr sources mixed in with
+                // Java sources of a random Ant-based project there is not specific support
+                // for
+                if (owner == null) {
+                    LOG.log(Level.FINER, "Null owner for {0}", subscribeTo.getNameExt());
+                    AntlrConfiguration config = AntlrConfiguration.forFile(subscribeTo);
+                    Path pth = toPath(subscribeTo);
+                    if (pth != null) {
+                        if (config.javaSources() != null && pth.startsWith(config.javaSources())) {
+                            owner = Folders.JAVA_SOURCES;
+                        }
+                        if (config.antlrImportDir() != null && pth.startsWith(config.antlrImportDir())) {
+                            owner = Folders.ANTLR_IMPORTS;
+                        }
+                        if (config.antlrSourceDir() != null && pth.startsWith(config.antlrSourceDir())) {
+                            owner = Folders.ANTLR_GRAMMAR_SOURCES;
+                        }
+                        if (config.testSources() != null && pth.startsWith(config.testSources())) {
+                            owner = Folders.JAVA_TEST_SOURCES;
+                        }
+                    }
+                }
                 if (owner != null) {
                     Mapping newMapping = map(subscribeTo, owner);
                     if (newMapping != null) {
-                        mappings.add(newMapping);
+                        addMapping(subscribeTo, newMapping);
                         subscribed.add(subscribeTo);
                     } else {
                         LOG.log(Level.WARNING, "Could not create a mapping for "
@@ -306,17 +383,23 @@ public final class RebuildSubscriptions {
             Set<FileObject> listeningToDirs = new HashSet<>();
             for (Folders f : new Folders[]{ANTLR_GRAMMAR_SOURCES, ANTLR_IMPORTS}) {
                 for (FileObject dir : f.findFileObject(subscribeTo)) {
-                    LOG.log(Level.FINEST, "Generator {0} recursive listen to {1}", new Object[]{id, dir.getPath()});
-                    FileUtil.addRecursiveListener(this, FileUtil.toFile(dir));
-                    listeningToDirs.add(dir);
+                    if (dir != null && !listeningToDirs.contains(dir)) {
+                        LOG.log(Level.FINEST, "Generator {0} recursive listen to {1}", new Object[]{id, dir.getPath()});
+                        FileUtil.addRecursiveListener(this, FileUtil.toFile(dir));
+                        listeningToDirs.add(dir);
+                    } else {
+                        LOG.log(Level.FINEST, "Already listening to {0}", dir.getNameExt());
+                    }
                 }
             }
             Folders owner = Folders.ownerOf(subscribeTo);
             if (owner != ANTLR_IMPORTS && owner != ANTLR_GRAMMAR_SOURCES && owner != null) {
                 for (FileObject dir : owner.findFileObject(subscribeTo)) {
-                    if (!listeningToDirs.contains(dir)) {
+                    if (dir != null && !listeningToDirs.contains(dir)) {
                         FileUtil.addRecursiveListener(this, FileUtil.toFile(dir));
                         listeningToDirs.add(dir);
+                    } else {
+                        LOG.log(Level.FINEST, "Already listening to import {0}", dir.getNameExt());
                     }
                 }
             }
@@ -387,8 +470,13 @@ public final class RebuildSubscriptions {
                     UnixPath newPath = pathFor(renamed, owner);
                     if (!newPath.equals(m.targetPath)) {
                         mappings.remove(m);
+                        mappingForFile.remove(renamed);
                         Mapping nue = map(renamed, owner, newPath);
-                        mappings.add(nue);
+                        if (nue != null) {
+                            addMapping(renamed, nue);
+                        } else {
+                            LOG.log(Level.FINER, "No mapping for {0}", newPath);
+                        }
                     }
                 } catch (IOException ex) {
                     LOG.log(Level.INFO, null, ex);
@@ -406,7 +494,7 @@ public final class RebuildSubscriptions {
                 Folders owner = Folders.ownerOf(fo);
                 Path relativePath = Folders.ownerRelativePath(fo);
                 if (owner != null && relativePath != null) {
-                    mappings.add(map(fo, owner));
+                    addMapping(fo, map(fo, owner));
                 }
             }
         }
@@ -442,6 +530,12 @@ public final class RebuildSubscriptions {
             }
         }
 
+        /**
+         * Maintains the mapping from a single FileObject on disk, and a
+         * masqueraded version of it inside the JFS for the project that owns
+         * it; and takes care of switching betweenn mapping the FileObject and
+         * mapping the Document when the file acquires an open document.
+         */
         final class Mapping extends FileChangeAdapter implements PropertyChangeListener {
 
             private final UnixPath targetPath;
@@ -487,10 +581,16 @@ public final class RebuildSubscriptions {
 
             @Override
             public void fileChanged(FileEvent fe) {
-                recheckMapping();
+                recheckMappingMode();
             }
 
-            void recheckMapping() {
+            void recheckMappingMode() {
+                File file = FileUtil.toFile(fo);
+                if (file != null) {
+                    // A change in another file could have made this file
+                    // parsable, so reset throttles on it
+                    instance().throttle.reset(file.toPath());
+                }
                 switch (mode) {
                     case MAP_FILE:
                         if (obs != null && obs.getDocument() != null) {
@@ -515,7 +615,7 @@ public final class RebuildSubscriptions {
                 }
                 // It seems we sometimes don't get notifications about the document
                 // being opened - may be a race with adding the listener on startup
-                recheckMapping();
+                recheckMappingMode();
                 JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, targetPath);
                 if (jfo == null) {
                     return fo.lastModified().getTime();
@@ -612,6 +712,10 @@ public final class RebuildSubscriptions {
             MAP_DOCUMENT;
         }
 
+        static {
+            LOG.setLevel(Level.ALL);
+        }
+
         class RebuildHook extends ParseResultHook<GrammarFileContext> {
 
             AntlrGenerator gen;
@@ -702,7 +806,11 @@ public final class RebuildSubscriptions {
                                 new Object[]{id, ext.source(), project.getProjectDirectory()});
                         initMappings(jfs);
                     } else {
-                        return gen;
+                        Optional<Path> pathOpt = ext.source().lookup(Path.class);
+                        Path pth = pathOpt.isPresent() ? pathOpt.get()
+                                : UnixPath.get(ext.source().id());
+                        Path path = ext.source().lookupOrDefault(Path.class, () -> UnixPath.get(ext.source().id()));
+                        return gen.withFileInfo(pth, ext.tokensHash());
                     }
                 } else {
                     if (killed || !mappingsInitialized) {
@@ -713,23 +821,49 @@ public final class RebuildSubscriptions {
                 Folders owner = Folders.ownerOf(fo);
                 if (owner == null) {
                     owner = Folders.ANTLR_GRAMMAR_SOURCES;
+                    LOG.log(Level.FINER, "No owner for {0} - defaulting to ANTLR_GRAMMAR_SOURCES", fo.getPath());
                 }
                 LOG.log(Level.FINER, "Create JFS for {0} owned by {1} in generator ", new Object[]{fo.getName(), owner, id});
-                UnixPath relPath = UnixPath.get(owner == ANTLR_IMPORTS ? Paths.get("imports/" + fo.getNameExt())
-                        : Folders.ownerRelativePath(fo));
+                UnixPath relPath;
+                switch (owner) {
+                    case ANTLR_IMPORTS:
+                        relPath = UnixPath.get("imports", fo.getNameExt());
+                        LOG.log(Level.FINEST, "Using {0} for {1}", new Object[]{relPath, fo.getNameExt()});
+                        break;
+                    default:
+                        Mapping mapping = mappingForFile.get(fo);
+                        if (mapping != null) {
+                            relPath = mapping.targetPath;
+                        } else {
+                            Path ownerRel = Folders.ownerRelativePath(fo);
+                            if (ownerRel == null) {
+                                LOG.log(Level.INFO, "NO REASONABLE OWNER FOR " + fo.getNameExt()
+                                        + " - using its filename and assuming it is in the root of {0}", owner);
+                                relPath = UnixPath.get(fo.getNameExt());
+                            } else {
+                                relPath = UnixPath.get(ownerRel);
+                            }
+                        }
+                        break;
+                }
                 AntlrGeneratorBuilder<AntlrGenerator> agb = AntlrGenerator.builder(jfs);
+                agb.withTokensHash(ext.tokensHash());
+                Path originalFile = ext.source().lookupOrDefault(Path.class, () -> Paths.get(fo.getPath()));
+                agb.withOriginalFile(originalFile);
                 if (relPath.getParent() != null) {
                     String pkg = relPath.getParent().toString().replace('/', '.');
                     LOG.log(Level.FINEST, "Using package {0} for {1}",
                             new Object[]{pkg, fo.getName()});
                     agb.generateIntoJavaPackage(pkg);
                 }
+                UnixPath building = relPath.getParent() != null
+                        ? relPath.getParent() : UnixPath.empty();
                 return gen = agb
-                        .building(relPath.getParent() == null ? UnixPath.empty() : relPath.getParent(), UnixPath.get("imports"));
+                        .building(building, IMPORTS);
             }
 
             private PrintStream outputFor(Extraction ext) {
-                Path p = Paths.get(initialFile.getPath());
+                Path p = ext.source().lookupOrDefault(Path.class, () -> Paths.get(initialFile.getPath()));
                 return AntlrLoggers.getDefault().forPath(p);
             }
 
@@ -739,6 +873,10 @@ public final class RebuildSubscriptions {
 
             @Override
             protected void onReparse(GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
+                if (RebuildSubscriptions.instance().throttle.isThrottled(extraction)) {
+                    LOG.log(Level.FINE, "Extraction {0} {1} throttled", new Object[]{extraction.source(), extraction.tokensHash()});
+                    return;
+                }
                 Debug.runThrowing(this, "RebuildSubscriptions.onReparse-" + extraction.tokensHash() + "-" + extraction.source(), extraction::toString, () -> {
                     LOG.log(Level.FINER, "onReparse {0}", extraction.source());
                     List<Subscriber> targets = subscribers;
@@ -786,7 +924,7 @@ public final class RebuildSubscriptions {
                 });
             }
 
-            public boolean runGeneration(Extraction extraction, String mimeType, AntlrGenerator gen1, GrammarFileContext tree, ParseResultContents populate, Fixes fixes) throws Exception {
+            public boolean runGeneration(Extraction extraction, String mimeType, AntlrGenerator generator, GrammarFileContext tree, ParseResultContents populate, Fixes fixes) throws Exception {
                 PrintStream output = outputFor(extraction);
                 // Build the message here so the UI doesn't hold a reference to the extraction
                 // indefinitiely
@@ -794,15 +932,41 @@ public final class RebuildSubscriptions {
                 AntlrGenerationResult result = Debug.runObjectThrowing(this, "generate " + extraction.source(), () -> {
                     return msg;
                 }, () -> {
-                    return mapping.whileLocked(gen1.jfs(), () -> {
+                    return mapping.whileWriteLocked(generator.jfs(), () -> {
                         try {
-                            return gen1.run(extraction.source().name(), output, true);
+                            return generator.run(extraction.source().name(), output, true);
                         } catch (Error eiie) {
-                            handleEiiE(eiie, gen1.jfs());
+                            handleEiiE(eiie, generator.jfs());
                             throw eiie;
                         }
                     });
                 });
+                System.out.println("NEW FILES:\n");
+                for (String fl : result.newlyGeneratedFiles) {
+                    System.out.println(" * " + fl);
+                }
+                System.out.println("MODIFIED FILES:\n");
+                for (String fl : result.modifiedFiles) {
+                    System.out.println(" - " + fl);
+                }
+
+                if (!result.isSuccess()) {
+                    System.out.println("NON SUCCESS " + result.errors);
+                    System.out.println("INFO " + result.infoMessages);
+                    System.out.println("" + result.thrown);
+                    System.out.println("" + result.grammarName);
+                }
+
+                // FIXME - this shuold be included somehow in the extraction result -
+                // EmbeddedAntlrParserImpl and perhaps others need to find it to
+                // determine if something is throttled
+                boolean throttled = instance().throttle.incrementThrottleIfBad(extraction, result);
+                if (throttled) {
+                    LOG.log(Level.FINEST, "Throttled {0}", extraction.source());
+                    // XXX maybe let the parse result through only to new subsribers
+                    // since the last run?
+                    return false;
+                }
                 if (Debug.isActive()) {
                     if (result.isUsable()) {
                         Debug.success("Successful gen " + extraction.source(), result::toString);
@@ -835,7 +999,7 @@ public final class RebuildSubscriptions {
                                 "Exception processing parse result of "
                                 + extraction.source(), e);
                     } catch (Error e) {
-                        handleEiiE(e, gen1.jfs());
+                        handleEiiE(e, generator.jfs());
                         throw e;
                     }
                 });

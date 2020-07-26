@@ -254,6 +254,12 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         add(listsSplit, BorderLayout.EAST);
         editorPane = new JEditorPane();
 
+        // We have to set the document AFTER creating the editor
+        // kit.  This DOES mean a zombie document exists long
+        // enough to get highlighting attached to it.  The code
+        // in AdhocHighightLayerFactory that checks StreamDescriptionProperty
+        // for null should catch this and avoid one getting created
+
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
         // Configure the editor pane to use it

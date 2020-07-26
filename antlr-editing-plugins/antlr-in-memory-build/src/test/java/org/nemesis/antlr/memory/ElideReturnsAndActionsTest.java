@@ -65,8 +65,7 @@ public class ElideReturnsAndActionsTest {
                 System.out.println('"' + file.getName() + "\",");
                 jfsContents.add(file.getName());
             });
-            parserResult.newlyGeneratedFiles.forEach(jfsFo -> {
-                String nm = jfsFo.getName();
+            parserResult.newlyGeneratedFiles.forEach(nm -> {
                 System.out.println(nm);
                 assertFalse(nm.endsWith(".g4"), nm);
                 generatedFilesAccordingToParserResult.add(nm);

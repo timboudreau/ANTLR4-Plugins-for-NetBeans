@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.project;
 
+import com.mastfrog.util.path.UnixPath;
+import java.io.File;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
@@ -29,6 +31,8 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 
 /**
+ * XXX this class should not be API, but need to get it out of the tests for
+ * the maven impl.
  *
  * @author Tim Boudreau
  */
@@ -48,6 +52,25 @@ public final class FoldersLookupStrategy {
             CACHE.put(project, result);
         }
         return result;
+    }
+
+    static void pathEvicted(Path path) {
+        synchronized (CACHE) {
+            Project toRemove = null;
+            for (Project p : CACHE.keySet()) {
+                File f = FileUtil.toFile(p.getProjectDirectory());
+                if (f != null) {
+                    Path projectPath = f.toPath();
+                    if (UnixPath.get(projectPath).equals(UnixPath.get(path))) {
+                        toRemove = p;
+                        break;
+                    }
+                }
+            }
+            if (toRemove != null) {
+                CACHE.remove(toRemove);
+            }
+        }
     }
 
     public static FoldersLookupStrategy get(Project project, Path file) {
@@ -82,8 +105,12 @@ public final class FoldersLookupStrategy {
         return FoldersHelperTrampoline.getDefault().allFiles(spi, type);
     }
 
+    public Iterable<Path> allFiles(Folders type, FileObject relativeTo) {
+        return FoldersHelperTrampoline.getDefault().allFiles(spi, type, relativeTo);
+    }
+
     public Iterable<FileObject> allFileObjects(Folders type) {
-        return  FileObjectIterable.create(allFiles(type));
+        return FileObjectIterable.create(allFiles(type));
     }
 
     public String name() {
@@ -120,6 +147,13 @@ public final class FoldersLookupStrategy {
 
     public String toString() {
         return getClass().getSimpleName() + '(' + spi + ')';
+    }
+
+    Iterable<FileObject> allFileObjects(Folders type, FileObject relativeTo) {
+        if (relativeTo == null) {
+            return allFileObjects(type);
+        }
+        return FileObjectIterable.create(allFiles(type, relativeTo));
     }
 
     static final class FoldersTrampolineImpl extends FoldersHelperTrampoline {

@@ -29,6 +29,8 @@ import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.prefs.Preferences;
 import javax.swing.text.StyledDocument;
 import static org.nemesis.test.fixtures.support.TestFixtures.assertNotNull;
@@ -70,7 +72,7 @@ public final class GeneratedMavenProject {
     public Path add(String relativePath, String content) throws IOException {
         Path pth = dir.resolve(relativePath);
         Files.write(pth, content.getBytes(UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        String  fn = Paths.get(relativePath).getFileName().toString();
+        String fn = Paths.get(relativePath).getFileName().toString();
         map.put(fn, pth);
         return pth;
     }
@@ -88,7 +90,7 @@ public final class GeneratedMavenProject {
         return ProjectTestHelper.findProject(dir);
     }
 
-    public Map<String,Path> allFiles() {
+    public Map<String, Path> allFiles() {
         return Collections.unmodifiableMap(map);
     }
 
@@ -97,6 +99,18 @@ public final class GeneratedMavenProject {
         FileObject fo = file(filename);
         try (OutputStream out = fo.getOutputStream()) {
             out.write(newText.getBytes(UTF_8));
+        }
+        return this;
+    }
+
+    public GeneratedMavenProject updateText(String filename, Function<String, String> mutator) throws IOException {
+        FileObject fo = file(filename);
+        String txt = fo.asText();
+        String nue = mutator.apply(file(filename).asText());
+        if (!Objects.equals(txt, nue)) {
+            try (OutputStream out = fo.getOutputStream()) {
+                out.write(nue.getBytes(UTF_8));
+            }
         }
         return this;
     }

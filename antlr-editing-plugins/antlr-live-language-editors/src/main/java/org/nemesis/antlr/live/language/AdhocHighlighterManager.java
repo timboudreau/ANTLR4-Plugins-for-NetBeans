@@ -24,6 +24,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -40,12 +41,14 @@ import javax.swing.text.JTextComponent;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -79,11 +82,11 @@ final class AdhocHighlighterManager {
 
     protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, true);
     private static final Logger LOG = Logger.getLogger(AdhocHighlighterManager.class.getName());
-    protected final static int REPARSE_DELAY = 400;
+    protected final static int REPARSE_DELAY = 750;
     protected final static int REPAINT_DELAY = 75;
     private final AtomicReference<HighlightingInfo> lastParseInfo = new AtomicReference<>();
     private final RequestProcessor.Task repaintHighlightsTask;
-    private final RequestProcessor.Task reparseDocumentTask;
+    private final RequestProcessor.Task reparseSampleTextTest;
     private final RequestProcessor.Task reparseGrammarTask;
     private final CompL compl = new CompL();
     private final String mimeType;
@@ -98,7 +101,7 @@ final class AdhocHighlighterManager {
         this.ctx = ctx;
         colorings = AdhocColoringsRegistry.getDefault().get(mimeType);
         repaintHighlightsTask = THREAD_POOL.create(this::repaintHighlights);
-        reparseDocumentTask = THREAD_POOL.create(this::documentReparse);
+        reparseSampleTextTest = THREAD_POOL.create(this::documentReparse);
         reparseGrammarTask = THREAD_POOL.create(this::grammarReparse);
         JTextComponent c = ctx.getComponent();
         c.addComponentListener(cl = WeakListeners.create(
@@ -179,7 +182,7 @@ final class AdhocHighlighterManager {
                 Document dd = comp.getDocument();
                 if (!nowShowing) {
                     repaintHighlightsTask.cancel();
-                    reparseDocumentTask.cancel();
+                    reparseSampleTextTest.cancel();
                     dd.removeDocumentListener(this);
                     colorings.removeChangeListener(this);
                     clearLastParseInfo();
@@ -220,17 +223,16 @@ final class AdhocHighlighterManager {
 
         @Override
         public void insertUpdate(DocumentEvent e) {
-            scheduleReparse();
+            scheduleSampleTextReparse();
         }
 
         @Override
         public void removeUpdate(DocumentEvent e) {
-            scheduleReparse();
+            scheduleSampleTextReparse();
         }
 
         @Override
         public void changedUpdate(DocumentEvent e) {
-            scheduleReparse();
         }
 
         @Override
@@ -240,7 +242,15 @@ final class AdhocHighlighterManager {
             Debug.message("reparse-listener-notify "
                     + AdhocHighlighterManager.this.toString() + " "
                     + t.tokensHash(), u::toString);
-            scheduleReparse();
+            if (!u.isUsable() && u.genResult() != null && u.genResult().generationResult() != null) {
+                boolean throttled = RebuildSubscriptions.throttle().incrementThrottleIfBad(t, u.genResult().generationResult());
+                if (throttled) {
+                    return;
+                }
+            } else if (!u.isUsable()) {
+                return;
+            }
+            scheduleSampleTextReparse();
         }
 
         @Override
@@ -312,15 +322,18 @@ final class AdhocHighlighterManager {
                                 Document doc = ck.getDocument();
                                 if (doc != null) {
                                     Debug.message("reparse-document", doc::toString);
-                                    ParsingUtils.parse(doc);
-                                    documentReparse();
+                                    boolean ok = isTrue(ParsingUtils.parse(doc, this::checkParserResult));
+                                    if (ok) {
+                                        scheduleSampleTextReparse();
+                                    }
                                     return;
                                 }
                             }
-                            ParsingUtils.parse(fo);
+                            boolean ok = isTrue(ParsingUtils.parse(fo, this::checkParserResult));
+                            if (ok) {
+                                scheduleSampleTextReparse();
+                            }
                             Debug.message("reparse-file", fo::toString);
-//                            documentReparseInner();
-                            reparseDocumentTask.schedule(REPARSE_DELAY);
                         } catch (Exception ex) {
                             Debug.thrown(ex);
                             Exceptions.printStackTrace(ex);
@@ -331,27 +344,46 @@ final class AdhocHighlighterManager {
         });
     }
 
-    void documentReparse() {
-        Document d = ctx.getDocument();
-        Debug.run(this, "adhoc-hlmgr-doc-reparse-" + d.getProperty(StreamDescriptionProperty), () -> {
-            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-            CharSequence text = DocumentUtilities.getText(d);
-            try {
-                synchronized (this) {
-                    EmbeddedAntlrParserResult result = parser.parse(text);
-                    AntlrProxies.ParseTreeProxy prox = result.proxy();
-                    if (prox.isUnparsed()) {
-                        Debug.failure("Got unparsed proxy", prox::loggingInfo);
-                    } else {
-                        Debug.success("Got parsed proxy", prox::loggingInfo);
-                    }
-                    lastParseInfo.set(new HighlightingInfo(d, prox));
-                }
-                scheduleRepaint();
-            } catch (Exception ex) {
-                Exceptions.printStackTrace(ex);
+    static boolean isTrue(Boolean bool) {
+        return bool == null ? false : bool;
+    }
+
+    private Boolean checkParserResult(Parser.Result result) {
+        Extraction ext = ExtractionParserResult.extraction(result);
+        if (ext != null) {
+            if (RebuildSubscriptions.throttle().isThrottled(ext)) {
+                return false;
             }
-        });
+        }
+        return ext != null;
+    }
+
+    void documentReparse() {
+        inReparse = true;
+        try {
+            Document d = ctx.getDocument();
+            Debug.run(this, "adhoc-hlmgr-doc-reparse", this::documentName, () -> {
+                EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+                CharSequence text = DocumentUtilities.getText(d);
+                try {
+                    synchronized (this) {
+                        EmbeddedAntlrParserResult result = parser.parse(text);
+                        AntlrProxies.ParseTreeProxy prox = result.proxy();
+                        if (prox.isUnparsed()) {
+                            Debug.failure("Got unparsed proxy", prox::loggingInfo);
+                        } else {
+                            Debug.success("Got parsed proxy", prox::loggingInfo);
+                        }
+                        lastParseInfo.set(new HighlightingInfo(d, prox));
+                    }
+                    scheduleRepaint();
+                } catch (Exception ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            });
+        } finally {
+            inReparse = false;
+        }
     }
 
     private void onNewParse(Document doc, EmbeddedAntlrParserResult res) {
@@ -381,8 +413,8 @@ final class AdhocHighlighterManager {
             HighlightingInfo info = new HighlightingInfo(doc, res.proxy());
             lastParseInfo.set(info);
             LOG.log(Level.FINE, "Schedule repaint highlights");
-//            scheduleRepaint();
-            repaintHighlights();
+//            repaintHighlights();
+            scheduleRepaint();
         });
     }
 
@@ -396,9 +428,26 @@ final class AdhocHighlighterManager {
         }
     }
 
-    final void scheduleReparse() {
+    private String documentName() {
+        Document doc = ctx.getDocument();
+        Object sdp = doc.getProperty(StreamDescriptionProperty);
+        if (sdp instanceof DataObject) {
+            return ((DataObject) sdp).getName();
+        } else if (sdp instanceof FileObject) {
+            return ((FileObject) sdp).getName();
+        }
+        return Objects.toString(sdp);
+    }
+
+    private boolean inReparse;
+
+    final void scheduleSampleTextReparse() {
+        if (inReparse) {
+            // XXX should be a threadlocal?
+            return;
+        }
         if (showing) {
-            reparseDocumentTask.schedule(REPARSE_DELAY);
+            reparseSampleTextTest.schedule(REPARSE_DELAY);
         }
     }
 

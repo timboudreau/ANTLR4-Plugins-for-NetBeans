@@ -16,12 +16,14 @@
 package org.nemesis.antlr.project;
 
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import com.mastfrog.util.path.UnixPath;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.Set;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.StandardLocation;
+import org.nemesis.antlr.project.spi.OwnershipQuery;
 import org.netbeans.api.project.Project;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -47,17 +49,16 @@ public enum Folders {
     CLASS_OUTPUT,
     ANTLR_TEST_IMPORTS,
     ANTLR_TEST_GRAMMAR_SOURCES,
-    TEST_CLASS_OUTPUT
-    ;
+    TEST_CLASS_OUTPUT;
 
     public boolean isAntlrSourceFolder() {
-        switch(this) {
-            case ANTLR_GRAMMAR_SOURCES :
-            case ANTLR_TEST_GRAMMAR_SOURCES :
-            case ANTLR_IMPORTS :
-            case ANTLR_TEST_IMPORTS :
+        switch (this) {
+            case ANTLR_GRAMMAR_SOURCES:
+            case ANTLR_TEST_GRAMMAR_SOURCES:
+            case ANTLR_IMPORTS:
+            case ANTLR_TEST_IMPORTS:
                 return true;
-            default :
+            default:
                 return false;
         }
     }
@@ -69,6 +70,22 @@ public enum Folders {
                 return false;
         }
         return true;
+    }
+
+    public boolean isJavaSourceFolder() {
+        switch (this) {
+            case JAVA_SOURCES:
+            case JAVA_TEST_SOURCES:
+            case JAVA_GENERATED_SOURCES:
+            case JAVA_TEST_GENERATED_SOURCES:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public boolean isSourceFolder() {
+        return isAntlrSourceFolder() || isJavaSourceFolder();
     }
 
     private static final Set<String> ANTLR_EXTS
@@ -83,6 +100,32 @@ public enum Folders {
             = setOf("class");
     private static final Set<String> CLASS_MIME
             = setOf("application/x-class-file");
+
+    public static Folders primaryFolderFor(FileObject fo) {
+        Folders result = null;
+        String mime = fo.getMIMEType();
+        if (JAVA_MIME.contains(mime)) {
+            result = JAVA_SOURCES;
+        } else if (ANTLR_MIME.contains(mime)) {
+            result = ANTLR_GRAMMAR_SOURCES;
+        } else if (CLASS_MIME.contains(mime)) {
+            result = CLASS_OUTPUT;
+        } else {
+            result = RESOURCES;
+        }
+        return result;
+    }
+
+    public static Folders primaryFolderFor(Path path) {
+        String ext = UnixPath.get(path).extension();
+        if (ANTLR_EXTS.contains(ext)) {
+            return ANTLR_GRAMMAR_SOURCES;
+        } else if (JAVA_EXTS.contains(ext)) {
+            return JAVA_SOURCES;
+        } else {
+            return RESOURCES;
+        }
+    }
 
     @SuppressWarnings("ManualArrayToCollectionCopy")
     static Set<Folders> toSet(Folders... flds) {
@@ -168,6 +211,16 @@ public enum Folders {
 
     public static Folders ownerOf(FileObject fo) {
         FoldersLookupStrategy strat = FoldersLookupStrategy.get(fo);
+        OwnershipQuery oq = strat.get(OwnershipQuery.class);
+        if (oq != null) {
+            File file = FileUtil.toFile(fo);
+            if (file != null) {
+                Folders result = oq.findOwner(file.toPath());
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
         File file = FileUtil.toFile(fo);
         if (file == null) {
             return null;
@@ -214,6 +267,23 @@ public enum Folders {
 
     public Iterable<FileObject> allFileObjects(Project project) {
         return FoldersLookupStrategy.get(project).allFileObjects(this);
+    }
+
+    /**
+     * Look up all file objects for this Folders in a project, relative to a
+     * specific file. We need this in order to handle the case of Antlr sources
+     * mixed in with Java sources, to manage to return all of sources in the
+     * same folder, in the case that grammars are mixed in with Antlr sources as
+     * some projects (c.f. Quorum) do.
+     *
+     * @param project A project
+     * @param relativeTo A file - if text/x-g4, should return all grammar files
+     * in the same directory if this particular folder is actually the java
+     * souruces
+     * @return An iterable
+     */
+    public Iterable<FileObject> allFileObjects(Project project, FileObject relativeTo) {
+        return FoldersLookupStrategy.get(project).allFileObjects(this, relativeTo);
     }
 
     public Iterable<Path> find(Project project) {

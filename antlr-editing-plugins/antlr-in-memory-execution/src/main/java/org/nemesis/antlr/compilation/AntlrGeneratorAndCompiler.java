@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.compilation;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Set;
@@ -61,29 +62,33 @@ public class AntlrGeneratorAndCompiler {
     }
 
     public static AntlrGeneratorAndCompiler fromResult(AntlrGenerationResult lastResult, JFSCompileBuilder compileBuilder) {
-        AntlrGeneratorAndCompiler result = new AntlrGeneratorAndCompiler(lastResult.jfs(), compileBuilder, lastResult.toGenerator());
+        AntlrGeneratorAndCompiler result = new AntlrGeneratorAndCompiler(lastResult.jfs(),
+                compileBuilder, lastResult.toGenerator());
         return result;
     }
 
     private AntlrGenerationResult lastGenerationResult;
     private CompileResult lastCompileResult;
 
-    public AntlrGenerationAndCompilationResult compile(String grammarFileName, PrintStream logStream, Set<GrammarProcessingOptions> opts) {
+    public AntlrGenerationAndCompilationResult compile(String grammarFileName, PrintStream logStream,
+            Set<GrammarProcessingOptions> opts) {
         return Debug.runObject(this, "compile " + grammarFileName, () -> {
             return "Opts " + opts + "\nGenerator: " + generator + "\nJFS: " + jfs;
         }, () -> {
             AntlrGenerationResult run = null;
             try {
-                if (opts.contains(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES) || (lastGenerationResult == null || !lastGenerationResult.isUsable())) {
+                if (opts.contains(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES)
+                        || (lastGenerationResult == null || !lastGenerationResult.isUsable())) {
                     Debug.message("Rerun " + generator + " - regenerate passed or last unusable.", () -> {
                         return "Opts: " + opts + "\nLG: " + lastGenerationResult;
                     });
-
-                    run = (lastGenerationResult = generator.run(grammarFileName, logStream, true));
+                    run = jfs.whileWriteLocked(() -> (lastGenerationResult = generator.run(grammarFileName, logStream, true)));
                 }
             } catch (Exception ex) {
                 Debug.thrown(ex);
-                return new AntlrGenerationAndCompilationResult(run, null, ex, JFSFileModifications.empty());
+                return new AntlrGenerationAndCompilationResult(run, 
+                        CompileResult.precompiled(false, UnixPath.empty()), ex,
+                        JFSFileModifications.empty());
             }
             if (run == null || !run.isUsable()) {
                 AntlrGenerationResult cr = run;
@@ -93,14 +98,18 @@ public class AntlrGeneratorAndCompiler {
                 if (cr.thrown().isPresent()) {
                     Debug.thrown(cr.thrown().get());
                 }
-                return new AntlrGenerationAndCompilationResult(run, null, null, JFSFileModifications.empty());
+                return new AntlrGenerationAndCompilationResult(run, 
+                        CompileResult.precompiled(true, UnixPath.empty()), null,
+                        JFSFileModifications.empty());
             }
             boolean shouldBuild = false;
             if (opts.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES)) {
                 shouldBuild = true;
             } else if (lastCompileResult == null || !lastCompileResult.isUsable()) {
                 shouldBuild = true;
-            } else if (lastCompileResult != null && !lastCompileResult.filesState().changes().filter(AntlrGeneratorAndCompiler::isJavaSource).isUpToDate()) {
+            } else if (lastCompileResult != null && !lastCompileResult.filesState()
+                    .changes()
+                    .filter(AntlrGeneratorAndCompiler::isJavaSource).isUpToDate()) {
                 shouldBuild = true;
             }
             CompileResult res;
@@ -120,12 +129,15 @@ public class AntlrGeneratorAndCompiler {
                         }
                     }
                 } catch (Exception ex) {
-                    return new AntlrGenerationAndCompilationResult(run, null, ex, JFSFileModifications.empty());
+                    return new AntlrGenerationAndCompilationResult(run, CompileResult.precompiled(false, UnixPath.empty()),
+                            ex, JFSFileModifications.empty());
                 }
             } else {
                 res = lastCompileResult;
             }
-            return new AntlrGenerationAndCompilationResult(run, res, null, jfs.status(AntlrGeneratorAndCompiler::isJavaSource, StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT));
+            return new AntlrGenerationAndCompilationResult(run, res, null,
+                    jfs.status(AntlrGeneratorAndCompiler::isJavaSource,
+                            StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT));
         });
     }
 

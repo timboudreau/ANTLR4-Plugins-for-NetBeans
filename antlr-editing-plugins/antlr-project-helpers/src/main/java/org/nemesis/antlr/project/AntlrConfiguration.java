@@ -91,6 +91,27 @@ public final class AntlrConfiguration {
         this.testSources = testSources;
     }
 
+    public boolean isPresent(Folders folder) {
+        switch (folder) {
+            case ANTLR_GRAMMAR_SOURCES:
+                return antlrSourceDir != null;
+            case ANTLR_IMPORTS:
+                return antlrImportDir != null;
+            case JAVA_GENERATED_SOURCES:
+                return outputDir != null;
+            case JAVA_SOURCES:
+                return sources != null;
+            case CLASS_OUTPUT:
+                return buildOutput != null;
+            case JAVA_TEST_SOURCES:
+                return testSources != null;
+            case TEST_CLASS_OUTPUT:
+                return testOutput != null;
+            default:
+                return false;
+        }
+    }
+
     public boolean isImportDirChildOfSourceDir() {
         if (antlrSourceDir == null || antlrImportDir == null) {
             return false;
@@ -141,6 +162,7 @@ public final class AntlrConfiguration {
                     File file = FileUtil.toFile(project.getProjectDirectory());
                     if (file != null) {
                         Path p = file.toPath();
+                        FoldersLookupStrategy.pathEvicted(path);
                         return AntlrConfigurationCache.evict(path);
                     }
                 }
@@ -221,7 +243,41 @@ public final class AntlrConfiguration {
 
     public static AntlrConfiguration forFile(FileObject file) {
         Project project = FileOwnerQuery.getOwner(notNull("file", file));
-        return project == null ? null : forProject(project);
+        if (project != null) {
+            File prjDir = FileUtil.toFile(project.getProjectDirectory());
+            if (prjDir != null) {
+                AntlrConfiguration cachedConfig = AntlrConfigurationCache.instance().getCached(prjDir.toPath());
+                // If we have a cached configuration based on minimal information - just a project
+                // or not even that, evict it since we have better information in this query
+                if (cachedConfig != null && cachedConfig.isGuessedConfig()) {
+                    Folders primary = Folders.primaryFolderFor(file);
+                    if (primary.isSourceFolder() && !cachedConfig.isPresent(primary)) {
+                        cachedConfig.evict();
+                    }
+                }
+                return AntlrConfigurationCache.instance().get(prjDir.toPath(),
+                        () -> {
+                            FoldersLookupStrategy strat = FoldersLookupStrategy.get(project, prjDir.toPath());
+                            if ("Heuristic".equals(strat.name())) {
+                                // The heuristic config, if using InferredConfig, needs
+                                // to be primed with a request for at least one Java or
+                                // Antlr file to trigger scanning, so force one down its
+                                // throat while we have one
+                                Folders fld = Folders.primaryFolderFor(file);
+                                if (fld != null) {
+                                    File fl = FileUtil.toFile(file);
+                                    if (fl != null) {
+                                        strat.find(fld, fl.toPath());
+                                    }
+                                }
+                            }
+                            return FoldersLookupStrategy.get(project, prjDir.toPath()).antlrConfig();
+                        });
+            }
+            return FoldersLookupStrategy.get(project, file).antlrConfig();
+        } else {
+            return FoldersLookupStrategy.get(file).antlrConfig();
+        }
     }
 
     public static AntlrConfiguration forFile(Path file) {

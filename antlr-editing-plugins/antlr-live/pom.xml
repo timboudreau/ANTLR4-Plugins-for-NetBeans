@@ -50,7 +50,7 @@ limitations under the License.
         enforce dependency convergence here
         -->
         <enforcer.skip>true</enforcer.skip>
-        <maven.test.skip>true</maven.test.skip>
+        <!--<maven.test.skip>true</maven.test.skip>-->
     </properties>
     <build>
         <plugins>

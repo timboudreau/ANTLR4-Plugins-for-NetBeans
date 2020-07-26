@@ -19,6 +19,7 @@ import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,10 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.file.AntlrNbParser.AntlrParserFactory;
 import org.nemesis.antlr.file.file.AntlrDataObject;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
+import org.nemesis.antlr.memory.AntlrGenerator;
 import static org.nemesis.test.fixtures.support.TestFixtures.setActiveDocument;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
 import org.nemesis.antlr.spi.language.AntlrParseResult;
@@ -64,6 +67,7 @@ import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
+
 /**
  *
  * @author Tim Boudreau
@@ -166,7 +170,10 @@ public class SanityCheckPlumbingTest {
     }
 
     @BeforeEach
-    public void setup() throws URISyntaxException, IOException, ClassNotFoundException {
+    public void setup() throws URISyntaxException, IOException, ClassNotFoundException,
+            InstantiationException, IllegalAccessException, IllegalArgumentException,
+            InvocationTargetException, NoSuchFieldException, NoSuchMethodException,
+            SecurityException {
         shutdownTestFixtures = initAntlrTestFixtures().build();
         ProjectTestHelper helper = ProjectTestHelper.relativeTo(SanityCheckPlumbingTest.class);
 
@@ -184,17 +191,25 @@ public class SanityCheckPlumbingTest {
         }
     }
 
-    public static TestFixtures initAntlrTestFixtures() {
-        return initAntlrTestFixtures(false);
+    public static TestFixtures initAntlrTestFixtures()  {
+        return initAntlrTestFixtures(true);
     }
 
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
         TestFixtures fixtures = new TestFixtures();
         if (verbose) {
-            fixtures.verboseGlobalLogging();
+            fixtures.verboseGlobalLogging(
+                    RebuildSubscriptions.class,
+                    AntlrGenerator.class,
+                    "org.nemesis.antlr.memory.tool.ToolContext",
+                    "org.nemesis.antlr.project.AntlrConfigurationCache",
+                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+                    "org.nemesis.antlr.project.impl.InferredConfig",
+                    AntlrGeneratorAndCompiler.class);
         }
         DocumentFactory fact = new DocumentFactoryImpl();
-        return fixtures.addToMimeLookup("", fact)
+        fixtures.addToMimeLookup("", fact)
                 .addToMimeLookup("text/x-g4", AntlrParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter(), fact)
                 .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
@@ -204,7 +219,8 @@ public class SanityCheckPlumbingTest {
                         MavenFolderStrategyFactory.class,
                         NbMavenProjectFactory.class,
                         AntlrFileObjectRelativeResolver.class
-                );
+                )
+                .avoidStartingModuleSystem();
+        return fixtures;
     }
-
 }

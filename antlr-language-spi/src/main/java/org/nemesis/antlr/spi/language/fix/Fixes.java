@@ -19,7 +19,6 @@ import com.mastfrog.range.IntRange;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
@@ -54,10 +53,6 @@ import org.openide.loaders.DataObject;
 public abstract class Fixes {
 
     static final Logger LOG = Logger.getLogger( Fixes.class.getName() );
-
-    static {
-        LOG.setLevel( Level.ALL );
-    }
 
     static StyledDocument findDocument( Extraction extraction ) throws IOException {
         GrammarSource<?> src = extraction.source();

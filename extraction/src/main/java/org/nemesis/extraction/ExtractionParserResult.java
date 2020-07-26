@@ -23,4 +23,19 @@ public interface ExtractionParserResult {
 
     public Extraction extraction();
 
+    /**
+     * Convenience method which takes a parser result and if it is an
+     * ExtractionParserResult, returns its extraction.
+     *
+     * @param netbeansParserResult A NetBeans Parser API Parser.Result
+     * @since 2.0.50
+     * @return An extraction, if any
+     */
+    static Extraction extraction(Object netbeansParserResult) {
+        if (netbeansParserResult instanceof ExtractionParserResult) {
+            return ((ExtractionParserResult) netbeansParserResult).extraction();
+        }
+        return null;
+    }
+
 }

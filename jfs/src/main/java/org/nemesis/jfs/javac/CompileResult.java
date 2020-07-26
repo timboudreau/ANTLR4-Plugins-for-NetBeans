@@ -48,6 +48,12 @@ public class CompileResult implements ProcessingResult {
         this.filesState = filesState;
     }
 
+    public static CompileResult precompiled(boolean success, Path sourceRoot) {
+        CompileResult result = new CompileResult(sourceRoot, JFSFileModifications.empty());
+        result.callResult = success;
+        return result;
+    }
+
     public JFSFileModifications filesState() {
         return filesState;
     }

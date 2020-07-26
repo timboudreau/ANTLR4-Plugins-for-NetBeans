@@ -255,8 +255,6 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         assert cancelled != null : "cancelled null";
         boolean wasCancelled = false; //cancelled.getAsBoolean();
         boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
-        System.out.println( "WAS CANCELLED? " + wasCancelled + " postprocess? " + postprocess + " for " + extraction
-                .source() );
 
         LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1} "
                              + "postprocessingEnabled? {2}",

@@ -39,6 +39,29 @@ import org.openide.filesystems.FileUtil;
  *
  * Contains a number of utility methods for filtering and creating 0- and 1-
  * element iterables which should be used.
+ * <p>
+ * There are two distinct use-cases for FoldersLookupStrategyImplementation:: 1.
+ * As a way to look up folders based on the configuration of the project that
+ * are well-defined; and 2., To generate a speculative set of folders that can
+ * be used to create a workable JFS layout for Antlr files found randomly
+ * sprinkled throughout a project (that is why the lookup methods return
+ * iterables, while AntlrConfiguration returns single files - if you find Antlr
+ * sources sprinkled into three different Java source packages, you want to
+ * coalesce <i>all</i> of the detected antlr source roots (which may just be the
+ * parent folders of those discovered files) in order to create a JFS that
+ * contains all of these files in the same folder [handling name clashes!]).
+ * <p>
+ * A concrete, configuration-reading implementation should just
+ * straightfrowardly read the config and return what it finds.  A speculative
+ * configuration should be cached per-project, and incrementally update itself
+ * as it learns more about the project by being queried for files within it,
+ * possibly scanning some or all folders in the project to improve its
+ * inferences.  Such implementations should call
+ * <code>FoldersLookupStrategyImplementationFactory.evict()</code> with the
+ * project folder when new information is discovered that would invalidate
+ * previous assumptions, to ensure cached instances with less information are
+ * not retained.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -262,6 +285,43 @@ public interface FolderLookupStrategyImplementation {
      */
     default <T> Iterable<T> filter(Iterable<T> orig, Predicate<T> filter) {
         return new FilterIterable<>(orig, filter);
+    }
+
+    default Iterable<Path> allFiles(Folders type, FileObject relativeTo) {
+        List<Path> all = new ArrayList<>();
+        Set<Path> seen = new HashSet<>(3);
+        Set<String> exts = type.defaultTargetFileExtensions();
+        Predicate<Path> filter = p -> {
+            for (String ext : exts) {
+                boolean result = p.getFileName().toString().endsWith("." + ext);
+                if (result) {
+                    return result;
+                }
+            }
+            return false;
+        };
+        try {
+            for (Path p : find(type, new FolderQuery().relativeTo(toPath(relativeTo)))) {
+                if (seen.contains(p)) {
+                    continue;
+                }
+                try (Stream<Path> str = Files.walk(p)) {
+                    str.filter(pth -> {
+                        return !Files.isDirectory(pth);
+                    }).filter(filter).forEach(all::add);
+                } catch (NoSuchFileException ex) {
+                    // ok
+                } catch (IOException ex) {
+                    Logger.getLogger(HeuristicFoldersHelperImplementation.class.getName())
+                            .log(Level.INFO, "Failed walking " + p, ex);
+                }
+                seen.add(p);
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(HeuristicFoldersHelperImplementation.class.getName())
+                    .log(Level.INFO, "Failed walking files for " + type, ex);
+        }
+        return all;
     }
 
     default Iterable<Path> allFiles(Folders type) {

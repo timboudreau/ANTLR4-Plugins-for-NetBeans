@@ -29,8 +29,8 @@ import org.openide.loaders.MultiFileLoader;
 import org.openide.text.DataEditorSupport;
 
 /**
- * Subclasses AntlrDataObject to add programmatically generated
- * editor support so we have to initialize less infrastructure.
+ * Subclasses AntlrDataObject to add programmatically generated editor support
+ * so we have to initialize less infrastructure.
  *
  * @author Tim Boudreau
  */
@@ -102,6 +102,11 @@ public class FakeG4DataObject extends AntlrDataObject {
     }
 
     public static class FakeG4MimeResolve extends MIMEResolver {
+
+        @SuppressWarnings("deprecation")
+        public FakeG4MimeResolve() {
+            super();
+        }
 
         @Override
         public String findMIMEType(FileObject fo) {

@@ -55,7 +55,8 @@ public final class WithGrammarRunner {
     private GenerationAndCompilationResult generateAndCompile(String sourceFileName, Set<GrammarProcessingOptions> options) {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         PrintStream outputTo = new PrintStream(output);
-        return new GenerationAndCompilationResult(output, compiler.compile(sourceFileName, outputTo, options));
+        AntlrGenerationAndCompilationResult res = compiler.compile(sourceFileName, outputTo, options);
+        return new GenerationAndCompilationResult(output, res);
     }
 
     public <T> GrammarRunResult<T> run(ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {

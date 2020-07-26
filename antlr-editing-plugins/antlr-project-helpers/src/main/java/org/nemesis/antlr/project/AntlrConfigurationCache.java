@@ -112,6 +112,7 @@ final class AntlrConfigurationCache {
         if (cache != null) {
             boolean result = cache.cache.remove(path) != null;
             if (result) {
+                LOG.log(Level.FINE, "Evicted cached config for {0}", path);
                 cache.dirty();
             }
             return result;
@@ -144,6 +145,14 @@ final class AntlrConfigurationCache {
             }
         }
         return INSTANCE;
+    }
+
+    public AntlrConfiguration getCached(Path projectDir) {
+        CacheEntry en = cache.get(projectDir);
+        if (en != null) {
+            return en.config;
+        }
+        return null;
     }
 
     public AntlrConfiguration get(Path projectDir, Supplier<AntlrConfiguration> supplier) {

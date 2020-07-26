@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.language;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.openide.util.RequestProcessor;
@@ -31,10 +32,6 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
     private final String mimeType;
     static final Logger LOG = Logger.getLogger(AdhocHighlightLayerFactory.class.getName());
     private static final String DOC_PROP_HIGHLIGHTS_LAYERS = "adhoc-highlight-layers";
-
-    static {
-        LOG.setLevel(Level.ALL);
-    }
 
     public AdhocHighlightLayerFactory(String mimeType) {
         this.mimeType = mimeType;
@@ -53,13 +50,19 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
         @Override
         public void run() {
             LOG.log(Level.FINER, "Run highlighters from trigger for {0}", mgr.document());
-            mgr.scheduleReparse();
+            mgr.scheduleSampleTextReparse();
         }
     }
 
     @Override
     public HighlightsLayer[] createLayers(Context context) {
         Document doc = context.getDocument();
+        // We can be called before the document is set on an editor pane, and
+        // we do NOT want to wind up with a zombie AdhocHighlighterManager triggering
+        // reparses in the real one because they share a component
+        if (doc.getProperty(StreamDescriptionProperty) == null) {
+            return new HighlightsLayer[0];
+        }
         HighlightsLayer[] result = (HighlightsLayer[]) doc.getProperty(DOC_PROP_HIGHLIGHTS_LAYERS);
         if (result == null) {
             AdhocHighlighterManager mgr = new AdhocHighlighterManager(mimeType, context);

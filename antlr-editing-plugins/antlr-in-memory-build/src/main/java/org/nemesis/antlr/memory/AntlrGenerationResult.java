@@ -17,11 +17,12 @@ package org.nemesis.antlr.memory;
 
 import com.mastfrog.util.path.UnixPath;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.nemesis.jfs.result.UpToDateness;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,8 +50,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final List<ParsedAntlrError> errors;
     public final long grammarFileLastModified;
     public final List<String> infoMessages;
-    public final Set<JFSFileObject> newlyGeneratedFiles;
-    public final Map<JFSFileObject, Long> modifiedFiles;
+    public final Set<String> newlyGeneratedFiles;
+    public final Set<String> modifiedFiles;
     public final Set<Grammar> allGrammars;
     public final JFS jfs;
     public final Location grammarSourceLocation;
@@ -63,6 +64,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Set<AntlrGenerationOption> options;
     public final Charset grammarEncoding;
     public final JFSFileModifications filesStatus;
+    public final String tokensHash;
+    public final Path originalFilePath;
 
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
             String grammarName, Grammar grammar, List<ParsedAntlrError> errors,
@@ -72,7 +75,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
             JFS jfs, Location inputLocation, Location outputLocation,
             String packageName, UnixPath virtualSourceDir, UnixPath virtualInputDir,
             boolean generateAll, Set<AntlrGenerationOption> options,
-            Charset grammarEncoding) {
+            Charset grammarEncoding, String tokensHash, Path originalFilePath) {
         this.success = success;
         this.code = code;
         this.thrown = thrown;
@@ -81,8 +84,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.errors = Collections.unmodifiableList(errors);
         this.grammarFileLastModified = grammarFileLastModified;
         this.infoMessages = Collections.unmodifiableList(infoMessages);
-        this.newlyGeneratedFiles = Collections.unmodifiableSet(postFiles);
-        this.modifiedFiles = new HashMap<>(touched);
+        this.newlyGeneratedFiles = Collections.unmodifiableSet(toStringSet(postFiles));
+        this.modifiedFiles = toStringSet(touched.keySet());
         this.allGrammars = Collections.unmodifiableSet(allGrammars);
         this.jfs = jfs;
         this.filesStatus = jfs.status(inputLocation);
@@ -95,6 +98,14 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.generateAll = generateAll;
         this.options = EnumSet.copyOf(options);
         this.grammarEncoding = grammarEncoding;
+        this.tokensHash = tokensHash;
+        this.originalFilePath = originalFilePath;
+    }
+
+    private static Set<String> toStringSet(Set<JFSFileObject> fos) {
+        Set<String> set = new HashSet<>();
+        fos.forEach(fo -> set.add(fo.getName()));
+        return set;
     }
 
     public AntlrGenerator toGenerator() {
@@ -123,6 +134,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
         result.log = options.contains(AntlrGenerationOption.LOG);
         result.longMessages = options.contains(AntlrGenerationOption.LONG_MESSAGES);
         result.packageName = packageName;
+        result.originalFile = originalFilePath;
+        result.tokensHash = tokensHash;
         return result;
     }
 
@@ -132,11 +145,6 @@ public final class AntlrGenerationResult implements ProcessingResult {
 
     public UnixPath importDir() {
         return importDir;
-    }
-
-    public void clean() {
-        modifiedFiles.keySet().forEach(JFSFileObject::delete);
-        modifiedFiles.clear();
     }
 
     public Location grammarSourceLocation() {
@@ -177,16 +185,13 @@ public final class AntlrGenerationResult implements ProcessingResult {
 
     @Override
     public boolean isUsable() {
-        return success && !modifiedFiles.isEmpty();
+        return success
+                && (!modifiedFiles.isEmpty() || !newlyGeneratedFiles.isEmpty());
     }
 
     @Override
     public UpToDateness currentStatus() {
         return filesStatus.changes().status();
-    }
-
-    public Set<JFSFileObject> touched() {
-        return Collections.unmodifiableSet(modifiedFiles.keySet());
     }
 
     public JFS jfs() {

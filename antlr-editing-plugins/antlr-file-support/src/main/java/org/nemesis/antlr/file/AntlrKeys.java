@@ -712,10 +712,12 @@ public class AntlrKeys {
             colors = {
                 @Coloration(
                         themes = POPULAR_BRIGHT_THEMES,
+                        italic = true,
                         bg = {255, 255, 242, 245}
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
+                        italic = true,
                         bg = {58, 52, 47})
             }))
     @Localize(displayName = "Repeating Elements")

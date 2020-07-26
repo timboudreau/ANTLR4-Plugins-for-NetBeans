@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -60,9 +61,33 @@ public final class AntlrGenerator {
     private final UnixPath virtualImportDir;
     private final Set<AntlrGenerationOption> opts = EnumSet.noneOf(AntlrGenerationOption.class);
     private final JavaFileManager.Location outputLocation;
+    private final Path originalFile;
+    private final String originalTokensHash;
 
     static AntlrGenerator fromResult(AntlrGenerationResult result) {
         return new AntlrGenerator(AntlrGeneratorBuilder.fromResult(result));
+    }
+
+    public AntlrGenerator(Charset grammarEncoding, boolean generateAll, String packageName, JFS jfs, JavaFileManager.Location grammarSourceLocation, UnixPath virtualSourcePath, UnixPath virtualImportDir, JavaFileManager.Location outputLocation, Path originalFile, String originalTokensHash) {
+        this.grammarEncoding = grammarEncoding;
+        this.generateAll = generateAll;
+        this.packageName = packageName;
+        this.jfs = jfs;
+        this.grammarSourceLocation = grammarSourceLocation;
+        this.virtualSourcePath = virtualSourcePath;
+        this.virtualImportDir = virtualImportDir;
+        this.outputLocation = outputLocation;
+        this.originalFile = originalFile;
+        this.originalTokensHash = originalTokensHash;
+    }
+
+    public AntlrGenerator withFileInfo(Path originalPath, String tokensHash) {
+        if (Objects.equals(originalFile, originalPath) && Objects.equals(tokensHash, originalTokensHash)) {
+            return this;
+        }
+        return new AntlrGenerator(grammarEncoding, generateAll,
+                packageName, jfs, grammarSourceLocation, virtualSourcePath,
+                virtualImportDir, outputLocation, originalFile, originalTokensHash);
     }
 
     public JavaFileManager.Location sourceLocation() {
@@ -156,6 +181,8 @@ public final class AntlrGenerator {
         this.virtualSourcePath = b.sourcePath;
         this.packageName = b.packageName;
         this.virtualImportDir = b.importDir;
+        this.originalTokensHash = b.tokensHash;
+        this.originalFile = b.originalFile;
     }
 
     public static <T> AntlrGeneratorBuilder<T> builder(JFS jfs, Function<? super AntlrGeneratorBuilder<T>, T> func) {
@@ -197,13 +224,13 @@ public final class AntlrGenerator {
         jfs.list(sourceLocation(), (loc, jfo) -> {
             sb.append('\n').append(jfo.getName()).append(" len ").append(jfo.length());
         });
+        Thread.dumpStack();
         return sb.toString();
     }
 
-
     public AntlrGenerationResult run(String grammarFileName, PrintStream logStream, boolean generate) {
-        System.out.println("RUN " + grammarFileName);
-        System.out.println(listJFS());
+//        System.out.println("RUN " + grammarFileName);
+//        System.out.println(listJFS());
         return Debug.runObject(this, "Generate " + grammarFileName + " - " + generate, () -> {
             List<ParsedAntlrError> errors = new ArrayList<>();
             List<String> infos = new ArrayList<>();
@@ -275,51 +302,56 @@ public final class AntlrGenerator {
                 success[0] = false;
                 LOG.log(Level.SEVERE, gn[0], ex);
             }
-            if (!errors.isEmpty()) {
-                LOG.log(Level.FINE, "Errors generating virtual Antlr sources");
-                if (LOG.isLoggable(Level.FINEST)) {
-                    for (ParsedAntlrError e : errors) {
-                        LOG.log(Level.FINEST, "Antlr error: {0}", e);
-                    }
-                }
-            }
-            if (success[0] && !errors.isEmpty()) {
-                for (ParsedAntlrError e : errors) {
-                    if (e.isError()) {
-                        success[0] = false;
-                        break;
-                    }
-                }
-            }
             Set<JFSFileObject> postFiles = new HashSet<>();
             Map<JFSFileObject, Long> touchedLastModified = new HashMap<>();
-            jfs.listAll().entrySet().stream().filter((e) -> {
-                return grammarSourceLocation.equals(e.getValue()) || outputLocation.equals(e.getValue());
-            }).forEach((f) -> {
-                JFSFileObject file = f.getKey();
-                if (!files.contains(file)) {
-                    LOG.log(Level.FINEST, "Generated in {0}: {1}",
-                            new Object[]{f.getKey(), f.getValue()});
+            try {
+                if (!errors.isEmpty()) {
+                    LOG.log(Level.FINE, "Errors generating virtual Antlr sources");
+                    if (LOG.isLoggable(Level.FINEST)) {
+                        for (ParsedAntlrError e : errors) {
+                            LOG.log(Level.FINEST, "Antlr error: {0}", e);
+                        }
+                    }
                 }
-                Long mod = modificationDates.get(f.getKey());
-                long currentLastModified = f.getKey().getLastModified();
-                if (mod == null) {
-                    touchedLastModified.put(file, currentLastModified);
-                } else if (mod < currentLastModified) {
-                    touchedLastModified.put(file, currentLastModified);
-                } else if (file.storageKind().isMasqueraded()) {
-                    touchedLastModified.put(file, currentLastModified);
+                if (success[0] && !errors.isEmpty()) {
+                    for (ParsedAntlrError e : errors) {
+                        if (e.isError()) {
+                            success[0] = false;
+                            break;
+                        }
+                    }
                 }
-                postFiles.add(f.getKey());
-            });
-            postFiles.removeAll(files);
-            code = MemoryTool.attemptedExitCode(thrown);
+                jfs.listAll().entrySet().stream().filter((e) -> {
+                    return grammarSourceLocation.equals(e.getValue()) || outputLocation.equals(e.getValue());
+                }).forEach((f) -> {
+                    JFSFileObject file = f.getKey();
+                    if (LOG.isLoggable(Level.FINEST) && !files.contains(file)) {
+                        LOG.log(Level.FINEST, "Generated in {0}: {1}",
+                                new Object[]{f.getKey(), f.getValue()});
+                    }
+                    Long mod = modificationDates.get(f.getKey());
+                    long currentLastModified = f.getKey().getLastModified();
+                    if (mod == null) {
+                        touchedLastModified.put(file, currentLastModified);
+                    } else if (mod < currentLastModified) {
+                        touchedLastModified.put(file, currentLastModified);
+                    } else if (file.storageKind().isMasqueraded()) {
+                        touchedLastModified.put(file, currentLastModified);
+                    }
+                    postFiles.add(f.getKey());
+                });
+                postFiles.removeAll(files);
+                code = MemoryTool.attemptedExitCode(thrown);
+            } catch (Exception ex) {
+                thrown = ex;
+            }
             return new AntlrGenerationResult(success[0], code, thrown, gn[0],
                     mainGrammar[0], errors, grammarFile[0], grammarFileLastModified[0],
                     infos, postFiles, touchedLastModified, grammars, jfs,
                     grammarSourceLocation, outputLocation, packageName,
                     virtualSourcePath, virtualImportDir, this.generateAll,
-                    this.opts, this.grammarEncoding);
+                    this.opts, this.grammarEncoding, originalTokensHash,
+                    originalFile);
         });
     }
 

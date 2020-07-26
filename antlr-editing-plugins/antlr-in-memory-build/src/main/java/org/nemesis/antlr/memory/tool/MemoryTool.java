@@ -30,6 +30,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -99,6 +100,15 @@ public final class MemoryTool extends Tool {
     void initLog(ToolContext ctx) {
         if (ctx.logStream != null) {
             ctx.logStream.println("Init " + getClass().getName() + " " + versionInfo());
+            ctx.logStream.println("Context-dir:\t" + ctx.dir);
+            ctx.logStream.println("Input:\t" + this.inputDirectory);
+            ctx.logStream.println("Imports:\t" + this.libDirectory);
+            ctx.logStream.println("Grammar-files:\t" + this.grammarFiles);
+            ctx.logStream.println("Output:\t" + this.outputDirectory);
+            ctx.logStream.println("Package:\t" + this.genPackage);
+            ctx.logStream.println("Encoding:\t" + this.grammarEncoding);
+            ctx.logStream.println("Exact-output:\t" + this.exact_output_dir);
+            ctx.logStream.println("Args:\t" + Arrays.toString(this.args));
             ctx.logStream.println("Over JFS with\n" + list());
         }
     }
@@ -405,14 +415,7 @@ public final class MemoryTool extends Tool {
         return epsilonIssues == null ? Collections.emptyList() : epsilonIssues;
     }
 
-    private boolean loged;
-
     public Grammar loadGrammar(String fileName, Consumer<JFSFileObject> c) {
-        if (!loged) {
-            ThreadMappedStdIO.bypass(() -> {
-                System.out.println("BEGIN LOADS OVER\n" + listJFS());
-            });
-        }
         ToolContext ctx = ToolContext.get(this);
         JFSFileObject fo = ctx.jfs.get(ctx.inputLocation, UnixPath.get(fileName));
         Set<LoadAttempt> attemptedPaths = new HashSet<>(3);
@@ -446,7 +449,18 @@ public final class MemoryTool extends Tool {
             }
             return result;
         } else {
-            log("Could not load primary grammar " + fileName + " from any of " + attemptedPaths);
+            if (this.grammarFiles != null && !this.grammarFiles.isEmpty()) {
+                for (String gf : this.grammarFiles) {
+                    if (gf.endsWith("/" + fileName) && !gf.equals(fileName)) {
+                        Grammar result = loadGrammar(gf);
+                        if (result != null) {
+                            return result;
+                        }
+                    }
+                }
+            }
+            log("Could not load primary grammar " + fileName + " from any of " + attemptedPaths
+                + " with ctx dir " + ctx.dir);
         }
         return null;
     }
@@ -718,32 +732,6 @@ public final class MemoryTool extends Tool {
                             ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ex1);
                             throw ex1;
                         }
-
-//                    final Reader[] r = new Reader[1];
-//                    try (Reader reader = fo.openReader(true)) {
-//                        r[0] = reader;
-//                        org.antlr.runtime.CharStream charStream = new org.antlr.runtime.ANTLRReaderStream(reader, fo.length(), 512);
-//                        GrammarRootAST grammarRootAST = parse(fo.getName(), charStream);
-//                        final Grammar gg = createGrammar(grammarRootAST);
-//                        if (gg != null) {
-//                            gg.fileName = Paths.get(fo.getName()).getFileName().toString();
-//                            process(gg, false);
-//                        }
-//                        return gg;
-//                    } catch (IndexOutOfBoundsException ex) {
-//                        StringBuilder sb = new StringBuilder("Input JFS:");
-//                        ToolContext.get(this).jfs.list(ToolContext.get(this).inputLocation, (loc, jfo) -> {
-//                            sb.append('\n').append(jfo.getName()).append(" len ").append(jfo.length());
-//                        });
-//                        IOException ex1 = new IOException("IOOBE reading " + path
-//                                + " JFS FO " + fo + " length " + fo.length()
-//                                + " isr with reader " + r[0], ex);
-//                        ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ex1);
-//                        throw ex1;
-//                    } catch (IOException ioe) {
-//                        ToolContext.get(this).logExternal(Level.WARNING, listJFS(), ioe);
-//                        throw ioe;
-//                    }
                     });
                 } else {
                     errMgr.grammarError(ErrorType.CANNOT_FIND_IMPORTED_GRAMMAR, g.fileName, nameNode.getToken(), name);
@@ -953,8 +941,10 @@ public final class MemoryTool extends Tool {
                 case INTERNAL_ERROR:
                     if (msg.getCause() != null) {
                         msg.getCause().printStackTrace(System.out);
-                        ToolContext.get((MemoryTool) tool).logExternal(
+                        ToolContext ctx = ToolContext.get((MemoryTool )tool);
+                        ctx.logExternal(
                                 Level.INFO, etype + ": " + msg.getMessageTemplate(true).render(), msg.getCause());
+                        msg.getCause().printStackTrace(ctx.logStream);
                     }
             }
             msg.fileName = replaceWithPath(msg.fileName);

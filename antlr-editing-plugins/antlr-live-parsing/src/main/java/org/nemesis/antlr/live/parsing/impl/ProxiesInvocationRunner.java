@@ -165,8 +165,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                             + " " + res.grammarName + " " + res.packageName + " extraction " + extraction.source()
                             + " extraction id " + System.identityHashCode(extraction)));
                 }
+
+                bldr.verbose().withMaxErrors(10).withMaxWarnings(10).nonIdeMode().abortOnBadClassFile();
+
                 bldr.addToClasspath(AntlrProxies.class);
-                bldr.addToClasspath(AntlrProxies.Ambiguity.class);
+//                bldr.addToClasspath(AntlrProxies.Ambiguity.class);
                 bldr.addToClasspath(ANTLRErrorListener.class);
                 bldr.addToClasspath(Tool.class);
                 bldr.addToClasspath(IntArray.class);
