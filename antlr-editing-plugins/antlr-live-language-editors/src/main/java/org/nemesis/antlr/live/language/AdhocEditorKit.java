@@ -380,50 +380,13 @@ public class AdhocEditorKit extends ExtKit {
 
         }
 
-//        private final DefaultComboBoxModel<String> rulesModel = new DefaultComboBoxModel<>();
         @Messages("STARTING_RULE=Parse Text &Using")
         private JToolBar createBar() {
             JToolBar bar = new JToolBar();
             JLabel lbl = new JLabel();
             Mnemonics.setLocalizedText(lbl, Bundle.STARTING_RULE());
             bar.add(lbl);
-//            JComboBox<String> box = new JComboBox<>(rulesModel);
-//            lbl.setLabelFor(box);
-//            box.setPrototypeDisplayValue("compilation_unit_body");
-//            bar.add(box);
-//            NBANTLRv4Parser.notifyOnReparse(this, this);
             return bar;
         }
-
-        /*
-        class RV implements ObjectGraphVisitor<String> {
-
-            String oldSelection;
-            boolean oldSelectionFound;
-
-            RV() {
-                oldSelection = (String) rulesModel.getSelectedItem();
-                rulesModel.removeAllElements();
-            }
-
-            @Override
-            public void enterNode(String rule, int depth) {
-                if (rule.equals(oldSelection)) {
-                    oldSelectionFound = true;
-                }
-                rulesModel.addElement(rule);
-            }
-
-            @Override
-            public void exitNode(String rule, int depth) {
-            }
-
-            void restoreSelection() {
-                if (oldSelectionFound) {
-                    rulesModel.setSelectedItem(oldSelection);
-                }
-            }
-        }
-         */
     }
 }
