@@ -568,7 +568,7 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     private void onToken(ModalToken token, int prevType, int prevMode, int tokenType, int nextType, boolean hasPrecedingNewline, boolean hasFollowingNewline, int tokensFormattedThusFar) {
         boolean log = debugLogging.test(token);
         if (log) {
-            System.out.println("\n\nProcess token " + token.getTokenIndex() + " '"
+            FormattingRule.log("\n\nProcess token " + token.getTokenIndex() + " '"
                     + token.getText() + "'\t"
                     + rules.vocabulary().getSymbolicName(tokenType) + " nextType "
                     + rules.vocabulary().getSymbolicName(nextType) + " prevType "

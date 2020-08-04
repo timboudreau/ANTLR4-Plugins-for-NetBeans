@@ -146,7 +146,7 @@ final class Blocks implements  com.mastfrog.range.MutableIntRange<Blocks> {
                 newSize = Math.min(size, newBlockCount - offset);
             }
             if (newStart < 0 || newSize < 0) {
-                System.out.println("Suspicious offsets " + newStart + ":" + newSize
+                System.out.println("Suspicious offsets " + newStart + ":" + newSize // println ok
                         + " for " + this + " when migrating " + firstBlock + ":" + blockCount + " -> "
                         + newFirstBlock + ":" + newBlockCount + " with overlap " + overlap);
                 return false;

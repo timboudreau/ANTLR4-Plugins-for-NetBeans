@@ -40,90 +40,94 @@ final class SourceInvalidator implements Consumer<FileObject> {
     private Object instance;
     private Method invalidateMethod;
     private static boolean reflectionFailed;
-    private static final Logger LOG = Logger.getLogger(SourceInvalidator.class.getName());
+    private static final Logger LOG = Logger.getLogger( SourceInvalidator.class.getName() );
 
     SourceInvalidator() {
     }
 
     public static Consumer<FileObject> create() {
-        if (!reflectionFailed) {
+        if ( !reflectionFailed ) {
             SourceInvalidator invalidator = new SourceInvalidator();
             try {
                 invalidator.invalidateMethod();
                 return invalidator;
-            } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                LOG.log(Level.INFO, null, ex);
+            } catch ( ClassNotFoundException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException
+                      | InvocationTargetException ex ) {
+                LOG.log( Level.INFO, null, ex );
             }
         }
-        return (ignored) -> {
+        return ( ignored ) -> {
         };
     }
 
-    Class<?> getSourceAccessorClass(ClassLoader ldr) throws ClassNotFoundException {
-        if (sourceAccessorClass != null) {
+    Class<?> getSourceAccessorClass( ClassLoader ldr ) throws ClassNotFoundException {
+        if ( sourceAccessorClass != null ) {
             return sourceAccessorClass;
         }
-        sourceAccessorClass = ldr.loadClass("org.netbeans.modules.parsing.impl.SourceAccessor");
+        sourceAccessorClass = ldr.loadClass( "org.netbeans.modules.parsing.impl.SourceAccessor" );
         return sourceAccessorClass;
     }
 
-    Method getGetInstanceMethod(ClassLoader ldr) throws ClassNotFoundException, NoSuchMethodException {
-        Class<?> sa = getSourceAccessorClass(ldr);
-        return sa.getMethod("getINSTANCE");
+    Method getGetInstanceMethod( ClassLoader ldr ) throws ClassNotFoundException, NoSuchMethodException {
+        Class<?> sa = getSourceAccessorClass( ldr );
+        return sa.getMethod( "getINSTANCE" );
     }
 
-    Object getInstance(ClassLoader ldr) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        return getGetInstanceMethod(ldr).invoke(null);
+    Object getInstance( ClassLoader ldr ) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException,
+                                                 IllegalArgumentException, InvocationTargetException {
+        return getGetInstanceMethod( ldr ).invoke( null );
     }
 
-    Object instance() throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        if (instance != null) {
+    Object instance() throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException,
+                             IllegalArgumentException, InvocationTargetException {
+        if ( instance != null ) {
             return instance;
         }
-        return instance = getInstance(Thread.currentThread().getContextClassLoader());
+        return instance = getInstance( Thread.currentThread().getContextClassLoader() );
     }
 
-    Method invalidateMethod() throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        if (invalidateMethod != null) {
+    Method invalidateMethod() throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException,
+                                     IllegalArgumentException, InvocationTargetException {
+        if ( invalidateMethod != null ) {
             return invalidateMethod;
         }
         Object obj = instance();
-        if (obj == null) {
+        if ( obj == null ) {
             return null;
         }
         Class<?> type = obj.getClass();
-        Method m = invalidateMethod = type.getDeclaredMethod("invalidate", Source.class, boolean.class);
-        m.setAccessible(true);
+        Method m = invalidateMethod = type.getDeclaredMethod( "invalidate", Source.class, boolean.class );
+        m.setAccessible( true );
         return m;
     }
 
-    void doInvalidate(FileObject file) {
+    void doInvalidate( FileObject file ) {
         try {
             Method m = invalidateMethod();
-            Source src = Source.create(file);
-            LOG.log(Level.FINEST, "Invalidate Source instance {0} for {1}",
-                    new Object[]{src, file});
-            m.invoke(instance(), src, true);
-        } catch (ClassNotFoundException | NoSuchMethodException
-                | IllegalAccessException | IllegalArgumentException
-                | InvocationTargetException ex) {
+            Source src = Source.create( file );
+            LOG.log( Level.FINEST, "Invalidate Source instance {0} for {1}",
+                     new Object[]{ src, file } );
+            m.invoke( instance(), src, true );
+        } catch ( ClassNotFoundException | NoSuchMethodException
+                          | IllegalAccessException | IllegalArgumentException
+                          | InvocationTargetException ex ) {
             reflectionFailed = true;
-            LOG.log(Level.WARNING, null, ex);
+            LOG.log( Level.WARNING, null, ex );
         }
     }
 
     @Override
-    public void accept(FileObject t) {
-        if (reflectionFailed) {
+    public void accept( FileObject t ) {
+        if ( reflectionFailed ) {
             return;
         }
         ClassLoader old = Thread.currentThread().getContextClassLoader();
         try {
-            ClassLoader nue = Lookup.getDefault().lookup(ClassLoader.class);
-            Thread.currentThread().setContextClassLoader(nue);
-            doInvalidate(t);
+            ClassLoader nue = Lookup.getDefault().lookup( ClassLoader.class );
+            Thread.currentThread().setContextClassLoader( nue );
+            doInvalidate( t );
         } finally {
-            Thread.currentThread().setContextClassLoader(old);
+            Thread.currentThread().setContextClassLoader( old );
         }
     }
 }

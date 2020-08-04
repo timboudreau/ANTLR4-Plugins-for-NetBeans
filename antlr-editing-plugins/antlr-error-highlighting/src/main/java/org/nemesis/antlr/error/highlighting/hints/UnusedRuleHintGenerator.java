@@ -342,7 +342,6 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
             if (expandBack) {
                 newEnd++;
             }
-            System.out.println("old range " + range + " new range will be " + newStart + ":" + newEnd);
             result = result.newRange(newStart, newEnd - newStart);
             assert result.start() == newStart;
             assert result.end() == newEnd;

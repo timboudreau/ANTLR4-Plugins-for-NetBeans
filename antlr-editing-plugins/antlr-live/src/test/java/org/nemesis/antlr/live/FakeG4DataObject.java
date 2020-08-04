@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live;
 
+import com.mastfrog.function.state.Obj;
 import java.io.IOException;
 import org.nemesis.antlr.file.file.AntlrDataObject;
 import org.openide.cookies.EditorCookie;
@@ -24,7 +25,6 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.MIMEResolver;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectExistsException;
-import org.openide.loaders.MultiDataObject;
 import org.openide.loaders.MultiFileLoader;
 import org.openide.text.DataEditorSupport;
 
@@ -76,18 +76,38 @@ public class FakeG4DataObject extends AntlrDataObject {
         }
 
         @Override
-        public FileObject copy(FileObject f, String suffix) throws IOException {
-            throw new UnsupportedOperationException("Not supported yet.");
+        public FileObject copy(FileObject toFolder, String suffix) throws IOException {
+            FileObject file = getFile();
+            Obj<FileObject> result = Obj.create();
+            try (FileLock lock = file.lock()) {
+                file.getFileSystem().runAtomicAction(() -> {
+                    result.set(file.copy(toFolder, file.getName(), suffix == null ? file.getExt() : suffix));
+                });
+            }
+            return result.get();
         }
 
         @Override
         public FileObject rename(String name) throws IOException {
-            throw new UnsupportedOperationException("Not supported yet.");
+            FileObject file = getFile();
+            file.getFileSystem().runAtomicAction(() -> {
+                try (FileLock lock = file.lock()) {
+                    file.rename(lock, name, getPrimaryFile().getExt());
+                }
+            });
+            return file;
         }
 
         @Override
-        public FileObject move(FileObject f, String suffix) throws IOException {
-            throw new UnsupportedOperationException("Not supported yet.");
+        public FileObject move(FileObject targetFolder, String suffix) throws IOException {
+            FileObject file = getFile();
+            Obj<FileObject> result = Obj.create();
+            try (FileLock lock = file.lock()) {
+                file.getFileSystem().runAtomicAction(() -> {
+                    result.set(file.move(lock, targetFolder, file.getName(), suffix == null ? file.getExt() : suffix));
+                });
+            }
+            return result.get();
         }
 
         @Override
@@ -115,34 +135,5 @@ public class FakeG4DataObject extends AntlrDataObject {
             }
             return null;
         }
-    }
-
-    public static class FakeG4DataLoader extends MultiFileLoader {
-
-        @SuppressWarnings("deprecation")
-        public FakeG4DataLoader() {
-            super(FakeG4DataObject.class);
-        }
-
-        @Override
-        protected FileObject findPrimaryFile(FileObject fo) {
-            return fo;
-        }
-
-        @Override
-        protected MultiDataObject createMultiObject(FileObject primaryFile) throws DataObjectExistsException, IOException {
-            return new FakeG4DataObject(primaryFile, this);
-        }
-
-        @Override
-        protected Entry createPrimaryEntry(MultiDataObject obj, FileObject primaryFile) {
-            return ((FakeG4DataObject) obj).e();
-        }
-
-        @Override
-        protected Entry createSecondaryEntry(MultiDataObject obj, FileObject secondaryFile) {
-            throw new UnsupportedOperationException("Not supported yet.");
-        }
-
     }
 }

@@ -17,7 +17,6 @@ package org.nemesis.antlr.error.highlighting.spi;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -51,7 +50,6 @@ public abstract class AntlrHintGenerator {
     }
 
     protected AntlrHintGenerator() {
-        LOG.setLevel(Level.ALL);
     }
 
     protected final boolean isEnabled() {

@@ -41,6 +41,7 @@ import static org.nemesis.registration.InplaceRenameProcessor.INPLACE_RENAME_ANN
 import static org.nemesis.registration.KeybindingsAnnotationProcessor.ACTION_BINDINGS_ANNO;
 import org.openide.util.lookup.ServiceProvider;
 import static org.nemesis.registration.LanguageRegistrationProcessor.REGISTRATION_ANNO;
+import static org.nemesis.registration.LocalizeAnnotationProcessor.inIDE;
 import org.nemesis.registration.typenames.KnownTypes;
 import org.nemesis.registration.typenames.TypeName;
 
@@ -120,7 +121,7 @@ public class LanguageRegistrationProcessor extends AbstractLayerGeneratingDelega
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws Exception {
-        if (!env.errorRaised() && env.processingOver()) {
+        if (!env.errorRaised() && env.processingOver() && !inIDE) {
             // Maven seems to swallow many diagnostic messages, so use
             // good old println which at least works
             System.out.println(KnownTypes.touchedMessage(this));

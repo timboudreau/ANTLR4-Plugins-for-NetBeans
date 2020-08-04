@@ -3,6 +3,7 @@ package org.nemesis.antlr.subscription;
 import com.mastfrog.util.collections.IntMap;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -26,7 +27,17 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         this(store, store);
     }
 
-    SubscribersStoreImpl(int targetSize, CacheType type, Supplier<Set<C>> setFactory) {
+    @Override
+    public Collection<? extends K> subscribedKeys() {
+        return store.subscribedKeys();
+    }
+
+    @Override
+    public boolean isKeysRetrievalSupported() {
+        return store.isKeysRetrievalSupported();
+    }
+
+    SubscribersStoreImpl(int targetSize, MapFactory type, Supplier<Set<C>> setFactory) {
         if (type.isMapBased()) {
             Map<K, Set<C>> map = type.createMap(targetSize, true);
             MapSpi<K, C> m = new MapSpi<>(map, setFactory);
@@ -39,7 +50,7 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         }
     }
 
-    SubscribersStoreImpl(int targetSize, CacheType type, SetTypes setFactory) {
+    SubscribersStoreImpl(int targetSize, MapFactory type, SetTypes setFactory) {
         if (type.isMapBased()) {
             Map<K, Set<C>> map = type.createMap(targetSize, true);
             MapSpi<K, C> m = new MapSpi<>(map, setFactory.setSupplier(targetSize, true));
@@ -70,13 +81,13 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         }
 
         @Override
-        public synchronized void add(K key, C subscriber) {
-            map.get(System.identityHashCode(key)).add(subscriber);
+        public synchronized boolean add(K key, C subscriber) {
+            return map.get(System.identityHashCode(key)).add(subscriber);
         }
 
         @Override
-        public synchronized void remove(K key, C subscriber) {
-            map.get(System.identityHashCode(key)).remove(subscriber);
+        public synchronized boolean remove(K key, C subscriber) {
+            return map.get(System.identityHashCode(key)).remove(subscriber);
         }
 
         @Override
@@ -93,6 +104,16 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         public Collection<? extends C> subscribersTo(K key) {
             Collection<? extends C> result = map.get(System.identityHashCode(key));
             return result == null ? Collections.emptySet() : result;
+        }
+
+        @Override
+        public boolean isKeysRetrievalSupported() {
+            return false;
+        }
+
+        @Override
+        public Collection<? extends K> subscribedKeys() {
+            throw new UnsupportedOperationException("Key iteration not supported.");
         }
     }
 
@@ -118,16 +139,17 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         }
 
         @Override
-        public void add(K key, C subscriber) {
-            getSet(key, true).add(subscriber);
+        public boolean add(K key, C subscriber) {
+            return getSet(key, true).add(subscriber);
         }
 
         @Override
-        public void remove(K key, C subscriber) {
+        public boolean remove(K key, C subscriber) {
             Set<C> set = getSet(key, false);
             if (!set.isEmpty()) {
-                set.remove(subscriber);
+                return set.remove(subscriber);
             }
+            return false;
         }
 
         @Override
@@ -143,6 +165,17 @@ final class SubscribersStoreImpl<K, C> implements SubscribersStore<K, C> {
         @Override
         public Collection<? extends C> subscribersTo(K key) {
             return map.getOrDefault(key, Collections.emptySet());
+        }
+
+        @Override
+        public Collection<? extends K> subscribedKeys() {
+            Set<K> keys = new LinkedHashSet<>(map.size());
+            for (Map.Entry<K, Set<C>> e : map.entrySet()) {
+                if (!e.getValue().isEmpty()) {
+                    keys.add(e.getKey());
+                }
+            }
+            return keys;
         }
     }
 }

@@ -6,8 +6,13 @@ import java.util.Collection;
  *
  * @author Tim Boudreau
  */
-interface SubscribersStore<K, C> {
+public interface SubscribersStore<K, C> {
 
     Collection<? extends C> subscribersTo(K key);
 
+    Collection<? extends K> subscribedKeys();
+
+    default boolean isKeysRetrievalSupported() {
+        return true;
+    }
 }

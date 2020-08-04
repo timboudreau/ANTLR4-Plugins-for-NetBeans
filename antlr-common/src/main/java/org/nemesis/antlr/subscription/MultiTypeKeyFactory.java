@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author Tim Boudreau
  */
-public class MultiTypeKeyFactory<K> implements KeyFactory<Object, K> {
+class MultiTypeKeyFactory<K> implements KeyFactory<Object, K> {
 
     private final Map<Class<?>, KeyFactory<?, ? extends K>> typeMap = new IdentityHashMap<>();
     private final Map<Class<?>, Class<?>> typeShortcuts = new ConcurrentHashMap<>(20);

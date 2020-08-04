@@ -72,6 +72,27 @@ final class JFSUrlStreamHandler extends URLStreamHandler {
         return new JFSURLConnection(u, fo);
     }
 
+    JFSFileObject resolve(String url) throws FileNotFoundException {
+        Matcher m = URL_PATTERN.matcher(url);
+        if (!m.find()) {
+            return null;
+        }
+        String fsid = m.group(1);
+        JFS instance = null;
+        for (JFS jfs : filesystemsProvider.get()) {
+            if (jfs.is(fsid)) {
+                instance = jfs;
+                break;
+            }
+        }
+        if (instance == null) {
+            return null;
+        }
+        String loc = m.group(2);
+        String path = m.group(3);
+        return instance.find(loc, path);
+    }
+
     @Override
     protected synchronized InetAddress getHostAddress(URL u) {
         try {

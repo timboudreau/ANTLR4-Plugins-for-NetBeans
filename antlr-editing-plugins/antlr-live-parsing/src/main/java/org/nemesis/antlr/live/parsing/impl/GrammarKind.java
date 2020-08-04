@@ -16,19 +16,31 @@
 package org.nemesis.antlr.live.parsing.impl;
 
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.openide.util.NbBundle;
+import org.openide.util.NbBundle.Messages;
 
 /**
  *
  * @author Tim Boudreau
  */
-enum GrammarKind {
+@Messages({
+    "LEXER=lexer",
+    "PARSER=parser",
+    "COMBINED=combined",
+    "UNKNOWN=unknown-type"
+})
+public enum GrammarKind {
     PARSER, LEXER, COMBINED, UNKNOWN;
 
-    boolean isLexerOnly() {
+    public String toString() {
+        return NbBundle.getMessage(GrammarKind.class, name());
+    }
+
+    public boolean isLexerOnly() {
         return this == LEXER;
     }
 
-    static GrammarKind forTree(ANTLRv4Parser.GrammarFileContext tree) {
+    public static GrammarKind forTree(ANTLRv4Parser.GrammarFileContext tree) {
         if (tree == null || tree.grammarSpec() == null || tree.grammarSpec().grammarType() == null) {
             return UNKNOWN;
         }

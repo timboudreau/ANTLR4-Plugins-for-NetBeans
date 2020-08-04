@@ -15,6 +15,7 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -93,8 +94,23 @@ class JFSFileObjectImpl implements JFSFileObject {
         }
     }
 
-    private String toURLString() {
+    String toURLString() {
         return "jfs://" + storage.storage().urlPath() + "/" + name;
+    }
+
+    @Override
+    public JFSFileReference toReference() {
+        return new JFSFileReference(toURLString());
+    }
+
+    @Override
+    public JFSFileCoordinates toCoordinates() {
+        return new JFSFileCoordinates(name.toPath(), storage.storage().location());
+    }
+
+    @Override
+    public UnixPath path() {
+        return name.toPath();
     }
 
     @Override

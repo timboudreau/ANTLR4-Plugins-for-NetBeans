@@ -17,6 +17,7 @@ package org.nemesis.test.fixtures.support;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.IntSet;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -35,6 +36,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -48,7 +54,6 @@ import org.netbeans.junit.MockServices;
 import org.netbeans.modules.editor.document.StubImpl;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.editor.lib.DocumentServices;
-import org.netbeans.modules.editor.plain.PlainKit;
 import org.netbeans.modules.editor.settings.storage.EditorLocatorFactory;
 import org.netbeans.modules.editor.settings.storage.NbUtils;
 import org.netbeans.modules.editor.settings.storage.StorageImpl;
@@ -173,12 +178,13 @@ public class TestFixtures {
                 .build();
     }
 
+    @SuppressWarnings("deprecation")
     public ThrowingRunnable build() {
         DocumentFactory fact = new DocumentFactoryImpl();
         includedLogs.addAll(includeLogs);
         excludedLogs.addAll(excludeLogs);
         addToMimeLookup("", fact);
-        addToMimeLookup("text/plain", new PlainKit());
+        addToMimeLookup("text/plain", new org.netbeans.modules.editor.plain.PlainKit());
         Set<Class<?>> set = new LinkedHashSet<>(DEFAULT_LOOKUP_CONTENTS.length + defaultLookupContents.size());
         if (avoidStartingModuleSystem) {
             set.add(MockModuleSystem.class);
@@ -197,9 +203,9 @@ public class TestFixtures {
         // Force init
         assertNotNull(Lookup.getDefault().lookup(ActiveDocumentProvider.class));
         if (logging) {
-            preinitializeLogging();
-            initLogging();
-            preinitializeLogging();
+            Set<String> loggerNames = preinitializeLogging();
+            initLogging(loggerNames, insanelyVerboseLogging);
+//            preinitializeLogging();
         }
 
         onShutdown.andAlwaysFirst(() -> {
@@ -255,42 +261,6 @@ public class TestFixtures {
 
     public void onShutdown() throws Throwable {
         onShutdown.run();
-    }
-
-    static void initLogging(Object... init) {
-        initLogging(false, init);
-    }
-
-    static void initLogging(boolean insanelyVerbose, Object... init) {
-        if (init != null && init.length > 0) {
-            Set<Class<?>> classesToInitializeLoggingOn = new HashSet<>();
-            Set<String> classNamesToInitializeLoggingOn = new HashSet<>();
-            Set<Logger> loggersToInitialize = new HashSet<>();
-            addLoggingClassesLoggersOrClassNames(init, classNamesToInitializeLoggingOn, classesToInitializeLoggingOn, loggersToInitialize);
-            preinitializeLogging(insanelyVerbose, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
-        }
-        LogManager logManager = LogManager.getLogManager();
-        configureLogManager(logManager);
-        logManager.addConfigurationListener(() -> {
-            new Exception("Log manager reconfigured: ").printStackTrace();
-        });
-    }
-
-    private static void configureLogManager(LogManager logManager) {
-        Properties loggingProps = new Properties();
-        String consoleHandler = ConsoleHandler.class.getName();
-        loggingProps.setProperty("handlers", consoleHandler);
-        loggingProps.setProperty(consoleHandler + ".level", "ALL");
-        loggingProps.setProperty(consoleHandler + ".formatter", Fmt.class.getName());
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            loggingProps.store(out, "Generated");
-            try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
-                logManager.readConfiguration(in);
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-
     }
 
     Set<String> excludeLogs = new HashSet<>();
@@ -445,6 +415,7 @@ public class TestFixtures {
                 this.mimeType = mimeType;
             }
 
+            @SuppressWarnings("deprecation")
             private MimeDataBuilder add(Object obj, Object... more) {
                 if (obj instanceof Class<?>) {
                     try {
@@ -531,6 +502,7 @@ public class TestFixtures {
             private final Map<String, Set<Object>> cfp
                     = CollectionUtils.supplierMap(HashSet::new);
 
+            @SuppressWarnings("deprecation")
             public Builder add(String path, Object first, Object... more) {
                 Set<Object> s = cfp.get(path);
                 if (first instanceof Class<?>) {
@@ -554,6 +526,7 @@ public class TestFixtures {
                 return this;
             }
 
+            @SuppressWarnings("deprecation")
             public Builder add(String path, Class<?> type) {
                 try {
                     return add(path, type.newInstance());
@@ -694,8 +667,8 @@ public class TestFixtures {
         return null;
     }
 
-    private void preinitializeLogging() {
-        preinitializeLogging(insanelyVerboseLogging, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
+    private Set<String> preinitializeLogging() {
+        return preinitializeLogging(insanelyVerboseLogging, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
     }
 
     private boolean insanelyVerboseLogging = false;
@@ -714,7 +687,10 @@ public class TestFixtures {
         return this;
     }
 
-    private static void preinitializeLogging(boolean parents, Set<Class<?>> classesToInitializeLoggingOn, Set<String> classNamesToInitializeLoggingOn, Set<Logger> loggersToInitialize) {
+    private static final IntSet alreadyInitialized = IntSet.create(Integer.MIN_VALUE, Integer.MAX_VALUE);
+
+    private static Set<String> preinitializeLogging(boolean parents, Set<Class<?>> classesToInitializeLoggingOn, Set<String> classNamesToInitializeLoggingOn, Set<Logger> loggersToInitialize) {
+        Set<String> loggerNames = new HashSet<>();
         try {
             Set<Class<?>> toInitialize = new HashSet<>();
             Set<String> namesInitialized = new HashSet<>();
@@ -741,32 +717,153 @@ public class TestFixtures {
             for (Class<?> toInit : toInitialize) {
                 Logger logger = findLogger(toInit);
                 if (logger != null) {
-                    loggers.add(logger);
+                    if (parents) {
+                        while (logger != null && !loggers.contains(logger)) {
+                            loggers.add(logger);
+                            logger = logger.getParent();
+                        }
+                    } else {
+                        loggers.add(logger);
+                    }
                 }
             }
             for (Logger lg : loggers) {
-                setLevel(lg, Level.ALL, parents);
+                int code = System.identityHashCode(lg);
+                loggerNames.add(lg.getName());
+                if (!alreadyInitialized.contains(code)) {
+                    lg.setLevel(Level.ALL);
+                    alreadyInitialized.add(code);
+                }
             }
 
         } catch (Exception | Error ex) {
             ex.printStackTrace();
         }
+        return loggerNames;
     }
 
-    private static final ConsoleHandler handler = new ConsoleHandler();
+    public static void initLoggingFrom(Object... classNamesLoggersOrClassesToScanForLoggerFields) {
+        initLogging(new HashSet<>(), false, classNamesLoggersOrClassesToScanForLoggerFields);
+    }
 
-    private static void setLevel(Logger logger, Level level, boolean parents) {
-        if (logger == null) {
-            return;
+    static void initLogging(Set<String> loggerNames, boolean insanelyVerbose, Object... init) {
+        if (init != null && init.length > 0) {
+            Set<Class<?>> classesToInitializeLoggingOn = new HashSet<>();
+            Set<String> classNamesToInitializeLoggingOn = new HashSet<>();
+            Set<Logger> loggersToInitialize = new HashSet<>();
+            addLoggingClassesLoggersOrClassNames(init, classNamesToInitializeLoggingOn, classesToInitializeLoggingOn, loggersToInitialize);
+            Set<String> more = preinitializeLogging(insanelyVerbose, classesToInitializeLoggingOn, classNamesToInitializeLoggingOn, loggersToInitialize);
+            loggerNames.addAll(more);
         }
-        logger.setLevel(level);
-//        for (Handler handler : logger.getHandlers()) {
-//            logger.removeHandler(handler);
-//        }
-//        logger.setUseParentHandlers(false);
-//        logger.addHandler(fmt);
-        if (parents) {
-            setLevel(logger.getParent(), level, parents);
+        LogManager logManager = LogManager.getLogManager();
+        configureLogManager(loggerNames, logManager);
+//        logManager.addConfigurationListener(() -> {
+//            new Exception("Log manager reconfigured: ").printStackTrace();
+//        });
+    }
+
+    private static boolean loggingConfigured;
+
+    private static void configureLogManager(Set<String> loggerNames, LogManager logManager) {
+        loggingConfigured = true;
+        Properties loggingProps = new Properties();
+//        String consoleHandler = ListenableConsoleHandler.class.getName();
+        String consoleHandler = ConsoleHandler.class.getName();
+        loggingProps.setProperty("handlers", consoleHandler);
+        loggingProps.setProperty(consoleHandler + ".level", "ALL");
+        loggingProps.setProperty(consoleHandler + ".formatter", Fmt.class.getName());
+        loggingProps.setProperty(".formatter", Fmt.class.getName());
+        loggingProps.setProperty(".useParentHandlers", "true");
+        for (String name : loggerNames) {
+            loggingProps.setProperty(name + ".level", "ALL");
+            loggingProps.setProperty(name + ".handlers", consoleHandler);
+            loggingProps.setProperty(name + ".formatter", Fmt.class.getName());
+        }
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            loggingProps.store(out, "Generated");
+            try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
+                logManager.readConfiguration(in);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
         }
     }
+
+    /**
+     * Wait for a line to be logged that contains the passed string; will throw
+     * an assertion error if none such is logged before the timeout, or if
+     * verbose logging is not enabled. Depends on the specific logger having a
+     * loggable level to work.
+     *
+     * @param dur
+     * @param units
+     * @param test
+     * @throws InterruptedException
+     */
+    public static void awaitLogLine(long dur, TimeUnit units, String containing) throws InterruptedException {
+        awaitLogLine(dur, units, ln -> ln.contains(containing));
+    }
+
+    /**
+     * Wait for a line to be logged that matches the passed predicate; will
+     * throw an assertion error if none such is logged before the timeout, or if
+     * verbose logging is not enabled. Depends on the specific logger having a
+     * loggable level to work..
+     *
+     * @param dur
+     * @param units
+     * @param test
+     * @throws InterruptedException
+     */
+    public static void awaitLogLine(long dur, TimeUnit units, Predicate<String> test) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean success = new AtomicBoolean();
+        onLineLogged(ln -> {
+            boolean result = test.test(ln);
+            if (result) {
+                success.set(true);
+            }
+            return result;
+        }, latch::countDown);
+        latch.await(dur, units);
+        if (!success.get()) {
+            throw new AssertionError("Line matching test " + test + " not logged within " + dur + " " + units);
+        }
+    }
+
+    /**
+     * Run some code when a line is logged that contains the passed text (note
+     * this is WITHOUT derferencing arguments - just the message template. Will
+     * throw an assertion error if none such is logged before the timeout, or if
+     * verbose logging is not enabled. Depends on the specific logger having a
+     * loggable level to work.
+     *
+     * @param rawLogLineText The text
+     * @param invoke What to do
+     */
+    public static void onLineLoggedContaining(String rawLogLineText, Runnable invoke) {
+        onLineLogged((str -> {
+            return str.contains(rawLogLineText);
+        }), invoke);
+    }
+
+    /**
+     * Run some code when a line is logged that contains the passed text (note
+     * this is WITHOUT derferencing arguments - just the message template. Will
+     * throw an assertion error if none such is logged before the timeout, or if
+     * verbose logging is not enabled. Depends on the specific logger having a
+     * loggable level to work.
+     *
+     * @param rawLogLineTest The test
+     * @param invoke What to do
+     */
+    public static void onLineLogged(Predicate<String> rawLogLineTest, Runnable invoke) {
+        assert loggingConfigured : "Verbose logging not enabled";
+        triggers.add(new ConsoleListenEntry(rawLogLineTest, invoke));
+    }
+
+
+    static List<ConsoleListenEntry> triggers = new CopyOnWriteArrayList<>();
+
+
 }

@@ -1,0 +1,76 @@
+<project name="GrammarAdhoc" default="dist" basedir=".">
+    <description>
+        Test random stuff
+    </description>
+    <!-- set global properties for this build -->
+    <property name="src" location="src"/>
+    <property name="antlrOutput" location="build/generated-sources"/>
+    <property name="grammars" location="grammar"/>
+    <property name="build" location="build/classes"/>
+    <property name="dist" location="dist"/>
+
+    <property name="antlr.ant.task.jar"
+              location="/home/tim/.m2/repository/com/mastfrog/antlr-ant-task/2.0.48/antlr-ant-task-2.0.48.jar"/>
+
+    <property name="antlr.ant.task.antlr.jar"
+              location="/home/tim/.m2/repository/org/antlr/antlr4/4.8-1/antlr4-4.8-1.jar"/>
+
+    <property name="antlr.ant.task.runtime.jar"
+              location="/home/tim/.m2/repository/org/antlr/antlr4-runtime/4.8-1/antlr4-runtime-4.8-1.jar"/>
+
+
+    <property name="antlr.ant.task.st3.jar"
+              location="/home/tim/.m2/repository/org/antlr/ST4/4.3/ST4-4.3.jar"/>
+
+    <property name="antlr.ant.task.treelayout.jar"
+              location="/home/tim/.m2/repository/org/abego/treelayout/org.abego.treelayout.core/1.0.3/org.abego.treelayout.core-1.0.3.jar"/>
+    
+    <property name="main.grammar" value="MarkdownParser"/>
+    
+    <property name="antlr4.source.dir" location="grammar"/>
+
+    <target name="-init">
+        <!-- Create the build directory structure used by compile -->
+        <mkdir dir="${build}"/>
+        <mkdir dir="${antlrOutput}"/>
+        <taskdef name="antlr4"
+                 classname="com.mastfrog.antlr.ant.task.Antlr4">
+            <classpath>
+                <pathelement location="${antlr.ant.task.jar}"/>
+                <pathelement location="/home/tim/.m2/repository/org/antlr/antlr-runtime/3.5.2/antlr-runtime-3.5.2.jar"/>
+                <pathelement location="${antlr.ant.task.antlr.jar}"/>
+                <pathelement location="${antlr.ant.task.runtime.jar}"/>
+                <pathelement location="${antlr.ant.task.st3.jar}"/>
+                <!--<pathelement location="${antlr.ant.task.treelayout.jar}"/>-->
+            </classpath>
+        </taskdef>
+    </target>
+
+    <target name="gen-antlr">
+        <antlr4 src="${grammars}/com/foo/MarkdownLexer.g4" imports="${grammars}/imports" 
+                output="${antlrOutput}" package="org.whooie.wiggles"/>
+    </target>
+
+    <target name="compile" depends="-init,gen-antlr"
+            description="compile the source">
+        <javac includeantruntime="no" destdir="${build}" classpath="${antlr.ant.task.runtime.jar}">
+            <src path="${src}"/>
+            <src path="${antlrOutput}"/>
+        </javac>
+    </target>
+
+    <target name="jar" depends="compile"
+            description="generate the distribution">
+        <!-- Create the distribution directory -->
+        <mkdir dir="${dist}"/>
+
+        <jar jarfile="${dist}/GrammarAdhoc.jar" basedir="${build}"/>
+    </target>
+
+    <target name="clean"
+            description="clean up">
+        <delete dir="build"/>
+        <delete dir="${dist}"/>
+    </target>
+</project>
+

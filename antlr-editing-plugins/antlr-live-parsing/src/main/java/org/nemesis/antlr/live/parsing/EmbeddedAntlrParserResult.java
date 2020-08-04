@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.parsing;
 
+import java.nio.file.Path;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 
@@ -24,17 +25,24 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
  */
 public final class EmbeddedAntlrParserResult {
 
+    private final Path originalFile;
+
     private final ParseTreeProxy proxy;
     private final GrammarRunResult<?> runResult;
     private final String grammarTokensHash;
     private final String grammarName;
 
-    EmbeddedAntlrParserResult(ParseTreeProxy proxy, GrammarRunResult<?> runResult, String grammarTokensHash,
+    EmbeddedAntlrParserResult(Path originalFile, ParseTreeProxy proxy, GrammarRunResult<?> runResult, String grammarTokensHash,
             String grammarName) {
+        this.originalFile = originalFile;
         this.proxy = proxy;
         this.runResult = runResult;
         this.grammarTokensHash = grammarTokensHash;
         this.grammarName = grammarName;
+    }
+
+    public Path grammarFile() {
+        return originalFile;
     }
 
     public ParseTreeProxy proxy() {

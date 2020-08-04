@@ -33,28 +33,28 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     private T result;
     private final Throwable thrown;
-    private final GenerationAndCompilationResult buildResult;
+    private final AntlrGenerationAndCompilationResult buildResult;
     private final GrammarRunResult<T> lastGood;
     private final AntlrGenerationAndCompilationResult genResult;
     private final long timestamp = System.currentTimeMillis();
 
-    GrammarRunResult(T result, Throwable thrown, GenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
+    GrammarRunResult(T result, Throwable thrown, AntlrGenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
         this.result = result;
         this.thrown = thrown;
         this.buildResult = buildResult;
         this.lastGood = lastGood;
-        genResult = buildResult.genResult();
+        genResult = buildResult;
     }
 
     public String grammarName() {
-        if (buildResult != null && buildResult.genAndCompileResult.generationResult() != null) {
-            return buildResult.genAndCompileResult.generationResult().grammarName;
+        if (buildResult != null && buildResult.generationResult() != null) {
+            return buildResult.generationResult().grammarName;
         }
         if (lastGood != null && lastGood.genResult != null && lastGood.genResult.generationResult() != null) {
             return lastGood.genResult.generationResult().grammarName;
         }
-        if (buildResult.genAndCompileResult != null && buildResult.genAndCompileResult.mainGrammar() != null) {
-            return buildResult.genAndCompileResult.mainGrammar().name;
+        if (buildResult != null && buildResult.mainGrammar() != null) {
+            return buildResult.mainGrammar().name;
         }
         return "Unknown";
     }
@@ -65,12 +65,8 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         sb.append("usable=").append(isUsable())
                 .append(", result=").append(result).append("\n\n");
         sb.append("buildResult.usable=").append(buildResult.isUsable());
-        sb.append(" buildResult.genAndCompileResult.usable=")
-                .append(buildResult.genAndCompileResult.isUsable());
-        sb.append(" buildResult.genAndCompileResult.usable=");
-        sb.append(buildResult.genAndCompileResult.isUsable());
-        sb.append(" buildResult.genAndCompileResult.grammarGenerationResult.usable=");
-        sb.append(buildResult.genAndCompileResult.generationResult().isUsable());
+        sb.append(" buildResult.grammarGenerationResult.usable=");
+        sb.append(buildResult.generationResult().isUsable());
         return sb.toString();
     }
 
@@ -111,7 +107,7 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     }
 
     public final AntlrGenerationAndCompilationResult genResult() {
-        return buildResult.genResult();
+        return buildResult;
     }
 
     @Override
@@ -125,10 +121,6 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
             return Optional.of(thrown);
         }
         return buildResult.thrown();
-    }
-
-    public String generationOutput() {
-        return buildResult.output();
     }
 
     @Override

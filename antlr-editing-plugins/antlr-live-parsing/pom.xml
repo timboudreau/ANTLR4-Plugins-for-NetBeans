@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
-        <version>2.0.50</version>
+        <version>2.0.51</version>
     </parent>
     <artifactId>antlr-live-parsing</artifactId>
     <scm>
@@ -46,7 +46,7 @@ limitations under the License.
     <packaging>nbm</packaging>
     <properties>
         <!-- ugh, the initializing the module system bug -->
-        <maven.test.skip>true</maven.test.skip>
+        <!--<maven.test.skip>true</maven.test.skip>-->
         <enforcer.skip>true</enforcer.skip>
     </properties>
     <build>
@@ -176,6 +176,10 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>mastfrog-utils-wrapper</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>antlr-input</artifactId>
         </dependency>
         <dependency>
@@ -193,10 +197,6 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>misc-utils</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>mastfrog-utils-wrapper</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -260,6 +260,11 @@ limitations under the License.
             <artifactId>antlr-file-support</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-function</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- This bathtub of dependencies allows tests to be run in Maven 3.6.2
         and forces the maven-embedder module to link against that, so it doesn't
         detonate on contact.  No, useSystemClassloader doesn't help.
@@ -303,30 +308,6 @@ limitations under the License.
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-utils</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <scope>test</scope>
-            <version>2.44.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.opera</groupId>
-            <artifactId>operadriver</artifactId>
-            <scope>test</scope>
-            <version>1.5</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.seleniumhq.selenium</groupId>
-                    <artifactId>selenium-remote-driver</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-            <version>4.11</version>
         </dependency>
     </dependencies>
 </project>

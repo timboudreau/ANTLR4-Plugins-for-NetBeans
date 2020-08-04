@@ -1,0 +1,4 @@
+#!/bin/sh
+
+find . -name "*.java" | xargs grep -i "out.println" | grep -vi Test | grep -v antlr-plugin | grep -v "//" | grep -v "Processor" | grep -v tiny | grep -v BuiltInAction | grep -v type-code | grep -v MockName | grep -v "println ok"
+

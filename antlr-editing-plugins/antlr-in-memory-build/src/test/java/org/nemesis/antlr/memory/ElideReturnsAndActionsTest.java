@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import javax.swing.text.BadLocationException;
@@ -65,10 +66,10 @@ public class ElideReturnsAndActionsTest {
                 System.out.println('"' + file.getName() + "\",");
                 jfsContents.add(file.getName());
             });
-            parserResult.newlyGeneratedFiles.forEach(nm -> {
-                System.out.println(nm);
-                assertFalse(nm.endsWith(".g4"), nm);
-                generatedFilesAccordingToParserResult.add(nm);
+            parserResult.newlyGeneratedFiles.forEach((nm )-> {
+                System.out.println(nm.path());
+//                assertFalse(nm.path().toString().endsWith(".g4"), nm.toString());
+                generatedFilesAccordingToParserResult.add(nm.path().toString());
             });
             String parserCode = parserResult.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/woogle/ReturnsTestParser.java")).getCharContent(false).toString();
             assertFalse(parserCode.contains("parseInt"));
@@ -84,9 +85,11 @@ public class ElideReturnsAndActionsTest {
     public void setup() throws IOException, BadLocationException {
         JFS jfs = JFS.builder().build();
         jfs.masquerade(loadRelativeDocument(GRAMMAR_NAME), StandardLocation.SOURCE_PATH, GRAMMAR_PATH);
-        bldr = AntlrGenerator.builder(jfs)
+        bldr = AntlrGenerator.builder(() -> jfs)
                 .grammarSourceInputLocation(StandardLocation.SOURCE_PATH)
                 .javaSourceOutputLocation(StandardLocation.SOURCE_PATH)
+                .withOriginalFile(Paths.get("ElideReturnsAndActionsTest"))
+                .withTokensHash("-yyy-")
                 .generateIntoJavaPackage(PKG);
     }
 }

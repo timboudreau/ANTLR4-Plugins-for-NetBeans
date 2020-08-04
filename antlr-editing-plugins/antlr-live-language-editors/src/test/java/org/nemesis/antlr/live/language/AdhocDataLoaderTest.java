@@ -20,14 +20,12 @@ import com.mastfrog.util.file.FileUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -35,6 +33,7 @@ import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypesTests;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
+import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.core.NbLoaderPool;
 import org.netbeans.junit.MockServices;
 import org.openide.filesystems.FileObject;
@@ -53,18 +52,17 @@ import org.openide.util.Lookup;
 @Execution(ExecutionMode.SAME_THREAD)
 public class AdhocDataLoaderTest {
 
-    private Path grammarFile;
-    private String mimeType;
-    private String ext;
-    private FileSystem fs;
-    private FileObject fooFile;
-    private FileObject fooFile2;
-    private FileObject generatedExtensionFile;
-    private FileObject glorkFile;
+    private static Path grammarFile;
+    private static String mimeType;
+    private static String ext;
+    private static FileSystem fs;
+    private static FileObject fooFile;
+    private static FileObject fooFile2;
+    private static FileObject generatedExtensionFile;
+    private static FileObject glorkFile;
 
     @Test
     public void testFilesAreRecognized() throws Throwable {
-        testLoaderIsPresent();
         DataLoaderPool pool = DataLoaderPool.getDefault();
         assertTrue(pool instanceof NbLoaderPool);
         assertEquals(mimeType, generatedExtensionFile.getMIMEType());
@@ -125,7 +123,7 @@ public class AdhocDataLoaderTest {
         assertNotNull(nue.getLookup().lookup(AdhocDataObject.class));
     }
 
-    class L implements BiConsumer<String, String> {
+    static class L implements BiConsumer<String, String> {
 
         private CountDownLatch latch = new CountDownLatch(1);
 
@@ -177,37 +175,22 @@ public class AdhocDataLoaderTest {
 
     }
 
-//    @Test
-    public void testLoaderIsPresent() throws Throwable {
-        DataLoaderPool pool = DataLoaderPool.getDefault();
-        Set<DataLoader> ldrs = new HashSet<>();
+    static ThrowingRunnable shutdownTasks;
 
-        Enumeration<DataLoader> all = pool.allLoaders();
-        while (all.hasMoreElements()) {
-            DataLoader dl = all.nextElement();
-            ldrs.add(dl);
-        }
-        Set<Class<?>> producers = new HashSet<>();
-        Enumeration<DataLoader> prodEnum = pool.producersOf(AdhocDataObject.class);
-        while (prodEnum.hasMoreElements()) {
-            DataLoader dl = prodEnum.nextElement();
-            producers.add(dl.getClass());
-        }
-        assertTrue(producers.contains(AdhocDataLoader.class));
-    }
-
-    ThrowingRunnable shutdownTasks;
-
-    @AfterEach
-    public void teardown() throws Exception {
+    @AfterAll
+    public static void teardown() throws Exception {
         if (shutdownTasks != null) {
             shutdownTasks.run();
         }
     }
 
-    @BeforeEach
-    public void setup() throws IOException, InvalidMimeTypeRegistrationException {
-        shutdownTasks = ThrowingRunnable.oneShot(true);
+    @BeforeAll
+    public static void setup() throws IOException, InvalidMimeTypeRegistrationException {
+        shutdownTasks = doSetup();
+    }
+
+    static ThrowingRunnable doSetup() throws IOException, InvalidMimeTypeRegistrationException {
+        ThrowingRunnable shutdownTasks = ThrowingRunnable.oneShot(true);
         Path tmp = FileUtils.newTempDir();
         shutdownTasks.andAlways(() -> {
             FileUtils.deltree(tmp);
@@ -216,6 +199,18 @@ public class AdhocDataLoaderTest {
         FileUtils.writeAscii(grammarFile, "grammar Foo;\nwords : Word+;\nWord : [a-zA-Z]+;\n");
 
         shutdownTasks.andAlways(AdhocMimeTypesTests::reinitAndDeleteCache);
+
+        TestFixtures fixtures = new TestFixtures()
+                .addToDefaultLookup(
+                        AdhocMimeDataProvider.class,
+                        AdhocMimeResolver.class,
+                        NbLoaderPool.class)
+                .verboseGlobalLogging(
+                        AdhocMimeDataProvider.class,
+                        AdhocMimeDataProvider.class,
+                        NbLoaderPool.class)
+                .avoidStartingModuleSystem();
+        shutdownTasks.andAlways(fixtures.build());
 
         MockServices.setServices(AdhocDataLoader.class,
                 AdhocMimeDataProvider.class, AdhocMimeResolver.class, NbLoaderPool.class);
@@ -249,6 +244,7 @@ public class AdhocDataLoaderTest {
         fooFile = FileUtil.createData(fs.getRoot(), "SomeFile.foo");
         fooFile2 = FileUtil.createData(fs.getRoot(), "AnotherFile.foo");
         glorkFile = FileUtil.createData(fs.getRoot(), "Hoobie.glork");
+        return shutdownTasks;
     }
 
     public static void clearCache() {

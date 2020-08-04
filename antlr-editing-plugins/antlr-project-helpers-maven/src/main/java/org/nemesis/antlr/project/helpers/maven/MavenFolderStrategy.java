@@ -99,10 +99,10 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
     public Iterable<Path> find(Folders folder, FolderQuery query) throws IOException {
         AntlrConfigurationImplementation impl = info().pluginInfo();
         switch (folder) {
-            case ANTLR_GRAMMAR_SOURCES:
-                return FolderLookupStrategyImplementation.super.iterable(impl.antlrSourceDir());
             case ANTLR_IMPORTS:
                 return FolderLookupStrategyImplementation.super.iterable(impl.antlrImportDir());
+            case ANTLR_GRAMMAR_SOURCES:
+                return FolderLookupStrategyImplementation.super.iterable(impl.antlrSourceDir());
             case CLASS_OUTPUT:
                 return FolderLookupStrategyImplementation.super.iterable(impl.buildDir().resolve("classes"));
             case JAVA_GENERATED_SOURCES:

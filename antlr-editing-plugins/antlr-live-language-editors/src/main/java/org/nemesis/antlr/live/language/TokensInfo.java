@@ -30,14 +30,24 @@ final class TokensInfo {
 
     static final AtomicLong infoIds = new AtomicLong();
     static final TokensInfo EMPTY
-            = new TokensInfo(Collections.emptyList(), Collections.emptyMap());
+            = new TokensInfo(Collections.emptyList(), Collections.emptyMap(), "-");
     private final List<AdhocTokenId> tokens;
     private final Map<String, Collection<AdhocTokenId>> categories;
     private final long id = infoIds.getAndIncrement();
+    private final String grammarTokensHash;
 
-    public TokensInfo(List<AdhocTokenId> tokens, Map<String, Collection<AdhocTokenId>> categories) {
+    public TokensInfo(List<AdhocTokenId> tokens, Map<String, Collection<AdhocTokenId>> categories, String grammarTokensHash) {
         this.tokens = tokens;
         this.categories = categories;
+        this.grammarTokensHash = grammarTokensHash;
+    }
+
+    public String grammarTokensHash() {
+        return grammarTokensHash;
+    }
+
+    public boolean isTokensHashUpToDate(String newHash) {
+        return Objects.equals(grammarTokensHash, newHash);
     }
 
     public long id() {

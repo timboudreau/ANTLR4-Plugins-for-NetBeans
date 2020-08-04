@@ -1679,7 +1679,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                     ib.ifNotNull("canceller", ibb -> {
                                         ibb.invoke("set").withArgument(true).on("canceller");
                                     }).orElse(eb -> {
-                                        eb.log("Attempt to cancel a parse not currently being run: {0}", Level.INFO, "evt");
+                                        eb.log("Attempt to cancel a parse not currently being run: {0}", Level.FINE, "evt");
                                     });
                                 });
                             });
@@ -2025,7 +2025,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .withModifier(PUBLIC)
                 .body(bb -> {
                     bb.debugLog("Deprecated cancel");
-                    bb.log("Deprecated Parser.cancel() method called on {0}, do nothing", Level.INFO, "this");
+                    bb.log("Deprecated Parser.cancel() method called on {0}, do nothing", Level.FINEST, "this");
 //                    bb.invoke("set").withArgument("true").on("cancelled").endBlock();
                 });
         if (changeSupport) {

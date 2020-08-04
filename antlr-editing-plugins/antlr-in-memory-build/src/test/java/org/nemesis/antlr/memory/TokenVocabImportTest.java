@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.memory;
 
+import com.mastfrog.graph.ObjectGraph;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import javax.swing.text.BadLocationException;
@@ -30,12 +32,12 @@ import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
 import javax.tools.StandardLocation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 
 /**
@@ -68,11 +70,15 @@ public class TokenVocabImportTest {
             "com/poozle/MarkdownParser.interp");
 
     @Test
-    public void testLexerGrammarsAreGeneratedOnDemandWhenBuildingParserGrammar() {
+    public void testLexerGrammarsAreGeneratedOnDemandWhenBuildingParserGrammar() throws Throwable {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintStream ps = new PrintStream(baos)) {
-            AntlrGenerationResult parserResult = bldr.generateIntoJavaPackage(PKG).generateDependencies(true)
-                    .generateListener(true).generateVisitor(true)
+            AntlrGenerationResult parserResult = bldr
+                    .generateIntoJavaPackage(PKG)
+                    .generateDependencies(true)
+                    .generateListener(true)
+                    .generateVisitor(true)
+                    .generateAllGrammars(true)
                     .building(PACKAGE_PATH, PACKAGE_PATH)
                     .run(PARSER_NAME, ps, true);
 
@@ -83,18 +89,16 @@ public class TokenVocabImportTest {
             assertNotNull(tokensFile);
             assertEquals(2, parserResult.allGrammars.size(), parserResult.allGrammars::toString);
 
-            assertTrue(parserResult.newlyGeneratedFiles.contains(tokensFile.getName()), parserResult.newlyGeneratedFiles::toString);
+            assertTrue(parserResult.newlyGeneratedFiles.contains(tokensFile.toReference()), parserResult.newlyGeneratedFiles::toString);
             assertTrue(parserResult.errors.isEmpty(), parserResult.errors::toString);
             assertTrue(parserResult.isUsable(), parserResult::toString);
             Set<String> jfsContents = new HashSet<>();
             Set<String> generatedFilesAccordingToParserResult = new HashSet<>();
             parserResult.jfs.listAll((loc, file) -> {
-                System.out.println('"' + file.getName() + "\",");
                 jfsContents.add(file.getName());
             });
             parserResult.newlyGeneratedFiles.forEach(nm -> {
-                assertFalse(nm.endsWith(".g4"), nm);
-                generatedFilesAccordingToParserResult.add(nm);
+                generatedFilesAccordingToParserResult.add(nm.path().toString());
             });
             Set<String> expectedGenerated = new HashSet<>(EXPECTED_JFS_CONTENTS);
             expectedGenerated.remove("com/poozle/MarkdownLexer.g4");
@@ -102,7 +106,24 @@ public class TokenVocabImportTest {
 
             assertEquals(EXPECTED_JFS_CONTENTS, jfsContents);
             assertEquals(expectedGenerated, generatedFilesAccordingToParserResult);
-        } catch (Exception | Error ex) {
+
+            ObjectGraph<UnixPath> graph = parserResult.dependencyGraph();
+
+            assertTrue(graph.reverseClosureOf(UnixPath.get("com/poozle/MarkdownLexer.tokens")).contains(UnixPath.get("com/poozle/MarkdownParser.g4")));
+            assertTrue(graph.closureOf(UnixPath.get("com/poozle/MarkdownParser.g4")).contains(UnixPath.get("com/poozle/MarkdownLexer.tokens")));
+            assertTrue(graph.closureOf(UnixPath.get("com/poozle/MarkdownParser.g4")).contains(UnixPath.get("com/poozle/MarkdownLexer.g4")));
+
+            assertTrue(graph.parents(UnixPath.get("com/poozle/MarkdownLexer.tokens")).contains(UnixPath.get("com/poozle/MarkdownParser.g4")));
+            assertTrue(graph.children(UnixPath.get("com/poozle/MarkdownParser.g4")).contains(UnixPath.get("com/poozle/MarkdownLexer.tokens")));
+
+            for (JFSCoordinates.Resolvable gen : parserResult.newlyGeneratedFiles) {
+                System.out.println(" - " + gen.path());
+            }
+            AntlrGenerationResult result2 = bldr.building(PACKAGE_PATH, PACKAGE_PATH).run(PARSER_NAME, ps, true);
+            result2.rethrow();
+            assertTrue(parserResult.areOutputFilesUpdated(UnixPath.get("com/poozle/MarkdownParser.g4")));
+
+        } catch (Exception ex) {
             String out = new String(baos.toByteArray(), UTF_8);
             AssertionError err = new AssertionError("Build output: " + out, ex);
             throw err;
@@ -114,7 +135,9 @@ public class TokenVocabImportTest {
         JFS jfs = JFS.builder().build();
         jfs.masquerade(loadRelativeDocument(LEXER_NAME), StandardLocation.SOURCE_PATH, LEXER_PATH);
         jfs.masquerade(loadRelativeDocument(PARSER_NAME), StandardLocation.SOURCE_PATH, PARSER_PATH);
-        bldr = AntlrGenerator.builder(jfs)
+        bldr = AntlrGenerator.builder(() -> jfs)
+                .withOriginalFile(Paths.get("path-to-nothing"))
+                .withTokensHash("xxxx")
                 .grammarSourceInputLocation(StandardLocation.SOURCE_PATH)
                 .javaSourceOutputLocation(StandardLocation.SOURCE_PATH)
                 .generateIntoJavaPackage(PKG);

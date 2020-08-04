@@ -62,19 +62,32 @@ public final class MavenProjectBuilder {
     }
 
     public MavenProjectBuilder writeStockTestGrammarSplit(String pkg) {
+        return writeStockTestGrammarSplit(pkg, false);
+    }
+
+    public MavenProjectBuilder writeStockTestGrammarSplit(String pkg, boolean threeWay) {
         if (pkg == null) {
             pkg = "abc.def.ghi";
         }
         pkg = pkg.replace('.', '/');
         addMainAntlrSource(pkg + "/NestedMaps", () -> {
             String parserSection = TEST_GRAMMAR.split("//END-PARSER\n")[0];
-            parserSection = parserSection.replaceAll("//TOP", "import NMLexer;");
+            parserSection = parserSection.replaceAll("//TOP", "\noptions {tokenVocab = NMLexer;}\n");
+            parserSection = parserSection.replace("grammar", "\nparser grammar");
             return parserSection;
         });
-        return addImportedAntlrSource("NMLexer", () -> {
-            String lexerSection = TEST_GRAMMAR.split("//END-PARSER\n")[1];
-            return "lexer grammar NMLexer;\n" + lexerSection;
-        });
+        String lexerSection = TEST_GRAMMAR.split("//END-PARSER\n")[1];
+        if (threeWay) {
+            String[] osplit = lexerSection.split("//END-LEXER\n");
+            String lex = "lexer grammar NMLexer;\nimport nm;\n\n" + osplit[0];
+            String frags = "lexer grammar nm;\n\n" + osplit[1];
+            addMainAntlrSource(pkg + "/NMLexer", () -> lex);
+            return addImportedAntlrSource("nm", () -> frags);
+        } else {
+            return addImportedAntlrSource("NMLexer", () -> {
+                return "lexer grammar NMLexer;\n" + lexerSection;
+            });
+        }
     }
 
     public MavenProjectBuilder copyMainAntlrSource(Path orig, String path) {
@@ -203,7 +216,7 @@ public final class MavenProjectBuilder {
         if (verboseLogging) {
             TestFixtures.excludedLogs.addAll(logExclude);
             TestFixtures.includedLogs.addAll(logInclude);
-            TestFixtures.initLogging(insanelyVerboseLogging, initLoggers);
+            TestFixtures.initLogging(new HashSet<>(), insanelyVerboseLogging, initLoggers);
         }
         return result;
     }
@@ -341,6 +354,7 @@ public final class MavenProjectBuilder {
             + "\n"
             + "Identifier : ID;\n"
             + "\n"
+            + "//END-LEXER\n"
             + "fragment TRUE : 'true';\n"
             + "fragment FALSE : 'false';\n"
             + "fragment STRING: '\"' (ESC|.)*? '\"';\n"

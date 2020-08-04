@@ -320,9 +320,9 @@ final class PomFileAnalyzer {
     }
 
     private static final void logMap(String name, Map<String, ?> m) {
-        System.out.println("\n\n" + name + " ***************************\n");
+        System.out.println("\n\n" + name + " ***************************\n"); // println ok
         for (Map.Entry<String, ?> e : m.entrySet()) {
-            System.out.println(" " + e.getKey() + " = '" + e.getValue() + "'");
+            System.out.println(" " + e.getKey() + " = '" + e.getValue() + "'"); // println ok
         }
     }
 

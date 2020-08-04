@@ -24,9 +24,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -134,10 +136,7 @@ public abstract class FoldersHelperTrampoline {
         AntlrConfigurationImplementation config = spi.get(AntlrConfigurationImplementation.class);
         if (config != null) {
             if (LOG.isLoggable(Level.FINEST)) {
-                LOG.log(Level.FINEST, "Null config from " + spi + " - use empty",
-                        new Exception("Using null config for " + spi));
-            } else if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Null config from {0} - use empty", spi);
+                LOG.log(Level.FINEST, "Null config from {0} - use empty", spi);
             }
             return newAntlrConfiguration(config.antlrImportDir(), config.antlrSourceDir(),
                     config.antlrOutputDir(), config.listener(), config.visitor(),
@@ -310,13 +309,27 @@ public abstract class FoldersHelperTrampoline {
         return all;
     }
 
+    private static Set<FoldersLookupStrategyImplementationFactory> allFactories;
+
+    private static Set<FoldersLookupStrategyImplementationFactory> allFactories() {
+        if (allFactories == null) {
+            Collection<? extends FoldersLookupStrategyImplementationFactory> factories = Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class);
+            allFactories = Collections.unmodifiableSet(new LinkedHashSet<>(factories));
+        }
+        return allFactories;
+    }
+
     public FolderLookupStrategyImplementation implementationFor(Project project, FolderQuery initialQuery) {
+        if (project == null && initialQuery.hasProject()) {
+            project = initialQuery.project();
+        }
         if (project == null) {
             return NONE;
         }
         FolderLookupStrategyImplementation result = project.getLookup().lookup(FolderLookupStrategyImplementation.class);
         if (result == null) {
-            for (FoldersLookupStrategyImplementationFactory factory : Lookup.getDefault().lookupAll(FoldersLookupStrategyImplementationFactory.class)) {
+            Set<FoldersLookupStrategyImplementationFactory> factories = allFactories();
+            for (FoldersLookupStrategyImplementationFactory factory : factories) {
                 FolderLookupStrategyImplementation impl = factory.create(project, initialQuery);
                 if (impl != null) {
                     return impl;

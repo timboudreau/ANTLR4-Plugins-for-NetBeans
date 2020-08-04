@@ -509,7 +509,7 @@ public final class FormattingRules {
                     token.getStopIndex(), parserRuleFinder, isFirstProcessedTokenInSource)) {
                 if (rule.hasAction()) {
                     if (debug) {
-                        System.out.println("  MATCHED: '" + token.getText() + "' " + vocabulary
+                        FormattingRule.log("  MATCHED: '" + token.getText() + "' " + vocabulary
                                 .getSymbolicName(token.getType()) + " matched by " + rule + "\n");
                     }
 //                    if (ctx instanceof FormattingContextImpl) {
@@ -518,7 +518,7 @@ public final class FormattingRules {
                     rule.perform(token, ctx, state);
                 } else {
                     if (debug) {
-                        System.out.println("NULL ACTION: " + rule);
+                        FormattingRule.log("NULL ACTION: " + rule);
                     }
                 }
                 break;

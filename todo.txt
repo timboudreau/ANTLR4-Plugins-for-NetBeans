@@ -9,12 +9,6 @@ should get full line underline / interpret line end as error end.
 
 Need to elide TokenLabelType when generating the same way we do with "returns" statements.
 
-
-Need timed throttling of reparses in the case an antlr build result is unusable - right now this thrashes endlessly - 
- probably due to the logic that does not cache an invalid parse result when using ParserExtractor.  The best place
- for this may actually be in RebuildSubscriptions, since that can invalidate the cache if a dependency grammar changes
- since in knows what they are.
-
 Annotation processor is generating stripMime(mimeType) based prefix for layer entry for goto declaration action
 when its name is derived from the prefix in the annotation, not the mime type.
 

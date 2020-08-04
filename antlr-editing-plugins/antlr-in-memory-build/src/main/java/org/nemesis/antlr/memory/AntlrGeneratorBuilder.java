@@ -20,6 +20,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.StandardLocation;
@@ -42,7 +43,7 @@ public final class AntlrGeneratorBuilder<T> {
     boolean forceAtn = false;
     String packageName = RandomPackageNames.newPackageName();
     Charset grammarEncoding = StandardCharsets.UTF_8;
-    JFS jfs;
+    Supplier<JFS> jfs;
     JavaFileManager.Location grammarSourceInputLocation = StandardLocation.SOURCE_PATH;
     JavaFileManager.Location javaSourceOutputLocation = StandardLocation.SOURCE_OUTPUT;
     UnixPath sourcePath;
@@ -50,10 +51,11 @@ public final class AntlrGeneratorBuilder<T> {
     Path originalFile;
     String tokensHash;
     private final Function<? super AntlrGeneratorBuilder<T>, T> convert;
+    JFSPathHints pathHints = JFSPathHints.NONE;
 
-    AntlrGeneratorBuilder(JFS jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
+    AntlrGeneratorBuilder(Supplier<JFS> jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
         this.jfs = jfs;
-        Charset enc = jfs.encoding();
+        Charset enc = jfs.get().encoding();
         if (enc != null) {
             grammarEncoding = enc;
         }
@@ -61,13 +63,13 @@ public final class AntlrGeneratorBuilder<T> {
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromGenerator(AntlrGenerator res) {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs(),
+        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
                 (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourcePath(), res.importDir()));
         return result;
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromResult(AntlrGenerationResult res) {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
+        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfsSupplier,
                 (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourceDir(), res.importDir()));
         return result;
     }
@@ -137,6 +139,11 @@ public final class AntlrGeneratorBuilder<T> {
         return this;
     }
 
+    public AntlrGeneratorBuilder<T> withPathHints(JFSPathHints hints) {
+        this.pathHints = hints;
+        return this;
+    }
+
     public T building(UnixPath virtualSourcePath) {
         return building(virtualSourcePath, null);
     }
@@ -144,6 +151,24 @@ public final class AntlrGeneratorBuilder<T> {
     public T building(UnixPath virtualSourcePath, UnixPath importDir) {
         this.sourcePath = virtualSourcePath;
         this.importDir = importDir;
+        if (originalFile == null) {
+            throw new IllegalStateException("Original file not set for " + this);
+        }
         return convert.apply(this);
+    }
+
+    @Override
+    public String toString() {
+        return "AntlrGeneratorBuilder{" + "genListener=" + genListener
+                + ", genVisitor=" + genVisitor + ", longMessages="
+                + longMessages + ", genDependencies=" + genDependencies
+                + ", generateATNDot=" + generateATNDot + ", generateAll="
+                + generateAll + ", log=" + log + ", forceAtn="
+                + forceAtn + ", packageName=" + packageName + ", grammarEncoding="
+                + grammarEncoding + ", jfs=" + jfs.get() + ", grammarSourceInputLocation="
+                + grammarSourceInputLocation + ", javaSourceOutputLocation="
+                + javaSourceOutputLocation + ", sourcePath=" + sourcePath + ", importDir="
+                + importDir + ", originalFile=" + originalFile + ", tokensHash="
+                + tokensHash + ", convert=" + convert + ", hints=" + pathHints + '}';
     }
 }

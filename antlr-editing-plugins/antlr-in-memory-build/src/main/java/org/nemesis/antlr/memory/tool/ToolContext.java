@@ -18,7 +18,6 @@ package org.nemesis.antlr.memory.tool;
 import com.mastfrog.util.path.UnixPath;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,6 +27,7 @@ import java.util.WeakHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.JavaFileManager.Location;
+import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import org.antlr.v4.codegen.CodeGenerator;
@@ -55,8 +55,8 @@ final class ToolContext {
     final Location inputLocation;
     final Location outputLocation;
     final PrintStream logStream;
-    static final ThreadLocal<Path> currentFile = new ThreadLocal<>();
-    private static final Logger LOG = Logger.getLogger(MemoryTool.class.getName());
+    static final ThreadLocal<UnixPath> currentFile = new ThreadLocal<>();
+    static final Logger LOG = Logger.getLogger(MemoryTool.class.getName());
 
     ToolContext(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {
         if (dir == null) {
@@ -67,6 +67,10 @@ final class ToolContext {
         this.inputLocation = inputLocation;
         this.outputLocation = outputLocation;
         this.logStream = logStream;
+    }
+
+    static boolean isLoggable(Level level) {
+        return LOG.isLoggable(level);
     }
 
     void logExternal(Level level, String msg, Object arg) {
@@ -144,20 +148,31 @@ final class ToolContext {
         Set<LoadAttempt> attempts = new HashSet<>(3);
         UnixPath fileNameOnly = path.getFileName();
         JFSFileObject fo = null;
-        for (UnixPath p : new UnixPath[]{path, fileNameOnly}) {
-            ToolContext ctx = ToolContext.get(tool);
-            fo = tool.jfs().get(ctx.inputLocation, p);
+        if (tool.hints != null) {
+            UnixPath hintPath = tool.hints.firstPathForRawName(path.rawName(), CodeGenerator.VOCAB_FILE_EXTENSION);
+            attempts.add(new LoadAttempt(hintPath, StandardLocation.SOURCE_OUTPUT));
+            fo = jfs.get(StandardLocation.SOURCE_OUTPUT, path);
             if (fo == null) {
-                fo = tool.getFO(ctx.inputLocation, p, attempts, ctx);
+                attempts.add(new LoadAttempt(hintPath, StandardLocation.SOURCE_PATH));
+                fo = jfs.get(StandardLocation.SOURCE_PATH, path);
             }
-            if (fo == null) {
-                fo = tool.getFO(SOURCE_OUTPUT, p, attempts, ctx);
-            }
-            if (fo == null) {
-                fo = tool.getFO(CLASS_OUTPUT, p, attempts, ctx);
-            }
-            if (fo != null) {
-                break;
+        }
+        if (fo == null) {
+            for (UnixPath p : new UnixPath[]{path, fileNameOnly}) {
+                ToolContext ctx = ToolContext.get(tool);
+                fo = tool.jfs().get(ctx.inputLocation, p);
+                if (fo == null) {
+                    fo = tool.getFO(ctx.inputLocation, p, attempts, ctx);
+                }
+                if (fo == null) {
+                    fo = tool.getFO(SOURCE_OUTPUT, p, attempts, ctx);
+                }
+                if (fo == null) {
+                    fo = tool.getFO(CLASS_OUTPUT, p, attempts, ctx);
+                }
+                if (fo != null) {
+                    break;
+                }
             }
         }
         if (fo == null) {

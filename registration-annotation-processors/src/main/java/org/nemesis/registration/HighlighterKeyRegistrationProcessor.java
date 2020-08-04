@@ -507,7 +507,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 cl.docComment(info.entries.toArray());
                 cl.constructor(cb -> {
                     cb.setModifier(PUBLIC).body(bb -> {
-                        bb.log("Create {0}: ", Level.WARNING, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
+                        bb.log("Create {0}: ", Level.FINE, LinesBuilder.stringLiteral(generatedClassName), LinesBuilder.stringLiteral(info.toString()));
                         bb.declare("builder").initializedByInvoking("builder")
                                 .on(ANTLR_HIGHLIGHTING_LAYER_FACTORY.simpleName())
                                 .as(ANTLR_HIGHLIGHTING_LAYER_FACTORY.simpleName() + ".Builder");
@@ -520,7 +520,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                     mb.returning(HIGHLIGHTS_LAYER.simpleNameArray()).addArgument(HIGHLIGHTS_LAYER_FACTORY.simpleName() + ".Context", "ctx")
                             .body(bb -> {
                                 bb.debugLog("Create " + info);
-                                bb.log("Create layer {0}", Level.INFO, LinesBuilder.stringLiteral(info.toString()));
+                                bb.log("Create layer {0}", Level.FINEST, LinesBuilder.stringLiteral(info.toString()));
                                 bb.returningInvocationOf("createLayers").withArgument("ctx").on("delegate");
 //                                bb.statement("return delegate.createLayers(ctx)").endBlock();
                             });

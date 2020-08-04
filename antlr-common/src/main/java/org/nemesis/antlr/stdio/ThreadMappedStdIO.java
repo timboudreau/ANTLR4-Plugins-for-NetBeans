@@ -48,7 +48,7 @@ import java.util.function.Supplier;
  * so again, and state will be restored correctly as each caller exits its
  * closure.
  * <p>
- * Basically, the issue is that Antlr has calls to System.out.println baked into
+ * Basically, the issue is that Antlr has calls to println baked into
  * it, parsers and lexers by default attach listeners that do so as well, and
  * catching every case where one might not have them removed is difficult. The
  * output is more usefully routed to the output window anyway, so getting it out

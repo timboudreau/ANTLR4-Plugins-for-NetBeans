@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.parsing;
 
+import com.mastfrog.function.state.Obj;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Escaper;
@@ -105,7 +106,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         environment.set(new EmbeddedParsingEnvironment(path, grammarName));
         lastParseInfo = new AtomicReference<>(placeholderInfo = new LastParseInfo(path, grammarName));
         LOG.log(Level.FINER, "Create an EmbeddedAntlrParserImpl {0} for {1} grammar {2} type {3}",
-                new Object[] {logName, path, grammarName, mimeType});
+                new Object[]{logName, path, grammarName, mimeType});
     }
 
     @Override
@@ -218,11 +219,15 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         // the previous parser result without acquiring any locks.  I can't think
         // of a scenario where this fails.
         EmbeddedParsingEnvironment oldInfo = environment.get();
+
         if (oldInfo.modifications.changes().isUpToDate()) {
             LastParseInfo last = lastParseInfo.get();
             if (last != null && last.canReuse(textToParse)) {
-                LOG.log(Level.FINEST, "Reuse last parser result for same text");
-                return last.parserResult;
+                if (last.parserResult.grammarTokensHash().equals(oldInfo.grammarTokensHash)) {
+                    LOG.log(Level.FINEST, "Reuse last parser result for same text."
+                            + " My tokens hash " + oldInfo.grammarTokensHash);
+                    return last.parserResult;
+                }
             } else if (last != null && textToParse != null && last.seq != null && LOG.isLoggable(Level.FINEST)) {
                 LOG.log(Level.FINEST, "Text may be changed: " + charDiff(textToParse, last.seq));
             }
@@ -234,7 +239,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         // text is null (in which case, we are being invoked just for the lexer to get
         // the list of token types)
         return Debug.runObjectThrowing(this, logName + "-" + environment.get().grammarTokensHash, () -> {
-            EmbeddedAntlrParserResult[] resHolder = new EmbeddedAntlrParserResult[1];
+            Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
             ParserManager.parse(mimeType, new UserTask() {
                 // Seems we need to preemptively acquire the parser manager's
                 // lock, so as to avoid a deadlock
@@ -270,7 +275,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                                     + "for same or null text", lpi);
                             Debug.message(logName + "-reuse-" + info.grammarTokensHash,
                                     lpi::toString);
-                            resHolder[0] = lpi.parserResult;
+                            resHolder.set(lpi.parserResult);
                             return;
                         }
                         Debug.message("Will parse with", info.parser::toString);
@@ -281,7 +286,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     LOG.log(Level.FINEST, "Parsed to {0} by {1}",
                             new Object[]{res.loggingInfo(), info.parser});
                     String gth = info.grammarTokensHash;
-                    EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(res,
+                    EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(path, res,
                             info.runResult, info.grammarTokensHash, grammarName);
                     if (toParse != null) {
                         lastParseInfo.set(new LastParseInfo(result, toParse));
@@ -291,10 +296,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     }
                     LOG.log(Level.FINE, "New parser result {0}", result);
                     Debug.success(logName + "-created-" + res.loggingInfo(), result::toString);
-                    resHolder[0] = result;
+                    resHolder.set(result);
                 }
             });
-            return resHolder[0];
+            return resHolder.get();
         });
     }
 
@@ -443,7 +448,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
         public EmbeddedParsingEnvironment(Path path, String grammarName) {
             LOG.log(Level.FINEST, "Create an initial dummy environment for {0} grammar {1}",
-                    new Object[] {path, grammarName});
+                    new Object[]{path, grammarName});
             grammarTokensHash = "-";
             modifications = JFSFileModifications.empty();
             parser = new DeadEmbeddedParser(path, grammarName);
@@ -586,7 +591,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         }
 
         LastParseInfo(Path path, String grammarName) {
-            this.parserResult = new EmbeddedAntlrParserResult(AntlrProxies.forUnparsed(path, grammarName, "-"),
+            this.parserResult = new EmbeddedAntlrParserResult(path, AntlrProxies.forUnparsed(path, grammarName, "-"),
                     null, "-", grammarName);
             this.seq = "-";
         }
@@ -598,7 +603,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             if (seq != null && textToParse != null) {
                 return charSequencesMatchModuloTrailingNewline(seq, textToParse);
             }
-            return seq != null && parserResult.runResult() != null
+            if (textToParse == null) {
+                return false;
+            }
+            return seq != null && textToParse != null && parserResult.runResult() != null
                     && Strings.charSequencesEqual(seq, textToParse);
         }
 

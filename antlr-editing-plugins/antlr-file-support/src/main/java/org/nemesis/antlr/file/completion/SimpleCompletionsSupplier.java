@@ -102,7 +102,6 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         static AntlrCompleter find(Document doc) {
             AntlrCompleter result = (AntlrCompleter) doc.getProperty(AntlrCompleter.class);
             if (result == null) {
-                System.out.println("CREATE AN ANTLR COMPLETER");
                 result = new AntlrCompleter(doc);
                 doc.putProperty(AntlrCompleter.class, result);
             }
@@ -163,8 +162,6 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) throws Exception {
             String optionalPrefix = nullBlanks(token.leadingTokenText());
             String optionalSuffix = nullBlanks(token.trailingTokenText());
-            System.out.println("NAMES FOR RULE " + ANTLRv4Parser.ruleNames[parserRuleId]
-                    + " pfx '" + optionalPrefix + "' sfx '" + optionalSuffix + "'");
             findNames(parserRuleId, nullBlanks(optionalPrefix), maxResultsPerKey,
                     nullBlanks(optionalSuffix), rulePath, addTo);
 

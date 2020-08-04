@@ -59,7 +59,6 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
         static DTCompleter find(Document doc) {
             DTCompleter result = (DTCompleter) doc.getProperty(DTCompleter.class);
             if (result == null) {
-                System.out.println("CREATE AN ANTLR COMPLETER");
                 result = new DTCompleter(doc);
                 doc.putProperty(DTCompleter.class, result);
             }
@@ -86,13 +85,10 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
                     isLexer = true;
                     break;
                 default:
-                    System.out.println("NO GO " + ANTLRv4Parser.ruleNames[parserRuleId]);
                     return;
             }
-            System.out.println("try to do the thing " + token);
             if (token.tokenType() == ANTLRv4Lexer.SEMI) {
                 token = token.before();
-                System.out.println(" on semi, back up to " + token);
                 if (token == null) {
                     return;
                 }
@@ -103,7 +99,6 @@ public class DupTokenCompletionsSupplier extends CompletionsSupplier implements 
             // elsewhere I think
             Obj<CaretToken> preceding = Obj.create();
             if (!isAfterFirstAtom(token, preceding)) {
-                System.out.println("  after first atom, bail");
                 return;
             }
             Position pos = NbDocument.createPosition(doc, token.tokenEnd(), Position.Bias.Backward);

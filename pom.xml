@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.50</version>
+    <version>2.0.51</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -34,7 +34,7 @@ limitations under the License.
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
-        <mastfrog.version>2.6.12</mastfrog.version>
+        <mastfrog.version>2.6.13</mastfrog.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.2</new.junit.version>
@@ -256,8 +256,14 @@ limitations under the License.
                                 <bannedDependencies>
                                     <searchTransitive>true</searchTransitive>
                                     <excludes>
-                                        <!--<exclude>commons-logging:commons-logging</exclude>-->
-                                        <!--<exclude>org.slf4j:slf4j-simple</exclude>-->
+                                        <!--
+                                        Some aggressively stupid bug in NetBeans Maven web
+                                        project support will randomly insert this into projects
+                                        with no notification, so catch it early so it can be
+                                        ripped out.
+                                        -->
+                                        <exclude>org.seleniumhq.selenium:selenium-java</exclude>
+                                        <exclude>com.opera:operadriver</exclude>
                                     </excludes>
                                 </bannedDependencies>
                             </rules>

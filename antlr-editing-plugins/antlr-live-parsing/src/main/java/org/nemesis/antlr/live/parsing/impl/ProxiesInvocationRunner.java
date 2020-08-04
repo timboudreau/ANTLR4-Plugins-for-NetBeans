@@ -18,12 +18,12 @@ package org.nemesis.antlr.live.parsing.impl;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -42,6 +42,7 @@ import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner.GenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
@@ -53,10 +54,11 @@ import org.openide.util.lookup.ServiceProvider;
 import org.stringtemplate.v4.Interpreter;
 
 /**
- * Factory that replaces the inner EmbeddedParser implementation wrapped by the persistent instances of
- * EmbeddedAntlrParser returned by EmbeddedAntlrParsers; this class is called when an Antlr grammar
- * has been rebuild in its JFS and the parser may need to recompile its ParserExptractor to work
- * against the revised grammar.
+ * Factory that replaces the inner EmbeddedParser implementation wrapped by the
+ * persistent instances of EmbeddedAntlrParser returned by EmbeddedAntlrParsers;
+ * this class is called when an Antlr grammar has been rebuild in its JFS and
+ * the parser may need to recompile its ParserExptractor to work against the
+ * revised grammar.
  *
  * @author Tim Boudreau
  */
@@ -66,6 +68,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
     private static final Logger LOG = Logger.getLogger(
             ProxiesInvocationRunner.class.getName());
+
     private static final IsolatingClassLoaderSupplier CLASSLOADER_FACTORY
             = new IsolatingClassLoaderSupplier();
 
@@ -73,6 +76,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     public ProxiesInvocationRunner() {
         super(EmbeddedParser.class);
         LOG.log(Level.FINE, "Created {0}", this);
+    }
+
+    public String toString() {
+        return "ProxiesInvocationRunner<EmbeddedParser, GenerationResult>";
     }
 
     private static Supplier<String> compileMessage(AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName) {
@@ -149,22 +156,35 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     }
 
     @Override
-    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
+    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, 
+            AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr,
+            String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
         return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
             GrammarKind kind = GrammarKind.forTree(tree);
-            Optional<Path> realSourceFile = extraction.source().lookup(Path.class);
-            if (realSourceFile.isPresent()) {
-                Path path = realSourceFile.get();
+            Path path = res.originalFilePath;
+            try (PrintStream info = AntlrLoggers.getDefault().printStream(path, AntlrLoggers.STD_TASK_GENERATE_ANALYZER)) {
                 Grammar lexerGrammar = findLexerGrammar(res);
                 String lexerName = lexerGrammar == null ? findLexerGrammarName(res) : lexerGrammar.name;
-                ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(path, jfs,
-                        res.packageName, findTargetName(res), lexerName);
-                LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}", new Object[]{path, kind, genResult});
-                if (LOG.isLoggable(Level.FINEST)) {
-                    LOG.log(Level.FINEST, "OnBeforeCompilation", new Exception("Generation result " + System.identityHashCode(res)
-                            + " " + res.grammarName + " " + res.packageName + " extraction " + extraction.source()
-                            + " extraction id " + System.identityHashCode(extraction)));
+
+                info.println("Generate Live Analysis code for " + kind + " grammar " + path);
+                if (lexerName != null) {
+                    info.println("Lexer name from grammar:\t" + lexerName);
                 }
+                info.println("Grammar tokens hash:\t" + res.tokensHash);
+                info.println("Tokens hash from extraction:\t" + (extraction == null ? "(no extraction)" : extraction.tokensHash()));
+                info.println();
+
+                ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(kind, path, jfs,
+                        res.packageName, findTargetName(res), lexerName, info, extraction.tokensHash(), res.hints);
+
+                LOG.log(Level.FINER, "onBeforeCompilation for {0} kind {1} generation result {2}"
+                        + " tokens hash {3}",
+                        new Object[]{
+                            path,
+                            kind,
+                            genResult,
+                            (extraction == null ? "" : extraction.tokensHash())
+                        });
 
                 bldr.verbose().withMaxErrors(10).withMaxWarnings(10).nonIdeMode().abortOnBadClassFile();
 
@@ -180,15 +200,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 return Debug.runObject(this, "Generate extractor source", () -> {;
                     csc.accept(CLASSLOADER_FACTORY);
                     GenerationResult gr = new GenerationResult(genResult, res.packageName, path, res.grammarName);
-                    LOG.log(Level.FINEST, "Generation result {0}", gr);
+                    LOG.log(Level.FINER, "Generation result {0}", gr);
                     Debug.message("Generation result", gr::toString);
                     return gr;
                 });
-            } else {
-                Debug.message("No source file for extraction {0}", extraction.logString());
-                LOG.log(Level.WARNING, "No source file for extraction {0}", extraction.logString());
             }
-            return null;
         });
     }
 
@@ -205,7 +221,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             }
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
             PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName, res.res);
-            LOG.log(Level.FINER, "New environment created for embedded parser: {0} and {1}", new Object[] {env, res.res});
+            LOG.log(Level.FINER, "New environment created for embedded parser: {0} and {1}", new Object[]{env, res.res});
             Debug.message("Use new PreservedInvocationEnvironment", env::toString);
             return env;
         });
@@ -223,6 +239,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             this.packageName = packageName;
             this.grammarPath = grammarPath;
             this.grammarName = grammarName;
+        }
+
+        public boolean isUsable() {
+            return res != null && res.isSuccess();
         }
 
         @Override
@@ -319,7 +339,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public String toString() {
-            return super.toString() + "(" + ref + " - " + typeName  + " generationInfo: "
+            return super.toString() + "(" + ref + " - " + typeName + " generationInfo: "
                     + genInfo.toString().replace("\n", "; ") + ")";
         }
 
@@ -346,9 +366,9 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         @Override
         public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body) throws Exception {
             LOG.log(Level.FINER, "Initiating parse in {0}", logName);
-            if (LOG.isLoggable(Level.FINEST)) {
-                LOG.log(Level.FINEST, "Parse culprit " + logName + " in PIE " + System.identityHashCode(this), new Exception());
-            }
+//            if (LOG.isLoggable(Level.FINEST)) {
+//                LOG.log(Level.FINEST, "Parse culprit " + logName + " in PIE " + System.identityHashCode(this), new Exception());
+//            }
             AntlrProxies.ParseTreeProxy[] prex = new AntlrProxies.ParseTreeProxy[1];
             return Debug.runObjectThrowing(this, "embedded-parse for " + logName, () -> {
                 StringBuilder sb = new StringBuilder("************* BODY ***************\n");

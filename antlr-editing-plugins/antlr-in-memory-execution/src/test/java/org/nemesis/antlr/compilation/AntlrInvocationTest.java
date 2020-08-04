@@ -93,7 +93,6 @@ public class AntlrInvocationTest {
         assertEquals("syntaxError: 1:18 token recognition error at: ']'", errs.get(0));
         assertEquals("syntaxError: 1:19 token recognition error at: '['", errs.get(1));
 
-
         if (CLREF.get() != null) {
             for (int i = 0; i < 10 && CLREF.get() != null; i++) {
                 System.gc();
@@ -214,9 +213,11 @@ public class AntlrInvocationTest {
         AntlrGeneratorAndCompilerTest.addToJFS(jfs, sourceFilePath.getParent().resolve("NestedMapInfoExtractor.java"),
                 StandardLocation.SOURCE_OUTPUT, runnerSource);
 
-        runner = AntlrGeneratorAndCompilerBuilder.runnerBuilder(jfs)
+        runner = AntlrGeneratorAndCompilerBuilder.runnerBuilder(() -> jfs)
                 .generateIntoJavaPackage(pkg)
                 .javaSourceOutputLocation(StandardLocation.SOURCE_OUTPUT)
+                .withOriginalFile(sourceFilePath)
+                .withTokensHash("-mmm-")
                 .building(sourceFilePath.getParent())
                 .addToClasspath(Grammar.class)
                 .addToClasspath(org.antlr.v4.runtime.tree.ParseTree.class)

@@ -15,6 +15,7 @@
  */
 package org.nemesis.jfs;
 
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.IOException;
 import java.net.URL;
@@ -26,8 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import javax.tools.FileObject;
 
 /**
- * Extension interface to FileObject with some convenience
- * methods.
+ * Extension interface to FileObject with some convenience methods.
  *
  * @author Tim Boudreau
  */
@@ -57,8 +57,8 @@ public interface JFSFileObject extends FileObject {
     int length();
 
     /**
-     * Returns true if the effective package name of this file
-     * matches the passed one.
+     * Returns true if the effective package name of this file matches the
+     * passed one.
      *
      * @param pkg A Java package name
      * @return True if it matches
@@ -73,23 +73,23 @@ public interface JFSFileObject extends FileObject {
      * @throws IOException If something goes wrong
      * @throws UnsupportedOperationException if the file is read-only (either
      * using read-only allocator for the merged view of the filesystem's
-     * contents, or if the file is a proxy for a real file on disk and
-     * does not actually have a copy of its bytes in memory in this filesystem)
+     * contents, or if the file is a proxy for a real file on disk and does not
+     * actually have a copy of its bytes in memory in this filesystem)
      */
     void setBytes(byte[] bytes, long lastModified) throws IOException;
 
     /**
-     * Returns a view of this file which implements JavaFileObject, possibly
-     * by replacing it in the filesystem with an implementation over the
-     * same backing store, of that interface.
+     * Returns a view of this file which implements JavaFileObject, possibly by
+     * replacing it in the filesystem with an implementation over the same
+     * backing store, of that interface.
      *
      * @return A JavaFileObject
      */
     JFSJavaFileObject toJavaFileObject();
 
     /**
-     * Get a resolvable URL to this JFSFileObject, which will resolve for
-     * as long as the owning JFS exists and it is present in it.
+     * Get a resolvable URL to this JFSFileObject, which will resolve for as
+     * long as the owning JFS exists and it is present in it.
      *
      * @return A URL
      */
@@ -104,15 +104,71 @@ public interface JFSFileObject extends FileObject {
         return Paths.get(getName());
     }
 
+    /**
+     * Get the kind of storage that backs this file object - may describe the
+     * kind of byte storage backing this JFS, or may be a masqueraded Swing
+     * Document or real file on disk.
+     *
+     * @return the storage kind
+     */
     JFSStorageKind storageKind();
 
+    /**
+     * Convenience method for setting the text of a file, which will be stored
+     * in whatever encoding this JFS uses.
+     *
+     * @param txt The text
+     * @return The content
+     * @throws IOException if something goes wrong
+     */
     JFSFileObject setTextContent(String txt) throws IOException;
 
+    /**
+     * Create a JFSFileReference which does not retain a reference to this
+     * object or its file system, but can be resolved against another, or
+     * transparently re-resolved against this one if the originating filesystem
+     * still exists.
+     *
+     * @return A JFSFileReference
+     */
+    JFSCoordinates.Resolvable toReference();
+
+    /**
+     * Create a JFSCoordinates which does not reference this filesystem, just
+     * retains the location and path to this file.
+     *
+     * @return A JFSCoordinates
+     */
+    JFSCoordinates toCoordinates();
+
+    /**
+     * Get the path of this file as a UnixPath.
+     *
+     * @return The path
+     */
+    UnixPath path();
+
+    /**
+     * Hash the backing bytes of this file into the passed digest
+     *
+     * @param digest
+     * @throws IOException
+     */
     default void hash(MessageDigest digest) throws IOException {
+        if (storageKind() == JFSStorageKind.DISCARDED) {
+            digest.update((byte) -1);
+            return;
+        }
         digest.update(asBytes());
     }
 
-    default byte[] hash() throws IOException{
+    /**
+     * Hash the bytes of this file as a SHA-1 hash.
+     *
+     * @return The hash
+     * @throws IOException If something goes wrong
+     */
+    default byte[] hash() throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-1");
             hash(digest);

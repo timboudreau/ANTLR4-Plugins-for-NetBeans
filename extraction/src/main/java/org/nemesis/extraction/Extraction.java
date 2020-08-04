@@ -65,7 +65,6 @@ import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.data.named.ContentsChecksums;
 import org.nemesis.extraction.attribution.ResolverRegistry;
-import org.nemesis.misc.utils.TimedSoftReference;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.annotations.common.NullAllowed;
 
@@ -92,7 +91,7 @@ public final class Extraction implements Externalizable {
     private final Map<SingletonKey<?>, SingletonEncounters<?>> singles = new HashMap<>(4);
     private volatile transient Map<NameReferenceSetKey<?>, Map<UnknownNameReferenceResolver<?, ?, ?, ?>, Attributions<?, ?, ?, ?>>> resolutionCache;
     private volatile transient Map<Set<ExtractionKey<?>>, Set<String>> keysCache;
-    private transient Map<Extractor<?>, Map<GrammarSource<?>, TimedSoftReference<Extraction>>> cachedExtractions;
+    private transient Map<Extractor<?>, Map<GrammarSource<?>, TSR<Extraction>>> cachedExtractions;
     private final Set<NameAndBoundsPair<?>> nameAndBoundsKeyRelationships = new HashSet<>();
     private final Map<ExtractionKey<?>, String> scopingDelimiters = new HashMap<>(3);
     private String extractorsHash;
@@ -554,9 +553,9 @@ public final class Extraction implements Externalizable {
             return this;
         }
         if (cachedExtractions != null) {
-            Map<GrammarSource<?>, TimedSoftReference<Extraction>> forSource = cachedExtractions.get(extractor);
+            Map<GrammarSource<?>, TSR<Extraction>> forSource = cachedExtractions.get(extractor);
             if (forSource != null) {
-                TimedSoftReference<Extraction> cached = forSource.get(src);
+                TSR<Extraction> cached = forSource.get(src);
                 if (cached != null) {
                     Extraction ext = cached.get();
                     if (ext != null) {
@@ -569,17 +568,16 @@ public final class Extraction implements Externalizable {
         if (cachedExtractions == null) {
             cachedExtractions = new HashMap<>();
         }
-        Map<GrammarSource<?>, TimedSoftReference<Extraction>> forSource = cachedExtractions.get(extractor);
+        Map<GrammarSource<?>, TSR<Extraction>> forSource = cachedExtractions.get(extractor);
         if (forSource == null) {
             forSource = new HashMap<>();
             cachedExtractions.put(extractor, forSource);
         }
-        TimedSoftReference<Extraction> ref = forSource.get(src);
-        if (ref == null) {
-            forSource.put(src, TimedSoftReference.create(nue));
-        } else {
-            ref.set(nue);
+        TSR<Extraction> ref = forSource.get(src);
+        if (ref != null) {
+            ref.dispose();
         }
+        forSource.put(src, TSR.create(nue));
         // Share one map between the tree of extractions created by
         // attributing sources
         nue.cachedExtractions = cachedExtractions;
@@ -1004,10 +1002,8 @@ public final class Extraction implements Externalizable {
                 }
                 sb.append("\n\t");
             }
-            System.out.println("ADD " + sb);
              */
             ruleIdsForKeys.values().forEach(availableRuleIds::addAll);
-//            System.out.println("ALL mappings now " + ruleIdMappings);
         }
     };
 
@@ -1023,9 +1019,7 @@ public final class Extraction implements Externalizable {
      * @param names A consumer for the results
      */
     public void namesForRule(int parserRuleId, String optionalPrefix, int maxResultsPerKey, String optionalSuffix, BiConsumer<String, Enum<?>> names) {
-//        System.out.println("NamesForRule " + RulesMapping.forMimeType(mimeType).nameForRuleId(parserRuleId) + "(" + parserRuleId + ") in " + ruleIdMappings);
         if (!availableRuleIds.contains(parserRuleId) || ruleIdMappings.isEmpty()) {
-//            System.out.println("Available rule ids does not contain " + parserRuleId + " - " + availableRuleIds);
             return;
         }
         for (RuleIdMapping<?> mapping : ruleIdMappings) {
@@ -1096,8 +1090,6 @@ public final class Extraction implements Externalizable {
             String prefix = optionalPrefix;
             Set<T> kinds = find(ruleId);
             if (kinds.isEmpty()) {
-//                System.out.println("Found no kinds for " + RulesMapping.forMimeType(mimeType).nameForRuleId(ruleId) + "(" + ruleId + ") in " + this
-//                        + " with prefix '" + optionalPrefix + "'");
                 return;
             }
             boolean isAll = EnumSet.allOf(enumType).equals(kinds);
@@ -1133,19 +1125,10 @@ public final class Extraction implements Externalizable {
                                             && !fullText.equals(reg.name());
                                     return result;
                                 }));
-//                                System.out.println("Names starting with '" + prefix
-//                                        + "': " + all + " in " + Arrays.toString(regs.nameArray())
-//                                        + " for kinds " + kinds);
-
                                 for (String name : all) {
                                     c.accept(name, regs.kind(name));
                                 }
                             } else {
-//                                System.out.println("Collect all: "
-//                                        + regs.collectNames(reg -> kinds.contains(reg.kind()))
-//                                        + " for no prefix, " + kinds + " in "
-//                                        + Arrays.toString(regs.nameArray()));
-////                                regs.collectNames(keys::contains).forEach(c);
                                 regs.forEach(reg -> {
                                     if (kinds.contains(reg.kind()) && !fullText.equals(reg.name())) {
                                         c.accept(reg.name(), reg.kind());

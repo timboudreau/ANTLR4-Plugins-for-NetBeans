@@ -38,6 +38,7 @@ import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
@@ -67,6 +68,7 @@ import org.openide.util.WeakSet;
 final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Supplier<TokensInfo> {
 
     public static final String DUMMY_TOKEN_ID = "__dummyToken__";
+
     private final String mimeType;
     private static final Logger LOG = Logger.getLogger(AdhocLanguageHierarchy.class.getName());
 
@@ -188,10 +190,13 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         // contents
 //        AdhocMimeDataProvider.getDefault().gooseLanguage(mimeType);
         if (hinfo.initialized()) {
+            LOG.log(Level.FINEST, "Wipe language");
             // If we are inside a call to super.language(), we shouldn't
             // clear the language field, and the synchronization of that
             // method makes it trivial to deadlock
             wipeLanguage();
+        } else {
+            LOG.log(Level.FINEST, "Not wiping language");
         }
         return false;
     }
@@ -294,6 +299,15 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         info.parser();
     }
 
+    public String tokensHashFor(String mime) {
+        HierarchyInfo info = hierarchyInfo(mime);
+        return info.grammarTokensHash();
+    }
+
+    static void maybeUpdateTokenInfo(String mimeType, EmbeddedAntlrParserResult pres) {
+        hierarchyInfo(mimeType).maybeUpdateTokenInfo(pres);
+    }
+
     /**
      * It is possible to have multiple live AdhocLanguageHierarchy instances for
      * the same mime type (language being updated while lexing is running), so
@@ -313,6 +327,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         private final Set<BiConsumer<Extraction, GrammarRunResult<?>>> onReplaces = new WeakSet<>();
         private FileObject grammarFo;
         private Project project;
+        private String grammarTokensHash = "-";
+
         public HierarchyInfo(String mimeType) {
             this.mimeType = mimeType;
             readLock = lock.readLock();
@@ -339,11 +355,15 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                     return result;
                 }
             }
-            FileObject fo = grammarFo == null ?  FileUtil.toFileObject(grammarFilePath.toFile()) : grammarFo;
+            FileObject fo = grammarFo == null ? FileUtil.toFileObject(grammarFilePath.toFile()) : grammarFo;
             if (fo != null) {
                 return RebuildSubscriptions.mostRecentGrammarLastModifiedInProjectOf(fo);
             }
             return -1;
+        }
+
+        synchronized String grammarTokensHash() {
+            return grammarTokensHash;
         }
 
         long isGrammarInfoUpToDate() throws IOException {
@@ -366,7 +386,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         public void accept(Extraction ext, GrammarRunResult<?> res) {
             LOG.log(Level.FINE, "{0} notified new env - notifying {1} listeners {2}",
                     new Object[]{this, onReplaces.size(), onReplaces});
-            Debug.run(this, "New extraction " + ext.source() + " notifying " + onReplaces.size() + " listeners", () -> {
+            Debug.run(this, "New extraction " + ext.source() + " notifying "
+                    + onReplaces.size() + " listeners", () -> {
                 StringBuilder sb = new StringBuilder("RunResult ").append(res)
                         .append(" Usable? ").append(res.isUsable()).append('\n');
                 sb.append("Extraction - placeholder?").append(ext.isPlaceholder())
@@ -374,6 +395,9 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                         .append(ext.logString().get());
                 return sb.toString();
             }, () -> {
+                synchronized (this) {
+                    grammarTokensHash = ext.tokensHash();
+                }
                 for (BiConsumer<Extraction, GrammarRunResult<?>> r : onReplaces) {
                     try {
                         Debug.message("notify", r::toString);
@@ -405,6 +429,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         }
 
         private TokensInfo recreateInfo() {
+            LOG.log(Level.FINE, "Recreate tokens info for {0}", mimeType);
             try {
                 assert writeLock.isHeldByCurrentThread();
                 EmbeddedAntlrParser p = parser();
@@ -434,7 +459,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                         newIds.size(), this, Thread.currentThread()});
             Collections.sort(newIds);
             includeDummyToken(newIds);
-            TokensInfo newInfo = new TokensInfo(newIds, cats);
+            TokensInfo newInfo = new TokensInfo(newIds, cats, grammarTokensHash);
             TokensInfo old = info;
             if (!newInfo.equals(old)) {
                 info = newInfo;
@@ -452,8 +477,12 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                     readLock.unlock();
                 }
                 long id = result.id();
-                if (result.isEmpty() || isGrammarInfoUpToDate() != -1) {
+                if (result.isEmpty()
+                        || isGrammarInfoUpToDate() != -1
+                        || !info.isTokensHashUpToDate(grammarTokensHash)) {
                     result = info = inWriteLockMaybeRebuild(id);
+                } else {
+                    LOG.log(Level.FINEST, "Not rebuilding tokens info");
                 }
                 return result;
             } catch (IOException ex) {
@@ -477,6 +506,17 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 writeLock.unlock();
             }
             return result;
+        }
+
+        private void maybeUpdateTokenInfo(EmbeddedAntlrParserResult pres) {
+            if (!pres.proxy().isUnparsed()) {
+                writeLock.lock();
+                try {
+                    buildTokensInfo(pres.proxy());
+                } finally {
+                    writeLock.unlock();
+                }
+            }
         }
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.nemesis.antlr.subscription;
 
+import com.mastfrog.function.TriConsumer;
 import com.mastfrog.util.preconditions.Checks;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -13,6 +14,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -85,7 +87,7 @@ public class SubscribableBuilder {
             this.applier = applier;
         }
 
-        public StoreSubscribableBuilder<K, IK, C, E> storingSubscribers(int targetSize, CacheType type, Supplier<Set<C>> setFactory) {
+        public StoreSubscribableBuilder<K, IK, C, E> storingSubscribers(int targetSize, MapFactory type, Supplier<Set<C>> setFactory) {
             SubscribersStoreImpl<IK, C> store = new SubscribersStoreImpl<>(targetSize, type, setFactory);
             return new StoreSubscribableBuilder<>(keyType, keys, applier, store);
         }
@@ -106,7 +108,7 @@ public class SubscribableBuilder {
             return new SubscriberStorageBuilder<>(this).withInitialSubscriberSetSize(setSize);
         }
 
-        public SubscriberStorageBuilder<K, IK, E, C> withCacheTypes(CacheType types) {
+        public SubscriberStorageBuilder<K, IK, E, C> withCacheTypes(MapFactory types) {
             return new SubscriberStorageBuilder<>(this).withCacheType(types);
         }
     }
@@ -117,7 +119,7 @@ public class SubscribableBuilder {
         private int initialSubscriberSetSize = 16;
         private boolean threadSafe = true;
         private final EventSubscribableBuilder<K, IK, E, C> outer;
-        private CacheType mappingType = CacheType.WEAK;
+        private MapFactory mappingType = MapFactories.WEAK;
         private int initialKeyMapSize = 16;
 
         public SubscriberStorageBuilder(EventSubscribableBuilder<K, IK, E, C> outer) {
@@ -144,7 +146,7 @@ public class SubscribableBuilder {
             return this;
         }
 
-        public SubscriberStorageBuilder<K, IK, E, C> withCacheType(CacheType type) {
+        public SubscriberStorageBuilder<K, IK, E, C> withCacheType(MapFactory type) {
             mappingType = type;
             return this;
         }
@@ -191,15 +193,18 @@ public class SubscribableBuilder {
         }
 
         public FinishableSubscribableBuilder<K, IK, E, C> withCoalescedAsynchronousEventDelivery(ScheduledExecutorService threadPool, int delay, TimeUnit delayUnits) {
-            return withCoalescedAsynchronousEventDelivery(threadPool, CacheType.WEAK, delay, delayUnits);
+            return withCoalescedAsynchronousEventDelivery(threadPool, MapFactories.WEAK, delay, delayUnits);
         }
 
         public FinishableSubscribableBuilder<K, IK, E, C> withCoalescedAsynchronousEventDelivery(int delay, TimeUnit delayUnits) {
-            return withCoalescedAsynchronousEventDelivery(Executors.newScheduledThreadPool(3), CacheType.WEAK, delay, delayUnits);
+            return withCoalescedAsynchronousEventDelivery(Executors.newScheduledThreadPool(3), MapFactories.WEAK, delay, delayUnits);
         }
 
-        public FinishableSubscribableBuilder<K, IK, E, C> withCoalescedAsynchronousEventDelivery(ScheduledExecutorService threadPool, CacheType cacheType, int delay, TimeUnit delayUnits) {
+        public FinishableSubscribableBuilder<K, IK, E, C> withCoalescedAsynchronousEventDelivery(ScheduledExecutorService threadPool, MapFactories cacheType, int delay, TimeUnit delayUnits) {
             return new FinishableSubscribableBuilder<>(keyType, keys, applier, store, del, del.coalescing(threadPool, cacheType, Checks.greaterThanOne("delay", delay), delayUnits));
+        }
+        public FinishableSubscribableBuilder<K, IK, E, C> withCoalescedAsynchronousEventDelivery(BooleanSupplier coalesceWhenTrue, ScheduledExecutorService threadPool, MapFactories cacheType, int delay, TimeUnit delayUnits) {
+            return new FinishableSubscribableBuilder<>(keyType, keys, applier, store, del, del.coalescing(coalesceWhenTrue, threadPool, cacheType, Checks.greaterThanOne("delay", delay), delayUnits));
         }
     }
 
@@ -210,8 +215,9 @@ public class SubscribableBuilder {
         private final EventApplier<? super IK, ? super E, ? super C> applier;
         private final SubscribersStoreImpl<IK, C> store;
         private final DelegatingNotifier<K, E> del;
-        private final SubscribableNotifier<? super K, ? super E> externalNotifier;
-        private BiConsumer<? super IK, ? super C> onSubscribe;
+        private final SubscribableNotifier<? super K, ? super E> subscribeNotifier;
+        private TriConsumer<? super K, ? super IK, ? super C> onSubscribe;
+        private TriConsumer<? super K, ? super IK, ? super C> onUnsubscribe;
 
         FinishableSubscribableBuilder(Class<K> keyType, KeyFactory<? super K, ? extends IK> keys, EventApplier<? super IK, ? super E, ? super C> applier, SubscribersStoreImpl<IK, C> store, DelegatingNotifier<K, E> del, SubscribableNotifier<? super K, ? super E> externalNotifier) {
             this.keyType = keyType;
@@ -219,43 +225,62 @@ public class SubscribableBuilder {
             this.applier = applier;
             this.store = store;
             this.del = del;
-            this.externalNotifier = externalNotifier;
+            this.subscribeNotifier = externalNotifier;
         }
 
-        public FinishableSubscribableBuilder<K, IK, E, C> onSubscribe(BiConsumer<? super IK, ? super C> onSubscribe) {
+        public FinishableSubscribableBuilder<K, IK, E, C> onSubscribe(TriConsumer<? super K, ? super IK, ? super C> onSubscribe) {
             if (this.onSubscribe == null) {
                 this.onSubscribe = onSubscribe;
             } else {
-                BiConsumer<? super IK, ? super C> old = this.onSubscribe;
-                this.onSubscribe = (ik, c) -> {
-                    old.accept(ik, c);
-                    onSubscribe.accept(ik, c);
+                TriConsumer<? super K, ? super IK, ? super C> old = this.onSubscribe;
+                this.onSubscribe = (k, ik, c) -> {
+                    old.apply(k, ik, c);
+                    onSubscribe.apply(k, ik, c);
                 };
             }
             return this;
         }
 
-        public SubscribableContents<K, C, E> build() {
-            SubscribableImpl<K, IK, C, E> result = new SubscribableImpl<>(keys, applier, store, store.mutator(), onSubscribe, del);
+        public FinishableSubscribableBuilder<K, IK, E, C> onUnsubscribe(TriConsumer<? super K, ? super IK, ? super C> onSubscribe) {
+            if (this.onUnsubscribe == null) {
+                this.onUnsubscribe = onSubscribe;
+            } else {
+                TriConsumer<? super K, ? super IK, ? super C> old = this.onUnsubscribe;
+                this.onUnsubscribe = (k, ik, c) -> {
+                    old.apply(k, ik, c);
+                    onSubscribe.apply(k, ik, c);
+                };
+            }
+            return this;
+        }
+
+        public SubscribableContents<K, IK, C, E> build() {
+            SubscribableImpl<K, IK, C, E> result = new SubscribableImpl<>(keys, applier, store, store.mutator(), onSubscribe, del, onUnsubscribe);
             SubscribersStoreController<K, C> mut = store.mutator().converted(keys);
-            SubscribableContents<K, C, E> contents
-                    = new SubscribableContents<>(result, externalNotifier, mut);
+            SubscribableContents<K, IK, C, E> contents
+                    = new SubscribableContents<>(result, subscribeNotifier, mut, store.mutator(), store);
             return contents;
         }
     }
 
-    public static final class SubscribableContents<K, C, E> {
+    public static final class SubscribableContents<K, IK, C, E> {
 
         public final Subscribable<K, C> subscribable;
         public final SubscribableNotifier<? super K, ? super E> eventInput;
-//        public final SubscribersStore.SubscribersStoreController<K, C> subscribersManager;
+        public final SubscribersStoreController<K, C> subscribersManager;
+        public final SubscribersStore<IK, C> store;
+        public final CacheMaintainer<K> caches;
 
-        SubscribableContents(Subscribable<K, C> subscribable, SubscribableNotifier<? super K, ? super E> eventInput, SubscribersStoreController<K, C> subscribersManager) {
+        SubscribableContents(Subscribable<K, C> subscribable,
+                SubscribableNotifier<? super K, ? super E> eventInput,
+                SubscribersStoreController<K, C> subscribersManager,
+                SubscribersStoreController<IK, C> rawubscribersManager,
+                SubscribersStore<IK, C> store) {
             this.subscribable = subscribable;
+            caches = (SubscribableImpl<K, IK, C, E>) subscribable;
             this.eventInput = eventInput;
-//            this.subscribersManager =s subscribersManager;
+            this.subscribersManager = subscribersManager;
+            this.store = store;
         }
-
     }
-
 }

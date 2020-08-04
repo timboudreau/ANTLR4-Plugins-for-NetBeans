@@ -82,7 +82,19 @@ public interface SubscribableNotifier<K, E> {
         };
     }
 
-    default SubscribableNotifier<K, E> coalescing(ScheduledExecutorService svc, CacheType cacheType, int delay, TimeUnit unit) {
+    default SubscribableNotifier<K, E> coalescing(ScheduledExecutorService svc, MapFactory cacheType, int delay, TimeUnit unit) {
         return new CoalescingSubscribableNotifier<>(svc, cacheType, delay, unit, this);
     }
+
+    default SubscribableNotifier<K, E> coalescing(BooleanSupplier test, ScheduledExecutorService svc, MapFactory cacheType, int delay, TimeUnit unit) {
+        CoalescingSubscribableNotifier<K,E> coa = new CoalescingSubscribableNotifier<>(svc, cacheType, delay, unit, this);
+        return (K key, E event) -> {
+            if (test.getAsBoolean()) {
+                coa.onEvent(key, event);
+            } else {
+                this.onEvent(key, event);
+            }
+        };
+    }
+
 }

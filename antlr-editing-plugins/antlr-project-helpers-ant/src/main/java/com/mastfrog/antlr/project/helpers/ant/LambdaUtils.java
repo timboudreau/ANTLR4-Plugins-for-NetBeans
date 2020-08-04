@@ -15,10 +15,13 @@
  */
 package com.mastfrog.antlr.project.helpers.ant;
 
+import com.mastfrog.function.throwing.ThrowingSupplier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -31,6 +34,32 @@ import org.openide.util.Lookup;
  * @author Tim Boudreau
  */
 public class LambdaUtils {
+
+    private static final Set<Thread> logEnabled = ConcurrentHashMap.newKeySet(10);
+
+    public static <T> T withLoggingEnabledThrowing(ThrowingSupplier<T> r) throws Exception {
+        logEnabled.add(Thread.currentThread());
+        try {
+            return r.get();
+        } finally {
+            logEnabled.remove(Thread.currentThread());
+        }
+    }
+
+    public static <T> T withLoggingEnabled(Supplier<T> r) {
+        logEnabled.add(Thread.currentThread());
+        try {
+            return r.get();
+        } finally {
+            logEnabled.remove(Thread.currentThread());
+        }
+    }
+
+    static void log(String msg) {
+        if (msg != null && logEnabled.contains(Thread.currentThread())) {
+            System.out.println(msg); // println ok
+        }
+    }
 
     public static <T> Supplier<T> lkp(Lookup.Provider p, Class<T> type) {
         return () -> p.getLookup().lookup(type);
@@ -45,7 +74,7 @@ public class LambdaUtils {
         if (obj != null) {
             return func.apply(obj);
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -54,7 +83,7 @@ public class LambdaUtils {
         if (supp.getAsBoolean()) {
             return func.get();
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -108,7 +137,7 @@ public class LambdaUtils {
         if (val) {
             return func.get();
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -124,7 +153,7 @@ public class LambdaUtils {
         if (!supp.getAsBoolean()) {
             return func.get();
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -140,7 +169,7 @@ public class LambdaUtils {
         if (!val) {
             return func.get();
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -157,7 +186,7 @@ public class LambdaUtils {
         if (obj == null) {
             return res.get();
         } else {
-            System.out.println(logString);
+            log(logString);
         }
         return null;
     }
@@ -174,7 +203,7 @@ public class LambdaUtils {
         if (opt.isPresent()) {
             return func.apply(opt.get());
         } else {
-            System.out.println(msg);
+            log(msg);
         }
         return null;
     }
@@ -190,7 +219,7 @@ public class LambdaUtils {
         if (opt.isPresent()) {
             return null;
         } else {
-            System.out.println(msg);
+            log(msg);
         }
         return supp.get();
     }
@@ -211,6 +240,7 @@ public class LambdaUtils {
 
     public static <T, R> R ifNotPresentOr(String msg, Optional<T> opt, Predicate<? super T> test, Supplier<R> supp) {
         if (opt.isPresent() && !test.test(opt.get())) {
+            log(msg);
             return null;
         }
         return supp.get();
@@ -218,6 +248,10 @@ public class LambdaUtils {
 
     public static <T> Result<T> with(Supplier<T> obj) {
         return Result.of(obj.get());
+    }
+
+    public static <T> Result<T> with(String msg, Supplier<T> obj) {
+        return Result.of(msg, obj.get());
     }
 
     public static <R> Result<R> ifPresent(Optional<R> opt) {
@@ -238,6 +272,14 @@ public class LambdaUtils {
 
         static <T> Result<T> of(T obj) {
             return obj == null ? empty() : new Result<>(obj);
+        }
+
+        static <T> Result<T> of(String msg, T obj) {
+            if (obj == null) {
+                log(msg);
+                return empty();
+            }
+            return new Result<>(obj);
         }
 
         static final Result<Object> EMPTY = new Result(null);
@@ -261,6 +303,14 @@ public class LambdaUtils {
             return empty();
         }
 
+        public <R> Result<R> ifNotNull(String msg, Function<T, R> func) {
+            if (obj != null) {
+                return of(func.apply(obj));
+            }
+            log(msg);
+            return empty();
+        }
+
         public <R> Result<R> ifNotNull(Supplier<R> supp) {
             if (obj != null) {
                 return of(supp.get());
@@ -279,8 +329,17 @@ public class LambdaUtils {
             return empty();
         }
 
-        public Result<T> ifNotMatching(Predicate<T> test) {
+        public Result<T> ifMatches(String msg, Predicate<T> test) {
+            if (obj != null && test.test(obj)) {
+                return this;
+            }
+            log(msg);
+            return empty();
+        }
+
+        public Result<T> ifNotMatching(String msg, Predicate<T> test) {
             if (obj == null) {
+                log(msg);
                 return empty();
             }
             return test.test(obj) ? empty() : this;
@@ -290,6 +349,14 @@ public class LambdaUtils {
             if (obj != null && opt.isPresent()) {
                 return of(func.apply(obj, opt.get()));
             }
+            return empty();
+        }
+
+        public <R, S> Result<S> ifPresent(String msg, Optional<R> opt, BiFunction<T, R, S> func) {
+            if (obj != null && opt.isPresent()) {
+                return of(func.apply(obj, opt.get()));
+            }
+            log(msg);
             return empty();
         }
 

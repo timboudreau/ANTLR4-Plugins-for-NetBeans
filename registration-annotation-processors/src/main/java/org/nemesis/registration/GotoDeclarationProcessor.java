@@ -40,6 +40,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.util.preconditions.Exceptions;
+import static org.nemesis.registration.LocalizeAnnotationProcessor.inIDE;
 import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import static org.nemesis.registration.typenames.JdkTypes.ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
@@ -171,7 +172,7 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                 }
                 builtMimeTypes.add(e.getKey());
             }
-            if (env.processingOver()) {
+            if (env.processingOver() && !env.errorRaised() && !inIDE) {
 //            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING, KnownTypes.touchedMessage());
                 System.out.println(KnownTypes.touchedMessage(this));
             }
@@ -336,9 +337,9 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                         EDITOR_ACTION_REGISTRATION.qname(),
                         NB_ANTLR_UTILS.qname()
                 )
-                .staticBlock(lb -> {
-                    lb.statement("LOGGER.setLevel(Level.ALL)").endBlock();
-                })
+//                .staticBlock(lb -> {
+//                    lb.statement("LOGGER.setLevel(Level.ALL)").endBlock();
+//                })
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
                             .initializedAsArrayLiteral(NAME_REFERENCE_SET_KEY.parametrizedName("?"), ab -> {
@@ -369,13 +370,13 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                              */
                             .withModifier(PUBLIC, STATIC).returning(ACTION.simpleName())
                             .body(bb -> {
-                                bb.log("Create a " + mimeType + " inplace editor action", Level.INFO);
+                                bb.log("Create a " + mimeType + " inplace editor action", Level.FINEST);
                                 bb.debugLog("Create " + mimeType + " inplace editor action");
                                 bb.declare("result").initializedByInvoking("createGotoDeclarationAction")
                                         .withStringLiteral(mimeType)
                                         .withArgument("KEYS").on(NB_ANTLR_UTILS.simpleName())
                                         .as(ABSTRACT_EDITOR_ACTION.simpleName());
-                                bb.log("Returning {0}", Level.INFO, "result");
+                                bb.log("Returning {0}", Level.FINEST, "result");
                                 bb.returning("result");
                             });
 //                    .bodyReturning("ACTION");

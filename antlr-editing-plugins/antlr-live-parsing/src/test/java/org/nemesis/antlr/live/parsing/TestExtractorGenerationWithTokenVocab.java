@@ -18,18 +18,17 @@ package org.nemesis.antlr.live.parsing;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
-import java.lang.reflect.Field;
+import java.io.PrintStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.antlr.v4.tool.Grammar;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,11 +51,16 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerationResult;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerator;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
+import org.nemesis.antlr.live.parsing.impl.GrammarKind;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
 import static org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner.findLexerGrammar;
 import org.nemesis.antlr.live.parsing.impl.ReparseListeners;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.antlr.memory.JFSPathHints;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
+import org.nemesis.antlr.project.impl.BuildFileFinderImpl;
+import org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.extraction.Extraction;
@@ -91,12 +95,13 @@ public class TestExtractorGenerationWithTokenVocab {
     private static Path markdownLexerFile;
     private static AntlrGenerationResult lastGenResult;
 
+    private Runnable unsub;
     private JFS findJFS() throws Exception {
         AtomicReference<JFS> jfs = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         FileObject fo = gen.file("MarkdownParser.g4");
         assertNotNull(fo, "Parser not found");
-        RebuildSubscriptions.subscribe(fo, new Subscriber() {
+        unsub = RebuildSubscriptions.subscribe(fo, new Subscriber() {
             @Override
             public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
                 lastGenResult = res;
@@ -111,6 +116,7 @@ public class TestExtractorGenerationWithTokenVocab {
                 break;
             }
         }
+//        unsub.run();
         assertNotNull("No JFS received by timeout");
         return jfs.get();
     }
@@ -125,13 +131,21 @@ public class TestExtractorGenerationWithTokenVocab {
         assertNotNull(lg);
         // Make sure we can really find the lexer grammar we depend on
         assertEquals("MarkdownLexer", lg.name);
-        ExtractionCodeGenerationResult codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(markdownParserFile, jfs, "com.goob", "MarkdownParser", null);
+        ExtractionCodeGenerationResult codeGenResult;
+        try (PrintStream ps = AntlrLoggers.getDefault().printStream(markdownParserFile, AntlrLoggers.STD_TASK_GENERATE_ANALYZER)) {
+            codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(
+                    GrammarKind.PARSER, markdownParserFile, jfs, "com.goob", "MarkdownParser", null, ps, "a", JFSPathHints.NONE);
+        }
         JFSFileObject file = codeGenResult.file();
         assertNotNull(file, "Code not generated");
         String txt = file.getCharContent(true).toString();
         assertLexerIsCreatedUsingCorrectClass(txt);
         // No try passing the lexer name
-        codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(markdownParserFile, jfs, "com.goob", "MarkdownParser", "MarkdownLexer");
+        try (PrintStream ps = AntlrLoggers.getDefault().printStream(markdownParserFile, AntlrLoggers.STD_TASK_GENERATE_ANALYZER)) {
+            codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(
+                    GrammarKind.PARSER, markdownParserFile, jfs, "com.goob", "MarkdownParser",
+                    "MarkdownLexer", ps, "b", JFSPathHints.NONE);
+        }
         file = codeGenResult.file();
         assertNotNull(file, "Code not generated");
         txt = file.getCharContent(true).toString();
@@ -142,10 +156,11 @@ public class TestExtractorGenerationWithTokenVocab {
         String[] lines = extractorText.split("\n");
         for (int i = 0; i < lines.length; i++) {
             if (lines[i].contains("lex = new")) {
-                assertTrue(lines[i].contains("MarkdownLexer(new CharSequenceCharStream(text))"),
+                assertTrue(lines[i].contains("MarkdownLexer(charStream)"),
                         "The lexer is what should be instantiated against a CharStream, but the "
                         + "generated code contains '" + lines[i] + "' which probably "
-                        + "failed to compile.  Check the lexer type detection code.");
+                        + "failed to compile.  Check the lexer type detection code.\nOutput:\n"
+                        + FakeAntlrLoggers.output());
             }
         }
     }
@@ -220,10 +235,9 @@ public class TestExtractorGenerationWithTokenVocab {
     }
 
     private static String THE_MIME_TYPE;
+
     @BeforeAll
     public static void setup() throws IOException, ClassNotFoundException, URISyntaxException {
-        initLoggers();
-        Class.forName(AntlrNbParser.class.getName());
         ProjectTestHelper helper = ProjectTestHelper.relativeTo(TestExtractorGenerationWithTokenVocab.class);
         markdownParserFile = helper.projectBaseDir().getParent().resolve(
                 "antlr-in-memory-build/src/test/resources/org/nemesis/antlr/memory/MarkdownParser.g4");
@@ -238,21 +252,10 @@ public class TestExtractorGenerationWithTokenVocab {
         assertNotNull(pth);
         String mime = THE_MIME_TYPE = AdhocMimeTypes.mimeTypeForPath(pth);
         System.out.println("THE MIME TYPE '" + mime + "'");
-        shutdown = initAntlrTestFixtures(true)
+        fixtures = initAntlrTestFixtures(true)
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
-                .addToNamedLookup(mime, FakeParserFactory.class)
-                .build();
+                .addToNamedLookup(mime, FakeParserFactory.class);
 
-        gen.deletedBy(shutdown);
-        shutdown.andAlways(() -> {
-            if (fixtures != null) {
-                try {
-                    fixtures.onShutdown();
-                } catch (Throwable ex) {
-                    ex.printStackTrace();
-                }
-            }
-        });
         assertNotNull(gen);
         assertNotNull(gen.file("MarkdownParser.g4"));
         assertNotNull(gen.file("MarkdownLexer.g4"));
@@ -261,75 +264,69 @@ public class TestExtractorGenerationWithTokenVocab {
         String mt2 = AdhocMimeTypes.mimeTypeForPath(gen.get("MarkdownLexer.g4"));
         fixtures.addToMimeLookup(mt2, FakeParserFactory.class);
         Lookup mimeLookup = MimeLookup.getLookup(mime);
+
+        shutdown = fixtures.build();
+        gen.deletedBy(shutdown);
         assertNotNull(mimeLookup);
         assertNotNull(mimeLookup.lookup(ParserFactory.class), "No parser factory in mimeLookup for " + mime
                 + " - it contains:" + mimeLookup.lookupAll(Object.class));
     }
-    static final String[] PREINIT = new String[]{
-        AntlrNbParser.class.getName(),
-        ExtractionCodeGenerator.class.getName(),
-        ReparseListeners.class.getName(),
-        "org.nemesis.antlr.live.JFSMapping",
-        "org.nemesis.antlr.live.RebuildSubscriptions",
-        "org.nemesis.antlr.live.execution.AntlrRunSubscriptions",
-        "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",
-        "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
-        "org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers",};
 
-    private static void initLoggers() {
-        // Attempting to debug introduction of JFS-killing
-        for (String p : PREINIT) {
-            try {
-                Class<?> c = Class.forName(p);
-                try {
-                    Field f = c.getDeclaredField("LOG");
-                    f.setAccessible(true);
-                    Object o = f.get(null);
-                    if (o instanceof Logger) {
-                        ((Logger) o).setLevel(Level.ALL);
-                        System.out.println("set level on " + c.getSimpleName());
-                    }
-                } catch (NoSuchFieldException ex) {
-                    Field f = c.getDeclaredField("LOGGER");
-                    f.setAccessible(true);
-                    Object o = f.get(null);
-                    if (o instanceof Logger) {
-                        ((Logger) o).setLevel(Level.ALL);
-                        System.out.println("set level on " + c.getSimpleName());
-                    }
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace(System.err);
-            }
+    @AfterEach
+    public void cleanup() {
+        if (unsub != null) {
+            unsub.run();
+            unsub = null;
         }
     }
 
     @AfterAll
     public static void tearDown() throws Exception {
-        shutdown.run();
+        if (shutdown != null) {
+            shutdown.run();
+        }
     }
 
     static TestFixtures fixtures;
 
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
-        fixtures = new TestFixtures();
-//        if (verbose) {
-        fixtures.verboseGlobalLogging();
-//        }
         DocumentFactory fact = new WrapDocumentFactory();
-        return fixtures.addToMimeLookup("", fact)
+        return new TestFixtures()
+                .avoidStartingModuleSystem()
+                .verboseGlobalLogging(
+                        RebuildSubscriptions.class,
+                        ProxiesInvocationRunner.class,
+                        EmbeddedAntlrParsers.class,
+                        EmbeddedAntlrParserImpl.class,
+                        ExtractionCodeGenerator.class,
+                        AntlrNbParser.class,
+                        ExtractionCodeGenerator.class,
+                        ReparseListeners.class,
+                        "org.nemesis.antlr.live.impl.JFSManager",
+                        "org.nemesis.antlr.live.impl.AntlrGenerationSubscriptionsImpl",
+                        "org.nemesis.antlr.live.impl.AntlrGenerationSubscriptionsForProject",
+                        "org.nemesis.antlr.live.impl.EditorCookieListener",
+                        "org.nemesis.antlr.live.execution.AntlrRunSubscriptions",
+                        "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",
+                        "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
+                        "org.nemesis.antlr.live.parsing.EmbeddedAntlrParsers"
+                )
+                .addToMimeLookup("", fact)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter(), fact)
                 .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
                         new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder())
                 .addToDefaultLookup(
                         WrapDocumentFactory.class,
+                        BuildFileFinderImpl.class,
+                        HeuristicFoldersHelperImplementation.HeuristicImplementationFactory.class,
                         MockModules.class,
                         FakeG4DataLoader.class,
                         MavenFolderStrategyFactory.class,
                         NbMavenProjectFactory.class,
                         AntlrFileObjectRelativeResolver.class,
                         NbProjectManager.class,
+                        FakeAntlrLoggers.class,
                         NbJFSUtilities.class
                 );
     }

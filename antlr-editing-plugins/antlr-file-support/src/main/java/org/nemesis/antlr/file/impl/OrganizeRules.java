@@ -207,7 +207,6 @@ public final class OrganizeRules implements ActionListener {
             EditorCookie ck = context.getLookup().lookup(EditorCookie.class);
             StyledDocument doc = ck.openDocument();
             int currentCaretPosition = findCaretPosition(ck, doc);
-            System.out.println("START WITH CARET POSITION " + currentCaretPosition);
             AtomicReference<CaretRelativeToRuleName> caretRelative = new AtomicReference<>();
             proc.submit(() -> {
                 // Do ALL of our work in the document with the document lock,
@@ -231,15 +230,11 @@ public final class OrganizeRules implements ActionListener {
                                     Extraction revisedExtraction = NbAntlrUtils.parseImmediately(doc1);
                                     NamedSemanticRegions<RuleTypes> revisedRegions = revisedExtraction.namedRegions(RULE_BOUNDS);
                                     NamedSemanticRegion<RuleTypes> targetRegion = revisedRegions.regionFor(info.rule);
-                                    System.out.println("RECOMPUTE RELATIVE POSITION FOR " + info.rule + " rel " + info.relativePosition);
                                     if (targetRegion == null) {
-                                        System.out.println("NULL TARGET REGION");
                                         ibc.accept(caret.dot(), caret.mark());
                                     } else {
                                         int start = targetRegion.start();
-                                        System.out.println("TARGET REGION");
                                         int pos = Math.min(doc1.getLength() - 1, Math.max(0, start + info.relativePosition));
-                                        System.out.println("NEW START " + (start + info.relativePosition) + " = " + pos);
                                         // XXX preserve the selection?
                                         ibc.accept(pos, pos);
                                     }
@@ -306,14 +301,10 @@ public final class OrganizeRules implements ActionListener {
         if (caretPosition >= 0) {
 
             NamedSemanticRegion<RuleTypes> caretRuleRegion = ruleBounds.index().nearestPreceding(caretPosition);
-            System.out.println("RULE REGION AT " + caretPosition + ": " + caretRuleRegion);
             if (caretRuleRegion != null) {
                 caretRuleName = caretRuleRegion.name();
                 caretRelativePosition = caretPosition - caretRuleRegion.start();
                 caretRef.set(new CaretRelativeToRuleName(caretRelativePosition, caretRuleName));
-                System.out.println("  HAVE CARET RULE " + caretRuleName + " @ " + caretRelativePosition);
-            } else {
-                System.out.println("NO CARET RULE REGION IN " + ruleBounds);
             }
         }
         StringGraph graph = ext.referenceGraph(RULE_NAME_REFERENCES);

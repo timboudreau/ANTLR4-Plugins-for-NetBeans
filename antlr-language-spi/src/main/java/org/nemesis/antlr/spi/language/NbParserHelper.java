@@ -247,6 +247,27 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         return false;
     }
 
+    private static ThreadLocal<Object> currentTree = new ThreadLocal<>();
+
+    /**
+     * Parse trees are deliberately not embedded in an Antlr parser results,
+     * so they do not memory-leak the entire parse tree for the lifetime of the
+     * parser result, but may be needed for post-processing that happens within
+     * the scope of post-parse runtime hooks.  This method allows access to
+     * it if called within that scope.
+     *
+     * @param <T> The expected tree type
+     * @param type The expected tree type
+     * @return A parse tree or null
+     */
+    static <T extends ParserRuleContext> T currentTree(Class<T> type) {
+        Object tree = currentTree.get();
+        if (type.isInstance( tree )) {
+            return type.cast(tree);
+        }
+        return null;
+    }
+
     public final void parseCompleted( String mimeType, T tree, Extraction extraction, ParseResultContents populate,
             BooleanSupplier cancelled, Supplier<List<? extends SyntaxError>> errorSupplier ) throws Exception {
         assert populate != null : "null parse result contents";
@@ -256,53 +277,60 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
         boolean wasCancelled = false; //cancelled.getAsBoolean();
         boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
 
-        LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1} "
-                             + "postprocessingEnabled? {2}",
-                 new Object[]{ extraction.source(), wasCancelled,
-                     postprocess } );
-        if ( !wasCancelled && postprocess ) {
-            // Ensure the tree gets fully walked and the parse fully run, so
-            // all errors are collected
-            try {
-                Document doc = null;
-                // Avoid openining the document if the parse is incidental to
-                // parsing something else
-                if ( extraction.source().source() instanceof Document ) {
-                    doc = ( Document ) extraction.source().source();
-                } else if ( extraction.source().source() instanceof Snapshot ) {
-                    doc = ( ( Snapshot ) extraction.source().source() ).getSource().getDocument( false );
-                } else {
-                    Optional<Document> optDoc = extraction.source().lookup( Document.class );
-                    if ( optDoc.isPresent() ) {
-                        doc = optDoc.get();
+        Object oldTree = currentTree.get();
+        currentTree.set( tree );
+        try {
+
+            LOG.log( Level.FINE, "Parse of {0} completed - cancelled? {1} "
+                                 + "postprocessingEnabled? {2}",
+                     new Object[]{ extraction.source(), wasCancelled,
+                         postprocess } );
+            if ( !wasCancelled && postprocess ) {
+                // Ensure the tree gets fully walked and the parse fully run, so
+                // all errors are collected
+                try {
+                    Document doc = null;
+                    // Avoid openining the document if the parse is incidental to
+                    // parsing something else
+                    if ( extraction.source().source() instanceof Document ) {
+                        doc = ( Document ) extraction.source().source();
+                    } else if ( extraction.source().source() instanceof Snapshot ) {
+                        doc = ( ( Snapshot ) extraction.source().source() ).getSource().getDocument( false );
+                    } else {
+                        Optional<Document> optDoc = extraction.source().lookup( Document.class );
+                        if ( optDoc.isPresent() ) {
+                            doc = optDoc.get();
+                        }
+                    }
+                    List<? extends SyntaxError> errors = null;
+                    if ( isDefaultErrorHandlingEnabled() && errorSupplier != null ) {
+                        new ParseTreeWalker().walk( new ErrorNodeCollector( doc, populate ), tree );
+                        errors = errorSupplier.get();
+                        LOG.log( Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{ errors.size(),
+                            errorSupplier } );
+                        populate.setSyntaxErrors( errors, this );
+                    }
+                    // No sense in attaching error annotations unless there is a document to
+                    // show them on
+                    Fixes fixes = doc == null ? Fixes.empty() : populate.fixes();
+                    ParseResultHook.runForMimeType( mimeType, tree, extraction, populate, fixes );
+                    onParseCompleted( tree, extraction, populate, fixes, cancelled );
+                    LOG.log( Level.FINEST, "Post-processing complete with {0} "
+                                           + "syntax errors, fixes {1}", new Object[]{
+                                errors == null ? 0 : errors.size(), fixes
+                            } );
+                } catch ( Exception | Error err ) {
+                    LOG.log( Level.SEVERE, "Error post-processing parse", err );
+                    if ( err instanceof Error ) {
+                        throw ( Error ) err;
                     }
                 }
-                List<? extends SyntaxError> errors = null;
-                if ( isDefaultErrorHandlingEnabled() && errorSupplier != null ) {
-                    new ParseTreeWalker().walk( new ErrorNodeCollector( doc, populate ), tree );
-                    errors = errorSupplier.get();
-                    LOG.log( Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{ errors.size(),
-                        errorSupplier } );
-                    populate.setSyntaxErrors( errors, this );
-                }
-                // No sense in attaching error annotations unless there is a document to
-                // show them on
-                Fixes fixes = doc == null ? Fixes.empty() : populate.fixes();
-                ParseResultHook.runForMimeType( mimeType, tree, extraction, populate, fixes );
-                onParseCompleted( tree, extraction, populate, fixes, cancelled );
-                LOG.log( Level.FINEST, "Post-processing complete with {0} "
-                                       + "syntax errors, fixes {1}", new Object[]{
-                            errors == null ? 0 : errors.size(), fixes
-                        } );
-            } catch ( Exception | Error err ) {
-                LOG.log( Level.SEVERE, "Error post-processing parse", err );
-                if ( err instanceof Error ) {
-                    throw ( Error ) err;
-                }
+            } else {
+                LOG.log( Level.FINEST, "Not post processing {0} due to cancelled {1} postprocess {2}",
+                         new Object[]{ extraction.source(), wasCancelled, postprocess } );
             }
-        } else {
-            LOG.log( Level.FINEST, "Not post processing {0} due to cancelled {1} postprocess {2}",
-                     new Object[]{ extraction.source(), wasCancelled, postprocess } );
+        } finally {
+            currentTree.set( oldTree );
         }
     }
 

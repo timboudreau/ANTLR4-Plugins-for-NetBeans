@@ -86,7 +86,6 @@ final class DefaultCompletionApplier implements CompletionApplier {
 
     private int applyToDocument(Document doc) throws BadLocationException {
 
-        System.out.println("\n----------------------- REF-INSERT ------------------------");
         StringBuilder sb = new StringBuilder(name);
         Set<Op> ops = insertionOps();
         Position pos = NbDocument.createPosition(doc,
@@ -120,9 +119,7 @@ final class DefaultCompletionApplier implements CompletionApplier {
         }
         int offset = pos.getOffset();
         String toInsert = sb.toString();
-        System.out.println("INSERT '" + toInsert + "' at " + offset + " for " + ops + " rel " + tokenInfo.caretRelation());
         doc.insertString(pos.getOffset(), toInsert, null);
-        System.out.println("--------------------------------------------------\n");
         return offset + toInsert.length();
     }
 
@@ -171,7 +168,6 @@ final class DefaultCompletionApplier implements CompletionApplier {
         if (prev.isWhitespace() && !isPunctuation() && rel != CaretTokenRelation.WITHIN_TOKEN) {
             result.add(Op.PREPEND_SPACE);
         }
-        System.out.println("REL " + rel + " for " + tokenInfo);
         switch (rel) {
             case WITHIN_TOKEN:
                 if (!pfx.isEmpty() && name.startsWith(pfx)) {
@@ -238,7 +234,6 @@ final class DefaultCompletionApplier implements CompletionApplier {
 //                    result.add(Op.PREPEND_SPACE);
 //                }
         }
-        System.out.println("OPS: " + result);
         return result;
     }
 

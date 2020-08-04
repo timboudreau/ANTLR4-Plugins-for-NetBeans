@@ -66,7 +66,7 @@ public class CharSequenceCharStreamTest {
         List<ProxyToken> l = new ArrayList<>(30);
         for (;;) {
             Token t = lex.nextToken();
-            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex());
+            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex(), 0);
             l.add(pt);
             if (t.getType() == -1) {
                 break;
@@ -77,7 +77,7 @@ public class CharSequenceCharStreamTest {
         List<ProxyToken> l2 = new ArrayList<>(30);
         for (;;) {
             Token t = lex.nextToken();
-            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex());
+            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex(), 0);
             l2.add(pt);
             if (t.getType() == -1) {
                 break;

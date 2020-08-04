@@ -315,7 +315,7 @@ import org.nemesis.localizers.annotations.Localize;
                                 fg = {81, 62, 81},
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
-                                fg = {204, 204, 10},
+                                fg = {108, 212, 105},
                                 themes = POPULAR_DARK_THEMES)
                     }),
 
@@ -342,7 +342,7 @@ import org.nemesis.localizers.annotations.Localize;
                         fg = {168, 58, 132},
                         themes = POPULAR_BRIGHT_THEMES),
                 @Coloration(
-                        fg = {221, 103, 182},
+                        fg = {196, 184, 159},
                         themes = POPULAR_DARK_THEMES)
             }),
 
@@ -411,7 +411,7 @@ import org.nemesis.localizers.annotations.Localize;
                                 bold = false,
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
-                                fg = {166, 236, 181},
+                                fg = {232, 120, 120},
                                 italic = false,
                                 bold = false,
                                 themes = POPULAR_DARK_THEMES),}),

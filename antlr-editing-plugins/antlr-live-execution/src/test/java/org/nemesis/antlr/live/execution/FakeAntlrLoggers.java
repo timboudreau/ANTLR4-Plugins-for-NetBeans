@@ -16,7 +16,12 @@
 package org.nemesis.antlr.live.execution;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.io.Writer;
+import java.nio.charset.Charset;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Path;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
@@ -28,18 +33,13 @@ import org.nemesis.antlr.memory.spi.AntlrLoggers;
 public final class FakeAntlrLoggers extends AntlrLoggers {
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-    private final PrintStream ps = new PrintStream(out);
+    private final UnclosablePrintStream ps = new UnclosablePrintStream(out);
+    private final OutputStreamWriter w = new UnclosableWriter(out, UTF_8);
 
     private static FakeAntlrLoggers INSTANCE;
 
     public FakeAntlrLoggers() {
         INSTANCE = this;
-    }
-
-    @Override
-    public PrintStream forPath(Path path) {
-        ps.println("-------------------------- " + path + " --------------------------");
-        return ps;
     }
 
     String get() {
@@ -48,5 +48,45 @@ public final class FakeAntlrLoggers extends AntlrLoggers {
 
     static String lastText() {
         return INSTANCE != null ? INSTANCE.get() : null;
+    }
+
+    @Override
+    protected PrintStream streamForPathAndTask(Path path, String task) {
+        ps.println("-------------------------- " + path + " " + task + " --------------------------");
+        return ps;
+    }
+
+    @Override
+    protected Writer writerForPathAndTask(Path path, String task) {
+        try {
+            w.append("-------------------------- " + path + " " + task + " --------------------------\n");
+        } catch (IOException ex) {
+        }
+        return w;
+    }
+
+    static final class UnclosablePrintStream extends PrintStream {
+
+        public UnclosablePrintStream(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void close() {
+            // do nothing
+        }
+    }
+
+    static final class UnclosableWriter extends OutputStreamWriter {
+
+        public UnclosableWriter(OutputStream out, Charset cs) {
+            super(out, cs);
+        }
+
+        @Override
+        public void close() throws IOException {
+            // do nothing
+        }
+
     }
 }

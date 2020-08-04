@@ -128,7 +128,6 @@ public final class TokenUtils {
 
     private static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream, int start, int stop) {
         if (stream.isEmpty()) {
-            System.out.println("empty stream");
             return CaretTokenInfo.EMPTY;
         }
         int tok = findCaretToken(caret, stream, start, stop);

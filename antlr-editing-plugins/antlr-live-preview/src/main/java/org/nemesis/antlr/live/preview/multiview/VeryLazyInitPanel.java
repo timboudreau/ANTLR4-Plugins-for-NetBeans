@@ -141,9 +141,7 @@ final class VeryLazyInitPanel extends JPanel implements Consumer<JComponent> {
     }
 
     @Override
-    public void accept(JComponent t
-    ) {
-        System.out.println("Received component from background: " + t);
+    public void accept(JComponent t) {
         assert EventQueue.isDispatchThread();
         status.setText(" ");
         fut = null;

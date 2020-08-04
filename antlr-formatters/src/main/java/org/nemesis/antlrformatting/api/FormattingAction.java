@@ -225,7 +225,6 @@ public interface FormattingAction {
                 String origText = token.getText();
 //                int pos = ctx.charPositionInLine(token);
                 int pos = ctx.currentCharPositionInLine();
-                System.out.println("POS " + pos);
                 String revisedText = rewriter.rewrite(ctx.indentSize(),
                         origText, pos, state);
                 if (revisedText != null && origText != revisedText && !origText.equals(revisedText)) {
@@ -305,7 +304,7 @@ public interface FormattingAction {
             @Override
             public void accept(Token tok, FormattingContext t, LexingState state) {
                 FormattingAction.this.accept(tok, t, state);
-                System.out.println(s);
+                System.out.println(s); // println ok
             }
 
             public String toString() {

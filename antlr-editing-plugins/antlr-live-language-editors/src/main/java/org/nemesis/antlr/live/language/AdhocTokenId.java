@@ -141,7 +141,8 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof AdhocTokenId && ((AdhocTokenId) o).ordinal() == ordinal();
+        return o instanceof AdhocTokenId && ((AdhocTokenId) o).ordinal() == ordinal()
+                && ((AdhocTokenId) o).name.equals(name);
     }
 
     @Override

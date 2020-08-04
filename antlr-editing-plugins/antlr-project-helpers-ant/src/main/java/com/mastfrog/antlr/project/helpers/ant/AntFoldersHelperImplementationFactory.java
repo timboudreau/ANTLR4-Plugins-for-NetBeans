@@ -24,6 +24,7 @@ import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifNotPresentOr;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifNull;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.ifPresent;
 import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.lkp;
+import static com.mastfrog.antlr.project.helpers.ant.LambdaUtils.with;
 import com.mastfrog.util.cache.Answerer;
 import com.mastfrog.util.cache.MapSupplier;
 import com.mastfrog.util.cache.TimedCache;
@@ -139,13 +140,18 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
 
     @Override
     public AntFoldersHelperImplementationResult answer(Project project) throws RuntimeException {
-        return LambdaUtils.with(() -> project.getProjectDirectory().getFileObject("nbproject/" + ANTLR_BUILD_EXTENSION_NAME))
-                .ifPresent(evaluator(project), (ignored, eval) -> {
-                    if (eval.getProperty(asAuxProp(SOURCE_DIR_PROPERTY)) != null && eval.getProperty(asAuxProp(OUTPUT_DIR_PROPERTY)) != null) {
+        return with("No build extension file under" + project.getProjectDirectory().getName(), () -> project.getProjectDirectory().getFileObject("nbproject/" + ANTLR_BUILD_EXTENSION_NAME))
+                .ifPresent("No PropertyEvaluator", evaluator(project), (ignored, eval) -> {
+                    boolean hasSourceDir = eval.getProperty(asAuxProp(SOURCE_DIR_PROPERTY)) != null;
+                    boolean hasOutputDir = eval.getProperty(asAuxProp(OUTPUT_DIR_PROPERTY)) != null;
+                    LambdaUtils.log("  has SourceDir " + asAuxProp(SOURCE_DIR_PROPERTY) + ": " + eval.getProperty(asAuxProp(SOURCE_DIR_PROPERTY)));
+                    LambdaUtils.log("  has OutputDir " + asAuxProp(OUTPUT_DIR_PROPERTY) + ": " + eval.getProperty(asAuxProp(OUTPUT_DIR_PROPERTY)));
+
+                    if (hasSourceDir && hasOutputDir) {
                         return new AntFoldersHelperImplementationResult(new AntFoldersHelperImplementation(project));
                     }
                     return null;
-                }).or(AntFoldersHelperImplementationResult::new).get();
+                }).or(AntFoldersHelperImplementationResult::empty).get();
     }
 
     @Override
@@ -231,6 +237,11 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
     static final class AntFoldersHelperImplementationResult implements Supplier<AntFoldersHelperImplementation> {
 
         private final AntFoldersHelperImplementation impl;
+        private static final AntFoldersHelperImplementationResult EMPTY = new AntFoldersHelperImplementationResult();
+
+        static AntFoldersHelperImplementationResult empty() {
+            return EMPTY;
+        }
 
         public AntFoldersHelperImplementationResult() {
             this(null);
@@ -258,6 +269,11 @@ public final class AntFoldersHelperImplementationFactory implements FoldersLooku
 
         public boolean isNonViable() {
             return impl == null;
+        }
+
+        @Override
+        public String toString() {
+            return "AntFoldersHelperImplementationResult(" + (impl == null ? "empty" : impl) + ")";
         }
     }
 }

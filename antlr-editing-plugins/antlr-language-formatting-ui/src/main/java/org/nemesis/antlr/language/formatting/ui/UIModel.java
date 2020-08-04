@@ -22,7 +22,6 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.beans.PropertyChangeEvent;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
@@ -32,13 +31,11 @@ import javax.swing.ComboBoxModel;
 import javax.swing.DefaultButtonModel;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
-import javax.swing.WindowConstants;
 import javax.swing.event.ChangeListener;
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import static org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig.*;
@@ -307,19 +304,5 @@ class UIModel {
             b.addActionListener(al);
         }
         return pnl;
-    }
-
-    public static void main(String[] args) {
-        UIModel mdl = new UIModel(new AntlrFormatterConfig(new MockPreferences()));
-        mdl.config.addPropertyChangeListener((PropertyChangeEvent evt) -> {
-            System.out.println(evt.getPropertyName() + " -> " + evt.getNewValue());
-        });
-        EventQueue.invokeLater(() -> {
-            JFrame jf = new JFrame();
-            jf.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            jf.setContentPane(mdl.createFormattingPanel());
-            jf.pack();
-            jf.setVisible(true);
-        });
     }
 }

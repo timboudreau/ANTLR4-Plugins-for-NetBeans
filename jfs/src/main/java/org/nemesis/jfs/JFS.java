@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -117,7 +118,7 @@ import org.nemesis.jfs.spi.JFSUtilities;
  */
 public final class JFS implements JavaFileManager {
 
-    private final Map<Location, JFSStorage> storageForLocation = new HashMap<>();
+    private final Map<Location, JFSStorage> storageForLocation = new IdentityHashMap<>();
     private final String fsid;
     private final JFSStorageAllocator<?> allocator;
     private final BiConsumer<Location, FileObject> listener;
@@ -328,7 +329,7 @@ public final class JFS implements JavaFileManager {
      * @throws IllegalArgumentException if the set of locations is empty
      * @return A JFSFileModifications
      */
-    public final JFSFileModifications status(Set<Location> locations) {
+    public final JFSFileModifications status(Set<? extends Location> locations) {
         if (locations.isEmpty()) {
             throw new IllegalArgumentException("No locations");
         }
@@ -346,7 +347,7 @@ public final class JFS implements JavaFileManager {
      * @throws IllegalArgumentException if the set of locations is empty
      * @return A JFSFileModifications
      */
-    public final JFSFileModifications status(Set<Location> locations, Predicate<UnixPath> filter) {
+    public final JFSFileModifications status(Set<? extends Location> locations, Predicate<UnixPath> filter) {
         if (locations.isEmpty()) {
             throw new IllegalArgumentException("No locations");
         }
@@ -469,6 +470,31 @@ public final class JFS implements JavaFileManager {
          */
         public JFSBuilder withCharset(Charset charset) {
             this.encoding = charset;
+            return this;
+        }
+
+        /**
+         * Use an experimental memory manager for JFS which uses a memory-mapped
+         * temporary file which is deleted when the JFS is fully closed. The
+         * allocator is efficient and reclaims freed storage, but may have lower
+         * liveness than others due to locking.
+         *
+         * @return this
+         */
+        public JFSBuilder useExperimentalMemoryMappedStorage() {
+            this.storageKind = BlockStorageKind.MAPPED_TEMP_FILE;
+            return this;
+        }
+
+        /**
+         * Use a memory manager backed by
+         * <code>ByteBuffer.allocateDirect()</code> to avoid consuming heap
+         * memory.
+         *
+         * @return this
+         */
+        public JFSBuilder useOffHeapStorage() {
+            this.storageKind = BlockStorageKind.OFF_HEAP;
             return this;
         }
 
@@ -745,14 +771,14 @@ public final class JFS implements JavaFileManager {
         return _list(location, packageName, kinds, recurse);
     }
 
-    public JFSFileObject find(String location, String path) throws FileNotFoundException {
-        JFSStorage storage = storageForLocation(location);
+    public JFSFileObject find(String locationName, String path) throws FileNotFoundException {
+        JFSStorage storage = storageForLocation(locationName);
         if (storage == null) {
-            throw new FileNotFoundException("No storage for " + location + " when searching for " + path);
+            throw new FileNotFoundException("No storage for " + locationName + " when searching for " + path);
         }
         JFSFileObjectImpl fo = storage.find(Name.forFileName(path), false);
         if (fo == null) {
-            throw new FileNotFoundException("No JFSFileObject " + path + " in " + location);
+            throw new FileNotFoundException("No JFSFileObject " + path + " in " + locationName);
         }
         return fo;
     }
@@ -817,15 +843,25 @@ public final class JFS implements JavaFileManager {
 
     JFSStorage storageForLocation(String locationName) {
         JFSStorage result = null;
-        for (Map.Entry<Location, JFSStorage> e : storageForLocation.entrySet()) {
-            if (e.getKey().getName().equals(locationName)) {
-                result = e.getValue();
-                break;
-            }
-        }
         if (result == null && JFSStorage.MERGED_LOCATION.getName().equals(locationName)) {
             result = JFSStorage.createMerged(fsid, storageForLocation.values());
             storageForLocation.put(JFSStorage.MERGED_LOCATION, result);
+            return result;
+        }
+        Location loc = StandardLocation.locationFor(locationName);
+        if (loc != null) {
+            result = storageForLocation.get(loc);
+            if (result != null) {
+                return result;
+            }
+        }
+        for (Map.Entry<Location, JFSStorage> e : storageForLocation.entrySet()) {
+            if (e.getKey().getName().equals(locationName)) {
+                if (e.getKey().isOutputLocation() == loc.isOutputLocation()) {
+                    result = e.getValue();
+                }
+                break;
+            }
         }
         return result;
     }
@@ -944,7 +980,8 @@ public final class JFS implements JavaFileManager {
     }
 
     /**
-     * Convenience method for getting an existing JFSFileObjectImpl by path.
+     * Convenience method for getting an existing JFSFileObject by path if it
+     * exists.
      *
      * @param location The location
      * @param path The path
@@ -955,6 +992,25 @@ public final class JFS implements JavaFileManager {
         return stor == null ? null : stor.find(Name.forPath(path));
     }
 
+    /**
+     * Convenience method for getting an existing JFSFileObject, creating it if
+     * it does not exist.
+     *
+     * @param location The location
+     * @param path The path
+     * @param create If true, create the file if it does not already exist
+     * @return A file object or null
+     */
+    public JFSFileObject get(Location location, UnixPath path, boolean create) {
+        JFSStorage stor = storageForLocation(location, create);
+        return stor == null ? null : stor.find(Name.forPath(path), create);
+    }
+
+    /**
+     * Does nothing in a JFS.
+     *
+     * @throws IOException
+     */
     @Override
     public void flush() throws IOException {
         // do nothing

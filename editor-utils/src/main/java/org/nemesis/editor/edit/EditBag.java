@@ -149,10 +149,7 @@ public final class EditBag {
 //            entries.sort(Comparator.<Entry>naturalOrder().reversed());
             entries.sort(Comparator.naturalOrder());
 
-            System.out.println("WILL APPLY: " + this);
-
             for (EditBagEntry e : entries) {
-                System.out.println("     " + e);
                 e.accept(doc);
             }
 //            entries.clear();

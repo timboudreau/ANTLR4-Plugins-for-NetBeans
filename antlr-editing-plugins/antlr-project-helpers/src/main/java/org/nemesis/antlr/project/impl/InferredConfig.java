@@ -18,6 +18,7 @@ package org.nemesis.antlr.project.impl;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntList;
+import com.mastfrog.util.strings.Strings;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -87,6 +88,7 @@ public final class InferredConfig {
         if (projectDir != null) {
             Sources sources = ProjectUtils.getSources(project);
             if (sources != null) {
+                LOG.log(Level.FINEST, "Begin source groups inferencing");
                 SourceGroupsInferencer inferencer = new SourceGroupsInferencer(projectDir);
                 inferencer.processSourceGroups(JAVA, sources.getSourceGroups(JAVA));
                 inferencer.processSourceGroups(RESOURCES, sources.getSourceGroups(RESOURCES));
@@ -97,7 +99,9 @@ public final class InferredConfig {
                 inferencer.finishWithSourceGroups(initialQuery);
                 for (Map.Entry<Folders, Set<Path>> e : inferencer.inferences.entrySet()) {
                     if (e.getKey() != null && e.getValue() != null && !e.getValue().isEmpty()) {
-                        inferences.put(e.getKey(), e.getValue());
+                        if (!e.getValue().isEmpty()) {
+                            inferences.put(e.getKey(), e.getValue());
+                        }
                     }
                 }
             }
@@ -110,7 +114,16 @@ public final class InferredConfig {
                     Exceptions.printStackTrace(ex);
                 }
             } else {
-                inferencesImproved();
+                try {
+                    // Was trying to avoid this until the first file query,
+                    // but the result is you get different ownership depending
+                    // on what file is queried first; this will at least be
+                    // consistent
+                    scan(projectDir);
+                    inferencesImproved();
+                } catch (IOException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
             }
         }
     }
@@ -118,6 +131,16 @@ public final class InferredConfig {
 
     static InferredConfig getCached(Project project) {
         return configs.get(project);
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder("InferredConfig(" + projectDir);
+        for (Map.Entry<Folders, Set<Path>> e : inferences.entrySet()) {
+            if (!e.getValue().isEmpty()) {
+                sb.append('\n').append(e.getKey()).append(": ").append(Strings.join(',', e.getValue()));
+            }
+        }
+        return sb.append(')').toString();
     }
 
     public boolean isMismatch(Folders queried, Path queryFile) {
@@ -318,6 +341,7 @@ public final class InferredConfig {
             if (groups != null && groups.length > 0) {
                 for (SourceGroup sg : groups) {
                     FileObject fo = sg.getRootFolder();
+                    LOG.log(Level.FINEST, "Process source group {0}: {1}", new Object[]{sg.getName(), fo});
                     if (fo != null) {
                         Path path = toPath(fo);
                         if (path != null) {
@@ -392,6 +416,8 @@ public final class InferredConfig {
                             LOG.log(Level.FINEST, "Infer antlr-src to be {0} from source groups", p);
                             inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).add(p);
                             break;
+                        default:
+                            LOG.log(Level.FINER, "Don't know how to categorize {0} with {1}", new Object[]{p, e.getKey()});
                     }
                 } else {
                     for (Path p : all) {
@@ -454,6 +480,9 @@ public final class InferredConfig {
                                     inferences.get(Folders.RESOURCES).add(p);
                                 }
                                 break;
+                            default:
+                                LOG.log(Level.FINER, "Don't know how to categorize {0} with {1}", new Object[]{p, e.getKey()});
+
                         }
                     }
                 }
@@ -484,7 +513,7 @@ public final class InferredConfig {
                                 String nm = child.getFileName().toString();
                                 if (nm.endsWith("Parser.java") || nm.endsWith("Lexer.java")) {
                                     found.set();
-                                    inferences.get(Folders.JAVA_GENERATED_SOURCES).clear();
+//                                    inferences.get(Folders.JAVA_GENERATED_SOURCES).clear();
                                     inferences.get(Folders.JAVA_GENERATED_SOURCES).add(checkAbsolute(pathRoot));
                                     LOG.log(Level.FINEST, "Scan inferenced java generated sources dir {0}", pathRoot);
                                 }
@@ -508,7 +537,7 @@ public final class InferredConfig {
         // a grammar source root, and there are grammar files underneath some other
         // kind of root, simply also assign the antlr grammar root to be
         // the same directory
-        if (!inferences.containsKey(Folders.ANTLR_GRAMMAR_SOURCES) || inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).isEmpty()) {
+        if (true || !inferences.containsKey(Folders.ANTLR_GRAMMAR_SOURCES) || inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).isEmpty()) {
             Set<Path> grammarFolders = new HashSet<>(scanner.foldersForExtensions.get("g4"));
             grammarFolders.addAll(scanner.foldersForExtensions.get("g"));
             if (!grammarFolders.isEmpty()) {
@@ -541,15 +570,47 @@ public final class InferredConfig {
 //                }
             }
         }
+        // If still no grammar sources, but some WERE found under another already-inferenced source root,
+        // just assing ANTLR_GRAMMAR_SOURCES to contain that root too
+        if (!inferences.containsKey(Folders.ANTLR_GRAMMAR_SOURCES) || inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).isEmpty()) {
+            Set<Path> foldersWithGrammars = scanner.foldersForExtensions.get("g");
+            foldersWithGrammars.addAll(scanner.foldersForExtensions.get("g4"));
+            if (!foldersWithGrammars.isEmpty()) {
+                for (Folders f : Folders.values()) {
+                    if (f != Folders.ANTLR_GRAMMAR_SOURCES && f != Folders.ANTLR_IMPORTS) {
+                        Set<Path> roots = inferences.get(f);
+                        for (Path p : roots) {
+                            for (Path gfolder : foldersWithGrammars) {
+                                if (gfolder.equals(p) || gfolder.startsWith(p)) {
+                                    inferences.get(f).add(p);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Set<Path> grammarFolders = new HashSet<>(scanner.foldersForExtensions.get("g4"));
         grammarFolders.addAll(scanner.foldersForExtensions.get("g"));
+        Set<Path> claimedGrammarFolders = new HashSet<>();
         for (Path p : grammarFolders) {
             if (p.getFileName().toString().equals("imports")) {
+                Path abs = projectDir.resolve(p);
                 if (p.toString().contains("build/classes")) {
+                    claimedGrammarFolders.add(p);
                     // Hack hack hack
                     continue;
                 }
-                Path abs = projectDir.resolve(p);
+                if (p.getNameCount() > 2) {
+                    if (looksLikeBuildDir(p, 1)) {
+                        continue;
+                    }
+                }
+                if (p.getNameCount() > 1) {
+                    if (looksLikeBuildDir(p, 0)) {
+                        continue;
+                    }
+                }
                 boolean isBuildDir = false;
                 if (projectDir != null) {
                     for (Folders buildFolder : new Folders[]{CLASS_OUTPUT, JAVA_GENERATED_SOURCES, TEST_CLASS_OUTPUT}) {
@@ -565,13 +626,114 @@ public final class InferredConfig {
                     }
                 }
                 if (!isBuildDir) {
+                    claimedGrammarFolders.add(p);
                     inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).remove(abs);
                     inferences.get(Folders.ANTLR_IMPORTS).add(abs);
                 }
             }
         }
+        grammarFolders.removeAll(claimedGrammarFolders);
+        for (Path unclaimed : grammarFolders) {
+            LOG.log(Level.FINEST, "Still have unclaimed grammar folder {0}", unclaimed);
+            boolean upOne = hasSourceLikeBasePath(unclaimed);
+            Path root;
+            boolean looksLikeImports = unclaimed.getNameCount() > 0
+                    && unclaimed.getName(0).toString().contains("import");
+            if (unclaimed.getNameCount() > 2) {
+                if (looksLikeBuildDir(unclaimed, 1)) {
+                    LOG.log(Level.FINEST, "Looks too much like a build dir to infer source dir. Skipping {0}", unclaimed);
+                    continue;
+                }
+                if (looksLikeImports(unclaimed, 1)) {
+                    Path pth = scanner.projectRoot.resolve(unclaimed.getName(0).resolve(unclaimed.getName(1)));
+                    LOG.log(Level.FINER, "Last gasp - second dir looks like an imports folder: {0}", unclaimed);
+                    inferences.get(Folders.ANTLR_IMPORTS).add(pth);
+                    continue;
+                } else if (hasSourceLikeBasePath(unclaimed, 1)) {
+                    Path pth = scanner.projectRoot.resolve(unclaimed.getName(0).resolve(unclaimed.getName(1)));
+                    LOG.log(Level.FINER, "Last gasp - second dir looks like a source folder: {0}", unclaimed);
+                    inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).add(pth);
+                    continue;
+                }
+            }
+            if (unclaimed.getNameCount() > 1) {
+                if (looksLikeBuildDir(unclaimed, 0)) {
+                    LOG.log(Level.FINEST, "Looks too much like a build dir to infer source dir. Skipping {0}", unclaimed);
+                    continue;
+                }
+                root = scanner.projectRoot.resolve(unclaimed.getName(0));
+                if (looksLikeImports) {
+                    LOG.log(Level.FINER, "Last gasp - bottom dir looks like an imports folder: {0}", unclaimed);
+                    inferences.get(Folders.ANTLR_IMPORTS).add(root);
+                } else {
+                    LOG.log(Level.FINER, "Last gasp - bottom dir looks like an imports folder: {0}", unclaimed);
+                    inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).add(root);
+                }
+            }
+        }
+        Set<Path> toRemove = new HashSet<>();
+        for (Path inference : inferences.get(Folders.ANTLR_GRAMMAR_SOURCES)) {
+            if (looksLikeBuildDir(inference.getFileName(), 0)) {
+                toRemove.add(inference);
+            } else if (inference.getParent() != null
+                    && !inference.getParent().equals(scanner.projectRoot)
+                    && looksLikeBuildDir(inference.getParent().getFileName(), 0)) {
+                toRemove.add(inference);
+            }
+        }
+        for (Path inference : inferences.get(Folders.ANTLR_GRAMMAR_SOURCES)) {
+            for (Path inference2 : inferences.get(Folders.ANTLR_GRAMMAR_SOURCES)) {
+                if (inference2 == inference) {
+                    continue;
+                }
+                if (inference2.startsWith(inference)) {
+                    toRemove.add(inference2);
+                }
+            }
+        }
+        for (Path inference : inferences.get(Folders.ANTLR_IMPORTS)) {
+            for (Path inference2 : inferences.get(Folders.ANTLR_IMPORTS)) {
+                if (inference2 == inference) {
+                    continue;
+                }
+                if (inference2.startsWith(inference)) {
+                    toRemove.add(inference2);
+                }
+            }
+        }
+        inferences.get(Folders.ANTLR_GRAMMAR_SOURCES).removeAll(toRemove);
+        inferences.get(Folders.ANTLR_IMPORTS).removeAll(toRemove);
 
         return !copy.equals(inferences);
+    }
+
+    static boolean looksLikeBuildDir(Path path, int nm) {
+        String name = path.getName(nm).toString();
+        return name.contains("build") || name.contains("generate") || name.contains("target")
+                || name.contains("dist") || name.contains("class");
+    }
+
+    static boolean looksLikeImports(Path path) {
+        return path.getName(0).toString().contains("import");
+    }
+
+    static boolean looksLikeImports(Path path, int name) {
+        return path.getName(name).toString().contains("import");
+    }
+
+    static boolean hasSourceLikeBasePath(Path path) {
+        return hasSourceLikeBasePath(path, 0);
+    }
+
+    static boolean hasSourceLikeBasePath(Path path, int name) {
+        if (path.getNameCount() > name) {
+            Path root = path.getName(0);
+            String str = root.toString().toLowerCase();
+            if (str.contains("source") || str.contains("src") || str.contains("antlr") || str.contains("java") || str.contains("test")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static SubtreeScanner scanToProjectRoot(Path projectRoot, Path queriedFile) throws IOException {

@@ -17,6 +17,7 @@ package org.nemesis.antlr.live;
 
 import java.io.IOException;
 import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataFolder;
 import org.openide.loaders.DataObjectExistsException;
 import org.openide.loaders.MultiDataObject;
 import org.openide.loaders.MultiFileLoader;
@@ -39,12 +40,19 @@ public class FakeG4DataLoader extends MultiFileLoader {
 
     @Override
     protected MultiDataObject createMultiObject(FileObject primaryFile) throws DataObjectExistsException, IOException {
-        return new FakeG4DataObject(primaryFile, this);
+        if (!primaryFile.isFolder()/* || "g4".equals(primaryFile.getExt())*/) {
+            return new FakeG4DataObject(primaryFile, this);
+        } else {
+            return new DataFolder(primaryFile);
+        }
     }
 
     @Override
     protected MultiDataObject.Entry createPrimaryEntry(MultiDataObject obj, FileObject primaryFile) {
-        return ((FakeG4DataObject) obj).e();
+        if (obj instanceof FakeG4DataObject) {
+            return ((FakeG4DataObject) obj).e();
+        }
+        return null;
     }
 
     @Override

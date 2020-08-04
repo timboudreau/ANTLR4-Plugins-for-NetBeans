@@ -140,7 +140,7 @@ public class ImportsAndResolvableProcessor extends LayerGeneratingDelegate {
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
                             .body(bb -> {
-                                bb.log("Created {0} over {1}", Level.INFO, "this", "DELEGATE");
+                                bb.log("Created {0} over {1}", Level.FINEST, "this", "DELEGATE");
                             });
                 })
                 .overridePublic("allImports", mb -> {

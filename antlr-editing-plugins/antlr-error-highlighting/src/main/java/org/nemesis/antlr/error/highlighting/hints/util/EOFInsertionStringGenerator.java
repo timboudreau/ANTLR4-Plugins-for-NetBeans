@@ -18,7 +18,6 @@ package org.nemesis.antlr.error.highlighting.hints.util;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
 import com.mastfrog.util.collections.IntSet;
-import com.mastfrog.util.strings.Escaper;
 import java.io.IOException;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -103,11 +102,9 @@ public final class EOFInsertionStringGenerator extends ANTLRv4BaseVisitor<CharSe
                 ParserRuleContext prc = (ParserRuleContext) node;
                 Interval ival = prc.getSourceInterval();
                 if (ival.b == tokenIndexPrecedingSemi) {
-                    System.out.println("FOUND RULE " + ANTLRv4Parser.ruleNames[prc.getRuleIndex()]);
                     ruleTypesContainingPrecedingToken.add(prc.getRuleIndex());
                 }
                 if (ival.b == tokenIndexPrecedingTokenPrecedingSemi) {
-                    System.out.println("FOUND PREC " + ANTLRv4Parser.ruleNames[prc.getRuleIndex()]);
                     ruleTypesContainingTokenPrecedingPrecedingToken.add(prc.getRuleIndex());
                 }
             }
@@ -144,26 +141,21 @@ public final class EOFInsertionStringGenerator extends ANTLRv4BaseVisitor<CharSe
     }
 
     private Token precedingNonWhitespaceToken(Token token) {
-        System.out.println("FIND adj to " + token.getText() + " at " + token.getStartIndex());
         int ix = token.getTokenIndex();
         Token target = null;
         for (int i = ix - 1; i > 0; i--) {
             Token test = parser.getTokenStream().get(i);
-            System.out.println("  TEST " + Escaper.CONTROL_CHARACTERS.escape(token.getText()) + " at " + token.getStartIndex());
             String txt = test.getText().trim();
             if (!txt.isEmpty() && !";".equals(txt)) {
                 target = test;
-                System.out.println("   it is the target");
                 break;
             }
         }
-        System.out.println("PRECEDING TOKEN IS '" + (target == null ? "null" : Escaper.CONTROL_CHARACTERS.escape(target.getText())) + "'");
         return target;
     }
 
     @Override
     public CharSequence visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
-        System.out.println("THE RULE: '" + Escaper.CONTROL_CHARACTERS.escape(ctx.getText()));
         Token semi;
         if (ctx.SEMI() != null) {
             semi = ctx.SEMI().getSymbol();

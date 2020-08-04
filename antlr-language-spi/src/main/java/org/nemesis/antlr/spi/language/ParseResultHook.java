@@ -157,7 +157,6 @@ public class ParseResultHook<T extends ParserRuleContext> {
             Extraction extraction, ParseResultContents populate, Fixes fixes) {
         boolean postprocess = NbAntlrUtils.isPostprocessingEnabled();
         if (!postprocess) {
-            System.out.println( "SKIP POST PROCESSING FOR " + mimeType );
             return;
         }
         Collection<? extends ParseResultHook> all = MimeLookup.getLookup(mimeType).lookupAll(ParseResultHook.class);

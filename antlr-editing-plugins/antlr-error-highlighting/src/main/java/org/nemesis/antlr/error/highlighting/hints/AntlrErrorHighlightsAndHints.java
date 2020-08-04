@@ -320,8 +320,6 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                                 } catch (BadLocationException ex) {
                                     Exceptions.printStackTrace(ex);
                                 }
-                            } else {
-                                System.out.println("NO RULE IN ERROR MSG '" + err.message() + "'");
                             }
                         }
                         fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
@@ -421,17 +419,6 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
 
     private int offsetsOf(Document doc, ParsedAntlrError error, BadLocationIntBiConsumer startEnd) throws BadLocationException {
         LineDocument lines = LineDocumentUtils.as(doc, LineDocument.class);
-        /*
-            System.out.println("\nERROR:\t'" + error.message() + "'");
-            System.out.println("type:\t" + (error.isError() ? "ERROR" : "WARNING"));
-            System.out.println("err-code:\t" + error.code());
-            System.out.println("err-line:\t" + error.lineNumber() + ":" + error.lineOffset());
-            System.out.println("err-offsets:\t" + error.fileOffset() + ":" + (error.fileOffset() + error.length()));
-            System.out.println("err-length:\t" + error.length());
-            System.out.println("doc-length:\t" + docLength);
-            System.out.println("total-lines:\t" + el.getElementCount());
-            System.out.println("");
-         */
         if (lines != null) {
             int docLength = lines.getLength();
 //            error.hasFileOffset();

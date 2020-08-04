@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live;
 
+import org.nemesis.antlr.live.impl.AntlrGenerationSubscriptionsImpl;
 import org.nemesis.test.fixtures.support.SimulatedEditorReparse;
 import org.nemesis.test.fixtures.support.ProjectTestHelper;
 import com.mastfrog.function.throwing.ThrowingRunnable;
@@ -25,8 +26,6 @@ import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
@@ -42,7 +41,6 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.test.fixtures.support.GeneratedMavenProject;
 import static org.nemesis.antlr.live.SanityCheckPlumbingTest.initAntlrTestFixtures;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
-import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.jfs.JFS;
@@ -64,14 +62,14 @@ public class RebuildSubscriptionsTest {
         Sub sub = new Sub();
         Document doc = proj.document("NestedMaps.g4");
 
-        Runnable unsubscribe = RebuildSubscriptions.instance().subscribe(proj.file("NestedMaps.g4"), sub);
+        Runnable unsubscribe = RebuildSubscriptions.subscribe(proj.file("NestedMaps.g4"), sub);
         assertNotNull(unsubscribe);
         sub.assertRebuilt(1);;
 
         StyledDocument lexerDoc = proj.document("NMLexer.g4");
         assertNotNull(lexerDoc);
 
-        JFS jfs = RebuildSubscriptions.instance().jfsFor(proj.project());
+        JFS jfs = AntlrGenerationSubscriptionsImpl.instance().jfsFor(proj.project());
         assertNotNull(jfs, "No jfs");
         jfs.list(StandardLocation.SOURCE_PATH, "", EnumSet.allOf(JavaFileObject.Kind.class), true)
                 .forEach(jfo -> {
@@ -84,9 +82,10 @@ public class RebuildSubscriptionsTest {
 
         SimulatedEditorReparse rep = new SimulatedEditorReparse(doc);
         doc.insertString(0, "// a line comment\n", null);
+
         // Note: Whether this should be 1 or 2 seems to vary by whether
         // we are running synchronously or not
-        sub.assertRebuilt(2);
+        sub.assertRebuilt(RebuildSubscriptions.SUBSCRIBE_BUILDS_ASYNC ? 1 : 2);
         unsubscribe.run();
         doc.insertString(0, "// another line comment\n", null);
         sub.assertNotRebuilt();
@@ -135,17 +134,6 @@ public class RebuildSubscriptionsTest {
         proj = ProjectTestHelper.projectBuilder()
                 .writeStockTestGrammarSplit("com.foo").build("wookies");
         shutdownTestFixtures.andAlways(proj::delete);
-    }
-
-    static {
-        // Preinitialize its logger
-        Class<?> type = RebuildSubscriptions.class;
-        try {
-            Class.forName(type.getName(), true, type.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(FoldersHelperTrampoline.class.getName()).log(Level.SEVERE,
-                    null, ex);
-        }
     }
 
     @AfterEach

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,8 +57,6 @@ public class AntlrGeneratorTest {
     @Test
     public void testGeneration() throws Throwable {
         AntlrGenerationResult result = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, new PrintStream(out), true);
-        Thread.sleep(1200);
-//        System.out.println(output());
         result.rethrow();
         assertTrue(result.success);
         assertEquals(0, result.code);
@@ -72,8 +72,8 @@ public class AntlrGeneratorTest {
         assertTrue(result.errors.isEmpty());
         assertNotNull(result.grammarFile);
         assertEquals(pkg, result.packageName);
-        assertTrue(result.grammarFile.getName().endsWith("/" + GRAMMAR_FILE_NAME));
-        assertEquals(UnixPath.get(result.grammarFile.getName()).getParent(), packagePath);
+        assertTrue(result.grammarFile.resolveOriginal().getName().endsWith("/" + GRAMMAR_FILE_NAME));
+        assertEquals(UnixPath.get(result.grammarFile.resolveOriginal().getName()).getParent(), packagePath);
 
         List<JavaFileObject> all = new ArrayList<>();
         jfs.list(SOURCE_DEST, "", EnumSet.of(CLASS), true).forEach(all::add);
@@ -89,8 +89,33 @@ public class AntlrGeneratorTest {
         assertTrue(newLastModified > oldLastModified);
         assertFalse(result.currentStatus().isUpToDate());
 
-        AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, AntlrLoggers.getDefault().forPath(UnixPath.get(GRAMMAR_FILE_NAME)), true);
-        assertFalse(newResult.isUsable());
+        try (PrintStream printStream = AntlrLoggers.getDefault().printStream(UnixPath.get(GRAMMAR_FILE_NAME), AntlrLoggers.STD_TASK_GENERATE_ANTLR)) {
+            AntlrGenerationResult newResult = bldr.building(packagePath).run(GRAMMAR_FILE_NAME, printStream, true);
+            assertFalse(newResult.isUsable());
+        }
+
+        assertEquals(packagePath.resolve("NestedMapGrammar.g4"), result.primaryFiles.get("NestedMapGrammar"));
+        assertEquals(packagePath.resolve("NestedMapGrammar.g4"), result.primaryFiles.get("NestedMapGrammarLexer"));
+
+        Set<UnixPath> outputFiles = result.outputFiles.get(packagePath.resolve("NestedMapGrammar.g4"));
+        Set<UnixPath> output2 = result.outputFilesForGrammar("NestedMapGrammar");
+        assertNotNull(outputFiles);
+        assertNotNull(output2);
+        assertSame(outputFiles, output2);
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarParser.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarLexer.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarListener.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarVisitor.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarBaseListener.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarBaseVisitor.java")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammar.tokens")));
+        assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammar.interp")));
+
+        assertEquals(1, result.inputFiles.size());
+        Set<UnixPath> in = result.inputFiles.get("NestedMapGrammar");
+        assertNotNull(in);
+        assertEquals(1, in.size());
+        assertEquals(packagePath.resolve("NestedMapGrammar.g4"), in.iterator().next());
     }
 
     private String output() {
@@ -158,9 +183,11 @@ public class AntlrGeneratorTest {
         String srcFileContents = srcFile.getCharContent(false).toString();
         assertEquals(contents, srcFileContents, "Source file contents from JFS"
                 + " are incorrect");
-        bldr = AntlrGenerator.builder(jfs)
+        bldr = AntlrGenerator.builder(() -> jfs)
                 .grammarSourceInputLocation(SOURCE_DEST)
                 .javaSourceOutputLocation(GENERATED_DEST)
+                .withOriginalFile(Paths.get("AntlrGeneratorTest"))
+                .withTokensHash("-zzzz-")
                 .generateIntoJavaPackage(pkg);
     }
 

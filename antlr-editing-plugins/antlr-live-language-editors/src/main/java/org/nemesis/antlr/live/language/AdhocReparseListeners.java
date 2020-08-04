@@ -16,8 +16,8 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.CollectionUtils;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -124,32 +124,36 @@ public final class AdhocReparseListeners {
         if (!wasRegistered) {
             Language l = Language.find(mimeType);
         }
-        final File file = FileUtil.toFile(fo);
-
         Runnable r = new Runnable() {
             int runCount;
 
             @Override
             public void run() {
-                FileObject theFileObject = FileUtil.toFileObject(file);
-                if (!theFileObject.getMIMEType().equals(mimeType)) {
+                if (!fo.getMIMEType().equals(mimeType)) {
                     if (runCount++ < 6) {
                         PROC.schedule(this, 5, TimeUnit.SECONDS);
                         return;
                     }
                 }
-                if (!theFileObject.getMIMEType().equals(mimeType)) {
+                FileObject theFileObject;
+                if (!fo.getMIMEType().equals(mimeType)) {
+
                     StringBuilder sb = new StringBuilder(512)
                             .append("Subscribing to reparses of ")
-                            .append(theFileObject.getNameExt())
+                            .append(fo.getNameExt())
                             .append(" which is  of mime type ")
-                            .append(theFileObject.getMIMEType())
+                            .append(fo.getMIMEType())
                             .append(" as the mime type ")
                             .append(mimeType)
                             .append("(").append(AdhocMimeTypes.loggableMimeType(mimeType))
                             .append(") is surely a bug.  Callback is: ")
                             .append(listener);
-                    LOG.log(Level.SEVERE, sb.toString(), new Exception(sb.toString()));
+                    LOG.log(Level.INFO, sb.toString(), new Exception(sb.toString()));
+                    Path p = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+                    FileObject nue = p == null ? FileUtil.toFileObject(FileUtil.normalizeFile(p.toFile())) : null;
+                    theFileObject = nue == null ? fo : nue;
+                } else {
+                    theFileObject = fo;
                 }
                 boolean found = withListeners(mimeType, true, arl -> {
                     arl.fileListeners.get(theFileObject).add(listener);

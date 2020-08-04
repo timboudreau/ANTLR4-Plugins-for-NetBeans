@@ -133,11 +133,9 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
 //        CaretToken tokenInfo = new PositionCaretToken(doc, TokenUtils.caretTokenInfo(caret, allTokens, Bias.NONE));
         CaretToken tokenInfo = TokenUtils.caretTokenInfo(caret, allTokens, Bias.NONE);
 
-        System.out.println("caret " + caret + " token " + tokenInfo);
         if (!tokenInfo.isUserToken()) {
             return;
         }
-        System.out.println("ORIG TOKEN " + tokenInfo);
         if (tokenInfo.isWhitespace()) {
             switch (tokenInfo.caretRelation()) {
                 case AT_TOKEN_START:
@@ -151,8 +149,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
                     return;
             }
         }
-        System.out.println("BIASED TOKEN " + tokenInfo);
-
         processCodeCompletion(doc, tokenInfo, allTokens, p, resultSet, frequencies, provider);
     }
 
@@ -178,11 +174,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
             return;
         }
 
-        System.out.println("TARGET " + caretToken + " " + p.getVocabulary()
-                .getDisplayName(caretToken.tokenType()));
-
-        System.out.println("candidates: " + result);
-
         CompletionItemsImpl completionItems = new CompletionItemsImpl(caretToken, doc);
         // We keep a mapping of completer to its items, so that the scores from
         // each set can be normalized to a mutually comparable 0-1
@@ -193,7 +184,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
 
         result.rules.forEach((int ruleId, IntList callStack) -> {
             RulesMapping<?> mapping = RulesMapping.forMimeType(mimeType);
-            System.out.println("CANDIDATE-RULE: " + ruleId + " " + rulesToString(mapping, ruleId, callStack));
             itemsForCompleters.forEach((completer, items) -> {
                 if (blacklist.contains(System.identityHashCode(completer))) {
                     return;
@@ -208,7 +198,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
         });
 
         result.tokens.forEach((int tokenId, IntSet list) -> {
-            System.out.println("CANDIDATE-TOKEN: " + tokensToString(p.getVocabulary(), tokenId, list));
             if (tokenId < Token.MIN_USER_TOKEN_TYPE) {
                 return;
             }
@@ -218,14 +207,12 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
             String literalName = p.getVocabulary().getLiteralName(effectiveTokenId);
             String dispName = p.getVocabulary().getDisplayName(effectiveTokenId);
             if (literalName != null) {
-                System.out.println("SYMBOL: " + literalName + " (" + p.getVocabulary().getSymbolicName(effectiveTokenId) + ")");
                 added.add(effectiveTokenId);
                 completionItems.add(new GCI(
                         Strings.deSingleQuote(literalName), caretToken, doc, dispName), 0);
             } else {
                 String suppliedToken = supplemental.get(effectiveTokenId);
                 if (suppliedToken != null) {
-                    System.out.println("Have supplied token " + effectiveTokenId + " " + suppliedToken);
                     added.add(effectiveTokenId);
                     completionItems.add(new GCI(suppliedToken, caretToken, doc, null), 0.01F);
 //                    completionItems.add(suppliedToken).withScore(0.1F)
@@ -240,9 +227,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
 //                        d.insertString(caretToken.caretPositionInDocument(), suppliedToken, null);
 //                    });
 //                    completionItems.add(new GCI(suppliedToken, caretToken, doc, null), 0);
-                } else {
-                    System.out.println("Not completing token "
-                            + p.getVocabulary().getDisplayName(effectiveTokenId) + " - not a predefined symbol");
                 }
             }
 
@@ -257,7 +241,6 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery {
                 }
                 int eff = ruleSubstitutions.getOrDefault(tok.getType(), tok.getType());
                 String id = p.getVocabulary().getDisplayName(eff);
-                System.out.println("ADDTL: " + id);
                 completionItems.add(new GCI(tok.getText(),
                         caretToken, doc, null), 0);
             });

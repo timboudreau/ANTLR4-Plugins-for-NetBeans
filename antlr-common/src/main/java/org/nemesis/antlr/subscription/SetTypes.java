@@ -6,6 +6,7 @@
 package org.nemesis.antlr.subscription;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import java.lang.ref.Reference;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -13,7 +14,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * Enum of factories for common set types.
@@ -48,6 +51,55 @@ public enum SetTypes implements SetSupplier {
      * Uses an ordinary <code>java.util.HashSet</code>.
      */
     UNORDERED;
+
+    /**
+     * Create a weak (or soft, or something else) hash set with full control
+     * over the creation and handling of the references used (for example
+     * SoftReferences, or WeakReferences that remain strongly referenced until a
+     * timeout, or references attached to your own reference queue.
+     *
+     * @param <T> The type
+     * @param hasher A hashing function (such as <code>Object::hashCode</code>
+     * or <code>System::identityHashCode</code>) - it needs to handle null
+     * values and values of unexpected types, since the contract of Set allows
+     * these to be passed to methods such as <code>contains()</code> - by
+     * default, return 0 for null)
+     * @param referenceFactory The function which creates reference objects
+     * @param initialSize THe initial size of the collection
+     * @return A supplier of sets that creates a new set each time it is called
+     */
+    public <T> Supplier<Set<T>> referenceFactory(ToIntFunction<Object> hasher, Function<? super T, ? extends Reference<T>> referenceFactory, int initialSize) {
+        return () -> new ReferenceFactorySet<>(hasher, referenceFactory, initialSize);
+    }
+
+    /**
+     * Create a weak (or soft, or something else) hash set with full control
+     * over the creation and handling of the references used (for example
+     * SoftReferences, or WeakReferences that remain strongly referenced until a
+     * timeout, or references attached to your own reference queue.
+     *
+     * @param <T> The type
+     * @param referenceFactory The function which creates reference objects
+     * @param initialSize THe initial size of the collection
+     * @return A supplier of sets that creates a new set each time it is called
+     */
+    public <T> Supplier<Set<T>> referenceFactory(Function<? super T, ? extends Reference<T>> referenceFactory, int initialSize) {
+        return () -> new ReferenceFactorySet<>(ReferenceFactorySet.IDENTITY_HASH_CODE, referenceFactory, initialSize);
+    }
+
+    /**
+     * Create a weak (or soft, or something else) hash set with full control
+     * over the creation and handling of the references used (for example
+     * SoftReferences, or WeakReferences that remain strongly referenced until a
+     * timeout, or references attached to your own reference queue.
+     *
+     * @param <T> The type
+     * @param referenceFactory The function which creates reference objects
+     * @return A supplier of sets that creates a new set each time it is called
+     */
+    public <T> Supplier<Set<T>> referenceFactory(Function<? super T, ? extends Reference<T>> referenceFactory) {
+        return () -> new ReferenceFactorySet<>(ReferenceFactorySet.IDENTITY_HASH_CODE, referenceFactory, 20);
+    }
 
     /**
      * Create a Supplier of new sets.

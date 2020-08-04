@@ -627,13 +627,14 @@ public class LocalizeAnnotationProcessor extends AbstractProcessor implements Pr
         classesForElements.clear();
     }
 
+    static boolean inIDE = System.getProperty("netbeans.home") != null;
     private void writePropertiesFiles(RoundEnvironment env) throws IOException {
         for (Map.Entry<String, Map<String, String>> e : bundlesForBundleNames.entrySet()) {
             Element[] els = elementsForBundlePaths.get(e.getKey()).toArray(new Element[0]);
             writeBundle(e.getKey().replace('.', '/')
                     + ".properties", e.getValue(), processingEnv.getFiler(), utils, els);
         }
-        if (!env.errorRaised() && env.processingOver()) {
+        if (!env.errorRaised() && env.processingOver() && !inIDE) {
             System.out.println(KnownTypes.touchedMessage(this));
 //            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING,
 //                    KnownTypes.touchedMessage());

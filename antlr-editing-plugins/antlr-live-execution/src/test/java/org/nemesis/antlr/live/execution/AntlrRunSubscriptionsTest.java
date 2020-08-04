@@ -84,7 +84,6 @@ public class AntlrRunSubscriptionsTest {
         Runnable unsub = is.subscribe(fo, bic);
         assertNotNull(unsub);
         assertNotNull(IR.IR);
-        System.out.println("\nSUBS\n" + RebuildSubscriptions.info());
 //        System.out.println("\nCONFIG: \n" + AntlrConfiguration.forFile(fo));
 
         GrammarRunResult<Map> r = bic.assertExtracted();

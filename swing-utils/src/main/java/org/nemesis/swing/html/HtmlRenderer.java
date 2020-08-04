@@ -452,7 +452,6 @@ public final class HtmlRenderer {
             throw new IllegalArgumentException("Unknown rendering mode: " + style); //NOI18N
         }
 
-        //        System.err.println ("rps: " + y + " " + s);
         if (s.startsWith("<html") || s.startsWith("<HTML")) { //NOI18N
 
             return _renderHTML(s, 6, g, x, y, w, h, f, defaultColor, style, paint, null);
@@ -526,7 +525,6 @@ public final class HtmlRenderer {
         String s, int pos, Graphics g, int x, int y, int w, int h, Font f, Color defaultColor, int style, boolean paint,
         Color background, boolean forcedForeground
     ) {
-        //        System.err.println ("rhs: " + y + " " + s);
         if (f == null) {
             f = UIManager.getFont("controlFont"); //NOI18N
 
@@ -1036,10 +1034,6 @@ public final class HtmlRenderer {
                         if (style == STYLE_TRUNCATE) {
                             int charsToPaint = Math.round(Math.round(Math.ceil((w - widthPainted) / chWidth)));
 
-                            /*                            System.err.println("estCharsOver = " + estCharsOver);
-                                                        System.err.println("Chars to paint " + charsToPaint + " chwidth = " + chWidth + " widthPainted " + widthPainted);
-                                                        System.err.println("Width painted + width of tag: " + (widthPainted + r.getWidth()) + " available: " + w);
-                             */
                             int startPeriodsPos = (pos + charsToPaint) - 3;
 
                             if (startPeriodsPos >= chars.length) {
@@ -1058,7 +1052,6 @@ public final class HtmlRenderer {
                                 r.setRect(r.getX(), r.getY(), (double)fm.stringWidth(new String(chars, pos, length)), r.getHeight());
                             } 
 
-                            //                            System.err.println("Truncated set to true at " + pos + " (" + chars[pos] + ")");
                             truncated = true;
                         } else {
                             //Word wrap mode

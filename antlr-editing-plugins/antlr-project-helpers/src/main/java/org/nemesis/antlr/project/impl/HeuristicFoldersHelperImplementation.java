@@ -413,46 +413,6 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
 
         boolean queryHasGrammarFile = isG4FileRelative(query);
 
-        /*
-        LOG.log(Level.FINER, "Querying for a grammar file in {0} ", folder);
-        if (queryHasGrammarFile && folder == Folders.JAVA_SOURCES) {
-            System.out.println("QUERY FOR GRAMMAR FILE IN JAVA SOURCES " + query);
-            InferredConfig inferred = InferredConfig.get(project, folder, query);
-            if (inferred != null) {
-                FolderQuery dup = query.withProjectAttachedIfFilePresent();
-                if (dup.project() == null) {
-                    dup = dup.project(project);
-                }
-                if (dup.project() != null) {
-                    if (inferred.isMismatch(folder, query.relativeTo())) {
-                        LOG.log(Level.FINEST, "Have mismatch {0} and {1}", new Object[]{folder, query.relativeTo()});
-                        // XXX make this lazy
-                        Path parent = query.relativeTo().getParent();
-                        if (parent != null) {
-                            List<Path> files = new ArrayList<>();
-                            try {
-                                Files.list(parent).forEach(pth -> {
-                                    if (isG4File(pth)) {
-                                        files.add(pth);
-                                    }
-                                });
-                            } catch (IOException ex) {
-                                Exceptions.printStackTrace(ex);
-                            }
-                            if (!files.isEmpty()) {
-                                LOG.log(Level.FINEST, "Returning {0}", files);
-                                return files;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-         */
-        // XXX 
-        // Last resort:  guess the parent of the queried g4 file *is* the source dir
-//        if (queryHasGrammarFile
-//                && folder == Folders.ANTLR_GRAMMAR_SOURCES) {
         if (path == null && initialQuery.hasFile() && !query.hasFile()) {
             query = query.duplicate().relativeTo(initialQuery.relativeTo());
         }
@@ -462,20 +422,19 @@ public final class HeuristicFoldersHelperImplementation implements FolderLookupS
                 withProjectAttached = withProjectAttached.project(project);
             }
             if (withProjectAttached.project() != null) {
-                LOG.log(Level.FINEST, "Try with InferredConfig: {0} for {1}", new Object[]{folder, query});
                 InferredConfig inferred = InferredConfig.get(project, folder, withProjectAttached);
+                LOG.log(Level.FINEST, "Try with InferredConfig: {0} for {1}: {2}", new Object[]{folder, query, inferred});
                 if (inferred != null) {
                     Iterable<Path> result = inferred.query(folder, withProjectAttached, null);
                     if (result.iterator().hasNext()) {
                         return result;
                     }
+                    LOG.log(Level.FINEST, "No results");
                 }
             }
-//            return iterable(query.relativeTo().getParent());
         }
         LOG.log(Level.FINE, "Return {0} for {1}", new Object[]{path, folder});
         return path == null ? Collections.emptySet() : iterable(checkAbsolute(path));
-//        return iterable(path);
     }
 
     static boolean isG4FileRelative(FolderQuery q) {

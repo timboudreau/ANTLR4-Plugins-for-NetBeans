@@ -218,14 +218,14 @@ final class MavenInfo {
         Path path = Paths.get("/home/tim/work/personal/timeseries/crypto/pom.xml");
         PomInfo info = PomInfo.create(path);
         MavenInfo mi = new MavenInfo(path.getParent(), info);
-        System.out.println(mi);
+        System.out.println(mi); // println ok
         PomInfo pi = mi.createInfo();
-        System.out.println("PI: " + pi);
+        System.out.println("PI: " + pi); // println ok
         MavenAntlrConfiguration pluginInfo = mi.pluginInfo();
         AntlrConfiguration config = FoldersHelperTrampoline.getDefault().newAntlrConfiguration(pluginInfo.antlrImportDir(), pluginInfo.antlrSourceDir(), pluginInfo.antlrOutputDir()
                 , pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
 
-        System.out.println("FINAL CONFIG:\n" + config);
+        System.out.println("FINAL CONFIG:\n" + config); // println ok
     }
 
     private static final class PomInfo {
@@ -301,7 +301,7 @@ final class MavenInfo {
                 }
                 sb.append(a.getArtifactId());
             }
-            System.out.println(sb);
+            System.out.println(sb); // println ok
         }
 
         static void noteDependencies(List<? extends PomFileAnalyzer> l) {

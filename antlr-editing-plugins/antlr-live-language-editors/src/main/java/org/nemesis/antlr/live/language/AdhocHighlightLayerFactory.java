@@ -35,7 +35,7 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
 
     public AdhocHighlightLayerFactory(String mimeType) {
         this.mimeType = mimeType;
-        LOG.log(Level.INFO, "Create highlight layer factory for {0}", mimeType);
+        LOG.log(Level.FINE, "Create highlight layer factory for {0}", mimeType);
     }
 
     public static final class Trigger implements Runnable {

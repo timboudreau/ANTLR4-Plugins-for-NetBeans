@@ -29,6 +29,7 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import static org.nemesis.registration.CustomRefactoringDelegate.CUSTOM_REFACTORING_ANNO;
+import static org.nemesis.registration.LocalizeAnnotationProcessor.inIDE;
 import org.nemesis.registration.typenames.KnownTypes;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -51,7 +52,7 @@ public class CustomRefactoringProcessor extends AbstractDelegatingProcessor {
 
     @Override
     protected boolean onRoundCompleted(Map<AnnotationMirror, Element> processed, RoundEnvironment env) throws Exception {
-        if (!env.errorRaised() && env.processingOver()) {
+        if (!env.errorRaised() && env.processingOver() && !inIDE) {
             // Maven seems to swallow many diagnostic messages, so use
             // good old println which at least works
             System.out.println(KnownTypes.touchedMessage(this));

@@ -195,16 +195,6 @@ public class AntlrExtractorTest {
 //        assertFalse(fragmentRuleIdentifiers.isEmpty(), "No fragement rule names");
 
 
-        if (true) {
-            // Somewhere in here, something tries to initialize the entire
-            // module system from the wrong entry point, throws an exception
-            // and dies, and takes the import finder with it.
-
-            // PENDING: This only may occur for JDK 8 - have noticed it only happens
-            // there for other modules
-//            return;
-        }
-
         Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> attributions
                 = ext.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
 
@@ -231,7 +221,7 @@ public class AntlrExtractorTest {
         f.setAccessible(true);
         EditorKit kit = (EditorKit) f.get(null);
         assertNotNull("Editor kit field not populated");
-        TestFixtures fixtures = new TestFixtures();
+        TestFixtures fixtures = new TestFixtures().avoidStartingModuleSystem();
         onShutdown = fixtures.verboseGlobalLogging()
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter())

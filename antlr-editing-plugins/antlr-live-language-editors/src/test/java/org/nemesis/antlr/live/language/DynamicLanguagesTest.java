@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.preconditions.Exceptions;
@@ -40,7 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +49,6 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
-import javax.tools.StandardLocation;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,13 +64,9 @@ import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.adhoc.mime.types.InvalidMimeTypeRegistrationException;
-import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
-import org.nemesis.antlr.compilation.AntlrGeneratorAndCompilerBuilder;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.file.AntlrNbParser;
 import org.nemesis.antlr.grammar.file.resolver.AntlrFileObjectRelativeResolver;
-import org.nemesis.antlr.live.ParsingUtils;
-import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.execution.AntlrRunSubscriptions;
 import org.nemesis.antlr.live.execution.InvocationRunner;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
@@ -83,8 +78,6 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.impl.EmbeddedParser;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
-import org.nemesis.antlr.memory.AntlrGenerator;
-import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.project.helpers.maven.MavenFolderStrategyFactory;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
@@ -119,6 +112,7 @@ import org.openide.filesystems.MIMEResolver;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Lookup;
+import org.openide.util.Pair;
 
 /**
  *
@@ -186,10 +180,40 @@ public class DynamicLanguagesTest {
         assertEquals(ex.getMIMEType(), FileUtil.getMIMEType(ex));
     }
 
+    static class AwaitParseEnvReplacement implements BiConsumer<Extraction, GrammarRunResult<?>> {
+
+        private final OneThreadLatch latch = new OneThreadLatch();
+        private AtomicReference<Pair<Extraction, GrammarRunResult>> info = new AtomicReference<>();
+
+        @Override
+        public void accept(Extraction t, GrammarRunResult<?> u) {
+            info.set(Pair.of(t, u));
+            System.out.println("\n\nKABOOM\t" + t.tokensHash() + "\n\n");
+            latch.releaseAll();
+        }
+
+        public Pair<Extraction, GrammarRunResult> clearAndAwait() throws InterruptedException {
+            info.set(null);
+            return await();
+        }
+
+        public Pair<Extraction, GrammarRunResult> await() throws InterruptedException {
+            Pair<Extraction, GrammarRunResult> result = info.getAndSet(null);
+            if (result != null) {
+                return result;
+            }
+            latch.await(10, TimeUnit.SECONDS);
+            result = info.getAndSet(null);
+            assertNotNull(result, "No result received by timeout");
+            return result;
+        }
+    }
+
     @Test
-    public void testCorrectDataLoaderIsUsed() throws InvalidMimeTypeRegistrationException, DataObjectNotFoundException, InterruptedException, IOException, ParseException, BadLocationException {
+    public void testFullGenerateCompileModifyRegenerateCycle() throws InvalidMimeTypeRegistrationException, DataObjectNotFoundException, InterruptedException, IOException, ParseException, BadLocationException {
         AdhocLanguageFactory factory = AdhocLanguageFactory.get();
 
+        // First check that our mime type gets registered
         String mime = AdhocMimeTypes.mimeTypeForPath(grammarFile);
         // We need to create this folder for EditorSettings to believe a mime
         // type is really here
@@ -200,50 +224,78 @@ public class DynamicLanguagesTest {
         assertEquals(grammarFile, grammarPathFromMime, "Adhoc mime types registry is broken");
         assertNotNull(mime);
         DynamicLanguages.ensureRegistered(mime);
+        // Register our own file extension so we can ensure that gets recognized as
+        // the file type
         AdhocMimeTypes.registerFileNameExtension(EXT, mime);
 
+        // Make sure a set of colorings got registered
         AdhocColorings col = AdhocColoringsRegistry.getDefault().get(mime);
         assertNotNull(col, "No colorings created");
 
+        // Make sure there really is a MimeLookup for our type
         Lookup mimeLookup = MimeLookup.getLookup(mime);
         assertNotNull(mimeLookup, "No lookup");
+        // And that the parser factory got registered
         assertNotNull(mimeLookup.lookup(ParserFactory.class), "No parser factory in mime lookup " + mime);
 
+        // Create a file with our extension and make sure we can read it
         Path testit = example.getParent().resolve("testit-" + System.currentTimeMillis() + "." + defext);
+        // Make sure it gets cleaned up on exit
         shutdown.andAlways(() -> {
             FileUtils.deleteIfExists(testit);
         });
         Files.copy(example, testit, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
         FileObject fo = toFo(testit);
-
         assertNotNull(fo);
+        // And make sure that a copy of the file is loaded with our newly
+        // registered mime type when it has the extension we assigned
         DataObject dob = DataObject.find(toFo(testit));
         assertNotNull(dob);
         assertSame(fo, dob.getPrimaryFile());
-        assertEquals(mime, fo.getMIMEType(), "Adhoc mime resolver not used");
+        assertEquals(mime, fo.getMIMEType(), "Adhoc mime resolver not used or " + fo.getPath()
+                + " not recognized by the resolver for our custom mime type");
 
+        // Make sure AdhocDataLoader is working and is the one that loaded the file
         AdhocDataObject ahdob = dob.getLookup().lookup(AdhocDataObject.class);
-        assertNotNull(ahdob);
+        assertNotNull(ahdob, "Adhoc data loader not working or not used for " + dob);
 
+        // XXx Double check?  We need to do this here for something?
         DynamicLanguages.ensureRegistered(mime);
 
         // Test for artifacts of bugs in masterfs
         assertEquals(TEXT_1, ahdob.getPrimaryFile().asText(), "File content altered");
+
+        // Okay, now try really running the whole thing through the parser infrastructure.
+        // The exercises a LOT of stuff - basically an end-to-end test of all of the
+        // antlr generation, parsing, extraction, etc. support
         Source src = Source.create(ahdob.getPrimaryFile());
         Snapshot snap = src.createSnapshot();
+        // Make sure the snapshot is sane
         assertEquals(TEXT_1, snap.getText().toString(), "Snapshot generation is broken: '" + snap.getText() + "'");
 
+        // Unreference our first source instance
         src = null;
 
+        // Get the language instance for our registered language - we are going
+        // to test that it gets replaced when the grammar is edited, AND that
+        // it really gets garbage collected rather than some piece of plumbing
+        // hanging onto it
         Language<AdhocTokenId> lang = (Language<AdhocTokenId>) findHier(mime);
         assertNotNull(lang, "Language null");
         assertEquals(mime, lang.mimeType());
-        int ic = System.identityHashCode(lang);
+        int originalLanguageIdentityHashcode = System.identityHashCode(lang);
         lang = null;
 
-        assertTrue(ParserManager.canBeParsed(mime), "Parser manager can't find parser for " + mime);
+        // Make sure our ParserFactory got registered in the MimeLookup for our mime type
+        assertTrue(ParserManager.canBeParsed(mime), () -> "Parser manager can't find parser for " + mime
+                + " in MimeLookup.  Contents: " + MimeLookup.getLookup(mime).lookupAll(Object.class));
 
+        // Now perform a parse with our registered parser
         AdhocParserResult p = parse(testit);
+
+        String originalTokenHash = p.grammarHash();
+
+        // Make sure we did not get garbage or nothing in our snapshot (this really happened)
         CharSequence sq = p.getSnapshot().getText();
         assertEquals(TEXT_1, sq.toString(), "Text was somehow altered in snapshot creation: " + p.getSnapshot());
         assertNotNull(p);
@@ -256,48 +308,67 @@ public class DynamicLanguagesTest {
                 return Exceptions.chuck(ex);
             }
         });
-
+        // Double check the mime type again (necessary?)
         assertEquals(mime, toFo(example).getMIMEType());
 
+        // Make sure the grammar path AdhocMimeTypes thinks points at our
+        // grammar really does
         Path gp = AdhocMimeTypes.grammarFilePathForMimeType(mime);
-        assertEquals(gp, gen.get("NestedMaps.g4"));
+        assertEquals(gp, gen.get("NestedMaps.g4"), () -> "AdhocMimeTypes reports the "
+                + "grammar path for " + mime + " as " + gp + " but the generation "
+                + "result says the path to NestedMaps.g4 is "
+                + gen.get("NestedMaps.g4"));
 
-//        gen.replaceString("NestedMaps.g4", "Number", "Puppy").replaceString("NestedMaps.g4", "booleanValue", "dogCow");
+        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
+
+        AwaitParseEnvReplacement parserEnvironmentReplaced = new AwaitParseEnvReplacement();
+        parser.listen(parserEnvironmentReplaced);
+
+        // Now alter the file, generating a file change event, which should
+        // trigger regeneration of all of the underpinnings of our language.
+        //
+        // We change the names of one lexer rule and one parser rule, and
+        // that's what we should see used in the next parser result we get
+        //
+        // Do this this way or we create two file change events and two
+        // reparses
         gen.updateText("NestedMaps.g4", txt -> {
             txt = Strings.literalReplaceAll("Number", "Puppy", txt);
             txt = Strings.literalReplaceAll("booleanValue", "dogCow", txt);
             return txt;
         });
 
-
-        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
-        CountDownLatch parserEnvironmentReplaced = new CountDownLatch(1);
-        BiConsumer<Extraction, GrammarRunResult<?>> cons = ((ex, grr) -> {
-            parserEnvironmentReplaced.countDown();;
-        });
-        parser.listen(cons);
-
         FileObject f1 = gen.file("NestedMaps.g4");
         String txt = f1.asText();
-        assertTrue(txt.contains("dogCow"));
-        assertTrue(txt.contains("Puppy"));
+        assertTrue(txt.contains("dogCow"), "GeneratedAntlrProject.updateText did not update text");
+        assertTrue(txt.contains("Puppy"), "GeneratedAntlrProject.updateText did not update text");
 
+        // Make sure our original parser result became unreferenced
+        // and was cleaned up by the garbage collector and didn't leak
         Reference<AdhocParserResult> ref = new WeakReference<>(p);
         p = null;
         p = assertGarbageCollected(ref, "Old parser result");
 
+        // "Open" the document for the file in the editor plumbing.  This should
+        // cause RebuildSubscriptions.Mapping for this file to switch from just
+        // mapping and listening for file changes and mapping the file into the
+        // JFS, to listening on the document as well and mapping the Document, not
+        // the file, into the JFS
         EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
         assertNotNull(ck);
         StyledDocument doc = ck.openDocument();
         assertNotNull(doc);
 
-        ParseTreeProxy[] lastProxy = new ParseTreeProxy[2];
+        Obj<ParseTreeProxy> lastDocumentProxy = Obj.createAtomic();
+        Obj<ParseTreeProxy> lastFileProxy = Obj.createAtomic();
 
         Set<String> fileRuleNames = Collections.synchronizedSet(new HashSet<>());
         Set<String> docRuleNames = Collections.synchronizedSet(new HashSet<>());
         AtomicReference<Throwable> thrown = new AtomicReference<>();
         boolean[] notificationsDelivered = new boolean[4];
         Thread testThread = Thread.currentThread();
+        // Create listeners to attach to AdhocReparseListeners to get notified
+        // of reparses both when the file is modified, and when the document is
         BiConsumer<Document, EmbeddedAntlrParserResult> ref1 = (Document d, EmbeddedAntlrParserResult rs) -> {
             synchronized (notificationsDelivered) {
                 notificationsDelivered[0] = true;
@@ -306,11 +377,11 @@ public class DynamicLanguagesTest {
             try {
                 assertSame(doc, d, "called with some other document");
                 docRuleNames.addAll(rs.proxy().allRuleNames());
-                assertNull(lastProxy[0], "called twice");
-                lastProxy[0] = rs.proxy();
+                assertNull(lastDocumentProxy.get(), "called twice");
+                lastDocumentProxy.set(rs.proxy());
 
                 int ic2 = System.identityHashCode(Language.find(mime));
-                if (ic2 == ic) {
+                if (ic2 == originalLanguageIdentityHashcode) {
                     try {
 
                         findReferenceGraphPathsTo(Language.find(mime), mimeLookup);
@@ -318,7 +389,7 @@ public class DynamicLanguagesTest {
                         org.openide.util.Exceptions.printStackTrace(ex);
                     }
                 }
-                assertNotEquals(ic, ic2, "Old language instance is still returned - tokens will be wrong");
+                assertNotEquals(originalLanguageIdentityHashcode, ic2, "Old language instance is still returned - tokens will be wrong");
             } catch (Throwable t) {
                 t.printStackTrace();
                 thrown.updateAndGet(old -> {
@@ -338,9 +409,9 @@ public class DynamicLanguagesTest {
             }
             try {
                 assertSame(dob.getPrimaryFile(), lfo, "called with some other file");
-                assertNull(lastProxy[1], "called twice");
+                assertNull(lastFileProxy.get(), "called twice");
                 fileRuleNames.addAll(rs.proxy().allRuleNames());
-                lastProxy[1] = rs.proxy();
+                lastFileProxy.set(rs.proxy());
             } catch (Throwable t) {
                 t.printStackTrace();
                 thrown.updateAndGet(old -> {
@@ -356,14 +427,25 @@ public class DynamicLanguagesTest {
         AdhocReparseListeners.listen(mime, doc, ref1);
         AdhocReparseListeners.listen(mime, dob.getPrimaryFile(), ref2);
 
+        // Now reparse our file, which should trigger all of the plumbing
+        // to regenerate itself for the things that changed
         AdhocParserResult p1 = parse(testit);
+        String newTokensHash = p1.grammarHash();
 
+        assertNotEquals(originalTokenHash, newTokensHash);
+
+        // The language should get replaced
         boolean languageFired = AdhocLanguageFactory.awaitFire(3000);
+        Pair<Extraction, GrammarRunResult> pair = parserEnvironmentReplaced.await();
         Thread.sleep(4000);
-        parserEnvironmentReplaced.await(10, TimeUnit.SECONDS);
+
+        System.out.println("\nSLEEPING....");
+        // Do a quick busyWait, since language replacement notifications are
+        // async
         for (int i = 0; i < 200; i++) {
             synchronized (notificationsDelivered) {
                 if (notificationsDelivered[0] && notificationsDelivered[1]) {
+                    System.out.println("  notifications delivered");
                     break;
                 }
             }
@@ -373,28 +455,57 @@ public class DynamicLanguagesTest {
         assertTrue(notificationsDelivered[0], "Document reparse notification should have been delivered");
         assertTrue(notificationsDelivered[1], "File reparse notification should have been delivered");
 
+        // Remove our listeners so they don't get called again (they will throw if they are
+        // and we will rethrow at the end)
         AdhocReparseListeners.unlisten(mime, doc, ref1);
         AdhocReparseListeners.unlisten(mime, dob.getPrimaryFile(), ref2);
 
         assertNotNull(p1);
         assertNotSame(p, p1, "Should not have gotten cached parser result");
 
+        // Now, the money-shot:  Make sure the analysis of the file contains the token and
+        // parser rule names Puppy and dogCow instead of Number and booleanValue.
+        //
+        // If no, then something in the path between there and here reused a
+        // cached result when it should have noticed the grammar had changed.
         AntlrProxies.ParseTreeProxy ptp1 = p1.parseTree();
-
-        System.out.println("P1 IS " + p1);
         JFS jfs = p1.result().runResult().jfs();
-        Path temp = Files.createTempDirectory("jfs-dump-");
-        System.out.println("DUMPING TO DISK: " + temp);
-        Set<Path> files = jfs.dumpToDisk(temp, StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT, StandardLocation.CLASS_OUTPUT);
-        System.out.println("DUMP: " + files);
 
-
+        // DELETEME - dump the JFS to disk for forensics
+//        Path temp = Files.createTempDirectory("jfs-dump-");
+//        System.out.println("DUMPING TO DISK: " + temp);
+//        Set<Path> files = jfs.dumpToDisk(temp, StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT, StandardLocation.CLASS_OUTPUT);
+//        System.out.println("DUMP: " + files);
+        // Check that the rule names we changed are there
         assertTrue(ptp1.allRuleNames().contains("dogCow"));
         assertTrue(ptp1.allRuleNames().contains("Puppy"));
 
         String foundText = doc.getText(0, doc.getLength());
         assertEquals(TEXT_1, foundText);
 
+        Language<AdhocTokenId> newLanguage = (Language<AdhocTokenId>) findHier(mime);
+        int newLanguageIdHash = System.identityHashCode(newLanguage);
+
+        Set<AdhocTokenId> ids = newLanguage.tokenIds();
+        newLanguage = null;
+        assertNotEquals(originalLanguageIdentityHashcode, newLanguageIdHash,
+                "Language was not replaced.");
+        
+//        AdhocMimeDataProvider.getDefault().gooseLanguage(mime);
+
+        String tid = AdhocLanguageHierarchy.hierarchyInfo(mime).grammarTokensHash();
+        System.out.println("TOKS HASH " + tid + " p1 hash " + p1.grammarHash() + " orig hash " + originalTokenHash);
+
+        Set<String> names = new HashSet<>();
+        for (AdhocTokenId id : ids) {
+            names.add(id.name());
+            System.out.println("  ID " + id);
+        }
+//        assertTrue(names.contains("Puppy"));
+
+        // Now grab the editor kit, and make sure the token sequence
+        // created by AdhocLanguageLexer really contains the token sequence
+        // this file should have WITH the modified tokens
         EditorKit kit = mimeLookup.lookup(EditorKit.class);
         assertNotNull(kit);
         assertTrue(kit instanceof AdhocEditorKit);
@@ -403,6 +514,9 @@ public class DynamicLanguagesTest {
         assertFalse(docRuleNames.isEmpty());
         assertTrue(fileRuleNames.contains("dogCow"), fileRuleNames::toString);
         assertTrue(docRuleNames.contains("dogCow"), docRuleNames::toString);
+
+        System.out.println("SLEEP SOME MORE....");
+        Thread.sleep(4000);
 
         TokenSequenceChecker checker = new TokenSequenceChecker()
                 .add("OpenBrace").add("Whitespace")
@@ -438,6 +552,7 @@ public class DynamicLanguagesTest {
                 //                .add("Whitespace")
                 ;
 
+        // Now really test the token sequence with our tester
         doc.render(() -> {
             TokenHierarchy<StyledDocument> th = TokenHierarchy.get(doc);
 
@@ -449,6 +564,9 @@ public class DynamicLanguagesTest {
             checker.testTokenSequence(seq);
             seq.moveStart();
 
+            // A few bits of plumbing grab the current file object from
+            // a Threadlocal in AdhocEditorKit, whenever we're inside
+            // render() - so make sure that actually works
             assertSame(dob.getPrimaryFile(), AdhocEditorKit.currentFileObject());
 
             assertSame(AdhocEditorKit.currentDocument(), th.inputSource());
@@ -465,12 +583,16 @@ public class DynamicLanguagesTest {
             assertEquals(TEXT_1 + "\n", tokenizedText.toString());
             assertEquals(TEXT_1.length() + 1, length);
         });
+        // Make sure the editor kit doesn't think we're STILL inside render and
+        // cleared the thread local on exit
         assertNull(AdhocEditorKit.currentFileObject());
-//        Thread.sleep(2000);
-        assertNotNull(lastProxy[1], "File reparse listener was not called");
-        assertNotNull(lastProxy[0], "Document reparse listener was not called");
-        assertSame(lastProxy[0], lastProxy[1], "Listeners passed different objects");
 
+        // Now make sure our reparse listeners really got called
+        assertNotNull(lastFileProxy.get(), "File reparse listener was not called");
+        assertNotNull(lastDocumentProxy.get(), "Document reparse listener was not called");
+        assertSame(lastFileProxy.get(), lastDocumentProxy.get(), "Listeners passed different objects");
+
+        // And make sure they didn't get called more than once
         Throwable t = thrown.get();
         if (t != null) {
             Exceptions.chuck(t);
@@ -499,7 +621,7 @@ public class DynamicLanguagesTest {
             cum += ll.getLong(i);
         }
         System.out.println("Average reparse time: " + (cum / ll.size()));
-        */
+         */
     }
 
     static class WaitReparse implements BiConsumer<Document, EmbeddedAntlrParserResult> {
@@ -533,8 +655,8 @@ public class DynamicLanguagesTest {
         }
     }
 
-    private AdhocParserResult assertGarbageCollected(Reference<AdhocParserResult> ref, String msg) throws InterruptedException {
-        AdhocParserResult p;
+    private <T> T assertGarbageCollected(Reference<T> ref, String msg) throws InterruptedException {
+        T p;
         for (int i = 0; i < 50; i++) {
             System.gc();
             System.runFinalization();
@@ -599,14 +721,14 @@ public class DynamicLanguagesTest {
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
             Parser.Result result = resultIterator.getParserResult();
-            assertNotNull(result);
+            assertNotNull(result, () -> "Got null parser result " + FakeAntlrLoggers.lastText());
             assertTrue(result instanceof AdhocParserResult);
             res = (AdhocParserResult) result;
-            if (res.parseTree().isUnparsed()){
+            if (res.parseTree().isUnparsed()) {
                 try {
                     res.result().runResult().rethrow();
                 } catch (Throwable ex) {
-                    throw new AssertionError(res.result().toString(), ex);
+                    throw new AssertionError(res.result().toString() + FakeAntlrLoggers.lastText(), ex);
                 }
             }
 //            assertFalse(res.parseTree().isUnparsed());
@@ -637,28 +759,6 @@ public class DynamicLanguagesTest {
                 //                .includeLogs("AdhocMimeDataProvider", "AdhocLanguageHierarchy", "AntlrLanguageFactory")
                 .build();
         gen = ProjectTestHelper.projectBuilder()
-                .hackModuleSystemNotToStart()
-                .insanelyVerboseLogging()
-                .verboseLogging(
-                    ParsingUtils.class,
-                    RebuildSubscriptions.class,
-                    AntlrRunSubscriptions.class,
-                    AntlrGenerator.class,
-                    JFS.class,
-                    "org.nemesis.antlr.memory.tool.ToolContext",
-                    "org.nemesis.antlr.project.AntlrConfigurationCache",
-                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
-                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
-                    "org.nemesis.antlr.project.impl.InferredConfig",
-                    AntlrGeneratorAndCompiler.class,
-                    AntlrGeneratorBuilder.class,
-                    AntlrGeneratorAndCompilerBuilder.class,
-                    InvocationRunner.class,
-                    "org.nemesis.antlr.live.JFSMapping",
-                    "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
-                    ProxiesInvocationRunner.class,
-                    DynamicLanguages.class
-                )
                 .writeStockTestGrammar("com.foo")
                 .build("foo");
         grammarFile = gen.get("NestedMaps.g4");
@@ -670,6 +770,7 @@ public class DynamicLanguagesTest {
             FileUtils.deleteIfExists(example);
         });
         shutdown.andAlways(DynamicLanguagesTest::clearCache);
+
     }
 
     @AfterEach
@@ -680,7 +781,6 @@ public class DynamicLanguagesTest {
         AdhocMimeDataProvider.getDefault().clear();
         shutdown.run();
         clearCache();
-//        MockServices.setServices();
     }
 
     static void clearCache() throws NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
@@ -690,17 +790,47 @@ public class DynamicLanguagesTest {
     }
 
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
-        TestFixtures fixtures = new TestFixtures();
+        TestFixtures fixtures = new TestFixtures()
+                .avoidStartingModuleSystem()
+//                .insanelyVerboseLogging();
+                ;
         if (verbose) {
-            fixtures.verboseGlobalLogging();
+            fixtures.verboseGlobalLogging(
+                    AdhocLanguageHierarchy.class,
+                    AdhocMimeDataProvider.class,
+                    AdhocLanguageFactory.class,
+                    AdhocLexerNew.class,
+
+//                    AntlrGeneratorAndCompiler.class,
+//                    ParsingUtils.class,
+//                    RebuildSubscriptions.class,
+//                    AntlrRunSubscriptions.class,
+//                    AntlrGenerator.class,
+//                    JFS.class,
+//                    "org.nemesis.antlr.memory.tool.ToolContext",
+//                    "org.nemesis.antlr.project.AntlrConfigurationCache",
+//                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+//                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+//                    "org.nemesis.antlr.project.impl.InferredConfig",
+//                    AntlrGeneratorAndCompiler.class,
+//                    AntlrGeneratorBuilder.class,
+//                    AntlrGeneratorAndCompilerBuilder.class,
+                    InvocationRunner.class,
+//                    "org.nemesis.antlr.live.JFSMapping",
+                    "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
+                    ProxiesInvocationRunner.class,
+                    DynamicLanguages.class
+            );
         }
         DocumentFactory fact = new DocumentFactoryImpl();
         return fixtures.addToMimeLookup("", fact)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.AntlrParserFactory.class)
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter(), fact)
-                .addToNamedLookup(org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
+                .addToNamedLookup(
+                        org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
                         new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder())
                 .addToDefaultLookup(
+                        FakeAntlrLoggers.class,
                         AdhocMimeResolver.class,
                         AdhocInitHook.class,
                         AdhocColoringsRegistry.class,
@@ -714,10 +844,6 @@ public class DynamicLanguagesTest {
                         NbProjectManager.class,
                         NbJFSUtilities.class,
                         NioNotifier.class
-                //                        ,
-                //                        NbLoaderPool.class,
-                //                        DataObjectEnvFactory.class,
-                //                        EditorMimeTypesImpl.class
                 );
 
     }
@@ -748,12 +874,13 @@ public class DynamicLanguagesTest {
                     if (sb.length() > 0) {
                         sb.append('\n');
                     }
-                    sb.append("At token ").append(ix).append(problem);
+                    sb.append("At token ").append(ix).append(' ').append(problem);
                 }
                 ix++;
             }
             if (sb.length() > 0) {
-                fail(sb.toString());
+                sb.insert(0, "Wrong token sequence: ");
+                fail(() -> sb.toString() + FakeAntlrLoggers.lastText());
             }
         }
 

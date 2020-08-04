@@ -138,10 +138,12 @@ public class InlineRefactoringPlugin extends AbstractRefactoringContext implemen
                     // file, and if so, use the extraction of that file
                     SemanticRegion<UnknownNameReference<RuleTypes>> unk = extraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES).at(pos);
                     if (unk != null) {
-                        Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = extraction.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
+                        Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved
+                                = extraction.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
                         SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> attributed = resolved.attributed().at(pos);
                         if (attributed != null) {
-                            AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> reference = attributed.key();
+                            AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> reference
+                                    = attributed.key();
                             // We may be in a completely different file for the actual target rule, so
                             // reset the extraction field here to the extraction of the actual target
                             // file

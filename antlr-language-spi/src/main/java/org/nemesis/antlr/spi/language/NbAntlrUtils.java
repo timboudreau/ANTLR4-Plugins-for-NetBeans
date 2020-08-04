@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.key.NameReferenceSetKey;
@@ -332,6 +333,10 @@ public final class NbAntlrUtils {
 
     static Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
+    public static void invalidateSource(FileObject fo) {
+        INVALIDATOR.accept(fo);
+    }
+
     private static void onPostProcessingExit( PostprocessingMode was, PostprocessingMode is ) {
         if ( is != was && was == PostprocessingMode.DEFERRED ) {
             // Force an invalidate and reparse of anything parsed during
@@ -379,6 +384,22 @@ public final class NbAntlrUtils {
         boolean isPostprocessing() {
             return this == ENABLED;
         }
+    }
+
+    /**
+     * Parse trees are deliberately not embedded in an Antlr parser results,
+     * so they do not memory-leak the entire parse tree for the lifetime of the
+     * parser result, but may be needed for post-processing that happens within
+     * the scope of post-parse runtime hooks. This method allows access to
+     * it if called within that scope.
+     *
+     * @param <T>  The expected tree type
+     * @param type The expected tree type
+     *
+     * @return A parse tree or null
+     */
+    public static <T extends ParserRuleContext> T currentTree( Class<T> type ) {
+        return NbParserHelper.currentTree( type );
     }
 
     private NbAntlrUtils() {

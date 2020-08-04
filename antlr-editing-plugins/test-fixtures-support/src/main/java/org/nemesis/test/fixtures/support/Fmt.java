@@ -13,14 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.nemesis.test.fixtures.support;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import com.mastfrog.util.strings.Strings;
 import java.text.MessageFormat;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.LogRecord;
 
 /**
@@ -28,6 +25,15 @@ import java.util.logging.LogRecord;
  * @author Tim Boudreau
  */
 public final class Fmt extends java.util.logging.Formatter {
+
+    private boolean nbeventsLogged;
+    private final AtomicLong creation = new AtomicLong(System.currentTimeMillis());
+
+    private long touch() {
+        long now = System.currentTimeMillis();
+        long then = creation.getAndSet(now);
+        return now - then;
+    }
 
     String pad(long val) {
         StringBuilder sb = new StringBuilder();
@@ -37,11 +43,11 @@ public final class Fmt extends java.util.logging.Formatter {
         }
         return sb.toString();
     }
-    private boolean nbeventsLogged;
 
     @Override
     public String format(LogRecord record) {
-        StringBuilder sb = new StringBuilder().append(pad(record.getSequenceNumber())).append(":");
+        StringBuilder sb = new StringBuilder().append(pad(record.getSequenceNumber())).append("|");
+        sb.append(pad(touch())).append(':');
         String nm = record.getLoggerName();
         if (!nbeventsLogged && "NbEvents".equals(nm)) {
             nbeventsLogged = true;
@@ -65,13 +71,7 @@ public final class Fmt extends java.util.logging.Formatter {
             sb.append(msg);
         }
         if (record.getThrown() != null) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try (final PrintStream ps = new PrintStream(out, true, "UTF-8")) {
-                record.getThrown().printStackTrace(ps);
-            } catch (UnsupportedEncodingException ex) {
-                ex.printStackTrace();
-            }
-            sb.append(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            sb.append(Strings.toString(record.getThrown()));
         }
         return sb.append('\n').toString();
     }

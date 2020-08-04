@@ -21,6 +21,7 @@ import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.LevenshteinDistance;
 import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.EnumSet;
@@ -31,6 +32,9 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
+import org.nemesis.antlr.live.parsing.impl.GrammarKind;
+import org.nemesis.antlr.memory.JFSPathHints;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
@@ -50,7 +54,20 @@ public class ExtractionCodeGenerator {
 
     private static final Logger LOG = Logger.getLogger(ExtractionCodeGenerator.class.getName());
 
-    private static JFSFileObject searchByName(JFS jfs, String pkg, String rawName, String... possibleSuffixen) {
+    private static JFSFileObject searchByName(JFS jfs, String pkg, JFSPathHints hints, String rawName, String... possibleSuffixen) {
+        for (String suff : possibleSuffixen) {
+            String nm = rawName + suff;
+            UnixPath hintsResult = hints.firstPathForRawName(nm, "g4", "g");
+            if (hintsResult != null) {
+                JFSFileObject result = jfs.get(SOURCE_PATH, hintsResult);
+                if (result == null) {
+                    result = jfs.get(SOURCE_OUTPUT, hintsResult);
+                }
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
         String pkgPath = pkg.replace('.', '/') + '/';
         for (String suff : possibleSuffixen) {
             for (StandardLocation loc : new StandardLocation[]{StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT}) {
@@ -64,8 +81,8 @@ public class ExtractionCodeGenerator {
         return null;
     }
 
-    public static ExtractionCodeGenerationResult saveExtractorSourceCode(Path realSourceFile, JFS fs, String pkg,
-            String grammarName, String lexerGrammarName) throws IOException {
+    public static ExtractionCodeGenerationResult saveExtractorSourceCode(GrammarKind kind, Path realSourceFile, JFS fs, String pkg,
+            String grammarName, String lexerGrammarName, PrintStream logTo, String tokensHash, JFSPathHints hints) throws IOException {
         ExtractionCodeGenerationResult result = new ExtractionCodeGenerationResult(grammarName, pkg);
         FileObject candidateLexer = null;
         FileObject foundParser = null;
@@ -92,12 +109,29 @@ public class ExtractionCodeGenerator {
         //
         //     Are we having fun yet?
         if (grammarName != null && !grammarName.equals(lexerGrammarName)) {
-            foundParser = searchByName(fs, pkg, grammarName, "Parser", "");
+            foundParser = searchByName(fs, pkg, hints, grammarName, "Parser", "");
+            if (foundParser == null) {
+                UnixPath pth = hints.firstPathForRawName(grammarName, "g4", "g");
+                foundParser = fs.get(StandardLocation.SOURCE_PATH, pth);
+                if (foundParser == null) {
+                    foundParser = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                }
+            }
+            logTo.println("grammarName non-match lexerName " + grammarName + " / " + lexerGrammarName + ". Found " + foundParser);
         }
         if (lexerGrammarName != null) {
-            foundLexer = searchByName(fs, pkg, grammarName, "Lexer", "");
+            foundLexer = searchByName(fs, pkg, hints, grammarName, "Lexer", "");
+            if (foundLexer == null) {
+                UnixPath pth = hints.firstPathForRawName(lexerGrammarName, "g4", "g");
+                foundLexer = fs.get(StandardLocation.SOURCE_PATH, pth);
+                if (foundLexer == null) {
+                    foundLexer = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                }
+            }
+            logTo.println("For lexer name found " + foundLexer);
         }
-        StringBuilder genInfo = new StringBuilder("\n/*\n");
+
+        StringBuilder genInfo = new StringBuilder();
         genInfo.append("Passed grammar name: ").append(grammarName).append('\n');
         genInfo.append("Passed lexer name: ").append(lexerGrammarName).append('\n');
         genInfo.append("Looking for '").append(grammarName).append("'\n\n");
@@ -144,7 +178,7 @@ public class ExtractionCodeGenerator {
                     if (foundLexer == null && lexerGrammarName != null && nm.equals(lexerGrammarName)) {
                         genInfo.append("  lexerGrammarName ").append(lexerGrammarName).append(" matches ").append(nm).append(" - it is the lexer\n");
                         foundLexer = fo;
-                        if (foundParser != null) {
+                        if (foundLexer != null) {
                             break;
                         }
                     }
@@ -195,14 +229,16 @@ public class ExtractionCodeGenerator {
             }
         } else {
             genInfo.append("Found lexer by name: ").append(foundLexer == null ? null : foundLexer.getName());
-            genInfo.append("Found parser by name: ").append(foundParser == null ? null : foundParser.getName());
+            genInfo.append("\nFound parser by name: ").append(foundParser == null ? null : foundParser.getName());
         }
+        logTo.println(genInfo);
         // If we found nothing, we're not going to generate anything compilable,
         // so bail here so we don't leave behind either a class missing parts
         // needed when generation is fixed, or an uncompilable turd
         if (foundLexer == null && candidateLexer == null && foundParser == null) {
-            LOG.log(Level.WARNING, "Did not find a parser or a lexer: {0}", genInfo.toString().replace("\n", "; "));
+            LOG.log(Level.INFO, "Did not find a parser or a lexer: {0}", genInfo.toString().replace("\n", "; "));
             result.setGenerationInfo(genInfo);
+            logTo.println("No parser or lexer found.");
             return result;
         }
         String actualParserName = foundParser == null ? null : pkg + '.' + UnixPath.get(foundParser.getName()).getFileName().rawName();
@@ -216,26 +252,41 @@ public class ExtractionCodeGenerator {
 
         result.setGeneratedClassName(generatedClassName);
 
+        genInfo.insert(0, "\n/*\n");
         genInfo.append(" \n*/\n");
-        String code = getLexerExtractorSourceCode(generatedClassName, realSourceFile, pkg, realPrefix, foundParser == null,
+
+        logTo.println("Generate class named: " + generatedClassName);
+        logTo.println("Actual parser name: " + actualParserName);
+
+        String code = getLexerExtractorSourceCode(grammarName, lexerGrammarName,
+                generatedClassName, realSourceFile, pkg, realPrefix,
+                foundParser == null || kind == GrammarKind.LEXER,
                 lexerSuffix,
-                lexerGrammarName, actualParserName);
+                lexerGrammarName, actualParserName, logTo, kind, false,
+                tokensHash);
 
         UnixPath extractorPath = UnixPath.get(pkg.replace('.', '/'), generatedClassName + ".java");
         Debug.message("Generated source code " + realSourceFile + " in " + pkg, () -> code + genInfo);
 
+        logTo.println("Generated file: " + extractorPath);
+
+        logTo.println("\nCode:\n" + code); // XXX for debugging
+
         JFSFileObject fo = fs.get(SOURCE_PATH, extractorPath);
         result.setGenerationInfo(genInfo);
         if (fo != null && Strings.charSequencesEqual(fo.getCharContent(true), code, false)) {
-            LOG.log(Level.INFO, "Generating extractor. Passed lexer name: {0}, passed grammar name {1},"
-                    + " found lexer: {2}, found grammar: {3}, package {4}", new Object[]{
-                        lexerGrammarName, grammarName, (foundLexer == null ? null : foundLexer.getName()),
-                        (foundParser == null ? null : foundParser.getName()), pkg});
+            logTo.append("Generated code exactly matches existing file, reuse that.");
+            LOG.log(Level.FINEST, "Existing extractor matches generated code, reusing it.");
             // Avoid touching the file if we would regenerate the same content - it will
             // cause the test whether files have been modified and the parser should be
             // regenerated to always return true, making every keystroke lead to a furious
             // amount of work
             return result.setResult(fo);
+        } else {
+            LOG.log(Level.FINER, "Generating extractor. Passed lexer name: {0}, passed grammar name {1},"
+                    + " found lexer: {2}, found grammar: {3}, package {4} kind {5}", new Object[]{
+                        lexerGrammarName, grammarName, (foundLexer == null ? null : foundLexer.getName()),
+                        (foundParser == null ? null : foundParser.getName()), pkg, kind});
         }
         return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
     }
@@ -256,34 +307,80 @@ public class ExtractionCodeGenerator {
         return name;
     }
 
-    public static String getLexerExtractorSourceCode(String generatedClassName, Path originalGrammarFile, String pkg,
+    public static String getLexerExtractorSourceCode(String passedGrammarName, String passedLexerGrammarName,
+            String generatedClassName, Path originalGrammarFile, String pkg,
             String classNamePrefix, boolean lexerOnly, String lexerSuffix, String passedLexerName,
-            String actualParserName) throws IOException {
+            String actualParserName, PrintStream logTo, GrammarKind kind, boolean minify,
+            String tokensHash) throws IOException {
         String result = Streams.readResourceAsUTF8(ParserExtractor.class, PARSER_EXTRACTOR_TEMPLATE);
         assert result != null : PARSER_EXTRACTOR_TEMPLATE + " not adjacent to " + ExtractionCodeGenerator.class;
 
         String lexerFinalName = passedLexerName == null ? classNamePrefix + lexerSuffix
                 : passedLexerName;
+        if (actualParserName == null) {
+            actualParserName = pkg + "." + classNamePrefix + "Parser";
+            logTo.println("Using parser name: " + actualParserName);
+        }
+        logTo.println("Using lexer name: " + lexerFinalName);
 
         String extractorPackage = AntlrProxies.class.getPackage().getName();
+
+        if (AntlrLoggers.isActive(logTo)) {
+            logTo.println("\n\n--------  " + kind + " ----------");
+            logTo.println("classNamePrefix " + classNamePrefix);
+            logTo.println("lexerFinalName " + lexerFinalName);
+            logTo.println("passedLexerName " + passedLexerName);
+            logTo.println("lexerSuffix " + lexerSuffix);
+            logTo.println("actual parser name " + actualParserName);
+            logTo.println("LEXER ONLY " + lexerOnly);
+            logTo.println("GRAMMAR FILE " + originalGrammarFile.getFileName());
+            logTo.println("passed grammar name " + passedGrammarName);
+            logTo.println("passed lexer name " + passedLexerName);
+            logTo.println("\n\n");
+        }
+
+        if (kind == GrammarKind.LEXER) {
+//            System.out.println("\n\n--------  LEXER ----------");
+//            System.out.println("lexerFinalName " + lexerFinalName);
+//            System.out.println("passedLexerName " + passedLexerName);
+//            System.out.println("lexerSuffix " + lexerSuffix);
+//            System.out.println("actual parser name " + actualParserName);
+//            System.out.println("LEXER ONLY " + lexerOnly);
+//            System.out.println("GRAMMAR FILE " + originalGrammarFile.getFileName());
+//            System.out.println("passed grammar name " + passedGrammarName);
+//            System.out.println("passed lexer name " + passedLexerName);
+            actualParserName = null;
+            lexerOnly = true;
+            lexerFinalName = passedGrammarName;
+            logTo.println("Set lexerOnly to true for lexer grammar");
+            logTo.println("Swap lexerFinalName to " + passedGrammarName);
+        }
+        if (kind != GrammarKind.COMBINED) {
+            logTo.println("Non-combined, swap classNamePrefix to passedGrammarName " + passedGrammarName);
+            classNamePrefix = passedGrammarName;
+        } else {
+            classNamePrefix = UnixPath.get(originalGrammarFile).rawName();
+        }
+
         // Change the package statement
         result = result.replace("package org.nemesis.antlr.live.parsing.extract;",
                 "package " + pkg + ";").replaceAll(PARSER_EXTRACTOR, generatedClassName);
+
+        result = result.replace("--tokensHash--", tokensHash);
         // Replace the import with an import of the actual lexer class (even though we're in
-        // the same package ordinarily - this could be generated into wherever and an import
+        // the same package ordinarily - this could be genertated into wherever and an import
         // from the same package is harmless)
         result = result.replace("import ignoreme.placeholder.DummyLanguageLexer;",
-                "\nimport " + pkg + "." + lexerFinalName + ";" + "import " + extractorPackage + ".AntlrProxies;\n");
+                "\nimport " + pkg + "." + lexerFinalName + ";\n" + "import " + extractorPackage + ".AntlrProxies;\n");
 
-        if (actualParserName == null) {
-            actualParserName = pkg + "." + classNamePrefix + "Parser";
-        }
         // Same for the parser, if lexerOnly is false
         result = result.replace("import ignoreme.placeholder.DummyLanguageParser;",
                 lexerOnly ? "" : "\nimport " + actualParserName + ";//parser\n");
         // Replace class name occurrences in source
         result = result.replaceAll("DummyLanguageLexer", lexerFinalName);
-        result = result.replaceAll("DummyLanguageParser", actualParserName);
+        if (!lexerOnly) {
+            result = result.replaceAll("DummyLanguageParser", actualParserName);
+        }
         // Replace the string constant that provides the name for the ParseTreeProxy
         result = result.replaceAll("\"DummyLanguage\"", '"' + classNamePrefix + '"');
         // Replace the path constant, so we have that too
@@ -293,9 +390,12 @@ public class ExtractionCodeGenerator {
         if (lexerOnly) {
             StringBuilder sb = new StringBuilder(result.length());
             for (String line : result.split("\n")) {
-                line = line.trim();
+                String trimmedLine = line.trim();
+                if (minify) {
+                    line = trimmedLine;
+                }
                 if (line.isEmpty() || line.endsWith("//parser") || line.startsWith("//")
-                        || line.startsWith("* ") || line.startsWith("/*") || "*".equals(line) || "*/".equals(line)) {
+                        || trimmedLine.startsWith("* ") || trimmedLine.startsWith("/*") || "*".equals(trimmedLine) || "*/".equals(trimmedLine)) {
                     continue;
                 }
                 sb.append(line).append('\n');
@@ -304,9 +404,12 @@ public class ExtractionCodeGenerator {
         } else {
             StringBuilder sb = new StringBuilder(result.length());
             for (String line : result.split("\n")) {
-                line = line.trim();
+                String trimmedLine = line.trim();
+                if (minify) {
+                    line = trimmedLine;
+                }
                 if (line.isEmpty() || line.endsWith("//lexerOnly") || line.startsWith("//")
-                        || line.startsWith("* ") || line.startsWith("/*") || "*".equals(line) || "*/".equals(line)) {
+                        || trimmedLine.startsWith("* ") || trimmedLine.startsWith("/*") || "*".equals(trimmedLine) || "*/".equals(trimmedLine)) {
                     continue;
                 }
                 sb.append(line).append('\n');
@@ -314,7 +417,10 @@ public class ExtractionCodeGenerator {
             result = sb.toString();
 
         }
-        result = result.replaceAll(" //parser", "").replaceAll("\n\n", "\n");
+        result = result.replaceAll(" //parser", "");
+        if (minify) {
+            result.replaceAll("\n\n", "\n").replaceAll("\\n\\s+\\}\\n", "}");
+        }
         return result;
     }
 }

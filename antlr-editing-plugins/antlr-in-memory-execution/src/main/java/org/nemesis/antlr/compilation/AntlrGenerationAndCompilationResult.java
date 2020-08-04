@@ -114,6 +114,16 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
                 && compilationResult.isUsable();
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append('(');
+        sb.append("thrown=").append(thrown)
+                .append(" grammarGenerationResult=")
+                .append(grammarGenerationResult)
+                .append(" compilationResult=")
+                .append(compilationResult);
+        return sb.append(')').toString();
+    }
+
     public JFS jfs() {
         return grammarGenerationResult.jfs();
     }

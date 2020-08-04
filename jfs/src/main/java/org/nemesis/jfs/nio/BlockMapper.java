@@ -503,7 +503,6 @@ final class BlockMapper implements BlockStorage {
 
         synchronized void acquireSnapshot() {
             if (snapshot == null) {
-                System.out.println("To snapshot mode for " + blocks());
                 snapshot = virtualFile.readBufferSnapshot();
             }
         }

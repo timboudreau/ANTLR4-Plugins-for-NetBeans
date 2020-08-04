@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.tools.JavaFileManager.Location;
 import org.nemesis.jfs.JFS;
 
@@ -41,19 +42,22 @@ import org.nemesis.jfs.JFS;
 public class JFSCompileBuilder {
 
     private final Set<ClasspathEntry> classpath = new LinkedHashSet<>();
-    private final JFS jfs;
+    private final Supplier<JFS> jfs;
     private final JavacOptions options = new JavacOptions();
     private final Set<Location> locationsToCompile = new HashSet<>();
     private Writer compilerOutputWriter;
 
     public JFSCompileBuilder(JFS jfs) {
+        this(() -> jfs);
+    }
+
+    public JFSCompileBuilder(Supplier<JFS> jfs) {
         this.jfs = jfs;
-        options.withCharset(jfs.encoding());
     }
 
     public String toString() {
         StringBuilder result = new StringBuilder("JFSCompileBuilder(")
-                .append(jfs.id()).append("\nOptions: ")
+                .append(jfs.get().id()).append("\nOptions: ")
                 .append(options).append("\nCompile-loctions: ")
                 .append(locationsToCompile).append("\nClasspath:\n");
         for (ClasspathEntry ce : classpath) {
@@ -163,6 +167,8 @@ public class JFSCompileBuilder {
     }
 
     public CompileResult compileSingle(UnixPath path) throws IOException {
+        JFS jfs = this.jfs.get();
+        options.withCharset(jfs.encoding());
         CompileJavaSources compiler = new CompileJavaSources(options);
         jfs.setClasspathTo(classpath());
         return compiler.compile(compilerOutputWriter, jfs, path, locationsToCompile.toArray(
@@ -170,6 +176,8 @@ public class JFSCompileBuilder {
     }
 
     public CompileResult compile() throws IOException {
+        JFS jfs = this.jfs.get();
+        options.withCharset(jfs.encoding());
         CompileJavaSources compiler = new CompileJavaSources(options);
         jfs.setClasspathTo(classpath());
         return compiler.compile(compilerOutputWriter, jfs, locationsToCompile.toArray(

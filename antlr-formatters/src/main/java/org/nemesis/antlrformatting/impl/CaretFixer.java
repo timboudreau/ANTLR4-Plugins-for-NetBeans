@@ -69,16 +69,12 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
                 }
             }
         }
-        System.out.println("CREATE CF start / end / len / caretOffset: " + start + " / " + end + " / "
-            + len + " / " + ctx.caretOffset());
         if (start == 0 && (end == len - 1 || end == len)) {
-            System.out.println("Use whole");
             if (caret != null) {
                 return new WholeDocumentCaretFixer(CaretInfo.create(caret));
             }
             return new WholeDocumentCaretFixer(ctx.caretOffset());
         }
-        System.out.println("Use selection");
         if (caret != null) {
             return new SelectionCaretFixer(CaretInfo.create(caret));
         }
@@ -108,7 +104,6 @@ public abstract class CaretFixer implements Supplier<CaretInfo> {
         }
 
         public synchronized void updateStart(int start) {
-            System.out.println("WholeDocumentCaretFixer updateStart " + start);
             int old = caret == null ? -1 : caret.start();
             caret = new CaretInfo(start);
             if (start == 0 && old > start) {

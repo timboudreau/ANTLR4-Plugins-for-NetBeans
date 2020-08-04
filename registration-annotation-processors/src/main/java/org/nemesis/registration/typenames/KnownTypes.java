@@ -1142,7 +1142,7 @@ public enum KnownTypes implements TypeName {
     }
 
     public static String touchedMessage() {
-        if (TOUCHED.isEmpty()) {
+        if (TOUCHED.isEmpty() || System.getProperty("netbeans.home") != null) {
             return "";
         }
         StringBuilder result = new StringBuilder(1024);
@@ -1158,7 +1158,7 @@ public enum KnownTypes implements TypeName {
     }
 
     public static String touchedMessage(Object what) {
-        if (TOUCHED.isEmpty()) {
+        if (TOUCHED.isEmpty() || System.getProperty("netbeans.home") != null) {
             return "";
         }
         StringBuilder result = new StringBuilder(1024);

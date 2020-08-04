@@ -102,7 +102,6 @@ public class RenameNamedPlugin<T extends Enum<T>> extends AbstractAntlrRefactori
     public Problem checkParameters() {
         String name = refactoring.getNewName();
         if (!filter.test(name, false)) {
-            System.out.println("Illegal characters in '" + name + "' with " + filter);
             return createProblem(true, Bundle.illegal_characters());
         }
         return super.checkParameters();

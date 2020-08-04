@@ -63,17 +63,19 @@ final class AlternateTokenVocabParser {
         } else {
             adjacent = filePath.getParent().resolve(name);
         }
-        System.out.println("PRE CRE " + filePath + " parent " + (filePath == null ? "null" : filePath.getParent())
-                + " name " + name + " type " + filePath.getClass().getName() + " adjacent " + adjacent
-                + " for grammar " + g.name + " / " + g.fileName);
-
         JFSFileObject fo = tool.getImportedGrammarFileObject(g, adjacent.toString());
         if (fo == null) {
-            fo = tool.getImportedGrammarFileObject(g, name + ".g4");
+            fo = tool.getImportedGrammarFileObject(g, name);
+            if (fo == null) {
+                fo = tool.getImportedGrammarFileObject(g, unixPath.rawName() + ".g");
+            }
         }
 
         if (fo != null) {
-            Grammar pre = tool.readOneGrammar(fo, adjacent.getFileName().toString(), ctx);
+            JFSFileObject foFinal = fo;
+            Grammar pre = tool.withCurrentPath(fo.path(), () -> {
+                return tool.readOneGrammar(foFinal, adjacent.getFileName().toString(), ctx);
+            });
             if (pre != null) {
                 tool.process(pre, true);
                 tool.noteImportedGrammar(pre.name, pre);
@@ -95,10 +97,11 @@ final class AlternateTokenVocabParser {
         try {
             JFSFileObject fullFile = ctx.getImportedVocabFile(g, tool);
             JFSFileObject ff = fullFile;
-            tool.withCurrentPathThrowing(Paths.get(fullFile.getName()), () -> {
+            tool.withCurrentPathThrowing(fullFile.path(), () -> {
                 int maxTokenType = -1;
                 Pattern tokenDefPattern = Pattern.compile("([^\n]+?)[ \\t]*?=[ \\t]*?([0-9]+)");
                 try (BufferedReader b = new BufferedReader(ff.openReader(true), ff.length())) {
+                    tool.noteInputFile(g, vocabName, ff.path());
                     String tokenDef = b.readLine();
                     int lineNum = 1;
                     while (tokenDef != null) {

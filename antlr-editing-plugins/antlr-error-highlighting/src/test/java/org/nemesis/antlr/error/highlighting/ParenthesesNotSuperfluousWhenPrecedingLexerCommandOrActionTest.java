@@ -245,6 +245,34 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
             + "bubba\n"
             + "    : (UseIdent UseDoubleColon)*;";
 
+    private static final String BUG_3 = "grammar Bug3;\n"
+            + "typeDeclaration : \n"
+            + "      (desc=description? name=typeName S_COLON kind=K_FLOAT (K_DEFAULT numericExpression)? S_SEMICOLON) #floatType\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_INT (K_DEFAULT intExpression)?  S_SEMICOLON) #integerType\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_INT_ARRAY (K_DEFAULT intArray)?  S_SEMICOLON) #integerArray\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_STRING (K_DEFAULT L_STRING)? S_SEMICOLON) #stringType\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_BOOLEAN (K_DEFAULT L_BOOLEAN)? S_SEMICOLON) #booleanType\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_OBJECT S_OPEN_BRACE typeDeclaration+ S_CLOSE_BRACE) #objectType\n"
+            + "    | (desc=description? name=typeName S_COLON kind=K_REFERENCE to=(ID | QUALIFIED_ID) S_SEMICOLON) #referenceType\n"
+            + "    ;";
+
+    @Test
+    public void testBug3() throws Exception {
+        testDynamic(BUG_3, (sampleFile, grammar, ext) -> {
+            SemanticRegions<Integer> regs = assertRulesWithSuperfluousParens(sampleFile,
+                    grammar, ext, "typeDeclaration");
+            assertExpectedRegions(regs, sampleFile, grammar,
+                    "(desc=description? name=typeName S_COLON kind=K_FLOAT (K_DEFAULT numericExpression)? S_SEMICOLON)",
+                    "(desc=description? name=typeName S_COLON kind=K_INT (K_DEFAULT intExpression)?  S_SEMICOLON)",
+                    "(desc=description? name=typeName S_COLON kind=K_INT_ARRAY (K_DEFAULT intArray)?  S_SEMICOLON)",
+                    "(desc=description? name=typeName S_COLON kind=K_STRING (K_DEFAULT L_STRING)? S_SEMICOLON)",
+                    "(desc=description? name=typeName S_COLON kind=K_BOOLEAN (K_DEFAULT L_BOOLEAN)? S_SEMICOLON)",
+                    "(desc=description? name=typeName S_COLON kind=K_OBJECT S_OPEN_BRACE typeDeclaration+ S_CLOSE_BRACE)",
+                    "(desc=description? name=typeName S_COLON kind=K_REFERENCE to=(ID | QUALIFIED_ID) S_SEMICOLON)"
+            );
+        });
+    }
+
     @Test
     public void testBug2() throws Exception {
         testDynamic(BUG_2, (sampleFile, grammar, ext) -> {
@@ -740,7 +768,6 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
 
             @Override
             public Void visitErrorNode(ErrorNode node) {
-                System.out.println("ERR NODE " + node);
                 return super.visitErrorNode(node); //To change body of generated methods, choose Tools | Templates.
             }
 
@@ -797,7 +824,6 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
 
             @Override
             public Void visitErrorNode(ErrorNode node) {
-                System.out.println("ERR NODE " + node);
                 return super.visitErrorNode(node); //To change body of generated methods, choose Tools | Templates.
             }
 
@@ -1002,18 +1028,15 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
             return Integer.compare(a.getTokenIndex(), b.getTokenIndex());
         });
         for (int i = 0; i < ANTLRv4Lexer.VOCABULARY.getMaxTokenType(); i++) {
-            for (TerminalNode tn : grammarLocal.getTokens(i)){
+            for (TerminalNode tn : grammarLocal.getTokens(i)) {
                 all.add(tn.getSymbol());
             }
         }
-        System.out.println("LAL TOKS " + all);
 
         StringBuilder sb = new StringBuilder();
         TreeUtils.visitAllTokens(grammarLocal, tok -> {
             sb.append(tok.getText()).append(' ');
         });
-        System.out.println("\nALL TOKENS: " + sb + "\n");
-        System.out.println("TEXT: " + sampleFileLocal.text());
 
         assertNotNull(grammarLocal);
         Extraction extraction = ext.extract(grammarLocal,

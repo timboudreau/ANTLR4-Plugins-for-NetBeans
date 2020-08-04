@@ -31,8 +31,10 @@ import org.nemesis.extraction.SingletonEncounters;
 
 /**
  * Some people use the convention of fragments all uppercase, lexer rules mixed
- * case, and others use the inverse. So when inventing rule names, try to detect
- * the convention and use that.
+ * case, and others use the inverse, and parser rules are camel case for some
+ * authors, and underscore-delimited for others. So when inventing rule names or
+ * converting the types of rule names, try to detect the convention and use
+ * that.
  *
  * @author Tim Boudreau
  */
@@ -46,7 +48,7 @@ public enum RuleNamingConvention {
     LEXER_RULES_MIXED_CASE_PARSER_RULES_UNKNOWN,
     LEXER_RULES_UPPER_CASE,
     LEXER_RULES_MIXED_CASE,
-    PARSER_RULES_BICAPITALIZED,
+    PARSER_RULES_CAMEL_CASE,
     PARSER_RULES_UNDERSCORES,
     LEXER_RULES_UNKNOWN_PARSER_RULES_BICAPITALIZED,
     LEXER_RULES_UNKNOWN_PARSER_RULES_UNDERSCORES,
@@ -57,7 +59,7 @@ public enum RuleNamingConvention {
             case LEXER_RULES_UPPER_CASE_PARSER_RULES_BICAPITALIZED:
             case LEXER_RULES_MIXED_CASE_PARSER_RULES_BICAPITALIZED:
             case LEXER_RULES_UNKNOWN_PARSER_RULES_BICAPITALIZED:
-            case PARSER_RULES_BICAPITALIZED:
+            case PARSER_RULES_CAMEL_CASE:
                 return true;
             case LEXER_RULES_MIXED_CASE_PARSER_RULES_UNDERSCORES:
             case LEXER_RULES_UPPER_CASE_PARSER_RULES_UNDERSCORES:
@@ -89,7 +91,7 @@ public enum RuleNamingConvention {
                 return false;
             case LEXER_RULES_UNKNOWN_PARSER_RULES_BICAPITALIZED:
             case LEXER_RULES_UNKNOWN_PARSER_RULES_UNDERSCORES:
-            case PARSER_RULES_BICAPITALIZED:
+            case PARSER_RULES_CAMEL_CASE:
             case PARSER_RULES_UNDERSCORES:
             case UNKNOWN:
                 return false;
@@ -99,17 +101,17 @@ public enum RuleNamingConvention {
     }
 
     public boolean isFullySpecified() {
-        switch(this) {
-            case LEXER_RULES_MIXED_CASE :
-            case LEXER_RULES_MIXED_CASE_PARSER_RULES_BICAPITALIZED :
-            case LEXER_RULES_MIXED_CASE_PARSER_RULES_UNDERSCORES :
-            case LEXER_RULES_UPPER_CASE_PARSER_RULES_BICAPITALIZED :
-            case LEXER_RULES_UPPER_CASE_PARSER_RULES_UNDERSCORES :
-            case LEXER_RULES_UPPER_CASE :
-            case PARSER_RULES_BICAPITALIZED :
-            case PARSER_RULES_UNDERSCORES :
+        switch (this) {
+            case LEXER_RULES_MIXED_CASE:
+            case LEXER_RULES_MIXED_CASE_PARSER_RULES_BICAPITALIZED:
+            case LEXER_RULES_MIXED_CASE_PARSER_RULES_UNDERSCORES:
+            case LEXER_RULES_UPPER_CASE_PARSER_RULES_BICAPITALIZED:
+            case LEXER_RULES_UPPER_CASE_PARSER_RULES_UNDERSCORES:
+            case LEXER_RULES_UPPER_CASE:
+            case PARSER_RULES_CAMEL_CASE:
+            case PARSER_RULES_UNDERSCORES:
                 return true;
-            default :
+            default:
                 return false;
         }
     }
@@ -169,7 +171,6 @@ public enum RuleNamingConvention {
                 doc.get().putProperty(NamingConventionResult.class, result);
             }
         }
-        System.out.println("NAMING CONVENTION: "  + result);
         return result.convention;
     }
 
@@ -313,9 +314,10 @@ public enum RuleNamingConvention {
         switch (type) {
             case PARSER:
                 if (parserRules == 0) {
-                    result = UNKNOWN;
+                    return NamingConventionResult.UNK;
                 } else {
-                    result = parserMixed ? PARSER_RULES_BICAPITALIZED : PARSER_RULES_UNDERSCORES;
+                    result = parserMixed ? PARSER_RULES_CAMEL_CASE : PARSER_RULES_UNDERSCORES;
+                    incomplete = false;
                 }
                 break;
             case LEXER:
@@ -324,7 +326,36 @@ public enum RuleNamingConvention {
                 } else if (lexerLowers == 0 && fragmentLowers == 0 && lexerUnderscores == 0 && fragmentUnderscores == 0) {
                     result = UNKNOWN;
                 } else {
-                    result = lexerMixed ? LEXER_RULES_MIXED_CASE : LEXER_RULES_UPPER_CASE;
+                    // If the grammar is ALL lexer rules or ALL fragment rules
+                    // and they are either all upper case, or contain mixed case,
+                    // then we have our answer about both
+                    if (totalFragmentNameChars == 0 && totalLexerNameChars != 0) {
+                        int sub = totalLexerNameChars - (lexerUnderscores + lexerSymbols);
+                        if (sub == lexerUppers) {
+                            result = LEXER_RULES_UPPER_CASE;
+                            incomplete = false;
+                        } else if (lexerLowers > 0) {
+                            result = LEXER_RULES_MIXED_CASE;
+                            incomplete = false;
+                        } else {
+                            // punt
+                            result = LEXER_RULES_MIXED_CASE;
+                        }
+                    } else if (totalFragmentNameChars != 0 && totalLexerNameChars == 0) {
+                        int sub = totalFragmentNameChars - (fragmentUnderscores + fragmentSymbols);
+                        if (sub == fragmentUppers) {
+                            result = LEXER_RULES_MIXED_CASE;
+                            incomplete = false;
+                        } else if (fragmentLowers > 0) {
+                            result = LEXER_RULES_UPPER_CASE;
+                            incomplete = false;
+                        } else {
+                            // punt
+                            result = LEXER_RULES_MIXED_CASE;
+                        }
+                    } else {
+                        result = lexerMixed ? LEXER_RULES_MIXED_CASE : LEXER_RULES_UPPER_CASE;
+                    }
                 }
                 break;
             case COMBINED:
@@ -383,8 +414,7 @@ public enum RuleNamingConvention {
         public NamingConventionResult(RuleNamingConvention convention, boolean confident) {
             this.convention = convention;
             this.confident = confident && convention.isFullySpecified();
-            assert convention == RuleNamingConvention.UNKNOWN ? !confident : true
-                    : "Unknown naming convention may not be confident";
+            assert convention == RuleNamingConvention.UNKNOWN ? !confident : true : "Unknown naming convention may not be confident";
         }
 
         @Override

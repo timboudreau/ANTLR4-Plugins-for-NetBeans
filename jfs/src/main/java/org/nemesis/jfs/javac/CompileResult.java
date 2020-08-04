@@ -15,13 +15,17 @@
  */
 package org.nemesis.jfs.javac;
 
+import com.mastfrog.util.path.UnixPath;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import org.nemesis.jfs.JFSFileModifications;
@@ -30,6 +34,7 @@ import org.nemesis.jfs.result.ProcessingResult;
 import org.nemesis.jfs.result.UpToDateness;
 
 /**
+ * Result of compilation with in-memory javac.
  *
  * @author Tim Boudreau
  */
@@ -48,10 +53,62 @@ public class CompileResult implements ProcessingResult {
         this.filesState = filesState;
     }
 
+    /**
+     * Create a fake compilation result, for cases when compilation is not
+     * needed because sources are either broken or up-to-date.  The
+     * result will have an empty modification set and so will always
+     * be up to date.
+     *
+     * @param success If true, the result will appear to be successful
+     * compilation
+     * @param sourceRoot The source root
+     * @return A compiler result
+     */
     public static CompileResult precompiled(boolean success, Path sourceRoot) {
         CompileResult result = new CompileResult(sourceRoot, JFSFileModifications.empty());
         result.callResult = success;
         return result;
+    }
+
+    /**
+     * Create a fake compilation result, for cases when compilation is not
+     * needed because sources are either broken or up-to-date.  The
+     * result will have an empty modification set and so will always
+     * be up to date.
+     *
+     * @param success If true, the result will appear to be successful
+     * compilation
+     * @param sourceRoot The source root
+     * @return A compiler result
+     */
+    public static CompileResult precompiled(boolean success) {
+        CompileResult result = new CompileResult(UnixPath.empty(), JFSFileModifications.empty());
+        result.callResult = success;
+        return result;
+    }
+
+
+    /**
+     * Determine if specific errors (as determined by Diagnostic.sourceCode()) exist
+     * in the set of diagnostics in this result.
+     *
+     * @param errors Some error codes
+     * @return True if any of them are present
+     */
+    public boolean hasErrors(String... errors) {
+        if (errors.length == 0) {
+            return false;
+        }
+        if (diagnostics.isEmpty()) {
+            return false;
+        }
+        Set<String> set = new HashSet<>(Arrays.asList(errors));
+        for (JavacDiagnostic d : diagnostics) {
+            if (set.contains(d.sourceCode())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public JFSFileModifications filesState() {
@@ -73,6 +130,11 @@ public class CompileResult implements ProcessingResult {
                 + files.size() + " elapsedMs " + elapsed + ")";
     }
 
+    /**
+     * Get the elapsed time spent in compilation to produce this result.
+     *
+     * @return the elapsed milliseconds
+     */
     public long elapsedMillis() {
         return elapsed;
     }

@@ -28,35 +28,33 @@ class CoalescingSubscribableNotifier<K, E> implements SubscribableNotifier<K, E>
     private final IntSupplier delay;
     private final EventMap<K, SchedulableRunner<K, E>> pending;
     private final TimeUnit unit;
-    private final CacheType cacheType;
+    private final MapFactory cacheType;
     private final SubscribableNotifier<K, E> delegate;
 
     CoalescingSubscribableNotifier(ScheduledExecutorService svc,
-            CacheType cacheType, int delay, TimeUnit unit,
+            MapFactory cacheType, int delay, TimeUnit unit,
             SubscribableNotifier<K, E> delegate) {
         this(svc, cacheType, () -> delay, unit, delegate);
     }
 
     CoalescingSubscribableNotifier(ScheduledExecutorService svc,
-            CacheType cacheType, IntSupplier delay, TimeUnit unit,
+            MapFactory cacheType, IntSupplier delay, TimeUnit unit,
             SubscribableNotifier<K, E> delegate) {
         this.svc = svc;
         this.delay = delay;
         this.unit = unit;
         this.cacheType = cacheType;
         this.delegate = delegate;
-        switch (cacheType) {
-            case IDENTITY_WITHOUT_REFERENCE:
-                pending = new IdentityHashEventMap<>();
-                break;
-            default:
-                pending = new MapEventMap<>(cacheType.createMap(64, false));
+        if (cacheType == MapFactories.IDENTITY_WITHOUT_REFERENCE) {
+            pending = new IdentityHashEventMap<>();
+        } else {
+            pending = new MapEventMap<>(cacheType.createMap(64, false));
         }
     }
 
     @Override
     public SubscribableNotifier<K, E> coalescing(ScheduledExecutorService svc,
-            CacheType cacheType, int delay, TimeUnit unit) {
+            MapFactory cacheType, int delay, TimeUnit unit) {
         throw new IllegalStateException("Already a coalescing notifier");
     }
 
@@ -73,7 +71,9 @@ class CoalescingSubscribableNotifier<K, E> implements SubscribableNotifier<K, E>
     private synchronized SchedulableRunner<K, E> runner(K key) {
         SchedulableRunner<K, E> runner = pending.get(key);
         if (runner == null) {
-            runner = (cacheType.hasKeyReference() ? new DelayedRunner(key) : new KeyHoldingRunner());
+            runner = (cacheType == MapFactories.IDENTITY_WITHOUT_REFERENCE
+                    ? new DelayedRunner(key)
+                    : new KeyHoldingRunner());
             pending.put(key, runner);
         }
         return runner;

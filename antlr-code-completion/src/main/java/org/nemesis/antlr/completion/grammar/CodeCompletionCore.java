@@ -233,8 +233,6 @@ public class CodeCompletionCore {
         TokenStream tokenStream = this.parser.getInputStream();
 
         int currentIndex = tokenStream.index();
-//        System.out.println("token stream " + tokenStream + " current index " + currentIndex + " tokenStartIndex " + this.tokenStartIndex
-//                + " caretTokenIndex " + caretTokenIndex);
 
         if (currentIndex != 0) {
             tokenStream.seek(Math.max(0, this.tokenStartIndex));
@@ -249,7 +247,6 @@ public class CodeCompletionCore {
             CCLog.log(this, token);
             toks.add(token);
             if (token.getTokenIndex() >= caretTokenIndex || token.getType() == Token.EOF) {
-//                System.out.println("  STOP LOOKING FOR TOKEN AT " + token + " offset " + offset);
                 break;
             }
         }
@@ -630,7 +627,6 @@ public class CodeCompletionCore {
             ++this.statesProcessed;
 
             if (++count > ITERATION_LIMIT) {
-                System.err.println(ITERATION_LIMIT + " iterations - assuming an endless loop with pipeline " + statePipeline + " at " + currentEntry + " prev " + lastEntry);
                 break;
             }
 

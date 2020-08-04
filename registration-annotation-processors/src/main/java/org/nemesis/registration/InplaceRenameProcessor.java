@@ -60,6 +60,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import static org.nemesis.registration.ImportsAndResolvableProcessor.IMPORTS_ANNOTATION;
 import static org.nemesis.registration.InplaceRenameProcessor.INPLACE_RENAME_ANNO_TYPE;
+import static org.nemesis.registration.LocalizeAnnotationProcessor.inIDE;
 import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ANTLR_REFACTORING_PLUGIN_FACTORY;
@@ -309,7 +310,7 @@ public class InplaceRenameProcessor extends LayerGeneratingDelegate {
             return false;
         }
         processItems();
-        if (env.processingOver()) {
+        if (env.processingOver() && !env.errorRaised() && !inIDE) {
 //            processingEnv.getMessager().printMessage(Diagnostic.Kind.MANDATORY_WARNING, KnownTypes.touchedMessage());
             System.out.println(KnownTypes.touchedMessage(this));
         }

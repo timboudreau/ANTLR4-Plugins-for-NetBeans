@@ -40,7 +40,7 @@ public final class FakeParserFactory extends ParserFactory {
         return new FakeParser();
     }
 
-    static class FakeParser extends Parser {
+    public static class FakeParser extends Parser {
 
         private final Map<Task, Result> results = new HashMap<>();
 

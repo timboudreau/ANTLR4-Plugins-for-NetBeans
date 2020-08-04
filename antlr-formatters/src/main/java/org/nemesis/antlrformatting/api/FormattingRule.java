@@ -219,13 +219,13 @@ public final class FormattingRule implements Comparable<FormattingRule> {
 
     /**
      * Boost the priority of this rule - if there are two which are similar
-     * specificity and this one should take precedence; in general, you
-     * should define your rules and the specificity and order they are
-     * applied in so as not to need to adjust priority - the purpose of
-     * priorities is to allow <i>optional sets of rules</i> to take precedence
-     * when a user-defined formatting setting is set - so you define a base
-     * set of rules that should always be applied, and then subsequent sets
-     * that overlay and take priority over the base rules when matched.
+     * specificity and this one should take precedence; in general, you should
+     * define your rules and the specificity and order they are applied in so as
+     * not to need to adjust priority - the purpose of priorities is to allow
+     * <i>optional sets of rules</i> to take precedence when a user-defined
+     * formatting setting is set - so you define a base set of rules that should
+     * always be applied, and then subsequent sets that overlay and take
+     * priority over the base rules when matched.
      *
      * @param priority The additional priority
      * @see FormattingRules.adjustPriority
@@ -237,14 +237,14 @@ public final class FormattingRule implements Comparable<FormattingRule> {
     }
 
     /**
-     * Adjust the priority of this rule upwards or downwards from any
-     * previously set value (default 0) by some amount; in general, you
-     * should define your rules and the specificity and order they are
-     * applied in so as not to need to adjust priority - the purpose of
-     * priorities is to allow <i>optional sets of rules</i> to take precedence
-     * when a user-defined formatting setting is set - so you define a base
-     * set of rules that should always be applied, and then subsequent sets
-     * that overlay and take priority over the base rules when matched.
+     * Adjust the priority of this rule upwards or downwards from any previously
+     * set value (default 0) by some amount; in general, you should define your
+     * rules and the specificity and order they are applied in so as not to need
+     * to adjust priority - the purpose of priorities is to allow <i>optional
+     * sets of rules</i> to take precedence when a user-defined formatting
+     * setting is set - so you define a base set of rules that should always be
+     * applied, and then subsequent sets that overlay and take priority over the
+     * base rules when matched.
      *
      * @param priority The additional priority
      * @return this
@@ -808,6 +808,10 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         return this;
     }
 
+    static void log(String s) {
+        System.out.println(s); // println ok
+    }
+
     /**
      * The main method which tests the incoming token against all predicates set
      * up for this rule and determines if it matches.
@@ -836,17 +840,17 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             IntFunction<Set<Integer>> parserRuleFinder, boolean isFirstProcessedTokenInSource) {
         boolean log = debug && this.tokenType.test(tokenType);
         if (log) {
-            System.out.println(" try-match-rule " + this);
+            log(" try-match-rule " + this);
         }
         if (!active) {
             if (log) {
-                System.out.println("  fail-inactive: " + this);
+                log("  fail-inactive: " + this);
             }
             return false;
         }
         if (temporarilyInactive) {
             if (log) {
-                System.out.println("  fail-temp-inactive: " + this);
+                log("  fail-temp-inactive: " + this);
             }
             temporarilyInactive = false;
             return false;
@@ -855,13 +859,13 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (this.tokenType != null) {
             result = this.tokenType.test(tokenType);
             if (log && !result) {
-                System.out.println("  fail-type-non-match" + this.tokenType);
+                log("  fail-type-non-match" + this.tokenType);
             }
         }
         if (result && this.firstTokenInSource != null) {
             result = isFirstProcessedTokenInSource == firstTokenInSource.booleanValue();
             if (log && !result) {
-                System.out.println("  fail-first-token-in-source-mismatch-"
+                log("  fail-first-token-in-source-mismatch-"
                         + firstTokenInSource + "-vs-" + isFirstProcessedTokenInSource);
             }
         }
@@ -870,7 +874,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             if (log && !result) {
                 String modeName = mode >= 0 && mode < rules.modeNames().length ? rules.modeNames()[mode]
                         : "unknown";
-                System.out.println("  fail-mode-mismatch-on-" + this.mode + "-with-mode-"
+                log("  fail-mode-mismatch-on-" + this.mode + "-with-mode-"
                         + modeName);
             }
         }
@@ -882,7 +886,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 String prevModeName = prevTokenMode >= 0 && prevTokenMode < rules.modeNames().length ? rules.modeNames()[prevTokenMode]
                         : "unknown";
 
-                System.out.println("  fail-mode-transition-mismatch("
+                log("  fail-mode-transition-mismatch("
                         + prevModeName + "," + modeName + " -for- " + modeTransition);
             }
         }
@@ -891,7 +895,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
                 result = c.test(state);
                 if (!result) {
                     if (log) {
-                        System.out.println("  fail-lexing-state-mismatch" + c + "-with-state-" + state);
+                        log("  fail-lexing-state-mismatch" + c + "-with-state-" + state);
                     }
                     break;
                 }
@@ -900,25 +904,25 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         if (result && this.prevTokenType != null) {
             result = this.prevTokenType.test(prevTokenType);
             if (log && !result) {
-                System.out.println("  fail-prev-token-type-mismatch-" + this.prevTokenType + "-with-" + prevTokenType);
+                log("  fail-prev-token-type-mismatch-" + this.prevTokenType + "-with-" + prevTokenType);
             }
         }
         if (result && this.nextTokenType != null) {
             result = this.nextTokenType.test(nextTokenType);
             if (log && !result) {
-                System.out.println("  fail-next-token-mismatch-" + this.nextTokenType + "-with-" + nextTokenType);
+                log("  fail-next-token-mismatch-" + this.nextTokenType + "-with-" + nextTokenType);
             }
         }
         if (result && this.requiresPrecedingNewline != null) {
             result = this.requiresPrecedingNewline == precededByNewline;
             if (log && !result) {
-                System.out.println("  fail-preceding-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
+                log("  fail-preceding-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
             }
         }
         if (result && this.requiresFollowingNewline != null) {
             result = this.requiresFollowingNewline == followedByNewline;
             if (log && !result) {
-                System.out.println("  fail-subsequent-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
+                log("  fail-subsequent-newline-mismatch-requiring-" + this.requiresPrecedingNewline);
             }
         }
         if (result && parserRuleMatch != null) {
@@ -928,7 +932,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             }
             result = this.parserRuleMatch.test(rulesAtPoint);
             if (log && !result) {
-                System.out.println("  fail-parser-rule-match-" + this.parserRuleMatch + "-with-" + ruleNames(rulesAtPoint));
+                log("  fail-parser-rule-match-" + this.parserRuleMatch + "-with-" + ruleNames(rulesAtPoint));
             }
         }
         if (temporarilyActive) {
@@ -936,7 +940,7 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             active = false;
         }
         if (log && result) {
-            System.out.println("  MATCHED " + this);
+            log("  MATCHED " + this);
         }
         return result;
     }

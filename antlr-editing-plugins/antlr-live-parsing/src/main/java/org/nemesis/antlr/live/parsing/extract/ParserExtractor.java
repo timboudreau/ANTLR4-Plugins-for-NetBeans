@@ -43,9 +43,10 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 /**
  * This class is not called directly by the module; rather, it is used as a
- * template (the symlink named ParserExtractor.template will be included in the
- * JAR as source). ExtractionCodeGenerator will modify its contents for the
- * right class and package names, and remove parser class references in the case
+ * template (the copy in the resources folder named ParserExtractor.template
+ * will be included in the JAR as source). ExtractionCodeGenerator will modify
+ * its contents for the right class and package names, substitute the right
+ * values into static fields, and remove parser class references in the case
  * that only a lexer was generated, and copy it next to the generated Antlr
  * lexer and parser before compiling. This class is then called reflectively in
  * an isolating classloader that is discarded afterwards, to extract information
@@ -54,21 +55,25 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * out of the isolating classloader, so all objects (including exception types)
  * representing the grammar and parse are copied into proxy objects defined in
  * AntlrProxies, which is loaded via the module's, not the isolation
- * environment's classloader. Must not reference any non-JDK, non-ANTLR classes,
- * and any lines which could reference a parser that does not exist for
- * lexer-only grammars should be postfixed with a comment so they can be
- * automatically removed during generation. Classes from the same package as
- * this class must be referenced by FQN or they will not be resolvable when
- * repackaged during generation. If classes from the module are needed, they
- * must be added to the classloader in ProxiesInvocationRunner.
+ * environment's classloader. Must not reference any non-JDK, non-ANTLR classes
+ * other than those explicitly included in the classloader, and any lines which
+ * could reference a parser that does not exist for lexer-only grammars should
+ * be postfixed with a comment so they can be automatically removed during
+ * generation. Classes from the same package as this class must be referenced by
+ * FQN or they will not be resolvable when repackaged during generation. If
+ * classes from the module are needed, they must be added to the classloader in
+ * ProxiesInvocationRunner.  DummyLanguageLexer and DummyLanguageParser exist
+ * only to provide placeholders for substitution (and so this code is compilable
+ * and easily edited during module development).
  *
  * @author Tim Boudreau
  */
 public class ParserExtractor {
 
-    // These two field values are replaced during generation
+    // These field values are replaced during code generation
     private static final String GRAMMAR_NAME = "DummyLanguage";
     private static final Path GRAMMAR_PATH = Paths.get("/replace/with/path");
+    private static final String GRAMMAR_TOKENS_HASH = "--tokensHash--";
 
     public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy //parser
             extract(String text, String ruleName) { //parser
@@ -87,6 +92,7 @@ public class ParserExtractor {
     public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text, int ruleIndex) {
         org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies
                 = new org.nemesis.antlr.live.parsing.extract.AntlrProxies(GRAMMAR_NAME, GRAMMAR_PATH, text);
+        proxies.setGrammarTokensHash(GRAMMAR_TOKENS_HASH);
         try {
             int max = DummyLanguageLexer.VOCABULARY.getMaxTokenType() + 1;
             // Iterate all the token types and report them, so we can
@@ -270,7 +276,7 @@ public class ParserExtractor {
             if (offendingSymbol instanceof Token) {
                 t = (Token) offendingSymbol;
             } else {
-                if (cts != null) {
+                if (cts != null && cts.index() >= 0) {
                     t = cts.get(cts.index());
                 }
             }

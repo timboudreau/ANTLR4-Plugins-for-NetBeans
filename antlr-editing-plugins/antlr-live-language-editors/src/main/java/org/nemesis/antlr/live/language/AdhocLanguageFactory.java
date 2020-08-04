@@ -85,13 +85,15 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     private volatile boolean pendingFire;
 
     void reallyFire() {
-        LOG.log(Level.FINEST, "Really fire property change to force LanguageManager to refresh");
 //        Thread.dumpStack();
         long ct = count.get();
         if (ct != countAtLastFire) {
+            LOG.log(Level.FINEST, "Really fire property change to force LanguageManager to refresh");
             countAtLastFire = ct;
-            super.firePropertyChange(null);
             pendingFire = false;
+            super.firePropertyChange(null);
+        } else {
+            LOG.log(Level.FINE, "Count unchanged, not firing");
         }
     }
 
@@ -119,14 +121,17 @@ public final class AdhocLanguageFactory extends LanguageProvider {
                     AdhocLanguageHierarchy h = cache.get(mime);
                     if (h == hier) {
                         cache.remove(mime);
+                    } else if (h != null) {
+                        LOG.log(Level.FINE, "Have a stale hierarchy not current, leaving in cache {0}", h);
                     }
                 }
                 fire();
+            } else {
+                LOG.log(Level.FINER, "Reentry, dont check cache - currently {0}", cache.get(mime));
             }
             return reentry;
         } else {
             LOG.log(Level.FINE, "No hierarchies to update for {0}", AdhocMimeTypes.loggableMimeType(mime));
-//            reallyFire();
             return false;
         }
     }

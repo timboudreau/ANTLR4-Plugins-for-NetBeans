@@ -90,6 +90,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
     }
 
     private ParseTreeProxy proxy;
+
     private ParseTreeProxy proxy() {
         if (proxy != null) {
             return proxy;
@@ -107,7 +108,12 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                         EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
                         EmbeddedAntlrParserResult pres = parser.parse(text);
                         ParseTreeProxy result = pres.proxy();
-                        LOG.log(Level.FINE, "Lexer gets new mime {0}", result.loggingInfo());
+                        LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
+                                + "result tokens hash {1} hier tokens hash {2}",
+                                new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
+                                     AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
+
+                        AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
                         Document doc = AdhocLanguageHierarchy.document(info);
                         if (doc != null) {
                             Debug.message("document", doc::toString);
@@ -163,6 +169,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         return token(id, actualLength);
     }
 
+    private static AdhocTokenId fabricateDummyToken() {
+        AdhocTokenId id = new AdhocTokenId(AntlrProxies.ERRONEOUS_TOKEN_NAME, 0);
+        return id;
+    }
+
     private Token<AdhocTokenId> trailingJunkToken(LexerInput in) {
         // In the case the grammar did not include EOF, and so the
         // parser decided it was done ahead of the end of the text,
@@ -178,9 +189,9 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
             sb.append((char) c);
         }
         List<AdhocTokenId> ids = ids();
-        AdhocTokenId dummy = ids.get(ids.size() - 1);
+        AdhocTokenId dummy = ids.isEmpty() ? fabricateDummyToken() : ids.get(ids.size() - 1);
         if (count > 0) {
-            LOG.log(Level.WARNING, "Lexer returned insufficient tokens "
+            LOG.log(Level.FINE, "Lexer returned insufficient tokens "
                     + "for {0}; synthesizing a dummy token for {1}",
                     new Object[]{
                         currentLexedName(),
@@ -190,7 +201,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         }
         if (in.readLength() > 0) {
             int len = in.readLength();
-            LOG.log(Level.WARNING, "Lexer read length inconsistent "
+            LOG.log(Level.FINE, "Lexer read length inconsistent "
                     + "for {0} - read {1}",
                     new Object[]{
                         currentLexedName(),

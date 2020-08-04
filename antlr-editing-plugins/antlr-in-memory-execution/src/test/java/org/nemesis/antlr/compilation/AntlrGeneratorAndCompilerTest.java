@@ -25,6 +25,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
 import javax.tools.FileObject;
 import javax.tools.JavaFileManager.Location;
 import static javax.tools.JavaFileObject.Kind.CLASS;
@@ -73,8 +74,8 @@ public class AntlrGeneratorAndCompilerTest {
     ));
 
     @Test
-    public void testCompilation() throws IOException {
-        AntlrGenerationAndCompilationResult res = compiler.compile("NestedMapGrammar.g4", System.out);
+    public void testCompilation() throws Throwable {
+        AntlrGenerationAndCompilationResult res = compiler.compile("NestedMapGrammar.g4");
         assertNotNull(res);
         for (JavacDiagnostic diag : res.javacDiagnostics()) {
             System.out.println("D: " + diag);
@@ -82,7 +83,8 @@ public class AntlrGeneratorAndCompilerTest {
         assertTrue(res.javacDiagnostics().isEmpty(), () -> Strings.join('\n', res.javacDiagnostics()));
         assertFalse(res.compileFailed());
 
-        assertTrue(res.isUsable());
+        res.rethrow();
+        assertTrue(res.isUsable(), "Unusable compile result " + res);
         Set<String> found = new HashSet<>();
         jfs.list(StandardLocation.CLASS_OUTPUT, "", EnumSet.of(CLASS), true)
                 .forEach(fo -> {
@@ -102,11 +104,14 @@ public class AntlrGeneratorAndCompilerTest {
 
     @BeforeEach
     public void setup() throws IOException {
+        AntlrGeneratorAndCompiler.LOG.setLevel(Level.ALL);
         jfs = baseJFS(this::onFileCreated);
         grammarSourceFO = addGrammarToJFS(jfs, sourceFilePath, StandardLocation.SOURCE_PATH);
 
-        compiler = AntlrGeneratorAndCompilerBuilder.compilerBuilder(jfs)
+        compiler = AntlrGeneratorAndCompilerBuilder.compilerBuilder(() -> jfs)
                 .generateIntoJavaPackage(pkg)
+                .withOriginalFile(sourceFilePath)
+                .withTokensHash("-qqq-")
                 .javaSourceOutputLocation(StandardLocation.SOURCE_OUTPUT)
                 .building(sourceFilePath.getParent())
                 .addToClasspath(Grammar.class)

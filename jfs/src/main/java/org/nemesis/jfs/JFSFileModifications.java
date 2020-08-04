@@ -76,7 +76,7 @@ public class JFSFileModifications {
         info = currentInfo();
     }
 
-    JFSFileModifications(JFS jfs, Set<Location> locations) {
+    JFSFileModifications(JFS jfs, Set<? extends Location> locations) {
         this(jfs, ALL, locations);
     }
 
@@ -301,7 +301,14 @@ public class JFSFileModifications {
             public FileChanges filter(Predicate<UnixPath> filter) {
                 return this;
             }
+
+            @Override
+            public boolean isCreatedOrModified(UnixPath path) {
+                return false;
+            }
         }
+
+        public abstract boolean isCreatedOrModified(UnixPath path);
 
         public abstract Set<? extends UnixPath> modified();
 
@@ -357,6 +364,11 @@ public class JFSFileModifications {
                     added.addAll(updates.keySet());
                     added.removeAll(origs.keySet());
                 }
+            }
+
+            @Override
+            public boolean isCreatedOrModified(UnixPath path) {
+                return modified.contains(path) || added.contains(path);
             }
 
             @Override

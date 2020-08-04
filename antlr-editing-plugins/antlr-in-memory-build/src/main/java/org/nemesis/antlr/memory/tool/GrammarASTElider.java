@@ -52,7 +52,6 @@ final class GrammarASTElider {
     }
 
     public GrammarASTElider log() {
-        LOG.setLevel(Level.ALL);
         return this;
     }
 
@@ -109,8 +108,9 @@ final class GrammarASTElider {
             }
             Tree childCopy = (Tree) stream.getTreeAdaptor().dupNode(kid);
             if (LOG.isLoggable(Level.FINER)) {
-                System.out.println(new String(c) + "copy " + textOf(childCopy) + " "
-                        + Escaper.CONTROL_CHARACTERS.escape(kid.getClass().getSimpleName()));
+                LOG.log(Level.FINER, "{0} copy {1} {2}",
+                        new Object[]{new String(c), textOf(childCopy),
+                            Escaper.CONTROL_CHARACTERS.escape(kid.getClass().getSimpleName())});
             }
             assert copy != null : "Got null copy";
             copy.addChild(childCopy);

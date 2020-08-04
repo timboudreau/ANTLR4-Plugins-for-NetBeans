@@ -19,6 +19,7 @@ import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.util.logging.Level;
 import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -29,6 +30,7 @@ import org.nemesis.antlr.project.AntTestProjects.FOQ;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation;
 import org.nemesis.antlr.project.impl.InferredConfig;
+import org.nemesis.antlr.project.impl.HeuristicsLogging;
 import org.nemesis.test.fixtures.support.TestFixtures;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
@@ -49,9 +51,18 @@ public class TestAntProjectWithHeuristics {
             Project p = prj.project();
             assertNotNull(p);
             for (AntTestProjects.GrammarFileEntry f : prj) {
+                if (prj == AntTestProjects.GlobalActions && "GlobalCombinedActions1".equals(f.name())) {
+                    HeuristicsLogging.logging(Level.ALL);
+                } else {
+                    HeuristicsLogging.loggingOff();
+                }
                 System.out.println("\n  ****************** " + f.name() + " ******************");
                 FileObject fo = prj.fileObject(f.name());
                 boolean isImport = fo.getParent().getName().equals("imports");
+
+                Iterable<Path> sourceFolders = Folders.ANTLR_GRAMMAR_SOURCES.find(p, fo);
+
+                System.out.println("SOURCE FOLDERS: " + p2s(prj.dir(), sourceFolders));
 
                 System.out.println("    OWNER OF " + fo.getPath());
                 Folders owner = Folders.ownerOf(fo);
@@ -59,10 +70,15 @@ public class TestAntProjectWithHeuristics {
                 System.out.println("\n  -- \n");
                 assertEquals(isImport ? Folders.ANTLR_IMPORTS : Folders.ANTLR_GRAMMAR_SOURCES, owner,
                         () -> "Wrong owner for " + f + ": " + owner + " in " + AntlrConfiguration.forFile(fo)
-                            + " project " + prj.name());
+                        + " project " + prj.name());
 
                 AntlrConfiguration config = AntlrConfiguration.forFile(fo);
-                assertEquals(prj.dir().resolve("grammar"), config.antlrSourceDir);
+                Path expectedGrammar = prj.dir().resolve("grammar");
+                assertEquals(expectedGrammar, config.antlrSourceDir, "Wrong antlr source dir " + prj.dir().relativize(config.antlrSourceDir)
+                        + " in project " + prj.name() + " file entry " + f.name()
+                        + " should be " + prj.dir().relativize(expectedGrammar)
+                        + " all antlr source folders: " + p2s(prj.dir(), sourceFolders)
+                        + " with config " + config);
                 if (config.antlrImportDir != null || isImport) {
                     assertEquals(prj.dir().resolve("grammar/imports"), config.antlrImportDir);
                 }
@@ -113,6 +129,17 @@ public class TestAntProjectWithHeuristics {
                     assertEquals(prj.dir().resolve("build"), config.buildDir);
             }
         }
+    }
+
+    static String p2s(Path projectDir, Iterable<Path> paths) {
+        StringBuilder sb = new StringBuilder();
+        for (Path p : paths) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(projectDir.relativize(p));
+        }
+        return sb.toString();
     }
 
     @BeforeAll

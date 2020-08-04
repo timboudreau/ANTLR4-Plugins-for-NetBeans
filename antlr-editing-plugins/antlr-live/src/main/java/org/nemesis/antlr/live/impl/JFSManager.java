@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live;
+package org.nemesis.antlr.live.impl;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.function.throwing.io.IORunnable;
 import com.mastfrog.function.throwing.io.IOSupplier;
+import com.mastfrog.util.preconditions.Exceptions;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -37,16 +38,18 @@ import org.openide.util.RequestProcessor;
 import org.openide.util.Utilities;
 
 /**
+ * Maintains a mapping from project to JFS instance, and takes care of cleaning
+ * them up when abandoned.
  *
  * @author Tim Boudreau
  */
-class JFSMapping {
+final class JFSManager {
 
     // also may need to kill it if low memory
     private final Map<Project, ProjectReference> refs
             = new WeakHashMap<>();
 
-    private static final Logger LOG = Logger.getLogger(JFSMapping.class.getName());
+    private static final Logger LOG = Logger.getLogger(JFSManager.class.getName());
     private final RequestProcessor.Task killer = RequestProcessor.getDefault().create(() -> {
         Map<Project, ProjectReference> map = new HashMap<>(refs);
         try {
@@ -65,7 +68,7 @@ class JFSMapping {
         }
     });
 
-    JFSMapping() {
+    JFSManager() {
         killer.schedule((int) (ProjectReference.EXPIRATION / 2));
     }
 
@@ -74,15 +77,12 @@ class JFSMapping {
         if (ref == null) {
             return false;
         }
-        if (RebuildSubscriptions.instance().kill(p, ref.jfs)) {
-            refs.remove(p);
-            ref.run();
-            return true;
-        }
-        return false;
+        refs.remove(p);
+        ref.run();
+        return true;
     }
 
-    synchronized JFS forProject(Project project) throws IOException {
+    synchronized JFS forProject(Project project) {
         ProjectReference ref = refs.get(project);
         if (ref == null) {
             JFS jfs = createJFS();
@@ -104,8 +104,14 @@ class JFSMapping {
         return null;
     }
 
-    JFS createJFS() throws IOException {
-        return JFS.builder().withCharset(UTF_8).build();
+    JFS createJFS() {
+        try {
+            return JFS.builder().withCharset(UTF_8).build();
+        } catch (IOException ex) {
+            // only actually thrown if we use the mapped file
+            // allocator, which we are not
+            return Exceptions.chuck(ex);
+        }
     }
 
     <T> T whileReadLocked(JFS jfs, IOSupplier<T> run) throws Exception {
@@ -140,9 +146,9 @@ class JFSMapping {
         volatile boolean disposed;
         private final ReentrantLock lock = new ReentrantLock(true);
         volatile long lastTouch = System.currentTimeMillis();
-        private static final long EXPIRATION = 1000 * 60 * 10; // 10 min
+        private static final long EXPIRATION = 1_000 * 60 * 10; // 10 min
 
-        public ProjectReference(JFS jfs, Project project) {
+        ProjectReference(JFS jfs, Project project) {
             super(project, Utilities.activeReferenceQueue());
             this.jfs = jfs;
         }

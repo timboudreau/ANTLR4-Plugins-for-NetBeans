@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
+import com.mastfrog.util.cache.TimedCache;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,9 +40,25 @@ import org.openide.util.lookup.ServiceProvider;
  */
 @ServiceProvider(service = FoldersLookupStrategyImplementationFactory.class, position = 10)
 public final class MavenFolderStrategyFactory implements FoldersLookupStrategyImplementationFactory {
+    private final TimedCache<Project, Boolean, RuntimeException> answerCache =
+            TimedCache.create(24000, (Project request) -> {
+                if (request.getProjectDirectory().getFileObject("pom.xml") == null) {
+                    return false;
+                }
+                return true;
+    });
 
     @Override
     public FolderLookupStrategyImplementation create(Project project, FolderQuery initialQuery) {
+        if (project == null && initialQuery.hasProject()) {
+            project = initialQuery.project();
+        }
+        if (project == null) {
+            return null;
+        }
+        if (!answerCache.get(project)) {
+            return null;
+        }
         if (project == null || project.getProjectDirectory()
                 .getFileObject("pom.xml") == null) {
             return null;

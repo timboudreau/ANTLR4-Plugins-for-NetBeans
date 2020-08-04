@@ -38,7 +38,6 @@ public interface Completer {
     default void namesForRule(int parserRuleId, String optionalPrefix,
             int maxResultsPerKey, String optionalSuffix,
             BiConsumer<String, Enum<?>> names) throws Exception {
-        System.out.println("namesForRule noList for " + parserRuleId);
     }
 
     /**
@@ -57,7 +56,6 @@ public interface Completer {
     default void namesForRule(int parserRuleId, String optionalPrefix,
             int maxResultsPerKey, String optionalSuffix, IntList rulePath,
             BiConsumer<String, Enum<?>> names) throws Exception {
-        System.out.println("namesForRule withList for " + parserRuleId);
         namesForRule(parserRuleId, optionalPrefix, maxResultsPerKey,
                 optionalSuffix, names);
     }
@@ -73,7 +71,6 @@ public interface Completer {
      */
     default void apply(int parserRuleId, CaretToken token, int maxResultsPerKey,
             IntList rulePath, CompletionItems addTo) throws Exception {
-        System.out.println("APPLY " + parserRuleId);
         namesForRule(parserRuleId, token.leadingTokenText(), maxResultsPerKey,
                 token.trailingTokenText(), rulePath, addTo::add);
     }

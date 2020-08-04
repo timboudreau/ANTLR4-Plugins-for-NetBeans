@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.preview;
 
 import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
 import java.awt.Component;
@@ -40,6 +41,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
@@ -52,6 +54,7 @@ import javax.swing.text.Document;
 import javax.swing.text.Element;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
+import javax.tools.StandardLocation;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.common.AntlrConstants;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
@@ -64,6 +67,10 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
+import org.nemesis.antlr.memory.spi.AntlrOutput;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.EditorRegistry;
@@ -180,12 +187,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         if (info == null) {
             return;
         }
-//        if (Thread.interrupted()) {
-//            return;
-//        }
-        // XXX this is a disorganized mess
-        // XXX use AntlrLoggers and fold the output for voluminous output
-        // like Antlr's logging, and fold it closed by default
+
         ParseTreeProxy proxy = info.proxy();
         InputOutput io = io(tabName(info, proxy));
 
@@ -204,9 +206,12 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         try (final OutputWriter writer = io.getOut()) {
             printOutputHeader(info, io);
             writer.reset();
+            boolean foldsDisplayed = false;
             if (proxy != null && proxy.isUnparsed()) {
                 // XXX get the full result and print compiler diagnostics?
                 ioPrint(io, Bundle.unparsed(), IOColors.OutputType.ERROR);
+                printOutputSectionsFolded(info, io, folds);
+                foldsDisplayed = true;
                 GrammarRunResult<?> buildResult = info.runResult();
                 if (buildResult != null) {
                     boolean wasGenerate = !buildResult.genResult().isUsable();
@@ -215,16 +220,6 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                         genErrorsShown = true;
                         List<ParsedAntlrError> errors = buildResult.genResult().grammarGenerationErrors();
                         ioPrintErrors(errors, io);
-                        String genOut = buildResult.generationOutput();
-                        if (genOut != null) {
-                            ioPrint(io, genOut, IOColors.OutputType.LOG_WARNING);
-                        }
-                        List<JavacDiagnostic> diags = buildResult.diagnostics();
-                        if (diags != null) {
-                            for (JavacDiagnostic d : diags) {
-                                ioPrint(io, d.toString(), IOColors.OutputType.LOG_FAILURE);
-                            }
-                        }
                         Optional<Throwable> thrown = info.runResult().thrown();
                         if (thrown.isPresent()) {
                             thrown.get().printStackTrace(io.getOut());
@@ -254,6 +249,18 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             if (rr != null) {
                 for (JavacDiagnostic j : rr.diagnostics()) {
                     ioPrint(io, j.toString(), IOColors.OutputType.ERROR);
+                    if (info.runResult() != null && info.runResult().jfs() != null) {
+                        JFS jfs = info.runResult().jfs();
+                        UnixPath path = UnixPath.get(j.sourceRootRelativePath());
+                        JFSFileObject fo = jfs.get(StandardLocation.SOURCE_PATH, path);
+                        if (fo == null) {
+                            fo = jfs.get(StandardLocation.SOURCE_OUTPUT, path);
+                        }
+                        if (fo != null) {
+                            String ctx = j.context(fo);
+                            ioPrint(io, ctx, IOColors.OutputType.LOG_FAILURE);
+                        }
+                    }
                 }
                 AntlrGenerationAndCompilationResult g = rr.genResult();
                 if (g != null) {
@@ -272,17 +279,8 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 if (g.thrown().isPresent()) {
                     ioPrint(io, Strings.toString(g.thrown().get()), OutputType.ERROR);
                 }
-                String genOut = rr.generationOutput();
-                if (genOut != null) {
-                    ioPrint(io, Bundle.antlrRunOutput(), OutputType.OUTPUT);
-                    FoldHandle fold = null;
-                    if (folds) {
-                        fold = IOFolding.startFold(io, false);
-                    }
-                    ioPrint(io, genOut, IOColors.OutputType.LOG_WARNING);
-                    if (fold != null) {
-                        fold.finish();
-                    }
+                if (!foldsDisplayed) {
+                    printOutputSectionsFolded(info, io, folds);
                 }
             }
             if (proxy != null && proxy.syntaxErrors() != null && !proxy.syntaxErrors().isEmpty()) {
@@ -295,6 +293,45 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             }
         } catch (IOException ioe) {
             Exceptions.printStackTrace(ioe);
+        }
+    }
+
+    void printOutputSectionsFolded(EmbeddedAntlrParserResult info1, InputOutput io, boolean folds) throws IOException {
+        Supplier<? extends CharSequence> genOut = AntlrOutput.getDefault()
+                .outputFor(info1.grammarFile(), AntlrLoggers.STD_TASK_GENERATE_ANTLR);
+        printFoldedProcessingOutput(genOut, io, Bundle.antlrRunOutput(), folds);
+
+        Supplier<? extends CharSequence> grammarCompileOut = AntlrOutput.getDefault()
+                .outputFor(info1.grammarFile(), AntlrLoggers.STD_TASK_COMPILE_GRAMMAR);
+        printFoldedProcessingOutput(grammarCompileOut, io, Bundle.antlrCompilationOutput(), folds);
+
+        Supplier<? extends CharSequence> exGenOut = AntlrOutput.getDefault()
+                .outputFor(info1.grammarFile(), AntlrLoggers.STD_TASK_GENERATE_ANALYZER);
+        printFoldedProcessingOutput(grammarCompileOut, io, Bundle.extractorGeneration(), folds);
+
+        Supplier<? extends CharSequence> anaCompileOut = AntlrOutput.getDefault()
+                .outputFor(info1.grammarFile(), AntlrLoggers.STD_TASK_COMPILE_ANALYZER);
+        printFoldedProcessingOutput(anaCompileOut, io, Bundle.extractorCompilationOutput(), folds);
+    }
+
+    @Messages({
+        "antlrCompilationOutput=Grammar Compilation Output",
+        "extractorCompilationOutput=Analyzer Compilation Output",
+        "extractorGeneration=Analyzer Generation Output",})
+    void printFoldedProcessingOutput(Supplier<? extends CharSequence> genOut, InputOutput io, String msg, boolean folds) throws IOException {
+        if (genOut != null) {
+            CharSequence seq = genOut.get();
+            if (seq.length() > 0) {
+                ioPrint(io, msg, OutputType.OUTPUT);
+                FoldHandle fold = null;
+                if (folds) {
+                    fold = IOFolding.startFold(io, false);
+                }
+                ioPrint(io, seq, IOColors.OutputType.LOG_WARNING);
+                if (fold != null) {
+                    fold.finish();
+                }
+            }
         }
     }
 
@@ -345,7 +382,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         return docLength;
     }
 
-    private static void ioPrint(InputOutput io, String s, IOColors.OutputType type, OutputListener l) throws IOException {
+    private static void ioPrint(InputOutput io, CharSequence s, IOColors.OutputType type, OutputListener l) throws IOException {
         if (IOColors.isSupported(io) && IOColorLines.isSupported(io)) {
             Color c = IOColors.getColor(io, type);
             if (l != null) {
@@ -358,7 +395,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         }
     }
 
-    private static void ioPrint(InputOutput io, String s, IOColors.OutputType type) throws IOException {
+    private static void ioPrint(InputOutput io, CharSequence s, IOColors.OutputType type) throws IOException {
         ioPrint(io, s, type, null);
     }
 

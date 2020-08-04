@@ -74,17 +74,10 @@ public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv
         Set<String> expectedModeNames = new HashSet<>(Arrays.asList(EXPECTED_MODE_NAMES));
         Set<String> actualModeNames = new HashSet<>(Arrays.asList(ANTLRv4Lexer.modeNames));
         if (!expectedModeNames.equals(actualModeNames)) {
-            System.err.println("ANTLRv4Lexer mode names have changed.");
             Set<String> missing = new HashSet<>(expectedModeNames);
             missing.removeAll(actualModeNames);
-            if (!missing.isEmpty()) {
-                System.err.println("Missing modes: " + missing);
-            }
             Set<String> added = new HashSet<>(actualModeNames);
             added.removeAll(expectedModeNames);
-            if (!added.isEmpty()) {
-                System.err.println("Added modes: " + added);
-            }
             if (!added.isEmpty() || !missing.isEmpty()) {
                 consumer.accept(missing, added);
             }

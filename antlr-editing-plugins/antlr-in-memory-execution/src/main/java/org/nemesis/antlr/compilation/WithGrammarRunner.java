@@ -17,11 +17,8 @@ package org.nemesis.antlr.compilation;
 
 import com.mastfrog.function.throwing.ThrowingFunction;
 import com.mastfrog.function.throwing.ThrowingSupplier;
-import java.io.ByteArrayOutputStream;
+import com.mastfrog.util.strings.Strings;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -52,11 +49,8 @@ public final class WithGrammarRunner {
         this.classLoaderSupplier = classLoaderSupplier;
     }
 
-    private GenerationAndCompilationResult generateAndCompile(String sourceFileName, Set<GrammarProcessingOptions> options) {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        PrintStream outputTo = new PrintStream(output);
-        AntlrGenerationAndCompilationResult res = compiler.compile(sourceFileName, outputTo, options);
-        return new GenerationAndCompilationResult(output, res);
+    private AntlrGenerationAndCompilationResult generateAndCompile(String sourceFileName, Set<GrammarProcessingOptions> options) {
+        return compiler.compile(sourceFileName, options);
     }
 
     public <T> GrammarRunResult<T> run(ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
@@ -88,7 +82,7 @@ public final class WithGrammarRunner {
         return (GrammarRunResult<T>) res;
     }
 
-    private GenerationAndCompilationResult lastGenerationResult;
+    private AntlrGenerationAndCompilationResult lastGenerationResult;
 
     private JFSClassLoader createClassLoader() throws IOException {
         JFS jfs = compiler.jfs();
@@ -109,9 +103,9 @@ public final class WithGrammarRunner {
     }
 
     public void resetFileModificationStatusForReuse() {
-        GenerationAndCompilationResult r = lastGenerationResult;
+        AntlrGenerationAndCompilationResult r = lastGenerationResult;
         if (r != null) {
-            r.genResult().refreshFileStatusForReuse();
+            r.refreshFileStatusForReuse();
         }
     }
 
@@ -123,7 +117,8 @@ public final class WithGrammarRunner {
         //    - Maybe a closure that takes both?
         // - clean method on results
         return Debug.runObject(this, "with-grammar-runner-run " + grammarFileName, () -> {
-            GenerationAndCompilationResult res;
+//            GenerationAndCompilationResult res;
+            AntlrGenerationAndCompilationResult res;
             if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
                     && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
                 Debug.message("regenerate-and-compile");
@@ -132,11 +127,15 @@ public final class WithGrammarRunner {
                 Debug.message("use-last-generation-result");
                 res = lastGenerationResult;
             }
-            if (!res.genAndCompileResult.isUsable()) {
+            if (!res.isUsable()) {
                 if (lastGenerationResult != null && !lastGenerationResult.isUsable()) {
                     lastGenerationResult = null;
                 }
                 Debug.failure("unusable-result", res::toString);
+                if (options.contains(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE)) {
+                    GrammarRunResult<Object> lg = lastGood(key);
+                    return new GrammarRunResult<>(lg == null ? null : lg.get(), null, res, lg);
+                }
                 return new GrammarRunResult<>(null, null, res, lastGood(key));
             }
             lastGenerationResult = res;
@@ -155,15 +154,7 @@ public final class WithGrammarRunner {
             } catch (Exception | Error ex) {
                 Thread.currentThread().setContextClassLoader(oldLoader);
                 Debug.failure(ex.toString(), () -> {
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    PrintStream ps = null; // JDK 9/10 - use Charset constructor
-                    try {
-                        ps = new PrintStream(out, true, "UTF-8");
-                    } catch (UnsupportedEncodingException ex1) {
-                        throw new AssertionError(ex1);
-                    }
-                    ex.printStackTrace(ps);
-                    return new String(out.toByteArray(), UTF_8);
+                    return Strings.toString(ex);
                 });
                 if (ex instanceof Error) {
                     Logger.getLogger(WithGrammarRunner.class.getName())

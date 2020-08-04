@@ -31,6 +31,18 @@ public enum JFSStorageKind {
     MASQUERADED_FILE,
     DISCARDED;
 
+    public boolean isFile() {
+        return this == MASQUERADED_FILE;
+    }
+
+    public boolean isDocument() {
+        return this == MASQUERADED_DOCUMENT;
+    }
+
+    public boolean isDiscarded() {
+        return this == DISCARDED;
+    }
+
     public boolean isBytes() {
         switch (this) {
             case HEAP_BYTES:

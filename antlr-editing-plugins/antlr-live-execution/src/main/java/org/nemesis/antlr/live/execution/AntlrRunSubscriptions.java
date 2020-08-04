@@ -15,12 +15,14 @@
  */
 package org.nemesis.antlr.live.execution;
 
+import com.mastfrog.function.state.Bool;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.lang.ref.WeakReference;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Path;
@@ -55,6 +57,7 @@ import org.nemesis.antlr.compilation.WithGrammarRunner;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.debug.api.Debug;
@@ -88,10 +91,6 @@ public class AntlrRunSubscriptions {
         return INSTANCE_SUPPLIER.get();
     }
 
-    static {
-        LOG.setLevel(Level.ALL);
-    }
-
     public static <T> InvocationSubscriptions<T> forType(Class<T> type) {
         return new InvocationSubscriptions<>(type);
     }
@@ -105,10 +104,8 @@ public class AntlrRunSubscriptions {
                 InvocationRunner<T, ?> runner = find(type);
                 if (runner != null) {
                     e = new Entry<>(runner, fo, c, this::remove);
-                    System.out.println("subscribing " + type + " with " + c + " to " + fo);
                     LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}", new Object[]{runner, c});
                     subscriptionsByType.put(type, e);
-                    System.out.println("SUBSCRIBE " + fo + " " + type.getName() + " " + c);
                 }
             } else {
                 boolean subscribed = e.subscribe(fo, c);
@@ -116,10 +113,8 @@ public class AntlrRunSubscriptions {
                     Entry<T, ?> newEntry = new Entry<>(e.runner, fo, c, this::remove);
                     LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}"
                             + "replacing dead {3}", new Object[]{newEntry, c, e});
-                    System.out.println("subscribing " + type + " with " + c + " to " + fo);
                     e = newEntry;
                     subscriptionsByType.put(type, e);
-                    System.out.println("SUBSCRIBE2 " + fo + " " + type.getName() + " " + c);
                 }
             }
         }
@@ -231,6 +226,7 @@ public class AntlrRunSubscriptions {
                             found = true;
                         }
                         if (found || bc == null) {
+                            LOG.log(Level.FINEST, "Unsubscribe {0} from {1}", new Object[]{res, fo.getNameExt()});
                             toRemove.add(ref);
                         }
                     }
@@ -251,8 +247,11 @@ public class AntlrRunSubscriptions {
             try {
                 writeLock.lock();
                 if (disposed) {
+                    LOG.log(Level.INFO, "Trying to subscribe {0} to a disposed subscription {1}",
+                            new Object[]{res, this});
                     return false;
                 }
+                LOG.log(Level.FINE, "Subscribe {0} to {1}", new Object[]{res, fo.getNameExt()});
                 refs.get(fo).add(new ConsumerReference(res));
             } finally {
                 writeLock.unlock();
@@ -261,10 +260,10 @@ public class AntlrRunSubscriptions {
         }
 
         void run(Extraction ex, GrammarRunResult<T> res) {
-            System.out.println("SUBSCRIBER NOTIFIED " + res + " for " + ex.source());
             Optional<FileObject> ofo = ex.source().lookup(FileObject.class);
             if (!ofo.isPresent()) {
                 Debug.failure("No file object in extraction source lookup", ex.logString());
+                LOG.log(Level.INFO, "No FileObject in lookup - nothing to notify");
                 return;
             }
             FileObject fo = ofo.get();
@@ -280,6 +279,7 @@ public class AntlrRunSubscriptions {
                             toRemove.add(ref);
                         } else {
                             try {
+                                LOG.log(Level.FINEST, "Notify {0}", toInvoke);
                                 toInvoke.accept(ex, res);
                             } catch (Exception e) {
                                 LOG.log(Level.SEVERE, "Exception running " + toInvoke, ex);
@@ -400,6 +400,9 @@ public class AntlrRunSubscriptions {
                 Fixes fixes) {
             if (!res.isSuccess()) {
                 LOG.log(Level.FINE, "Unusable generation result {0}", res);
+                if (res.thrown != null) {
+                    LOG.log(Level.INFO, "Generating " + extraction.source(), res.thrown);
+                }
                 return;
             }
             try {
@@ -416,11 +419,9 @@ public class AntlrRunSubscriptions {
                             long lastModified = Long.MIN_VALUE;
                             boolean created = false;
                             byte[] newHash = hash(res.jfs());
+                            Bool regenerated = Bool.create();
                             CachedResults<A> cache = cachedResults(extraction);
                             rb = cache.maybeReuse(extraction, newHash);
-                            if (rb != null) {
-                                System.out.println("REUSING CACHED RESULTS");
-                            }
                             if (rb == null) {
                                 Debug.message("New compileBuilder for " + extraction.tokensHash());
                                 LOG.log(Level.FINEST, "Need a new compile builder for {0}", extraction.source());
@@ -429,153 +430,57 @@ public class AntlrRunSubscriptions {
 //                                res.jfs().closeLocations(StandardLocation.CLASS_OUTPUT);
                                 JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
 
-                                bldr.verbose().nonIdeMode().withMaxErrors(10)
-                                        .withMaxWarnings(10); // XXX for debugging, will wreak havoc
+//                                bldr.verbose().nonIdeMode().withMaxErrors(10)
+//                                        .withMaxWarnings(10); // XXX for debugging, will wreak havoc
+                                try (Writer writer = AntlrLoggers.getDefault().writer(res.originalFilePath, AntlrLoggers.STD_TASK_COMPILE_ANALYZER)) {
 
-                                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                                PrintWriter pw = new PrintWriter(out, true, UTF_8);
-                                bldr.compilerOutput(pw);
+                                    bldr.compilerOutput(writer);
 
-                                CSC csc = new CSC();
-                                arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
+                                    CSC csc = new CSC();
+                                    arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
 
-                                System.out.println("COMPILE-BUILDER: " + bldr);
+                                    bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+                                    cr = res.jfs.whileWriteLocked(bldr::compile);
 
-                                bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
-                                cr = res.jfs.whileWriteLocked(bldr::compile);
+                                    writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
-                                if (!cr.isUsable() && !cr.diagnostics().isEmpty()) {
-                                    boolean foundCantResolveLocation = false;
-                                    for (JavacDiagnostic diag : cr.diagnostics()) {
-                                        if ("compiler.err.cant.resolve.location".equals(diag.sourceCode())) {
-                                            foundCantResolveLocation = true;
+                                    if (!cr.isUsable()) {
+                                        writer.write(cr.compileFailed() ? "Compile failed.\n"
+                                                : "Compile succeeded.\n");
+                                        writer.write("Compile result not usable. If the error "
+                                                + "looks like it could be stale sources, will retry.\n");
+                                        // Detect if we had a cannot find symbol or
+                                        // cannot find location, and if present, wipe and
+                                        // rebuild again
+                                        cr = analyzeAndLogCompileFailureAndMaybeRetry(writer, cr, res, bldr, true, regenerated);
+
+                                        if (!cr.isUsable()) {
+                                            writer.write(cr.compileFailed() ? "Compile failed on clean retry.\n"
+                                                    : "Compile succeeded on clean retry.\n");
+                                            writer.write("Compile result not usable.\n");
+                                            analyzeAndLogCompileFailureAndMaybeRetry(writer, cr, res, bldr, false, regenerated);
+                                            onCompileFailure(cr, res);
+                                            LOG.log(Level.FINE, "Unusable second compile result {0}", cr);
+                                            return;
+                                        } else {
+                                            Debug.success("Usable compile", cr::toString);
                                         }
                                     }
-                                    if (foundCantResolveLocation) {
-                                        LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
-                                                + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
-                                        cr = res.jfs.whileWriteLocked(() -> {
-                                            res.jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
-                                                fo.delete();
-                                            });
-                                            res.rebuild();
-                                            return bldr.compile();
-                                        });
+                                    AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(
+                                            res, bldr);
+
+                                    AntlrRunBuilder runBuilder = AntlrRunBuilder
+                                            .fromGenerationPhase(compiler).isolated();
+
+                                    if (csc.classloaderSupplier != null) {
+                                        runBuilder.withParentClassLoader(csc.classloaderSupplier);
                                     }
+
+                                    rb = runBuilder
+                                            .build(extraction.source().name());
                                 }
-
-                                if (!cr.isUsable()) {
-                                    if (!cr.diagnostics().isEmpty()) {
-                                        boolean foundCantResolveLocation = false;
-
-                                        for (JavacDiagnostic diag : cr.diagnostics()) {
-                                            if ("compiler.err.cant.resolve.location".equals(diag.sourceCode())) {
-                                                foundCantResolveLocation = true;
-                                            }
-                                            LOG.log(Level.FINE, "Compilation failed: {0} @ {1}:{2} - {3} in {4} {5}",
-                                                    new Object[]{diag.message(), diag.lineNumber(), diag.columnNumber(),
-                                                        diag.sourceCode(), diag.sourceRootRelativePath(),
-                                                        diag.kind()});
-                                            System.out.println("COMPILE RESULT: " + cr);
-                                            System.out.println("GEN PACKAGE: " + res.packageName);
-                                            System.out.println("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
-                                            System.out.println("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
-                                            System.out.println("ORIG FILE: " + res.originalFilePath);
-                                            System.out.println("SOURCECODE: '" + diag.sourceCode() + "'");
-                                            System.out.println("ROOT-RELATIVE: : '" + diag.sourceRootRelativePath() + "'");
-                                            System.out.println("FILENAME: " + diag.fileName());
-                                            System.out.println("MESSAGE: '" + diag.message() + "'");
-                                            System.out.println("START/END: " + diag.position() + "/" + diag.endPosition());
-                                            System.out.println("LINE:COLUMN: " + diag.lineNumber() + ":" + diag.columnNumber());
-                                            JFSFileObject fo = res.jfs().get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(diag.sourceRootRelativePath()));
-                                            if (fo != null) {
-                                                System.out.println(diag.context(fo));
-                                            }
-                                            System.out.println("COMPILER OUTPUT: \n" + new String(out.toByteArray(), UTF_8));
-                                            StringBuilder sb = new StringBuilder("JFS CONTENTS:");
-                                            res.jfs.listAll((loc, fo2) -> {
-                                                sb.append('\n').append(loc).append('\t').append(fo2.getName());
-                                            });
-                                            System.out.println("LISTING " + sb);
-                                            if (fo != null) {
-                                                System.out.println("FULL SOURCE:\n" + fo.getCharContent(true));
-                                            }
-                                        }
-                                        // XXX here we should delete the generated
-                                        // files from generation and re-run
-                                        if (foundCantResolveLocation && LOG.isLoggable(Level.FINER)) {
-                                            StringBuilder sb = new StringBuilder("JFS CONTENTS:");
-                                            res.jfs.listAll((loc, fo) -> {
-                                                sb.append('\n').append(loc).append('\t').append(fo.getName());
-                                            });
-                                            LOG.log(Level.FINER, sb.toString());
-                                            System.out.println("LISTING " + sb);
-                                        }
-                                        if (cr.thrown().isPresent()) {
-                                            LOG.log(Level.INFO, "Exception building " + extraction.source(), cr.thrown().get());
-                                        }
-                                    }
-                                    CompileResult crFinal = cr;
-                                    Debug.failure("Unusable compilation result", () -> {
-                                        StringBuilder sb = new StringBuilder();
-                                        sb.append(crFinal).append('\n');
-                                        sb.append("failed ").append(crFinal.compileFailed());
-                                        sb.append("diags ").append(crFinal.diagnostics());
-                                        boolean hasFatal = false;
-                                        if (crFinal.diagnostics() != null && !crFinal.diagnostics().isEmpty()) {
-                                            for (JavacDiagnostic diag : crFinal.diagnostics()) {
-                                                sb.append("\n").append(diag.kind()).append(' ')
-                                                        .append(diag.message()).append("\n  at")
-                                                        .append(diag.lineNumber()).append(':')
-                                                        .append(diag.columnNumber()).append("\n")
-                                                        .append(diag.sourceCode()).append('\n');
-                                                hasFatal |= diag.isError();
-                                            }
-                                        }
-                                        Optional<Throwable> th = crFinal.thrown();
-                                        if (th != null && th.isPresent()) {
-                                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                            th.get().printStackTrace(new PrintStream(baos));
-                                            sb.append(new String(baos.toByteArray(), UTF_8));
-                                        }
-                                        if (hasFatal) {
-                                            for (Path pth : crFinal.sources()) {
-                                                JFSFileObject jfo = res.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
-                                                if (jfo == null) {
-                                                    jfo = res.jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
-                                                }
-                                                if (jfo == null) {
-                                                    jfo = res.jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
-                                                }
-                                                if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
-                                                    try {
-                                                        sb.append(jfo.getCharContent(true));
-                                                    } catch (IOException ex) {
-                                                        Exceptions.printStackTrace(ex);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        return sb.toString();
-                                    });
-                                    LOG.log(Level.FINE, "Unusable compile result {0}", cr);
-                                    return;
-                                } else {
-                                    Debug.success("Usable compile", cr::toString);
-                                }
-
-                                AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(res, bldr);
-
-                                AntlrRunBuilder runBuilder = AntlrRunBuilder
-                                        .fromGenerationPhase(compiler).isolated();
-
-                                if (csc.classloaderSupplier != null) {
-                                    runBuilder.withParentClassLoader(csc.classloaderSupplier);
-                                }
-
-                                rb = runBuilder
-                                        .build(extraction.source().name());
                             } else {
+                                LOG.log(Level.FINE, "Using cached compile result and argument to create embedded parser");
                                 arg = cache.lastArg;
                                 cr = cache.lastCompileResult;
                                 Debug.message("Using last arg and compile result ", () -> {
@@ -584,11 +489,17 @@ public class AntlrRunSubscriptions {
                                 LOG.log(Level.FINEST, "Reuse cached {0} and {1}",
                                         new Object[]{arg, cr});
                             }
-                            A argFinal = arg;
-                            InvocationRunner<T, A> runnerFinal = runner;
-                            WithGrammarRunner rbFinal = rb;
-                            GrammarRunResult<T> rr = res.jfs.whileReadLocked(
-                                    () -> rbFinal.run(argFinal, runnerFinal, EnumSet.of(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE, GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES, GrammarProcessingOptions.REBUILD_JAVA_SOURCES)));
+
+                            Set<GrammarProcessingOptions> opts = EnumSet.noneOf(GrammarProcessingOptions.class);
+//                            if (!regenerated.getAsBoolean()) {
+                                opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                                opts.add(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES);
+//                            }
+
+                            LOG.log(Level.FINE, "Run in classloader with {0}", opts);
+                            // XXX this is a pretty draconian set of options
+                            GrammarRunResult<T> rr = rb.run(arg, runner,
+                                    opts);
 
                             if (rr.isUsable()) {
                                 if (created) {
@@ -600,10 +511,10 @@ public class AntlrRunSubscriptions {
                                     cache.lastRunner.resetFileModificationStatusForReuse();
                                 }
                             } else {
+                                LOG.log(Level.FINER, "Non-usable run result {0}", rr);
                                 Debug.failure("Non-usable run result", () -> {
                                     StringBuilder sb = new StringBuilder("compileFailed? ").append(rr.compileFailed()).append('\n');
                                     sb.append("Diags: ").append(rr.diagnostics()).append('\n');
-                                    sb.append("GenOutput: ").append(rr.generationOutput()).append('\n');
                                     sb.append(rr);
                                     return sb.toString();
                                 });
@@ -620,6 +531,95 @@ public class AntlrRunSubscriptions {
             } catch (Error err) {
                 handleEiiE(err, res.jfs());
                 throw err;
+            }
+        }
+
+        void onCompileFailure(CompileResult crFinal, AntlrGenerationResult res) {
+            Debug.failure("Unusable compilation result", () -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append(crFinal).append('\n');
+                sb.append("failed ").append(crFinal.compileFailed());
+                sb.append("diags ").append(crFinal.diagnostics());
+                boolean hasFatal = false;
+                if (crFinal.diagnostics() != null && !crFinal.diagnostics().isEmpty()) {
+                    for (JavacDiagnostic diag : crFinal.diagnostics()) {
+                        sb.append("\n").append(diag.kind()).append(' ')
+                                .append(diag.message()).append("\n  at")
+                                .append(diag.lineNumber()).append(':')
+                                .append(diag.columnNumber()).append("\n")
+                                .append(diag.sourceCode()).append('\n');
+                        hasFatal |= diag.isError();
+                    }
+                }
+                Optional<Throwable> th = crFinal.thrown();
+                if (th != null && th.isPresent()) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    th.get().printStackTrace(new PrintStream(baos));
+                    sb.append(new String(baos.toByteArray(), UTF_8));
+                }
+                if (hasFatal) {
+                    for (Path pth : crFinal.sources()) {
+                        JFSFileObject jfo = res.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
+                        if (jfo == null) {
+                            jfo = res.jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
+                        }
+                        if (jfo == null) {
+                            jfo = res.jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
+                        }
+                        if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
+                            try {
+                                sb.append(jfo.getCharContent(true));
+                            } catch (IOException ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
+                        }
+                    }
+                }
+                return sb.toString();
+            });
+        }
+
+        CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr, AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
+            PrintWriter pw = new PrintWriter(writer);
+            pw.println("COMPILE RESULT: " + cr);
+            pw.println("GEN PACKAGE: " + res.packageName);
+            pw.println("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
+            pw.println("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
+            pw.println("ORIG FILE: " + res.originalFilePath);
+            boolean foundCantResolveLocation = false;
+            for (JavacDiagnostic diag : cr.diagnostics()) {
+                if (rebuild && "compiler.err.cant.resolve.location".equals(diag.sourceCode())) {
+                    foundCantResolveLocation = true;
+                }
+                printOneDiagnostic(pw, diag, res);
+            }
+            if (rebuild && foundCantResolveLocation) {
+                pw.println();
+                pw.println("Error may be due to old source files obsoleted by grammar changes.  Deleting all generated files and retrying.");
+                LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
+                        + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
+                cr = res.jfs.whileWriteLocked(() -> {
+                    res.jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+                        pw.println("Delete " + fo.getName());
+                        fo.delete();
+                    });
+                    res.rebuild();
+                    regenerated.set(true);
+                    return bldr.compile();
+                });
+                writer.write("Compile took " + cr.elapsedMillis() + "ms");
+            }
+            return cr;
+        }
+
+        void printOneDiagnostic(PrintWriter pw, JavacDiagnostic diag, AntlrGenerationResult res) {
+            pw.println(diag.message() + " at " + diag.lineNumber() + ":" + diag.columnNumber() + " in " + diag.fileName());
+            JFSFileObject fo = res.jfs().get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(diag.sourceRootRelativePath()));
+            if (fo == null) {
+                fo = res.jfs().get(StandardLocation.SOURCE_PATH, UnixPath.get(diag.sourceRootRelativePath()));
+            }
+            if (fo != null) {
+                pw.println(diag.context(fo));
             }
         }
 

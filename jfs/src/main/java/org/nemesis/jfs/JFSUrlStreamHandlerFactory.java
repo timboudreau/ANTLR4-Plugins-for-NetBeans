@@ -77,7 +77,7 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
         return null;
     }
 
-    private static synchronized JFSUrlStreamHandlerFactory getDefault() {
+    static synchronized JFSUrlStreamHandlerFactory getDefault() {
         if (INSTANCE != null) {
             return INSTANCE;
         }
@@ -134,6 +134,10 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
 
     @Override
     public URLStreamHandler createURLStreamHandler(String protocol) {
+        return handler(protocol);
+    }
+
+    JFSUrlStreamHandler handler(String protocol) {
         if (PROTOCOL.equals(protocol)) {
             return new JFSUrlStreamHandler(this::filesystems);
         }

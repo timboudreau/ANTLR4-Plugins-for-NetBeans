@@ -8,6 +8,7 @@ nb-configuration.xml
 nbproject/private/
 antlr-plugin/nbproject/private/private.xml
 antlr-plugin/nbproject/private/profiler/
+NTLRTestProjects/freeform/GrammarsAdhoc/nbproject/private/
 target/
 
 # Folder config file
@@ -92,7 +93,3 @@ Temporary Items
 /editor-features/nbproject/
 /antlr-utils/nbproject/
 /editor-utils/nbproject/
-/ANTLRAntTask/dist/
-/ANTLRAntTask/nbproject/private/
-/ANTLRAntTaskTest/dist/
-/ANTLRAntTaskTest/nbproject/private/

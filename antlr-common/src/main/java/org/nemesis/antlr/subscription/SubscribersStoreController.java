@@ -9,11 +9,11 @@ package org.nemesis.antlr.subscription;
  *
  * @author Tim Boudreau
  */
-interface SubscribersStoreController<K, C> {
+public interface SubscribersStoreController<K, C> {
 
-    void add(K key, C subscriber);
+    boolean add(K key, C subscriber);
 
-    void remove(K key, C subscriber);
+    boolean remove(K key, C subscriber);
 
     void removeAll(K key);
 
@@ -22,13 +22,13 @@ interface SubscribersStoreController<K, C> {
     default <XK> SubscribersStoreController<XK, C> converted(KeyFactory<? super XK, ? extends K> factory) {
         return new SubscribersStoreController<XK, C>() {
             @Override
-            public void add(XK key, C subscriber) {
-                SubscribersStoreController.this.add(factory.constructKey(key), subscriber);
+            public boolean add(XK key, C subscriber) {
+                return SubscribersStoreController.this.add(factory.constructKey(key), subscriber);
             }
 
             @Override
-            public void remove(XK key, C subscriber) {
-                SubscribersStoreController.this.remove(factory.constructKey(key), subscriber);
+            public boolean remove(XK key, C subscriber) {
+                return SubscribersStoreController.this.remove(factory.constructKey(key), subscriber);
             }
 
             @Override

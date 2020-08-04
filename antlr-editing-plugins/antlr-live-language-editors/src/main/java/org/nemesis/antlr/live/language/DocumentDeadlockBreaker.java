@@ -32,6 +32,7 @@ final class DocumentDeadlockBreaker {
     private static final long DELAY = 20000;
 
     private static final DelayQueue<Entry> DQ = new DelayQueue<>();
+    private static final Logger LOG = Logger.getLogger(DocumentDeadlockBreaker.class.getName());
 
     static {
         Thread killThread = new Thread("adhoc-doc-deadlock-breaker");
@@ -53,7 +54,7 @@ final class DocumentDeadlockBreaker {
         for (;;) {
             Entry e = DQ.take();
             if (!e.isDone()) {
-                System.out.println("deadlock breaker interrupting " + e);
+                LOG.log(Level.WARNING, "Deadlock breaker interrupting {0}", e);
                 e.kill();
             }
         }
