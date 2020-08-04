@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.subscription;
 
+import com.mastfrog.util.collections.MapFactory;
 import java.util.function.Function;
 
 /**

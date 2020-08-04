@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.subscription;
 
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.MapFactory;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.function.Function;
@@ -25,8 +27,8 @@ import java.util.function.Function;
  */
 public abstract class AbstractCacheMaintainer<K> implements CacheMaintainer<K> {
 
-    WeakValueMap<Class<?>, MapCache<K, ?>> caches
-            = new WeakValueMap<>(MapFactories.EQUALITY, 16, WeakReference::new);
+    protected Map<Class<?>, MapCache<K, ?>> caches
+            = CollectionUtils.weakValueMap(MapFactories.EQUALITY, 16, WeakReference::new);
 
     @Override
     public <T> MapCache<K, T> createCache(Class<? super T> valueType, MapFactory type, Function<K, T> valueSupplier) {

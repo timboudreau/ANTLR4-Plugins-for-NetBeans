@@ -304,7 +304,7 @@ public class FoldRegistrationAnnotationProcessor extends LayerGeneratingDelegate
                 //                .annotatedWith("MimeRegistration").addArgument("mimeType", mime).addArgument("service", FOLD_MANAGER_FACTORY_NAME)
                 //                .addExpressionArgument("position", "" + (670 + layerPos)).closeAnnotation()
                 .body(bb -> {
-                    bb.log("Create a " + genClassName);
+                    bb.log("Create a " + genClassName, Level.FINE);
                     bb.returningInvocationOf("createFoldManagerFactory")
                             .withArgument(fieldFqn)
                             .withArgument("CONVERTER")

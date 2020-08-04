@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
+ * Implementation of Cache over a map.
  *
  * @author Tim Boudreau
  */
@@ -32,6 +33,10 @@ public final class MapCache<K, V> implements Cache<K, V, RuntimeException> {
     public MapCache(Map<K, V> map, Function<K, V> func) {
         this.map = map;
         this.func = func;
+    }
+
+    public static <K,V> MapCache<K,V> imperative(Map<K,V> map) {
+        return new MapCache(map, ignored -> null);
     }
 
     public MapCache<K, V> remove(K key) {
@@ -84,5 +89,4 @@ public final class MapCache<K, V> implements Cache<K, V, RuntimeException> {
     public Optional<V> cachedValue(K key) {
         return getOptional(key);
     }
-
 }

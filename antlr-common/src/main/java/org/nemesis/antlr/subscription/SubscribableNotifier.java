@@ -1,5 +1,6 @@
 package org.nemesis.antlr.subscription;
 
+import com.mastfrog.util.collections.MapFactory;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;

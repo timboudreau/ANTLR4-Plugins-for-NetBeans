@@ -15,15 +15,13 @@
  */
 package org.nemesis.antlr.memory.spi;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import com.mastfrog.util.streams.Streams;
 import java.io.PrintStream;
 import java.io.Writer;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import org.openide.util.Lookup;
 
 /**
@@ -142,7 +140,7 @@ public abstract class AntlrLoggers {
      * knows
      */
     public static boolean isActive(PrintStream stream) {
-        return stream != null && stream != DummyLoggers.NO_OP_STREAM;
+        return stream != null && stream != Streams.nullPrintStream();
     }
 
     /**
@@ -155,7 +153,7 @@ public abstract class AntlrLoggers {
      * knows
      */
     public static boolean isActive(Writer writer) {
-        return writer != null && writer != DummyLoggers.NULL_WRITER;
+        return writer != null && writer != Streams.nullWriter();
     }
 
     /**
@@ -164,7 +162,7 @@ public abstract class AntlrLoggers {
      * @return A stream
      */
     protected static PrintStream nullPrintStream() {
-        return DummyLoggers.NO_OP_STREAM;
+        return Streams.nullPrintStream();
     }
 
     /**
@@ -173,7 +171,7 @@ public abstract class AntlrLoggers {
      * @return A stream
      */
     protected static Writer nullWriter() {
-        return DummyLoggers.NULL_WRITER;
+        return Streams.nullWriter();
     }
 
     /**
@@ -189,288 +187,16 @@ public abstract class AntlrLoggers {
 
     private static final class DummyLoggers extends AntlrLoggers {
 
-        private static final PrintStream NO_OP_STREAM = new NullPrintStream();
-        private static final Writer NULL_WRITER = new NullWriter();
         private static final DummyLoggers INSTANCE = new DummyLoggers();
 
         @Override
         protected PrintStream streamForPathAndTask(Path path, String task) {
-            return NO_OP_STREAM;
+            return Streams.nullPrintStream();
         }
 
         @Override
         protected Writer writerForPathAndTask(Path path, String task) {
-            return NULL_WRITER;
-        }
-
-        static final class NullPrintStream extends PrintStream {
-
-            public NullPrintStream() {
-                super(new NullOutputStream());
-            }
-
-            @Override
-            public PrintStream append(char c) {
-                return this;
-            }
-
-            @Override
-            public PrintStream append(CharSequence csq, int start, int end) {
-                return this;
-            }
-
-            @Override
-            public PrintStream append(CharSequence csq) {
-                return this;
-            }
-
-            @Override
-            public PrintStream format(Locale l, String format, Object... args) {
-                return this;
-            }
-
-            @Override
-            public PrintStream format(String format, Object... args) {
-                return this;
-            }
-
-            @Override
-            public PrintStream printf(Locale l, String format, Object... args) {
-                return this;
-            }
-
-            @Override
-            public PrintStream printf(String format, Object... args) {
-                return this;
-            }
-
-            @Override
-            public void println(Object x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(String x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(char[] x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(double x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(float x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(long x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(int x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(char x) {
-                // do nothing
-            }
-
-            @Override
-            public void println(boolean x) {
-                // do nothing
-            }
-
-            @Override
-            public void println() {
-                // do nothing
-            }
-
-            @Override
-            public void print(Object obj) {
-                // do nothing
-            }
-
-            @Override
-            public void print(String s) {
-                // do nothing
-            }
-
-            @Override
-            public void print(char[] s) {
-                // do nothing
-            }
-
-            @Override
-            public void print(double d) {
-                // do nothing
-            }
-
-            @Override
-            public void print(float f) {
-                // do nothing
-            }
-
-            @Override
-            public void print(long l) {
-                // do nothing
-            }
-
-            @Override
-            public void print(int i) {
-                // do nothing
-            }
-
-            @Override
-            public void print(char c) {
-                // do nothing
-            }
-
-            @Override
-            public void print(boolean b) {
-                // do nothing
-            }
-
-            @Override
-            public void write(byte[] buf, int off, int len) {
-                // do nothing
-            }
-
-            @Override
-            public void write(int b) {
-                // do nothing
-            }
-
-            @Override
-            protected void clearError() {
-                // do nothing
-            }
-
-            @Override
-            protected void setError() {
-                // do nothing
-            }
-
-            @Override
-            public boolean checkError() {
-                return false;
-            }
-
-            @Override
-            public void close() {
-                // do nothing
-            }
-
-            @Override
-            public void flush() {
-                // do nothing
-            }
-
-            @Override
-            public void write(byte[] b) throws IOException {
-                // do nothing
-            }
-
-            public String toString() {
-                return "/dev/null";
-            }
-        }
-
-        static final class NullOutputStream extends OutputStream {
-
-            @Override
-            public void write(int b) throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void close() throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void flush() throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void write(byte[] b) throws IOException {
-                // do nothing
-            }
-
-            public String toString() {
-                return "/dev/null";
-            }
-        }
-
-        static final class NullWriter extends Writer {
-
-            @Override
-            public void write(char[] cbuf, int off, int len) throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void flush() throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void close() throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public Writer append(char c) throws IOException {
-                return this;
-            }
-
-            @Override
-            public Writer append(CharSequence csq, int start, int end) throws IOException {
-                return this;
-            }
-
-            @Override
-            public Writer append(CharSequence csq) throws IOException {
-                return this;
-            }
-
-            @Override
-            public void write(String str, int off, int len) throws IOException {
-                // do noting
-            }
-
-            @Override
-            public void write(String str) throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void write(char[] cbuf) throws IOException {
-                // do nothing
-            }
-
-            @Override
-            public void write(int c) throws IOException {
-                // do nothing
-            }
-
-            public String toString() {
-                return "/dev/null";
-            }
+            return Streams.nullWriter();
         }
     }
 }

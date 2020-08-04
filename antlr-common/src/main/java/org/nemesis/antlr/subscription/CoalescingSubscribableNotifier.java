@@ -6,6 +6,7 @@
 package org.nemesis.antlr.subscription;
 
 import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.collections.MapFactory;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;

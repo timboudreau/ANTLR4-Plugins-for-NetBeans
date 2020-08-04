@@ -90,7 +90,16 @@ public final class AntFoldersHelperImplementation implements FolderLookupStrateg
     Charset charset() {
         Optional<PropertyEvaluator> evalOpt = AntFoldersHelperImplementationFactory.evaluator(project);
         if (evalOpt.isPresent()) {
-            String cs = evalOpt.get().evaluate(ENCODING_PROPERTY);
+            PropertyEvaluator eval = evalOpt.get();
+            String prop = asAuxProp(ENCODING_PROPERTY);
+            String cs = eval.evaluate(prop);
+            if (cs == null || prop.equals(cs)) {
+                prop = "source.encoding";
+                cs = eval.evaluate(prop);
+                if (cs.equals(prop)) {
+                    cs = null;
+                }
+            }
             if (cs != null) {
                 try {
                     return Charset.forName(cs);

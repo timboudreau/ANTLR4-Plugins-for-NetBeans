@@ -115,7 +115,7 @@ final class AdhocHighlighterManager {
         if (c.isShowing()) {
             compl.setShowing(c, true);
         }
-        LOG.log(Level.INFO, "Created an AdhocHighlighterManager for {0} "
+        LOG.log(Level.FINE, "Created an AdhocHighlighterManager for {0} "
                 + "currently showing? {1}", new Object[]{ctx.getDocument(), showing});
     }
 

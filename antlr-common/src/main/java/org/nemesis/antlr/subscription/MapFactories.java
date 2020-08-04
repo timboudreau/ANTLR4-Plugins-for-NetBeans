@@ -5,6 +5,9 @@
  */
 package org.nemesis.antlr.subscription;
 
+import com.mastfrog.util.cache.MapSupplier;
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.MapFactory;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.HashMap;
@@ -92,16 +95,25 @@ public enum MapFactories implements MapFactory {
                 result = new WeakHashMap<>(initialSize);
                 break;
             case WEAK_VALUE:
-                result = new WeakValueMap(EQUALITY, initialSize, WeakReference::new);
+                result = CollectionUtils.weakValueMap(EQUALITY, initialSize, WeakReference::new);
                 break;
             case WEAK_KEYS_AND_VALUES:
-                result = new WeakValueMap(WEAK, initialSize, WeakReference::new);
+                result = CollectionUtils.weakValueMap(WEAK, initialSize, WeakReference::new);
                 break;
             case IDENTITY_WITHOUT_REFERENCE:
             default:
                 throw new UnsupportedOperationException(this + " does not support map creation");
         }
         return threadSafe ? Collections.synchronizedMap(result) : result;
+    }
+
+    public <T> MapSupplier<T> toMapSupplier(int initialSize, boolean threadSafe) {
+        return new MapSupplier<T>() {
+            @Override
+            public <V> Map<T, V> get() {
+                return createMap(initialSize, threadSafe);
+            }
+        };
     }
 
     public boolean isWeakValues() {

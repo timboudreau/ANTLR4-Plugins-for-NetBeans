@@ -36,7 +36,7 @@ public enum SetTypes implements SetSupplier {
     /**
      * Uses a concurrent, strongly referencing HashMap.
      */
-    CONCURRENT,
+    CONCURRENT_EQUALITY,
     /**
      * Uses a TreeSet comparing on <code>System.identityHashCode()</code> to
      * create effectively an "identity hash set" that can contain two objects
@@ -48,9 +48,11 @@ public enum SetTypes implements SetSupplier {
      */
     CONCURRENT_IDENTITY,
     /**
-     * Uses an ordinary <code>java.util.HashSet</code>.
+     * Uses an ordinary <code>java.util.HashSet</code> or equivalent.
      */
-    UNORDERED;
+    UNORDERED_HASH;
+    private static final ToIntFunction<Object> IDENTITY_HASH_CODE = o -> o == null ? 0 : System.identityHashCode(o);
+    private static final ToIntFunction<Object> OBJECT_HASH_CODE = o -> o == null ? 0 : o.hashCode();
 
     /**
      * Create a weak (or soft, or something else) hash set with full control
@@ -69,7 +71,7 @@ public enum SetTypes implements SetSupplier {
      * @return A supplier of sets that creates a new set each time it is called
      */
     public <T> Supplier<Set<T>> referenceFactory(ToIntFunction<Object> hasher, Function<? super T, ? extends Reference<T>> referenceFactory, int initialSize) {
-        return () -> new ReferenceFactorySet<>(hasher, referenceFactory, initialSize);
+        return () -> CollectionUtils.referenceFactorySet(hasher, referenceFactory, initialSize);
     }
 
     /**
@@ -84,7 +86,7 @@ public enum SetTypes implements SetSupplier {
      * @return A supplier of sets that creates a new set each time it is called
      */
     public <T> Supplier<Set<T>> referenceFactory(Function<? super T, ? extends Reference<T>> referenceFactory, int initialSize) {
-        return () -> new ReferenceFactorySet<>(ReferenceFactorySet.IDENTITY_HASH_CODE, referenceFactory, initialSize);
+        return () -> CollectionUtils.referenceFactorySet(IDENTITY_HASH_CODE, referenceFactory, initialSize);
     }
 
     /**
@@ -98,7 +100,7 @@ public enum SetTypes implements SetSupplier {
      * @return A supplier of sets that creates a new set each time it is called
      */
     public <T> Supplier<Set<T>> referenceFactory(Function<? super T, ? extends Reference<T>> referenceFactory) {
-        return () -> new ReferenceFactorySet<>(ReferenceFactorySet.IDENTITY_HASH_CODE, referenceFactory, 20);
+        return () -> CollectionUtils.referenceFactorySet(IDENTITY_HASH_CODE, referenceFactory, 20);
     }
 
     /**
@@ -111,6 +113,7 @@ public enum SetTypes implements SetSupplier {
      * Collections.synchronizedSet
      * @return A supplier of sets
      */
+    @Override
     public <T> Supplier<Set<T>> setSupplier(int initialSize, boolean threadSafe) {
         return () -> set(initialSize, threadSafe);
     }
@@ -134,11 +137,13 @@ public enum SetTypes implements SetSupplier {
             case WEAK_HASH:
                 result = CollectionUtils.weakSet();
                 break;
-            case CONCURRENT:
+            case CONCURRENT_EQUALITY:
+                // no need to wrap in synchronized set
                 return ConcurrentHashMap.newKeySet(targetSize);
             case CONCURRENT_IDENTITY:
+                // no need to wrap in synchronized set
                 return new ConcurrentSkipListSet<>(SetTypes::hashCodeCompare);
-            case UNORDERED:
+            case UNORDERED_HASH:
                 result = new HashSet<>(targetSize);
                 break;
             case IDENTITY:

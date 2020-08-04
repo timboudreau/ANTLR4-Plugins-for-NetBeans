@@ -6,6 +6,7 @@
 package org.nemesis.antlr.subscription;
 
 import com.mastfrog.function.TriConsumer;
+import com.mastfrog.util.collections.MapFactory;
 import com.mastfrog.util.preconditions.Checks;
 import java.util.Set;
 import java.util.concurrent.Executor;
