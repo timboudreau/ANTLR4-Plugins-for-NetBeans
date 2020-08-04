@@ -164,16 +164,19 @@ final class PerProjectJFSMappingManager {
         // will prefer newly generated ones but use these if not present
         for (Path p : fld.find(project)) {
             try {
-                Files.walk(p, 11).filter(pth -> pth.getFileName().toString().endsWith(".tokens")).forEach(tokensFile -> {
-                    FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(tokensFile.toFile()));
-                    if (fo != null) {
-                        addMapping(fld, fo);
-                    }
-                });
+                if (Files.exists(p) && Files.isDirectory(p)) {
+                    Files.walk(p, 11).filter(pth -> pth.getFileName().toString().endsWith(".tokens")).forEach(tokensFile -> {
+                        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(tokensFile.toFile()));
+                        if (fo != null) {
+                            addMapping(fld, fo);
+                        }
+                    });
+                }
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
             }
         }
+
     }
 
     void onPrimaryFileChange(FileObject old, FileObject nue, OneFileMapping oldMapping) {
