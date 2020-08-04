@@ -22,6 +22,8 @@ import java.lang.reflect.Method;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Action;
@@ -101,6 +103,8 @@ public class AdhocEditorKit extends ExtKit {
         return call(method, new Class<?>[0], new Object[0]);
     }
 
+    private static final Set<String> WARNED = new ConcurrentSkipListSet<>();
+
     @SuppressWarnings("unchecked")
     private <T> T call(String name, Class<?>[] argTypes, Object... args) {
         T result = null;
@@ -108,9 +112,13 @@ public class AdhocEditorKit extends ExtKit {
         try {
             result = (T) m.invoke(delegate(), args);
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            Logger.getLogger(AdhocEditorKit.class.getName()).log(Level.WARNING,
-                    "Could not invoke method {0} on {1}",
-                    new Object[]{name, delegate().getClass().getName()});
+            String key = delegate().getClass().getName() + "-" + name;
+            if (!WARNED.contains(key)) {
+                WARNED.add(key);
+                Logger.getLogger(AdhocEditorKit.class.getName()).log(Level.WARNING,
+                        "Could not invoke method {0} on {1}",
+                        new Object[]{name, delegate().getClass().getName()});
+            }
         }
         return result;
     }
