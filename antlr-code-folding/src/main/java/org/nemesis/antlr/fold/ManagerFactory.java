@@ -36,6 +36,7 @@ import org.netbeans.modules.parsing.spi.TaskFactory;
 import org.netbeans.spi.editor.fold.FoldInfo;
 import org.netbeans.spi.editor.fold.FoldManager;
 import org.netbeans.spi.editor.fold.FoldManagerFactory;
+import org.openide.util.NbBundle.Messages;
 
 /**
  *
@@ -75,7 +76,7 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
 
     static <T extends Enum<T>, P extends Parser.Result & ExtractionParserResult> ManagerFactory<NamedRegionKey<T>, T, NamedSemanticRegion<T>, NamedSemanticRegions<T>, P> create(NamedRegionKey<T> key, KeyToFoldConverter<NamedSemanticRegion<T>> converter) {
         if (converter == null) {
-            converter = new DefaultKeyToFoldConverter<>(FoldType.CODE_BLOCK);
+            converter = new DefaultKeyToFoldConverter<>(FoldType.MEMBER);
         }
         Function<Extraction, NamedSemanticRegions<T>> fetcher = (extraction) -> {
             return extraction.namedRegions(key);
@@ -92,7 +93,7 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
     }
 
     static <T extends Enum<T>, P extends Parser.Result & ExtractionParserResult> ManagerFactory<NamedRegionKey<T>, T, NamedSemanticRegion<T>, NamedSemanticRegions<T>, P> create(NamedRegionKey<T> key) {
-        return ManagerFactory.create(key, FoldType.CODE_BLOCK);
+        return ManagerFactory.create(key, FoldType.MEMBER);
     }
 
     static <T extends Enum<T>, P extends Parser.Result & ExtractionParserResult> ManagerFactory<NamedRegionKey<T>, T, NamedSemanticRegion<T>, NamedSemanticRegions<T>, P> create(NamedRegionKey<T> key, FoldType foldType) {
@@ -108,11 +109,15 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
         }
 
         @Override
+        @Messages({"licenseComment=License Comment"})
         public FoldInfo apply(T t) {
             FoldType actualType = foldType;
             if (foldType == FoldType.COMMENT) {
                 if (t.start() < 5) {
                     actualType = FoldType.INITIAL_COMMENT;
+                    FoldTemplate ft = new FoldTemplate(actualType.getTemplate().getGuardedStart(), actualType.getTemplate().getGuardedEnd(),
+                            Bundle.licenseComment());
+                    return FoldInfo.range(t.start(), t.end(), actualType.override(Bundle.licenseComment(), ft));
                 }
             }
             if (t instanceof Named) {
@@ -121,17 +126,34 @@ class ManagerFactory<K extends ExtractionKey<T>, T, I extends IndexAddressableIt
                 actualType = foldType.derive(name, name, ft);
             } else if (t instanceof SemanticRegion<?>) {
                 Object key = ((SemanticRegion<?>) t).key();
-                actualType = FoldType.MEMBER;
-                if (key instanceof Named) {
+                if (key instanceof String) {
                     String name = ((Named) t).name();
                     FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
-                    actualType = foldType.derive(name, name, ft);
+                    actualType = foldType.override(name, ft);
+                } else if (key instanceof Named) {
+                    String name = ((Named) t).name();
+                    FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
+//                    actualType = foldType.derive(name, name, ft);
+                    actualType = foldType.override(name, ft);
                 } else if (key instanceof FoldableRegion) {
                     FoldableRegion reg = (FoldableRegion) key;
-                    String name = reg.text;
-                    if (name != null) {
-                        FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), name);
-                        actualType = foldType.derive(name, name, ft);
+                    switch (reg.kind) {
+                        case COMMENT:
+                            if (((SemanticRegion<?>) t).start() < 50) {
+                                actualType = FoldType.INITIAL_COMMENT;
+                                FoldTemplate ft = new FoldTemplate(actualType.getTemplate().getGuardedStart(), actualType.getTemplate().getGuardedEnd(),
+                                        Bundle.licenseComment());
+                                return FoldInfo.range(t.start(), t.end(), actualType.override(Bundle.licenseComment(), ft));
+                            } else {
+                                actualType = FoldType.COMMENT;
+                            }
+                            break;
+                        default:
+                            String text = reg.text;
+                            if (text != null) {
+                                FoldTemplate ft = new FoldTemplate(foldType.getTemplate().getGuardedStart(), foldType.getTemplate().getGuardedEnd(), text);
+                                actualType = foldType.derive(text, text, ft);
+                            }
                     }
                 }
             }

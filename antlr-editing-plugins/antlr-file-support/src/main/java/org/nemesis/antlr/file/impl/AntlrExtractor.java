@@ -71,7 +71,19 @@ public final class AntlrExtractor {
     }
 
     private static boolean containsNonTrailingNewlines(String txt) {
-        return txt == null ? false : txt.trim().indexOf('\n') > 0;
+        int max = txt.length()-1;
+        boolean nonWhitespaceSeen = false;
+        for (int i = max; i >=0; i--) {
+            char c = txt.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                nonWhitespaceSeen = true;
+            } else if (c == '\n') {
+                if (nonWhitespaceSeen) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean extractActionBounds(ParserRuleContext ctx, BiPredicate<FoldableRegion, ParserRuleContext> cons) {
@@ -104,7 +116,7 @@ public final class AntlrExtractor {
     }
 
     static boolean extractRuleSpecFoldBounds(RuleSpecContext ctx, BiPredicate<FoldableRegion, ParserRuleContext> cons) {
-        if (ctx.getText().length() < 60) {
+        if (ctx.getText().length() < 40) {
             // we can't test for newlines because they are routed to a different
             // channel
             return false;
@@ -114,8 +126,8 @@ public final class AntlrExtractor {
         ANTLRv4Parser.FragmentRuleSpecContext fragSpec = ctx.fragmentRuleSpec();
         if (lexSpec != null) {
             TokenRuleDeclarationContext tokDec = lexSpec.tokenRuleDeclaration();
-            if (tokDec != null) {
-                name = tokDec.getText().trim();
+            if (tokDec != null && tokDec.id != null) {
+                name = tokDec.id.getText();
             }
         } else if (fragSpec != null) {
             FragmentRuleDeclarationContext fragDec = fragSpec.fragmentRuleDeclaration();
@@ -126,8 +138,8 @@ public final class AntlrExtractor {
             ANTLRv4Parser.ParserRuleSpecContext parSpec = ctx.parserRuleSpec();
             if (parSpec != null) {
                 ParserRuleDeclarationContext parDec = parSpec.parserRuleDeclaration();
-                if (parDec != null) {
-                    name = parDec.getText().trim();
+                if (parDec != null && parDec.parserRuleIdentifier() != null) {
+                    name = parDec.parserRuleIdentifier().getText();
                 }
             }
         }
@@ -135,7 +147,7 @@ public final class AntlrExtractor {
         if (result) {
             result = cons.test(FoldableKind.RULE.createFor(name), ctx);
         }
-        return name != null;
+        return result;
     }
 
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE, entryPoint = GrammarFileContext.class)

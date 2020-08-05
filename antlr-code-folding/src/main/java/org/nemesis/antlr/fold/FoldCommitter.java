@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.fold;
 
+import com.mastfrog.util.collections.IntList;
 import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +42,7 @@ final class FoldCommitter implements Runnable {
     private boolean rendering;
     private final Document doc;
     private List<FoldInfo> infos;
-    private final List<Integer> anchors;
+    private final IntList anchors;
     private long startTime;
     private final LongSupplier version;
     private final long stamp;
@@ -50,7 +51,7 @@ final class FoldCommitter implements Runnable {
     private final boolean first;
     private final FoldOperation op;
 
-    FoldCommitter(Document doc, List<FoldInfo> infos, List<Integer> anchors, LongSupplier version, long stamp, FoldOperation op, boolean first) {
+    FoldCommitter(Document doc, List<FoldInfo> infos, IntList anchors, LongSupplier version, long stamp, FoldOperation op, boolean first) {
         this.doc = doc;
         this.infos = infos;
         this.version = version;
@@ -137,7 +138,7 @@ final class FoldCommitter implements Runnable {
                 int expandIndex = -1;
                 if (currentCaretPos >= 0) {
                     for (int i = 0; i < anchors.size(); i++) {
-                        int a = anchors.get(i);
+                        int a = anchors.getAsInt(i);
                         if (a > currentCaretPos) {
                             continue;
                         }

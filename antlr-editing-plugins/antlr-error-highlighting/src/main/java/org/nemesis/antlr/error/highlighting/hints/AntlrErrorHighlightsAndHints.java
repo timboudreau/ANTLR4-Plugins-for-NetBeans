@@ -79,7 +79,7 @@ import org.openide.util.lookup.ServiceProvider;
     "unresolved=Unresolvable import: {0}",
     "capitalize=Capitalize name to make this a lexer rule",
     "illegalLabel=Cannot use a label here.  Remove?",})
-@ServiceProvider(service=AntlrHintGenerator.class)
+@ServiceProvider(service = AntlrHintGenerator.class)
 public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator implements LookupListener {
 
     private Lookup.Result<FontColorSettings> settingsResult;
@@ -268,8 +268,8 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
     }
 
     /**
-     * Recognize the error code, and if it's one we can provide a fix for, do that,
-     * rather than using the stock highlighting.
+     * Recognize the error code, and if it's one we can provide a fix for, do
+     * that, rather than using the stock highlighting.
      *
      * @param err The error
      * @param fixes The fixes
@@ -431,12 +431,17 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             if (errorStartOffset < errorEndOffset) {
                 startEnd.accept(Math.min(docLength - 1, errorStartOffset), Math.min(docLength - 1, errorEndOffset));
             } else {
-                LOG.log(Level.INFO, "Computed nonsensical error start offsets "
-                        + "{0}:{1} for line {2} of {3} for error {4}",
-                        new Object[]{
-                            errorStartOffset, errorEndOffset,
-                            lineNumber, lc, error
-                        });
+                if (errorStartOffset == 0 && errorEndOffset == -1) {
+                    // Antlr does this for a few errors such as 99: Grammar contains no rules
+                    startEnd.accept(0, 0);
+                } else {
+                    LOG.log(Level.INFO, "Computed nonsensical error start offsets "
+                            + "{0}:{1} for line {2} of {3} for error {4}",
+                            new Object[]{
+                                errorStartOffset, errorEndOffset,
+                                lineNumber, lc, error
+                            });
+                }
             }
             return docLength;
         }

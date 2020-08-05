@@ -26,7 +26,7 @@ public final class FoldableRegion {
 
     public final FoldableKind kind;
     public final String text;
-    private static final int MAX_LENGTH = 15;
+    private static final int MAX_LENGTH = 45;
 
     private FoldableRegion(String text, FoldableKind kind) {
         this.text = text;
@@ -86,8 +86,12 @@ public final class FoldableRegion {
         }
 
         private String truncate(String text) {
-            if (text.length() > MAX_LENGTH - 3) {
-                text = text.substring(MAX_LENGTH - 3) + "...";
+            switch(this) {
+                case RULE :
+                    return text;
+            }
+            if (text.length() > MAX_LENGTH - 1) {
+                text = text.substring(MAX_LENGTH - 1) + "\u2026";
             }
             return text;
         }

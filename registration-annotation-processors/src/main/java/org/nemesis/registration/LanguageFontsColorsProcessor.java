@@ -578,6 +578,7 @@ public class LanguageFontsColorsProcessor extends LayerGeneratingDelegate {
                     String layerPath = "Editors/" + mimeType + "/FontsColors/" + theme + "/Defaults/" + theme + ".xml";
                     LayerBuilder.File themeLayerFile = layer.file(layerPath);
                     themeLayerFile.url("nbres:/" + pathInJar);
+                    themeLayerFile.stringvalue("nbeditor-settings-ColoringType", "token");
                     if (!bundle.isEmpty()) {
                         themeLayerFile.stringvalue("SystemFileSystem.localizingBundle", genBundleDots);
                     } else {

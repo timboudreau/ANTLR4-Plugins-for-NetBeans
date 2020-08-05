@@ -17,6 +17,7 @@ package org.nemesis.antlr.fold;
 
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
+import com.mastfrog.util.collections.IntList;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -72,7 +73,7 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
         String hash = extraction.tokensHash();
         if (Objects.equals(lastTokensHash, hash)) {
             LOG.log(Level.FINER, "Folds already computed for {0} with hash {1}. Skipping.",
-                    new Object[] {extraction.source(), hash});
+                    new Object[]{extraction.source(), hash});
             return null;
         }
         lastTokensHash = hash;
@@ -85,7 +86,7 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
         }
 
         List<FoldInfo> folds = new ArrayList<>();
-        List<Integer> anchors = new ArrayList<>();
+        IntList anchors = IntList.create(64);
         createFolds(extraction, collection, folds, anchors);
         final long stamp = version.getAsLong();
         Runnable result = new FoldCommitter(doc, folds, anchors, version, stamp, operation, first);
@@ -99,7 +100,7 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
         return result;
     }
 
-    private void createFolds(Extraction extraction, C regions, List<? super FoldInfo> folds, List<? super Integer> anchors) {
+    private void createFolds(Extraction extraction, C regions, List<? super FoldInfo> folds, IntList anchors) {
         LOG.log(Level.FINE, "Create folds for {0} with {1} regions", new Object[]{extraction.source(), regions.size()});
         Set<IntRange<? extends IntRange>> ranges = new HashSet<>();
         for (I region : regions.asIterable()) {
