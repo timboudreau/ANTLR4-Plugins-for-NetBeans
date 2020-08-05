@@ -69,7 +69,7 @@ class HeaderMatterFormatting extends AbstractFormatter {
         });
 
         rules.onTokenType(PARSER_RULE_ID, PARDEC_ID, FRAGDEC_ID, TOKDEC_ID, TOKEN_ID, ID)
-                .whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_DEFAULT, MODE_IMPORT),
+                .whereModeTransition(IntBiPredicate.fromPredicates(AntlrCriteria.mode(MODE_DEFAULT, MODE_IMPORT, MODE_CHANNELS),
                         Criterion.ALWAYS))
                 .wherePreviousTokenType(criteria.matching(RBRACE))
                 .format(PREPEND_DOUBLE_NEWLINE);

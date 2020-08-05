@@ -80,6 +80,23 @@ public class BasicFormatting extends AbstractFormatter {
                     .format(PREPEND_SPACE);
         });
 
+        rules.whenInMode(AntlrCriteria.mode(MODE_CHANNELS), rls -> {
+            rls.onTokenType(ANTLRv4Lexer.LBRACE)
+                    .wherePreviousTokenType(CHANNELS)
+                    .format(PREPEND_SPACE.and(APPEND_SPACE));
+            rls.onTokenType(ANTLRv4Lexer.COMMA)
+                    .whereNextTokenTypeNot(RBRACE)
+                    .format(APPEND_SPACE);
+        });
+        rules.onTokenType(CHANNELS).format(PREPEND_NEWLINE);
+        rules.onTokenType(RBRACE)
+                .wherePreviousTokenType(ID)
+                .format(APPEND_NEWLINE.and(PREPEND_SPACE));
+
+        rules.onTokenType(TOKDEC_ID)
+                .wherePreviousTokenType(RBRACE)
+                .format(PREPEND_DOUBLE_NEWLINE);
+
         rules.whenInMode(AntlrCriteria.mode(MODE_HEADER_ACTION), rls -> {
             rls.onTokenType(BEGIN_ACTION)
                     .named("spaces-around-header-action-braces")

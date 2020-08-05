@@ -40,7 +40,7 @@ import org.nemesis.extraction.Extraction;
  */
 public class BrokenSourceThrottle {
 
-    private static final int DEFAULT_MAX_BAD = 4;
+    private static final int DEFAULT_MAX_BAD = 8;
     private static final long CACHE_EXPIRE_MS = 60000;
     private final TimedCache<String, RebuildAttempts, RuntimeException> cache;
     private final IntSet throttledPathHashes = IntSet.arrayBased(16);

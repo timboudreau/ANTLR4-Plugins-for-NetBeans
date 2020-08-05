@@ -92,7 +92,7 @@ import org.openide.util.Lookup;
  *
  * @author Tim Boudreau
  */
-public class RB2Test {
+public class AntlrGenerationSubscriptionsImplTest {
 
     private static ThrowingRunnable shutdown;
     private static GeneratedMavenProject nmProject;
@@ -118,7 +118,7 @@ public class RB2Test {
         replaceText(lexerGrammar, txt -> txt.replace("OpenBrace", "WookieBrace"));
         replaceText(parserGrammar, txt -> txt.replace("OpenBrace", "WookieBrace"));
 
-        ParsingUtils.parse(parserGrammar);
+        ParsingUtils.parse(lexerGrammar);
 
         sub.assertRebuilt(parserGrammar, lexerGrammar);
 
@@ -150,8 +150,10 @@ public class RB2Test {
         }
 
         void assertRebuilt(FileObject... files) throws InterruptedException {
-            if (filesRebuilt.isEmpty() || !filesRebuilt.containsAll(Arrays.asList(files))) {
-                latch.await(10, TimeUnit.SECONDS);
+            for (int i = 0; i < 4; i++) {
+                if (filesRebuilt.isEmpty() || !filesRebuilt.containsAll(Arrays.asList(files))) {
+                    latch.await(10, TimeUnit.SECONDS);
+                }
             }
             List<FileObject> copy = new LinkedList<>(filesRebuilt);
             filesRebuilt.clear();
@@ -478,7 +480,7 @@ public class RB2Test {
     @BeforeAll
     public static void setup() throws IOException {
         shutdown = initAntlrTestFixtures(false).build();
-        ProjectTestHelper helper = ProjectTestHelper.relativeTo(RB2Test.class);
+        ProjectTestHelper helper = ProjectTestHelper.relativeTo(AntlrGenerationSubscriptionsImplTest.class);
         nmProject = ProjectTestHelper.projectBuilder().writeStockTestGrammarSplit("org.whatever", true)
                 .build("NM").deletedBy(shutdown);
         nmProject2 = ProjectTestHelper.projectBuilder().writeStockTestGrammarSplit("org.whatever", true)
