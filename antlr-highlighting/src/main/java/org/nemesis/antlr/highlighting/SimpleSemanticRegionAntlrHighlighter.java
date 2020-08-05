@@ -107,15 +107,24 @@ final class SimpleSemanticRegionAntlrHighlighter<T> implements AntlrHighlighter 
         public AttributeSet apply(String coloringName) {
             MimePath mimePath = MimePath.parse(mimeType);
             FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
-            AttributeSet result = fcs == null ? null : fcs.getTokenFontColors(coloringName);
-            if (result == null) {
-                String key = mimeType + "." + coloringName;
-                if (!missing.contains(key)) {
-                    log("No coloring for '" + coloringName + "' for " + mimeType);
-                    missing.add(key);
+            if (fcs != null) {
+                AttributeSet set = fcs.getFontColors(coloringName);
+                if (set == null || set.getAttributeCount() == 0) {
+                    AttributeSet alt = fcs.getTokenFontColors(coloringName);
+                    if (alt != null && alt.getAttributeCount() > 0) {
+                        set = alt;
+                    }
                 }
+                if (set == null) {
+                    String key = mimeType + "." + coloringName;
+                    if (!missing.contains(key)) {
+                        log("No coloring for '" + coloringName + "' for " + mimeType);
+                        missing.add(key);
+                    }
+                }
+                return set;
             }
-            return result;
+            return null;
         }
 
         public String toString() {

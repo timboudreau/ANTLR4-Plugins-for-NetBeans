@@ -49,7 +49,6 @@ import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.annotation.AnnotationUtils;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
-import static com.mastfrog.annotation.AnnotationUtils.stripMimeType;
 import com.mastfrog.annotation.validation.MethodTestBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import java.io.ByteArrayInputStream;
@@ -362,7 +361,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         String fqn = owningClass.getQualifiedName() + "." + method.getSimpleName();
 //        String actionRegistration = "Editors/" + mimeType + "/Actions/" + fqn.replace('.', '-') + ".instance";
         String fqnDashes = fqn.replace('.', '-');
-        String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
+        String actionRegistration = "Actions/" + mimeType + "/"
                 + fqnDashes + ".instance";
 //        LayerBuilder layer = layer(method);
         layer.file(actionRegistration)
@@ -526,7 +525,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
         writeOne(clazz);
 //        LayerBuilder layer = layer(method);
         String fqnDashes = programmaticName == null ? clazz.fqn().replace('.', '-') : programmaticName;
-        String actionRegistration = "Actions/" + stripMimeType(mimeType) + "/"
+        String actionRegistration = "Actions/" + mimeType + "/"
                 + fqnDashes + ".instance";
         LayerBuilder.File layerFile = layer
                 .file(actionRegistration)

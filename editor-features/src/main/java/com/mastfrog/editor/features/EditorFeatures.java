@@ -23,11 +23,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.StyledDocument;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedBreakInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
 import org.netbeans.spi.options.OptionsPanelController;
+import org.openide.text.NbDocument;
 
 /**
  * Registry of editor features; provides a simple, builder-based, declarative
@@ -233,7 +235,7 @@ public class EditorFeatures {
             public boolean beforeInsert(Context cntxt) throws BadLocationException {
                 currentOp = features.find(EditPhase.ON_BEFORE_TYPING_INSERT, cntxt);
                 if (currentOp != null) {
-                    currentOp.onBeforeInsert(ContextWrapper.wrap(cntxt));
+                    NbDocument.runAtomic((StyledDocument) cntxt.getDocument(), () -> currentOp.onBeforeInsert(ContextWrapper.wrap(cntxt)));
                 }
                 boolean result = currentOp != null ? currentOp.consumesInitialEvent() : false;
                 if (result) {
@@ -250,7 +252,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_TYPING_INSERT, mc);
                 }
                 if (currentOp != null) {
-                    currentOp.onInsert(ContextWrapper.wrap(mc));
+                    NbDocument.runAtomic((StyledDocument) mc.getDocument(), () -> currentOp.onInsert(ContextWrapper.wrap(mc)));
                 }
             }
 
@@ -260,7 +262,7 @@ public class EditorFeatures {
                     currentOp = features.find(EditPhase.ON_AFTER_TYPING_INSERT, cntxt);
                 }
                 if (currentOp != null) {
-                    currentOp.onAfterInsert(ContextWrapper.wrap(cntxt));
+                    NbDocument.runAtomic((StyledDocument) cntxt.getDocument(), () -> currentOp.onAfterInsert(ContextWrapper.wrap(cntxt)));
                 }
                 currentOp = null;
             }

@@ -29,7 +29,7 @@ import org.nemesis.extraction.Extraction;
  * can be passed to the dispatcher for the Subscribable implementation maintained by
  * AntlrGenerationSubscriptionsImpl.
  */
-class AntlrRegenerationEvent implements Consumer<Subscriber> {
+final class AntlrRegenerationEvent implements Consumer<Subscriber> {
 
     final ANTLRv4Parser.GrammarFileContext tree;
     final Extraction extraction;

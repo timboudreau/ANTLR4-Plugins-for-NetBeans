@@ -75,6 +75,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * to pass for a real one.
      *
      * @param mimeType The mimme type
+     *
      * @return A fake parser result
      */
     static AntlrParseResult empty( String mimeType ) {
@@ -111,9 +112,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      */
     public List<? extends ErrorDescription> getErrorDescriptions() {
         List<ErrorDescription> result = new ArrayList<>( getErrorDescriptions( errorConverter ) );
-        if ( !addedErrorDescriptions.isEmpty() ) {
-            result.addAll( addedErrorDescriptions );
-        }
+        result.addAll( addedErrorDescriptions );
         return result;
     }
 

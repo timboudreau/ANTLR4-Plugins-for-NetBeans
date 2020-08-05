@@ -18,6 +18,7 @@ package org.nemesis.antlr.error.highlighting.hints;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
 import org.nemesis.antlr.error.highlighting.spi.NonHighlightingHintGenerator;
 import com.mastfrog.function.state.Bool;
+import java.util.logging.Level;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Segment;
@@ -61,6 +62,8 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
             AntlrGenerationResult res, ParseResultContents populate, Fixes fixes,
             Document doc, PositionFactory positions) throws BadLocationException {
         SemanticRegions<Integer> regs = extraction.regions(SUPERFLUOUS_PARENTEHSES);
+        LOG.log(Level.FINE, "Check superfluous parentheses {0} with {1} regions: {2}",
+                new Object[] {extraction.source(), regs.size(), regs});
         for (SemanticRegion<Integer> reg : regs) {
             String errId = "sp-" + reg.key();
             fixes.ifUnusedErrorId(errId, () -> {
@@ -80,6 +83,8 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
                             }
                         });
                         failed.ifUntrue(() -> {
+                            LOG.log(Level.FINEST, "Superfluous parens at {0} in {1}",
+                                    new Object[] {reg, extraction.source()});
                             fixen.addFix(Bundle.superfluousParentheses("(" + seg + ")"), bag -> {
                                 bag.replace(rng, seg.toString().trim());
                             });

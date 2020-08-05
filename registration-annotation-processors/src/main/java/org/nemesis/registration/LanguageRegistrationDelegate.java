@@ -842,7 +842,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                     .body()
                     .log("Create editor for", Level.FINER, "lkp.lookup(DataObject.class)")
                     .returningNew().withArgument("lkp").ofType(MULTI_VIEW_EDITOR_ELEMENT.simpleName());
-//                    .returning("new MultiViewEditorElement(lkp)").endBlock();
         }
 
         for (String s : new String[]{"copyAllowed", "renameAllowed", "moveAllowed", "deleteAllowed"}) {

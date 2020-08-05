@@ -42,7 +42,7 @@ import org.openide.loaders.DataObject;
  * (lightbulb in the margin) and errors to be attached to the document.
  * <p>
  * <b>Important:</b>:Hint computation is <i>lazy</i> - which is to say that
- * the document may have changed by the time your hint is invoked.  Use
+ * the document may have changed by the time your hint is invoked. Use
  * Position, PositionRange or PositionBounds instances to represent offsets
  * in the document, rather than the values from the raw Extraction you are
  * passed
@@ -91,8 +91,12 @@ public abstract class Fixes {
      *
      * @throws BadLocationException If something goes wrong
      */
-    public void ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
-        run.run();
+    public boolean ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
+        if ( !isUsedErrorId( id ) ) {
+            run.run();
+            return true;
+        }
+        return false;
     }
 
     public boolean isUsedErrorId( String id ) {
@@ -1570,8 +1574,8 @@ public abstract class Fixes {
             return true;
         }
 
-        public void ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
-            // do nothing
+        public boolean ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
+            return true;
         }
     }
 }

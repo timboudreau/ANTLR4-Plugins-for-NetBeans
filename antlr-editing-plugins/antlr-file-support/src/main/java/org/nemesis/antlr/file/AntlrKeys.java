@@ -19,7 +19,6 @@ import org.nemesis.antlr.file.impl.AntlrDataObjectHooks;
 import java.util.Set;
 import javax.swing.JOptionPane;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_altList;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_block;
@@ -46,6 +45,7 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleSpec;
+import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -312,7 +312,7 @@ import org.nemesis.localizers.annotations.Localize;
                     },
                     colors = {
                         @Coloration(
-                                fg = {81, 62, 81},
+                                fg = {164, 110, 164},
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
                                 fg = {108, 212, 105},
@@ -713,7 +713,7 @@ public class AntlrKeys {
                 @Coloration(
                         themes = POPULAR_BRIGHT_THEMES,
                         italic = true,
-                        bg = {255, 255, 242, 245}
+                        underline = {90, 90, 90}
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
@@ -736,7 +736,7 @@ public class AntlrKeys {
             colors = {
                 @Coloration(
                         themes = POPULAR_BRIGHT_THEMES,
-                        fg = {40, 40, 200},
+                        fg = {180, 40, 40},
                         bold = true,
                         italic = true
                 ),

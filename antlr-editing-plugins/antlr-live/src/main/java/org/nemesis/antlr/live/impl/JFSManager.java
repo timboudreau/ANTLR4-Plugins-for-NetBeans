@@ -88,6 +88,7 @@ final class JFSManager {
             JFS jfs = createJFS();
             ref = new ProjectReference(jfs, project);
             String id = jfs.id();
+            LOG.log(Level.FINE, "Created JFS {0} for {1}", new Object[] {id, project});
             Trackables.track(JFS.class, jfs, () -> {
                 return "JFS-" + id + project.getProjectDirectory().getName();
             });
@@ -106,7 +107,7 @@ final class JFSManager {
 
     JFS createJFS() {
         try {
-            return JFS.builder().withCharset(UTF_8).build();
+            return JFS.builder().withCharset(UTF_8).useOffHeapStorage().build();
         } catch (IOException ex) {
             // only actually thrown if we use the mapped file
             // allocator, which we are not

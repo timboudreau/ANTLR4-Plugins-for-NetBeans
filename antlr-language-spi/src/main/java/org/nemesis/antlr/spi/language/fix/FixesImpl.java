@@ -22,10 +22,8 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
-import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
 import org.nemesis.editor.function.DocumentConsumer;
-import org.nemesis.editor.function.DocumentRunnable;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.netbeans.spi.editor.hints.ErrorDescription;
@@ -76,13 +74,6 @@ final class FixesImpl extends Fixes {
     @Override
     public boolean isUsedErrorId(String id) {
         return usedErrorIds.contains(id);
-    }
-
-    @Override
-    public void ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
-        if (!usedErrorIds.contains(id)) {
-            run.run();
-        }
     }
 
     @Override

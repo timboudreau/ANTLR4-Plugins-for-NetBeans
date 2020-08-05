@@ -85,13 +85,18 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     AntlrGenerationSubscriptionsForProject(Project project, JFSManager jfses, Runnable onProjectDeleted) {
         super(ANTLRv4Parser.GrammarFileContext.class);
         mappingManager = new PerProjectJFSMappingManager(project, jfses, onProjectDeleted, this::onFileReplaced);
-        SubscribableBuilder.SubscribableContents<FileObject, FileObject, Subscriber, AntlrRegenerationEvent> sinfo = // need a defensive copy
-        SubscribableBuilder.withKeys(FileObject.class).withEventApplier((FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) -> {
-            for (Subscriber s : subscribers.toArray(new Subscriber[0])) {
-                // need a defensive copy
-                rebuildInfo.accept(s);
-            }
-        }).storingSubscribersIn(SetTypes.WEAK_HASH).threadSafe().withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY, 2, TimeUnit.SECONDS).build();
+        SubscribableBuilder.SubscribableContents<FileObject, FileObject, Subscriber, AntlrRegenerationEvent> sinfo
+                = // need a defensive copy
+                SubscribableBuilder.withKeys(FileObject.class).withEventApplier((FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) -> {
+                    LOG.log(Level.FINER, "Publish regeneration of {0} to {1} subscribers", new Object[]{fo, subscribers.size()});
+                    for (Subscriber s : subscribers.toArray(new Subscriber[0])) {
+                        // need a defensive copy
+                        LOG.log(Level.FINEST, "Publish regeneration of {0} to {1}", new Object[]{fo, s});
+                        rebuildInfo.accept(s);
+                    }
+                }).storingSubscribersIn(SetTypes.ORDERED_HASH).threadSafe()
+                        .withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY,
+                                2, TimeUnit.SECONDS).build();
         subscribableDelegate = sinfo.subscribable;
         dispatcher = sinfo.eventInput;
         subscribersStore = sinfo.store;
@@ -140,6 +145,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     public void subscribe(FileObject key, Subscriber consumer) {
         subscribableDelegate.subscribe(key, consumer);
         ParseResultHook.register(key, this);
+        NbAntlrUtils.invalidateSource(key);
         forceParse(key);
     }
 
@@ -299,10 +305,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         try (final PrintStream output = AntlrLoggers.getDefault().printStream(originalFile, AntlrLoggers.STD_TASK_GENERATE_ANTLR)) {
                             result = generator.run(grammarName, output, true);
                         }
+                        LOG.log(Level.FINEST, "Generation result for {0}: {1}", new Object[]{originalFile, result});
                         // Update the state of throttling if the parse was unusable
-                        extraction.source().lookup(Path.class, pth -> {
-                            throttle.incrementThrottleIfBad(extraction, result);
-                        });
+                        throttle.incrementThrottleIfBad(extraction, result);
                         // We keep a cache of the file dependency graph - which files MemoryTool
                         // read in order to parse this one, which we can use to be more selective
                         // about what sibling grammars in the project need a re-regenerate when one
@@ -343,7 +348,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                                         UnixPath javaFile = jfsJavaSourcePathForGrammarFile(sib);
                                         //                                            boolean mod = result.outputFiles.get(grammarPath).contains(javaFile);
                                         Optional<ObjectGraph<UnixPath>> siblingDependencyGraph = dependencyGraphCache.getOptional(sib);
-                                        if ( /* mod || */ changes.isCreatedOrModified(javaFile)) {
+                                        if ( /* mod || */changes.isCreatedOrModified(javaFile)) {
                                             alreadyRegenerated.add(sib);
                                             if (!foFinal.equals(sib)) {
                                                 NbAntlrUtils.invalidateSource(sib);
@@ -379,6 +384,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                                 }
                             }
                             if (!alreadyRegenerated.isEmpty() || !notRegeneratedButNeedReparse.isEmpty()) {
+                                LOG.log(Level.FINER, "Will simulate result for {0} and fully regenerate {1}", new Object[]{
+                                    alreadyRegenerated, notRegeneratedButNeedReparse});
                                 // If there is more to do, do it
                                 regenerateDependencies(fo, alreadyRegenerated, changes, tree, extraction, result, notRegenerated, jfs, notRegeneratedButNeedReparse);
                             }
@@ -396,6 +403,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 } catch (IOException ex) {
                     Exceptions.printStackTrace(ex);
                 }
+            } else {
+                LOG.log(Level.FINE, "No original file for {0}", fo);
             }
         });
     }
@@ -403,9 +412,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     /**
      * Reentrant scope for triggering regeneration / reevaluation of
-     * dependencies when a grammar others depend on is parsed, which exists
-     * only as long as the calling thread is within the scope of the
-     * outermost regeneration event.
+     * dependencies when a grammar others depend on is parsed, which exists only
+     * as long as the calling thread is within the scope of the outermost
+     * regeneration event.
      */
     class ReentrantAntlrGenerationContext {
 
@@ -466,9 +475,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         }
 
         /**
-         * Create an event by just retargeting the existing generation
-         * result for a sibling grammar that happened to be generated as a
-         * consequence of generating some other one.
+         * Create an event by just retargeting the existing generation result
+         * for a sibling grammar that happened to be generated as a consequence
+         * of generating some other one.
          *
          * @param fo The file
          * @param generationResult Its generation result

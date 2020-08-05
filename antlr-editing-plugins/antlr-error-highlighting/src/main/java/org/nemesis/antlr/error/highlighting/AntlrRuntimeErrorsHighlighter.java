@@ -161,6 +161,7 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
         if (res == null || !fixes.active()) {
+            LOG.log(Level.FINER, "no result or no fixes, skip hints: {0}", extraction.source());
             return;
         }
 
@@ -193,7 +194,6 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             Exceptions.printStackTrace(ex);
         }
         PositionFactory positions = PositionFactory.forDocument(d);
-        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
 
         OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), true);
         Bool anyHighlights = Bool.create();
@@ -221,8 +221,10 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 Mutex.EVENT.readAccess(() -> {
                     try {
                         if (anyHighlights.getAsBoolean()) {
+                            LOG.log(Level.FINEST, "Update highlights");
                             bag.setHighlights(brandNewBag);
                         } else {
+                            LOG.log(Level.FINEST, "No highlights; clear bag");
                             bag.clear();
                         }
                     } finally {
