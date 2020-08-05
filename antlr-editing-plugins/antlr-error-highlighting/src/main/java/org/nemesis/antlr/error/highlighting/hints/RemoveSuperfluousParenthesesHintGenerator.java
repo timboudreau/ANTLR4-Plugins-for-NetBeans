@@ -23,7 +23,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Segment;
 import org.nemesis.antlr.ANTLRv4Parser;
-import static org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES;
+import static org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors.SUPERFLUOUS_PARENTEHSES;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;

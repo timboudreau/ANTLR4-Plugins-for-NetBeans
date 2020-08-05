@@ -49,7 +49,7 @@ public class SFUtil {
     static Extraction nmExtraction() throws IOException {
         nestedMaps = NESTED_MAPS_WITH_SUPERFLUOUS_PARENTHESES;
         ExtractorBuilder<ANTLRv4Parser.GrammarFileContext> eb = Extractor.builder(ANTLRv4Parser.GrammarFileContext.class, ANTLR_MIME_TYPE);
-        ChannelsAndSkipExtractors.populateBuilder(eb);
+        HintsAndErrorsExtractors.populateBuilder(eb);
         Extractor<ANTLRv4Parser.GrammarFileContext> ext = eb.build();
         List<Token> tokens = new ArrayList<>();
         ANTLRv4Lexer lex = AntlrSampleFiles.NESTED_MAPS_WITH_SUPERFLUOUS_PARENTHESES.lexer();

@@ -31,6 +31,7 @@ import org.nemesis.extraction.Extraction;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.Utilities;
 
 /**
@@ -99,14 +100,14 @@ final class ProgrammaticParseResultHookRegistry {
                 });
         try {
             byMimeType.entrySet().forEach((e) -> {
-                e.getValue().forEach((r) -> {
+                new HashSet<>(e.getValue()).forEach((r) -> {
                     r.run();
                 });
             });
         } finally {
             byMimeType.clear();
             try {
-                byFile.entrySet().forEach((e) -> {
+                new HashSet<>(byFile.entrySet()).forEach((e) -> {
                     e.getValue().forEach((r) -> {
                         r.run();
                     });
@@ -125,7 +126,7 @@ final class ProgrammaticParseResultHookRegistry {
     private void _deregisterAllOfType(String mimeType) {
         try {
             byMimeType.entrySet().stream().filter((e) -> (mimeType.equals(e.getKey()))).forEach((e) -> {
-                e.getValue().forEach((r) -> {
+                new HashSet<>(e.getValue()).forEach((r) -> {
                     r.run();
                 });
             });
@@ -133,7 +134,7 @@ final class ProgrammaticParseResultHookRegistry {
         } finally {
             Set<FileObject> toRemove = new HashSet<>();
             byFile.entrySet().stream().filter((e) -> (mimeType.equals(e.getKey().getMIMEType()))).forEach((e) -> {
-                e.getValue().forEach((r) -> {
+                new HashSet<>(e.getValue()).forEach((r) -> {
                     toRemove.add(e.getKey());
                     r.run();
                 });
@@ -174,6 +175,7 @@ final class ProgrammaticParseResultHookRegistry {
         for (Iterator<ResultHookReference<?>> it = s.iterator(); it.hasNext();) {
             ResultHookReference<?> r = it.next();
             if (hook == r.get()) {
+                it.remove(); // avoid CME by preemptively removing
                 r.run();
                 result = true;
             }
@@ -312,7 +314,7 @@ final class ProgrammaticParseResultHookRegistry {
             super(referent);
             stringVal = referent.toString();
             this.fo = fo;
-            fo.addFileChangeListener(l);
+            fo.addFileChangeListener(FileUtil.weakFileChangeListener( l, fo ));
         }
 
         @Override

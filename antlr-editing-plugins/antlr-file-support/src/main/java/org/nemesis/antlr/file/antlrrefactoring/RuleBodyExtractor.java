@@ -216,7 +216,7 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
 
     @Override
     public CharSequence visitLabeledParserRuleElement(ANTLRv4Parser.LabeledParserRuleElementContext ctx) {
-        if (ctx.ASSIGN() != null) {
+        if (ctx.ASSIGN() != null && ctx.parserRuleAtom() != null) {
             labeledAtomCount++;
             return visitParserRuleAtom(ctx.parserRuleAtom());
         }
@@ -339,6 +339,9 @@ final class RuleBodyExtractor extends ANTLRv4BaseVisitor<CharSequence> {
     }
 
     private StringBuilder extractText(ParserRuleContext ctx) {
+        if (ctx == null) {
+            return sb;
+        }
         Interval ival = ctx.getSourceInterval();
         for (int i = ival.a; i <= ival.b; i++) {
             Token tok = parser.getTokenStream().get(i);

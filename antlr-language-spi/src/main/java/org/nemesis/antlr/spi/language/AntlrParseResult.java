@@ -53,6 +53,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     private final Vocabulary lexerVocabulary;
     private NbParserHelper helper;
     private volatile boolean wasInvalidated;
+//    volatile boolean fullyProcessed;
 
     AntlrParseResult( NbLexerAdapter<?, ?> adapter, Snapshot _snapshot, Extraction extraction,
             Consumer<ParseResultContents> inputConsumer ) {
@@ -200,7 +201,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * provide input to ui components such as error highlighting or
      * navigator panels.
      */
-    final class ParseResultInput extends ParseResultContents {
+    final class ParseResultInput extends ParseResultContents /* implements Runnable */{
 
         @Override
         <T> Optional<T> _get( Key<T> key ) {
@@ -226,6 +227,9 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         @Override
         public final ParseResultContents addErrorDescription( ErrorDescription err ) {
             addedErrorDescriptions.add( err );
+//            if ( fullyProcessed ) {
+//                enqueueLateHintAdditions();
+//            }
             return this;
         }
 
@@ -238,6 +242,34 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         Fixes fixes() throws IOException {
             return Fixes.create( extraction, this );
         }
+/*
+        // This needs timestamp checking or similar, or ordering issues
+        // cause late-added empty sets of hints to clobber valid ones
+        private RequestProcessor.Task lateFixAdditionUpdaterTask;
+
+        private synchronized void enqueueLateHintAdditions() {
+            if ( lateFixAdditionUpdaterTask == null ) {
+                lateFixAdditionUpdaterTask = FIX_COMPUTATION.create( this );
+            }
+            lateFixAdditionUpdaterTask.schedule( 100 );
+        }
+
+        @Override
+        public void run() {
+            List<? extends ErrorDescription> errors = getErrorDescriptions();
+            Snapshot snapshot = getSnapshot();
+            Document doc = snapshot.getSource().getDocument( false );
+            String mime = snapshot.getMimeType();
+            if ( doc != null ) {
+                HintsController.setErrors( doc, "errors-" + mime.replace( '/', '-' ), errors );
+            } else {
+                FileObject fo = snapshot.getSource().getFileObject();
+                if ( fo != null ) {
+                    HintsController.setErrors( fo, "errors-" + mime.replace( '/', '-' ), errors );
+                }
+            }
+        }
+        */
     }
 
     public static final class Key<T> {

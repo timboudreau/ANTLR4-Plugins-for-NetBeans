@@ -67,7 +67,7 @@ import org.nemesis.antlr.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
  *
  * @author Tim Boudreau
  */
-public class ChannelsAndSkipExtractors {
+public class HintsAndErrorsExtractors {
 
     @Localize(displayName = "Channel And Skip Directives")
     public static final RegionsKey<ChannelOrSkipInfo> CHSKIP = RegionsKey.create(ChannelOrSkipInfo.class,
@@ -160,10 +160,10 @@ public class ChannelsAndSkipExtractors {
 
         bldr.extractingRegionsUnder(SUPERFLUOUS_PARENTEHSES)
                 .whenRuleType(ANTLRv4Parser.BlockContext.class)
-                .extractingBoundsFromRuleAndKeyWith(ChannelsAndSkipExtractors::checkSuperfluous)
+                .extractingBoundsFromRuleAndKeyWith(HintsAndErrorsExtractors::checkSuperfluous)
                 .whenRuleType(LexerRuleBlockContext.class)
                 .whenAncestorRuleOf(LexerRuleElementBlockContext.class)
-                .extractingKeyAndBoundsWith(ChannelsAndSkipExtractors::checkSuperfluous)
+                .extractingKeyAndBoundsWith(HintsAndErrorsExtractors::checkSuperfluous)
                 .finishRegionExtractor();
     }
 
@@ -615,7 +615,7 @@ public class ChannelsAndSkipExtractors {
 
     }
 
-    ChannelsAndSkipExtractors() {
+    HintsAndErrorsExtractors() {
         throw new AssertionError();
     }
 }

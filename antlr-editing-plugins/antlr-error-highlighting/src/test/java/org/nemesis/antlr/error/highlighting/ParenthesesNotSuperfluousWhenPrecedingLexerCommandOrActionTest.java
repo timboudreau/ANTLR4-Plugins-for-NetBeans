@@ -477,7 +477,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
     @Test
     public void testLexerNoParens() throws Exception {
         testDynamic(SIMPLE_LEXER_GRAMMAR_CLEAN, (sampleFile, grammar, ext) -> {
-            SemanticRegions<Integer> regions = ext.regions(ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES);
+            SemanticRegions<Integer> regions = ext.regions(HintsAndErrorsExtractors.SUPERFLUOUS_PARENTEHSES);
             assertRulesWithSuperfluousParens(sampleFile, grammar, ext);
             assertNotNull(regions, "Empty regions should never be null");
             assertTrue(regions.isEmpty(), "No parentheses in this grammar - certainly "
@@ -628,7 +628,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
         String txt = sampleFile.text();
         System.out.println("TEXT: " + txt);
         System.out.println("\n------------------\n");
-        SemanticRegions<Integer> regions = ext.regions(ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES);
+        SemanticRegions<Integer> regions = ext.regions(HintsAndErrorsExtractors.SUPERFLUOUS_PARENTEHSES);
         for (SemanticRegion<Integer> reg : regions) {
             String sub = txt.substring(reg.start(), reg.end());
             System.out.println("REGION: " + reg.start() + ":" + reg.end() + "  '"
@@ -683,7 +683,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
 
     private static SemanticRegions<Integer> assertRulesWithSuperfluousParens(SampleFile<ANTLRv4Lexer, ANTLRv4Parser> sampleFile, GrammarFileContext parseTree, Extraction extraction, String... rules) throws IOException, Exception {
         Set<String> expRules = new HashSet<>(Arrays.asList(rules));
-        SemanticRegions<Integer> regions = extraction.regions(ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES);
+        SemanticRegions<Integer> regions = extraction.regions(HintsAndErrorsExtractors.SUPERFLUOUS_PARENTEHSES);
         if (expRules.isEmpty()) {
             boolean regionsEmpty = regions.isEmpty();
             if (!regionsEmpty) {
@@ -986,7 +986,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
             }
         });
         ExtractorBuilder<ANTLRv4Parser.GrammarFileContext> eb = Extractor.builder(ANTLRv4Parser.GrammarFileContext.class, ANTLR_MIME_TYPE);
-        ChannelsAndSkipExtractors.populateBuilder(eb);
+        HintsAndErrorsExtractors.populateBuilder(eb);
         Extractor<ANTLRv4Parser.GrammarFileContext> ext = eb.build();
         List<Token> tokens = new ArrayList<>();
         ANTLRv4Lexer lex = sampleFile.lexer();
@@ -1010,7 +1010,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
     static void testDynamic(String text, ThrowingTriConsumer<SampleFile<ANTLRv4Lexer, ANTLRv4Parser>, GrammarFileContext, Extraction> runner) throws Exception {
         SampleFile<ANTLRv4Lexer, ANTLRv4Parser> sampleFileLocal = AntlrSampleFiles.create(text);
         ExtractorBuilder<ANTLRv4Parser.GrammarFileContext> eb = Extractor.builder(ANTLRv4Parser.GrammarFileContext.class, ANTLR_MIME_TYPE);
-        ChannelsAndSkipExtractors.populateBuilder(eb);
+        HintsAndErrorsExtractors.populateBuilder(eb);
         Extractor<ANTLRv4Parser.GrammarFileContext> ext = eb.build();
         List<Token> tokens = new ArrayList<>();
         ANTLRv4Lexer lex = sampleFileLocal.lexer();

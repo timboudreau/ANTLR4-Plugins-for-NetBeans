@@ -313,6 +313,10 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                     // No sense in attaching error annotations unless there is a document to
                     // show them on
                     Fixes fixes = doc == null ? Fixes.empty() : populate.fixes();
+                    // XXX could use a way to apply fixes added asynchronously - that would allow
+                    // error highlighters to coalesce fixes and not run against every single
+                    // parse when there may be a flurry of them at once due to different things
+                    // all listening on a single source
                     ParseResultHook.runForMimeType( mimeType, tree, extraction, populate, fixes );
                     onParseCompleted( tree, extraction, populate, fixes, cancelled );
                     LOG.log( Level.FINEST, "Post-processing complete with {0} "

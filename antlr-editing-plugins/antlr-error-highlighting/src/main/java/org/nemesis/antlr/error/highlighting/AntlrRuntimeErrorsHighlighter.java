@@ -15,22 +15,16 @@
  */
 package org.nemesis.antlr.error.highlighting;
 
+import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
 import com.mastfrog.function.state.Bool;
-import java.awt.EventQueue;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
@@ -39,128 +33,68 @@ import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.spi.editor.highlighting.HighlightsContainer;
-import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.netbeans.api.editor.mimelookup.MimeRegistration;
+import org.netbeans.api.editor.mimelookup.MimeRegistrations;
+import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
+import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
-import org.openide.util.Mutex;
-import org.openide.util.RequestProcessor;
-import org.openide.util.WeakListeners;
 
 /**
+ * Implements error highlighting and hints, using the error output from Antlr
+ * itself, for Antlr grammar files. Has an SPI for plugging in individual hint
+ * generators.
  *
  * @author Tim Boudreau
  */
-public class AntlrRuntimeErrorsHighlighter implements Subscriber {
+public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implements Subscriber {
 
-    protected final OffsetsBag bag;
-    static final Logger LOG = Logger.getLogger(
-            AntlrRuntimeErrorsHighlighter.class.getName());
+    private Runnable unsubscriber;
 
-    private final Context ctx;
-    private final static RequestProcessor subscribe = new RequestProcessor("antlr-runtime-errors", 1, false);
-    private final CompL compl = new CompL();
-    private ComponentListener cl;
-
-    @SuppressWarnings("LeakingThisInConstructor")
-    AntlrRuntimeErrorsHighlighter(Context ctx) {
-        this.ctx = ctx;
-        Document doc = ctx.getDocument();
-        bag = new OffsetsBag(doc, true);
-        // XXX listen for changes, etc
-        JTextComponent c = ctx.getComponent();
-        c.addComponentListener(cl = WeakListeners.create(
-                ComponentListener.class, compl, c));
-        c.addPropertyChangeListener("ancestor",
-                WeakListeners.propertyChange(compl, c));
-        // This can race - double check
-        EventQueue.invokeLater(() -> {
-            if (ctx.getComponent().isShowing()) {
-                LOG.log(Level.FINER, "Component is showing, set active");
-                compl.setActive(true);
-            }
-        });
-        LOG.log(Level.FINE, "Create an AntlrRuntimeErrorsHighlighter for {0}", doc);
+    public AntlrRuntimeErrorsHighlighter(HighlightsLayerFactory.Context ctx) {
+        super(ctx, true);
     }
 
-    private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener {
-
-        // Gets subscribing, which can trigger parsing of poms of all
-        // dependencies, out of the critical path of opening an editor,
-        // and turns listening off when the component is not visible
-        private Runnable unsubscriber;
-        private boolean active;
-        private final RequestProcessor.Task task = subscribe.create(this);
-
-        @Override
-        public void componentShown(ComponentEvent e) {
-            LOG.log(Level.FINEST, "Component shown {0}", ctx.getDocument());
-            setActive(true);
+    @Override
+    protected void activated(FileObject file, Document doc) {
+        if (file == null) {
+            return;
         }
+        unsubscriber = RebuildSubscriptions.subscribe(file, this);
+    }
 
-        @Override
-        public void componentHidden(ComponentEvent e) {
-            LOG.log(Level.FINEST, "Component hidden {0}", ctx.getDocument());
-            setActive(false);
-        }
-
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            if ("ancestor".equals(evt.getPropertyName())) {
-                setActive(evt.getNewValue() != null);
-            }
-        }
-
-        void setActive(boolean active) {
-            if (active != this.active) {
-                this.active = active;
-                LOG.log(Level.FINE, "Set active to {0} for {1}", new Object[]{active, ctx.getDocument()});
-                if (active) {
-                    task.schedule(350);
-                } else {
-                    task.cancel();
-                    unsubscribe();
-                }
-            }
-        }
-
-        void unsubscribe() {
-            if (unsubscriber != null) {
-                LOG.log(Level.FINE, "Unsubscribe from rebuilds of {0}", ctx.getDocument());
-                unsubscriber.run();
-                unsubscriber = null;
-            }
-        }
-
-        @Override
-        public void run() {
-            if (active) {
-                FileObject fo = NbEditorUtilities.getFileObject(ctx.getDocument());
-                if (fo != null) {
-                    LOG.log(Level.FINE, "Subscribing to rebuilds of {0}", fo);
-                    unsubscriber = RebuildSubscriptions.subscribe(fo, AntlrRuntimeErrorsHighlighter.this);
-                } else {
-                    LOG.log(Level.WARNING, "No FileObject to subscribe to for {0}", ctx.getDocument());
-                }
-            } else {
-                LOG.log(Level.FINE, "Not active, don't subscribe to rebuilds of {0}", ctx.getDocument());
-            }
+    @Override
+    protected void deactivated(FileObject file, Document doc) {
+        Runnable un = unsubscriber;
+        currentTokensHash = null;
+        unsubscriber = null;
+        if (un != null) {
+            un.run();
         }
     }
 
-    HighlightsContainer bag() {
-        return bag;
-    }
     private final AtomicInteger uses = new AtomicInteger();
+    private volatile String currentTokensHash;
 
     @Override
     public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
-        if (res == null || !fixes.active()) {
+        // Once late addition of hints is working without clobbering things,
+        // this should be the way it is done.
+        // This code currently runs on every single parser result creation,
+        // and for every change, multiple threads do reparses, so while
+        // it is very fast, it should run once per flurry-of-parses, delayed
+        // and coalesced
+
+//        coa.coalesce(tree, extraction, res, populate, fixes);
+//    }
+//    public void internalOnRebuilt(GrammarFileContext tree,
+//            String mimeType, Extraction extraction,
+//            AntlrGenerationResult res, ParseResultContents populate,
+//            Fixes fixes) {
+        if (res == null || !fixes.active() || !isActive()) {
             LOG.log(Level.FINER, "no result or no fixes, skip hints: {0}", extraction.source());
             return;
         }
@@ -194,11 +128,14 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
             Exceptions.printStackTrace(ex);
         }
         PositionFactory positions = PositionFactory.forDocument(d);
-
-        OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), true);
-        Bool anyHighlights = Bool.create();
-        boolean usingResults = true;
-        try {
+//        if (Objects.equals(currentTokensHash, extraction.tokensHash())) {
+//            LOG.log(Level.INFO, "Called with already processed tokens hash - ignore");
+//            return;
+//        }
+        currentTokensHash = extraction.tokensHash();
+        updateHighlights(brandNewBag -> {
+            Bool anyHighlights = Bool.create();
+            boolean usingResults = true;
             for (AntlrHintGenerator gen : AntlrHintGenerator.all()) {
                 try {
                     boolean highlightsAdded = gen.generateHints(tree, extraction, res, populate, fixes, d, positions, brandNewBag);
@@ -208,30 +145,67 @@ public class AntlrRuntimeErrorsHighlighter implements Subscriber {
                 } catch (BadLocationException ex) {
                     Exceptions.printStackTrace(ex);
                 }
-                if (runIndex != uses.get()) {
-//                    LOG.log(Level.INFO, "Not finishing hint run due to reentry {0}", extraction.tokensHash());
+//                if (runIndex != uses.get()) {
+//                    LOG.log(Level.INFO, "Not finishing hint run due to reentry of {0} with {1}",
+//                            new Object[]{extraction.source(), extraction.tokensHash()});
 //                    usingResults = false;
 //                    break;
-                }
+//                }
             }
-        } finally {
-            if (!usingResults) {
-                brandNewBag.discard();
-            } else {
-                Mutex.EVENT.readAccess(() -> {
-                    try {
-                        if (anyHighlights.getAsBoolean()) {
-                            LOG.log(Level.FINEST, "Update highlights");
-                            bag.setHighlights(brandNewBag);
-                        } else {
-                            LOG.log(Level.FINEST, "No highlights; clear bag");
-                            bag.clear();
-                        }
-                    } finally {
-                        brandNewBag.discard();
-                    }
-                });
+            return usingResults && anyHighlights.getAsBoolean();
+        });
+    }
+
+    @MimeRegistrations({
+        @MimeRegistration(mimeType = ANTLR_MIME_TYPE,
+                service = HighlightsLayerFactory.class, position = 50)
+    })
+    public static HighlightsLayerFactory factory() {
+        return AbstractHighlighter.factory("antlr-runtime-errors", ZOrder.SHOW_OFF_RACK, ctx -> new AntlrRuntimeErrorsHighlighter(ctx));
+    }
+
+    /*
+    private final Coalescer coa = new Coalescer();
+
+    final class Coalescer implements Runnable {
+
+        private final AtomicReference<RebuildInfo> info = new AtomicReference<>();
+        private final RequestProcessor.Task task = threadPool().create(this);
+
+        @Override
+        public void run() {
+            RebuildInfo local = this.info.get();
+            internalOnRebuilt(local.tree, ANTLR_MIME_TYPE, local.extraction, local.res, local.populate, local.fixes);
+        }
+
+        void coalesce(GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
+            if (tree == null) {
+                tree = NbAntlrUtils.currentTree(GrammarFileContext.class);
             }
+            RebuildInfo nue = new RebuildInfo(tree, extraction, res, populate, fixes);
+            RebuildInfo old = info.get();
+            if (old == null || old.extraction.sourceLastModifiedAtExtractionTime() < extraction.sourceLastModifiedAtExtractionTime()) {
+                info.set(nue);
+            }
+            task.schedule(350);
         }
     }
+
+    private static final class RebuildInfo {
+
+        private final ANTLRv4Parser.GrammarFileContext tree;
+        private final Extraction extraction;
+        private final AntlrGenerationResult res;
+        private final ParseResultContents populate;
+        private final Fixes fixes;
+
+        public RebuildInfo(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
+            this.tree = tree;
+            this.extraction = extraction;
+            this.res = res;
+            this.populate = populate;
+            this.fixes = fixes;
+        }
+    }
+     */
 }

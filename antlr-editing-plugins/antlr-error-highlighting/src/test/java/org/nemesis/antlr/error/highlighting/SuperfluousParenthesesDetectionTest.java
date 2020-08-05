@@ -39,7 +39,7 @@ public class SuperfluousParenthesesDetectionTest {
         Extraction nmExtraction = SFUtil.nmExtraction();
         String text = SFUtil.nestedMaps.text();
 //        System.out.println(text);
-        SemanticRegions<Integer> items = nmExtraction.regions(ChannelsAndSkipExtractors.SUPERFLUOUS_PARENTEHSES);
+        SemanticRegions<Integer> items = nmExtraction.regions(HintsAndErrorsExtractors.SUPERFLUOUS_PARENTEHSES);
 //        System.out.println("ITEMS: " + items.size());
         List<String> toElide = new ArrayList<>(items.size());
         for (SemanticRegion<Integer> reg : items) {

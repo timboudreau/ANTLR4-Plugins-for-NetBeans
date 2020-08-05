@@ -55,11 +55,14 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
+import org.antlr.runtime.CharStream;
 import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.tree.ErrorNode;
@@ -67,7 +70,9 @@ import org.nemesis.antlr.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.EbnfSuffixContext;
+import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.ANTLRv4Parser.LexerRuleElementBlockContext;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import static org.nemesis.antlr.file.AntlrKeys.RULE_BOUNDS;
 import static org.nemesis.antlr.file.AntlrKeys.RULE_NAME_REFERENCES;
@@ -77,6 +82,8 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.ops.CaretInformation;
 import org.nemesis.editor.ops.DocumentOperator;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.Extractor;
+import org.nemesis.source.api.GrammarSource;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
 import org.openide.awt.ActionID;
@@ -227,7 +234,11 @@ public final class OrganizeRules implements ActionListener {
                                     ibc.accept(currentCaretPosition, currentCaretPosition);
                                 }
                                 try {
-                                    Extraction revisedExtraction = NbAntlrUtils.parseImmediately(doc1);
+                                    // XXX simplify - parse locking is going to cause ParserManager to give
+                                    // us back a null extraction;  there should be a nice way to create
+                                    // an extraction without going through ParserManager for cases like this
+                                    Extraction revisedExtraction = extractBypassingParserManager(doc1);
+//                                    Extraction revisedExtraction = NbAntlrUtils.parseImmediately(doc1);
                                     NamedSemanticRegions<RuleTypes> revisedRegions = revisedExtraction.namedRegions(RULE_BOUNDS);
                                     NamedSemanticRegion<RuleTypes> targetRegion = revisedRegions.regionFor(info.rule);
                                     if (targetRegion == null) {
@@ -258,6 +269,21 @@ public final class OrganizeRules implements ActionListener {
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
         }
+    }
+
+    private Extraction extractBypassingParserManager(Document doc) throws IOException {
+        GrammarSource<Document> src = GrammarSource.find(doc, ANTLR_MIME_TYPE);
+        Extractor<? super GrammarFileContext> extractor = Extractor.forTypes(ANTLR_MIME_TYPE, GrammarFileContext.class);
+        List<Token> tokens = new ArrayList<>();
+        ANTLRv4Lexer lex = new ANTLRv4Lexer(src.stream());
+        int ix = 0;
+        for (Token t = lex.nextToken(); t.getType() != CharStream.EOF; t = lex.nextToken()) {
+            CommonToken ct = new CommonToken(t);
+            ct.setTokenIndex(ix++);
+        }
+        lex.reset();
+        ANTLRv4Parser par = new ANTLRv4Parser(new CommonTokenStream(lex));
+        return extractor.extract(par.grammarFile(), src, tokens);
     }
 
     private int findCaretPosition(EditorCookie ck, StyledDocument doc) {

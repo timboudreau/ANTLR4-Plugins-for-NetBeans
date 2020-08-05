@@ -22,7 +22,7 @@ import java.util.List;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
-import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors;
+import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -51,9 +51,9 @@ public final class ReplaceSkipWithChannelHintGenerator extends NonHighlightingHi
     protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate, Fixes fixes,
             Document doc, PositionFactory positions) throws BadLocationException {
-        SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo> all = extraction.regions(ChannelsAndSkipExtractors.CHSKIP);
+        SemanticRegions<HintsAndErrorsExtractors.ChannelOrSkipInfo> all = extraction.regions(HintsAndErrorsExtractors.CHSKIP);
         int[] maxUsedChannel = new int[1];
-        List<SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo>> skips = new ArrayList<>();
+        List<SemanticRegion<HintsAndErrorsExtractors.ChannelOrSkipInfo>> skips = new ArrayList<>();
         all.forEach(maybeSkip -> {
             switch (maybeSkip.key().kind()) {
                 case CHANNEL:
@@ -68,7 +68,7 @@ public final class ReplaceSkipWithChannelHintGenerator extends NonHighlightingHi
         });
         if (!skips.isEmpty()) {
             maxUsedChannel[0]++;
-            for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> region : skips) {
+            for (SemanticRegion<HintsAndErrorsExtractors.ChannelOrSkipInfo> region : skips) {
                 String errId = "skip-" + region.key() + "-" + region.index();
                 PositionRange rng = positions.range(region);
                 try {

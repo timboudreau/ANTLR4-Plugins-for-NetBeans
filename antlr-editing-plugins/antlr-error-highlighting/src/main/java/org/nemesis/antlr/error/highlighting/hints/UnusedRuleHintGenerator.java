@@ -40,7 +40,7 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors;
+import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
 import static org.nemesis.antlr.error.highlighting.hints.util.RuleNamingConvention.findGrammarType;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
@@ -125,18 +125,18 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
             // and omit them from orphans - they are used to route
             // comments and whitespace out of the parse tree, but
             // will look like they are unused
-            SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo> skippedAndSimilar
-                    = extraction.regions(ChannelsAndSkipExtractors.CHSKIP);
+            SemanticRegions<HintsAndErrorsExtractors.ChannelOrSkipInfo> skippedAndSimilar
+                    = extraction.regions(HintsAndErrorsExtractors.CHSKIP);
             // Build a graph that cross-references the rule that contains a
             // skip or channel directive with the named rule that contains
             // it - rules that contain a skip or channel directive will have
             // an edge to that directive, so we just need to iterate our
             // rules and exclude the parents
-            BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo>, ?, SemanticRegions<ChannelsAndSkipExtractors.ChannelOrSkipInfo>> hetero
+            BitSetHeteroObjectGraph<NamedSemanticRegion<RuleTypes>, SemanticRegion<HintsAndErrorsExtractors.ChannelOrSkipInfo>, ?, SemanticRegions<HintsAndErrorsExtractors.ChannelOrSkipInfo>> hetero
                     = ruleBounds.crossReference(skippedAndSimilar);
 
             Bool hasImporters = Bool.create();
-            for (SemanticRegion<ChannelsAndSkipExtractors.ChannelOrSkipInfo> s : skippedAndSimilar) {
+            for (SemanticRegion<HintsAndErrorsExtractors.ChannelOrSkipInfo> s : skippedAndSimilar) {
                 // Find the owners and remove them
                 for (NamedSemanticRegion<RuleTypes> parent : hetero.rightSlice().parents(s)) {
                     orphans.remove(parent.name());

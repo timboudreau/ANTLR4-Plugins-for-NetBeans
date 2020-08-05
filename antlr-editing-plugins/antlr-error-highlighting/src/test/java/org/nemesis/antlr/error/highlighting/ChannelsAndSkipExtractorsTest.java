@@ -46,14 +46,14 @@ public class ChannelsAndSkipExtractorsTest {
     public void testSomeMethod() {
         System.out.println("ls " + extraction);
         System.out.println("keys " + extraction.regionKeys());
-        SemanticRegions<ChannelsAndSkipExtractors.SingleTermCtx> regions = extraction.regions(ChannelsAndSkipExtractors.SOLO_STRING_LITERALS);
+        SemanticRegions<HintsAndErrorsExtractors.SingleTermCtx> regions = extraction.regions(HintsAndErrorsExtractors.SOLO_STRING_LITERALS);
         System.out.println("GOT " + regions);
     }
 
     @BeforeAll
     public static void setup() throws IOException {
         ExtractorBuilder<GrammarFileContext> eb = Extractor.builder(GrammarFileContext.class, ANTLR_MIME_TYPE);
-        ChannelsAndSkipExtractors.populateBuilder(eb);
+        HintsAndErrorsExtractors.populateBuilder(eb);
         Extractor<GrammarFileContext> ext = eb.build();
         List<Token> tokens = new ArrayList<>();
         ANTLRv4Lexer lex = AntlrSampleFiles.PROTOBUF_3.lexer();

@@ -40,7 +40,7 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors;
+import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
 import static org.nemesis.antlr.error.highlighting.hints.RemoveSuperfluousParenthesesHintGenerator.elidedContent;
 import org.nemesis.antlr.error.highlighting.hints.util.ExtractRule;
 import org.nemesis.antlr.error.highlighting.hints.util.RuleNamingConvention;
@@ -372,7 +372,7 @@ public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHi
             }
             boolean match = ruleBody.equals(txt) || (ruleBodyNoParens != null && ruleBodyNoParens.equals(txt));
             if (match) {
-                targetName = ChannelsAndSkipExtractors.ruleName(ctx);
+                targetName = HintsAndErrorsExtractors.ruleName(ctx);
             }
         }
 

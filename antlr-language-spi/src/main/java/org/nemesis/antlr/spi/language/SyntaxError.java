@@ -108,7 +108,7 @@ public final class SyntaxError implements Comparable<SyntaxError> {
                 message, fixes, doc, new SimplePosition(start()), new SimplePosition(end()));
     }
 
-    private static final RequestProcessor FIX_COMPUTATION
+    static final RequestProcessor FIX_COMPUTATION
             = new RequestProcessor("antlr-fix-computation", 2);
 
     private class SyntaxFixes implements LazyFixList, Runnable {

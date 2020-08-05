@@ -140,47 +140,45 @@ public final class NbAntlrUtils {
         return ext[ 0 ];
     }
 
-    /*
-     * private static void parseImmediatelyBypassingParserManager( Source src, BiConsumer<Extraction, Exception>
-     * consumer ) {
-     * // needed for tests to avoid initializing the module system
-     * if ( AntlrMimeTypeRegistration.isAntlrLanguage( src.getMimeType() ) ) {
-     * GrammarSource<Source> gs = GrammarSource.find( src, src.getMimeType() );
-     * try {
-     * CharStream str = gs.stream();
-     * // XXX how to get a lexer?
-     * LanguageHierarchy hier = MimeLookup.getLookup( src.getMimeType() )
-     * .lookup( LanguageHierarchy.class );
-     * if ( hier == null ) {
-     * consumer.accept( null, new IllegalStateException(
-     * "No language hierarchy for " + src.getMimeType() ) );
-     * } else {
-     * // public static ANTLRv4Lexer createAntlrLexer(CharStream stream)
-     * Method meth = hier.getClass().getMethod(
-     * "createAntlrLexer", CharStream.class );
-     * org.antlr.v4.runtime.Lexer lex = ( org.antlr.v4.runtime.Lexer ) meth.invoke( null, str );
-     * CommonTokenStream cts = new CommonTokenStream( lex );
-     *
-     * RulesMapping<?> rm = RulesMapping.forMimeType( src.getMimeType() );
-     * // org.antlr.v4.runtime.Parser
-     * Class<?> parserType = rm.parserType();
-     * // org.antlr.v4.runtime.Parser p = parserType.newInstance(cts);
-     * org.antlr.v4.runtime.Parser parser
-     * = ( org.antlr.v4.runtime.Parser ) parserType.getConstructor(
-     * TokenStream.class ).newInstance(
-     * cts );
-     *
-     *
-     * }
-     * } catch ( Exception ex ) {
-     * consumer.accept( null, ex );
-     * }
-     * } else {
-     * consumer.accept( null, new IllegalStateException(
-     * "Not a registered ANTLR mime type: " + src.getMimeType() ) );
-     * }
-     * }
-     */
+//    private static void parseImmediatelyBypassingParserManager( Source src, BiConsumer<Extraction, Exception> consumer ) {
+//        // needed for tests to avoid initializing the module system
+//        if ( AntlrMimeTypeRegistration.isAntlrLanguage( src.getMimeType() ) ) {
+//            GrammarSource<Source> gs = GrammarSource.find( src, src.getMimeType() );
+//            try {
+//                CharStream str = gs.stream();
+//                // XXX how to get a lexer?
+//                LanguageHierarchy hier = MimeLookup.getLookup( src.getMimeType() )
+//                        .lookup( LanguageHierarchy.class );
+//                if ( hier == null ) {
+//                    consumer.accept( null, new IllegalStateException(
+//                                     "No language hierarchy for " + src.getMimeType() ) );
+//                } else {
+//                    // public static ANTLRv4Lexer createAntlrLexer(CharStream stream)
+//                    Method meth = hier.getClass().getMethod(
+//                            "createAntlrLexer", CharStream.class );
+//                    org.antlr.v4.runtime.Lexer lex = ( org.antlr.v4.runtime.Lexer ) meth.invoke( null, str );
+//                    CommonTokenStream cts = new CommonTokenStream( lex );
+//                    RulesMapping<?> rm = RulesMapping.forMimeType( src.getMimeType() );
+//
+//                    // org.antlr.v4.runtime.Parser
+//                    Class<?> parserType = rm.parserType();
+//                    // org.antlr.v4.runtime.Parser p = parserType.newInstance(cts);
+//                    org.antlr.v4.runtime.Parser parser
+//                            = ( org.antlr.v4.runtime.Parser ) parserType.getConstructor(
+//                                    TokenStream.class ).newInstance(
+//                                            cts );
+//
+//                    Extractors.getDefault().extract( src.getMimeType(), gs, ( Class ) parserType );
+//                }
+//            } catch ( Exception ex ) {
+//                consumer.accept( null, ex );
+//            }
+//        } else {
+//            consumer.accept( null, new IllegalStateException(
+//                             "Not a registered ANTLR mime type: " + src.getMimeType() ) );
+//        }
+//    }
+
     private static void parseImmediately( Source src,
             BiConsumer<Extraction, Exception> consumer ) {
         String mime = src.getMimeType();
@@ -333,8 +331,8 @@ public final class NbAntlrUtils {
 
     static Consumer<FileObject> INVALIDATOR = SourceInvalidator.create();
 
-    public static void invalidateSource(FileObject fo) {
-        INVALIDATOR.accept(fo);
+    public static void invalidateSource( FileObject fo ) {
+        INVALIDATOR.accept( fo );
     }
 
     private static void onPostProcessingExit( PostprocessingMode was, PostprocessingMode is ) {

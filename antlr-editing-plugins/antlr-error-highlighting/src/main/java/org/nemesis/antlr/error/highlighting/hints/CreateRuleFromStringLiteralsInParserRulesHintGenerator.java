@@ -27,7 +27,7 @@ import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import org.nemesis.antlr.error.highlighting.ChannelsAndSkipExtractors;
+import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
 import org.nemesis.antlr.error.highlighting.hints.util.ExtractRule;
 import static org.nemesis.antlr.error.highlighting.hints.util.NameUtils.generateLexerRuleName;
 import org.nemesis.antlr.error.highlighting.hints.util.RuleNamingConvention;
@@ -65,10 +65,10 @@ public class CreateRuleFromStringLiteralsInParserRulesHintGenerator extends NonH
 
     @Override
     protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions) throws BadLocationException {
-        SemanticRegions<ChannelsAndSkipExtractors.TermCtx> terms = extraction.regions(ChannelsAndSkipExtractors.LONELY_STRING_LITERALS);
-        SemanticRegions<ChannelsAndSkipExtractors.SingleTermCtx> matchingRules = extraction.regions(ChannelsAndSkipExtractors.SOLO_STRING_LITERALS);
+        SemanticRegions<HintsAndErrorsExtractors.TermCtx> terms = extraction.regions(HintsAndErrorsExtractors.LONELY_STRING_LITERALS);
+        SemanticRegions<HintsAndErrorsExtractors.SingleTermCtx> matchingRules = extraction.regions(HintsAndErrorsExtractors.SOLO_STRING_LITERALS);
         Map<String, String> index = new HashMap<>();
-        for (SemanticRegion<ChannelsAndSkipExtractors.SingleTermCtx> ctx : matchingRules) {
+        for (SemanticRegion<HintsAndErrorsExtractors.SingleTermCtx> ctx : matchingRules) {
             index.put(ctx.key().text, ctx.key().ruleName);
         }
         terms.forEach(region -> {

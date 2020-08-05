@@ -209,6 +209,7 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
 
     void updateForFileDeletedOrPanelDeactivated() {
         updateFromLookupResult(Lookup.EMPTY.lookupResult(EditorCookie.class));
+        setNoModel(changeCount.get());
     }
 
     @Override
