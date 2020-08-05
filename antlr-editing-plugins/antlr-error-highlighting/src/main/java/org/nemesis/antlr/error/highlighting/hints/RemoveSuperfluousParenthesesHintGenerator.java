@@ -58,12 +58,12 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
     }
 
     @Override
-    protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, 
+    protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate, Fixes fixes,
             Document doc, PositionFactory positions) throws BadLocationException {
         SemanticRegions<Integer> regs = extraction.regions(SUPERFLUOUS_PARENTEHSES);
         LOG.log(Level.FINE, "Check superfluous parentheses {0} with {1} regions: {2}",
-                new Object[] {extraction.source(), regs.size(), regs});
+                new Object[]{extraction.source(), regs.size(), regs});
         for (SemanticRegion<Integer> reg : regs) {
             String errId = "sp-" + reg.key();
             fixes.ifUnusedErrorId(errId, () -> {
@@ -72,11 +72,18 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
                     fixes.addHint(errId, rng, Bundle.unneededParentheses(), fixen -> {
                         Segment seg = new Segment();
                         Bool failed = Bool.create();
+                        Bool appendSpace = Bool.create();
                         doc.render(() -> {
                             try {
                                 int startOffset = reg.start() + 1;
                                 int endOffset = reg.stop();
                                 doc.getText(startOffset, endOffset - startOffset, seg);
+                                if (endOffset < doc.getLength() - 1) {
+                                    // A rule such as
+                                    // ID : ('a'..'z'|'A'..'Z')('a'..'z'|'A'..'Z'|'0'..'9' | '_')*;
+                                    // should get a space where the first ) is
+                                    appendSpace.set(doc.getText(reg.end(), 1).charAt(0) == '(');
+                                }
                             } catch (BadLocationException ex) {
                                 Exceptions.printStackTrace(ex);
                                 failed.set();
@@ -84,9 +91,13 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
                         });
                         failed.ifUntrue(() -> {
                             LOG.log(Level.FINEST, "Superfluous parens at {0} in {1}",
-                                    new Object[] {reg, extraction.source()});
+                                    new Object[]{reg, extraction.source()});
                             fixen.addFix(Bundle.superfluousParentheses("(" + seg + ")"), bag -> {
-                                bag.replace(rng, seg.toString().trim());
+                                String txt = seg.toString().trim();
+                                if (appendSpace.get()) {
+                                    txt += ' ';
+                                }
+                                bag.replace(rng, txt);
                             });
                         });
                     });

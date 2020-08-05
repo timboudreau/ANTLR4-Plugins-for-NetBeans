@@ -17,12 +17,10 @@ package org.nemesis.antlr.fold;
 
 import java.awt.Point;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.JEditorPane;
 import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
@@ -32,8 +30,6 @@ import org.netbeans.api.editor.fold.FoldHierarchy;
 import org.netbeans.api.editor.fold.FoldType;
 import org.netbeans.spi.editor.fold.FoldInfo;
 import org.netbeans.spi.editor.fold.FoldOperation;
-import org.openide.cookies.EditorCookie;
-import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 
 /**
@@ -104,22 +100,27 @@ final class FoldCommitter implements Runnable {
         if (!rendering) {
             startTime = System.currentTimeMillis();
             rendering = true;
-            doc.render(this);
+            try {
+                doc.render(this);
+            } finally {
+                rendering = false;
+            }
             return;
         }
         if (first) {
             LOG.log(Level.FINER, "Run first folds on {0}", operation);
             JTextComponent c = operation.getHierarchy().getComponent();
-            Object od = doc.getProperty(Document.StreamDescriptionProperty);
-            if (od instanceof DataObject) {
-                DataObject d = (DataObject) od;
-                EditorCookie cake = d.getLookup().lookup(EditorCookie.class);
-                JEditorPane[] panes = cake.getOpenedPanes();
-                int idx = panes == null ? -1 : Arrays.asList(panes).indexOf(c);
-                if (idx != -1) {
-                    caretPos = c.getCaret().getDot();
-                }
-            }
+            caretPos = c.getCaret().getDot();
+//            Object od = doc.getProperty(Document.StreamDescriptionProperty);
+//            if (od instanceof DataObject) {
+//                DataObject d = (DataObject) od;
+//                EditorCookie cake = d.getLookup().lookup(EditorCookie.class);
+//                JEditorPane[] panes = cake.getOpenedPanes();
+//                int idx = panes == null ? -1 : Arrays.asList(panes).indexOf(c);
+//                if (idx != -1) {
+//                    caretPos = c.getCaret().getDot();
+//                }
+//            }
         }
         JTextComponent c = operation.getHierarchy().getComponent();
         final int currentCaretPos = caretPos;

@@ -15,8 +15,13 @@
  */
 package org.nemesis.antlr.fold;
 
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.logging.Level;
@@ -40,6 +45,7 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
     private final KeyToFoldConverter<? super I> converter;
     private final Function<Extraction, C> extractionFetcher;
     private static final Logger LOG = Logger.getLogger(FoldUpdater.class.getName());
+    private volatile String lastTokensHash;
 
     FoldUpdater(K key, KeyToFoldConverter<? super I> converter,
             Function<Extraction, C> extractionFetcher) {
@@ -55,7 +61,7 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
 
     Runnable updateFolds(FoldOperation operation, Extraction extraction, boolean first, LongSupplier version) {
         if (LOG.isLoggable(Level.FINE)) {
-            LOG.log(Level.FINE, "Run folds {0} first={1} on {2} for extraction of {3} version {4}", new Object[] {
+            LOG.log(Level.FINE, "Run folds {0} first={1} on {2} for extraction of {3} version {4}", new Object[]{
                 key,
                 first,
                 opStringSupplier(operation),
@@ -63,6 +69,13 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
                 version.getAsLong()
             });
         }
+        String hash = extraction.tokensHash();
+        if (Objects.equals(lastTokensHash, hash)) {
+            LOG.log(Level.FINER, "Folds already computed for {0} with hash {1}. Skipping.",
+                    new Object[] {extraction.source(), hash});
+            return null;
+        }
+        lastTokensHash = hash;
         C collection = extractionFetcher.apply(extraction);
         long startTime = System.currentTimeMillis();
 
@@ -88,7 +101,13 @@ class FoldUpdater<K extends ExtractionKey<T>, T, I extends IndexAddressable.Inde
 
     private void createFolds(Extraction extraction, C regions, List<? super FoldInfo> folds, List<? super Integer> anchors) {
         LOG.log(Level.FINE, "Create folds for {0} with {1} regions", new Object[]{extraction.source(), regions.size()});
+        Set<IntRange<? extends IntRange>> ranges = new HashSet<>();
         for (I region : regions.asIterable()) {
+            IntRange<? extends IntRange<?>> plainRange = Range.of(region.start(), region.size());
+            if (ranges.contains(plainRange)) {
+                continue;
+            }
+            ranges.add(plainRange);
             FoldInfo nue = converter.apply(region);
             if (nue != null) {
                 folds.add(nue);
