@@ -16,9 +16,11 @@
 package org.nemesis.antlr.completion;
 
 import com.mastfrog.antlr.code.completion.spi.CaretToken;
+import com.mastfrog.antlr.code.completion.spi.CaretTokenRelation;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.search.Bias;
 import com.mastfrog.util.strings.Strings;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.antlr.v4.runtime.CommonToken;
@@ -44,11 +46,92 @@ final class CaretTokenInfo implements CaretToken {
     private final List<? extends Token> toks;
     private String cachedLeading;
     private String cachedTrailing;
+    private boolean synthetic;
 
     CaretTokenInfo(Token token, int caretPositionInDocument, List<? extends Token> toks) {
         this.token = token;
         this.caretPositionInDocument = caretPositionInDocument;
         this.toks = toks;
+    }
+
+    public List<? extends Token> tokens() {
+        return toks;
+    }
+
+    public CaretToken forCaretPosition(int caret) {
+        return TokenUtils.caretTokenInfo(caret, toks);
+    }
+
+    public CaretToken forCaretPosition(int caret, Bias bias) {
+        return TokenUtils.caretTokenInfo(caret, toks, bias);
+    }
+
+    CaretToken strippingLeadingText() {
+        int leadLength = leadingTokenText().length();
+        if (leadLength == 0) {
+            return this;
+        }
+        CommonToken tok = new CommonToken(token);
+        tok.setTokenIndex(tok.getTokenIndex());
+        tok.setText(tok.getText().substring(leadLength));
+        tok.setStartIndex(tok.getStartIndex() + leadLength);
+        int cp = caretPositionInDocument;
+        if (cp < tok.getStartIndex()) {
+            cp = tok.getStartIndex();
+        }
+        return new CaretTokenInfo(tok, cp, toks);
+    }
+
+    private CaretTokenInfo synthetic() {
+        this.synthetic = true;
+        return this;
+    }
+
+    public CaretTokenInfo withAppendedText(int caret, String text, boolean beginNewToken) {
+        if (text.length() == 0) {
+            return this;
+        }
+        List<Token> nue = new ArrayList<>();
+        CaretTokenRelation rel = this.caretRelation();
+        boolean brandNewToken = synthetic ? false
+                : beginNewToken || isWhitespace() || rel == CaretTokenRelation.UNRELATED;
+        int currIx = token.getTokenIndex();
+        Token targetToken = token;
+        for (Token old : toks) {
+            if (old.getTokenIndex() < currIx) {
+                CommonToken newToken = new CommonToken(old);
+                newToken.setTokenIndex(old.getTokenIndex());
+                nue.add(newToken);
+            } else if (old.getTokenIndex() == currIx && brandNewToken) {
+                CommonToken tok = new CommonToken(old);
+                tok.setTokenIndex(currIx);
+                tok.setText(text);
+                nue.add(tok);
+                targetToken = tok;
+            } else if (old.getTokenIndex() == currIx) {
+                CommonToken tok = new CommonToken(token);
+                if (isWhitespace()) {
+                    tok.setStartIndex(tok.getStartIndex() + tok.getText().length());
+                    tok.setText(text);
+                } else {
+                    tok.setText(tok.getText() + text);
+                }
+                tok.setStopIndex(token.getStopIndex() + text.length());
+                nue.add(tok);
+                targetToken = tok;
+            } else {
+                CommonToken tok = new CommonToken(old);
+                if (brandNewToken) {
+                    tok.setTokenIndex(old.getTokenIndex() + 1);
+                } else {
+                    tok.setTokenIndex(old.getTokenIndex());
+                }
+                tok.setStartIndex(old.getStartIndex() + text.length());
+                tok.setStopIndex(old.getStopIndex() + text.length());
+                nue.add(tok);
+            }
+        }
+        return new CaretTokenInfo(targetToken, caret, nue).synthetic();
     }
 
     @Override
@@ -64,7 +147,7 @@ final class CaretTokenInfo implements CaretToken {
                 + Strings.escapeControlCharactersAndQuotes(leadingTokenText())
                 + "' sfx '"
                 + Strings.escapeControlCharactersAndQuotes(trailingTokenText())
-                + "' }";
+                + "' " + (synthetic ? "-synthetic" : "") + " }";
     }
 
     @Override

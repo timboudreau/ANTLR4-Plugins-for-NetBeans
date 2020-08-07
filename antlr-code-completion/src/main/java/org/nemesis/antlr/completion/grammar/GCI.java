@@ -27,6 +27,7 @@ import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
 import java.util.Objects;
 import javax.swing.text.StyledDocument;
 import org.nemesis.swing.html.HtmlRenderer;
+import org.netbeans.api.editor.completion.Completion;
 import org.netbeans.spi.editor.completion.CompletionTask;
 
 /**
@@ -65,6 +66,11 @@ final class GCI implements SortableCompletionItem {
         this.onlyItem = onlyItem;
         this.relativeScore = relativeScore;
         this.applier = applier == null ? new DefaultCompletionApplier(tokenInfo, name) : applier;
+    }
+
+    @Override
+    public String insertionText() {
+        return name;
     }
 
     @Override
@@ -120,7 +126,17 @@ final class GCI implements SortableCompletionItem {
     }
 
     @Override
+    public boolean matchesPrefix(String text) {
+        return name.startsWith(text);
+    }
+
+    @Override
     public void processKeyEvent(KeyEvent evt) {
+        switch (evt.getKeyCode()) {
+            case KeyEvent.VK_RIGHT:
+            case KeyEvent.VK_LEFT:
+                Completion.get().hideAll();
+        }
     }
 
     @Override

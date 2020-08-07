@@ -62,7 +62,7 @@ public class TokenUtilsTest {
                     ? CaretTokenRelation.AT_TOKEN_START
                     : CaretTokenRelation.WITHIN_TOKEN;
 
-            CaretTokenInfo info = TokenUtils.caretTokenInfo(pos, toks);
+            CaretTokenInfo info = (CaretTokenInfo) TokenUtils.caretTokenInfo(pos, toks);
             assertNotNull(info);
             boolean isEof = e.getValue().getTokenIndex() == Token.EOF;
             if (!isEof) {

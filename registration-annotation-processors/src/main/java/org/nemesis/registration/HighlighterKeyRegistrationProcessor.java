@@ -403,7 +403,7 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
                 generateForMimeType(e.getKey(), e.getValue(), false, true, e.getValue().order());
             }
         }
-        if (!roundEnv.errorRaised() && roundEnv.processingOver()) {
+        if (!roundEnv.errorRaised() && roundEnv.processingOver() && System.getProperty("netbeans.home") == null) {
             System.out.println(KnownTypes.touchedMessage(this));
         }
         return false;

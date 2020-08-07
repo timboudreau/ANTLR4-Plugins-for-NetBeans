@@ -132,7 +132,7 @@ public class CodeCompletionCore {
     }
 
     private static final int ITERATION_LIMIT = 15000;
-    private final boolean showResult = false;
+    private boolean showResult = false;
     private final boolean showDebugOutput = false;
     private final boolean debugOutputWithTransitions = false;
     private final boolean showRuleStack = false;
@@ -225,6 +225,9 @@ public class CodeCompletionCore {
         this.candidates.rules.clear();
         this.candidates.tokens.clear();
         this.statesProcessed = 0;
+
+//        logger.setLevel(Level.ALL);
+//        showResult = true;
 
 //        this.tokenStartIndex = context != null && context.start != null ? context.start.getTokenIndex() : 0;
 //        if (tokens == null) {
@@ -335,6 +338,7 @@ public class CodeCompletionCore {
                 logMessage.append("\n");
             });
             logger.log(Level.FINE, logMessage.toString());
+            System.out.println("logMessage: " + logMessage);
         }
         this.tokens = Collections.emptyList();
         return this.candidates;

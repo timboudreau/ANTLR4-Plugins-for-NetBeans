@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
-import com.mastfrog.function.throwing.ThrowingBiConsumer;
+import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -27,6 +27,7 @@ import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
 import static org.nemesis.antlr.completion.grammar.GCI.SCORE_FACTOR;
 import org.nemesis.swing.cell.TextCell;
+import org.netbeans.api.editor.completion.Completion;
 import org.netbeans.spi.editor.completion.CompletionItem;
 import org.netbeans.spi.editor.completion.CompletionResultSet;
 import org.netbeans.spi.editor.completion.CompletionTask;
@@ -36,9 +37,9 @@ import org.openide.util.Exceptions;
  *
  * @author Tim Boudreau
  */
-public class CompletionItemImpl implements SortableCompletionItem {
+final class CompletionItemImpl implements SortableCompletionItem {
 
-    private ThrowingBiConsumer<JTextComponent, StyledDocument> applier;
+    private CompletionApplier applier;
     private final Consumer<TextCell> renderConfigurer;
     private final Consumer<KeyEvent> keyHandler;
     private final Supplier<String> tooltip;
@@ -48,7 +49,7 @@ public class CompletionItemImpl implements SortableCompletionItem {
     private boolean instantSubstitution;
     private final float relativeScore;
 
-    public CompletionItemImpl(ThrowingBiConsumer<JTextComponent, StyledDocument> applier,
+    CompletionItemImpl(CompletionApplier applier,
             Consumer<TextCell> renderConfigurer, Consumer<KeyEvent> keyHandler, Supplier<String> tooltip,
             int sortPriority, String displayText, CharSequence insertPrefix,
             boolean instantSubstitution, float relativeScore) {
@@ -63,10 +64,24 @@ public class CompletionItemImpl implements SortableCompletionItem {
         this.relativeScore = relativeScore;
     }
 
-    void ensureApplier(Function<String, ThrowingBiConsumer<JTextComponent, StyledDocument>> applierFactory) {
+    void ensureApplier(Function<String, CompletionApplier> applierFactory) {
         if (applier == null) {
             applier = applierFactory.apply(displayText);
         }
+    }
+
+    void wrapApplier(Function<CompletionApplier, CompletionApplier> f) {
+        applier = f.apply(applier);
+    }
+
+    @Override
+    public String insertionText() {
+        return displayText;
+    }
+
+    @Override
+    public boolean matchesPrefix(String text) {
+        return displayText.startsWith(text);
     }
 
     @Override
@@ -108,6 +123,12 @@ public class CompletionItemImpl implements SortableCompletionItem {
     public void processKeyEvent(KeyEvent ke) {
         if (keyHandler != null) {
             keyHandler.accept(ke);
+        } else {
+            switch(ke.getKeyCode()) {
+                case KeyEvent.VK_RIGHT :
+                case KeyEvent.VK_LEFT :
+                    Completion.get().hideAll();
+            }
         }
     }
 

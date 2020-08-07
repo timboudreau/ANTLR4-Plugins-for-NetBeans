@@ -31,10 +31,7 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_identifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_labeledParserRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComPushMode;
-import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommand;
-import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommands;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleAtom;
-import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleBlock;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerRuleElements;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_modeDec;
@@ -44,7 +41,6 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleIdentifier;
-import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
@@ -150,7 +146,7 @@ import org.nemesis.localizers.annotations.Localize;
                     LEXCOM_LINE_COMMENT, OPT_BLOCK_COMMENT, OPT_LINE_COMMENT, PARDEC_LINE_COMMENT,
                     PARDEC_BLOCK_COMMENT, PARDEC_OPT_LINE_COMMENT, PARDEC_OPT_BLOCK_COMMENT,
                     TOK_BLOCK_COMMENT, TOK_LINE_COMMENT,
-                    TYPE_LINE_COMMENT},
+                    TYPE_LINE_COMMENT, LBRACE, RBRACE, LPAREN, RPAREN},
                 preferredRules = {
                     RULE_ebnfSuffix,
                     RULE_identifier,
@@ -167,12 +163,8 @@ import org.nemesis.localizers.annotations.Localize;
                     RULE_lexComMode,
                     RULE_ebnf,
                     RULE_parserRuleSpec, // right after colon
-                    RULE_tokenRuleSpec, // right after colon
                     RULE_fragmentRuleSpec, // right after colon
-                    RULE_lexerCommands,
-                    RULE_lexerCommand,
                     RULE_channelsSpec,
-                    RULE_lexerRuleBlock,
                     RULE_lexerRuleElements,
                     RULE_ebnf,
                     RULE_modeDec,

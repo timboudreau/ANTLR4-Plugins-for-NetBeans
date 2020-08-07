@@ -657,7 +657,9 @@ public abstract class AbstractRefactoringContext {
      * based on UIManager colors and fonts
      */
     public static Problem createProblem(boolean fatal, String text) {
-        return new Problem(fatal, problemBoilerplateHead() + text + problemBoilerplateTail());
+        String body = problemBoilerplateHead() + text + problemBoilerplateTail();
+        body = Strings.literalReplaceAll("<html><html>", "<html>", body);
+        return new Problem(fatal, body);
     }
 
     /**

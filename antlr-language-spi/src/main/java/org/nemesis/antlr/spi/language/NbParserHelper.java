@@ -87,7 +87,7 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      *
      * @return Whatever the supplier returns
      */
-    protected <T> T runExclusiveForProject(
+    protected final <T> T runExclusiveForProject(
             Lookup.Provider project, Object projectIdentifier,
             ThrowingSupplier<T> runExclusive ) throws Exception {
         if ( project == null || projectIdentifier == null ) {

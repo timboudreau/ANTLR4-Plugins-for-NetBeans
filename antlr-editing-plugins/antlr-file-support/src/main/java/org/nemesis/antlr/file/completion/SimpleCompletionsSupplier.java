@@ -133,14 +133,21 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                             types.add(RuleTypes.PARSER);
                             break;
                     }
+                    break;
 //                case ANTLRv4Parser.RULE_labeledParserRuleElement:
                 case ANTLRv4Parser.RULE_parserRuleAtom:
+                case ANTLRv4Parser.RULE_parserRuleSpec:
+                case ANTLRv4Parser.RULE_parserRuleIdentifier:
+                case ANTLRv4Parser.RULE_parserRuleReference:
+                case ANTLRv4Parser.RULE_labeledParserRuleElement:
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
                     types.add(RuleTypes.PARSER);
                     types.add(RuleTypes.LEXER);
                     break;
                 case ANTLRv4Parser.RULE_lexerRuleAtom:
+                case ANTLRv4Parser.RULE_lexerRuleAlt:
                 case ANTLRv4Parser.RULE_lexerRuleElement:
+                case ANTLRv4Parser.RULE_lexerRuleElements:
                 case ANTLRv4Parser.RULE_lexerRuleElementBlock:
                 case ANTLRv4Parser.RULE_tokenRuleIdentifier:
                     types.add(RuleTypes.LEXER);
@@ -148,6 +155,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
                     break;
                 case ANTLRv4Parser.RULE_fragmentRuleIdentifier:
+                case ANTLRv4Parser.RULE_fragmentRuleSpec:
                     types.add(RuleTypes.FRAGMENT);
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
 
@@ -162,11 +170,10 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) throws Exception {
             String optionalPrefix = nullBlanks(token.leadingTokenText());
             String optionalSuffix = nullBlanks(token.trailingTokenText());
-            findNames(parserRuleId, nullBlanks(optionalPrefix), maxResultsPerKey,
-                    nullBlanks(optionalSuffix), rulePath, addTo);
+            findNames(parserRuleId, optionalPrefix, maxResultsPerKey,
+                    optionalSuffix, rulePath, addTo);
 
         }
-
 
         private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
             recursivelyFindRegionSets(parserRuleId, ext, new HashSet<>(), use, types);
@@ -223,19 +230,22 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
 
                 Set<CompEntry> items = new HashSet<>();
                 for (NamedSemanticRegions<RuleTypes> set : use) {
-                    if (optionalSuffix != null && set.contains(optionalSuffix) && optionalPrefix == null) {
+                    // If we are immediately to the right of a name contained in the name set,
+                    // simply ignore the prefix and assume we want another name similar to but
+                    // not exactly matching that one
+                    String workingPrefix = optionalPrefix; // optionalPrefix != null && set.contains(optionalPrefix) ? null : optionalPrefix;
+                    if (optionalSuffix != null && set.contains(optionalSuffix) && workingPrefix == null) {
                         // we are positioned before a word - offer the entire set, and prepend space
                         set.forEach(item -> {
                             if (types.contains(item.kind())) {
                                 items.add(new CompEntry(item.name() + " ", null, item.kind()));
                             }
                         });
-                        continue;
-                    }
-                    if (optionalPrefix != null) {
-                        set.matchingPrefix(optionalPrefix, item -> {
-                            if (types.contains(item.kind())) {
-                                items.add(new CompEntry(item.name(), optionalPrefix, item.kind()));
+                    } else if (workingPrefix != null) {
+                        set.matchingPrefix(workingPrefix, item -> {
+                            if (types.contains(item.kind())
+                                    ){ //&& !workingPrefix.equals(item.name()) && !optionalPrefix.equals(item.name())) {
+                                items.add(new CompEntry(item.name(), workingPrefix, item.kind()));
                             }
                         });
                     } else if (optionalSuffix != null) {
@@ -246,7 +256,9 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                         });
                     } else {
                         set.forEach(item -> {
-                            if (types.contains(item.kind())) {
+                            // Allows us to get all of the names EXCEPT the one we are immediately
+                            // adjacent to
+                            if (types.contains(item.kind()) && !item.name().equals(optionalPrefix)) {
                                 items.add(new CompEntry(item.name(), null, item.kind()));
                             }
                         });
@@ -280,6 +292,10 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
             this.name = name;
             this.prefixOrSuffix = prefix;
             this.type = type;
+        }
+
+        public String toString() {
+            return name + " (" + type + ")" + prefixOrSuffix;
         }
 
         float contextualScore(float min, float max) {

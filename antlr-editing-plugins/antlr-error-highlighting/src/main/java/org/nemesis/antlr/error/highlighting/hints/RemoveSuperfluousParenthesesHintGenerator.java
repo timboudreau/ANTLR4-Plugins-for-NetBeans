@@ -52,8 +52,8 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
         if (content.length() <= 12) {
             return content;
         }
-        String head = content.substring(0, 5);
-        String tail = content.substring(content.length() - 6);
+        String head = content.substring(0, 5).replace("\\s+", " ");
+        String tail = content.substring(content.length() - 6).replace("\\s+", " ");
         return head + "\u2026" + tail; // ellipsis
     }
 

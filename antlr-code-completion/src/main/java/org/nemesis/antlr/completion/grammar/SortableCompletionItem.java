@@ -33,6 +33,10 @@ interface SortableCompletionItem extends CompletionItem, Comparable<SortableComp
 
     void setInstant();
 
+    boolean matchesPrefix(String text);
+
+    String insertionText();
+
     @Override
     public default int compareTo(SortableCompletionItem o) {
         int asp = getSortPriority();

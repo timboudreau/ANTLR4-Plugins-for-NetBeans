@@ -23,6 +23,7 @@ import javax.swing.text.JTextComponent;
 import org.antlr.v4.runtime.Parser;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.function.throwing.io.IOFunction;
+import com.mastfrog.util.collections.IntIntMap;
 import java.util.function.Function;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.netbeans.spi.editor.completion.CompletionProvider;
@@ -66,8 +67,7 @@ public class GrammarCompletionProvider implements CompletionProvider {
         this.preferredRules = preferredRules;
         this.ignoredRules = ignoredRules;
         supplemental = IntMap.of(supplementalTokenKeys, supplementalTokenTexts);
-        // XXX replace with com.mastfrog.util.collections.IntIntMap.createUnsafe()
-        ruleSubstitutions = com.mastfrog.util.collections.IntIntMap.createUnsafe(ruleSubstitutionKeys, ruleSubstitutionValues);
+        ruleSubstitutions = IntIntMap.createUnsafe(ruleSubstitutionKeys, ruleSubstitutionValues);
     }
 
     @Override

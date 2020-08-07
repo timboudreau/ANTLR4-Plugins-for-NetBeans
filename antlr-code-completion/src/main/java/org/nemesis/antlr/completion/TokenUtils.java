@@ -15,10 +15,17 @@
  */
 package org.nemesis.antlr.completion;
 
+import com.mastfrog.antlr.code.completion.spi.CaretToken;
 import com.mastfrog.util.search.Bias;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.IntPredicate;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.JTextComponent;
+import javax.swing.text.Segment;
+import javax.swing.text.StyledDocument;
 import org.antlr.v4.runtime.Token;
+import org.nemesis.editor.ops.DocumentOperator;
 
 /**
  * Miscellaneous utilities for working with lists of tokens.
@@ -36,6 +43,39 @@ public final class TokenUtils {
         return result;
     }
 
+    public static List<? extends Token> tokensOf(CaretToken tk) {
+        if (tk instanceof CaretTokenInfo) {
+            return ((CaretTokenInfo) tk).tokens();
+        }
+        throw new IllegalArgumentException("Wrong type: " + tk.getClass().getName());
+    }
+
+    public static CaretToken strippingLeadingText(CaretToken orig) {
+        CaretTokenInfo cti = (CaretTokenInfo) orig;
+        return cti.strippingLeadingText();
+    }
+
+    public static CaretToken withInsertedCharacters(boolean newToken, int origTokenPosition, CaretToken orig, JTextComponent withUpdatedCursor, BiConsumer<CaretToken, CharSequence> c) throws BadLocationException {
+        CaretTokenInfo cti = (CaretTokenInfo) orig;
+        int oldPos = origTokenPosition;
+        int newPos = withUpdatedCursor.getCaret().getDot();
+        if (oldPos < newPos) {
+            StyledDocument doc = (StyledDocument) withUpdatedCursor.getDocument();
+            Segment addedChars = DocumentOperator.render(doc, () -> {
+                int start = Math.min(oldPos, newPos);
+                int end = Math.max(oldPos, newPos);
+                Segment seg = new Segment();
+                doc.getText(start, end - start, seg);
+                return seg;
+            });
+            CaretTokenInfo result = cti.withAppendedText(newPos + addedChars.length(), addedChars.toString(), newToken);
+            c.accept(result, addedChars);
+            return result;
+        } else {
+            return cti.forCaretPosition(Math.max(0, newPos), Bias.NONE);
+        }
+    }
+
     /**
      * Binary search over the token stream for the token containing or abutting
      * the caret, and return a CaretTokenInfo for it.
@@ -44,7 +84,7 @@ public final class TokenUtils {
      * @param stream The tokens
      * @return A CaretTokenInfo
      */
-    public static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream) {
+    public static CaretToken caretTokenInfo(int caret, List<? extends Token> stream) {
         return caretTokenInfo(caret, stream, Bias.NONE);
     }
 
@@ -57,7 +97,7 @@ public final class TokenUtils {
      * @param bias If FORWARD and the caret position is the end of the token
      * @return A CaretTokenInfo
      */
-    public static CaretTokenInfo caretTokenInfo(int caret, List<? extends Token> stream, Bias bias) {
+    public static CaretToken caretTokenInfo(int caret, List<? extends Token> stream, Bias bias) {
         if (stream.isEmpty()) {
             return CaretTokenInfo.EMPTY;
         }

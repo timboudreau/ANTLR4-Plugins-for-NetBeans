@@ -57,6 +57,24 @@ public abstract class AntlrMimeTypeRegistration {
         return type;
     }
 
+    /**
+     * Determines if the built-in generic name completion supplier should be used for
+     * code completion based on the extraction of the document.
+     *
+     * @return Whether or not the default completion supplier should be used
+     */
+    protected boolean defaultCompletionSupplierEnabled() {
+        return true;
+    }
+
+    public static boolean isDefaultCompletionSupplierEnabled(String mimeType) {
+        AntlrMimeTypeRegistration reg = registry().registrationFor( mimeType );
+        if (reg != null) {
+            return reg.defaultCompletionSupplierEnabled();
+        }
+        return false;
+    }
+
     @Override
     public final boolean equals( Object o ) {
         if ( o == this ) {
@@ -134,9 +152,19 @@ public abstract class AntlrMimeTypeRegistration {
         private final Set<String> allMimeTypes = ConcurrentHashMap.newKeySet( 10 );
         private String[] typesArray;
 
+        @SuppressWarnings( "LeakingThisInConstructor" )
         public Registry() {
             result = Lookup.getDefault().lookupResult( AntlrMimeTypeRegistration.class );
             result.addLookupListener( this );
+        }
+
+        AntlrMimeTypeRegistration registrationFor(String mimeType) {
+            for (AntlrMimeTypeRegistration reg : result.allInstances()) {
+                if (mimeType.equals( reg.type)) {
+                    return reg;
+                }
+            }
+            return null;
         }
 
         <T> T runExclusive( String mimeType, Lookup.Provider project, Object projectIdentifier,

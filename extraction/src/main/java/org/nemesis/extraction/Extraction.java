@@ -17,6 +17,7 @@ package org.nemesis.extraction;
 
 import com.mastfrog.antlr.utils.RulesMapping;
 import com.mastfrog.bits.Bits;
+import com.mastfrog.function.state.Int;
 import com.mastfrog.graph.IntGraph;
 import java.io.Externalizable;
 import java.io.IOException;
@@ -59,7 +60,6 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.PrimitiveIterator;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -1084,10 +1084,14 @@ public final class Extraction implements Externalizable {
                 int maxPer, String optionalSuffix, BiConsumer<String, Enum<?>> c) {
             String fullText = (optionalPrefix == null ? "" : optionalPrefix)
                     + (optionalSuffix == null ? "" : optionalSuffix);
-            if (optionalPrefix != null && !Strings.isBlank(optionalPrefix)) {
+            if (optionalPrefix != null && Strings.isBlank(optionalPrefix)) {
                 optionalPrefix = null;
             }
+            if (optionalSuffix != null && Strings.isBlank(optionalSuffix)) {
+                optionalSuffix = null;
+            }
             String prefix = optionalPrefix;
+            String suffix = optionalSuffix;
             Set<T> kinds = find(ruleId);
             if (kinds.isEmpty()) {
                 return;
@@ -1102,32 +1106,80 @@ public final class Extraction implements Externalizable {
                         seen.add(nameKey);
                         NamedSemanticRegions<T> regs = namedRegions(nameKey);
                         if (isAll) {
-                            if (prefix != null) {
-                                List<String> tops = regs.topSimilarNames(optionalPrefix, maxPer);
-                                for (String top : tops) {
-                                    if (top.startsWith(prefix) && !fullText.equals(top)) {
-                                        T key = regs.kind(top);
-                                        c.accept(top, key);
-                                    }
-                                }
+                            if (prefix != null && suffix != null) {
+                                Int ct = Int.create();
+                                regs.topSimilarNames(prefix + suffix, maxPer).forEach(nm -> {
+                                    T k = regs.kind(nm);
+                                    c.accept(nm, k);
+                                    ct.increment();
+                                });
+                                ct.ifEqual(0, () -> {
+                                    regs.topSimilarNames(prefix, maxPer).forEach(nm -> {
+                                        T k = regs.kind(nm);
+                                        c.accept(nm, k);
+                                        ct.increment();
+                                    });
+                                    ct.ifEqual(0, () -> {
+                                        regs.topSimilarNames(suffix, maxPer).forEach(nm -> {
+                                            T k = regs.kind(nm);
+                                            c.accept(nm, k);
+                                            ct.increment();
+                                        });
+                                    });
+                                });
+                            } else if (prefix != null) {
+                                regs.matchingPrefix(prefix, nsr -> {
+                                    c.accept(nsr.name(), nsr.kind());
+                                });
+                            } else if (suffix != null) {
+                                regs.matchingSuffix(suffix, nsr -> {
+                                    c.accept(nsr.name(), nsr.kind());
+                                });
                             } else {
-                                for (NamedSemanticRegion<T> reg : regs) {
-                                    if (kinds.contains(reg.kind())) {
-                                        c.accept(reg.name(), reg.kind());
-                                    }
-                                }
+                                regs.forEach(reg -> {
+                                    c.accept(reg.name(), reg.kind());
+                                });
                             }
                         } else {
-                            if (prefix != null) {
-                                Set<String> all = new TreeSet<>(regs.collectNames(reg -> {
-                                    boolean result = kinds.contains(reg.kind())
-                                            && reg.name().startsWith(prefix)
-                                            && !fullText.equals(reg.name());
-                                    return result;
-                                }));
-                                for (String name : all) {
-                                    c.accept(name, regs.kind(name));
-                                }
+                            if (prefix != null && suffix != null) {
+                                Int ct = Int.create();
+                                regs.topSimilarNames(prefix + suffix, maxPer).forEach(nm -> {
+                                    T k = regs.kind(nm);
+                                    if (kinds.contains(k)) {
+                                        c.accept(nm, k);
+                                        ct.increment();
+                                    }
+                                });
+                                ct.ifEqual(0, () -> {
+                                    regs.topSimilarNames(prefix, maxPer).forEach(nm -> {
+                                        T k = regs.kind(nm);
+                                        if (kinds.contains(k)) {
+                                            c.accept(nm, k);
+                                            ct.increment();
+                                        }
+                                    });
+                                    ct.ifEqual(0, () -> {
+                                        regs.topSimilarNames(suffix, maxPer).forEach(nm -> {
+                                            T k = regs.kind(nm);
+                                            if (kinds.contains(k)) {
+                                                c.accept(nm, k);
+                                                ct.increment();
+                                            }
+                                        });
+                                    });
+                                });
+                            } else if (prefix != null) {
+                                regs.matchingPrefix(prefix, nsr -> {
+                                    if (kinds.contains(nsr.kind()) /*&& !nsr.name().equals(prefix)*/) {
+                                        c.accept(nsr.name(), nsr.kind());
+                                    }
+                                });
+                            } else if (suffix != null) {
+                                regs.matchingSuffix(suffix, nsr -> {
+                                    if (kinds.contains(nsr.kind()) && !nsr.name().equals(suffix)) {
+                                        c.accept(nsr.name(), nsr.kind());
+                                    }
+                                });
                             } else {
                                 regs.forEach(reg -> {
                                     if (kinds.contains(reg.kind()) && !fullText.equals(reg.name())) {

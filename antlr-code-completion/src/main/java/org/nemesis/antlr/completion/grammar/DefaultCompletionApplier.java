@@ -17,7 +17,11 @@ package org.nemesis.antlr.completion.grammar;
 
 import com.mastfrog.antlr.code.completion.spi.CaretToken;
 import com.mastfrog.antlr.code.completion.spi.CaretTokenRelation;
+import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.AT_TOKEN_END;
+import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.AT_TOKEN_START;
+import static com.mastfrog.antlr.code.completion.spi.CaretTokenRelation.WITHIN_TOKEN;
 import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
+import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.util.EnumSet;
 import java.util.Set;
@@ -52,20 +56,19 @@ final class DefaultCompletionApplier implements CompletionApplier {
         NbDocument.runAtomic((StyledDocument) doc, () -> {
             try {
                 int end = applyToDocument(doc);
-                if (isCommonEnclosingPair() || name.endsWith("()")) {
-                    Position endPosition = NbDocument.createPosition(doc, end - 1, Position.Bias.Backward);
-                    Caret caret = comp.getCaret();
-                    if (caret instanceof EditorCaret) {
-                        EditorCaret ec = (EditorCaret) caret;
-                        ec.moveCarets((CaretMoveContext context) -> {
-                            context.setDotAndMark(ec.getLastCaret(), endPosition,
-                                    Position.Bias.Forward, endPosition, Position.Bias.Backward);
-                        }, MoveCaretsOrigin.DISABLE_FILTERS);
-                    } else {
-                        EventQueue.invokeLater(() -> {
-                            comp.getCaret().setDot(end - 1);
-                        });
-                    }
+                int offset = isCommonEnclosingPair() || name.endsWith("()") ? -1 : 0;
+                Position endPosition = NbDocument.createPosition(doc, end - offset, Position.Bias.Backward);
+                Caret caret = comp.getCaret();
+                if (caret instanceof EditorCaret) {
+                    EditorCaret ec = (EditorCaret) caret;
+                    ec.moveCarets((CaretMoveContext context) -> {
+                        context.setDotAndMark(ec.getLastCaret(), endPosition,
+                                Position.Bias.Forward, endPosition, Position.Bias.Backward);
+                    }, MoveCaretsOrigin.DISABLE_FILTERS);
+                } else {
+                    EventQueue.invokeLater(() -> {
+                        comp.getCaret().setDot(end - offset);
+                    });
                 }
             } catch (BadLocationException ex) {
                 Exceptions.printStackTrace(ex);
@@ -74,22 +77,41 @@ final class DefaultCompletionApplier implements CompletionApplier {
     }
 
     enum Op {
+        // The order of these matters!
         DELETE_SUFFIX,
         DELETE_PREFIX,
         ELIDE_PREFIX,
-        PREPEND_SPACE,
         PREPEND_PREFIX_AND_SUFFIX,
+        APPEND_PREFIX_AND_SUFFIX,
+        PREPEND_SPACE,
         APPEND_SPACE,
-        PRESERVE_TRAILING_NEWLINES_AND_WHITESPACE,
-        APPEND_PREFIX_AND_SUFFIX;
+        MOVE_INSERTION_POSITION_BEFORE_NEWLINES,
+        PRESERVE_TRAILING_NEWLINES_AND_WHITESPACE;
+    }
+
+    private int subtractNewlines(Position caretPosition) {
+        int caretOffset = tokenInfo.caretPositionInDocument() - tokenInfo.tokenStart();
+        if (caretOffset > 0) {
+            String txt = tokenInfo.leadingTokenText();
+            if (Strings.isBlank(txt) && txt != null) {
+                int ix = txt.indexOf('\n');
+                if (ix >= 0) {
+                    return caretOffset - ix;
+                }
+            }
+        }
+        return 0;
     }
 
     private int applyToDocument(Document doc) throws BadLocationException {
-
+//        System.out.println("==================== apply " + Escaper.CONTROL_CHARACTERS.escape(name) + " =================================");
         StringBuilder sb = new StringBuilder(name);
         Set<Op> ops = insertionOps();
         Position pos = NbDocument.createPosition(doc,
-                tokenInfo.caretPositionInDocument(), Position.Bias.Forward);
+                tokenInfo.caretPositionInDocument(), Position.Bias.Backward);
+        Position tokenStartPos = NbDocument.createPosition(doc,
+                tokenInfo.tokenStart(), Position.Bias.Backward);
+        Position insertPosition = pos;
         for (Op o : ops) {
             switch (o) {
                 case ELIDE_PREFIX:
@@ -99,27 +121,45 @@ final class DefaultCompletionApplier implements CompletionApplier {
                     sb.insert(0, tokenInfo.leadingTokenText() + tokenInfo.trailingTokenText());
                     break;
                 case PREPEND_SPACE:
-                    sb.insert(0, ' ');
+                    if (sb.length() == 0 || !Character.isWhitespace(sb.charAt(0))) {
+                        sb.insert(0, ' ');
+                    }
                     break;
                 case APPEND_SPACE:
-                    sb.append(' ');
+                    if (sb.length() == 0 || !Character.isWhitespace(sb.charAt(sb.length() - 1))) {
+                        sb.append(' ');
+                    }
                     break;
                 case PRESERVE_TRAILING_NEWLINES_AND_WHITESPACE:
                     sb.append(tokenInfo.trailingNewlinesAndWhitespace());
                     break;
                 case DELETE_PREFIX:
-                    doc.remove(tokenInfo.caretPositionInDocument(), tokenInfo.leadingTokenText().length());
+//                    System.out.println("Remove '" + Escaper.CONTROL_CHARACTERS.escape(doc.getText(tokenInfo.tokenStart(), tokenInfo.leadingTokenText().length()))
+//                            + "' at " + tokenInfo.tokenStart() + " length " + tokenInfo.leadingTokenText().length()
+//                            + " should be '" + Escaper.CONTROL_CHARACTERS.escape(tokenInfo.leadingTokenText()) + "'");
+                    doc.remove(tokenStartPos.getOffset(), tokenInfo.leadingTokenText().length());
                     break;
                 case DELETE_SUFFIX:
-                    doc.remove(tokenInfo.caretPositionInDocument(), tokenInfo.trailingTokenText().length());
+//                    System.out.println("Remove '" + Escaper.CONTROL_CHARACTERS.escape(doc.getText(tokenInfo.caretPositionInDocument(), tokenInfo.trailingTokenText().length()))
+//                            + "' at " + tokenInfo.caretPositionInDocument() + " length " + tokenInfo.trailingTokenText().length()
+//                            + " should be '" + Escaper.CONTROL_CHARACTERS.escape(tokenInfo.trailingTokenText()) + "'");
+                    doc.remove(pos.getOffset(), tokenInfo.trailingTokenText().length());
                     break;
                 case APPEND_PREFIX_AND_SUFFIX:
                     sb.append(tokenInfo.leadingTokenText()).append(tokenInfo.trailingTokenText());
+                    break;
+                case MOVE_INSERTION_POSITION_BEFORE_NEWLINES:
+                    int off = subtractNewlines(pos);
+                    if (off > 0) {
+                        insertPosition = NbDocument.createPosition(doc, pos.getOffset() - off, Position.Bias.Backward);
+                    }
+                    break;
             }
         }
         int offset = pos.getOffset();
         String toInsert = sb.toString();
-        doc.insertString(pos.getOffset(), toInsert, null);
+//        System.out.println("  insert at " + offset + ": '" + Escaper.CONTROL_CHARACTERS.escape(toInsert) + "'");
+        doc.insertString(insertPosition.getOffset(), toInsert, null);
         return offset + toInsert.length();
     }
 
@@ -165,18 +205,16 @@ final class DefaultCompletionApplier implements CompletionApplier {
         CaretToken prev = tokenInfo.before();
         CaretToken next = tokenInfo.after();
         CaretTokenRelation rel = tokenInfo.caretRelation();
-        if (prev.isWhitespace() && !isPunctuation() && rel != CaretTokenRelation.WITHIN_TOKEN) {
-            result.add(Op.PREPEND_SPACE);
-        }
+        String name = this.name.trim();
         switch (rel) {
             case WITHIN_TOKEN:
                 if (!pfx.isEmpty() && name.startsWith(pfx)) {
                     result.add(Op.ELIDE_PREFIX);
                     result.add(Op.DELETE_SUFFIX);
-                } else if (!pfx.isEmpty()) {
+                } else if (!pfx.isEmpty() && !Strings.isBlank(pfx)) {
                     result.add(Op.DELETE_PREFIX);
                 }
-                if (!sfx.isEmpty()) {
+                if (!sfx.isEmpty() && !Strings.isBlank(sfx)) {
                     result.add(Op.DELETE_SUFFIX);
                 }
                 if (pfx.isEmpty() && !sfx.isEmpty() && sharedStartLength(name, sfx) > 3) {
@@ -206,15 +244,12 @@ final class DefaultCompletionApplier implements CompletionApplier {
                 if (tokenInfo.isWhitespace() && pfx.isEmpty() && !tokenInfo.isPunctuation()) {
                     result.add(Op.PREPEND_SPACE);
                 }
-                if (!next.isWhitespace() && !next.isPunctuation()) {
+                if (!next.isWhitespace() && !next.isPunctuation() && !tokenInfo.isWhitespace()) {
                     result.add(Op.APPEND_SPACE);
                 }
                 if (!prev.isWhitespace() && !prev.isPunctuation()) {
                     result.add(Op.PREPEND_SPACE);
                 }
-//                if (!pfx.isEmpty() && !tokenInfo.isWhitespace() && !next.isWhitespace() && !next.isPunctuation()) {
-//                    result.add(Op.APPEND_SPACE);
-//                }
                 break;
             case AT_TOKEN_END:
                 if (tokenInfo.isWhitespace()) {
@@ -222,34 +257,30 @@ final class DefaultCompletionApplier implements CompletionApplier {
                         result.add(Op.APPEND_SPACE);
                     }
                 } else {
-                    if (next.isPunctuation()) {
+                    if (!Strings.isBlank(pfx) && name.startsWith(pfx)) {
+                        result.add(Op.DELETE_PREFIX);
+                    }
+                    if (!Strings.isBlank(pfx) && !name.startsWith(pfx)) {
+                        result.add(Op.PREPEND_SPACE);
+                    } else if (!tokenInfo.isWhitespace() && !tokenInfo.isPunctuation() && !prev.isWhitespace()) {
+                        result.add(Op.PREPEND_SPACE);
+                    } else if (next.isPunctuation() && !tokenInfo.isWhitespace()) {
                         result.add(Op.PREPEND_SPACE);
                     } else if (!prev.isWhitespace() && !prev.isPunctuation()) {
                         result.add(Op.PREPEND_SPACE);
-                    } else if (prev.isPunctuation() && !isPunctuation(name)) {
-
                     }
                 }
-//                if ((!prev.isWhitespace() && !prev.isPunctuation()) || (!tokenInfo.isWhitespace() && !isPunctuation())) {
-//                    result.add(Op.PREPEND_SPACE);
-//                }
+        }
+        if (result.contains(Op.APPEND_SPACE) && sfx.length() > 0 && Strings.isBlank(sfx)) {
+            result.add(Op.DELETE_SUFFIX);
+        }
+        if (result.contains(Op.PREPEND_SPACE) && pfx.length() > 0 && Strings.isBlank(pfx)) {
+            result.add(Op.DELETE_PREFIX);
         }
         return result;
     }
 
     private boolean isPunctuation() {
-        return isPunctuation(name);
-    }
-
-    private static boolean isPunctuation(String name) {
-        boolean result = true;
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (Character.isLetter(c) || Character.isDigit(c) || Character.isWhitespace(c)) {
-                result = false;
-                break;
-            }
-        }
-        return result;
+        return Strings.isPunctuation(name);
     }
 }

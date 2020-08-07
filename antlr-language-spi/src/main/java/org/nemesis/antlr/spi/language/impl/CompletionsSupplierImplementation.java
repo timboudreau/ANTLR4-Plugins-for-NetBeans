@@ -18,6 +18,8 @@ package org.nemesis.antlr.spi.language.impl;
 import com.mastfrog.antlr.code.completion.spi.Completer;
 import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.antlr.spi.language.AntlrMimeTypeRegistration;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
@@ -31,16 +33,21 @@ import org.openide.util.lookup.ServiceProvider;
  *
  * @author Tim Boudreau
  */
-@ServiceProvider( service = CompletionsSupplier.class, position = 100 )
+@ServiceProvider( service = CompletionsSupplier.class, position = 100000 )
 public final class CompletionsSupplierImplementation extends CompletionsSupplier {
     @Override
     public Completer forDocument( Document document ) {
         String mime = ( String ) document.getProperty( "mimeType" );
-        if ( mime != null && AntlrMimeTypeRegistration.isAntlrLanguage( mime ) ) {
+        if ( mime != null && AntlrMimeTypeRegistration.isDefaultCompletionSupplierEnabled( mime ) ) {
             try {
-                Extraction ext =
-                        NbAntlrUtils.parseImmediately( document );
-                return new CP(ext);
+                Extraction ext = NbAntlrUtils.parseImmediately( document );
+                if ( ext != null ) {
+                    return new CP( ext );
+                } else {
+                    Logger.getLogger( CompletionsSupplierImplementation.class.getName() )
+                            .log( Level.INFO, "No extraction for completions from {0} of {1}",
+                                  new Object[]{ document, mime } );
+                }
             } catch ( Exception ex ) {
                 Exceptions.printStackTrace( ex );
             }
