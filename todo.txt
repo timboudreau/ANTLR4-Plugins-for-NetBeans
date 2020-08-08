@@ -1,4 +1,3 @@
-: insertion does not work in a fragment definition.
 
 Duplicate lexer rule hashing can now pick up the same block twice - need to filter those
 cases so we don't generate a hint suggesting to consolidate a single occurrenc.
@@ -8,17 +7,6 @@ ava.lang.Exception: No qualified filename in ReturnsLabels.g4 - org.antlr.v4.too
 should get full line underline / interpret line end as error end.
 
 Need to elide TokenLabelType when generating the same way we do with "returns" statements.
-
-Annotation processor is generating stripMime(mimeType) based prefix for layer entry for goto declaration action
-when its name is derived from the prefix in the annotation, not the mime type.
-
-CompletionsSupplier should NOT be in the default lookup, it should use Lookups.forPath() or MimeLookup or
-we will wind up mixing completions for different languages.  Tolerable for now, but each implementation
-has to check the mime type.  Think originally the idea was for this to be generic to any extraction-parsable
-language, but it hasn't worked out that way.
-
-Still valid? Antlr formatter: Format with space inside parens does not put a space in first paren if a label comes after, e.g.
- : (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) 
 
 Formatting option to align # alternative names (would need a justify phase, since we need max positions,
 or would need a very smart custom format executor that can see what will happen - save this for later).
@@ -33,34 +21,23 @@ Error 184 for overlapped rules - should offer to consolidate.
 
 Need a way to contribute different char filters based on region key
 
-Add option to hints to be added to changes, which will result in selection
-
 Combined undo for refactoring	 
 
 Move annotations littered into SPI into their own package.
 
-All annotation processors should use TypeName, not literal strings.
-
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
   - Will be needed for complex namespace matching, e.g. com.foo.bar.SomeName equals SomeName in another file - probably scoping is not enough.
-
 
 AntlrKeys should probably be in its own module.  So should the key types in antlr-common - not needed for general Antlr modules, only for
 antlr language support.
 
 JFS and friends should be under antlr-editing-plugins - not used in the general case.
 
-NB filesystem for jfs for debugging?
-
-Fix UsageFinder API
-
 # Antlr Editing Plugins To-Dos
 
   * Import finders and project helper sibling search being called WAY too many times per-parse - threadlocal context and cache?
      * Maybe a generalized threadlocal context and cache API?
-  * Folders needs entries for SOURCE_RESOURCES and TEST_SOURCE_RESOURCES, and helpers should support them
-  * Add warning when skip action encountered
   * Need a JavaSourceForAntlrSourceQuery to implement refactoring of rule names where we actually go ahead and refactor Java code
   * Add array of preferred rules to generic code completion?
   * Split out code to create parser and api for antlr parser results from annotations and
@@ -71,16 +48,6 @@ Fix UsageFinder API
   * For SemanticRegion highlighting, nesting depth based alteration of color w/ some algorithms, e.g. alpha or hue + by
     * Nestable colorations, as in our old ebnf support
   * Relative should *prefer* but not insist on looking up the same type
-  * Resolve via tokens file into other project on classpath via ClassPathProvider
-    * Enhance relative resolvers in the nb specialization project to look 
-     up tokens files, etc. from the project's ClassPathProvider
-  * Maybe get the parsed grammar object out of the grammar result
-      * no need to keep it hanging around, and it's not really used except for update check  * could just keep the JFSFileModifications snapshot
-        and that is enough; those things that actually need the output should get them via the as yet
-        unused antlr output api.
-      * Currently being used by code generation to decide which generated java source is the class name of the lexer and parser - but probably not
-        needed beyond that, and could just preserve the names
-  * The pattern matching stuff in antlr-formatters is exactly what is needed for code completion  * extract and generify it
 
 !!! Font color entries not written to layer unless the annotation processor
 is called multiple times (e.g. there is another highlighting entry on a
@@ -89,8 +56,6 @@ highlighter registration annotation on a key).
 -------
 
 # General Antlr Plugin Support To-Dos
-
-Maybe generic scoping  * parser rule based what can reference what?
 
 
 FORMATTING:
