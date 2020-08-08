@@ -151,7 +151,7 @@ import org.nemesis.localizers.annotations.Localize;
                     TYPE_LINE_COMMENT, LBRACE, RBRACE, LPAREN, RPAREN},
                 preferredRules = {
                     RULE_ebnfSuffix,
-//                    RULE_identifier,
+                    //                    RULE_identifier,
                     RULE_parserRuleIdentifier,
                     RULE_fragmentRuleIdentifier,
                     RULE_tokenRuleIdentifier,
@@ -174,8 +174,7 @@ import org.nemesis.localizers.annotations.Localize;
                     RULE_ebnf,
                     RULE_modeDec,
                     RULE_parserRuleAlternative,
-                    RULE_parserRuleReference,
-                },
+                    RULE_parserRuleReference,},
                 tokenCompletions = {
                     @SupplementaryTokenCompletion(
                             tokenId = LEXCOM_MORE,
@@ -323,10 +322,11 @@ import org.nemesis.localizers.annotations.Localize;
                         OPT_WS, PARDEC_OPT_WS, TOK_WS, TOKDEC_WS, TYPE_WS, WS
                     },
                     colors = @Coloration(
-                            fg = {128, 164, 90, 255},
+                            //                            fg = {128, 164, 90, 255},
+                            derivedFrom = "whitespace",
                             themes = ALL_POPULAR_THEMES)),
 
-            @TokenCategory(name = "keywords",
+            @TokenCategory(name = "keyword",
                     tokenIds = {
                         INT, OPTIONS, TOKENS, CHANNELS, IMPORT, CATCH, FINALLY, MODE, THROWS,
                         ASSOC, FAIL, RETURNS, LEXER, PARSER, GRAMMAR, INIT, LOCALS, HEADER,
@@ -336,10 +336,12 @@ import org.nemesis.localizers.annotations.Localize;
                         LEXCOM_PUSHMODE, LEXCOM_POPMODE, HDR_IMPRT_STATIC, TYPE_TOKEN_ID
                     }, colors = {
                 @Coloration(
-                        fg = {168, 58, 132},
+                        derivedFrom = "keyword",
+                        //                        fg = {168, 58, 132},
                         themes = POPULAR_BRIGHT_THEMES),
                 @Coloration(
-                        fg = {196, 184, 159},
+                        derivedFrom = "keyword",
+                        //                        fg = {196, 184, 159},
                         themes = POPULAR_DARK_THEMES)
             }),
 
@@ -361,10 +363,12 @@ import org.nemesis.localizers.annotations.Localize;
             @TokenCategory(name = "identifier", tokenIds = ID,
                     colors = {
                         @Coloration(
-                                fg = {20, 190, 190},
+                                derivedFrom = "identifier",
+                                //                                fg = {20, 190, 190},
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
-                                fg = {148, 209, 204},
+                                derivedFrom = "identifier",
+                                //                                fg = {148, 209, 204},
                                 themes = POPULAR_DARK_THEMES)
                     }),
 
@@ -373,12 +377,15 @@ import org.nemesis.localizers.annotations.Localize;
                     colors = @Coloration(
                             fg = {100, 128, 200, 255},
                             italic = true,
+                            derivedFrom = "identifier",
                             themes = ALL_POPULAR_THEMES)),
 
             @TokenCategory(name = "varName",
                     tokenIds = PARDEC_ID,
                     colors = {
-                        @Coloration(fg = {80, 190, 80})
+                        @Coloration(fg = {80, 190, 80},
+                        derivedFrom = "identifier"
+                        )
                     }),
 
             @TokenCategory(name = "token-id",
@@ -387,16 +394,19 @@ import org.nemesis.localizers.annotations.Localize;
                         @Coloration(
                                 fg = {100, 100, 164},
                                 bold = false,
+                                derivedFrom = "identifier",
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
                                 fg = {204, 204, 254},
                                 bold = false,
+                                derivedFrom = "identifier",
                                 themes = POPULAR_DARK_THEMES),}),
 
             @TokenCategory(name = "tok-id",
                     tokenIds = TOK_ID,
                     colors = @Coloration(
                             bold = true,
+                            derivedFrom = "token-id",
                             themes = ALL_POPULAR_THEMES)),
 
             @TokenCategory(name = "fragment",
@@ -406,10 +416,12 @@ import org.nemesis.localizers.annotations.Localize;
                                 fg = {12, 188, 0},
                                 italic = false,
                                 bold = false,
+                                derivedFrom = "identifier",
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
-                                fg = {232, 120, 120},
+                                fg = {120, 232, 120},
                                 italic = false,
+                                derivedFrom = "identifier",
                                 bold = false,
                                 themes = POPULAR_DARK_THEMES),}),
 
@@ -420,11 +432,13 @@ import org.nemesis.localizers.annotations.Localize;
                                 fg = {206, 86, 86},
                                 bold = false,
                                 italic = false,
+                                derivedFrom = "identifier",
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
                                 fg = {250, 250, 178},
                                 bold = false,
                                 italic = false,
+                                derivedFrom = "identifier",
                                 themes = POPULAR_DARK_THEMES),}),
 
             @TokenCategory(name = "token-rule",
@@ -457,10 +471,12 @@ import org.nemesis.localizers.annotations.Localize;
                         @Coloration(
                                 fg = {128, 164, 90},
                                 bold = true,
+                                derivedFrom = "literal",
                                 themes = POPULAR_BRIGHT_THEMES),
                         @Coloration(
                                 fg = {255, 170, 158},
                                 bold = true,
+                                derivedFrom = "literal",
                                 themes = POPULAR_DARK_THEMES)
                     }),
 
@@ -618,12 +634,14 @@ public class AntlrKeys {
                     colors = {
                         @Coloration(
                                 themes = POPULAR_BRIGHT_THEMES,
-                                fg = {200, 140, 90},
+                                derivedFrom = "identifier",
+                                fg = {180, 140, 70},
                                 bold = true
                         ),
                         @Coloration(
                                 themes = POPULAR_DARK_THEMES,
-                                fg = {242, 183, 89},
+                                derivedFrom = "identifier",
+                                fg = {242, 183, 84},
                                 bold = true
                         )}))
     public static final NamedRegionKey<RuleTypes> NAMED_ALTERNATIVES = NamedRegionKey.create("alternatives", RuleTypes.class);
@@ -652,11 +670,14 @@ public class AntlrKeys {
                         colors = {
                             @Coloration(
                                     themes = POPULAR_BRIGHT_THEMES,
-                                    bg = {220, 220, 190}
+                                    derivedFrom = "mark-occurrences"
+                            //                                    bg = {220, 220, 190}
                             ),
                             @Coloration(
                                     themes = POPULAR_DARK_THEMES,
-                                    bg = {55, 50, 50})})
+                                    derivedFrom = "mark-occurrences"
+                            //                                    bg = {55, 50, 50}
+                            )})
         ),
         @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
                 fixedSize = true,
@@ -709,13 +730,14 @@ public class AntlrKeys {
             colors = {
                 @Coloration(
                         themes = POPULAR_BRIGHT_THEMES,
-                        italic = true,
-                        underline = {90, 90, 90}
+                        italic = true /*,
+                        bg = {249, 249, 220}*/
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
-                        italic = true,
-                        bg = {58, 52, 47})
+                        italic = true/*,
+                        bg = {58, 52, 47}*/
+                )
             }))
     @Localize(displayName = "Repeating Elements")
     public static final RegionsKey<Set<EbnfProperty>> EBNFS = RegionsKey.create(Set.class, "ebnfs");
@@ -735,11 +757,13 @@ public class AntlrKeys {
                         themes = POPULAR_BRIGHT_THEMES,
                         fg = {180, 40, 40},
                         bold = true,
+                        derivedFrom = "identifier",
                         italic = true
                 ),
                 @Coloration(
                         themes = POPULAR_DARK_THEMES,
-                        bg = {235, 171, 120},
+                        fg = {140, 141, 225},
+                        derivedFrom = "identifier",
                         bold = true,
                         italic = true
                 )
@@ -757,11 +781,14 @@ public class AntlrKeys {
                         colors = {
                             @Coloration(
                                     themes = POPULAR_BRIGHT_THEMES,
-                                    bg = {220, 220, 190}
+                                    //                                    bg = {220, 220, 190},
+                                    derivedFrom = "mark-occurrences"
                             ),
                             @Coloration(
                                     themes = POPULAR_DARK_THEMES,
-                                    bg = {92, 89, 145})})
+                                    //                                    bg = {50, 50, 50},
+                                    derivedFrom = "mark-occurrences"
+                            )})
         ),
         @HighlighterKeyRegistration(mimeType = ANTLR_MIME_TYPE,
                 fixedSize = true,

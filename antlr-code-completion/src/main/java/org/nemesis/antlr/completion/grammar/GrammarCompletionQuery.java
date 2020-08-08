@@ -255,18 +255,15 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
             nue.put(last.getKey(), last.getValue());
             for (int i = l.size() - 2; i >= 0; i--) {
                 Map.Entry<Integer, IntList> prev = l.get(i);
-                RulesMapping<?> rm1 = RulesMapping.forMimeType(mimeType);
-                System.out.println("CHECK " + rulesToString(rm1, prev.getKey(), prev.getValue())
-                        + " against " + rulesToString(rm1, last.getKey(), last.getValue()));
-
+//                RulesMapping<?> rm1 = RulesMapping.forMimeType(mimeType);
                 if (!last.getValue().startsWith(prev.getValue())) {
                     nue.put(prev.getKey(), prev.getValue());
                     last = prev;
-                } else {
-                    RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
-                    System.out.println("SKIP " + rulesToString(rm, prev.getKey(), prev.getValue())
-                            + " same start seq as " + rulesToString(rm, last.getKey(), last.getValue())
-                    );
+//                } else {
+//                    RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
+//                    System.out.println("SKIP " + rulesToString(rm, prev.getKey(), prev.getValue())
+//                            + " same start seq as " + rulesToString(rm, last.getKey(), last.getValue())
+//                    );
                 }
             }
         });
