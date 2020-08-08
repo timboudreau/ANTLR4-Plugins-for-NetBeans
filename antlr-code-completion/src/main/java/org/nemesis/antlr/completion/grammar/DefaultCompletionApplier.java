@@ -34,6 +34,7 @@ import javax.swing.text.StyledDocument;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
 import org.netbeans.api.editor.caret.MoveCaretsOrigin;
+import org.netbeans.api.editor.completion.Completion;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 
@@ -57,7 +58,7 @@ final class DefaultCompletionApplier implements CompletionApplier {
             try {
                 int end = applyToDocument(doc);
                 int offset = isCommonEnclosingPair() || name.endsWith("()") ? -1 : 0;
-                Position endPosition = NbDocument.createPosition(doc, end - offset, Position.Bias.Backward);
+                Position endPosition = NbDocument.createPosition(doc, end + offset, Position.Bias.Backward);
                 Caret caret = comp.getCaret();
                 if (caret instanceof EditorCaret) {
                     EditorCaret ec = (EditorCaret) caret;
@@ -70,6 +71,7 @@ final class DefaultCompletionApplier implements CompletionApplier {
                         comp.getCaret().setDot(end - offset);
                     });
                 }
+                Completion.get().hideAll();
             } catch (BadLocationException ex) {
                 Exceptions.printStackTrace(ex);
             }
@@ -160,7 +162,7 @@ final class DefaultCompletionApplier implements CompletionApplier {
         String toInsert = sb.toString();
 //        System.out.println("  insert at " + offset + ": '" + Escaper.CONTROL_CHARACTERS.escape(toInsert) + "'");
         doc.insertString(insertPosition.getOffset(), toInsert, null);
-        return offset + toInsert.length();
+        return offset + toInsert.length() - (Character.isWhitespace(toInsert.charAt(toInsert.length()-1)) ? 1 : 0);
     }
 
     boolean isCommonEnclosingPair() {

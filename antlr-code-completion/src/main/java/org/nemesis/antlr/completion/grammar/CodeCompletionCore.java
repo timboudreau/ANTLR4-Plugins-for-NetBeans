@@ -44,6 +44,7 @@ import java.util.Collections;
 import org.antlr.v4.runtime.misc.IntegerList;
 import org.antlr.v4.runtime.misc.Interval;
 import com.mastfrog.antlr.code.completion.spi.CaretToken;
+import com.mastfrog.function.state.Bool;
 
 /**
  * Borrowed from
@@ -132,10 +133,9 @@ public class CodeCompletionCore {
     }
 
     private static final int ITERATION_LIMIT = 15000;
-    private boolean showResult = false;
     private final boolean showDebugOutput = false;
     private final boolean debugOutputWithTransitions = false;
-    private final boolean showRuleStack = false;
+    private boolean showRuleStack = false;
 
     private final IntPredicate ignoredTokens;
     private final IntPredicate preferredRules;
@@ -218,19 +218,15 @@ public class CodeCompletionCore {
         return collectCandidates(caretTokenIndex, context, null);
     }
 
-    public CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context, List<? extends Token> tks) {
+    public synchronized CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context, List<? extends Token> tks) {
         context = null;
 
+        // XXX should shortcut map be cleared, or preserved?
         this.shortcutMap.clear();
         this.candidates.rules.clear();
         this.candidates.tokens.clear();
         this.statesProcessed = 0;
 
-//        logger.setLevel(Level.ALL);
-//        showResult = true;
-
-//        this.tokenStartIndex = context != null && context.start != null ? context.start.getTokenIndex() : 0;
-//        if (tokens == null) {
         this.tokenStartIndex = context != null ? context.start.getTokenIndex() : 0;
         parser.reset();
         TokenStream tokenStream = this.parser.getInputStream();
@@ -245,7 +241,7 @@ public class CodeCompletionCore {
         this.tokens = toks;
         int negativeIndicesSeen = 0;
         int offset = 1;
-        for(;;) {
+        for (;;) {
             Token token = tokenStream.LT(offset++);
             CCLog.log(this, token);
             toks.add(token);
@@ -306,7 +302,7 @@ public class CodeCompletionCore {
 //            assert candidates.rulePositions.get(ruleId).contains(endOffset);
         }
 
-        if (this.showResult && logger.isLoggable(Level.FINE)) {
+        if (logger.isLoggable(Level.FINE)) {
             StringBuilder logMessage = new StringBuilder();
 
             logMessage.append("States processed: ").append(this.statesProcessed).append("\n");
@@ -314,22 +310,15 @@ public class CodeCompletionCore {
             logMessage.append("Collected rules:\n");
 
             candidates.rules.forEach((key, list) -> {
-                logMessage.append("  ").append(key).append(", path: ");
+                String rid = this.ruleNames[key];
+                logMessage.append("  ").append(rid).append(", path: ");
                 list.forEach((int token) -> {
                     logMessage.append(this.ruleNames[token]).append(" ");
                 });
                 logMessage.append("\n");
             });
 
-            candidates.rules.forEach((key, list) -> {
-                logMessage.append("  ").append(key).append(", path: ");
-                list.forEach((int token) -> {
-                    logMessage.append(this.ruleNames[token]).append(" ");
-                });
-                logMessage.append("\n");
-            });
             logMessage.append("Collected Tokens:\n");
-
             candidates.tokens.forEach((key, set) -> {
                 logMessage.append("  ").append(this.vocabulary.getDisplayName(key));
                 set.forEachInt((int following) -> {
@@ -338,7 +327,6 @@ public class CodeCompletionCore {
                 logMessage.append("\n");
             });
             logger.log(Level.FINE, logMessage.toString());
-            System.out.println("logMessage: " + logMessage);
         }
         this.tokens = Collections.emptyList();
         return this.candidates;
@@ -360,24 +348,32 @@ public class CodeCompletionCore {
     private boolean translateToRuleIndex(IntList ruleStack) {
         // Loop over the rule stack from highest to lowest rule level. This way we properly handle the higher rule
         // if it contains a lower one that is also a preferred rule.
+        boolean result = false;
         for (int i = 0; i < ruleStack.size(); ++i) {
+            // FIXME the change to set the result rather than
+            // simply return true at the line result = true results in getting
+            // complete results - which is good, we no longer abort at the outermost
+            // preferred rule - but also winds up with the paths returned
+            // containing multiple copies of the path from the top of the file,
+            // e.g.
+            // grammarFile modeSpec tokenRuleSpec tokenRuleDefinition lexerRuleBlock lexerRuleAlt grammarFile ...
             if (this.preferredRules.test(ruleStack.get(i))) {
                 // Add the rule to our candidates list along with the current rule path,
                 // but only if there isn't already an entry like that.
                 IntList path = ruleStack.subList(0, i);
-                boolean[] an = new boolean[]{true};
+                Bool an = Bool.create(true);
                 final int ix = i;
                 this.candidates.rules.forSome((int key, IntList list) -> {
                     if (key != ruleStack.get(ix) || list.size() != path.size()) {
                         return true;
                     }
                     if (path.equals(list)) {
-                        an[0] = false;
+                        an.set(false);
                         return false;
                     }
                     return true;
                 });
-                final boolean addNew = an[0];
+                final boolean addNew = an.getAsBoolean();
                 if (addNew) {
                     int rule = ruleStack.get(i);
                     this.candidates.rules.put(rule, path);
@@ -390,11 +386,11 @@ public class CodeCompletionCore {
                         logger.log(Level.FINE, "=====> collected: {0}", this.ruleNames[i]);
                     }
                 }
-                return true;
+                result = true;
             }
         }
 
-        return false;
+        return result;
     }
 
     /**
@@ -434,7 +430,7 @@ public class CodeCompletionCore {
     private LinkedList<FollowSetWithPath> determineFollowSets(ATNState start, ATNState stop) {
         LinkedList<FollowSetWithPath> result = new LinkedList<>();
         Set<ATNState> seen = new HashSet<>();
-        IntList ruleStack = IntList.create(5);
+        IntList ruleStack = IntList.create(64);
         this.collectFollowSets(start, stop, result, seen, ruleStack);
         return result;
     }
@@ -473,8 +469,8 @@ public class CodeCompletionCore {
                 }
                 ruleStack.add(ruleTransition.target.ruleIndex);
                 this.collectFollowSets(transition.target, stopState, followSets, seen, ruleStack);
+                assert ruleStack.last() == ruleTransition.target.ruleIndex;
                 ruleStack.removeLast();
-
             } else if (transition.getSerializationType() == Transition.PREDICATE) {
                 if (this.checkPredicate((PredicateTransition) transition)) {
                     this.collectFollowSets(transition.target, stopState, followSets, seen, ruleStack);
@@ -856,18 +852,20 @@ public class CodeCompletionCore {
         }
     }
 
-    private void printRuleState(List<Integer> stack) {
-        if (stack.isEmpty()) {
-            logger.fine("<empty stack>");
-            return;
-        }
-
-        if (logger.isLoggable(Level.FINER)) {
-            StringBuilder sb = new StringBuilder();
-            for (Integer rule : stack) {
-                sb.append("  ").append(this.ruleNames[rule]).append("\n");
+    private void printRuleState(IntList stack) {
+        if (logger.isLoggable(Level.FINEST) && stack.size() > 1) {
+            if (stack.isEmpty()) {
+                logger.finest("<empty stack>");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                stack.forEach((int rule) -> {
+                    if (sb.length() > 0) {
+                        sb.append("->");
+                    }
+                    sb.append(this.ruleNames[rule]);
+                });
+                logger.finest(sb.toString());
             }
-            logger.log(Level.FINER, sb.toString());
         }
     }
 

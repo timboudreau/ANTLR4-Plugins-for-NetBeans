@@ -127,12 +127,13 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         this.stringifier = stringifier;
     }
 
-    void update(EmbeddedAntlrParserResult res) {
+    boolean update(EmbeddedAntlrParserResult res) {
         // Ensure both are updated atomically by wrapping the update of the
         // second in an update of the first
         if (res != null) {
-            info.set(res);
+            return info.getAndSet(res) != res;
         }
+        return false;
     }
 
     static final class ParseInfo {

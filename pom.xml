@@ -735,7 +735,7 @@ limitations under the License.
                 <groupId>com.mastfrog</groupId>
                 <artifactId>util-collections</artifactId>
                 <!--                <version>${mastfrog.version}</version> -->
-                <version>2.6.13.2</version>
+                <version>2.6.13.3</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>

@@ -221,6 +221,57 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
         return result;
     }
 
+    private IntArrayMapping filter(IntArrayMapping orig) {
+        // CodeCompletionCore will give us ALL of the rule paths that
+        // match a preferred rule, but we actually only want the
+        // deepest one
+        if (orig.size() <= 1) {
+            return orig;
+        }
+        return orig.filter((old, nue) -> {
+            List<Map.Entry<Integer, IntList>> l = new ArrayList<>(old.entrySet());
+            Collections.sort(l, (a, b) -> {
+                IntList la = a.getValue();
+                IntList lb = b.getValue();
+                if (la.startsWith(lb)) {
+                    return 1;
+                } else if (lb.startsWith(la)) {
+                    return -1;
+                } else {
+                    int result = Integer.compare(la.size(), lb.size());
+                    if (result == 0) {
+                        for (int i = 0; i < Math.min(la.size(), lb.size()); i++) {
+                            result = Integer.compare(la.get(i), lb.get(i));
+                            if (result != 0) {
+                                break;
+                            }
+                        }
+                    }
+                    return result;
+                }
+            });
+
+            Map.Entry<Integer, IntList> last = l.get(l.size() - 1);
+            nue.put(last.getKey(), last.getValue());
+            for (int i = l.size() - 2; i >= 0; i--) {
+                Map.Entry<Integer, IntList> prev = l.get(i);
+                RulesMapping<?> rm1 = RulesMapping.forMimeType(mimeType);
+                System.out.println("CHECK " + rulesToString(rm1, prev.getKey(), prev.getValue())
+                        + " against " + rulesToString(rm1, last.getKey(), last.getValue()));
+
+                if (!last.getValue().startsWith(prev.getValue())) {
+                    nue.put(prev.getKey(), prev.getValue());
+                    last = prev;
+                } else {
+                    RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
+                    System.out.println("SKIP " + rulesToString(rm, prev.getKey(), prev.getValue())
+                            + " same start seq as " + rulesToString(rm, last.getKey(), last.getValue())
+                    );
+                }
+            }
+        });
+    }
+
     private <P extends Parser, R extends ParserRuleContext> void processCodeCompletion(
             StyledDocument doc,
             CaretToken ct, List<? extends Token> toks, P p, CompletionResultSet resultSet,
@@ -259,9 +310,14 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
                 caretToken.leadingTokenText(), caretToken.trailingTokenText());
 
         // First, walk the rule completers and collect those
-        result.rules.forEach((int ruleId, IntList callStack) -> {
+        filter(result.rules).forEach((int ruleId, IntList callStack) -> {
 //            RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
 //            System.out.println("MATCHED RULES " + rulesToString(rm, ruleId, callStack));
+            LOG.finer(() -> {
+                RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
+                String rulePath = rulesToString(rm, ruleId, callStack);
+                return "Complete " + caretToken + " on " + rulePath + " with " + itemsForCompleters.keySet();
+            });
 
             // See @RuleSubstitutions - in some cases there are a wide variety of
             // tokens that may be expected, but we want to do our lookups based on
@@ -293,7 +349,17 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
                                 CaretToken sansLeadingText = TokenUtils.strippingLeadingText(caretToken);
                                 completer.apply(effectiveRule, sansLeadingText, 30, callStack, items);
                             });
+                            newSize = items.size();
                         }
+                    }
+                    int added = newSize - oldSize;
+                    if (added > 0) {
+                        LOG.finest(() -> {
+                            RulesMapping<?> rm = RulesMapping.forMimeType(mimeType);
+                            String rulePath = rulesToString(rm, ruleId, callStack);
+                            return "Completer " + completer + " added " + added + " items "
+                                    + "for " + caretToken + " at " + rulePath;
+                        });
                     }
                 } catch (Exception ex) {
                     blacklist.add(System.identityHashCode(completer));
@@ -545,13 +611,15 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
             CaretToken tokenInfo, ParserAndRuleContextProvider<P, R> provider, List<? extends Token> tokens) throws IOException {
         CodeCompletionCore core = new CodeCompletionCore(p, preferredRules, ignoredTokens, cache);
         int ix = tokenInfo.tokenIndex();
-        if (tokenInfo.isWhitespace() && ix > 0) {
+        if ((tokenInfo.isWhitespace() || ignoredTokens.test(tokenInfo.tokenType())) && ix > 0) {
             ix -= 1;
+            LOG.finest(() -> {
+                return "Current token is whitespace or ignored token - passing completion engine the preceding token "
+                        + p.getVocabulary().getDisplayName(tokenInfo.before().tokenType());
+            });
         }
         CodeCompletionCore.CandidatesCollection result = core.collectCandidates(ix,
                 null /*provider.rootElement(p)*/, tokens);
-//        CodeCompletionCore.CandidatesCollection result = core.collectCandidates(ix,
-//                null /*provider.rootElement(p)*/, tokens);
         return result;
     }
 

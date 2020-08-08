@@ -17,24 +17,13 @@ package org.nemesis.antlr.live.language;
 
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Dictionary;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JToolBar;
 import javax.swing.text.Document;
-import javax.swing.text.EditorKit;
 import javax.swing.text.JTextComponent;
-import org.netbeans.api.editor.mimelookup.MimeLookup;
-import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.MultiKeymap;
@@ -44,11 +33,11 @@ import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
+import org.netbeans.modules.editor.NbEditorKit;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.awt.Mnemonics;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.loaders.DataObjectNotFoundException;
 
 /**
  *
@@ -57,18 +46,12 @@ import org.openide.loaders.DataObjectNotFoundException;
 public class AdhocEditorKit extends ExtKit {
 
     private final String mimeType;
-    private final EditorKit plainTextEditorKit;
+    // We get registered actions and such from the text/plain mime type,
+    // so create a fake editor kit that will load and expose those
+    private static final FakePlainKit plainTextEditorKit = new FakePlainKit();
 
     public AdhocEditorKit(String mimeType) {
         this.mimeType = mimeType;
-        plainTextEditorKit = MimeLookup.getLookup(MimePath.parse("text/plain")).lookup(EditorKit.class);
-    }
-
-    private ExtKit delegate() {
-        if (plainTextEditorKit != null && plainTextEditorKit instanceof ExtKit) {
-            return (ExtKit) plainTextEditorKit;
-        }
-        return null;
     }
 
     @Override
@@ -76,118 +59,46 @@ public class AdhocEditorKit extends ExtKit {
         return mimeType;
     }
 
-    private final Map<String, Method> methods = new HashMap<>();
-
-    private Method lookupMethod(String name, Class<?>... argTypes) {
-        ExtKit del = delegate();
-        Class<?> type = del.getClass();
-        Method result = null;
-        while (type != Object.class) {
-            try {
-                result = type.getDeclaredMethod(name, argTypes);
-                break;
-            } catch (NoSuchMethodException | SecurityException ex) {
-                if (type.getSuperclass() == Object.class) {
-                    ex.printStackTrace();
-                }
-                type = type.getSuperclass();
-            }
-        }
-        if (result != null) {
-            methods.put(name, result);
-        }
-        return result;
-    }
-
-    private <T> T call(String method) {
-        return call(method, new Class<?>[0], new Object[0]);
-    }
-
-    private static final Set<String> WARNED = new ConcurrentSkipListSet<>();
-
-    @SuppressWarnings("unchecked")
-    private <T> T call(String name, Class<?>[] argTypes, Object... args) {
-        T result = null;
-        Method m = lookupMethod(name, argTypes);
-        try {
-            result = (T) m.invoke(delegate(), args);
-        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            String key = delegate().getClass().getName() + "-" + name;
-            if (!WARNED.contains(key)) {
-                WARNED.add(key);
-                Logger.getLogger(AdhocEditorKit.class.getName()).log(Level.WARNING,
-                        "Could not invoke method {0} on {1}",
-                        new Object[]{name, delegate().getClass().getName()});
-            }
-        }
-        return result;
-    }
-
     @Override
     public Action getActionByName(String name) {
-        ExtKit delegate = delegate();
-        if (delegate != null) {
-            Action result = delegate.getActionByName(name);
-            return result;
-        }
-        return super.getActionByName(name); //To change body of generated methods, choose Tools | Templates.
+        return plainTextEditorKit.getActionByName(name);
     }
 
     @Override
     protected Action[] getDeclaredActions() {
-        ExtKit delegate = delegate();
-        if (delegate != null) {
-            Action[] result = this.call("getDeclaredActions");
-            if (result != null) {
-                return result;
-            }
-        }
-        return super.getDeclaredActions();
+        return plainTextEditorKit.getDeclaredActions();
     }
 
     @Override
     protected Action[] getCustomActions() {
-        ExtKit delegate = delegate();
-        if (delegate != null) {
-            Action[] result = this.call("getCustomActions");
-            if (result != null) {
-                return result;
-            }
-        }
-        return super.getCustomActions();
+        return plainTextEditorKit.getCustomActions();
     }
 
     @Override
     protected Action[] createActions() {
-        Action[] result = null;
-        ExtKit delegate = delegate();
-        if (delegate != null) {
-            result = this.call("createActions");
-            if (result == null) {
-                result = super.createActions();
+        Action[] result = plainTextEditorKit.createActions();
+        if (result != null) {
+            // XXX why are we doing this?
+            for (int i = 0; i < result.length; i++) {
+                if (result[i] instanceof PasteAction) {
+                    result[i] = new AsyncPasteAction(false);
+                }
             }
-        }
-        for (int i = 0; i < result.length; i++) {
-            if (result[i] instanceof PasteAction) {
-                result[i] = new AsyncPasteAction(false);
-            }
+        } else {
+            result = new Action[0];
         }
         return result;
     }
 
     @Override
     protected void initDocument(BaseDocument doc) {
-        super.initDocument(doc); //To change body of generated methods, choose Tools | Templates.
+        super.initDocument(doc);
         doc.putProperty("mimeType", mimeType);
     }
 
     @Override
     public MultiKeymap getKeymap() {
-        ExtKit delegate = delegate();
-        if (delegate != null) {
-            return delegate.getKeymap();
-        }
-        return super.getKeymap();
+        return plainTextEditorKit.getKeymap();
     }
 
     @Override
@@ -197,10 +108,7 @@ public class AdhocEditorKit extends ExtKit {
 
     @Override
     protected EditorUI createEditorUI() {
-//        EditorUI result = super.createEditorUI();
-        EditorUI result = new NbEditorUI();
-
-        return result;
+        return new NbEditorUI();
     }
 
     // Give the lexer a way to find out what document it's lexing
@@ -213,24 +121,13 @@ public class AdhocEditorKit extends ExtKit {
 
     public static FileObject currentFileObject() {
         Document doc = currentDocument();
-        if (doc != null) {
-            return NbEditorUtilities.getFileObject(doc);
-        }
-        return null;
+        return doc == null ? NbEditorUtilities.getFileObject(doc) : null;
     }
 
     public static AdhocDataObject currentDataObject() {
-        FileObject fo = currentFileObject();
-        if (fo != null) {
-            try {
-                DataObject dob = DataObject.find(fo);
-                return dob.getLookup().lookup(AdhocDataObject.class);
-            } catch (DataObjectNotFoundException ex) {
-                Logger.getLogger(AdhocEditorKit.class.getName())
-                        .log(Level.SEVERE, "No dob for " + fo, ex);
-            }
-        }
-        return null;
+        Document doc = currentDocument();
+        DataObject dob = doc == null ? NbEditorUtilities.getDataObject(doc) : null;
+        return dob == null ? null : dob.getLookup().lookup(AdhocDataObject.class);
     }
 
     static final class AsyncPasteAction extends PasteAction {
@@ -245,7 +142,6 @@ public class AdhocEditorKit extends ExtKit {
                 super.actionPerformed(evt, target);
             });
         }
-
     }
 
     // We have to subclass this in order to supply a toolbar, or the infrastructure
@@ -284,14 +180,15 @@ public class AdhocEditorKit extends ExtKit {
 
             @Override
             public Object getValue() {
-                // XXX could keep the hiearchy atomicInt count
-                // as of the last call to get value, and only update
-                // on change
                 int created = AdhocLanguageHierarchy.hierarchiesCreated();
                 if (created > createdAtLastCall) {
                     Language<?> lang = Language.find(doc.mimeType);
                     if (lang != null) {
                         attrs.setValue(lang, "doc", doc, false);
+                    }
+                    FileObject fo = NbEditorUtilities.getFileObject(doc);
+                    if (fo != null) {
+                        attrs.setValue(lang, FileObject.class, fo, false);
                     }
                     createdAtLastCall = created;
                 }
@@ -313,9 +210,13 @@ public class AdhocEditorKit extends ExtKit {
             public Object get(Object key) {
                 if (InputAttributes.class.equals(key)) {
                     InputAttributes attrs = new InputAttributes();
+                    FileObject fo = NbEditorUtilities.getFileObject(doc);
                     Language<?> lang = Language.find(doc.mimeType);
                     if (lang != null) {
                         attrs.setValue(lang, "doc", doc, false);
+                    }
+                    if (fo != null) {
+                        attrs.setValue(lang, FileObject.class, fo, false);
                     }
                     return attrs;
                 }
@@ -382,11 +283,39 @@ public class AdhocEditorKit extends ExtKit {
 
         @Messages("STARTING_RULE=Parse Text &Using")
         private JToolBar createBar() {
-            JToolBar bar = new JToolBar();
+            JToolBar result = new JToolBar();
             JLabel lbl = new JLabel();
             Mnemonics.setLocalizedText(lbl, Bundle.STARTING_RULE());
-            bar.add(lbl);
-            return bar;
+            result.add(lbl);
+            return result;
+        }
+    }
+
+    /**
+     * We just want to load all of the keyboard and popup actions any plain text
+     * file would have, for any adhoc file type - cut, paste, etc.
+     */
+    static final class FakePlainKit extends NbEditorKit {
+
+        public static final String PLAIN_MIME_TYPE = "text/plain"; // NOI18N
+
+        public String getContentType() {
+            return PLAIN_MIME_TYPE;
+        }
+
+        @Override
+        public Action[] getDeclaredActions() {
+            return super.getDeclaredActions();
+        }
+
+        @Override
+        public Action[] getCustomActions() {
+            return super.getCustomActions();
+        }
+
+        @Override
+        public Action[] createActions() {
+            return super.createActions();
         }
     }
 }

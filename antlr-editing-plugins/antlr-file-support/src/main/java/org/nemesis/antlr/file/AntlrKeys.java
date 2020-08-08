@@ -27,7 +27,6 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnf;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnfSuffix;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_fragmentRuleSpec;
-import static org.nemesis.antlr.ANTLRv4Parser.RULE_identifier;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_labeledParserRuleElement;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComPushMode;
@@ -42,6 +41,9 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleReference;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_parserRuleSpec;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleIdentifier;
 import static org.nemesis.antlr.ANTLRv4Lexer.*;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommand;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommands;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_tokenRuleSpec;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
 import org.nemesis.antlr.common.extractiontypes.EbnfProperty;
@@ -149,7 +151,7 @@ import org.nemesis.localizers.annotations.Localize;
                     TYPE_LINE_COMMENT, LBRACE, RBRACE, LPAREN, RPAREN},
                 preferredRules = {
                     RULE_ebnfSuffix,
-                    RULE_identifier,
+//                    RULE_identifier,
                     RULE_parserRuleIdentifier,
                     RULE_fragmentRuleIdentifier,
                     RULE_tokenRuleIdentifier,
@@ -159,10 +161,13 @@ import org.nemesis.localizers.annotations.Localize;
                     RULE_lexerRuleElement,
                     RULE_labeledParserRuleElement,
                     RULE_altList,
+                    RULE_lexerCommand,
+                    RULE_lexerCommands,
                     RULE_lexComPushMode,
                     RULE_lexComMode,
                     RULE_ebnf,
                     RULE_parserRuleSpec, // right after colon
+                    RULE_tokenRuleSpec, // right after colon
                     RULE_fragmentRuleSpec, // right after colon
                     RULE_channelsSpec,
                     RULE_lexerRuleElements,
@@ -214,7 +219,7 @@ import org.nemesis.localizers.annotations.Localize;
                     ),
                     @SupplementaryTokenCompletion(
                             tokenId = END_ACTION,
-                            text = "}"
+                            text = "}\n"
                     ),
                     @SupplementaryTokenCompletion(
                             tokenId = SEMI,
@@ -613,7 +618,7 @@ public class AntlrKeys {
                     colors = {
                         @Coloration(
                                 themes = POPULAR_BRIGHT_THEMES,
-                                fg = {235, 171, 120},
+                                fg = {200, 140, 90},
                                 bold = true
                         ),
                         @Coloration(

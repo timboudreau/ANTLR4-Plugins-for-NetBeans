@@ -31,10 +31,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_ebnfSuffix;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComMode;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexComPushMode;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommand;
+import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommands;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.LexerModes;
@@ -58,6 +63,8 @@ import org.openide.util.lookup.ServiceProvider;
  */
 @ServiceProvider(service = CompletionsSupplier.class, position = 1)
 public class SimpleCompletionsSupplier extends CompletionsSupplier {
+
+    private static final Logger LOG = Logger.getLogger(SimpleCompletionsSupplier.class.getName());
 
     @Override
     public Completer forDocument(Document document) {
@@ -149,12 +156,14 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                 case ANTLRv4Parser.RULE_lexerRuleElement:
                 case ANTLRv4Parser.RULE_lexerRuleElements:
                 case ANTLRv4Parser.RULE_lexerRuleElementBlock:
+                case ANTLRv4Parser.RULE_tokenRuleSpec:
                 case ANTLRv4Parser.RULE_tokenRuleIdentifier:
                     types.add(RuleTypes.LEXER);
                     types.add(RuleTypes.FRAGMENT);
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
                     break;
                 case ANTLRv4Parser.RULE_fragmentRuleIdentifier:
+                case ANTLRv4Parser.RULE_fragmentRuleDefinition:
                 case ANTLRv4Parser.RULE_fragmentRuleSpec:
                     types.add(RuleTypes.FRAGMENT);
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
@@ -170,9 +179,31 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         public void apply(int parserRuleId, CaretToken token, int maxResultsPerKey, IntList rulePath, CompletionItems addTo) throws Exception {
             String optionalPrefix = nullBlanks(token.leadingTokenText());
             String optionalSuffix = nullBlanks(token.trailingTokenText());
+            if (optionalPrefix != null) {
+                String trimmed = optionalPrefix.trim();
+                if (trimmed.length() == 1) {
+                    char c = trimmed.charAt(0);
+                    switch (c) {
+                        case ':':
+                        case '(':
+                        case '{':
+                            optionalPrefix = null;
+                    }
+                }
+            }
+            if (optionalSuffix != null) {
+                String trimmed = optionalSuffix.trim();
+                if (trimmed.length() == 1) {
+                    char c = trimmed.charAt(0);
+                    switch (c) {
+                        case ')':
+                        case ',':
+                            optionalSuffix = null;
+                    }
+                }
+            }
             findNames(parserRuleId, optionalPrefix, maxResultsPerKey,
                     optionalSuffix, rulePath, addTo);
-
         }
 
         private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
@@ -195,12 +226,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
 
         public void findNamesForModes(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
                 String optionalSuffix, IntList rulePath, Extraction ext, CompletionItems names) {
-            if (optionalPrefix != null && optionalPrefix.trim().equals("(")) {
-                optionalPrefix = null;
-            }
-            if (optionalSuffix != null && optionalSuffix.trim().equals("(")) {
-                optionalSuffix = null;
-            }
+            LOG.log(Level.FINER, "Find names for modes {0} {1}", new Object[]{optionalPrefix, optionalSuffix});
             NamedSemanticRegions<LexerModes> regions = ext.namedRegions(AntlrKeys.MODES);
             Consumer<NamedSemanticRegion<LexerModes>> c = mode -> {
                 names.add(mode.name(), mode.kind());
@@ -214,19 +240,55 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
             }
         }
 
+        private String rp(IntList all) {
+            StringBuilder sb = new StringBuilder();
+            all.forEach((int val) -> {
+                String nm = ANTLRv4Parser.ruleNames[val];
+                if (sb.length() > 0) {
+                    sb.append(" -> ");
+                }
+                sb.append(nm);
+            });
+            return sb.toString();
+        }
+
         public void findNames(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
                 String optionalSuffix, IntList rulePath, CompletionItems names) {
+            // XXX if lexComMode is in the path, don't return rule names
+            LOG.log(Level.FINE, "FindNames {0} prefix {1} suffix {2} path {3}", new Object[]{
+                Strings.lazyCharSequence(() -> ANTLRv4Parser.ruleNames[parserRuleId] + " (" + parserRuleId + ")"),
+                optionalPrefix,
+                optionalSuffix,
+                Strings.lazyCharSequence(() -> rp(rulePath))
+            });
+            switch (parserRuleId) {
+                case RULE_lexerCommands:
+                case RULE_lexerCommand:
+                    names.add("type()", "type");
+                    names.add("pushMode()", "pushMode");
+                    names.add("mode()", "mode");
+                    names.add("popMode", "popMode");
+                    names.add("channel", "channel ");
+                    names.add("skip", "skip");
+                    return;
+            }
             Extraction ext = extractionFor(doc);
+            int ruleId;
             if (ext != null) {
                 switch (parserRuleId) {
                     case RULE_lexComPushMode:
                     case RULE_lexComMode:
                         findNamesForModes(parserRuleId, optionalPrefix, maxResultsPerKey, optionalSuffix, rulePath, ext, names);
                         return;
+                    case RULE_ebnfSuffix:
+                        ruleId = rulePath.last();
+                        break;
+                    default:
+                        ruleId = parserRuleId;
                 }
                 Set<NamedSemanticRegions<RuleTypes>> use = new HashSet<>();
                 Set<RuleTypes> types = EnumSet.noneOf(RuleTypes.class);
-                recursivelyFindRegionSets(parserRuleId, ext, use, types);
+                recursivelyFindRegionSets(ruleId, ext, use, types);
 
                 Set<CompEntry> items = new HashSet<>();
                 for (NamedSemanticRegions<RuleTypes> set : use) {
@@ -243,8 +305,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                         });
                     } else if (workingPrefix != null) {
                         set.matchingPrefix(workingPrefix, item -> {
-                            if (types.contains(item.kind())
-                                    ){ //&& !workingPrefix.equals(item.name()) && !optionalPrefix.equals(item.name())) {
+                            if (types.contains(item.kind())) { //&& !workingPrefix.equals(item.name()) && !optionalPrefix.equals(item.name())) {
                                 items.add(new CompEntry(item.name(), workingPrefix, item.kind()));
                             }
                         });

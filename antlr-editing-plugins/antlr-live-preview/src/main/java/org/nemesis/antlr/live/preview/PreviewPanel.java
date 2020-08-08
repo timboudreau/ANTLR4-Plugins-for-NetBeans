@@ -98,6 +98,7 @@ import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.swing.Scroller;
 import org.nemesis.swing.cell.TextCellLabel;
+import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
@@ -138,6 +139,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         Lookup.Provider, BiConsumer<Document, EmbeddedAntlrParserResult>,
         FocusListener {
 
+    // File attributes for saving layout information to avoid layout jumps
+    // on first open over a file that has been opened in this component
+    // in the past
     private static final String DIVIDER_LOCATION_FILE_ATTRIBUTE = "splitPosition";
     private static final String SIDE_DIVIDER_LOCATION_FILE_ATTRIBUTE = "sidebarSplitPosition";
     private static final String SIDE_SPLIT_SIZE_FILE_ATTRIBUTE = "sidebarSize";
@@ -163,9 +167,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final TextCellLabel breadcrumb = new TextCellLabel("position");
     private final JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private boolean initialAdd = true;
-    private Lookup lookup = Lookup.EMPTY;
+    private final Lookup lookup;
+    // A single threaded pool for updating the output window and a few other
+    // things
     private final RequestProcessor asyncUpdateOutputWindowPool = new RequestProcessor(
             "antlr-preview-error-update", 1, true);
+    // A task for updating the output window with error links
+    // if a parse contains errors
     private RequestProcessor.Task updateOutputWindowTask;
     private final ErrorUpdater outputWindowUpdaterRunnable;
     private RequestProcessor.Task triggerRerunHighlighters;
@@ -180,6 +188,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final JPanel syntaxTreeContainer = new JPanel(new BorderLayout());
     private final JLabel rulesLabel = new JLabel();
     private final JLabel syntaxTreeLabel = new JLabel();
+    // A task for reparsing the document
     private final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
     private final JScrollPane sampleScroll;
     private final JScrollPane grammarScroll;
@@ -187,6 +196,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private boolean selectingRange;
     private Component lastFocused;
     private boolean showing;
+    // For performing layout, we cache the saved last size of the component,
+    // as a file attribute, so that on restart with the preview editor focused,
+    // we can lay it out ahead of time with the right amount of space reserved,
+    // so the layout does not jump once the initial parses are completed
     private Dimension previousSideComponentSize;
     private volatile boolean haveGrammarChange;
     private static final Border underline = BorderFactory.createMatteBorder(0, 0, 1, 0,
@@ -195,9 +208,25 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             BorderFactory.createEmptyBorder(5, 5, 5, 0),
             BorderFactory.createCompoundBorder(underline,
                     BorderFactory.createEmptyBorder(5, 0, 5, 0)));
+    /**
+     * An undo provider that switches its contents between the preview pane and
+     * the grammar pane, depending which has focus.
+     */
     private final UndoRedoProviderImpl switchingUndoRedo;
+    /**
+     * We track the hash code of the last parser result to avoid updating the
+     * output window on every caret change.
+     */
+    private int lastEmbeddedParserResultIdHash;
+    /**
+     * We detach listeners on hide and reattach on show, to quite a few things;
+     * ensures that the state is what we think it is.
+     */
+    private boolean listeningToColoringsDocumentsAndCarets;
+
     // need to hold a reference, or it will be gc'd and not get added/removed
-    // Will not be otherwise used.
+    // Will not be otherwise used.  This coalesces the SaveCookie from the
+    // preview and the grammar if both are modified
     private MetaSaveCookie saveCookie;
     private final UserTask ut = new UserTask() {
         @Override
@@ -259,7 +288,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // enough to get highlighting attached to it.  The code
         // in AdhocHighightLayerFactory that checks StreamDescriptionProperty
         // for null should catch this and avoid one getting created
-
         // Now find the editor kit (should be an AdhocEditorKit) from
         // our mime type
         // Configure the editor pane to use it
@@ -290,7 +318,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
         // Create our own editor
 
-//        EditorKit grammarKit = grammarFileOriginalEditor.getEditorKit();
         BaseKit grammarKit = Utilities.getKit(grammarFileOriginalEditor);
 
         grammarEditorClone = new JEditorPane();
@@ -666,15 +693,16 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     public void accept(Document a, EmbeddedAntlrParserResult res) {
         ParseTreeProxy newProxy = res.proxy();
         if (!newProxy.mimeType().equals(mimeType)) {
-            new Error("WTF? " + newProxy.mimeType() + " but expecting " + mimeType).printStackTrace();
+            LOG.log(Level.INFO, a.toString(), new Error("WTF? "
+                    + newProxy.mimeType() + " but expecting " + mimeType));
             return;
         }
         if (a != editorPane.getDocument()) {
-            LOG.log(Level.WARNING, "Passed document for " + NbEditorUtilities.getFileObject(a)
-                    + " Expected " + sampleFileDataObject.getPrimaryFile());
+            LOG.log(Level.WARNING, "Passed document for {0} Expected {1}",
+                    new Object[]{NbEditorUtilities.getFileObject(a),
+                        sampleFileDataObject.getPrimaryFile()});
             return;
         }
-
         Debug.message("preview-new-proxy " + Long.toString(newProxy.id(), 36)
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
@@ -750,9 +778,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     void reallyReparse() {
-        if (lastFuture != null && !lastFuture.isDone()) {
-            lastFuture.cancel(true);
-            lastFuture = null;
+        Future<?> last = lastFuture;
+        if (last != null && !last.isDone()) {
+            last.cancel(true);
+            last = null;
         }
         try {
             lastFuture = ParserManager.parseWhenScanFinished(
@@ -761,14 +790,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             Exceptions.printStackTrace(ex);
         }
     }
-    private boolean listening;
 
     private void ensureListening() {
-        if (listening) {
+        if (listeningToColoringsDocumentsAndCarets) {
             return;
         }
         assert EventQueue.isDispatchThread() : "Not on EDT";
-        listening = true;
+        listeningToColoringsDocumentsAndCarets = true;
         colorings.addChangeListener(this);
         colorings.addPropertyChangeListener(this);
 //        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
@@ -781,11 +809,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void ensureNotListening() {
-        if (!listening) {
+        if (!listeningToColoringsDocumentsAndCarets) {
             return;
         }
         assert EventQueue.isDispatchThread() : "Not on EDT";
-        listening = false;
+        listeningToColoringsDocumentsAndCarets = false;
         Future<Void> lastFuture = this.lastFuture;
         if (lastFuture != null && !lastFuture.isDone()) {
             lastFuture.cancel(true);
@@ -924,33 +952,55 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private void updateBreadcrumb(Caret caret) {
-        if (caret.getMark() != caret.getDot()) {
-            breadcrumb.cell().withText(" ");
-            return;
-        }
         if (editorPane.getDocument().getLength() > 0) {
             EventQueue.invokeLater(() -> {
                 EmbeddedAntlrParserResult res = internalLookup.lookup(EmbeddedAntlrParserResult.class);
-                ParseTreeProxy prx
-                        = res == null ? null : res.proxy();
-                if (prx != null) {
-                    updateBreadcrumb(caret, prx);
+                boolean shouldUpdateBreadcrumb = caret.getMark() == caret.getDot()
+                        && res != null;
+                if (!shouldUpdateBreadcrumb) {
+                    breadcrumb.cell().withText(" ");
+                    rulesList.repaint(300);
+                    return;
                 }
-                updateErrors(res);
+                if (shouldUpdateBreadcrumb) {
+                    updateBreadcrumb(caret, res.proxy());
+                }
+                if (res != null) {
+                    maybeUpdateErrors(res);
+                }
             });
         }
     }
 
-    private void updateErrors(EmbeddedAntlrParserResult prx) {
+    /**
+     * Update the error output only if we were really passed a parser result the
+     * output window writer has not already been passed.
+     *
+     * @param res A parser result
+     */
+    private void maybeUpdateErrors(@NonNull EmbeddedAntlrParserResult res) {
+        assert res != null;
+        assert EventQueue.isDispatchThread();
+        int newHash = res.hashCode();
+        if (newHash != lastEmbeddedParserResultIdHash) {
+            lastEmbeddedParserResultIdHash = newHash;
+            updateErrors(res);
+        }
+    }
+
+    private void updateErrors(EmbeddedAntlrParserResult result) {
         if (updateOutputWindowTask == null) {
             updateOutputWindowTask = asyncUpdateOutputWindowPool.create(outputWindowUpdaterRunnable);
         }
-        outputWindowUpdaterRunnable.update(prx);
-        updateOutputWindowTask.schedule(300);
+        if (outputWindowUpdaterRunnable.update(result)) {
+            updateOutputWindowTask.schedule(300);
+        }
     }
 
     private void updateBreadcrumb(Caret caret, ParseTreeProxy prx) {
-//        StringBuilder sb = new StringBuilder();
+        if (prx == null) {
+            return;
+        }
         AntlrProxies.ProxyToken tok = prx.tokenAtPosition(caret.getDot());
         if (tok != null) {
             stringifier.configureTextCell(breadcrumb, prx, tok, rulesList);
@@ -1002,6 +1052,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private boolean splitAndScrollPositionsInitialized;
+
     void updateSplitScrollAndCaretPositions() {
         if (initialAdd && !splitAndScrollPositionsInitialized) {
             // Until the first layout has happened, which will be after the

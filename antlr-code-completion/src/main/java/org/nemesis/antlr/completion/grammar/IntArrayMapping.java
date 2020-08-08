@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PrimitiveIterator;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * A tailored data structure for the data CodeCompletionCore collects which is
@@ -32,16 +33,26 @@ import java.util.Set;
  */
 final class IntArrayMapping {
 
-    private final IntMap<IntList> values = IntMap.create(12, true, () -> IntList.create(16));
+    private final IntMap<IntList> values;
+
+    IntArrayMapping() {
+        values = IntMap.create(12, true, () -> IntList.create(16));
+    }
+
+    IntArrayMapping(IntMap<IntList> values) {
+        this.values = values;
+    }
 
     public IntList get(int key0) {
         return values.getIfPresent(key0, null);
     }
 
+    int size() {
+        return values.size();
+    }
+
     boolean containsKey(int key) {
-        // broken in mf 2.6.6 - for now
-//        return values.containsKey(key);
-        return values.getIfPresent(key, null) != null;
+        return values.containsKey(key);
     }
 
     public Set<Integer> keySet() {
@@ -61,18 +72,21 @@ final class IntArrayMapping {
         return true;
     }
 
-    void put(int key, List<Integer> vals) {
-        values.get(key).addAll(vals);
+    IntArrayMapping filter(BiConsumer<IntMap<IntList>, IntMap<IntList>> c) {
+        IntMap<IntList> nue = IntMap.create(values.size());
+        c.accept(values, nue);
+        return new IntArrayMapping(nue);
+    }
+
+    void put(int key, IntList vals) {
+//        values.get(key).addAll(vals);
+        values.put(key, vals.copy());
     }
 
     void put(int key, int a, int b) {
         IntList l = values.get(key);
         l.add(a);
         l.add(b);
-        // 48=[104, 262]
-        if (key == 48 && a == 104 && b == 262) {
-            Thread.dumpStack();
-        }
     }
 
     void put(int key, int... vals) {
