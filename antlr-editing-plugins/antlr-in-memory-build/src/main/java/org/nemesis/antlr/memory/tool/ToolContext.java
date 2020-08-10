@@ -32,7 +32,7 @@ import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import org.antlr.v4.codegen.CodeGenerator;
 import org.antlr.v4.tool.Grammar;
-import org.nemesis.antlr.stdio.ThreadMappedStdIO;
+import com.mastfrog.util.streams.stdio.ThreadMappedStdIO;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 

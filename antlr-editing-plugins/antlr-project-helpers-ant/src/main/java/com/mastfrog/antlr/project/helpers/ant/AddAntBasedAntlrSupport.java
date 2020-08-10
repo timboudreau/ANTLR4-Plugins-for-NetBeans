@@ -417,7 +417,7 @@ final class AddAntBasedAntlrSupport implements Runnable {
                     break;
                 }
             }
-            c.apply(rootParent, all, order);
+            c.accept(rootParent, all, order);
         }
     }
 

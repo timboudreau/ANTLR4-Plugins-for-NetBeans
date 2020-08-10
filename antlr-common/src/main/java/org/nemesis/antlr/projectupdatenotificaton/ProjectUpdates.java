@@ -101,6 +101,9 @@ public final class ProjectUpdates {
         } else {
             saveTask = null;
         }
+        if (paths == null) {
+            paths = new DynamicGraph();
+        }
     }
 
     public boolean has(Path path) {

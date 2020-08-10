@@ -117,7 +117,7 @@ class EditorCookieListener extends FileChangeAdapter implements PropertyChangeLi
 
     private void onFileRenamed(FileObject file, String oldNameExt, String newNameExt) {
         if (!defunct) {
-            onFileRenamed.apply(file, oldNameExt, newNameExt);
+            onFileRenamed.accept(file, oldNameExt, newNameExt);
         }
     }
     private volatile boolean ignoreNextDeletionEvent;

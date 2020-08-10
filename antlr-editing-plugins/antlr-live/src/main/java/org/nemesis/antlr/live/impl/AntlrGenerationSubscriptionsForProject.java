@@ -16,6 +16,14 @@
 package org.nemesis.antlr.live.impl;
 
 import com.mastfrog.graph.ObjectGraph;
+import com.mastfrog.subscription.Subscribable;
+import com.mastfrog.subscription.SubscribableBuilder;
+import com.mastfrog.subscription.SubscribableNotifier;
+import com.mastfrog.subscription.SubscribersStore;
+import com.mastfrog.subscription.SubscribersStoreController;
+import com.mastfrog.util.cache.MapCache;
+import com.mastfrog.util.collections.MapFactories;
+import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.path.UnixPath;
 import java.awt.EventQueue;
 import java.io.IOException;
@@ -49,14 +57,6 @@ import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
-import org.nemesis.antlr.subscription.MapCache;
-import org.nemesis.antlr.subscription.MapFactories;
-import org.nemesis.antlr.subscription.SetTypes;
-import org.nemesis.antlr.subscription.Subscribable;
-import org.nemesis.antlr.subscription.SubscribableBuilder;
-import org.nemesis.antlr.subscription.SubscribableNotifier;
-import org.nemesis.antlr.subscription.SubscribersStore;
-import org.nemesis.antlr.subscription.SubscribersStoreController;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
@@ -94,7 +94,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         LOG.log(Level.FINEST, "Publish regeneration of {0} to {1}", new Object[]{fo, s});
                         rebuildInfo.accept(s);
                     }
-                }).storingSubscribersIn(SetTypes.ORDERED_HASH).threadSafe()
+                }).storingSubscribersIn(SetFactories.ORDERED_HASH).threadSafe()
                         .withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY,
                                 2, TimeUnit.SECONDS).build();
         subscribableDelegate = sinfo.subscribable;

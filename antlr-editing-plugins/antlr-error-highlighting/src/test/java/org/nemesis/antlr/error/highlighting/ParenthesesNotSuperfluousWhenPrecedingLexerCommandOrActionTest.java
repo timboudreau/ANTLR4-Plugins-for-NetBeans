@@ -1043,7 +1043,7 @@ public class ParenthesesNotSuperfluousWhenPrecedingLexerCommandOrActionTest {
                 GrammarSource.find(sampleFileLocal.charStream(),
                         ANTLR_MIME_TYPE), tokens);
         assertFalse(extraction.isPlaceholder());
-        runner.apply(sampleFileLocal, grammarLocal, extraction);
+        runner.accept(sampleFileLocal, grammarLocal, extraction);
     }
 
 }

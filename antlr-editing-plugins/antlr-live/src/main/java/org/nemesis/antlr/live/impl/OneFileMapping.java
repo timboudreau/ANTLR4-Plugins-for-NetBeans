@@ -126,7 +126,7 @@ final class OneFileMapping {
         if (nue == null) {
             setMappingMode(JFSMappingMode.UNMAPPED, null);
         }
-        onPrimaryFileChange.apply(old, nue, this);
+        onPrimaryFileChange.accept(old, nue, this);
     }
 
     JFSFileObject file() {

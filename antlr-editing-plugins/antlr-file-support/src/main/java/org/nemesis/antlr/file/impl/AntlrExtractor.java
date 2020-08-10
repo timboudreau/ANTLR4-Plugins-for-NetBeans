@@ -347,7 +347,7 @@ public final class AntlrExtractor {
             GrammarDeclaration result = new GrammarDeclaration(grammarType,
                     name, spec.start.getStartIndex(),
                     spec.stop.getStopIndex() + 1);
-            cons.apply(result, idContext.ID().getSymbol().getStartIndex(),
+            cons.accept(result, idContext.ID().getSymbol().getStartIndex(),
                     idContext.ID().getSymbol().getStopIndex() + 1);
         } else {
             return;

@@ -84,22 +84,14 @@ public final class SampleFiles {
         return sampleFile;
     }
 
-    private static String DEFAULT_TEXT
-            = "// ignore-emscripten no threads support\n"
-            + "\n"
-            + "use std::thread;\n"
-            + "\n"
-            + "pub fn main() {\n"
-            + "    let mut result = thread::spawn(child);\n"
-            + "    println!(\"1\");\n"
-            + "    thread::yield_now();\n"
-            + "    println!(\"2\");\n"
-            + "    thread::yield_now();\n"
-            + "    println!(\"3\");\n"
-            + "    result.join();\n"
-            + "}\n"
-            + "\n"
-            + "fn child() {\n"
-            + "    println!(\"4\"); thread::yield_now(); println!(\"5\"); thread::yield_now(); println!(\"6\");\n"
-            + "}";
+    private static final String DEFAULT_TEXT
+            = "This is the live-preview of your grammar, so you can SEE the effects of \n"
+            + "changes to your grammar in real-time.  You can configure syntax highlighting \n"
+            + "by selecting token or rule names in the upper left list pane, and configuring \n"
+            + "coloring and font properties in the toolbar directly above this window.\n\n"
+            + "Syntax highlighting is updated as you make changes to your grammer, and if \n"
+            + "the sample text parses with errors, links will appear in the output window.\n\n"
+            + "You can also right-click a grammar file and choose Associate File Extension to \n"
+            + "make all files with a given extension parsed and highlighted, live, using your \n"
+            + "grammar.";
 }

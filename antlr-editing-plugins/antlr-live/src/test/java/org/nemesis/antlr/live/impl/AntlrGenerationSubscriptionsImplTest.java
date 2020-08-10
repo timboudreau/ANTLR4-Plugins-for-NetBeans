@@ -392,7 +392,7 @@ public class AntlrGenerationSubscriptionsImplTest {
         FileEvents fileFileEvents = new FileEvents();
         EditorCookieListener fileListener = fileFileEvents.listener(theFile);
         assertNotNull(fileFileEvents.lookupResult);
-        consumer.apply(theFile, fileFileEvents, fileListener);
+        consumer.accept(theFile, fileFileEvents, fileListener);
     }
 
     static final class FileEvents {

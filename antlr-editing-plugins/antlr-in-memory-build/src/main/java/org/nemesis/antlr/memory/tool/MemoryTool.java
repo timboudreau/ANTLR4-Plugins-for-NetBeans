@@ -68,7 +68,7 @@ import org.antlr.v4.tool.ast.GrammarRootAST;
 import org.nemesis.antlr.memory.JFSPathHints;
 import static org.nemesis.antlr.memory.tool.ToolContext.currentFile;
 import static org.nemesis.antlr.memory.tool.ToolContext.isLoggable;
-import org.nemesis.antlr.stdio.ThreadMappedStdIO;
+import com.mastfrog.util.streams.stdio.ThreadMappedStdIO;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;

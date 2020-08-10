@@ -71,7 +71,7 @@ public final class EditBag {
     public void visitChanges(TriConsumer<ChangeKind, Position, Position> c) {
         Collections.sort(entries);
         for (EditBagEntry entry : entries) {
-            c.apply(entry.kind(), entry.startPosition(), entry.endPosition());
+            c.accept(entry.kind(), entry.startPosition(), entry.endPosition());
         }
     }
 

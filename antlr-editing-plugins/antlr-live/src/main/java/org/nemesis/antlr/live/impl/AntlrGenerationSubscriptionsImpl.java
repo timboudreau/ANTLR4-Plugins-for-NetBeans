@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.live.impl;
 
+import com.mastfrog.util.cache.MapCache;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.MapFactories;
 import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.util.Optional;
@@ -25,8 +27,6 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.project.Folders;
-import org.nemesis.antlr.subscription.MapCache;
-import org.nemesis.antlr.subscription.MapFactories;
 import org.nemesis.jfs.JFS;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.netbeans.api.project.FileOwnerQuery;
