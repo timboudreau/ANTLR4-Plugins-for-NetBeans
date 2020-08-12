@@ -45,6 +45,7 @@ import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
 import com.mastfrog.abstractions.list.IndexedResolvable;
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import static com.mastfrog.util.strings.LevenshteinDistance.sortByDistance;
 import java.util.EnumSet;
 import java.util.function.Consumer;
@@ -191,7 +192,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
     NamedSemanticRegions(String[] names, K[] kinds, int size) {
         assert kinds.length == names.length;
-        assert new HashSet<>(Arrays.asList(names)).size() == names.length : "Names array contains duplicates: " + Arrays.toString(names);
+        assert setOf(names).size() == names.length : "Names array contains duplicates: " + Arrays.toString(names);
         this.starts = new int[names.length];
         this.kinds = kinds;
         this.names = names;

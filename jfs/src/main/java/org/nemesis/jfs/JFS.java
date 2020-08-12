@@ -18,6 +18,7 @@ package org.nemesis.jfs;
 import com.mastfrog.function.throwing.io.IORunnable;
 import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.File;
@@ -35,7 +36,6 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -939,7 +939,7 @@ public final class JFS implements JavaFileManager {
             return Collections.emptySet();
         }
         Set<Path> result = new HashSet<>();
-        Set<Location> all = new HashSet<>(Arrays.asList(locs));
+        Set<Location> all = setOf(locs);
         for (Location loc : all) {
             JFSStorage stor = storageForLocation.get(loc);
             if (stor != null) {

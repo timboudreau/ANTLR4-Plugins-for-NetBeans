@@ -43,7 +43,7 @@ public class HideAntlrSourceDirsLookupProvider implements LookupProvider {
     private final class HideFolder implements JavaLikeRootProvider {
 
         private static final String NO_VALUE = "~///~";
-        private boolean isImports;
+        private final boolean isImports;
         private final Lookup lookup;
 
         HideFolder(Lookup lookup, boolean isImports) {

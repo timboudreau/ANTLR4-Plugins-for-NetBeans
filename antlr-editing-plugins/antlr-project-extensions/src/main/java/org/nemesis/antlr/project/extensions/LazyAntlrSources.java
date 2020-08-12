@@ -29,7 +29,7 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-public class LazyAntlrSources implements Sources, Runnable, ChangeListener {
+public class LazyAntlrSources implements Sources, Runnable, ChangeListener, Kickable {
 
     private AntlrSources realSources;
     private final Lookup lookup;
@@ -70,6 +70,11 @@ public class LazyAntlrSources implements Sources, Runnable, ChangeListener {
 
     @Override
     public void stateChanged(ChangeEvent e) {
+        supp.fireChange();
+    }
+
+    @Override
+    public void kick() {
         supp.fireChange();
     }
 

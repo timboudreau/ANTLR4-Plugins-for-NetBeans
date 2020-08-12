@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.project.extensions.actions;
 
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +34,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.swing.AbstractAction;
 import org.nemesis.antlr.project.AntlrConfiguration;
+import org.nemesis.antlr.project.extensions.Kickable;
 import org.nemesis.antlr.project.spi.addantlr.AddAntlrCapabilities;
 import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.netbeans.api.project.Project;
@@ -66,7 +68,7 @@ public final class AddAntlrToProjectAction extends AbstractAction {
         NewAntlrConfigurationInfo info = AddAntlrConfigurationDialog.showDialog(context, name, capabilities);
         if (info != null) {
             CompletionStage<Boolean> fut = adder.apply(info);
-            fut.handleAsync(new InfoNotifier(name, info));
+            fut.handleAsync(new InfoNotifier(context, name, info));
         }
     }
 
@@ -78,11 +80,14 @@ public final class AddAntlrToProjectAction extends AbstractAction {
         "adding_antlr_succeeded=Adding Antlr succeeded for {0}",})
     static final class InfoNotifier implements BiFunction<Boolean, Throwable, Boolean>, Runnable {
 
+        private final Project project;
+
         private final String projectName;
         private volatile boolean result;
         private final NewAntlrConfigurationInfo info;
 
-        public InfoNotifier(String projectName, NewAntlrConfigurationInfo info) {
+        public InfoNotifier(Project project, String projectName, NewAntlrConfigurationInfo info) {
+            this.project = project;
             this.projectName = projectName;
             StatusDisplayer.getDefault().setStatusText(Bundle.adding_antlr(projectName));
             this.info = info;
@@ -95,6 +100,12 @@ public final class AddAntlrToProjectAction extends AbstractAction {
                 LOG.log(Level.SEVERE, "Failed adding Antlr support to "
                         + projectName, u);
             }
+            EventQueue.invokeLater(() -> {
+                // Force the antlr source group to fire a change so the UI updates
+                for (Kickable k : project.getLookup().lookupAll(Kickable.class)) {
+                    k.kick();
+                }
+            });
             return t;
         }
 

@@ -15,7 +15,7 @@
  */
 package com.mastfrog.antlr.project.helpers.ant;
 
-import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.immutableIdentitySetOf;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.nio.file.Path;
@@ -91,7 +91,7 @@ final class UpgradableProjectDetector implements PropertyChangeListener, Runnabl
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         LambdaUtils.ifEquals(OpenProjects.PROPERTY_OPEN_PROJECTS, evt::getPropertyName, () -> {
-            Set<Project> projects = CollectionUtils.setOf((Project[]) evt.getNewValue());
+            Set<Project> projects = immutableIdentitySetOf((Project[]) evt.getNewValue());
             Map<Path, Project> projectForPath = LambdaUtils.map(projects, seenPaths::contains, prj -> FileUtil.toFile(prj.getProjectDirectory()).toPath());
             if (!projectForPath.isEmpty()) {
                 seenPaths.addAll(projectForPath.keySet());

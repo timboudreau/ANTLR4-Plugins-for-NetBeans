@@ -15,14 +15,13 @@
  */
 package org.nemesis.jfs.javac;
 
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -102,7 +101,7 @@ public class CompileResult implements ProcessingResult {
         if (diagnostics.isEmpty()) {
             return false;
         }
-        Set<String> set = new HashSet<>(Arrays.asList(errors));
+        Set<String> set = setOf(errors);
         for (JavacDiagnostic d : diagnostics) {
             if (set.contains(d.sourceCode())) {
                 return true;

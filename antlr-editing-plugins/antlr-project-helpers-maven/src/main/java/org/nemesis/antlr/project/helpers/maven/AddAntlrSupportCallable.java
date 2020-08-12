@@ -15,19 +15,28 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
+import org.nemesis.antlr.project.AntlrConfiguration;
+import org.nemesis.antlr.project.spi.FoldersLookupStrategyImplementationFactory;
 import org.nemesis.antlr.project.spi.addantlr.NewAntlrConfigurationInfo;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.nemesis.antlr.wrapper.AntlrVersion;
 import org.netbeans.api.progress.ProgressHandle;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
+import org.netbeans.api.project.ProjectUtils;
+import org.netbeans.api.project.Sources;
 import org.netbeans.api.queries.FileEncodingQuery;
+import org.netbeans.spi.project.ui.LogicalViewProvider;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.nodes.Children;
+import org.openide.nodes.Node;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.w3c.dom.Document;
@@ -73,7 +82,7 @@ final class AddAntlrSupportCallable implements Runnable {
     private boolean addAntlr() throws Exception {
         ProgressHandle progress = ProgressHandle.createHandle(Bundle.addingAntlr());
         progress.setInitialDelay(1);
-        progress.start(3, 2000);
+        progress.start(8, 2000);
         try {
             PomFileAnalyzer ana = new PomFileAnalyzer(FileUtil.toFile(pom));
             Boolean result = ProjectManager.mutex(true, project).writeAccess(new Mutex.ExceptionAction<Boolean>() {
@@ -117,10 +126,29 @@ final class AddAntlrSupportCallable implements Runnable {
             boolean res = result == null ? false : result;
             if (res) {
                 ProjectUpdates.notifyPathChanged(ana.projectFolder());
+                EventQueue.invokeLater(this::kickProjectSourceGroups);
             }
             return res;
         } finally {
             progress.finish();
         }
+    }
+
+    void kickProjectSourceGroups() {
+        // Force the project source groups to refresh - otherwise the
+        // source groups node may not show up until the first build, so it
+        // looks like nothing happened
+        AntlrConfiguration config = AntlrConfiguration.forProject(project);
+        Path path = FileUtil.toFile(dir).toPath();
+        FoldersLookupStrategyImplementationFactory.evict(path);
+        Sources src = ProjectUtils.getSources(project);
+        if (src != null) {
+            src.getSourceGroups("java");
+            src.getSourceGroups("antlr");
+        }
+        LogicalViewProvider log = project.getLookup().lookup(LogicalViewProvider.class);
+        Node view = log.createLogicalView();
+        Children kids = view.getChildren();
+        kids.getNodes(true);
     }
 }

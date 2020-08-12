@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
-import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,7 +84,7 @@ public class HideAntlrSourceDirsFromMavenOtherSources implements OtherSourcesExc
             if (imports.startsWith(antlrSources)) {
                 result = Collections.singleton(sourceRoot.relativize(antlrSources));
             } else {
-                result = setOf(sourceRoot.relativize(antlrSources),
+                result = immutableSetOf(sourceRoot.relativize(antlrSources),
                         sourceRoot.relativize(imports));
             }
         } else {

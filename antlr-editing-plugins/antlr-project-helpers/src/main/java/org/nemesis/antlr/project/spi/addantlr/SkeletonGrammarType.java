@@ -78,19 +78,19 @@ public enum SkeletonGrammarType {
 
     public int numberOfFilesGenerated(boolean hasImportDir) {
         int result;
-        switch(this) {
-            case COMBINED :
+        switch (this) {
+            case COMBINED:
                 result = 1;
                 break;
-            case LEXER_AND_PARSER :
+            case LEXER_AND_PARSER:
                 result = 2;
                 break;
-            case LEXER_ONLY :
+            case LEXER_ONLY:
                 result = 1;
                 break;
-            case NONE :
+            case NONE:
                 return 0;
-            default :
+            default:
                 throw new AssertionError(this);
         }
         if (hasImportDir) {
@@ -127,7 +127,8 @@ public enum SkeletonGrammarType {
             return doGenerate(grammarName, project, srcDir, importsDir, pkg, charset);
         } catch (Exception | Error ex) {
             Exceptions.printStackTrace(ex);
-            return () -> {};
+            return () -> {
+            };
         }
     }
 
@@ -271,7 +272,11 @@ public enum SkeletonGrammarType {
             if (!grammarText.toString().endsWith(lineSeparator)) {
                 grammarText.append(lineSeparator);
             }
+            // Ensure a trailing newline
             if (!grammarText.toString().endsWith(lineSeparator + lineSeparator)) {
+                grammarText.append(lineSeparator);
+            }
+            if (grammarText.charAt(grammarText.length() - 1) != '\n') {
                 grammarText.append(lineSeparator);
             }
             out.write(grammarText.toString().getBytes(charset));

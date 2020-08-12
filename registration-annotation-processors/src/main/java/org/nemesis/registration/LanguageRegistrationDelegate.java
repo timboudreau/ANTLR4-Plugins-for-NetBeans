@@ -56,7 +56,7 @@ import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.LinesBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
-import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
@@ -878,7 +878,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         writeOne(cl);
     }
 
-    static final Set<String> EXPECTED_HOOK_METHODS = setOf(
+    static final Set<String> EXPECTED_HOOK_METHODS = immutableSetOf(
             "notifyCreated",
             "decorateLookup",
             "createNodeDelegate",

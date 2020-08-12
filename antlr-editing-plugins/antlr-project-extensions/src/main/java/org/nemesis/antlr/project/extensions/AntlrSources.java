@@ -41,7 +41,7 @@ import org.openide.filesystems.FileUtil;
 import org.openide.util.ChangeSupport;
 import org.openide.util.Lookup;
 
-public final class AntlrSources extends FileChangeAdapter implements Sources, Consumer<Path> {
+public final class AntlrSources extends FileChangeAdapter implements Sources, Consumer<Path>, Kickable {
 
     private static final Logger LOG = Logger.getLogger(
             AntlrSources.class.getName());
@@ -159,6 +159,11 @@ public final class AntlrSources extends FileChangeAdapter implements Sources, Co
         if (file != null) {
             ProjectUpdates.notifyPathChanged(file.toPath());
         }
+    }
+
+    @Override
+    public void kick() {
+        supp.fireChange();
     }
 
     void fire(Object reason) {

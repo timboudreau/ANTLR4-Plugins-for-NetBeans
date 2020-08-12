@@ -17,8 +17,8 @@ package org.nemesis.antlr.refactoring.usages;
 
 import com.mastfrog.range.IntRange;
 import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.mutableSetOf;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -185,7 +185,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                 }
             } else {
                 ImportKeySupplier kimports = (ImportKeySupplier) imports;
-                Set<NamedRegionKey<?>> keys = new HashSet<>(Arrays.asList(kimports.get()));
+                Set<NamedRegionKey<?>> keys = mutableSetOf(kimports.get());
                 if (optionalImportKey != null) {
                     keys.add(optionalImportKey);
                 }

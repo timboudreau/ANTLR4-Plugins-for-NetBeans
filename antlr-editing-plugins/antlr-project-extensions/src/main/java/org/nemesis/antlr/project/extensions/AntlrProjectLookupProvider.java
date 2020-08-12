@@ -29,7 +29,7 @@ import org.openide.util.lookup.InstanceContent;
  *
  * @author Tim Boudreau
  */
-@LookupProvider.Registration(projectTypes = @ProjectType(id = "org-netbeans-modules-maven")) //XXX what about ant?
+@LookupProvider.Registration(projectTypes = @ProjectType(id = "org-netbeans-modules-maven"))
 public class AntlrProjectLookupProvider implements LookupProvider {
 
     static final Logger LOG = Logger.getLogger(AntlrProjectLookupProvider.class.getName());

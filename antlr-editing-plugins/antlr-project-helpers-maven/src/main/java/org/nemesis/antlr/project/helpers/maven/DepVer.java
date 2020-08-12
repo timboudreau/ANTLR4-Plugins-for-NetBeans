@@ -71,7 +71,7 @@ final class DepVer implements Comparable<DepVer> {
 
     @Override
     public int hashCode() {
-        return (groupId + ':' + artifactId).hashCode();
+        return (71 * artifactId.hashCode()) + (3 * artifactId.hashCode());
     }
 
     @Override

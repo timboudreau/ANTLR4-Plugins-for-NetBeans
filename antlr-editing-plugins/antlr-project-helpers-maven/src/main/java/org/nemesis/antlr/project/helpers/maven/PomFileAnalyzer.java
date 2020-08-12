@@ -17,6 +17,7 @@ package org.nemesis.antlr.project.helpers.maven;
 
 import com.mastfrog.function.throwing.ThrowingConsumer;
 import com.mastfrog.function.throwing.ThrowingFunction;
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -173,7 +174,7 @@ final class PomFileAnalyzer {
                     "/project");
             Node projectNode = (Node) findProject.evaluate(doc, XPathConstants.NODE);
             projectNode.appendChild(deps);
-            depsNode.appendChild(indentNode(doc, 2));
+            deps.appendChild(indentNode(doc, 2));
         } else {
             depsNode.appendChild(doc.createTextNode("    "));
             depsNode.appendChild(depNode);
@@ -1003,7 +1004,7 @@ final class PomFileAnalyzer {
                         }
 
                         DepVer dv = new DepVer(gidS, aidS, verS, scope);
-                        Set<DepVer> s = new HashSet<>(Arrays.asList(dv));
+                        Set<DepVer> s = immutableSetOf(dv);
                         consumer.accept(s);
                         if (s.size() != 1 || s.iterator().next() != dv) {
                             found = true;

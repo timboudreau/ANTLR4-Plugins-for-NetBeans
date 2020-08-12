@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.project;
 
-import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import com.mastfrog.util.path.UnixPath;
 import java.io.File;
 import java.nio.file.Path;
@@ -89,17 +89,17 @@ public enum Folders {
     }
 
     private static final Set<String> ANTLR_EXTS
-            = setOf("g4", "g");
+            = immutableSetOf("g4", "g");
     private static final Set<String> ANTLR_MIME
-            = setOf("text/x-g4");
+            = immutableSetOf("text/x-g4");
     private static final Set<String> JAVA_EXTS
-            = setOf("java");
+            = immutableSetOf("java");
     private static final Set<String> JAVA_MIME
-            = setOf("text/x-java");
+            = immutableSetOf("text/x-java");
     private static final Set<String> CLASS_EXTS
-            = setOf("class");
+            = immutableSetOf("class");
     private static final Set<String> CLASS_MIME
-            = setOf("application/x-class-file");
+            = immutableSetOf("application/x-class-file");
 
     public static Folders primaryFolderFor(FileObject fo) {
         Folders result = null;

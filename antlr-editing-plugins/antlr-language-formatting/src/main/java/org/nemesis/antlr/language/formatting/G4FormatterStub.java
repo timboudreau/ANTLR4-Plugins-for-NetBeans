@@ -15,11 +15,11 @@
  */
 package org.nemesis.antlr.language.formatting;
 
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -63,20 +63,13 @@ public class G4FormatterStub implements AntlrFormatterStub<AntlrCounters, ANTLRv
         MODE_TYPE_LEXER_COMMAND, MODE_LEXER_CHAR_SET
     };
 
-    private static String[] modeNames = {
-        MODE_DEFAULT, MODE_ARGUMENT, MODE_HEADER_PRELUDE, MODE_HEADER_ACTION, MODE_HEADER_PACKAGE,
-        MODE_HEADER_IMPORT, MODE_ACTION, MODE_OPTIONS, MODE_TOKENS, MODE_CHANNELS, MODE_IMPORT, MODE_IDENTIFIER,
-        MODE_TOKEN_DECLARATION, MODE_FRAGMENT_DECLARATION, MODE_PARSER_RULE_DECLARATION, MODE_PARSER_RULE_OPTIONS,
-        MODE_LEXER_COMMANDS, MODE_TYPE_LEXER_COMMAND, MODE_LEXER_CHAR_SET
-    };
-
     static void checkExpectedModeNames(BiConsumer<Set<String>, Set<String>> consumer) {
-        Set<String> expectedModeNames = new HashSet<>(Arrays.asList(EXPECTED_MODE_NAMES));
-        Set<String> actualModeNames = new HashSet<>(Arrays.asList(ANTLRv4Lexer.modeNames));
+        Set<String> expectedModeNames = immutableSetOf(EXPECTED_MODE_NAMES);
+        Set<String> actualModeNames = immutableSetOf(ANTLRv4Lexer.modeNames);
         if (!expectedModeNames.equals(actualModeNames)) {
-            Set<String> missing = new HashSet<>(expectedModeNames);
+            Set<String> missing = new TreeSet<>(expectedModeNames);
             missing.removeAll(actualModeNames);
-            Set<String> added = new HashSet<>(actualModeNames);
+            Set<String> added = new TreeSet<>(actualModeNames);
             added.removeAll(expectedModeNames);
             if (!added.isEmpty() || !missing.isEmpty()) {
                 consumer.accept(missing, added);

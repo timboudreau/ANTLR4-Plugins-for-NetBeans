@@ -135,6 +135,9 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         if (d == null) {
             d = (Document) info.getAttributeValue("currentDocument");
             if (d == null) {
+                d = (Document) info.getAttributeValue(Document.class);
+            }
+            if (d == null) {
                 return AdhocEditorKit.currentDocument();
             }
             return d;

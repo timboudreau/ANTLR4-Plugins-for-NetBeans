@@ -16,7 +16,7 @@
 package org.nemesis.extraction.attribution;
 
 import com.mastfrog.util.cache.TimedCache;
-import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -134,7 +134,7 @@ public final class ResolverRegistry {
             for (ImportFinder imp : finders) {
                 if (imp instanceof ImportKeySupplier) {
                     ImportKeySupplier keyImp = (ImportKeySupplier) imp;
-                    Set<NamedRegionKey<?>> keys = setOf(keyImp.get());
+                    Set<NamedRegionKey<?>> keys = immutableSetOf(keyImp.get());
                     if (keys.contains(k)) {
                         keyImp.importsForKey(result, k, importer, notFound);
                     }

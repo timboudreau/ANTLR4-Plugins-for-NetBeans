@@ -121,7 +121,7 @@ public class AdhocEditorKit extends ExtKit {
 
     public static FileObject currentFileObject() {
         Document doc = currentDocument();
-        return doc == null ? NbEditorUtilities.getFileObject(doc) : null;
+        return doc != null ? NbEditorUtilities.getFileObject(doc) : null;
     }
 
     public static AdhocDataObject currentDataObject() {
@@ -181,8 +181,9 @@ public class AdhocEditorKit extends ExtKit {
             @Override
             public Object getValue() {
                 int created = AdhocLanguageHierarchy.hierarchiesCreated();
+                Language<?> lang = Language.find(doc.mimeType);
+                attrs.setValue(lang, Document.class, doc, false);
                 if (created > createdAtLastCall) {
-                    Language<?> lang = Language.find(doc.mimeType);
                     if (lang != null) {
                         attrs.setValue(lang, "doc", doc, false);
                     }
