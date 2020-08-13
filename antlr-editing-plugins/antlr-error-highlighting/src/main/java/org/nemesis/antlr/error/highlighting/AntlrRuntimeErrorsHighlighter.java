@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
@@ -53,6 +54,11 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
 
     public AntlrRuntimeErrorsHighlighter(HighlightsLayerFactory.Context ctx) {
         super(ctx, true);
+    }
+
+    public String toString() {
+        return "ARErrorsHighlight(" + ctx.getDocument().getProperty(StreamDescriptionProperty)
+                + ")";
     }
 
     @Override

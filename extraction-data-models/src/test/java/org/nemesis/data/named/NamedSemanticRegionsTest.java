@@ -159,10 +159,10 @@ public class NamedSemanticRegionsTest {
 //        NamedSemanticRegions<Foo> offsets = new NamedSemanticRegions<>(names, foos);
         assertEquals(names.length, offsets.size());
         int pos = 0;
-        for (int i = 0; i < names.length; i++) {
-            offsets.setOffsets(names[i], pos, pos + dist);
+        for (String name : names) {
+            offsets.setOffsets(name, pos, pos + dist);
             pos += dist * 2;
-            assertTrue(offsets.contains(names[i]));
+            assertTrue(offsets.contains(name));
         }
         assertEquals(names.length, offsets.size());
         int ix = 0;

@@ -159,6 +159,7 @@ public class AntlrRunSubscriptionsTest {
                         "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
                         "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
                         "org.nemesis.antlr.project.impl.InferredConfig",
+                        "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",
                         AntlrGeneratorAndCompiler.class,
                         AntlrGeneratorBuilder.class,
                         AntlrGeneratorAndCompilerBuilder.class,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 Tim Boudreau, Frédéric Yvon Vinet
+ * Copyright 2016-2020 Tim Boudreau, Frédéric Yvon Vinet
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,25 @@
 
 package org.nemesis.antlr.live.preview;
 
-import org.openide.awt.UndoRedo;
-import org.openide.windows.TopComponent;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class MetaUndoRedo {
+final class ReparseState {
 
-    public static UndoRedo.Manager create(UndoRedo.Manager a, UndoRedo.Manager b) {
-        TopComponent ct;
-        
-        return null;
+    private final AtomicInteger state = new AtomicInteger();
+
+    public void notifyUpdate() {
+        state.incrementAndGet();
+    }
+    
+    int state() {
+        return state.get();
+    }
+    
+    boolean wasRefreshed(int stateAtRequestTime) {
+        return state.get() > stateAtRequestTime;
     }
 }

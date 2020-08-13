@@ -143,6 +143,7 @@ public interface SemanticRegion<T> extends IndexAddressable.IndexAddressableItem
         }
     }
 
+    @Override
     default boolean contains(int pos) {
         return pos >= start() && pos < end();
     }
@@ -156,6 +157,7 @@ public interface SemanticRegion<T> extends IndexAddressable.IndexAddressableItem
         return 0;
     }
 
+    @Override
     default int size() {
         return end() - start();
     }

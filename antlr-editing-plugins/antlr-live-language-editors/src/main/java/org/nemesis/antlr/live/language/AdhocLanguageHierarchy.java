@@ -65,7 +65,7 @@ import org.openide.util.WeakSet;
  *
  * @author Tim Boudreau
  */
-final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Supplier<TokensInfo> {
+public final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> implements Supplier<TokensInfo> {
 
     public static final String DUMMY_TOKEN_ID = "__dummyToken__";
 
@@ -289,7 +289,7 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
         return info;
     }
 
-    static EmbeddedAntlrParser parserFor(String mime) {
+    public static EmbeddedAntlrParser parserFor(String mime) {
         // XXX need to track the lifecycle of the parser and dispose?
         HierarchyInfo info = hierarchyInfo(mime);
         return info.parser();
@@ -403,6 +403,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 }
                 for (BiConsumer<Extraction, GrammarRunResult<?>> r : onReplaces) {
                     try {
+                        LOG.log(Level.FINEST, "Indirect republish grammar run result of {0} "
+                                + "to {1}", new Object[]{ext.source(), r});
                         Debug.message("notify", r::toString);
                         r.accept(ext, res);
                     } catch (Exception ex) {
@@ -416,16 +418,20 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
             if (parser == null) {
                 parser = EmbeddedAntlrParsers.forGrammar(
                         "hierarchyInfo:" + AdhocMimeTypes.loggableMimeType(mimeType),
-                        FileUtil.toFileObject(
-                                FileUtil.normalizeFile(
-                                        AdhocMimeTypes.grammarFilePathForMimeType(mimeType)
-                                                .toFile())));
+                        grammarFo);
                 parser.listen(this);
             } else {
                 if (parser.isDisposed()) {
+                    parser.unlisten(this);
                     Exception ex = new Exception("Parser was unexpectedly disposed");
                     LOG.log(Level.SEVERE, "Disposed " + this, ex);
                     parser = null;
+                    if (grammarFo.isValid()) {
+                        parser = EmbeddedAntlrParsers.forGrammar(
+                                "hierarchyInfo:" + AdhocMimeTypes.loggableMimeType(mimeType),
+                                grammarFo);
+                        parser.listen(this);
+                    }
                 }
             }
             return parser;
@@ -441,7 +447,8 @@ final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId> imple
                 expectedGrammarLastModified = grammarLastModified();
                 return result;
             } catch (Exception ex) {
-                Logger.getLogger(AdhocLanguageHierarchy.class.getName()).log(Level.SEVERE, "Exception getting token categories for "
+                Logger.getLogger(AdhocLanguageHierarchy.class.getName()).log(Level.SEVERE,
+                        "Exception getting token categories for "
                         + AdhocMimeTypes.loggableMimeType(mimeType), ex);
                 return TokensInfo.EMPTY;
             }

@@ -66,6 +66,7 @@ final class Arr implements SizedArrayValueSupplier {
         return false;
     }
 
+    @Override
     public int hashCode() {
         return ArrayUtil.endSupplierHashCode(this);
     }

@@ -35,10 +35,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.plaf.basic.BasicButtonUI;
+import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
-import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.swing.ActivityIndicator;
 import org.openide.util.NbBundle.Messages;
 
@@ -304,7 +304,7 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         final AdhocColoring coloring;
         final AdhocColorings colorings;
 
-        public ColoringInfo(String key, AdhocColoring coloring, AdhocColorings colorings) {
+        ColoringInfo(String key, AdhocColoring coloring, AdhocColorings colorings) {
             this.key = key;
             this.coloring = coloring;
             this.colorings = colorings;

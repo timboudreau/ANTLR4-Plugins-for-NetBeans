@@ -48,11 +48,11 @@ public class HashableTest {
 
     static class Thing implements Hashable {
 
-        private String name;
+        private final String name;
         private Runnable a;
         private Runnable b;
 
-        public Thing(String name, Runnable a, Runnable b) {
+        Thing(String name, Runnable a, Runnable b) {
             this.name = name;
             this.a = a;
             this.b = b;

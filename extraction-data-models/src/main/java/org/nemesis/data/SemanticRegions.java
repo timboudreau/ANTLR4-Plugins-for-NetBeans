@@ -173,6 +173,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public int indexOf(Object o) {
         if (o != null && o.getClass() == SemanticRegionImpl.class && ((SemanticRegionImpl) o).owner() == this) {
             return ((SemanticRegion<?>) o).index();
@@ -472,6 +473,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         assert checkInvariants();
     }
 
+    @Override
     public SemanticRegion<T> at(int pos) {
         int[] id = indexAndDepthAt(pos);
         if (id[0] == -1) {
@@ -748,14 +750,17 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             om = it;
         }
 
+        @Override
         public boolean hasNext() {
             return om.hasNext();
         }
 
+        @Override
         public T next() {
             return om.next().key();
         }
 
+        @Override
         public Iterator<T> iterator() {
             OutermostIterator om2 = om.iterator();
             return om2 == om ? this : new OutermostKeysIterator(om2);
@@ -868,9 +873,10 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
         @Override
         public int hashCode() {
-            return (start() * 123923) * end() + (7 * Objects.hashCode(key()));
+            return (start() * 123_923) * end() + (7 * Objects.hashCode(key()));
         }
 
+        @Override
         public SemanticRegionImpl parent() {
             if (depth == 0) {
                 return null;
@@ -885,6 +891,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             return targetIndex == -1 ? null : new SemanticRegionImpl(targetIndex, -1);
         }
 
+        @Override
         public SemanticRegionImpl outermost() {
             if (depth == 0) {
                 return null;

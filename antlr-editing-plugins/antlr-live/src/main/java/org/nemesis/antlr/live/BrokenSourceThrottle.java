@@ -144,8 +144,11 @@ public class BrokenSourceThrottle {
                     }
                 });
             }
-//            System.out.println((res ? "ithrottled: " : "inon-throttled: ") + key + " - " + attempts.count.get());
             return res;
+        } else {
+            String key = key(extraction);
+            RebuildAttempts attempts = cache.get(key);
+            attempts.reset();
         }
         return false;
     }

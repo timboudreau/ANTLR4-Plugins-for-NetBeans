@@ -595,6 +595,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     null, "-", grammarName);
             this.seq = "-";
         }
+        
+        long tokenNamesChecksum() {
+            return parserResult.proxy() == null || parserResult.proxy().isUnparsed()
+                    ? 0 : parserResult.proxy().tokenNamesChecksum();
+        }
 
         boolean canReuse(CharSequence textToParse) {
             if (textToParse == null && !parserResult.proxy().isUnparsed()) {

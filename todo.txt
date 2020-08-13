@@ -1,4 +1,18 @@
 
+Because run subscriptions and similar are reusing the AntlrGeneratorBuilder, the tokens hash they
+have is not refreshed?
+
+Rewrite AntlrRunSubscriptions to use Subscribable.
+
+Rewrite GeneralHighlighter to use the general ComponentListener mechanism to attach and detach listeners and not listen on grammars so aggressively.
+
+GeneralHighlighter instances should coalesce reparse requests so we don't do a separate, unnecessary parse for each one listening.
+
+Separate Output out of live preview so it can be used independently, and add an action to show it by right clicking in a grammar.
+
+Rewrite AdhocHighlighterManager to extend AbstractHighlighter.
+
+
 Duplicate lexer rule hashing can now pick up the same block twice - need to filter those
 cases so we don't generate a hint suggesting to consolidate a single occurrenc.
 

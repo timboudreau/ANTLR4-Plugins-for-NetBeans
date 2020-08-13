@@ -88,10 +88,6 @@ public final class AntlrGeneratorAndCompiler {
         return compile(grammarFileName, GrammarProcessingOptions.setOf(opts));
     }
 
-    public static AntlrGeneratorAndCompiler fromResult(AntlrGenerationResult lastResult) {
-        return fromResult(lastResult, new JFSCompileBuilder(lastResult.jfsSupplier));
-    }
-
     public static AntlrGeneratorAndCompiler fromResult(AntlrGenerationResult lastResult, JFSCompileBuilder compileBuilder) {
         AntlrGeneratorAndCompiler result = new AntlrGeneratorAndCompiler(lastResult.jfsSupplier,
                 compileBuilder, lastResult.toGenerator());

@@ -45,6 +45,25 @@ public final class EmbeddedAntlrParserResult {
         return originalFile;
     }
 
+    public boolean isEquivalent(EmbeddedAntlrParserResult other) {
+        if (originalFile.equals(other.grammarFile())) {
+            if (other.grammarTokensHash().equals(grammarTokensHash())) {
+                if (proxy != null && other.proxy() != null) {
+                    if (proxy.isUnparsed() && proxy.text().equals(other.proxy().text())) {
+                        return true;
+                    } else if (proxy.isUnparsed() != other.proxy().isUnparsed()) {
+                        return false;
+                    } else {
+                        return proxy.tokenNamesChecksum() == other.proxy().tokenNamesChecksum()
+                                && proxy.tokenSequenceHash().equals(other.proxy().tokenSequenceHash())
+                                && proxy.grammarTokensHash().equals(other.proxy().grammarTokensHash());
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     public ParseTreeProxy proxy() {
         return proxy;
     }

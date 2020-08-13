@@ -34,6 +34,7 @@ public interface NamedRegionReferenceSet<K extends Enum<K>> extends Iterable<Nam
 
     String name();
 
+    @Override
     NamedSemanticRegionReference<K> at(int pos);
 
     NamedSemanticRegion<K> original();

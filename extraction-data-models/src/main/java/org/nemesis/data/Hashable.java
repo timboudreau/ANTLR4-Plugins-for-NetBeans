@@ -63,7 +63,7 @@ public interface Hashable {
 
     public static final class Hasher {
 
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
+        private final ByteArrayOutputStream out = new ByteArrayOutputStream(1_024);
         private static final Logger LOG = Logger.getLogger(Hasher.class.getName());
 
         Hasher() {

@@ -15,14 +15,14 @@
  */
 package org.nemesis.data.graph.hetero;
 
+import com.mastfrog.abstractions.list.IndexedResolvable;
+import com.mastfrog.bits.Bits;
+import com.mastfrog.bits.MutableBits;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import com.mastfrog.bits.Bits;
-import com.mastfrog.bits.MutableBits;
-import com.mastfrog.abstractions.list.IndexedResolvable;
 
 /**
  * A set implementation which takes a larger bitset and a

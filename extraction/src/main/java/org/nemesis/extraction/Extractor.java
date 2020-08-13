@@ -17,10 +17,9 @@ package org.nemesis.extraction;
 
 import com.mastfrog.antlr.utils.RulesMapping;
 import java.nio.ByteBuffer;
-import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.IntBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 import java.util.Collection;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -263,17 +262,28 @@ public final class Extractor<T extends ParserRuleContext> {
                     buf.putInt(t.getType());
                     buf.flip();
                     digest.update(ttype);
-                }
-                String txt = t.getText();
-                if (txt != null) {
-                    byte[] b = txt.getBytes(UTF_8);
-                    digest.update(b);
+                    buf.rewind();
+                    buf.putInt(t.getText().hashCode());
+                    buf.flip();
+                    digest.update(ttype);
                 }
             }
-            return Base64.getUrlEncoder().encodeToString(digest.digest());
+//            return Base64.getUrlEncoder().encodeToString(digest.digest());
+            return fastString(digest.digest());
         } catch (NoSuchAlgorithmException ex) {
             throw new AssertionError(ex);
         }
+    }
+
+    private String fastString(byte[] bytes) {
+        assert bytes.length % 4 == 0 : "Must be divisible by 4";
+        ByteBuffer buf = ByteBuffer.wrap(bytes);
+        StringBuilder sb = new StringBuilder(bytes.length * 3);
+        IntBuffer ib = buf.asIntBuffer();
+        while (ib.remaining() > 0) {
+            sb.append(Integer.toString(ib.get(), 36));
+        }
+        return sb.toString();
     }
 
     private <K> void runSingles(SingletonExtractionStrategies<K> single, T ruleNode, Extraction extraction, BooleanSupplier cancelled) {
@@ -291,6 +301,10 @@ public final class Extractor<T extends ParserRuleContext> {
     private <K> void runRegions2(RegionExtractionStrategies<K> info, T ruleNode, Extraction extraction, Iterable<? extends Token> tokens, BooleanSupplier cancelled) {
         SemanticRegions.SemanticRegionsBuilder<K> bldr = SemanticRegions.builder(info.key.type());
         RegionExtractionStrategies.V v = info.createVisitor((k, bounds) -> {
+            if (bounds != null && bounds[0] > bounds[1]) {
+                // Antlr will do this in some cases for a missing token
+                return false;
+            }
             if (bounds != null && !(bounds[0] == 0 && bounds[1] == 0) && (bounds[0] != bounds[1] /* empty file */)) {
                 int before = bldr.size();
                 bldr.add(k, bounds[0], bounds[1]);

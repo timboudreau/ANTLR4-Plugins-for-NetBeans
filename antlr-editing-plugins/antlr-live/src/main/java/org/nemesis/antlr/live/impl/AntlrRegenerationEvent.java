@@ -50,4 +50,9 @@ final class AntlrRegenerationEvent implements Consumer<Subscriber> {
         t.onRebuilt(tree, AntlrConstants.ANTLR_MIME_TYPE, extraction, res, populate, fixes);
     }
 
+    public String toString() {
+        return "Regen(" + (extraction == null ? "null " + tree
+                : (extraction.source() + " " + extraction.tokensHash()));
+    }
+
 }

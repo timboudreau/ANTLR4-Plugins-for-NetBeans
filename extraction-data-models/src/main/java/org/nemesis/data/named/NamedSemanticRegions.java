@@ -15,6 +15,11 @@
  */
 package org.nemesis.data.named;
 
+import com.mastfrog.abstractions.list.IndexedResolvable;
+import com.mastfrog.bits.collections.BitSetSet;
+import com.mastfrog.util.collections.CollectionUtils;
+import static com.mastfrog.util.collections.CollectionUtils.setOf;
+import static com.mastfrog.util.strings.LevenshteinDistance.sortByDistance;
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -25,6 +30,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -33,23 +39,17 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
-import com.mastfrog.bits.collections.BitSetSet;
 import org.nemesis.data.IndexAddressable;
 import org.nemesis.data.IndexAddressable.NamedIndexAddressable;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.impl.ArrayEndSupplier;
 import org.nemesis.data.impl.ArrayUtil;
+import org.nemesis.data.impl.ArrayUtil.Bias;
 import static org.nemesis.data.impl.ArrayUtil.endSupplierHashCode;
 import org.nemesis.data.impl.MutableEndSupplier;
-import com.mastfrog.abstractions.list.IndexedResolvable;
-import com.mastfrog.util.collections.CollectionUtils;
-import static com.mastfrog.util.collections.CollectionUtils.setOf;
-import static com.mastfrog.util.strings.LevenshteinDistance.sortByDistance;
-import java.util.EnumSet;
-import java.util.function.Consumer;
-import org.nemesis.data.impl.ArrayUtil.Bias;
 import org.nemesis.data.impl.SizedArrayValueSupplier;
 
 /**
@@ -866,6 +866,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             this.kind = kind;
         }
 
+        @Override
         public Iterator<NamedSemanticRegion<K>> iterator() {
             if (ix == 0) {
                 return this;
@@ -873,6 +874,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return new ByKindIter(kind);
         }
 
+        @Override
         public boolean hasNext() {
             if (nextItem == null && ix < size()) {
                 for (int i = ix; i < size(); i++) {
@@ -886,6 +888,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             return nextItem != null;
         }
 
+        @Override
         public NamedSemanticRegion<K> next() {
             NamedSemanticRegion<K> result = nextItem;
             if (result == null) {
@@ -1115,10 +1118,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
             private final int[][] index = keyIndex();
             private int ix = -1;
 
+            @Override
             public boolean hasNext() {
                 return ix + 1 < index.length;
             }
 
+            @Override
             public NamedRegionReferenceSet<K> next() {
                 int[] nxt = index[++ix];
                 if (nxt != null) {
@@ -1144,6 +1149,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
                 return keys.length;
             }
 
+            @Override
             public ReferenceSetWrapper forIndex(int ix) {
                 if (ix < 0 || ix > keys.length) {
                     throw new IllegalArgumentException("Out of range: " + ix);
@@ -1232,10 +1238,12 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
                 int ix = -1;
 
+                @Override
                 public boolean hasNext() {
                     return ix + 1 < keys.length;
                 }
 
+                @Override
                 public NamedSemanticRegionReference<K> next() {
                     if (ix >= keys.length) {
                         throw new NoSuchElementException();
@@ -1533,6 +1541,7 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
      * @param position A character position
      * @return A region
      */
+    @Override
     public NamedSemanticRegion<K> at(int position) {
         return index().regionAt(position);
     }

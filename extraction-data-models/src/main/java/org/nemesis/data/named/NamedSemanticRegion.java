@@ -15,9 +15,9 @@
  */
 package org.nemesis.data.named;
 
+import com.mastfrog.abstractions.Named;
 import java.util.Objects;
 import org.nemesis.data.IndexAddressable;
-import com.mastfrog.abstractions.Named;
 
 /**
  * A flyweight object which encapsulates one region in a

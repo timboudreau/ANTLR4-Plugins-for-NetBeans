@@ -31,7 +31,6 @@ import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
-import org.nemesis.antlr.live.preview.SyntaxTreeListModel.ModelEntry;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ErrorNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
@@ -42,6 +41,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
+import org.nemesis.antlr.live.preview.SyntaxTreeListModel.ModelEntry;
 
 /**
  *
@@ -108,7 +108,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         private final ModelTreeNavigator consumer;
         private final BooleanSupplier disabled;
 
-        public ME(Supplier<List<ProxyToken>> supp, ModelTreeNavigator consumer, BooleanSupplier disabled) {
+        ME(Supplier<List<ProxyToken>> supp, ModelTreeNavigator consumer, BooleanSupplier disabled) {
             this.supp = supp;
             this.consumer = consumer;
             this.disabled = disabled;
@@ -279,13 +279,13 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
 
         private final AntlrProxies.ParseTreeElement el;
         private final int depth;
-        private String tooltip;
+        private final String tooltip;
         private String lexerRuleName = null;
         private String modeName = null;
         private boolean erroneous;
         private int tokenIndex = -1;
 
-        public ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
+        ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
             this.el = el;
             this.depth = depth;
             tooltip = tooltip(proxy.tokens(), proxy.tokenTypes());
@@ -407,12 +407,14 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             }
         }
 
+        @Override
         public boolean equals(Object o) {
             return o instanceof ModelEntry
                     && ((ModelEntry) o).depth == depth
                     && toString().equals(o.toString());
         }
 
+        @Override
         public int hashCode() {
             return (depth * 4) + toString().hashCode();
         }

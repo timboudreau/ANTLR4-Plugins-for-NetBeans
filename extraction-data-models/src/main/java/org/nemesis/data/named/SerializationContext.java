@@ -33,7 +33,7 @@ public final class SerializationContext implements Serializable {
 
     static ThreadLocal<SerializationContext> SER = new ThreadLocal<>();
     private transient Map<ArrayCacheKey, String[]> cache = new HashMap<>();
-    private String[] strings;
+    private final String[] strings;
 
     SerializationContext(Iterable<NamedSemanticRegions<?>> offsets) {
         Set<String> stringsLocal = new TreeSet<>();
@@ -106,10 +106,12 @@ public final class SerializationContext implements Serializable {
             this.keys = keys;
         }
 
+        @Override
         public boolean equals(Object o) {
             return o instanceof ArrayCacheKey && Arrays.equals(keys, ((ArrayCacheKey) o).keys);
         }
 
+        @Override
         public int hashCode() {
             return Arrays.hashCode(keys);
         }

@@ -15,16 +15,16 @@
  */
 package org.nemesis.data.graph.hetero;
 
-import java.util.Set;
+import com.mastfrog.abstractions.list.IndexedResolvable;
 import com.mastfrog.bits.Bits;
 import com.mastfrog.bits.collections.BitSetSet;
-import org.nemesis.data.IndexAddressable;
-import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.IntGraphVisitor;
-import com.mastfrog.abstractions.list.IndexedResolvable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
+import org.nemesis.data.IndexAddressable;
+import org.nemesis.data.IndexAddressable.IndexAddressableItem;
 
 /**
  * A graph of container and containee, where the types of the two are
@@ -248,10 +248,12 @@ public final class BitSetHeteroObjectGraph<TI extends IndexAddressable.IndexAddr
             return toSetAll(tree.reverseClosureOf(obj.index()));
         }
 
+        @Override
         public Set<RI> parents(TI obj) {
             return toSetSecond(tree.parents(obj.index()));
         }
 
+        @Override
         public Set<RI> children(TI obj) {
             int bis = obj.index();
             if (bis >= tree.size()) {

@@ -49,6 +49,10 @@ public final class WithGrammarRunner {
         this.classLoaderSupplier = classLoaderSupplier;
     }
 
+    public String grammarTokensHash() {
+        return compiler == null ? "-no-compiler-" : compiler.tokensHash();
+    }
+
     private AntlrGenerationAndCompilationResult generateAndCompile(String sourceFileName, Set<GrammarProcessingOptions> options) {
         return compiler.compile(sourceFileName, options);
     }
@@ -119,6 +123,8 @@ public final class WithGrammarRunner {
         return Debug.runObject(this, "with-grammar-runner-run " + grammarFileName, () -> {
 //            GenerationAndCompilationResult res;
             AntlrGenerationAndCompilationResult res;
+            // XXX we should only regenerate Antlr if the option is set
+
             if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
                     && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
                 Debug.message("regenerate-and-compile");

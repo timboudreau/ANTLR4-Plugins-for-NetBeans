@@ -36,7 +36,7 @@ class FocusSwitchingProxyLookup extends ProxyLookup implements FocusListener {
     private final Component b;
 
     @SuppressWarnings("LeakingThisInConstructor")
-    public FocusSwitchingProxyLookup(Component a, Lookup aLookup, Component b, Lookup bLookup, Lookup... more) {
+     FocusSwitchingProxyLookup(Component a, Lookup aLookup, Component b, Lookup bLookup, Lookup... more) {
         super(more);
         this.a = a;
         this.b = b;

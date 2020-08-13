@@ -99,7 +99,7 @@ final class NamedSemanticRegionSnapshot<T extends Enum<T>> implements NamedSeman
 
     @Override
     public int hashCode() {
-        return name.hashCode() + (7 * start) + (1029 * end);
+        return name.hashCode() + (7 * start) + (1_029 * end);
     }
 
     @Override

@@ -55,11 +55,12 @@ public class RulePathStringifierImpl implements RulePathStringifier {
     private static final String DELIM = " &gt; ";
     private static final String TOKEN_DELIM = " | ";
     private final BreadcrumbCellShape shape = new BreadcrumbCellShape();
-    private boolean useShape = false;
+    private final boolean useShape = false;
 
-    private Map<String, Integer> distances = new HashMap<>();
+    private final Map<String, Integer> distances = new HashMap<>();
     private int maxDist = 1;
 
+    @Override
     public void configureTextCell(TextCellLabel lbl, AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, JComponent colorSource) {
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
         int count = prx.referencesCount(tok) - 1;
@@ -148,6 +149,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         return "'" + text + "'";
     }
 
+    @Override
     public void tokenRulePathString(AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, StringBuilder into, boolean html, JComponent colorSource) {
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
         if (type != null) {
@@ -268,6 +270,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         return TERMINAL_DARK;
     }
 
+    @Override
     public Color listBackgroundColorFor(String ruleName, JList<?> list) {
         Integer val = distances.get(ruleName);
         if (val == null) {

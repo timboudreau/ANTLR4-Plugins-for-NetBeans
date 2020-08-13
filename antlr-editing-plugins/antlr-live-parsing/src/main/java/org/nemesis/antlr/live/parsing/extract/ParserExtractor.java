@@ -62,7 +62,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * generation. Classes from the same package as this class must be referenced by
  * FQN or they will not be resolvable when repackaged during generation. If
  * classes from the module are needed, they must be added to the classloader in
- * ProxiesInvocationRunner.  DummyLanguageLexer and DummyLanguageParser exist
+ * ProxiesInvocationRunner. DummyLanguageLexer and DummyLanguageParser exist
  * only to provide placeholders for substitution (and so this code is compilable
  * and easily edited during module development).
  *
@@ -94,6 +94,7 @@ public class ParserExtractor {
                 = new org.nemesis.antlr.live.parsing.extract.AntlrProxies(GRAMMAR_NAME, GRAMMAR_PATH, text);
         proxies.setGrammarTokensHash(GRAMMAR_TOKENS_HASH);
         try {
+            long tokenNamesChecksum = 0;
             int max = DummyLanguageLexer.VOCABULARY.getMaxTokenType() + 1;
             // Iterate all the token types and report them, so we can
             // pass back the token types without reference to antlr classes
@@ -102,7 +103,10 @@ public class ParserExtractor {
                 String sn = DummyLanguageLexer.VOCABULARY.getSymbolicName(tokenType);
                 String ln = DummyLanguageLexer.VOCABULARY.getLiteralName(tokenType);
                 proxies.addTokenType(tokenType, dn, sn, ln);
+                String nameToHash = sn != null ? sn : ln != null ? ln : dn;
+                tokenNamesChecksum += ((tokenType + 1) * 41 * nameToHash.hashCode());
             }
+            proxies.setTokenNamesChecksum(tokenNamesChecksum);
             String errName = org.nemesis.antlr.live.parsing.extract.AntlrProxies.ERRONEOUS_TOKEN_NAME;
             proxies.addTokenType(max, errName, errName, errName);
             // The channel names are simply a string array - safe enough

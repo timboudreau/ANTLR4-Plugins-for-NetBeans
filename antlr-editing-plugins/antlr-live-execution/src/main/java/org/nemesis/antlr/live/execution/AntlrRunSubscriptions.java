@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -106,6 +107,10 @@ public class AntlrRunSubscriptions {
                     e = new Entry<>(runner, fo, c, this::remove);
                     LOG.log(Level.FINER, "Created an entry {0} to subscribe {1}", new Object[]{runner, c});
                     subscriptionsByType.put(type, e);
+                } else {
+                    LOG.log(Level.WARNING, "No registered reflective invoker for {0} under {1}",
+                            new Object[]{type.getName(), pathForType(type)}
+                    );
                 }
             } else {
                 boolean subscribed = e.subscribe(fo, c);
@@ -115,6 +120,9 @@ public class AntlrRunSubscriptions {
                             + "replacing dead {3}", new Object[]{newEntry, c, e});
                     e = newEntry;
                     subscriptionsByType.put(type, e);
+                } else {
+                    LOG.log(Level.FINEST, "Subscribed to rebuilds of {0} over {1}: {2}",
+                            new Object[]{fo.getPath(), type.getName(), c});
                 }
             }
         }
@@ -127,7 +135,10 @@ public class AntlrRunSubscriptions {
         LOG.log(Level.FINER, "Subscribed {0} to rebuilds of {1}", new Object[]{c, fo});
         return () -> {
             if (en.unsubscribe(fo, c)) {
+                LOG.log(Level.FINEST, "Explicit unsubscribe from rebuilds of {0} over{1}: {2}",
+                        new Object[]{fo.getPath(), type.getName(), c});
                 unsubscribeFromNotifications.run();
+
             }
         };
     }
@@ -233,6 +244,8 @@ public class AntlrRunSubscriptions {
                     LOG.log(Level.FINE, "Remove {0}", toRemove);
                     refs.get(fo).removeAll(toRemove);
                     if (refs.isEmpty()) {
+                        LOG.log(Level.FINEST, "All subscribers to {0} gone - stop listening",
+                                fo.getPath());
                         disposed();
                     }
                 }
@@ -338,18 +351,20 @@ public class AntlrRunSubscriptions {
             private JFSFileModifications lastStatus;
             private long lastLastModified;
             private byte[] lastHash;
+            private String grammarTokensHash = "`";
 
             CachedResults() {
 
             }
 
             CachedResults(CompileResult res, WithGrammarRunner runner, A arg, JFSFileModifications mods,
-                    long lastModified, byte[] hash) {
+                    long lastModified, byte[] hash, String grammarTokensHash) {
                 this.lastCompileResult = res;
                 this.lastRunner = runner;
                 this.lastArg = arg;
                 this.lastLastModified = lastModified;
                 this.lastHash = hash;
+                this.grammarTokensHash = grammarTokensHash;
             }
 
             private synchronized WithGrammarRunner maybeReuse(Extraction ext, byte[] hash) throws IOException {
@@ -357,18 +372,20 @@ public class AntlrRunSubscriptions {
                         && lastLastModified == ext.source().lastModified()
                         && lastCompileResult.isUsable()
                         && lastCompileResult.currentStatus().isUpToDate()
+                        && grammarTokensHash.equals(ext.tokensHash())
                         && lastStatus.changes().isUpToDate()
                         && Arrays.equals(lastHash, hash)
                         ? lastRunner : null;
             }
 
             synchronized void update(CompileResult res, WithGrammarRunner runner, A arg, JFSFileModifications mods,
-                    long lastModified, byte[] hash) {
+                    long lastModified, byte[] hash, String grammarTokensHash) {
                 this.lastCompileResult = res;
                 this.lastRunner = runner;
                 this.lastArg = arg;
                 this.lastLastModified = lastModified;
                 this.lastHash = hash;
+                this.grammarTokensHash = grammarTokensHash;
             }
         }
 
@@ -407,7 +424,7 @@ public class AntlrRunSubscriptions {
             }
             try {
                 Debug.runThrowing(this,
-                        "AntlrRunSubscriptions.onRebuilt " + extraction.tokensHash() + "",
+                        "AntlrRunSubscriptions.onRebuilt " + extraction.tokensHash(),
                         extraction::toString, () -> {
                             // Try to reuse existing stuff - we can be called in the event
                             // thread during a re-lex because of an insert or delete,
@@ -421,7 +438,9 @@ public class AntlrRunSubscriptions {
                             byte[] newHash = hash(res.jfs());
                             Bool regenerated = Bool.create();
                             CachedResults<A> cache = cachedResults(extraction);
+                            boolean tokensHashChanged = !Objects.equals(cache.grammarTokensHash, extraction.tokensHash());
                             rb = cache.maybeReuse(extraction, newHash);
+                            LOG.log(Level.FINER, "Reuse cached run result? {0}", rb != null);
                             if (rb == null) {
                                 Debug.message("New compileBuilder for " + extraction.tokensHash());
                                 LOG.log(Level.FINEST, "Need a new compile builder for {0}", extraction.source());
@@ -480,7 +499,11 @@ public class AntlrRunSubscriptions {
                                             .build(extraction.source().name());
                                 }
                             } else {
-                                LOG.log(Level.FINE, "Using cached compile result and argument to create embedded parser");
+                                LOG.log(Level.FINE, "Using cached compile result and argument to create embedded parser"
+                                        + " for {0} for extraction {1} / {2}", new Object[]{
+                                    extraction.source(),
+                                    rb.grammarTokensHash(),
+                                    extraction.tokensHash()});
                                 arg = cache.lastArg;
                                 cr = cache.lastCompileResult;
                                 Debug.message("Using last arg and compile result ", () -> {
@@ -490,21 +513,24 @@ public class AntlrRunSubscriptions {
                                         new Object[]{arg, cr});
                             }
 
+                            // XXX this is a pretty draconian set of options
                             Set<GrammarProcessingOptions> opts = EnumSet.noneOf(GrammarProcessingOptions.class);
-//                            if (!regenerated.getAsBoolean()) {
-                                opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                            if (tokensHashChanged) {
                                 opts.add(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES);
-//                            }
+                            }
+                            if (!regenerated.getAsBoolean()) {
+                                opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                            }
 
                             LOG.log(Level.FINE, "Run in classloader with {0}", opts);
-                            // XXX this is a pretty draconian set of options
                             GrammarRunResult<T> rr = rb.run(arg, runner,
                                     opts);
 
                             if (rr.isUsable()) {
                                 if (created) {
                                     grammarStatus = res.filesStatus;
-                                    cache.update(cr, rb, arg, grammarStatus, lastModified, newHash);
+                                    cache.update(cr, rb, arg, grammarStatus, lastModified, newHash,
+                                            extraction.tokensHash());
                                 }
                                 run(extraction, rr);
                                 if (!created) {
@@ -512,6 +538,18 @@ public class AntlrRunSubscriptions {
                                 }
                             } else {
                                 LOG.log(Level.FINER, "Non-usable run result {0}", rr);
+                                if (LOG.isLoggable(Level.FINEST) && rr.thrown().isPresent()) {
+                                    LOG.log(Level.FINEST, null, rr.thrown().get());
+//                                    if (cr.hasErrors("compiler.err.cant.resolve.location")) {
+                                    LOG.log(Level.FINEST, "Looks like a source not found.  JFS listing follows.");
+                                    rr.jfs().list(StandardLocation.SOURCE_PATH, (loc, fo) -> {
+                                        LOG.log(Level.FINEST, "{0}: {1}", new Object[]{loc, fo.path()});
+                                    });
+                                    rr.jfs().list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+                                        LOG.log(Level.FINEST, "{0}: {1}", new Object[]{loc, fo.path()});
+                                    });
+//                                    }
+                                }
                                 Debug.failure("Non-usable run result", () -> {
                                     StringBuilder sb = new StringBuilder("compileFailed? ").append(rr.compileFailed()).append('\n');
                                     sb.append("Diags: ").append(rr.diagnostics()).append('\n');
@@ -657,5 +695,4 @@ public class AntlrRunSubscriptions {
             throw ex;
         }
     }
-
 }

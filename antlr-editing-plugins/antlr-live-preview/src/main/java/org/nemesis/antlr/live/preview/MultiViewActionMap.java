@@ -20,10 +20,10 @@
 package org.nemesis.antlr.live.preview;
 
 
+import java.util.Arrays;
 import javax.swing.Action;
 import javax.swing.ActionMap;
 import javax.swing.JComponent;
-import java.util.Arrays;
 import org.openide.windows.TopComponent;
 
 
@@ -36,11 +36,11 @@ import org.openide.windows.TopComponent;
  */
 public final class MultiViewActionMap extends ActionMap {
     private ActionMap delegate;
-    private ActionMap topComponentMap;
-    private TopComponent component;
+    private final ActionMap topComponentMap;
+    private final TopComponent component;
     
     private boolean preventRecursive = false;
-    private Object LOCK = new Object();
+    private final Object LOCK = new Object();
 
     public MultiViewActionMap(TopComponent tc, ActionMap tcMap) {
         topComponentMap = tcMap;
@@ -51,10 +51,12 @@ public final class MultiViewActionMap extends ActionMap {
         delegate = map;
     }
     
+    @Override
     public int size() {
         return keys ().length;
     }
 
+    @Override
     public Action get(Object key) {
         // the multiview's action map first.. for stuff like the closewindow and clonewindow from TopComponent.initActionMap
         javax.swing.ActionMap m = topComponentMap;
@@ -111,10 +113,12 @@ public final class MultiViewActionMap extends ActionMap {
         return owner == component ? found : null;
     }
 
+    @Override
     public Object[] allKeys() {
         return keys (true);
     }
 
+    @Override
     public Object[] keys() {
         return keys (false);
     }
@@ -153,22 +157,27 @@ public final class MultiViewActionMap extends ActionMap {
     // 
     // Not implemented
     //
+    @Override
     public void remove(Object key) {
         topComponentMap.remove(key);
     }        
 
+    @Override
     public void setParent(ActionMap map) {
         topComponentMap.setParent(map);
     }
 
+    @Override
     public void clear() {
         topComponentMap.clear();
     }
 
+    @Override
     public void put(Object key, Action action) {
         topComponentMap.put (key, action);
     }
 
+    @Override
     public ActionMap getParent() {
         return topComponentMap.getParent();
     }

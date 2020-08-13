@@ -44,6 +44,7 @@ public class ArrayEndSupplier implements MutableEndSupplier {
         ends[index] = val;
     }
 
+    @Override
     public int size() {
         return ends.length;
     }
@@ -54,6 +55,7 @@ public class ArrayEndSupplier implements MutableEndSupplier {
         System.arraycopy(ends, ix + 1, ends, ix, size - (ix + 1));
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;

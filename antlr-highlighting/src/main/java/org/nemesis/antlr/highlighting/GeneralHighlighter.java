@@ -37,6 +37,8 @@ import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
+import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -174,7 +176,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
                         Thread.currentThread(),
                         GeneralHighlighter.this
                     });
-            Extraction ext = findExtraction(ri.getParserResult());
+            Extraction ext = ExtractionParserResult.extraction(ri.getParserResult());
             // Ensure we don't do a bunch of long-running stuff while
             // holding the parser manager's lock
             THREAD_POOL.submit(() -> {
@@ -209,13 +211,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         }
     }
 
-    private Extraction findExtraction(Parser.Result result) {
-        if (result instanceof ExtractionParserResult) {
-            return ((ExtractionParserResult) result).extraction();
-        }
-        return null;
-    }
-
     private void refresh(Document doc, Extraction semantics, T argument) {
         LOG.log(Level.FINEST, "{0} update highlights for {1}",
                 new Object[]{doc, this});
@@ -225,6 +220,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
             refresh(doc, argument, semantics, brandNewBag);
             if (EventQueue.isDispatchThread()) {
                 papasGotA.setHighlights(brandNewBag);
+                brandNewBag.discard();
             } else {
                 // We can get into complex deadlocks with the parser
                 // when the document picks up changes fired by the bag
@@ -246,7 +242,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
     private void withParseResult(Document doc, Extraction extraction, T argument) throws Exception {
         LOG.log(Level.FINEST, "{0} got parse result", new Object[]{this});
         if (extraction == null) {
-            LOG.log(Level.INFO, "Recieved null parse result", new Exception());
+            LOG.log(Level.FINE, "Recieved null parse result", new Exception());
             return;
         }
         refresh(doc, extraction, argument);
@@ -265,7 +261,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
-            doc.addDocumentListener(WeakListeners.document(this, doc));
+            DocumentUtilities.addDocumentListener(doc, WeakListeners.document(this, doc), DocumentListenerPriority.AFTER_CARET_UPDATE);
             MimePath mimePath = MimePath.parse(NbEditorUtilities.getMimeType(doc));
             res = MimeLookup.getLookup(mimePath).lookupResult(FontColorSettings.class);
             res.addLookupListener(this);
@@ -292,7 +288,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         @Override
         public final void changedUpdate(DocumentEvent e) {
-            scheduleRefresh();
+            // do nothing
         }
 
         @Override
@@ -304,6 +300,10 @@ abstract class GeneralHighlighter<T> implements Runnable {
     static final class CaretOriented extends GeneralHighlighter<Integer> implements CaretListener {
 
         private Reference<JTextComponent> component;
+        private static final int NO_COMPONENT = -1;
+        private static final int HAS_SELECTION = -2;
+        private static final int NO_CARET = -3;
+        private static final int UNINITIALIZED = -4;
 
         public CaretOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
@@ -320,27 +320,37 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         @Override
         protected Integer getArgument() {
+            if (component == null) {
+                return UNINITIALIZED;
+            }
             JTextComponent comp = component.get();
             if (comp == null) {
-                return -1;
+                return NO_COMPONENT;
             }
             Caret caret = comp.getCaret();
             if (caret == null) {
                 // avoid
                 // java.lang.NullPointerException
                 // at java.desktop/javax.swing.text.JTextComponent.getSelectionStart(JTextComponent.java:1825)
-                return -3;
+                return NO_CARET;
             }
             int start = comp.getSelectionStart();
             int end = comp.getSelectionEnd();
             if (start == end) {
                 return end;
             }
-            return -2;
+            return HAS_SELECTION;
         }
 
         @Override
         protected boolean shouldProceed(Integer argument) {
+            switch (argument) {
+                case UNINITIALIZED:
+                case NO_CARET:
+                case NO_COMPONENT:
+                case HAS_SELECTION:
+                    return false;
+            }
             return argument >= 0;
         }
 
@@ -348,7 +358,6 @@ abstract class GeneralHighlighter<T> implements Runnable {
         public void caretUpdate(CaretEvent e) {
             OffsetsBag bag = getHighlightsBag();
             if (bag != null) {
-                bag.clear();
                 scheduleRefresh();
             }
         }
@@ -360,15 +369,17 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         private final int idHash;
         private final int idHash2;
+        private final String implClassName;
 
         HighlighterBagKey(GeneralHighlighter<?> h, AntlrHighlighter implementation) {
             idHash = System.identityHashCode(h);
             idHash2 = System.identityHashCode(implementation);
+            implClassName = implementation.getClass().getSimpleName();
         }
 
         @Override
         public String toString() {
-            return "GeneralHighlighter-bag-" + idHash + "-" + idHash2;
+            return "GeneralHighlighter-bag-" + idHash + "-" + idHash2 + "-" + implClassName;
         }
 
         @Override

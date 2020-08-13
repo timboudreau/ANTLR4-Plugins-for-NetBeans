@@ -58,6 +58,7 @@ import org.openide.cookies.EditorCookie;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
+import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
@@ -174,6 +175,15 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                 return;
             }
             superLazy.status(Bundle.DETECTING_FOLDERS());
+            // Editor cookie may be lazy initialized (because the entire DataObject is) - wait
+            // for it
+            for (int i=0; i < 10 && obj.getLookup().lookup(EditorCookie.class) == null; i++) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
             switch (flds) {
                 case ANTLR_TEST_GRAMMAR_SOURCES:
                 case ANTLR_GRAMMAR_SOURCES:
@@ -200,7 +210,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.INFO, null, ex);
                         }
                         // Warm some things up that will be needed soon
-                        for (int i = 0; i < 5; i++) {
+                        for (int i = 0; i < 15; i++) {
                             if (Language.find(mime) == null) {
                                 try {
                                     Thread.sleep(30);

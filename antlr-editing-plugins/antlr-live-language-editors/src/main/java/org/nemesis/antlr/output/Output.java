@@ -174,10 +174,6 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
         return up.getParent().resolve(path.getFileName() + "-" + task);
     }
 
-    private UnixPath indexedKey(Path path, String task, int round) {
-        return UnixPath.get(Integer.toString(round)).resolve(key(path, task));
-    }
-
     private FileIndices indices(UnixPath path) {
         synchronized (indicesForPath) {
             FileIndices result = indicesForPath.get(path);
@@ -201,6 +197,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
                     UnixPath pathForCleaned = UnixPath.get(Integer.toString(bit)).resolve(e.getKey());
                     JFSFileObject fo = jfs.get(StandardLocation.SOURCE_OUTPUT, pathForCleaned);
                     if (fo != null) {
+                        LOG.finest(() -> "GC delete " + fo.getName());
                         fo.delete();
                     }
                 }
@@ -221,6 +218,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
                 UnixPath outputPath = UnixPath.get(Integer.toString(ix)).resolve(key);
                 try {
                     JFSFileObject fo = jfs.get(StandardLocation.SOURCE_OUTPUT, outputPath, true);
+                    LOG.finer(() -> "OPEN WRITE STREAM " + fo.getName() + " for " + path + " and " + task);
                     return new RecyclingPrintStream(outputPath, in, ix,
                             fo.openOutputStream(), true, jfs.encoding(), path);
                 } catch (IOException ex) {
@@ -244,6 +242,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
                 UnixPath outputPath = UnixPath.get(Integer.toString(ix)).resolve(key);
                 try {
                     JFSFileObject fo = jfs.get(StandardLocation.SOURCE_OUTPUT, outputPath, true);
+                    LOG.finer(() -> "OPEN WRITER " + fo.getName() + " for " + path + " and " + task);
                     return new RecyclingWriter(outputPath, in, ix, fo.openOutputStream(), jfs.encoding(), path);
                 } catch (IOException ex) {
                     LOG.log(Level.INFO, "Exception opening JFS output " + outputPath + " with " + in, ex);
@@ -268,7 +267,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
                         return null;
                     }
                     UnixPath lastKey = UnixPath.get(Integer.toString(last)).resolve(taskFilePath);
-
+                    LOG.finer(() -> "GET OUTPUT " + lastKey + " for " + path + " and " + task);
                     return getSupplierInternal(lastKey, in, last);
                 });
             } catch (IOException ioe) {
@@ -311,6 +310,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
         if (fo == null) {
             return null;
         }
+        LOG.finest(() -> "Really open " + fo.getName() + " for " + lastKey);
         TextSupplier result = new TextSupplier(fo, in, last);
         suppliers.put(lastKey, result.ref());
         return result;

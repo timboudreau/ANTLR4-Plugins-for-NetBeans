@@ -88,7 +88,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         SubscribableBuilder.SubscribableContents<FileObject, FileObject, Subscriber, AntlrRegenerationEvent> sinfo
                 = // need a defensive copy
                 SubscribableBuilder.withKeys(FileObject.class).withEventApplier((FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) -> {
-                    LOG.log(Level.FINER, "Publish regeneration of {0} to {1} subscribers", new Object[]{fo, subscribers.size()});
+                    LOG.log(Level.FINER, "Publish regeneration of {0} to {1} subscribers", new Object[]{rebuildInfo, subscribers.size()});
                     for (Subscriber s : subscribers.toArray(new Subscriber[0])) {
                         // need a defensive copy
                         LOG.log(Level.FINEST, "Publish regeneration of {0} to {1}", new Object[]{fo, s});
@@ -248,6 +248,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             if (context != null) {
                 // Don't pass a generation result to subsscribers twice in one reentrant session
                 if (context.wasRegenerationEventAlreadyDelivered(fo)) {
+                    LOG.log(Level.FINEST, "Regeneration event already delivered for {0} {1}",
+                            new Object[] {extraction.source(), extraction.tokensHash()});
                     return;
                 }
                 // See if we have a cached result
@@ -299,7 +301,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                     JFS jfs = mappingManager.jfs();
                     // Track what files are new or modified after generation
                     JFSFileModifications beforeStatus = jfs.status(EnumSet.of(StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT));
-                    AntlrGenerationResult generationResult = jfs.whileWriteLocked(() -> {
+                    jfs.whileWriteLocked(() -> {
                         jfs.status(EnumSet.of(StandardLocation.SOURCE_OUTPUT));
                         AntlrGenerationResult result;
                         try (final PrintStream output = AntlrLoggers.getDefault().printStream(originalFile, AntlrLoggers.STD_TASK_GENERATE_ANTLR)) {

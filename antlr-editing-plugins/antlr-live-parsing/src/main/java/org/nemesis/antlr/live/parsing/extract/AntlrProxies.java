@@ -88,6 +88,7 @@ public class AntlrProxies {
     private BitSet[] ruleReferences;
     private final Set<String> presentRuleNames = new HashSet<>(40);
     private String grammarTokensHash = "--tokensHash--";
+    private long tokenNamesChecksum;
 
     public AntlrProxies(String grammarName, Path grammarPath, CharSequence text) {
         this.grammarName = grammarName;
@@ -95,6 +96,10 @@ public class AntlrProxies {
         tokenTypes.add(EOF_TYPE);
         newHash();
         this.text = text;
+    }
+
+    public void setTokenNamesChecksum(long val) {
+        this.tokenNamesChecksum = val;
     }
 
     public void setGrammarTokensHash(String val) {
@@ -146,7 +151,7 @@ public class AntlrProxies {
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
                 grammarName, grammarPath, text, thrown, ruleReferences, ambiguities,
                 lexerRuleNames, presentRuleNames, defaultModeIndex, modeNames,
-                grammarTokensHash);
+                grammarTokensHash, tokenNamesChecksum);
     }
 
     /**
@@ -178,7 +183,7 @@ public class AntlrProxies {
                 Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
                 grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0],
-                Collections.emptySet(), 0, null, "-");
+                Collections.emptySet(), 0, null, "-", 0);
         prox.isUnparsed = true;
         return prox;
     }
@@ -222,6 +227,7 @@ public class AntlrProxies {
         private final String[] modeNames;
         private final short defaultMode;
         private final String grammarTokensHash;
+        private final long tokenNamesChecksum;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
@@ -230,7 +236,7 @@ public class AntlrProxies {
                 Path grammarPath, CharSequence text, RuntimeException thrown,
                 BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames,
                 Set<String> presentRuleNames, int defaultMode, String[] modeNames,
-                String grammarTokensHash) {
+                String grammarTokensHash, long tokenNamesChecksum) {
             this.tokens = tokens;
             this.grammarTokensHash = grammarTokensHash;
             this.tokenTypes = tokenTypes;
@@ -253,6 +259,11 @@ public class AntlrProxies {
             this.defaultMode = (short) defaultMode;
             this.presentRuleNames = presentRuleNames.isEmpty() ? presentRuleNames
                     : Collections.unmodifiableSet(presentRuleNames);
+            this.tokenNamesChecksum = tokenNamesChecksum;
+        }
+
+        public long tokenNamesChecksum() {
+            return tokenNamesChecksum;
         }
 
         public String grammarTokensHash() {
@@ -499,7 +510,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
                     Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), lexerRuleNames,
-                    Collections.emptySet(), defaultMode, modeNames, grammarTokensHash);
+                    Collections.emptySet(), defaultMode, modeNames, grammarTokensHash, tokenNamesChecksum);
         }
 
         public RuntimeException thrown() {
@@ -1057,7 +1068,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             } else if (o instanceof ProxyTokenType) {
                 ProxyTokenType ptt = (ProxyTokenType) o;
-                return ptt.type == type;
+                return ptt.type == type && Objects.equals(displayName, ptt.displayName);
             }
             return false;
         }

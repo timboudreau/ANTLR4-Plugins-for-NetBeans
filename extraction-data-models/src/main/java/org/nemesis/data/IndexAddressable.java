@@ -16,17 +16,17 @@
 package org.nemesis.data;
 
 import com.mastfrog.abstractions.Named;
+import com.mastfrog.abstractions.list.IndexedResolvable;
+import com.mastfrog.bits.MutableBits;
+import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.range.IntRange;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
-import com.mastfrog.bits.MutableBits;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
-import com.mastfrog.graph.IntGraph;
-import com.mastfrog.function.IntBiConsumer;
-import com.mastfrog.range.IntRange;
-import com.mastfrog.abstractions.list.IndexedResolvable;
 
 /**
  * Base interface for collections of that can be indexed and represent a range

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -79,11 +80,13 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.ParsingUtils;
-import org.nemesis.antlr.live.language.coloring.AdhocColorings;
+import org.nemesis.antlr.live.language.AdhocLanguageHierarchy;
 import org.nemesis.antlr.live.language.AdhocParserResult;
 import org.nemesis.antlr.live.language.AdhocReparseListeners;
 import org.nemesis.antlr.live.language.UndoRedoProvider;
+import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
@@ -102,9 +105,11 @@ import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
+import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.editor.BaseKit;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
@@ -125,6 +130,7 @@ import org.openide.util.Lookup;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.RequestProcessor;
+import org.openide.util.RequestProcessor.Task;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
 import org.openide.util.lookup.Lookups;
@@ -179,6 +185,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private RequestProcessor.Task triggerRerunHighlighters;
     private final RulePathStringifier stringifier = new RulePathStringifierImpl();
     private LayoutInfoSaver splitLocationSaver;
+    private final ReparseState reparseState = new ReparseState();
+    private volatile int stateAtDocumentModification = -1;
     private final InstanceContent content = new InstanceContent();
     private final AbstractLookup internalLookup = new AbstractLookup(content);
     private final String mimeType;
@@ -190,6 +198,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private final JLabel syntaxTreeLabel = new JLabel();
     // A task for reparsing the document
     private final RequestProcessor.Task reparseTask = asyncUpdateOutputWindowPool.create(this::reallyReparse);
+    private final RequestProcessor.Task reparseGrammarTask = asyncUpdateOutputWindowPool.create(this::reallyReparseGrammar);
     private final JScrollPane sampleScroll;
     private final JScrollPane grammarScroll;
     private Future<Void> lastFuture;
@@ -312,17 +321,42 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         } else {
             split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
         }
-        EditorCookie grammarFileEditorCookie = lookup.lookup(EditorCookie.class);
-        // There will be an opened pane or this code would not
-        // be running
-        JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
-        // Create our own editor
-
-        BaseKit grammarKit = Utilities.getKit(grammarFileOriginalEditor);
-
         grammarEditorClone = new JEditorPane();
-        grammarEditorClone.setEditorKit(grammarKit);
-        grammarEditorClone.setDocument(grammarFileOriginalEditor.getDocument());
+        EditorCookie grammarFileEditorCookie = lookup.lookup(EditorCookie.class);
+
+        if (grammarFileEditorCookie != null && grammarFileEditorCookie.getOpenedPanes() != null
+                && grammarFileEditorCookie.getOpenedPanes().length > 0) {
+            JEditorPane grammarFileOriginalEditor = grammarFileEditorCookie.getOpenedPanes()[0];
+            BaseKit grammarKit = Utilities.getKit(grammarFileOriginalEditor);
+            grammarEditorClone.setEditorKit(grammarKit);
+            grammarEditorClone.setDocument(grammarFileOriginalEditor.getDocument());
+        } else {
+            DataObject dob = lookup.lookup(DataObject.class);
+            if (grammarFileEditorCookie == null) {
+                grammarFileEditorCookie = dob.getLookup().lookup(EditorCookie.class);
+            }
+            if (grammarFileEditorCookie != null) {
+                String mime = dob.getPrimaryFile().getMIMEType();
+                EditorKit ek = MimeLookup.getLookup(mime).lookup(EditorKit.class);
+                if (ek != null) {
+                    grammarEditorClone.setEditorKit(ek);
+                    try {
+                        grammarEditorClone.setDocument(grammarFileEditorCookie.openDocument());
+                    } catch (Exception | Error ioe) {
+                        // If we get here, most likely cause is that an exception was thrown
+                        // while initializing the Antlr editor - exceptions when attaching
+                        // highlighters can do this
+                        LOG.log(Level.WARNING, null, ioe);
+                        grammarEditorClone.setText(Strings.toString(ioe));
+                    }
+                } else {
+                    // Antlr module not present?  Huh?
+                    grammarEditorClone.setText(Strings.toString(new Exception("No editor cookie "
+                            + "and no editor kit for " + mime)));
+                }
+            }
+        }
+        // Create our own editor
 
         EditorUI grammarFileEditorUI = Utilities.getEditorUI(grammarEditorClone);
 
@@ -591,6 +625,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
+    @Override
     public void requestFocus() {
         super.requestFocus();
         if (lastFocused != null) {
@@ -703,10 +738,17 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         sampleFileDataObject.getPrimaryFile()});
             return;
         }
+        LOG.log(Level.FINE, "Preview receives new embedded result for {0}"
+                + " grammar hash {1} preview hash {2} proxy grammar tokens hash {3}"
+                + " token names checksum {4}",
+                new Object[]{res.grammarName(), res.grammarTokensHash(),
+                    (res.proxy() == null ? null : res.proxy().tokenSequenceHash()),
+                    (res.proxy() == null ? null : res.proxy().grammarTokensHash()),
+                    (res.proxy() == null ? 0 : res.proxy().tokenNamesChecksum())
+                });
         Debug.message("preview-new-proxy " + Long.toString(newProxy.id(), 36)
                 + " errs " + newProxy.syntaxErrors().size(), newProxy::toString);
         Mutex.EVENT.readAccess(() -> {
-            customizer.indicateActivity();// XXX invisible?
             Debug.run(this, "preview-update " + mimeType, () -> {
                 StringBuilder sb = new StringBuilder("Mime: " + mimeType).append('\n');
                 sb.append("Proxy mime: ").append(newProxy.mimeType()).append('\n');
@@ -720,13 +762,21 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             }, () -> {
                 EmbeddedAntlrParserResult old = internalLookup.lookup(EmbeddedAntlrParserResult.class);
                 if (old != null) {
+                    if (res.isEquivalent(old)) {
+                        LOG.log(Level.FINER, "Embedded result equivalent to previous - do nothing");
+//                        return;
+                    }
                     if (res != old) {
                         content.add(res);
                         content.remove(old);
+                    } else {
+                        return;
                     }
                 } else {
                     content.add(res);
                 }
+                reparseState.notifyUpdate();
+                customizer.indicateActivity();// XXX invisible?
                 if (old != null) {
                     Debug.message("replacing " + old.proxy().loggingInfo()
                             + " with " + res.proxy().loggingInfo(), old.proxy()::toString);
@@ -781,7 +831,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         Future<?> last = lastFuture;
         if (last != null && !last.isDone()) {
             last.cancel(true);
-            last = null;
+            lastFuture = null;
         }
         try {
             lastFuture = ParserManager.parseWhenScanFinished(
@@ -791,15 +841,27 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
+    void reallyReparseGrammar() {
+        try {
+            ParsingUtils.parse(grammarEditorClone.getDocument());
+//            if (!reparseState.wasRefreshed(stateAtDocumentModification)) {
+            reparseTextTask.schedule(200);
+//            }
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
     private void ensureListening() {
         if (listeningToColoringsDocumentsAndCarets) {
             return;
         }
+        LOG.log(Level.FINER, "Preview start listening");
         assert EventQueue.isDispatchThread() : "Not on EDT";
         listeningToColoringsDocumentsAndCarets = true;
         colorings.addChangeListener(this);
         colorings.addPropertyChangeListener(this);
-//        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
+        AdhocReparseListeners.listen(mimeType, editorPane.getDocument(), this);
         editorPane.getDocument().addDocumentListener(this);
         editorPane.getCaret().addChangeListener(this);
         grammarEditorClone.getDocument().addDocumentListener(this);
@@ -812,6 +874,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (!listeningToColoringsDocumentsAndCarets) {
             return;
         }
+        LOG.log(Level.FINER, "Preview stop listening");
         assert EventQueue.isDispatchThread() : "Not on EDT";
         listeningToColoringsDocumentsAndCarets = false;
         Future<Void> lastFuture = this.lastFuture;
@@ -825,7 +888,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (updateOutputWindowTask != null) {
             this.updateOutputWindowTask.cancel();
         }
-//        AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
+        AdhocReparseListeners.unlisten(mimeType, editorPane.getDocument(), this);
         colorings.removeChangeListener(this);
         colorings.removePropertyChangeListener(this);
         split.removePropertyChangeListener(DIVIDER_LOCATION_PROPERTY, this);
@@ -880,9 +943,37 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private void docChanged(boolean fromGrammarDoc) {
         haveGrammarChange = fromGrammarDoc;
         if (fromGrammarDoc) {
-            rulesList.repaint(2000);
+            stateAtDocumentModification = reparseState.state();
+            // XXX should not be necessary
+            reparseGrammarTask.schedule(350);
+            reparseTextTask.schedule(750);
+            rulesList.repaint(2_000);
         } else {
             enqueueRehighlighting();
+//            reparseTask.schedule(350);
+//            reparseTextTask.schedule(450);
+        }
+    }
+
+    private final Task reparseTextTask = asyncUpdateOutputWindowPool.create(this::parseWithParser, false);
+
+    private void parseWithParser() {
+        try {
+            if (reparseState.wasRefreshed(stateAtDocumentModification)) {
+//                return;
+            }
+            CharSequence seq = DocumentUtilities.getText(editorPane.getDocument(),
+                    0, editorPane.getDocument().getLength());
+            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+            System.out.println("FORCE REPARSE OF " + seq.length() + " for " + mimeType
+                    + " with " + parser);
+            EmbeddedAntlrParserResult result = parser.parse(seq);
+            System.out.println("   res " + result);
+            this.accept(editorPane.getDocument(), result);
+            syntaxTreeList.repaint(300);
+            rulesList.repaint(300);
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
         }
     }
 
@@ -916,6 +1007,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             triggerRerunHighlighters = RequestProcessor.getDefault()
                     .create(new HLTrigger((Runnable) trigger));
             triggerRerunHighlighters.schedule(500);
+
         }
     }
 
@@ -923,7 +1015,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         private final Runnable realTrigger;
 
-        public HLTrigger(Runnable realTrigger) {
+        HLTrigger(Runnable realTrigger) {
             this.realTrigger = realTrigger;
         }
 
@@ -1279,6 +1371,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             splitLocationSaver = new LayoutInfoSaver();
         }
         splitLocationSaver.setPosition(attr, position);
+
     }
 
     private final class LayoutInfoSaver implements Runnable {
@@ -1287,7 +1380,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         final Map<String, int[]> splitInfos = new HashMap<>();
         final Map<String, Dimension> compInfos = new HashMap<>();
         final Map<String, Integer> positions = new HashMap<>();
-        private static final int DELAY = 5000;
+        private static final int DELAY = 5_000;
 
         synchronized void setPosition(String attr, int position) {
             positions.put(attr, position);
@@ -1365,11 +1458,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private static UndoRedoProvider undoRedoFor(Lookup lkp) {
-        UndoRedoProvider prov = lkp.lookup(UndoRedoProvider.class);
+        UndoRedoProvider prov = lkp.lookup(UndoRedoProvider.class
+        );
         if (prov != null) {
             return prov;
         }
         return new DelegateUndoRedoProvider(lkp);
+
     }
 
     class UndoRedoProviderImpl implements UndoRedoProvider {
@@ -1379,7 +1474,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         private boolean isGrammar;
         private UndoRedo last = UndoRedo.NONE;
 
-        public UndoRedoProviderImpl(UndoRedoProvider grammarUndo, UndoRedoProvider previewUndo) {
+        UndoRedoProviderImpl(UndoRedoProvider grammarUndo, UndoRedoProvider previewUndo) {
             this.grammarUndo = grammarUndo;
             this.previewUndo = previewUndo;
         }

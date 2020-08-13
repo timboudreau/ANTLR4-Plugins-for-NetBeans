@@ -117,7 +117,7 @@ import org.openide.windows.TopComponent;
 // TriConsumer<Document, GrammarRunResult<?>, AntlrProxies.ParseTreeProxy>>
 final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResult>, Runnable {
 
-    private AtomicReference<EmbeddedAntlrParserResult> info = new AtomicReference<>();
+    private final AtomicReference<EmbeddedAntlrParserResult> info = new AtomicReference<>();
     private boolean writingFirstOutputWindowOutput = true;
     private final JEditorPane editorPane;
     private final RulePathStringifier stringifier;
@@ -141,12 +141,13 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         public final GrammarRunResult<?> res;
         public final AntlrProxies.ParseTreeProxy proxy;
 
-        public ParseInfo(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy) {
+        ParseInfo(GrammarRunResult<?> res, AntlrProxies.ParseTreeProxy proxy) {
             this.res = res;
             this.proxy = proxy;
         }
     }
 
+    @Override
     public void run() {
         EmbeddedAntlrParserResult ifo = info.get();
         if (ifo != null) {
@@ -415,7 +416,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         private final AntlrProxies.ParseTreeProxy prx;
         private final AntlrProxies.ProxySyntaxError e;
 
-        public ErrOutputListener(InputOutput io, AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxySyntaxError e) {
+        ErrOutputListener(InputOutput io, AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxySyntaxError e) {
             this.io = io;
             this.prx = prx;
             this.e = e;
@@ -510,7 +511,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
 
         private final ParsedAntlrError err;
 
-        public AntlrErrorLineListener(ParsedAntlrError err) {
+        AntlrErrorLineListener(ParsedAntlrError err) {
             this.err = err;
         }
 

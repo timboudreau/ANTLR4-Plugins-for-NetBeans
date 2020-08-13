@@ -1749,7 +1749,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .statement("lastResult = result")
                                         .endBlock().endIf()
                                         .catching("Exception")
-                                        .log("Exception thrown parsing \" + src + \"", Level.SEVERE, "thrown")
+                                        .logException(Level.SEVERE, "thrown")
                                         //                                        .invoke("printStackTrace").withArgument("thrown")
                                         //                                        .on(UTIL_EXCEPTIONS.simpleName())
                                         .fynalli().synchronizeOn("CANCELLATION_FOR_SOURCE")

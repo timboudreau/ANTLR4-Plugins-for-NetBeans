@@ -34,11 +34,11 @@ class ParentCheckingFastJList<T> extends JList<T> {
     boolean parentFocused;
     boolean firstPaint = true;
 
-    public ParentCheckingFastJList() {
+    ParentCheckingFastJList() {
 
     }
 
-    public ParentCheckingFastJList(ListModel<T> dataModel) {
+    ParentCheckingFastJList(ListModel<T> dataModel) {
         super(dataModel);
     }
 
