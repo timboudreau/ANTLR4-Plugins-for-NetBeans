@@ -121,6 +121,14 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     }
 
     @Override
+    public void clean() {
+        EmbeddedParsingEnvironment env = environment.get();
+        if (env != null) {
+            env.parser.clean();
+        }
+    }
+
+    @Override
     boolean isUpToDate() {
         return environment.get().isUpToDate();
     }
@@ -611,7 +619,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             if (textToParse == null) {
                 return false;
             }
-            return seq != null && textToParse != null && parserResult.runResult() != null
+            return seq != null && parserResult.runResult() != null
                     && Strings.charSequencesEqual(seq, textToParse);
         }
 

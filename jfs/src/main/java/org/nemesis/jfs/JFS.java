@@ -588,6 +588,13 @@ public final class JFS implements JavaFileManager {
         delegate.setLocation(StandardLocation.CLASS_PATH, new ArrayList<>(files));
     }
 
+    public void clear(Location loc) throws IOException {
+        JFSStorage stor = storageForLocation.remove(loc);
+        if (stor != null) {
+            stor.close();
+        }
+    }
+
     /**
      * Add JARs or folders to the compile classpath. Note: this delegates to the
      * StandardJavaFileManager and does not copy JARs or their contents into

@@ -132,6 +132,7 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
             this.oldxformed = oldxformed;
         }
 
+        @Override
         public String toString() {
             return "DelegateToColoringNameSupplier(wrapping " + oldxformed + " using " + coloringFinder + ")";
         }

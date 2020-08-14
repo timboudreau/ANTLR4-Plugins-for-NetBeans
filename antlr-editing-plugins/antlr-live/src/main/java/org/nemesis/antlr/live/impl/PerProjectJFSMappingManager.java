@@ -83,6 +83,12 @@ final class PerProjectJFSMappingManager {
         }
     }
 
+    void recheckMappings() {
+        for (Map.Entry<FileObject, OneFileMapping> e : mappingForFile.entrySet()) {
+            e.getValue().recheckMapping();
+        }
+    }
+
     final Set<FileObject> siblingsOf(FileObject fo) {
         if (mappingForFile.size() == 1 && fo.equals(mappingForFile.entrySet().iterator().next().getKey())) {
             return Collections.emptySet();

@@ -132,12 +132,18 @@ public final class AntlrGenerationResult implements ProcessingResult {
         for (JFSCoordinates.Resolvable f : modifiedFiles.keySet()) {
             JFSFileObject ob = f.resolveOriginal();
             if (ob != null) {
+                if (ob.storageKind().isMasqueraded()) {
+                    continue;
+                }
                 set.add(ob);
             }
         }
         for (JFSCoordinates.Resolvable f : newlyGeneratedFiles) {
             JFSFileObject ob = f.resolveOriginal();
             if (ob != null) {
+                if (ob.storageKind().isMasqueraded()) {
+                    continue;
+                }
                 set.add(ob);
             }
         }

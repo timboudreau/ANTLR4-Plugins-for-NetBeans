@@ -15,8 +15,14 @@
  */
 package org.nemesis.antlr.live.parsing.extract;
 
+import com.mastfrog.function.state.Bool;
+import com.mastfrog.util.path.UnixPath;
 import java.util.Set;
 import java.util.TreeSet;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardLocation;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 
 /**
@@ -25,7 +31,7 @@ import org.nemesis.jfs.JFSFileObject;
  */
 public class ExtractionCodeGenerationResult {
 
-    private JFSFileObject generatedFile;
+    private JFSCoordinates.Resolvable generatedFile;
     private final String grammarName;
     private final String pkg;
     private final Set<String> examined = new TreeSet<>();
@@ -38,7 +44,7 @@ public class ExtractionCodeGenerationResult {
     }
 
     ExtractionCodeGenerationResult setResult(JFSFileObject fo) {
-        generatedFile = fo;
+        generatedFile = fo.toReference();
         return this;
     }
 
@@ -63,18 +69,61 @@ public class ExtractionCodeGenerationResult {
         return this;
     }
 
+    public boolean clean(JFS jfs) {
+        Bool result = Bool.create();
+        JFSFileObject fo = generatedFile.resolve(jfs);
+        if (fo != null) {
+            UnixPath path = fo.path();
+            String rawName = path.rawName();
+            result.set(fo.delete());
+            UnixPath parentFolder = path.getParent()
+                    == null ? UnixPath.empty() : path.getParent();
+            UnixPath expectedPathFile = parentFolder.resolve(rawName + ".class");
+            String rawPrefix = rawName + "$";
+            jfs.list(StandardLocation.CLASS_OUTPUT, (loc, cfo) -> {
+                if (cfo instanceof JavaFileObject) {
+                    JavaFileObject jfo = (JavaFileObject) cfo;
+                    if (jfo.getKind() == JavaFileObject.Kind.CLASS) {
+                        UnixPath foPath = cfo.path();
+                        if (expectedPathFile.equals(foPath)) {
+                            boolean del = cfo.delete();
+                            if (del) {
+                                result.set();
+                            }
+                        } else {
+                            UnixPath foParent = foPath.getParent();
+                            if (foParent == null) {
+                                foParent = UnixPath.empty();
+                            }
+                            if (parentFolder.equals(foParent)) {
+                                String raw = foPath.rawName();
+                                if (raw.startsWith(rawPrefix)) {
+                                    boolean del = cfo.delete();
+                                    if (del) {
+                                        result.set();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        return result.getAsBoolean();
+    }
+
     public boolean isSuccess() {
         return generatedFile != null;
     }
 
-    public JFSFileObject file() {
+    public JFSCoordinates.Resolvable file() {
         return generatedFile;
     }
 
     @Override
     public String toString() {
         if (generatedFile != null) {
-            return grammarName + " in " + pkg + " -> " + generatedFile.getName();
+            return grammarName + " in " + pkg + " -> " + generatedFile.path();
         }
         StringBuilder sb = new StringBuilder();
         examined.forEach(p -> {

@@ -260,12 +260,12 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                     dispatcher.onEvent(fo, info);
                     return;
                 }
-            }
-            if (context != null) {
                 // Ensure we don't cyclically reparse because something else
                 // indirectly triggered another reparse of the same file - can
                 // happen if no dependency graph for a file exists yet
                 context.regenerationEventDelivered(fo);
+            } else {
+                mappingManager.recheckMappings();
             }
             Path originalFile = ParsingUtils.toPath(fo);
             // Should never be null unless we're dealing with MemoryFileSystem or

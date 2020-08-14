@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.spi.language.highlighting.semantic.HighlightRefreshTrigger;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
@@ -123,9 +124,19 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
         }
     }
 
+    String idForContext(Context ctx) {
+        // In the case of multiple editors per document (as with the antlr preview),
+        // we need to key the unique ids off the editor component, not just the
+        // id of the highlighter, or caret-oriented highlights will only work
+        // for the first instance created
+        JTextComponent comp = ctx.getComponent();
+        int hc = comp == null ? 0 : System.identityHashCode(comp);
+        return id + "-" + Integer.toString(hc, 36);
+    }
+
     protected GeneralHighlighter<?> existingHighlighter(Context ctx) {
         Document doc = ctx.getDocument();
-        Object result = doc.getProperty(id);
+        Object result = doc.getProperty(idForContext(ctx));
         return result == null ? null
                 : result instanceof GeneralHighlighter<?> ? (GeneralHighlighter<?>) result
                         : null;
@@ -140,7 +151,7 @@ final class HighlighterFactory implements Comparable<HighlighterFactory> {
             LOG.log(Level.FINEST, "Create a GeneralHighlighter for {0}: {1}",
                     new Object[]{this, result});
             if (result != null) {
-                doc.putProperty(id, result);
+                doc.putProperty(idForContext(ctx), result);
             }
         } else {
             LOG.log(Level.FINEST, "Use existing GeneralHighlighter for {0}: {1}",

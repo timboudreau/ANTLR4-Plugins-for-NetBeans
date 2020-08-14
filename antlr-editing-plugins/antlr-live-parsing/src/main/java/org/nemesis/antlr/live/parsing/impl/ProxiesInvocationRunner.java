@@ -156,7 +156,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     }
 
     @Override
-    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, 
+    protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree,
             AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr,
             String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
         return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
@@ -199,7 +199,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
                 return Debug.runObject(this, "Generate extractor source", () -> {;
                     csc.accept(CLASSLOADER_FACTORY);
-                    GenerationResult gr = new GenerationResult(genResult, res.packageName, path, res.grammarName);
+                    GenerationResult gr = new GenerationResult(genResult, res.packageName, path, res.grammarName, jfs);
                     LOG.log(Level.FINER, "Generation result {0}", gr);
                     Debug.message("Generation result", gr::toString);
                     return gr;
@@ -220,8 +220,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 return new DeadEmbeddedParser(res.grammarPath, res.grammarName);
             }
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
-            PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName, res.res);
-            LOG.log(Level.FINER, "New environment created for embedded parser: {0} and {1}", new Object[]{env, res.res});
+            PreservedInvocationEnvironment env = new PreservedInvocationEnvironment(loader, res.packageName, res);
+            LOG.log(Level.FINER, "New environment created for embedded parser: {0} and {1}", new Object[]{env, res});
             Debug.message("Use new PreservedInvocationEnvironment", env::toString);
             return env;
         });
@@ -233,23 +233,29 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         final String packageName;
         final Path grammarPath;
         final String grammarName;
+        private final JFS jfs;
 
-        public GenerationResult(ExtractionCodeGenerationResult res, String packageName, Path grammarPath, String grammarName) {
+        public GenerationResult(ExtractionCodeGenerationResult res, String packageName, Path grammarPath, String grammarName, JFS jfs) {
             this.res = res;
             this.packageName = packageName;
             this.grammarPath = grammarPath;
             this.grammarName = grammarName;
+            this.jfs = jfs;
         }
 
         public boolean isUsable() {
             return res != null && res.isSuccess();
         }
 
+        public boolean clean() {
+            return res != null && res.clean(jfs);
+        }
+
         @Override
         public String toString() {
             return "ProxiesInvocationRunner.GenerationResult("
                     + packageName + " " + grammarName + " on " + grammarPath + ": "
-                    + res + ")";
+                    + res + " over " + jfs + ")";
         }
     }
 
@@ -327,14 +333,21 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         private final ClassLoader ldr;
         private final String typeName;
-        private EnvRef ref;
+        private final EnvRef ref;
         private final CharSequence genInfo;
+        private final Runnable cleaner;
 
-        private PreservedInvocationEnvironment(ClassLoader ldr, String pkgName, ExtractionCodeGenerationResult res) {
+        private PreservedInvocationEnvironment(ClassLoader ldr, String pkgName, GenerationResult res) {
             this.ldr = ldr;
-            typeName = pkgName + "." + res.generatedClassName();
+            typeName = pkgName + "." + res.res.generatedClassName();
             ref = new EnvRef(this);
-            this.genInfo = res.generationInfo();
+            this.genInfo = res.res.generationInfo();
+            cleaner = res::clean;
+        }
+
+        @Override
+        public void clean() {
+            cleaner.run();
         }
 
         @Override
@@ -344,7 +357,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {
-            return Debug.runObjectThrowing(this, "enter-embedded-parser-classloader " + typeName + " " + ref, ref::toString,
+            return Debug.runObjectThrowing(this, "enter-embedded-parser-classloader "
+                    + typeName + " " + ref, ref::toString,
                     () -> {
                         ClassLoader old = Thread.currentThread().getContextClassLoader();
                         Thread.currentThread().setContextClassLoader(ldr);

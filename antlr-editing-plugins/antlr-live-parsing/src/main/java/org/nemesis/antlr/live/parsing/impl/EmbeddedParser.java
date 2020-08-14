@@ -33,4 +33,5 @@ public interface EmbeddedParser {
 
     void onDiscard();
 
+    void clean();
 }

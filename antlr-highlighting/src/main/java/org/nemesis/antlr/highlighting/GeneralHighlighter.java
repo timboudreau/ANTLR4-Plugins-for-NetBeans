@@ -15,14 +15,8 @@
  */
 package org.nemesis.antlr.highlighting;
 
-import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.CaretEvent;
@@ -32,28 +26,19 @@ import javax.swing.event.DocumentListener;
 import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
-import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
-import org.openide.util.Mutex;
-import org.openide.util.RequestProcessor;
-import org.openide.util.WeakListeners;
 
 /**
  * Base class for highlighters that takes care of most of the boilerplate of
@@ -61,39 +46,33 @@ import org.openide.util.WeakListeners;
  *
  * @author Tim Boudreau
  */
-abstract class GeneralHighlighter<T> implements Runnable {
+abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 
-    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, true);
-    private final AtomicReference<Future<?>> future = new AtomicReference<>();
-    protected final static int REFRESH_DELAY = 100;
     protected final Document doc;
-    private RequestProcessor.Task refreshTask;
     protected final Logger LOG = Logger.getLogger(getClass().getName());
-    private final int refreshDelay;
     private final AntlrHighlighter implementation;
-    private final HighlighterBagKey key;
 
     GeneralHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
+        super(ctx, implementation.mergeHighlights());
         doc = ctx.getDocument();
-        this.refreshDelay = refreshDelay <= 0 ? REFRESH_DELAY : refreshDelay;
         this.implementation = implementation;
-        key = new HighlighterBagKey(this, implementation);
-        OffsetsBag bag = new OffsetsBag(doc, implementation.mergeHighlights());
-        // This avoids us holding a reference from GeneralHighlighter -> OffsetsBag -> Document
-        // forever
-        doc.putProperty(key, bag);
-        log(Level.FINE, "Create for {0} with {1} for key {2}", doc, implementation, key);
-        // Ensure we access the text component on the event thread, since we
-        // may add listeners to it
-        Mutex.EVENT.readAccess(() -> {
-            JTextComponent comp = ctx.getComponent();
-            postInit(comp, doc);
-        });
+        log(Level.FINE, "Create for {0} with {1}", doc, implementation);
+    }
+
+    @Override
+    protected final void activated(FileObject file, Document doc) {
+        activated(ctx.getComponent(), doc);
+        scheduleRefresh();
+    }
+
+    @Override
+    protected final void deactivated(FileObject file, Document doc) {
+        deactivated(ctx.getComponent(), doc);
     }
 
     @Override
     public String toString() {
-        return "GeneralHighlighter{" + implementation + " key=" + key + "}";
+        return "GeneralHighlighter{" + implementation + "}";
     }
 
     final void log(Level level, String msg, Object... args) {
@@ -105,174 +84,95 @@ abstract class GeneralHighlighter<T> implements Runnable {
         implementation.refresh(doc, ext, bag, caret);
     }
 
-    protected void postInit(JTextComponent pane, Document doc) {
+    /**
+     * Called when the component is made visible; attach listeners here.
+     *
+     * @param pane The text pane
+     * @param doc The document
+     */
+    protected void activated(JTextComponent pane, Document doc) {
+        // do nothing
+    }
+
+    /**
+     * Called when the component is hidden, removed or loses its parent.
+     *
+     * @param pane The text pane
+     * @param doc The document
+     */
+    protected void deactivated(JTextComponent pane, Document doc) {
         // do nothing
     }
 
     protected final void scheduleRefresh() {
-        if (refreshTask == null) {
-            refreshTask = THREAD_POOL.create(this);
+        if (isActive()) {
+            Document doc = ctx.getDocument();
+            if (doc != null) {
+                ParseCoalescer.getDefault().enqueueParse(doc, this);
+            }
         }
-        refreshTask.schedule(refreshDelay);
-    }
-
-    public final OffsetsBag getHighlightsBag() {
-        return (OffsetsBag) doc.getProperty(key);
     }
 
     protected T getArgument() {
         return null;
     }
 
+    /**
+     * Override in, for example, caret triggered highlighters that should not be
+     * active when there is a selection, and set the argument type to Integer,
+     * and in <code>getArgument()</code> fetch or return cached caret positions.
+     *
+     *
+     * @param argument The argument from <code>getArgument()</code>
+     * @return true if highlighting should be performed
+     */
     protected boolean shouldProceed(T argument) {
         return true;
     }
 
-    @Override
-    public final void run() {
-        if (Thread.interrupted()) {
-            LOG.log(Level.FINEST, "Skip highlighting for thread interrupt", this);
-            return;
-        }
-        T argument = getArgument();
-        LOG.log(Level.FINEST, "Invoke a parse with {0} for {1} with {2}",
-                new Object[]{doc, this, argument});
-
-        if (!shouldProceed(argument)) {
-            LOG.log(Level.FINEST, "Should not proceed for {0}", argument);
-            return;
-        }
-        try {
-            Source src = Source.create(doc);
-            Collection<Source> sources = Collections.singleton(src);
-            Future<?> oldFuture = future.get();
-            if (oldFuture != null && !oldFuture.isDone()) {
-                LOG.log(Level.FINEST, "Cancel a previously scheduled run");
-                oldFuture.cancel(true);
-            }
-            future.set(ParserManager.parseWhenScanFinished(sources, ut));
-        } catch (ParseException ex) {
-            LOG.log(Level.FINE, "Exception parsing", ex);
-        }
-    }
-
-    interface OwnableTask {
-
-        // all this to deal with inner classes and generics
-        GeneralHighlighter<?> owner();
-    }
-
-    // The parsing module seems to assume that UserTask instances are long-lived
-    // and have a very stable identity, which is utilized when asking the parser
-    // for a result associated with a task
-    private final UT ut = new UT();
-
-    final class UT extends UserTask implements OwnableTask {
-
-        @Override
-        public void run(ResultIterator ri) throws Exception {
-            LOG.log(Level.FINEST, "parseWhenScanFinished completed on {0} "
-                    + "for {1}", new Object[]{
-                        Thread.currentThread(),
-                        GeneralHighlighter.this
-                    });
-            Extraction ext = ExtractionParserResult.extraction(ri.getParserResult());
-            // Ensure we don't do a bunch of long-running stuff while
-            // holding the parser manager's lock
-            THREAD_POOL.submit(() -> {
-                try {
-                    withParseResult(doc, ext, getArgument());
-                } catch (Exception e) {
-                    LOG.log(Level.WARNING, "Exception rebuilding highlights", e);
-                }
-            });
-        }
-
-        @Override
-        public String toString() {
-            return "Task-" + GeneralHighlighter.this.toString();
-        }
-
-        @Override
-        public GeneralHighlighter<?> owner() {
-            return GeneralHighlighter.this;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return o == this ? true
-                    : o != null && o instanceof OwnableTask
-                    && ((OwnableTask) o).owner() == owner();
-        }
-
-        @Override
-        public int hashCode() {
-            return owner().hashCode();
+    final void refresh(Document doc, Extraction ext) {
+        T arg = getArgument();
+        if (shouldProceed(arg)) {
+            refresh(doc, ext, arg);
         }
     }
 
     private void refresh(Document doc, Extraction semantics, T argument) {
         LOG.log(Level.FINEST, "{0} update highlights for {1}",
                 new Object[]{doc, this});
-        OffsetsBag papasGotA = getHighlightsBag();
-        if (papasGotA != null) {
-            OffsetsBag brandNewBag = new OffsetsBag(doc);
+        updateHighlights(brandNewBag -> {
             refresh(doc, argument, semantics, brandNewBag);
-            if (EventQueue.isDispatchThread()) {
-                papasGotA.setHighlights(brandNewBag);
-                brandNewBag.discard();
-            } else {
-                // We can get into complex deadlocks with the parser
-                // when the document picks up changes fired by the bag
-                // on a non-EQ thread
-                EventQueue.invokeLater(() -> {
-                    try {
-                        papasGotA.setHighlights(brandNewBag);
-                    } finally {
-                        brandNewBag.discard();
-                    }
-                });
-            }
-        } else {
-            LOG.log(Level.WARNING, "Got null OffsetsBag for {0} in {1}",
-                    new Object[]{doc, this});
-        }
-    }
-
-    private void withParseResult(Document doc, Extraction extraction, T argument) throws Exception {
-        LOG.log(Level.FINEST, "{0} got parse result", new Object[]{this});
-        if (extraction == null) {
-            LOG.log(Level.FINE, "Recieved null parse result", new Exception());
-            return;
-        }
-        refresh(doc, extraction, argument);
-    }
-
-    protected static final <R extends Parser.Result & ExtractionParserResult> Function<R, Extraction> findExtraction() {
-        return res -> {
-            return res.extraction();
-        };
+            return true;
+        });
     }
 
     static final class DocumentOriented<T> extends GeneralHighlighter<T> implements DocumentListener, LookupListener {
 
-        private final Lookup.Result<FontColorSettings> res;
+        private Lookup.Result<FontColorSettings> res;
 
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
-            DocumentUtilities.addDocumentListener(doc, WeakListeners.document(this, doc), DocumentListenerPriority.AFTER_CARET_UPDATE);
-            MimePath mimePath = MimePath.parse(NbEditorUtilities.getMimeType(doc));
-            res = MimeLookup.getLookup(mimePath).lookupResult(FontColorSettings.class);
-            res.addLookupListener(this);
-            res.allInstances();
-            scheduleRefresh();
         }
 
         @Override
-        protected void postInit(JTextComponent pane, Document doc) {
+        protected void activated(JTextComponent pane, Document doc) {
+            DocumentUtilities.addDocumentListener(doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+            res = MimeLookup.getLookup(NbEditorUtilities.getMimeType(doc)).lookupResult(FontColorSettings.class);
+            res.addLookupListener(this);
+            res.allInstances();
             if (pane != null) {
                 scheduleRefresh();
+            }
+        }
+
+        @Override
+        protected void deactivated(JTextComponent pane, Document doc) {
+            DocumentUtilities.removeDocumentListener(doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+            Lookup.Result<FontColorSettings> r = res;
+            res = null;
+            if (r != null) {
+                r.removeLookupListener(this);
             }
         }
 
@@ -304,22 +204,32 @@ abstract class GeneralHighlighter<T> implements Runnable {
         private static final int HAS_SELECTION = -2;
         private static final int NO_CARET = -3;
         private static final int UNINITIALIZED = -4;
+        private static final int INACTIVE = -5;
 
         public CaretOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
             super(ctx, refreshDelay, implementation);
         }
 
         @Override
-        protected void postInit(JTextComponent pane, Document doc) {
+        protected void activated(JTextComponent pane, Document doc) {
             if (pane != null) {
                 component = new WeakReference<>(pane);
-                CaretListener cl = WeakListeners.create(CaretListener.class, this, pane);
-                pane.addCaretListener(cl);
+                pane.addCaretListener(this);
+            }
+        }
+
+        @Override
+        protected void deactivated(JTextComponent pane, Document doc) {
+            if (pane != null) {
+                pane.removeCaretListener(this);
             }
         }
 
         @Override
         protected Integer getArgument() {
+            if (!isActive()) {
+                return INACTIVE;
+            }
             if (component == null) {
                 return UNINITIALIZED;
             }
@@ -349,6 +259,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
                 case NO_CARET:
                 case NO_COMPONENT:
                 case HAS_SELECTION:
+                case INACTIVE:
                     return false;
             }
             return argument >= 0;
@@ -356,51 +267,7 @@ abstract class GeneralHighlighter<T> implements Runnable {
 
         @Override
         public void caretUpdate(CaretEvent e) {
-            OffsetsBag bag = getHighlightsBag();
-            if (bag != null) {
-                scheduleRefresh();
-            }
-        }
-    }
-
-    // Just a loggable key object of a type that cannot possibly
-    // be created outside this class.
-    private static final class HighlighterBagKey {
-
-        private final int idHash;
-        private final int idHash2;
-        private final String implClassName;
-
-        HighlighterBagKey(GeneralHighlighter<?> h, AntlrHighlighter implementation) {
-            idHash = System.identityHashCode(h);
-            idHash2 = System.identityHashCode(implementation);
-            implClassName = implementation.getClass().getSimpleName();
-        }
-
-        @Override
-        public String toString() {
-            return "GeneralHighlighter-bag-" + idHash + "-" + idHash2 + "-" + implClassName;
-        }
-
-        @Override
-        public int hashCode() {
-            int hash = 3;
-            hash = 67 * hash + this.idHash;
-            hash = 67 * hash + this.idHash2;
-            return hash;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            } else if (obj == null) {
-                return false;
-            } else if (!(obj instanceof HighlighterBagKey)) {
-                return false;
-            }
-            final HighlighterBagKey other = (HighlighterBagKey) obj;
-            return this.idHash == other.idHash && this.idHash2 == other.idHash2;
+            scheduleRefresh();
         }
     }
 }

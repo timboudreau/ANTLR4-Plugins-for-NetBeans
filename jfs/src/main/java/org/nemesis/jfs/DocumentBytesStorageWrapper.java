@@ -251,7 +251,7 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
 
     @Override
     public void changedUpdate(DocumentEvent e) {
-//        touch();
+        // do nothing
     }
 
     private final class Out extends ByteArrayOutputStream {

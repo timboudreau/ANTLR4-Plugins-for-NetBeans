@@ -123,7 +123,6 @@ public class TestExtractorGenerationWithTokenVocab {
 
     @Test
     public void testCodeGeneration() throws Exception {
-        System.out.println("Do the other thing");
         assertNotNull(gen);
         JFS jfs = findJFS();
         assertNotNull(lastGenResult);
@@ -136,7 +135,7 @@ public class TestExtractorGenerationWithTokenVocab {
             codeGenResult = ExtractionCodeGenerator.saveExtractorSourceCode(
                     GrammarKind.PARSER, markdownParserFile, jfs, "com.goob", "MarkdownParser", null, ps, "a", JFSPathHints.NONE);
         }
-        JFSFileObject file = codeGenResult.file();
+        JFSFileObject file = codeGenResult.file().resolveOriginal();
         assertNotNull(file, "Code not generated");
         String txt = file.getCharContent(true).toString();
         assertLexerIsCreatedUsingCorrectClass(txt);
@@ -146,7 +145,7 @@ public class TestExtractorGenerationWithTokenVocab {
                     GrammarKind.PARSER, markdownParserFile, jfs, "com.goob", "MarkdownParser",
                     "MarkdownLexer", ps, "b", JFSPathHints.NONE);
         }
-        file = codeGenResult.file();
+        file = codeGenResult.file().resolveOriginal();
         assertNotNull(file, "Code not generated");
         txt = file.getCharContent(true).toString();
         assertLexerIsCreatedUsingCorrectClass(txt);
@@ -177,13 +176,12 @@ public class TestExtractorGenerationWithTokenVocab {
                 });
 
         EmbeddedAntlrParser p = EmbeddedAntlrParsers.forGrammar("test", gen.file("MarkdownParser.g4"));
-        System.out.println("EXPECTING MIME " + THE_MIME_TYPE);
         EmbeddedAntlrParserResult res = p.parse(SOME_MARKDOWN);
         GrammarRunResult<?> r = res.runResult();
         assertNotNull(jfs.get(), "Not rebuilt?");
 
-        JFSFileObject extractorSource = jfs.get().get(StandardLocation.SOURCE_PATH, UnixPath.get("com/goob/MarkdownParserParserExtractor.java"));
-        assertNotNull(extractorSource, "Extractor code not generated to SOURCE_PATH at com/goob/MarkdownParserParserExtractor.java");
+        JFSFileObject extractorSource = jfs.get().get(StandardLocation.SOURCE_OUTPUT, UnixPath.get("com/goob/MarkdownParserParserExtractor.java"));
+        assertNotNull(extractorSource, "Extractor code not generated to SOURCE_OUTPUT at com/goob/MarkdownParserParserExtractor.java");
         String extractorText = extractorSource.getCharContent(false).toString();
         assertLexerIsCreatedUsingCorrectClass(extractorText);
 
@@ -198,24 +196,16 @@ public class TestExtractorGenerationWithTokenVocab {
 //
 //    @Test
 //    public void testWithPresenceOfOtherGrammars() throws Exception {
-        System.out.println("DO THE THING");
         EmbeddedAntlrParser pOther = EmbeddedAntlrParsers.forGrammar("MarkdownParser", gen.file("MarkdownParser.g4"));
 
         EmbeddedAntlrParserResult rp = pOther.parse(SOME_MARKDOWN);
         assertTrue(rp.isUsable(), "Should have usable result from MarkdownParser");
 
-        System.out.println("first parser " + pOther);
-
         EmbeddedAntlrParser pp = EmbeddedAntlrParsers.forGrammar("Nl", gen.file("Nl.g4"));
-
-        System.out.println("GOT PARSER " + pp);
 
         EmbeddedAntlrParserResult nlRes = pp.parse(SOME_MARKDOWN);
 
-        System.out.println("PARSER NOW " + pp);
-
         assertTrue(nlRes.isUsable(), "Res " + nlRes + " from " + pp);
-        System.out.println("RESULT " + nlRes + " from " + pp);
     }
 
     private void prepCopiesWithHeuristicIncompatibleLexerName() throws Exception {
@@ -251,7 +241,6 @@ public class TestExtractorGenerationWithTokenVocab {
         Path pth = gen.allFiles().get("MarkdownParser.g4");
         assertNotNull(pth);
         String mime = THE_MIME_TYPE = AdhocMimeTypes.mimeTypeForPath(pth);
-        System.out.println("THE MIME TYPE '" + mime + "'");
         fixtures = initAntlrTestFixtures(true)
                 .addToNamedLookup(AntlrRunSubscriptions.pathForType(EmbeddedParser.class), ProxiesInvocationRunner.class)
                 .addToNamedLookup(mime, FakeParserFactory.class);

@@ -288,7 +288,7 @@ public class ExtractionCodeGenerator {
                         lexerGrammarName, grammarName, (foundLexer == null ? null : foundLexer.getName()),
                         (foundParser == null ? null : foundParser.getName()), pkg, kind});
         }
-        return result.setResult(fs.create(extractorPath, SOURCE_PATH, code));
+        return result.setResult(fs.create(extractorPath, SOURCE_OUTPUT, code));
     }
 
     private static String rawName(FileObject fo) {

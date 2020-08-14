@@ -57,10 +57,13 @@ import javax.swing.text.StyledDocument;
 import javax.tools.StandardLocation;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.common.AntlrConstants;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.language.AdhocLanguageHierarchy;
 import org.nemesis.antlr.live.language.AdhocMimeDataProvider;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -121,10 +124,12 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
     private boolean writingFirstOutputWindowOutput = true;
     private final JEditorPane editorPane;
     private final RulePathStringifier stringifier;
+    private final Runnable onForcedReparse;
 
-    ErrorUpdater(JEditorPane editorPane, RulePathStringifier stringifier) {
+    ErrorUpdater(JEditorPane editorPane, RulePathStringifier stringifier, Runnable onForcedReparse) {
         this.editorPane = editorPane;
         this.stringifier = stringifier;
+        this.onForcedReparse = onForcedReparse;
     }
 
     boolean update(EmbeddedAntlrParserResult res) {
@@ -154,7 +159,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             updateErrorsInOutputWindow(ifo);
         }
         // Ensure we don't leak the data - it's one and done
-        info.compareAndSet(ifo, null);
+//        info.compareAndSet(ifo, null);
     }
 
     private static final Consumer<FileObject> INV = SourceInvalidator.create();
@@ -518,7 +523,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         @Override
         public void outputLineAction(OutputEvent oe) {
             Path pth = err.path();
-            GrammarSource<?> src = GrammarSource.find(pth, "text/x-g4");
+            GrammarSource<?> src = GrammarSource.find(pth, ANTLR_MIME_TYPE);
             Optional<StyledDocument> doc = src.lookup(StyledDocument.class);
             if (doc.isPresent()) {
                 StyledDocument d = doc.get();
@@ -568,21 +573,60 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
 
         @Override
         public void run() {
-            // Invalidate and start from scratch on EVERYTHING
-            Path grammarSource = AdhocMimeTypes.grammarFilePathForMimeType(editorPane.getContentType());
-            FileObject grammarFileObject = FileUtil.toFileObject(grammarSource.toFile());
-            INV.accept(grammarFileObject);
-            AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
-            FileObject sampleFile = NbEditorUtilities.getFileObject(editorPane.getDocument());
-            INV.accept(sampleFile);
             try {
+                // Some paranoid stuff to ensure NOTHING survives
+                // Well, a JFSClassLoader with classes loaded in it might...
+                // ...but everything else
+                PreviewPanel pp = (PreviewPanel) SwingUtilities.getAncestorOfClass(PreviewPanel.class, editorPane);
+                EmbeddedAntlrParserResult emres = pp == null ? null : pp.internalLookup().lookup(EmbeddedAntlrParserResult.class);
+                if (emres == null) {
+                    emres = info.get();
+                } else {
+                    // so the subsequent call to run will have the right value
+                    // if it is not replaced
+                    info.set(emres);
+                }
+                if (emres != null && emres.runResult() != null) {
+                    EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(editorPane.getContentType());
+                    parser.clean();
+                    if (emres.runResult().genResult() != null && emres.runResult().genResult().generationResult() != null) {
+                        emres.runResult().genResult().generationResult().cleanOldOutput();
+                    }
+                    try {
+                        emres.runResult().jfs().clear(StandardLocation.CLASS_OUTPUT);
+                        emres.runResult().jfs().clear(StandardLocation.SOURCE_OUTPUT);
+                    } catch (IOException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+                // Invalidate and start from scratch on EVERYTHING
+                Path grammarSource = AdhocMimeTypes.grammarFilePathForMimeType(editorPane.getContentType());
+                FileObject grammarFileObject = FileUtil.toFileObject(grammarSource.toFile());
+                INV.accept(grammarFileObject);
+                AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
+                FileObject sampleFile = NbEditorUtilities.getFileObject(editorPane.getDocument());
+                INV.accept(sampleFile);
                 DataObject grammarDob = DataObject.find(grammarFileObject);
                 EditorCookie ck = grammarDob.getLookup().lookup(EditorCookie.class);
-                ParsingUtils.parse(ck.openDocument());
-                ParsingUtils.parse(editorPane.getDocument());
-            } catch (Exception ex) {
+                ParsingUtils.parse(ck.openDocument(), res -> {
+                    ParsingUtils.parse(editorPane.getDocument());
+                    AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
+                    // This is synchronous, so a new parser result should be in the
+                    // lookup after
+                    onForcedReparse.run();
+                    if (pp != null) {
+                        EmbeddedAntlrParserResult newParserResult = pp.internalLookup().lookup(EmbeddedAntlrParserResult.class);
+                        if (newParserResult != null) {
+                            info.set(newParserResult);
+                        }
+                    }
+                    return null;
+                });
+            } catch (Exception | Error ex) {
                 Exceptions.printStackTrace(ex);
             }
+
+            ErrorUpdater.this.run();
         }
 
         @Override

@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.Document;
 import javax.tools.FileObject;
 import javax.tools.JavaFileManager.Location;
@@ -58,8 +60,9 @@ final class JFSStorage {
     private final Set<ClassLoader> liveClassLoaders
             = Collections.synchronizedSet(JFSUtilities.newWeakSet());
     private final JFSStorageAllocator<?> alloc;
-    private volatile boolean closePendingClassloadersGone;
+    private volatile boolean closeWhenPendingClassloadersGone;
     private volatile JFS filesystem;
+    private static final Logger LOG = Logger.getLogger(JFSStorage.class.getName());
 
     JFSStorage(Location location, JFS jfs, BiConsumer<Location, FileObject> listener) {
         this(location, jfs, jfs.alloc(), listener);
@@ -73,7 +76,7 @@ final class JFSStorage {
         this.listener = listener;
     }
 
-    void forEach(IOBiConsumer<Name, JFSFileObjectImpl> c) throws IOException{
+    void forEach(IOBiConsumer<Name, JFSFileObjectImpl> c) throws IOException {
         for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
             c.accept(e.getKey(), e.getValue());
         }
@@ -81,7 +84,9 @@ final class JFSStorage {
 
     boolean close() throws IOException {
         if (!liveClassLoaders.isEmpty()) {
-            closePendingClassloadersGone = true;
+            closeWhenPendingClassloadersGone = true;
+            LOG.log(Level.FINE, "Close of {0} for {1} deferred to last classloader close",
+                    new Object[]{location, fileSystemId});
             return false;
         } else {
             _close();
@@ -91,33 +96,37 @@ final class JFSStorage {
 
     void classloaderClosed(JFSClassLoader cl) throws IOException {
         liveClassLoaders.remove(cl);
-        if (closePendingClassloadersGone) {
+        if (closeWhenPendingClassloadersGone && liveClassLoaders.isEmpty()) {
             _close();
         }
     }
 
     private void _close() throws IOException {
+        LOG.log(Level.FINER, "Really close {0} over {1}",
+                new Object[]{location, fileSystemId});
         JFS fs = filesystem;
         if (fs != null) {
             fs.lastClassloaderClosed(location);
         }
-        for (JFSFileObjectImpl fo : new HashSet<>(this.files.values())) {
-            fo.delete();
+        while (!this.files.isEmpty()) { // in case of add while iterating
+            for (JFSFileObjectImpl fo : new HashSet<>(this.files.values())) {
+                fo.delete();
+            }
         }
-        if (this.files.isEmpty()) { // theoretically something could be added while we were iterating
-            this.files.clear();
-            // The only reason we keep a reference to the filesystem
-            // is so that it cannot be garbage collected (breaking URL
-            // resolution of FileObjects) while a classloader that might
-            // use it is still alive
-            filesystem = null;
-        }
+        this.files.clear();
+        // The only reason we keep a reference to the filesystem
+        // is so that it cannot be garbage collected (breaking URL
+        // resolution of FileObjects) while a classloader that might
+        // use it is still alive
+        filesystem = null;
     }
 
     JFSClassLoader createClassLoader(ClassLoader parent) throws IOException {
         JFSClassLoader result = new JFSClassLoader(this, parent);
-        closePendingClassloadersGone = false;
+        closeWhenPendingClassloadersGone = false;
         liveClassLoaders.add(result);
+        LOG.log(Level.FINER, "Created a JFS classloader {0} over {1} total extant: {2}",
+                new Object[]{location, fileSystemId, liveClassLoaders.size()});
         return result;
     }
 
@@ -288,12 +297,12 @@ final class JFSStorage {
     }
 
     private boolean shouldBeJavaFileObject(Name name) {
-        switch(name.kind()) {
-            case CLASS :
-            case HTML :
-            case SOURCE :
+        switch (name.kind()) {
+            case CLASS:
+            case HTML:
+            case SOURCE:
                 return true;
-            default :
+            default:
                 return false;
         }
     }

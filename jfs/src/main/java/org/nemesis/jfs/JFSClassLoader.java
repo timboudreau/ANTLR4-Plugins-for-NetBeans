@@ -44,11 +44,14 @@ import org.nemesis.jfs.isolation.Lockless;
 @Lockless
 public final class JFSClassLoader extends ClassLoader implements Closeable, AutoCloseable, ExposedFindClass {
 
+    private static final Logger LOG = Logger.getLogger(JFSClassLoader.class.getName());
+    private static volatile int ids;
     private final JFSStorage storage;
     private final Map<String, Class<?>> classes = new HashMap<>();
     private volatile Package[] packages;
     private boolean initialized;
-    private boolean initializing;
+    private volatile boolean initializing;
+    private final int id;
 
     JFSClassLoader(JFSStorage storage) throws IOException {
         this(storage, ClassLoader.getSystemClassLoader());
@@ -57,6 +60,8 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
     JFSClassLoader(JFSStorage storage, ClassLoader ldr) throws IOException {
         super(ldr == null ? ClassLoader.getSystemClassLoader() : ldr);
         this.storage = storage;
+        this.id = ids++;
+        LOG.fine(() -> "Created JFSClassLoader " + id);
     }
 
     private synchronized void preloadClassesFromJFS() {
@@ -70,7 +75,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
             }
             this.packages = packages.toArray(new Package[packages.size()]);
             List<JFSFileObjectImpl> all = new ArrayList<>(storage.scan(JavaFileObject.Kind.CLASS));
-            Set<String> names = new HashSet<>();
+            Set<String> names = new HashSet<>(all.size());
             // Poor man's dependency order - shuffle until it's right
             // Since there are usually only a small number of classes involved,
             // this is actually the cheapest option, and more importantly,
@@ -87,7 +92,9 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
                 // strip .class from the file name
                 names.add(file.getName().substring(0, nm.length() - 6));
             }
-            while (!all.isEmpty()) {
+
+            long max = all.size() * all.size();
+            for (int i = 0; !all.isEmpty() && i < max + 1; i++) {
                 for (Iterator<JFSFileObjectImpl> iter = all.iterator(); iter.hasNext();) {
                     JFSFileObjectImpl clazz = iter.next();
                     try {
@@ -110,7 +117,7 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
         }
     }
 
-    //@Override
+    //@Override // XXX JDK9
     protected Class<?> findClass(String moduleName, String name) {
         preloadClassesFromJFS();
         Class<?> result = superFindClassJDK9(this, moduleName, name);
@@ -132,14 +139,14 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
             try {
                 return (Class<?>) findClassWithModuleNameMethod.invoke(ldr, moduleName, name);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.INFO, null, ex);
+                LOG.log(Level.INFO, null, ex);
             }
         } else if (!findClassWithModuleNameMethodLookupFailed) {
             try {
                 findClassWithModuleNameMethod = ClassLoader.class.getDeclaredMethod("findClass", String.class, String.class);
                 findClassWithModuleNameMethod.setAccessible(true);
             } catch (NoSuchMethodException | SecurityException ex) {
-                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.INFO, null, ex);
+                LOG.log(Level.INFO, null, ex);
                 findClassWithModuleNameMethodLookupFailed = true;
             }
         }
@@ -163,7 +170,8 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
 
     @Override
     public String toString() {
-        StringBuilder res = new StringBuilder("JFSClassLoader(");
+        StringBuilder res = new StringBuilder("JFSClassLoader-");
+        res.append(id).append('(');
         List<String> all = new ArrayList<>(classes.keySet());
         Collections.sort(all);
         for (Iterator<String> it = all.iterator(); it.hasNext();) {
@@ -182,11 +190,13 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
 
     @Override
     public void close() throws IOException {
+        LOG.log(Level.FINE, "Close a JFS classloader with {0}", classes.keySet());
         packages = new Package[0];
         classes.clear();
         storage.classloaderClosed(this);
         ClassLoader parent = this.getParent();
         if (parent instanceof JFSClassLoader && parent != this) {
+            LOG.log(Level.FINER, "Also close parent {0}", ((JFSClassLoader) parent).classes.keySet());
             ((JFSClassLoader) parent).close();
         }
     }

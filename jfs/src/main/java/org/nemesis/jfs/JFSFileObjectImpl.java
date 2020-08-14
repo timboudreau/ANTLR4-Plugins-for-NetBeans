@@ -208,6 +208,9 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public boolean delete() {
+        if (deleted) {
+            return false;
+        }
         storage.discard();
         boolean result = storage.storage().delete(name, storage);
         if (result) {

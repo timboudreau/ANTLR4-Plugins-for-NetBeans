@@ -81,5 +81,7 @@ public abstract class EmbeddedAntlrParser {
 
     public abstract boolean isDisposed();
 
+    public abstract void clean();
+
     abstract int rev();
 }

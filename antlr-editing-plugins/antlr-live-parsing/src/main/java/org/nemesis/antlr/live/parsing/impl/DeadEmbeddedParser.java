@@ -51,4 +51,7 @@ public final class DeadEmbeddedParser implements EmbeddedParser {
         return "DeadEmbeddedParser(" + grammarName + ":" + grammarPath + ")";
     }
 
+    public void clean() {
+        // do nothing
+    }
 }

@@ -414,7 +414,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // output window after the sample text has been altered or the
         // grammar has
         this.outputWindowUpdaterRunnable
-                = new ErrorUpdater(editorPane, new RulePathStringifierImpl());
+                = new ErrorUpdater(editorPane, new RulePathStringifierImpl(),
+                        this::parseWithParser);
 
         lastFocused = editorPane;
         setActionMap(editorPane.getActionMap());
@@ -456,6 +457,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             }
         }
         return null;
+    }
+
+    Lookup internalLookup() {
+        return internalLookup();
     }
 
     private ParseTreeProxy currentProxy() {
@@ -764,12 +769,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 if (old != null) {
                     if (res.isEquivalent(old)) {
                         LOG.log(Level.FINER, "Embedded result equivalent to previous - do nothing");
-//                        return;
+                        return;
                     }
                     if (res != old) {
                         content.add(res);
                         content.remove(old);
                     } else {
+                        LOG.log(Level.FINER, "Got same parse result we already had");
                         return;
                     }
                 } else {
@@ -965,10 +971,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             CharSequence seq = DocumentUtilities.getText(editorPane.getDocument(),
                     0, editorPane.getDocument().getLength());
             EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-            System.out.println("FORCE REPARSE OF " + seq.length() + " for " + mimeType
-                    + " with " + parser);
             EmbeddedAntlrParserResult result = parser.parse(seq);
-            System.out.println("   res " + result);
             this.accept(editorPane.getDocument(), result);
             syntaxTreeList.repaint(300);
             rulesList.repaint(300);

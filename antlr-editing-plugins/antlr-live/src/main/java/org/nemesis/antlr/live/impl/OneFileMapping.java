@@ -93,6 +93,11 @@ final class OneFileMapping {
         if (jfs == null && mode != JFSMappingMode.UNMAPPED) {
             setMappingMode(JFSMappingMode.UNMAPPED, null);
         } else if (jfs != null) {
+            JFSFileObject fo = path.resolve(jfs);
+            if (fo == null) {
+                // File was cleaned
+                mapping = JFSMappingMode.UNMAPPED;
+            }
             Document doc = document();
             if (doc == null) {
                 if (file.isValid()) {

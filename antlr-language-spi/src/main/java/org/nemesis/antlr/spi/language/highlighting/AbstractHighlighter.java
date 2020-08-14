@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -23,7 +23,9 @@ import java.awt.event.ComponentListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
@@ -31,9 +33,12 @@ import java.util.logging.Logger;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.netbeans.spi.editor.highlighting.HighlightsChangeEvent;
+import org.netbeans.spi.editor.highlighting.HighlightsChangeListener;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
+import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
@@ -53,47 +58,61 @@ import org.openide.util.WeakListeners;
  * stop listening to the highlighting context (editor), and a way to update
  * highlights that will avoid flashing and other bad behavior that are common
  * problems.
+ * <p>
+ * Implementation:  override <code>activated(FileObject, Document)</code>
+ * and <code>deactivated(FileObject, Document)</code> to attach and detach
+ * listeners;  when you want to update highlights due to an event you detected,
+ * call <code>updateHighlights()</code> passing it a closure which returns
+ * <code>true</code> if any highlights were added to the <code>OffsetsBag</code>
+ * it was passed, false if the highlights should be cleared and the bag's
+ * contents should be ignored.
+ * </p><p>
+ * Registration:  on your subclass, add a public static factory method that
+ * delegates to the method <code>factory(id, zorder, function)</code> to
+ * construct an instance, and annotate it <code>&#064;MimeRegistration</code>.
+ * </p>
  *
  * @author Tim Boudreau
  */
 public abstract class AbstractHighlighter {
 
     private static final Map<Class<?>, RequestProcessor> rpByType = new HashMap<>();
+    private final LazyHighlightsContainer lazy = new LazyHighlightsContainer( this );
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    private final OffsetsBag bag;
+    private OffsetsBag theBag;
     private final boolean mergeHighlights;
     protected final Logger LOG;
 
-    protected AbstractHighlighter(HighlightsLayerFactory.Context ctx) {
-        this(ctx, true);
+    protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
+        this( ctx, true );
     }
 
-    @SuppressWarnings("LeakingThisInConstructor")
-    protected AbstractHighlighter(HighlightsLayerFactory.Context ctx, boolean mergeHighlights) {
-        this.LOG = Logger.getLogger(getClass().getName());
+    @SuppressWarnings( "LeakingThisInConstructor" )
+    protected AbstractHighlighter( HighlightsLayerFactory.Context ctx, boolean mergeHighlights ) {
+        this.LOG = Logger.getLogger( getClass().getName() );
         this.ctx = ctx;
         this.mergeHighlights = mergeHighlights;
         Document doc = ctx.getDocument();
         // XXX listen for changes, etc
         JTextComponent theEditor = ctx.getComponent();
         // Listen for component events
-        theEditor.addComponentListener(WeakListeners.create(
-                ComponentListener.class, compl, theEditor));
+        theEditor.addComponentListener( WeakListeners.create(
+                ComponentListener.class, compl, theEditor ) );
         // Also listen for ancestor events, because component events can be
         // deceptive, but the combination of both ensures we catch all adds/removes
-        theEditor.addPropertyChangeListener("ancestor",
-                WeakListeners.propertyChange(compl, "ancestor", theEditor));
-        bag = new OffsetsBag(ctx.getDocument(), mergeHighlights);
-        LOG.log(Level.FINE, "Create {0} for {1}", new Object[]{getClass().getName(), doc});
+        theEditor.addPropertyChangeListener( "ancestor",
+                                             WeakListeners.propertyChange( compl, "ancestor", theEditor ) );
+//        bag = new OffsetsBag(ctx.getDocument(), mergeHighlights);
+        LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
         // Ensure we are initialized, and don't assume we are constructed in the
         // event thread; calling isShowing() in any other thread is unsafe
-        EventQueue.invokeLater(() -> {
-            if (ctx.getComponent().isShowing()) {
-                LOG.log(Level.FINER, "Component is showing, set active");
-                compl.setActive(true);
+        EventQueue.invokeLater( () -> {
+            if ( ctx.getComponent().isShowing() ) {
+                LOG.log( Level.FINER, "Component is showing, set active" );
+                compl.setActive( true );
             }
-        });
+        } );
     }
 
     /**
@@ -103,17 +122,50 @@ public abstract class AbstractHighlighter {
      * initial highlighting run, here.
      *
      * @param file The file
-     * @param doc The document
+     * @param doc  The document
      */
-    protected abstract void activated(FileObject file, Document doc);
+    protected abstract void activated( FileObject file, Document doc );
 
     /**
      * <i>Fully</i> detach listeners here, cancel any pending tasks, etc.
      *
      * @param file The file
-     * @param doc The document
+     * @param doc  The document
      */
-    protected abstract void deactivated(FileObject file, Document doc);
+    protected abstract void deactivated( FileObject file, Document doc );
+
+    private void onAfterDeactivated() {
+        // Clean up the bag so it doesn't hang around forever as a listener
+        // in the document's listener list
+        OffsetsBag bag = bag( false );
+        if ( bag != null ) {
+            bag.discard();
+            if ( theBag == bag ) {
+                theBag = null;
+            }
+        }
+    }
+
+    private OffsetsBag bag( boolean create ) {
+        OffsetsBag result = null;
+        if ( !create ) {
+            synchronized ( this ) {
+                result = theBag;
+            }
+        } else if ( isActive() ) {
+            synchronized ( this ) {
+                if ( theBag == null && create ) {
+                    Document doc = ctx.getDocument();
+                    if ( doc != null ) {
+                        result = theBag = new OffsetsBag( doc, mergeHighlights );
+                    }
+                } else {
+                    result = theBag;
+                }
+            }
+        }
+        return result;
+    }
 
     /**
      * To update highlighting of the document, call this method with a closure
@@ -123,23 +175,27 @@ public abstract class AbstractHighlighter {
      * cleared0.
      *
      * @param highlightsUpdater A predicate which modifies the empty OffsetsBag
-     * it is passed, adding highlights where needed, and returns true if it
-     * added any highlights to it, false if not.
+     *                          it is passed, adding highlights where needed, and returns true if it
+     *                          added any highlights to it, false if not.
      */
-    protected final void updateHighlights(Predicate<OffsetsBag> highlightsUpdater) {
-        OffsetsBag brandNewBag = new OffsetsBag(ctx.getDocument(), mergeHighlights);
+    protected final void updateHighlights( Predicate<OffsetsBag> highlightsUpdater ) {
+        OffsetsBag bag = bag( true );
+        if ( bag == null ) {
+            return;
+        }
+        OffsetsBag brandNewBag = new OffsetsBag( ctx.getDocument(), mergeHighlights );
         Bool doUpdate = Bool.create();
         try {
-            doUpdate.set(highlightsUpdater.test(brandNewBag));
+            doUpdate.set( highlightsUpdater.test( brandNewBag ) );
         } finally {
-            Mutex.EVENT.readAccess(() -> {
-                if (doUpdate.getAsBoolean()) {
-                    bag.setHighlights(brandNewBag);
+            Mutex.EVENT.readAccess( () -> {
+                if ( doUpdate.getAsBoolean() ) {
+                    bag.setHighlights( brandNewBag );
                 } else {
                     bag.clear();
                 }
                 brandNewBag.discard();
-            });
+            } );
         }
     }
 
@@ -153,10 +209,6 @@ public abstract class AbstractHighlighter {
         return compl.active;
     }
 
-    final HighlightsContainer bag() {
-        return bag;
-    }
-
     /**
      * Returns a single-thread request processor created for all instances of
      * this class, which can be used for asynchronous tasks while guaranteeing
@@ -165,53 +217,69 @@ public abstract class AbstractHighlighter {
      * @return A request processor
      */
     protected final RequestProcessor threadPool() {
-        return threadPool(getClass());
+        return threadPool( getClass() );
     }
 
-    @SuppressWarnings("DoubleCheckedLocking")
-    private static final RequestProcessor threadPool(Class<?> type) {
-        RequestProcessor result = rpByType.get(type);
-        if (result == null) {
-            synchronized (rpByType) {
-                result = rpByType.get(type);
-                if (result == null) {
-                    result = new RequestProcessor(type.getName() + "-subscribe", 1, false);
-                    rpByType.put(type, result);
+    @SuppressWarnings( "DoubleCheckedLocking" )
+    private static final RequestProcessor threadPool( Class<?> type ) {
+        RequestProcessor result = rpByType.get( type );
+        if ( result == null ) {
+            synchronized ( rpByType ) {
+                result = rpByType.get( type );
+                if ( result == null ) {
+                    result = new RequestProcessor( type.getName() + "-subscribe", 1, false );
+                    rpByType.put( type, result );
                 }
             }
         }
         return result;
     }
 
-    public static final HighlightsLayerFactory factory(String layerTypeId, ZOrder zOrder,
-            Function<? super HighlightsLayerFactory.Context, ? extends AbstractHighlighter> highlighterCreator) {
-        return new Factory(layerTypeId, zOrder, highlighterCreator);
+    /**
+     * Create a factory for some type of AbstractHighlighter - typical usage is to create
+     * a no-argument factory method that calls this and annotate it with
+     * mime lookup registration.
+     *
+     * @param layerTypeId        The layer type id
+     * @param zOrder             The z-order
+     * @param highlighterCreator A function that returns an instance of AbstractHighlighter
+     *
+     * @return A generic highlighter factory
+     */
+    public static final HighlightsLayerFactory factory( String layerTypeId, ZOrder zOrder,
+            Function<? super HighlightsLayerFactory.Context, ? extends AbstractHighlighter> highlighterCreator ) {
+        return new Factory( layerTypeId, zOrder, highlighterCreator );
+    }
+
+    public final HighlightsContainer getHighlightsBag() {
+        return lazy;
     }
 
     private static class Factory implements HighlightsLayerFactory {
 
-        private static final HighlightsLayer[] EMPTY = new HighlightsLayer[0];
+        private static final HighlightsLayer[] EMPTY = new HighlightsLayer[ 0 ];
         private final ZOrder zOrder;
         private final Function<? super Context, ? extends AbstractHighlighter> highlighterCreator;
         private final String layerTypeId;
 
-        Factory(String layerTypeId, ZOrder zorder, Function<? super Context, ? extends AbstractHighlighter> highlighterCreator) {
+        Factory( String layerTypeId, ZOrder zorder,
+                Function<? super Context, ? extends AbstractHighlighter> highlighterCreator ) {
             this.zOrder = zorder;
             this.highlighterCreator = highlighterCreator;
             this.layerTypeId = layerTypeId;
         }
 
         @Override
-        public HighlightsLayer[] createLayers(HighlightsLayerFactory.Context ctx) {
+        public HighlightsLayer[] createLayers( HighlightsLayerFactory.Context ctx ) {
             Document doc = ctx.getDocument();
-            FileObject fo = NbEditorUtilities.getFileObject(doc);
-            if (fo == null) { // preview pane, etc.
+            FileObject fo = NbEditorUtilities.getFileObject( doc );
+            if ( fo == null ) { // preview pane, etc.
                 return EMPTY;
             }
-            AbstractHighlighter highlighter = highlighterCreator.apply(ctx);
+            AbstractHighlighter highlighter = highlighterCreator.apply( ctx );
             return new HighlightsLayer[]{
-                HighlightsLayer.create(layerTypeId, zOrder,
-                true, highlighter.bag())
+                HighlightsLayer.create( layerTypeId, zOrder,
+                                        true, highlighter.getHighlightsBag() )
             };
         }
     }
@@ -221,69 +289,159 @@ public abstract class AbstractHighlighter {
         // Volatile because while highlighters are only attached and detached from the
         // event thread, it can be read from any thread that checks state
         private volatile boolean active;
-        private final RequestProcessor.Task task = threadPool().create(this);
+        private final RequestProcessor.Task task = threadPool().create( this );
 
         @Override
-        public void componentShown(ComponentEvent e) {
-            LOG.log(Level.FINEST, "Component shown {0}", ctx.getDocument());
-            setActive(true);
+        public void componentShown( ComponentEvent e ) {
+            LOG.log( Level.FINEST, "Component shown {0}", ctx.getDocument() );
+            setActive( true );
         }
 
         @Override
-        public void componentHidden(ComponentEvent e) {
-            LOG.log(Level.FINEST, "Component hidden {0}", ctx.getDocument());
-            setActive(false);
+        public void componentHidden( ComponentEvent e ) {
+            LOG.log( Level.FINEST, "Component hidden {0}", ctx.getDocument() );
+            setActive( false );
         }
 
         @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            if ("ancestor".equals(evt.getPropertyName())) {
-                setActive(evt.getNewValue() != null);
+        public void propertyChange( PropertyChangeEvent evt ) {
+            if ( "ancestor".equals( evt.getPropertyName() ) ) {
+                setActive( evt.getNewValue() != null );
             }
         }
 
-        void setActive(boolean active) {
+        void setActive( boolean active ) {
             boolean act = this.active;
-            if (active != act) {
+            if ( active != act ) {
                 this.active = act = active;
-                LOG.log(Level.FINE, "Set active to {0} for {1}", new Object[]{act, ctx.getDocument()});
-                if (act) {
-                    task.schedule(350);
+                LOG.log( Level.FINE, "Set active to {0} for {1}",
+                         new Object[]{ act, ctx.getDocument() } );
+                if ( act ) {
+                    task.schedule( 350 );
                 } else {
                     task.cancel();
-                    unsubscribe();
+                    deactivate();
                 }
             }
         }
 
-        void unsubscribe() {
+        void deactivate() {
             Document doc = ctx.getDocument();
-            FileObject fo = NbEditorUtilities.getFileObject(doc);
+            FileObject fo = NbEditorUtilities.getFileObject( doc );
             try {
-                synchronized (this) {
-                    LOG.log(Level.FINE, "Activating against {0}", fo);
-                    deactivated(fo, doc);
+                synchronized ( this ) {
+                    LOG.log( Level.FINE, "Activating against {0}", fo );
+                    try {
+                        deactivated( fo, doc );
+                    } finally {
+                        onAfterDeactivated();
+                    }
                 }
-            } catch (Exception ex) {
-                LOG.log(Level.SEVERE, "Exception deactivating against " + fo + " / " + doc, ex);
+            } catch ( Exception ex ) {
+                LOG.log( Level.SEVERE, "Exception deactivating against "
+                                       + fo + " / " + doc, ex );
+            }
+        }
+
+        void activate() {
+            Document doc = ctx.getDocument();
+            FileObject fo = NbEditorUtilities.getFileObject( doc );
+            if ( active ) {
+                try {
+                    synchronized ( this ) {
+                        LOG.log( Level.FINE, "Activating against {0}", fo );
+                        activated( fo, doc );
+                    }
+                } catch ( Exception ex ) {
+                    LOG.log( Level.SEVERE, "Exception activating against "
+                                           + fo + " / " + doc, ex );
+                }
+                // Make sure the highlights container the editor is listening on
+                // tells the painting infrastructure that there is something to paint
+                // otherwise it will never paint with our highlight data until something
+                // external triggers it
+                lazy.tickle();
+            } else {
+                LOG.log( Level.FINE, "Not active, don't subscribe to rebuilds of {0}",
+                         ctx.getDocument() );
             }
         }
 
         @Override
         public void run() {
-            Document doc = ctx.getDocument();
-            FileObject fo = NbEditorUtilities.getFileObject(doc);
-            if (active) {
-                try {
-                    synchronized (this) {
-                        LOG.log(Level.FINE, "Activating against {0}", fo);
-                        activated(fo, doc);
-                    }
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, "Exception activating against " + fo + " / " + doc, ex);
+            activate();
+        }
+    }
+
+    /**
+     * Allows our OffsetsBag to be fully detached and stop listening on the
+     * document when the editor is not displayed. If that comes with too much
+     * of a performance penalty, reconsider.
+     */
+    private static final class LazyHighlightsContainer implements HighlightsContainer, HighlightsChangeListener {
+        private final AbstractHighlighter hl;
+        private int lastIdHash;
+        private final List<HighlightsChangeListener> listeners = new CopyOnWriteArrayList<>();
+
+        public LazyHighlightsContainer( AbstractHighlighter hl ) {
+            this.hl = hl;
+        }
+
+        void tickle() {
+            Document doc = hl.ctx.getDocument();
+            if ( doc != null && !listeners.isEmpty() ) {
+                int len = doc.getLength();
+                HighlightsChangeEvent evt = new HighlightsChangeEvent( this, 0, len - 1 );
+                fire( evt );
+            }
+        }
+
+        private synchronized OffsetsBag realBag( boolean create ) {
+            OffsetsBag result = hl.bag( create );
+            if ( result != null ) {
+                int hash = System.identityHashCode( result );
+                if ( hash != lastIdHash ) {
+                    lastIdHash = hash;
+                    result.addHighlightsChangeListener( this );
+                    tickle();
                 }
-            } else {
-                LOG.log(Level.FINE, "Not active, don't subscribe to rebuilds of {0}", ctx.getDocument());
+            }
+            return result;
+        }
+
+        @Override
+        public HighlightsSequence getHighlights( int startOffset, int endOffset ) {
+            OffsetsBag bag = realBag( false );
+            if ( bag == null ) {
+                return HighlightsSequence.EMPTY;
+            }
+            return bag.getHighlights( startOffset, endOffset );
+        }
+
+        @Override
+        public void addHighlightsChangeListener( HighlightsChangeListener listener ) {
+            listeners.add( listener );
+        }
+
+        @Override
+        public void removeHighlightsChangeListener( HighlightsChangeListener listener ) {
+            listeners.remove( listener );
+        }
+
+        private void fire( HighlightsChangeEvent e ) {
+            listeners.forEach( l -> {
+                l.highlightChanged( e );
+            } );
+        }
+
+        @Override
+        public void highlightChanged( HighlightsChangeEvent event ) {
+            // don't call the listeners while holding the lock
+            if ( !listeners.isEmpty() ) {
+                HighlightsChangeEvent e
+                        = new HighlightsChangeEvent( this, event.getStartOffset(),
+                                                     event.getEndOffset() );
+                fire( e );
             }
         }
     }

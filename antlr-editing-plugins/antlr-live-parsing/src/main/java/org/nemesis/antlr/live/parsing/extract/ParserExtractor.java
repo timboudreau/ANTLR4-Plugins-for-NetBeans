@@ -94,34 +94,8 @@ public class ParserExtractor {
                 = new org.nemesis.antlr.live.parsing.extract.AntlrProxies(GRAMMAR_NAME, GRAMMAR_PATH, text);
         proxies.setGrammarTokensHash(GRAMMAR_TOKENS_HASH);
         try {
-            long tokenNamesChecksum = 0;
-            int max = DummyLanguageLexer.VOCABULARY.getMaxTokenType() + 1;
-            // Iterate all the token types and report them, so we can
-            // pass back the token types without reference to antlr classes
-            for (int tokenType = 0; tokenType < max; tokenType++) {
-                String dn = DummyLanguageLexer.VOCABULARY.getDisplayName(tokenType);
-                String sn = DummyLanguageLexer.VOCABULARY.getSymbolicName(tokenType);
-                String ln = DummyLanguageLexer.VOCABULARY.getLiteralName(tokenType);
-                proxies.addTokenType(tokenType, dn, sn, ln);
-                String nameToHash = sn != null ? sn : ln != null ? ln : dn;
-                tokenNamesChecksum += ((tokenType + 1) * 41 * nameToHash.hashCode());
-            }
-            proxies.setTokenNamesChecksum(tokenNamesChecksum);
-            String errName = org.nemesis.antlr.live.parsing.extract.AntlrProxies.ERRONEOUS_TOKEN_NAME;
-            proxies.addTokenType(max, errName, errName, errName);
-            // The channel names are simply a string array - safe enough
-            try {
-                // Turns out, if a grammar doesn't use channels, this field
-                // does not exist.  So, find it reflectively.
-                Field f = DummyLanguageLexer.class.getField("channelNames");
-                Object o = f.get(null);
-                if (o instanceof String[]) {
-                    proxies.channelNames((String[]) o);
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                proxies.channelNames(new String[]{"default"});
-            }
+            int max = checksumTokenAndRuleNamesAndAddErrorToken(proxies);
+            collectChannelNames(proxies);
             // Same for the rule names
             proxies.setParserRuleNames(DummyLanguageParser.ruleNames); //parser
             proxies.setLexerRuleNames(DummyLanguageLexer.ruleNames);
@@ -200,7 +174,7 @@ public class ParserExtractor {
                     prevStop = stop;
                     errorListener.updateTokenIndex(tokenIndex, type);
                     int trim = 0;
-                    if (type == -1) {
+                    if (type == DummyLanguageLexer.EOF) {
                         // EOF has peculiar behavior in Antlr - the start
                         // offset is less than the end offset
                         start = Math.max(start, stop);
@@ -249,6 +223,44 @@ public class ParserExtractor {
             proxies.onThrown(ex);
         }
         return proxies.result();
+    }
+
+    static void collectChannelNames(AntlrProxies proxies) {
+        // The channel names are simply a string array - safe enough
+        try {
+            // Turns out, if a grammar doesn't use channels, this field
+            // does not exist.  So, find it reflectively.
+            Field f = DummyLanguageLexer.class.getField("channelNames");
+            Object o = f.get(null);
+            if (o instanceof String[]) {
+                proxies.channelNames((String[]) o);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            proxies.channelNames(new String[]{"default"});
+        }
+    }
+
+    static int checksumTokenAndRuleNamesAndAddErrorToken(AntlrProxies proxies) {
+        long namesChecksum = 0;
+        int max = DummyLanguageLexer.VOCABULARY.getMaxTokenType() + 1;
+        // Iterate all the token types and report them, so we can
+        // pass back the token types without reference to antlr classes
+        for (int tokenType = 0; tokenType < max; tokenType++) {
+            String dn = DummyLanguageLexer.VOCABULARY.getDisplayName(tokenType);
+            String sn = DummyLanguageLexer.VOCABULARY.getSymbolicName(tokenType);
+            String ln = DummyLanguageLexer.VOCABULARY.getLiteralName(tokenType);
+            proxies.addTokenType(tokenType, dn, sn, ln);
+            String nameToHash = sn != null ? sn : ln != null ? ln : dn;
+            namesChecksum += 727 * (nameToHash.hashCode() * (tokenType + 1));
+        }
+        for (int i = 0; i < DummyLanguageParser.ruleNames.length; i++) { //parser
+            namesChecksum += 197 * (DummyLanguageParser.ruleNames[i].hashCode() * (i + 1)); //parser
+        } //parser
+        proxies.setTokenNamesChecksum(namesChecksum);
+        String errName = org.nemesis.antlr.live.parsing.extract.AntlrProxies.ERRONEOUS_TOKEN_NAME;
+        proxies.addTokenType(max, errName, errName, errName);
+        return max;
     }
 
     private static class ErrL implements ANTLRErrorListener {
