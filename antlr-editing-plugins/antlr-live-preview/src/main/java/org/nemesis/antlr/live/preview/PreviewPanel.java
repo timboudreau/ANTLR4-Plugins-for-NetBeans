@@ -460,7 +460,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     Lookup internalLookup() {
-        return internalLookup();
+        return internalLookup;
     }
 
     private ParseTreeProxy currentProxy() {
