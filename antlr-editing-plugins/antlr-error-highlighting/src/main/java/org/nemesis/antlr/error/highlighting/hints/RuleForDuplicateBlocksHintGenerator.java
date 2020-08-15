@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.Segment;
@@ -84,6 +85,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = AntlrHintGenerator.class)
 public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHintGenerator {
 
+    private static final Pattern SINGLE_WORD = Pattern.compile("^\\s*\\w+\\s*");
     // XXX pending:  Should insert the rule at the most sensible place if
     // rules are grouped into parser, then lexer, then fragment, as most
     // grammars are
@@ -141,7 +143,9 @@ public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHi
                                 // XXX this is pretty imperfect, since a comment will
                                 // screw up text matching
                                 String match = textMatchRuleBody(tree, text);
-                                exactMatchRuleNameForRegion.put(duplicateSet, match);
+                                if (!Strings.isBlank(match)) {
+                                    exactMatchRuleNameForRegion.put(duplicateSet, match);
+                                }
                             } catch (BadLocationException | IOException ex) {
                                 Exceptions.printStackTrace(ex);
                             }
@@ -185,7 +189,9 @@ public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHi
                         Exceptions.printStackTrace(ex);
                     }
                 }
-                if (text == null || text.isEmpty()) {
+                // Currently the sections we're matching can result in
+                // "Replace COMMA with COMMA" - so kill off any single-token matches
+                if (text == null || Strings.isBlank(text) || SINGLE_WORD.matcher(text).find()) {
                     // Exception thrown extracting the text, or the grammar contains
                     // empty () blocks - nothing useful we can do here
                     return;
@@ -340,6 +346,9 @@ public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHi
     }
 
     private String textMatchRuleBody(GrammarFileContext ctx, String ruleBodyText) {
+        if (Strings.isBlank(ruleBodyText)) {
+            return null;
+        }
         MatchingRuleBodyFinder finder = new MatchingRuleBodyFinder(ruleBodyText);
         ctx.accept(finder);
         return finder.targetName;
@@ -355,7 +364,7 @@ public final class RuleForDuplicateBlocksHintGenerator extends NonHighlightingHi
 
         public MatchingRuleBodyFinder(String ruleBody) {
             this.ruleBody = ruleBody.replaceAll("\\s+", "");
-            if (ruleBody.charAt(0) == '(' && ruleBody.charAt(ruleBody.length() - 1) == ')') {
+            if (!ruleBody.isEmpty() && ruleBody.charAt(0) == '(' && ruleBody.charAt(ruleBody.length() - 1) == ')') {
                 ruleBodyNoParens = ruleBody.substring(1, ruleBody.length() - 1);
             } else {
                 ruleBodyNoParens = null;

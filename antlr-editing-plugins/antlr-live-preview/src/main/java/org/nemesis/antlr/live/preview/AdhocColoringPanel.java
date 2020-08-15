@@ -113,8 +113,9 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         gbc.anchor = GridBagConstraints.FIRST_LINE_END;
         gbc.gridx++;
         add(indicator, gbc);
-        gbc.gridx++;
-        add(disableAll, gbc);
+        // Hide this for now - doesn't work and too easy to accidentally hit
+//        gbc.gridx++;
+//        add(disableAll, gbc);
         gbc.gridx++;
         gbc.gridwidth = 2;
         add(colorButton, gbc);

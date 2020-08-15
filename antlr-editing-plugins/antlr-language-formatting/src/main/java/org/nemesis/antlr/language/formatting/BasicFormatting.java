@@ -80,6 +80,13 @@ public class BasicFormatting extends AbstractFormatter {
                     .format(PREPEND_SPACE);
         });
 
+        rules.whenInMode(AntlrCriteria.mode(MODE_IMPORT), rls -> {
+            rls.onTokenType(ID)
+                    .named("spaces-between-imports")
+                    .wherePreviousTokenType(COMMA, IMPORT)
+                    .format(spaceOrWrap);
+        });
+
         rules.whenInMode(AntlrCriteria.mode(MODE_CHANNELS), rls -> {
             rls.onTokenType(ANTLRv4Lexer.LBRACE)
                     .wherePreviousTokenType(CHANNELS)
