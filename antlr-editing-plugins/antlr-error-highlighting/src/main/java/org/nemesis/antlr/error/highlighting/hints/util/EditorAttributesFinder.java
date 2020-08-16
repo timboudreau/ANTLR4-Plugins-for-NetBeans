@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.error.highlighting.hints;
+package org.nemesis.antlr.error.highlighting.hints.util;
 
 import java.awt.Color;
 import java.util.Collection;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.SimpleAttributeSet;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.mimelookup.MimePath;
@@ -33,7 +35,7 @@ import org.openide.util.LookupListener;
  *
  * @author Tim Boudreau
  */
-final class EditorAttributesFinder implements LookupListener {
+public final class EditorAttributesFinder implements LookupListener, Function<String, AttributeSet> {
 
     private Lookup.Result<FontColorSettings> settingsResult;
     private FontColorSettings settings;
@@ -104,6 +106,11 @@ final class EditorAttributesFinder implements LookupListener {
         return result == null ? failover.get() : result;
     }
 
+    @Override
+    public AttributeSet apply(String t) {
+        return find(SimpleAttributeSet::new, t);
+    }
+
     public AttributeSet errors() {
         if (errors != null) {
             return errors;
@@ -125,5 +132,4 @@ final class EditorAttributesFinder implements LookupListener {
         }
         return warnings = result;
     }
-
 }

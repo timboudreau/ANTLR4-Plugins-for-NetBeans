@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.error.highlighting.hints;
 
+import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import com.mastfrog.function.state.Bool;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
 import com.mastfrog.graph.StringGraph;
