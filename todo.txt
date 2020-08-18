@@ -1,6 +1,4 @@
-
-Because run subscriptions and similar are reusing the AntlrGeneratorBuilder, the tokens hash they
-have is not refreshed?
+In a parser grammar, parser rule completions is not showing imported rules.  It should.
 
 Rewrite AntlrRunSubscriptions to use Subscribable.
 

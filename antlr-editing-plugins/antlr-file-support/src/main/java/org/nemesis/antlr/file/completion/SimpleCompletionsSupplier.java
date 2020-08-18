@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -42,6 +42,7 @@ import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommand;
 import static org.nemesis.antlr.ANTLRv4Parser.RULE_lexerCommands;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
+import static org.nemesis.antlr.common.extractiontypes.GrammarType.COMBINED;
 import org.nemesis.antlr.common.extractiontypes.LexerModes;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
@@ -49,11 +50,18 @@ import org.nemesis.antlr.file.impl.GrammarDeclaration;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
-import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.SingletonEncounters;
+import org.nemesis.extraction.attribution.ImportFinder;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.netbeans.modules.parsing.api.ParserManager;
+import org.netbeans.modules.parsing.api.ResultIterator;
+import org.netbeans.modules.parsing.api.Source;
+import org.netbeans.modules.parsing.api.UserTask;
+import org.netbeans.modules.parsing.spi.ParseException;
+import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -115,17 +123,21 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
             return result;
         }
 
-        protected void collectSetsOfRegions(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
+        private GrammarType rootGrammarType() {
+            Extraction ext = extractionFor(doc);
+            if (ext == null) {
+                return GrammarType.UNDEFINED;
+            }
             SingletonEncounters<GrammarDeclaration> grammarType = ext.singletons(AntlrKeys.GRAMMAR_TYPE);
             SingletonEncounters.SingletonEncounter<GrammarDeclaration> gd = grammarType.first();
-            GrammarType type = GrammarType.COMBINED;
-            if (gd != null) {
-                type = gd.get().type();
-            }
+            return gd.get().type();
+        }
+
+        protected void collectSetsOfRegions(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types, GrammarType rootType) {
             switch (parserRuleId) {
                 case ANTLRv4Parser.RULE_block:
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
-                    switch (type) {
+                    switch (rootType) {
                         case COMBINED:
                             types.add(RuleTypes.PARSER);
                             types.add(RuleTypes.LEXER);
@@ -158,16 +170,16 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                 case ANTLRv4Parser.RULE_lexerRuleElementBlock:
                 case ANTLRv4Parser.RULE_tokenRuleSpec:
                 case ANTLRv4Parser.RULE_tokenRuleIdentifier:
-                    types.add(RuleTypes.LEXER);
-                    types.add(RuleTypes.FRAGMENT);
+//                    types.remove(RuleTypes.PARSER);
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
                     break;
                 case ANTLRv4Parser.RULE_fragmentRuleIdentifier:
                 case ANTLRv4Parser.RULE_fragmentRuleDefinition:
                 case ANTLRv4Parser.RULE_fragmentRuleSpec:
-                    types.add(RuleTypes.FRAGMENT);
+//                    types.remove(RuleTypes.LEXER);
+//                    types.remove(RuleTypes.PARSER);
                     use.add(ext.namedRegions(AntlrKeys.RULE_NAMES));
-
+                    break;
             }
         }
 
@@ -206,22 +218,70 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                     optionalSuffix, rulePath, addTo);
         }
 
-        private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
-            recursivelyFindRegionSets(parserRuleId, ext, new HashSet<>(), use, types);
+        private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types, GrammarType rootType) {
+            Set<GrammarSource<?>> sourcesProbed = new HashSet<>();
+            recursivelyFindRegionSets(parserRuleId, ext, sourcesProbed, use, types, rootType);
         }
 
-        private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<GrammarSource<?>> seen, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types) {
+        private Source toSource(GrammarSource<?> gs) {
+            Optional<Source> res = gs.lookup(Source.class);
+            if (res.isPresent()) {
+                return res.get();
+            }
+            Optional<Document> doc = gs.lookup(Document.class);
+            if (doc.isPresent()) {
+                return Source.create(doc.get());
+            }
+            Optional<FileObject> fo = gs.lookup(FileObject.class);
+            if (fo.isPresent()) {
+                return Source.create(fo.get());
+            }
+            return null;
+        }
+
+        private void collectExtractions(Set<GrammarSource<?>> seen, Set<GrammarSource<?>> sources, Consumer<Extraction> c) {
+            for (GrammarSource gs : sources) {
+                if (!seen.contains(gs)) {
+                    Optional<Document> odoc = gs.lookup(Document.class);
+                    if (odoc.isPresent()) {
+                        Extraction ext = extractionFor(odoc.get());
+                        if (ext != null) {
+                            c.accept(ext);
+                            return;
+                        }
+                    }
+                    Source src = toSource(gs);
+                    if (src != null) {
+                        try {
+                            ParserManager.parse(Collections.singleton(src), new UserTask() {
+                                @Override
+                                public void run(ResultIterator ri) throws Exception {
+                                    Extraction ext = ExtractionParserResult.extraction(ri.getParserResult());
+                                    if (ext != null) {
+                                        c.accept(ext);
+                                    }
+                                }
+                            });
+                        } catch (ParseException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void recursivelyFindRegionSets(int parserRuleId, Extraction ext, Set<GrammarSource<?>> seen, Set<NamedSemanticRegions<RuleTypes>> use, Set<RuleTypes> types, GrammarType rootType) {
             if (seen.contains(ext.source())) {
                 return;
             }
             seen.add(ext.source());
-            collectSetsOfRegions(parserRuleId, ext, use, types);
-            Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = ext.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
-            for (Map.Entry<GrammarSource<?>, Extraction> e : resolved.dependencies().entrySet()) {
-                if (!e.getKey().equals(ext.source()) && !seen.contains(e.getKey())) {
-                    recursivelyFindRegionSets(parserRuleId, e.getValue(), seen, use, types);
-                }
-            }
+            collectSetsOfRegions(parserRuleId, ext, use, types, rootType);
+
+            ImportFinder fnd = ImportFinder.forMimeType(ext.mimeType());
+            Set<GrammarSource<?>> imps = new HashSet<>(fnd.allImports(ext, new HashSet<>(12)));
+            collectExtractions(seen, imps, newExt -> {
+                recursivelyFindRegionSets(parserRuleId, newExt, use, types, rootType);
+            });
         }
 
         public void findNamesForModes(int parserRuleId, String optionalPrefix, int maxResultsPerKey,
@@ -286,9 +346,12 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                     default:
                         ruleId = parserRuleId;
                 }
+                GrammarType type = rootGrammarType();
                 Set<NamedSemanticRegions<RuleTypes>> use = new HashSet<>();
                 Set<RuleTypes> types = EnumSet.noneOf(RuleTypes.class);
-                recursivelyFindRegionSets(ruleId, ext, use, types);
+                types.addAll(type.legalRuleTypes());
+                types.remove(RuleTypes.NAMED_ALTERNATIVES); // not useful in completion
+                recursivelyFindRegionSets(ruleId, ext, use, types, type);
 
                 Set<CompEntry> items = new HashSet<>();
                 for (NamedSemanticRegions<RuleTypes> set : use) {

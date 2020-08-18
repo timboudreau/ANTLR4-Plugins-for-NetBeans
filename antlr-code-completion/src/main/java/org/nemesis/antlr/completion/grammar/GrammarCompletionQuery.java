@@ -157,11 +157,9 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
         if (tokenInfo == null || !tokenInfo.isUserToken()) {
             return null;
         }
-        boolean nextIsPunctuation = false;
         if (tokenInfo.isUserToken() && tokenInfo.isPunctuation()) {
             CaretToken old = tokenInfo;
             tokenInfo = tokenInfo.before();
-            nextIsPunctuation = true;
             if (old == tokenInfo || old.equals(tokenInfo)) {
 //                break;
             }

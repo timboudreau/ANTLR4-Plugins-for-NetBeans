@@ -30,8 +30,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import org.nemesis.editor.ops.DocumentOperator;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsChangeEvent;
 import org.netbeans.spi.editor.highlighting.HighlightsChangeListener;
@@ -42,6 +44,7 @@ import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
@@ -59,15 +62,15 @@ import org.openide.util.WeakListeners;
  * highlights that will avoid flashing and other bad behavior that are common
  * problems.
  * <p>
- * Implementation:  override <code>activated(FileObject, Document)</code>
+ * Implementation: override <code>activated(FileObject, Document)</code>
  * and <code>deactivated(FileObject, Document)</code> to attach and detach
- * listeners;  when you want to update highlights due to an event you detected,
+ * listeners; when you want to update highlights due to an event you detected,
  * call <code>updateHighlights()</code> passing it a closure which returns
  * <code>true</code> if any highlights were added to the <code>OffsetsBag</code>
  * it was passed, false if the highlights should be cleared and the bag's
  * contents should be ignored.
  * </p><p>
- * Registration:  on your subclass, add a public static factory method that
+ * Registration: on your subclass, add a public static factory method that
  * delegates to the method <code>factory(id, zorder, function)</code> to
  * construct an instance, and annotate it <code>&#064;MimeRegistration</code>.
  * </p>
@@ -390,9 +393,22 @@ public abstract class AbstractHighlighter {
         void tickle() {
             Document doc = hl.ctx.getDocument();
             if ( doc != null && !listeners.isEmpty() ) {
-                int len = doc.getLength();
-                HighlightsChangeEvent evt = new HighlightsChangeEvent( this, 0, len - 1 );
-                fire( evt );
+                HighlightsChangeEvent evt;
+                try {
+                    evt = DocumentOperator.render( doc,
+                                                   () -> {
+                                                       int len = doc.getLength();
+                                                       if ( len > 0 ) {
+                                                           return new HighlightsChangeEvent( this, 0, len - 1 );
+                                                       }
+                                                       return null;
+                                                   } );
+                    if ( evt != null ) {
+                        fire( evt );
+                    }
+                } catch ( BadLocationException | RuntimeException | Error ex ) {
+                    Exceptions.printStackTrace( ex );
+                }
             }
         }
 

@@ -131,7 +131,7 @@ final class ParseCoalescer {
                 Future<?> lt = lastTask;
                 try {
                     if (lt != null) {
-                        lt.cancel(false);
+//                        lt.cancel(false);
                     }
                     lastTask = ParserManager.parseWhenScanFinished(Collections.singleton(src), this);
                 } catch (ParseException ex) {

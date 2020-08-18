@@ -50,6 +50,7 @@ final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementM
         return item.id();
     }
 
+    @Override
     public String category() {
         String result = item.category();
         return result == null ? NO_CATEGORY : result;
@@ -100,5 +101,4 @@ final class EditorFeatureEnablementModelImpl implements EditorFeatureEnablementM
             item.setEnabled(state);
         }
     }
-
 }

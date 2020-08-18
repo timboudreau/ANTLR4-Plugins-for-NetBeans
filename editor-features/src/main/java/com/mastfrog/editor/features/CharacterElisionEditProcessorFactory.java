@@ -16,11 +16,9 @@
 package com.mastfrog.editor.features;
 
 import java.util.function.IntPredicate;
-import javax.swing.text.BadLocationException;
-import org.netbeans.editor.BaseDocument;
+import javax.swing.text.Document;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
-import org.openide.util.Exceptions;
 
 /**
  *
@@ -75,45 +73,38 @@ final class CharacterElisionEditProcessorFactory extends EnablableEditProcessorF
         @Override
         public void onBeforeInsert(ContextWrapper ctx) {
             int ix = ctx.getOffset();
-            BaseDocument doc = ctx.document();
-            doc.readLock();
-            try {
+            Document doc = ctx.document();
+            EditorFeatureUtils.runLocked(doc, () -> {
                 int len = doc.getLength();
-                try {
-                    if (backwards) {
-                        CharSequence seq = DocumentUtilities.getText(doc, 0, ix);
-                        int max = seq.length();
-                        for (int i = max - 1; i >= 0; i--) {
-                            char c = seq.charAt(i);
-                            if (what == c) {
-                                caretPos = 0;
-                                break;
-                            } else if (!Character.isWhitespace(c)) {
-                                break;
-                            }
-                        }
-                    } else {
-                        CharSequence seq = DocumentUtilities.getText(doc, ix, len - ix);
-                        int max = seq.length();
-                        for (int i = 0; i < max; i++) {
-                            char c = seq.charAt(i);
-                            if (c == what) {
-                                caretPos = ix + i + 1;
-                                break;
-                            } else if (!Character.isWhitespace(c)) {
-                                break;
-                            }
-                        }
-                        if (caretPos != -1) {
-                            ctx.component().getCaret().setDot(caretPos);
+                if (backwards) {
+                    CharSequence seq = DocumentUtilities.getText(doc, 0, ix);
+                    int max = seq.length();
+                    for (int i = max - 1; i >= 0; i--) {
+                        char c = seq.charAt(i);
+                        if (what == c) {
+                            caretPos = 0;
+                            break;
+                        } else if (!Character.isWhitespace(c)) {
+                            break;
                         }
                     }
-                } catch (BadLocationException ex) {
-                    Exceptions.printStackTrace(ex);
+                } else {
+                    CharSequence seq = DocumentUtilities.getText(doc, ix, len - ix);
+                    int max = seq.length();
+                    for (int i = 0; i < max; i++) {
+                        char c = seq.charAt(i);
+                        if (c == what) {
+                            caretPos = ix + i + 1;
+                            break;
+                        } else if (!Character.isWhitespace(c)) {
+                            break;
+                        }
+                    }
+                    if (caretPos != -1) {
+                        ctx.component().getCaret().setDot(caretPos);
+                    }
                 }
-            } finally {
-                doc.readUnlock();
-            }
+            });
         }
 
         @Override

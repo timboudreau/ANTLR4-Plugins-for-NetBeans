@@ -15,8 +15,8 @@
  */
 package com.mastfrog.editor.features;
 
+import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedBreakInterceptor;
 import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
@@ -27,7 +27,7 @@ import org.netbeans.spi.editor.typinghooks.TypedTextInterceptor;
  */
 abstract class ContextWrapper {
 
-    abstract BaseDocument document();
+    abstract Document document();
 
     abstract JTextComponent component();
 
@@ -80,8 +80,8 @@ abstract class ContextWrapper {
         }
 
         @Override
-        public BaseDocument document() {
-            return (BaseDocument) ctx.getDocument();
+        public Document document() {
+            return ctx.getDocument();
         }
 
         @Override
@@ -114,8 +114,8 @@ abstract class ContextWrapper {
         }
 
         @Override
-        public BaseDocument document() {
-            return (BaseDocument) ctx.getDocument();
+        public Document document() {
+            return  ctx.getDocument();
         }
 
         @Override
@@ -158,8 +158,8 @@ abstract class ContextWrapper {
         }
 
         @Override
-        public BaseDocument document() {
-            return (BaseDocument) ctx.getDocument();
+        public Document document() {
+            return ctx.getDocument();
         }
 
         @Override
@@ -192,8 +192,8 @@ abstract class ContextWrapper {
         }
 
         @Override
-        public BaseDocument document() {
-            return (BaseDocument) ctx.getDocument();
+        public Document document() {
+            return ctx.getDocument();
         }
 
         @Override
@@ -221,8 +221,8 @@ abstract class ContextWrapper {
         }
 
         @Override
-        public BaseDocument document() {
-            return (BaseDocument) ctx.getDocument();
+        public Document document() {
+            return ctx.getDocument();
         }
 
         @Override

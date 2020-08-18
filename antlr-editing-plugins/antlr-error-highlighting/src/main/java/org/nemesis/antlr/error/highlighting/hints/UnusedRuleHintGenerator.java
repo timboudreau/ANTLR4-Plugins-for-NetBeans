@@ -21,6 +21,7 @@ import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
 import com.mastfrog.graph.StringGraph;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -79,7 +80,7 @@ import org.openide.util.lookup.ServiceProvider;
     "# {0} - Rule name",
     "# {1} - Top rule",
     "# {2} - Path",
-    "notReachableRule=Rule ''{0}'' is used by ''{2}'' but not reachable from ''{1}''. Delete?",
+    "notReachableRule=''{0}'' is used by ''{2}'' but not reachable from ''{1}''. Delete?",
     "# {0} - Rule name",
     "# {1} - Path",
     "deleteRuleAndClosure=Delete ''{0}'' and its closure {1}",
@@ -91,7 +92,17 @@ import org.openide.util.lookup.ServiceProvider;
     "# {1} - reachableFrom",
     "# {2} - root",
     "# {3} - Path",
-    "deleteRuleAndClosureIndirect=Rule ''{0}'' is reachable from ''{1}'' but not from ''{2}''. Delete ''{2}'' and its closure ''{3}''",})
+    "deleteRuleAndClosureIndirect=Rule ''{0}'' is reachable from ''{1}'' but not from ''{2}''. Delete ''{2}'' and its closure ''{3}''?",
+    "# {0} - Rule name",
+    "# {1} - reachableFromCount",
+    "# {2} - root",
+    "deleteRuleAndClosureIndirectLong=Rule ''{0}'' is reachable from {1} rules, but not from ''{2}''. Delete ''{2}'' and its closure?",
+    "# {0} - Rule name",
+    "# {1} - DependersCount",
+    "# {2} - topRuleName",
+    "notReachableRuleLong=''{0}'' is used by {1} rules but not reachable from ''{2}''. Delete?"
+})
+
 @ServiceProvider(service = AntlrHintGenerator.class)
 public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
 
@@ -234,9 +245,17 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
                             for (String cl : deletableClosure) {
                                 String topMsg = Bundle.notReachableFromRoot(firstRuleName);
                                 fixes.ifUnusedErrorId("nr-" + cl, () -> {
+
                                     fixes.addWarning("nr-" + cl, positionRangeForName.get(cl), topMsg, fxn -> {
-                                        String reachableMsg = Bundle.deleteRuleAndClosureIndirect(cl,
-                                                name, firstRuleName, elide(closureString));
+                                        String reachableMsg;
+                                        if (deletableClosure.size() > 2) {
+                                            reachableMsg
+                                                    = Bundle.deleteRuleAndClosureIndirectLong(cl,
+                                                            name, deletableClosure.size());
+                                        } else {
+                                            reachableMsg = Bundle.deleteRuleAndClosureIndirect(cl,
+                                                    name, firstRuleName, elide(closureString));
+                                        }
                                         fxn.addFix(reachableMsg, bag -> {
                                             for (PositionRange r : closureRanges) {
                                                 bag.delete(growIfSurroundedByNewlines(r));
@@ -272,9 +291,12 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
                         Set<String> deletableClosure = findDeletableClosureOfOrphan(node, graph);
                         deletableClosure.add(node);
                         fixes.ifUnusedErrorId("nr-" + node, () -> {
+                            String hintMsg = deletableClosure.size() > 2
+                                    ? Bundle.notReachableRuleLong(node, deletableClosure.size(), rc)
+                                    : Bundle.notReachableRule(node, firstRuleName, rc);
+
                             fixes.addWarning("nr-" + node, subBounds,
-                                    Bundle.notReachableRule(node, firstRuleName,
-                                            rc), fixen -> {
+                                    hintMsg, fixen -> {
                                         fixen.addFix(Bundle.notReachableRule(node, firstRuleName,
                                                 rc), bag -> {
                                                     bag.delete(subPb);
@@ -282,10 +304,10 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
                                     });
                         });
                         Supplier<String> closureStringSuppler = () -> {
-                            return "<i>" + elide("<i>"
-                                    + Strings.join(", ",
+                            return "<i>" + elide(
+                                    Strings.join(", ",
                                             CollectionUtils.reversed(
-                                                    new ArrayList<>(deletableClosure))));
+                                                    new ArrayList<>(deletableClosure)))) + "</i>";
                         };
                         for (String cl : deletableClosure) {
 //                            if (!node.equals(cl)) {
@@ -369,9 +391,9 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
     }
 
     private String elide(String s) {
-        if (s.length() > 64) {
+        if (s.length() > 28) {
             return s.substring(0, 63) + "\u2026"; // ellipsis
         }
-        return s;
+        return Escaper.BASIC_HTML.escape(s);
     }
 }

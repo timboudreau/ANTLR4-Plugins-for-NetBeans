@@ -13,16 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.mastfrog.editor.features;
 
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.predicates.integer.IntPredicates;
 import java.util.function.IntPredicate;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
 import javax.swing.text.Position;
 import org.netbeans.api.lexer.Token;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.spi.editor.typinghooks.DeletedTextInterceptor;
+import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 
 /**
@@ -64,40 +65,34 @@ final class DelimiterTokenPairDeletion extends EnablableEditProcessorFactory<Del
     public EditProcessor apply(EditPhase t, ContextWrapper u) {
         boolean result = t == EditPhase.ON_BEFORE_REMOVE;
         if (result) {
-            BaseDocument doc = u.document();
-            DeleteToken[] res = new DeleteToken[1];
-            doc.readLock();
-            try {
-                int bal = utils.tokenBalance(doc, openingTokenId, closingTokenId);
-                if (bal != 0 || bal == Integer.MAX_VALUE) {
-                    return null;
-                }
-                boolean bwd = u.isBackwardDelete();
-                utils.withTokenSequence(doc, u.getOffset(), bwd, (ts) -> {
-                    if (ts.token().id().ordinal() == openingTokenId) {
-                        int tokId = -1;
-                        while (ts.moveNext() && ignore.test(tokId = ts.token().id().ordinal())) {
-                            ;
-                        }
-                        if (closingTokenId == tokId) {
-                            try {
-                                Token<?> tok = ts.token();
-                                int off = ts.offset();
-                                int len = tok.length();
-                                Position startPos = doc.createPosition(off, Position.Bias.Backward);
-                                Position endPos = doc.createPosition(off + len, Position.Bias.Forward);
-                                res[0] = new DeleteToken(startPos, endPos);
-                            } catch (BadLocationException ex) {
-                                Exceptions.printStackTrace(ex);
-                            }
-                        }
-                    }
-                    return true;
-                });
-            } finally {
-                doc.readUnlock();
+            Document doc = u.document();
+            Obj<DeleteToken> res = Obj.create();
+            int bal = utils.tokenBalance(doc, openingTokenId, closingTokenId);
+            if (bal != 0 || bal == Integer.MAX_VALUE) {
+                return null;
             }
-            return res[0];
+            boolean bwd = u.isBackwardDelete();
+            utils.withTokenSequence(doc, u.getOffset(), bwd, (ts) -> {
+                if (ts.token().id().ordinal() == openingTokenId) {
+                    int tokId = -1;
+                    while (ts.moveNext() && ignore.test(tokId = ts.token().id().ordinal())) {
+                        ;
+                    }
+                    if (closingTokenId == tokId) {
+                        Token<?> tok = ts.token();
+                        int off = ts.offset();
+                        int len = tok.length();
+                        Position startPos
+                                = NbDocument.createPosition(doc, off, Position.Bias.Backward);
+
+                        Position endPos
+                                = NbDocument.createPosition(doc, off + len, Position.Bias.Forward);
+                        res.set(new DeleteToken(startPos, endPos));
+                    }
+                }
+                return true;
+            });
+            return res.get();
         }
         return null;
     }
@@ -130,5 +125,4 @@ final class DelimiterTokenPairDeletion extends EnablableEditProcessorFactory<Del
             }
         }
     }
-
 }
