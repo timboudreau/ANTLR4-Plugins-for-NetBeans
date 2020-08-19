@@ -19,6 +19,7 @@ import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.ObjectGraph;
 import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -128,28 +129,37 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.hints = hints;
     }
 
-    public AntlrGenerationResult cleanOldOutput() {
-        Set<JFSFileObject> set = new HashSet<>();
-        for (JFSCoordinates.Resolvable f : modifiedFiles.keySet()) {
-            JFSFileObject ob = f.resolveOriginal();
-            if (ob != null) {
-                if (ob.storageKind().isMasqueraded()) {
-                    continue;
+    public AntlrGenerationResult cleanOldOutput() throws IOException {
+        if (!jfs.isEmpty()) {
+            jfs.whileWriteLocked(() -> {
+                Set<JFSCoordinates.Resolvable> all = new HashSet<>(newlyGeneratedFiles.size() +
+                        modifiedFiles.size());
+                all.addAll(newlyGeneratedFiles);
+                all.addAll(modifiedFiles.keySet());
+                Set<JFSFileObject> set = new HashSet<>();
+                for (JFSCoordinates.Resolvable f : all) {
+                    JFSFileObject ob = f.resolveOriginal();
+                    if (ob != null) {
+                        if (ob.storageKind().isMasqueraded()) {
+                            continue;
+                        }
+                        set.add(ob);
+                    }
                 }
-                set.add(ob);
-            }
-        }
-        for (JFSCoordinates.Resolvable f : newlyGeneratedFiles) {
-            JFSFileObject ob = f.resolveOriginal();
-            if (ob != null) {
-                if (ob.storageKind().isMasqueraded()) {
-                    continue;
+                for (JFSCoordinates.Resolvable f : newlyGeneratedFiles) {
+                    JFSFileObject ob = f.resolveOriginal();
+                    if (ob != null) {
+                        if (ob.storageKind().isMasqueraded()) {
+                            continue;
+                        }
+                        set.add(ob);
+                    }
                 }
-                set.add(ob);
-            }
-        }
-        for (JFSFileObject fo : set) {
-            fo.delete();
+                for (JFSFileObject fo : set) {
+                    fo.delete();
+                }
+                return null;
+            });
         }
         return this;
     }

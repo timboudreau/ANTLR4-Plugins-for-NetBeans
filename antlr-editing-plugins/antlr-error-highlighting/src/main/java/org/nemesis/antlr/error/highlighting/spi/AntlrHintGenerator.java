@@ -36,6 +36,7 @@ import org.openide.util.NbPreferences;
  */
 public abstract class AntlrHintGenerator {
 
+    @SuppressWarnings("NonConstantLogger")
     protected final Logger LOG = Logger.getLogger(getClass().getName());
 
     static List<AntlrHintGenerator> all;

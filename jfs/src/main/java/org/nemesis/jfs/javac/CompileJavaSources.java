@@ -149,7 +149,8 @@ public class CompileJavaSources {
             List<Path> paths = new LinkedList<>();
             for (JavaFileObject jfo : toCompile) {
                 LOG.log(Level.FINEST, "Compile {0}", jfo);
-                paths.add(Paths.get(jfo.getName()));
+//                paths.add(Paths.get(jfo.getName()));
+                paths.add(((JFSFileObject) jfo).path());
                 result.addSource(jfo);
             }
             long then = System.currentTimeMillis();

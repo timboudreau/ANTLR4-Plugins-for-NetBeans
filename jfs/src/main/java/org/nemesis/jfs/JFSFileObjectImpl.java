@@ -143,6 +143,9 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public byte[] hash() throws IOException {
+        if (deleted) {
+            return new byte[0];
+        }
         if (storage instanceof HashingStorage) {
             byte[] result = ((HashingStorage) storage).hash();
             if (result != null) {

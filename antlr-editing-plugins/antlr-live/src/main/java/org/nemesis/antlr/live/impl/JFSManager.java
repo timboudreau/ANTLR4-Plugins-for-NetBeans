@@ -107,7 +107,7 @@ final class JFSManager {
 
     JFS createJFS() {
         try {
-            return JFS.builder().withCharset(UTF_8).useOffHeapStorage().build();
+            return JFS.builder().withCharset(UTF_8).build();
         } catch (IOException ex) {
             // only actually thrown if we use the mapped file
             // allocator, which we are not

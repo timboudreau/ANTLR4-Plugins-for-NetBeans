@@ -253,7 +253,7 @@ public class AntlrRunSubscriptions {
                         disposed();
                     } else {
                         LOG.log(Level.FINEST, "Still have subscribers to {0} gone: {1}",
-                                new Object[] {fo.getPath(), refs.get(fo)});
+                                new Object[]{fo.getPath(), refs.get(fo)});
                     }
                 }
             } finally {
@@ -429,6 +429,7 @@ public class AntlrRunSubscriptions {
                 }
                 return;
             }
+            JFS jfs = res.jfsSupplier.get();
             try {
                 Debug.runThrowing(this,
                         "AntlrRunSubscriptions.onRebuilt " + extraction.tokensHash(),
@@ -442,7 +443,7 @@ public class AntlrRunSubscriptions {
                             JFSFileModifications grammarStatus;
                             long lastModified = Long.MIN_VALUE;
                             boolean created = false;
-                            byte[] newHash = hash(res.jfs());
+                            byte[] newHash = hash(res.jfsSupplier.get());
                             Bool regenerated = Bool.create();
                             CachedResults<A> cache = cachedResults(extraction);
                             boolean tokensHashChanged = !Objects.equals(cache.grammarTokensHash, extraction.tokensHash());
@@ -463,10 +464,10 @@ public class AntlrRunSubscriptions {
                                     bldr.compilerOutput(writer);
 
                                     CSC csc = new CSC();
-                                    arg = runner.configureCompilation(tree, res, extraction, res.jfs(), bldr, res.packageName(), csc);
+                                    arg = runner.configureCompilation(tree, res, extraction, jfs, bldr, res.packageName(), csc);
 
                                     bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
-                                    cr = res.jfs.whileWriteLocked(bldr::compile);
+                                    cr = jfs.whileWriteLocked(bldr::compile);
 
                                     writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
@@ -502,9 +503,9 @@ public class AntlrRunSubscriptions {
                                         runBuilder.withParentClassLoader(csc.classloaderSupplier);
                                     } else {
                                         runBuilder.withParentClassLoader(() -> {
-                                            JFS jfs = res.jfsSupplier.get();
                                             try {
-                                                return jfs.getClassLoader(StandardLocation.CLASS_OUTPUT, Thread.currentThread().getContextClassLoader());
+                                                return jfs.getClassLoader(true, Thread.currentThread().getContextClassLoader(),
+                                                        StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
                                             } catch (IOException ex) {
                                                 throw new IllegalStateException(ex);
                                             }
@@ -583,7 +584,7 @@ public class AntlrRunSubscriptions {
                         "Exception configuring compiler to parse "
                         + extraction.source(), ex);
             } catch (Error err) {
-                handleEiiE(err, res.jfs());
+                handleEiiE(err, jfs);
                 throw err;
             }
         }
@@ -635,11 +636,17 @@ public class AntlrRunSubscriptions {
 
         CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr, AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
             PrintWriter pw = new PrintWriter(writer);
-            pw.println("COMPILE RESULT: " + cr);
-            pw.println("GEN PACKAGE: " + res.packageName);
-            pw.println("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
-            pw.println("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
-            pw.println("ORIG FILE: " + res.originalFilePath);
+            if (AntlrLoggers.isActive(writer)) {
+                pw.println("COMPILE RESULT: " + cr);
+                pw.println("GEN PACKAGE: " + res.packageName);
+                pw.println("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
+                pw.println("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
+                pw.println("ORIG FILE: " + res.originalFilePath);
+                pw.println("FULL JFS LISTING:");
+                res.jfs.listAll((loc, fo) -> {
+                    pw.println(" * " + loc + "\t" + fo);
+                });
+            }
             boolean foundCantResolveLocation = false;
             for (JavacDiagnostic diag : cr.diagnostics()) {
                 if (rebuild && "compiler.err.cant.resolve.location".equals(diag.sourceCode())) {
@@ -652,11 +659,15 @@ public class AntlrRunSubscriptions {
                 pw.println("Error may be due to old source files obsoleted by grammar changes.  Deleting all generated files and retrying.");
                 LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
                         + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
-                cr = res.jfs.whileWriteLocked(() -> {
-                    res.jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
-                        pw.println("Delete " + fo.getName());
-                        fo.delete();
-                    });
+                JFS jfs = res.jfsSupplier.get();
+                if (!jfs.id().equals(res.jfs.id())) {
+                    LOG.log(Level.FINE, "JFS " + res.jfs.id() + " has been replaced with new JFS " + jfs.id());
+                }
+                cr = jfs.whileWriteLocked(() -> {
+//                    jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+//                        pw.println("Delete " + fo.getName());
+//                        fo.delete();
+//                    });
                     res.rebuild();
                     regenerated.set(true);
                     return bldr.compile();

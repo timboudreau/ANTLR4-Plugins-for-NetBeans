@@ -176,17 +176,23 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
     }
 
     private void updateErrorHighlights(ANTLRv4Parser.GrammarFileContext tree,
-            Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes, Document doc, PositionFactory positions, OffsetsBag brandNewBag, Bool anyHighlights) throws BadLocationException {
-        if (res == null) {
+            Extraction extraction, AntlrGenerationResult res,
+            ParseResultContents populate, Fixes fixes, Document doc,
+            PositionFactory positions, OffsetsBag brandNewBag,
+            Bool anyHighlights) throws BadLocationException {
+        if (res == null || extraction == null) {
+            LOG.log(Level.FINE, "Null generation result; abort error processing {0}",
+                    extraction.source().name());
             return;
         }
-
         List<ParsedAntlrError> errors = res.errors();
         Optional<Path> path = extraction.source().lookup(Path.class);
         List<EpsilonRuleInfo> epsilons = new ArrayList<>(errors.size());
+        LOG.log(Level.FINER, "updateErrorHighlights for {0} with {1} errors",
+                new Object[]{extraction.source().name(), errors.size()});
         for (ParsedAntlrError err : errors) {
-            LOG.log(Level.FINEST, "{0} Handle err {1}", new Object[] {extraction.source(), err});
+            LOG.log(Level.FINEST, "{0} Handle err {1}", new Object[]{
+                extraction.source().name(), err});
             boolean shouldAdd = true;
             if (path.isPresent()) {
                 // Convert to UnixPath to ensure endsWith test works
@@ -195,6 +201,11 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 // process errors in the one we're really supposed
                 // to show errors for
                 shouldAdd = p.endsWith(err.path());
+                if (!shouldAdd) {
+                    LOG.log(Level.INFO, "Antlr error file does not match "
+                            + "highlighted file: {0} does not end with {1}",
+                            new Object[]{p, err.path()});
+                }
             }
             if (shouldAdd) {
                 // Special handling for epsilons - these are wildcard
@@ -204,38 +215,44 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 if (eps != null) {
                     epsilons.add(eps);
                     try {
-                        handleEpsilon(err, fixes, extraction, eps);
-                    } catch (BadLocationException ex) {
-                        Exceptions.printStackTrace(ex);
+                        handleEpsilon(err, fixes, extraction, eps, brandNewBag, anyHighlights);
+                    } catch (Exception | Error ex) {
+                        LOG.log(Level.SEVERE, "Handling epsilon in " + extraction.source().name(), ex);
                     }
                     continue;
                 }
                 offsetsOf(doc, err, (startOffset, endOffset) -> {
                     if (startOffset == endOffset) {
-                        LOG.log(Level.INFO, "Got silly start and end offsets "
-                                + "{0}:{1} - probably we are compuing fixes for "
-                                + " an old revision of {2}.",
-                                new Object[]{startOffset, endOffset,
-                                    res.grammarName});
-                        return;
-                    }
-                    try {
                         if (err.length() > 0) {
-                            anyHighlights.set();
-                            brandNewBag.addHighlight(startOffset, endOffset,
-                                    err.isError() ? errors() : warnings());
+                            endOffset = startOffset + err.length();
                         } else {
-                            LOG.log(Level.WARNING, "Got {0} length error {1}", new Object[]{err.length(), err});
+                            LOG.log(Level.INFO, "Got silly start and end offsets "
+                                    + "{0}:{1} - probably we are compuing fixes for "
+                                    + " an old revision of {2}.",
+                                    new Object[]{startOffset, endOffset,
+                                        res.grammarName});
                             return;
                         }
-                        if (!handleFix(err, fixes, extraction, doc, positions)) {
+                    }
+                    try {
+                        if (startOffset == endOffset) {
+                            LOG.log(Level.WARNING, "Got {0} length error {1}"
+                                    + " from {2} to {3}", new Object[]{err.length(), err, startOffset, endOffset});
+                            return;
+                        }
+                        if (!handleFix(err, fixes, extraction, doc, positions,
+                                brandNewBag, anyHighlights)) {
                             String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
                             if (!fixes.isUsedErrorId(errId)) {
+                                anyHighlights.set();
+                                brandNewBag.addHighlight(startOffset, Math.max(startOffset + err.length(), endOffset),
+                                        err.isError() ? errors() : warnings());
                                 if (err.isError()) {
                                     LOG.log(Level.FINEST, "Add error for {0} offsets {1}:{2}",
                                             new Object[]{err, startOffset, endOffset});
                                     fixes.addError(errId, startOffset, endOffset,
                                             err.message());
+
                                 } else {
                                     LOG.log(Level.FINEST, "Add warning for {0} offsets {1}:{2}",
                                             new Object[]{err, startOffset, endOffset});
@@ -249,7 +266,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                             LOG.log(Level.FINEST, "Handled with fix: {0}", err);
                         }
                     } catch (IllegalStateException ex) {
-                        LOG.log(Level.FINE, "No line offsets in {0}", err);
+                        LOG.log(Level.FINE, "No line offsets in " + err, ex);
                     } catch (BadLocationException | IndexOutOfBoundsException ex) {
                         LOG.log(Level.WARNING, "Error line " + err.lineNumber()
                                 + " position in line " + err.lineOffset()
@@ -261,8 +278,13 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                                 + " as file " + extraction.source().lookup(FileObject.class)
                                 + " my context file " + NbEditorUtilities.getFileObject(doc)
                                 + " err was " + err, ex);
+                    } catch (RuntimeException | Error ex) {
+                        LOG.log(Level.SEVERE, "Error processing errors for " + extraction.source().name(), ex);
                     }
                 });
+            } else {
+                LOG.log(Level.FINE, "Error is in a different file: {0} vs {1}",
+                        new Object[]{err.path(), path.isPresent() ? path.get() : "<no-path>"});
             }
         }
     }
@@ -284,10 +306,10 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
         "deleteRuleForReason=Delete rule? {0}"
     })
     boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext,
-            Document doc, PositionFactory positions) throws BadLocationException {
+            Document doc, PositionFactory positions, OffsetsBag brandNewBag, Bool anyHighlights) throws BadLocationException {
         EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
         if (eps != null) {
-            return handleEpsilon(err, fixes, ext, eps);
+            return handleEpsilon(err, fixes, ext, eps, brandNewBag, anyHighlights);
         }
         switch (err.code()) {
             case 51: // rule redefinition
@@ -298,55 +320,74 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 if (fixes.isUsedErrorId(errId)) {
                     return false;
                 }
-                Bool bl = Bool.create();
+                Bool handled = Bool.create();
                 offsetsOf(doc, err, (start, end) -> {
                     NamedSemanticRegion<RuleTypes> region = ext.namedRegions(AntlrKeys.RULE_BOUNDS).at(start);
                     if (region == null) {
+                        LOG.log(Level.FINER, "No region at {0} for {1}", new Object[]{start, err});
                         return;
                     }
                     PositionRange pr = positions.range(region);
-                    if (region == null) {
-                        bl.set(false);
-                    } else {
-                        fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
-                            if (err.code() == 53) {
-                                String name = findRuleNameInErrorMessage(err.message());
-                                if (name != null) {
-                                    try {
-                                        PositionRange rng = positions.range(start, end);
-                                        fixConsumer.addFix(Bundle.capitalize(), bag -> {
-                                            bag.replace(rng, capitalize(name));
-                                        });
-                                    } catch (BadLocationException ex) {
-                                        Exceptions.printStackTrace(ex);
-                                    }
+                    fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
+                        if (err.code() == 53) {
+                            String name = findRuleNameInErrorMessage(err.message());
+                            if (name != null) {
+                                try {
+                                    PositionRange rng = positions.range(start, end);
+                                    brandNewBag.addHighlight(start, end, errors());
+                                    anyHighlights.set();
+                                    fixConsumer.addFix(Bundle.capitalize(), bag -> {
+                                        bag.replace(rng, capitalize(name));
+                                    });
+                                } catch (BadLocationException ex) {
+                                    Exceptions.printStackTrace(ex);
                                 }
                             }
-                            fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
-                                    bag -> bag.delete(pr));
-                            bl.set(true);
-                        });
-                    }
+                        }
+                        fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
+                                bag -> bag.delete(pr));
+                        handled.set(true);
+                    });
                 });
-                return bl.get();
+                return handled.get();
             case 119:
-                LOG.log(Level.INFO, "Found a 119 error: {0}", err);
-                System.out.println("FOUND A 119 ERROR " + err);
                 // e.g., "The following sets of rules are mutually left-recursive [foo, baz, koog]"
-                int bstart = err.message().lastIndexOf('[');
-                int bend = err.message().lastIndexOf(']');
+                int bstart = err.message().lastIndexOf('[') + 1;
+                int bend = err.message().lastIndexOf(']') + 1;
                 boolean res = false;
                 if (bend > bstart + 1 && bstart > 0) {
                     String sub = err.message().substring(bstart, bend - 1);
                     NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
-                    for (String item : sub.split(",")) {
-                        item = item.trim();
-                        NamedSemanticRegion<RuleTypes> reg = regions.regionFor(item);
-                        if (reg != null) {
-//                            res = true;
-                            fixes.addError(reg, err.message());
+                    String[] all = sub.split(",");
+                    String first = all.length > 0 ? all[0].trim() : null;
+                    if (first != null) {
+                        String eid = "left-re;" + sub + ";" + err.lineNumber() + ";" + err.lineOffset();
+                        if (!fixes.isUsedErrorId(eid)) {
+                            NamedSemanticRegion<RuleTypes> reg = regions.regionFor(first);
+                            if (reg != null) {
+                                brandNewBag.addHighlight(reg.start(), reg.end(), errors());
+                                anyHighlights.set();
+                                fixes.addError(eid, reg, err.message());
+                                res = true;
+                            } else {
+                                LOG.log(Level.INFO, "Did not find a region for ''{0}'' in "
+                                        + "{1}", new Object[]{first, err.message()});
+                                if (err.hasFileOffset()) {
+                                    fixes.addError(eid, err.fileOffset(), err.fileOffset()
+                                            + err.length(), err.message());
+                                }
+                            }
+                        } else {
+                            LOG.log(Level.FINEST, "Already handled eid {0} for {1}",
+                                    new Object[] { eid, first });
                         }
+                    } else {
+                        LOG.log(Level.FINER, "Did not find any rule names in {0}", err.message());
                     }
+                } else {
+                    LOG.log(Level.FINER, "Err message not parseable - bracket "
+                            + "start {0} bracket end {1}",
+                            new Object[]{bstart, bend});
                 }
                 return res;
             // error 130 : label str assigned to a block which is not a set
@@ -361,7 +402,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                             PositionRange pbr = positions.range(start, end);
                             fixes.addError(pbr, err.message(), Bundle::illegalLabel, fixen -> {
                                 Int realEnd = Int.of(-1);
-                                ext.source().lookup(Document.class, d -> {
+                                boolean docFound = ext.source().lookup(Document.class, d -> {
                                     d.render(() -> {
                                         Segment seg = new Segment();
                                         int len = d.getLength();
@@ -375,16 +416,24 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                                                     }
                                                 }
                                             } catch (BadLocationException ex) {
-                                                Exceptions.printStackTrace(ex);
+                                                LOG.log(Level.SEVERE, null, ex);
                                             }
                                         }
                                     });
                                 });
+                                if (!docFound) {
+                                    LOG.log(Level.FINER, "No doc");
+                                }
                                 if (realEnd.getAsInt() > pbr.start()) {
+                                    brandNewBag.addHighlight(start, end, errors());
+                                    anyHighlights.set();
                                     fixen.addFix(Bundle.illegalLabel(), bag -> {
                                         bag.delete(pbr);
                                     });
                                     added.set();
+                                } else {
+                                    LOG.log(Level.FINER, "Start end mismatch {0} vs {1}",
+                                            new Object[]{pbr.start(), realEnd.getAsInt()});
                                 }
                             });
                         }
@@ -467,7 +516,8 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
         "replaceEbnfWithLong=''{0}'' can match the empty string. \nReplace it with\n"
         + "''{1}'' or \n''{2}''"
     })
-    private boolean handleEpsilon(ParsedAntlrError err, Fixes fixes, Extraction ext, EpsilonRuleInfo eps) throws BadLocationException {
+    private boolean handleEpsilon(ParsedAntlrError err, Fixes fixes, Extraction ext, EpsilonRuleInfo eps,
+            OffsetsBag brandNewBag, Bool anyHighlights) throws BadLocationException {
         if (eps.problem() != null) {
             ProblematicEbnfInfo prob = eps.problem();
             IntRange<? extends IntRange<?>> problemBlock
@@ -480,6 +530,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
 
             String pid = prob.text() + "-" + prob.start() + ":" + prob.end();
             LOG.log(Level.FINEST, "Handle epsilon {0}", eps);
+            brandNewBag.addHighlight(rng.start(), rng.end(), warnings);
             fixes.addError(pid, problemBlock, msg, () -> {
                 String repl = computeReplacement(prob.text());
                 String prepl = computePlusReplacement(prob.text());
@@ -491,6 +542,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 });
                 String prepl = computePlusReplacement(prob.text());
                 String rpmsg = Bundle.replaceEbnfWith(prepl);
+
                 fc.addFix(rpmsg, bag -> {
                     bag.replace(rng, prepl);
                 });
@@ -501,10 +553,14 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             IntRange<? extends IntRange<?>> vr = Range.ofCoordinates(eps.victimStart(), eps.victimEnd());
             String victimErrId = vr + "-" + err.code();
             if (!fixes.isUsedErrorId(victimErrId)) {
+                brandNewBag.addHighlight(vr.start(), vr.end(), warnings);
+                anyHighlights.set();
                 fixes.addWarning(victimErrId, vr.start(), vr.end(), eps.victimErrorMessage());
             }
             String culpritErrId = cr + "-" + err.code();
             if (!fixes.isUsedErrorId(culpritErrId)) {
+                brandNewBag.addHighlight(cr.start(), cr.end(), errors());
+                anyHighlights.set();
                 fixes.addWarning(culpritErrId, cr, eps.culpritErrorMessage());
             }
         }

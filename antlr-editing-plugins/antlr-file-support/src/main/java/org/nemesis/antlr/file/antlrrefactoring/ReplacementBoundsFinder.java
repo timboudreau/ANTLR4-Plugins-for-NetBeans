@@ -46,7 +46,7 @@ import org.openide.util.NbBundle.Messages;
  *
  * @author Tim Boudreau
  */
-final class ReplacementBoundsFinder extends ANTLRv4BaseVisitor<IntRange<? extends IntRange<?>>> {
+public final class ReplacementBoundsFinder extends ANTLRv4BaseVisitor<IntRange<? extends IntRange<?>>> {
 
     private IntRange<? extends IntRange<?>> range;
     private final IntRange<? extends IntRange<?>> targetRange;
@@ -61,15 +61,15 @@ final class ReplacementBoundsFinder extends ANTLRv4BaseVisitor<IntRange<? extend
         this.range = targetRange;
     }
 
-    String containingRuleName() {
+    public String containingRuleName() {
         return ruleContainingUsage;
     }
 
-    boolean rangeWasExpanded() {
+    public boolean rangeWasExpanded() {
         return rangeExpanded;
     }
 
-    String label() {
+    public String label() {
         return oldLabel;
     }
 
@@ -99,7 +99,7 @@ final class ReplacementBoundsFinder extends ANTLRv4BaseVisitor<IntRange<? extend
         return range;
     }
 
-    String grammarName() {
+    public String grammarName() {
         return grammarName;
     }
 
@@ -201,7 +201,7 @@ final class ReplacementBoundsFinder extends ANTLRv4BaseVisitor<IntRange<? extend
         return range;
     }
 
-    static class ReplacementBoundsResult {
+    public static class ReplacementBoundsResult {
 
         public final IntRange<? extends IntRange<?>> range;
         public final boolean found;

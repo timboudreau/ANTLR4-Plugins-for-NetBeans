@@ -24,6 +24,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.Writer;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -58,6 +59,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSClassLoader;
 import org.nemesis.jfs.isolation.IsolationClassLoader;
+import org.nemesis.jfs.isolation.IsolationClassLoaderBuilder;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.openide.cookies.EditorCookie;
@@ -87,11 +89,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
      * A shared classloader that can be used as the parent of every
      * JFSClassLoader we create, since once loaded, its contents never change.
      */
-    private static final IsolationClassLoader<?> isolatedParentClassLoader = IsolationClassLoader
+    private static final IsolationClassLoaderBuilder isolatedParentClassLoader = IsolationClassLoader
             .builder()
             // Mark it uncloseable, or closing the JFSClassLoader will inadvertently
             // close it as well
-            .uncloseable()
+//            .uncloseable()
             .includingJarOf(ANTLRErrorListener.class)
             .includingJarOf(Tool.class)
             .includingJarOf(IntArray.class)
@@ -107,11 +109,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             .loadingFromParent(AntlrProxies.ProxySyntaxError.class)
             .loadingFromParent(AntlrProxies.ProxyToken.class)
             .loadingFromParent(AntlrProxies.ProxyTokenType.class)
-            .loadingFromParent(ProxiesInvocationRunner.class.getName())
+//            .loadingFromParent(ProxiesInvocationRunner.class.getName())
             // XXX, we should move the mime type guesswork to something
             // with a smaller footprint and omit this
-            .loadingFromParent(AdhocMimeTypes.class)
-            .build();
+            .loadingFromParent(AdhocMimeTypes.class);
 
     @SuppressWarnings("LeakingThisInConstructor")
     public ProxiesInvocationRunner() {
@@ -263,7 +264,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         public ClassLoader get() {
             try {
                 JFS jfs = jfsSupplier.get();
-                return jfs.getClassLoader(true, isolatedParentClassLoader,
+                return jfs.getClassLoader(true, isolatedParentClassLoader.build(),
                         StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
             } catch (IOException ex) {
                 throw new IllegalStateException(ex);
@@ -306,9 +307,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         // Called on a ClassNotFoundException which indicates it is fairly likely
         // the the generated class file was deleted
         return res.jfs.whileWriteLocked(() -> {
-            LOG.log(Level.WARNING, "Got ClassNotFoundException operating of jfs/classloader.  Will "
-                    + "try rebuilding the ENTIRE JFS contents and re-running.  This may not work.");
+            LOG.log(Level.WARNING, "Got ClassNotFoundException in {0} jfs/classloader.  Will try "
+                    + "rebuilding the ENTIRE JFS contents for {1} and re-running.  This may not work.", new Object[]{logName, res.grammarName});
             try {
+                JFS jfs = res.generationResult.jfsSupplier.get();
                 Path path = res.generationResult.originalFilePath;
                 assert path != null : "Grammar path from generation result null: " + res.generationResult;
                 File file = res.grammarPath.toFile();
@@ -334,7 +336,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                         LOG.finest(() -> "Rebuild regen result " + newGenResult);
 
                         ExtractionCodeGenerationResult genResult = ExtractionCodeGenerator.saveExtractorSourceCode(
-                                kind, path, res.jfs,
+                                kind, path, jfs,
                                 res.packageName, findTargetName(newGenResult),
                                 lexerName, info, ext.tokensHash(), newGenResult.hints);
 
@@ -343,21 +345,25 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                         res.compiler.addSourceLocation(StandardLocation.SOURCE_PATH);
                         res.compiler.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
 
-                        CompileResult compileResult = res.compiler.compile();
-                        LOG.finest(() -> "Rebuild compile result " + compileResult);
+                        try (Writer compileOutput = AntlrLoggers.getDefault().writer(path, AntlrLoggers.STD_TASK_COMPILE_GRAMMAR)) {
+                            res.compiler.compilerOutput(compileOutput);
+                            CompileResult compileResult = res.compiler.compile();
+                            LOG.finest(() -> "Rebuild compile result " + compileResult);
+                        }
 //                        res.csc.accept(CLASSLOADER_FACTORY);
 
                         GenerationResult newG = new GenerationResult(genResult, res.packageName, path,
-                                res.grammarName, res.jfs, newGenResult, res.compiler, res.csc, res.tree);
+                                newGenResult.grammarName, newGenResult.jfs, newGenResult,
+                                res.compiler, res.csc, res.tree);
 
-                        JFSClassLoader workingLoader = res.jfs.getClassLoader(StandardLocation.CLASS_OUTPUT,
-                                isolatedParentClassLoader);
+                        JFSClassLoader workingLoader = jfs.getClassLoader(StandardLocation.CLASS_OUTPUT,
+                                isolatedParentClassLoader.build());
 
                         PreservedInvocationEnvironment pie = new PreservedInvocationEnvironment(workingLoader,
                                 newG.packageName, newG, (String lgName, Throwable originallyThrown, CharSequence ignored) -> {
                                     originallyThrown.addSuppressed(thrown);
                                     Exception ex = new Exception("Already tried rebuilding once; will not loop endlessly."
-                                            + " JFS contents: " + listJFS(res.jfs, new StringBuilder()), originallyThrown);
+                                            + " JFS contents: " + listJFS(jfs, new StringBuilder()), originallyThrown);
                                     LOG.log(Level.FINE, "Environment rebuild failed", ex);
                                     return AntlrProxies.forUnparsed(res.grammarPath, res.grammarName, text);
                                 });
@@ -578,11 +584,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                             .append(grammarPath)
                             .append("; will retry once, for ")
                             .append(logName).append(" - ").append(":");
-                    String msg = sb.toString();
                     if (LOG.isLoggable(Level.FINE)) {
                         listJFS(this.jfs, sb);
-                        LOG.log(Level.FINE, msg, ex);
+                        LOG.log(Level.FINE, sb.toString(), ex);
                     }
+                    String msg = sb.toString();
                     try {
                         ClassNotFoundException cnfe = new ClassNotFoundException(msg, ex);
                         ParseTreeProxy result = onEnvironmentCorrupted.apply(logName, cnfe, body);
@@ -603,14 +609,14 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         ParseTreeProxy doClRun(CharSequence body) throws Exception {
             return clRun(() -> {
                 ParseTreeProxy result = reflectively(typeName, new Class<?>[]{CharSequence.class}, body);
-                Debug.message("" + result.grammarPath());
-                if (result.isUnparsed()) {
-                    Debug.failure("unparsed result", () -> {
-                        return result.grammarName() + " = " + result.grammarPath();
-                    });
-                } else {
-                    Debug.success("parsed", result.tokenCount() + " tokens");
-                }
+//                Debug.message("" + result.grammarPath());
+//                if (result.isUnparsed()) {
+//                    Debug.failure("unparsed result", () -> {
+//                        return result.grammarName() + " = " + result.grammarPath();
+//                    });
+//                } else {
+//                    Debug.success("parsed", result.tokenCount() + " tokens");
+//                }
                 return result;
             });
         }

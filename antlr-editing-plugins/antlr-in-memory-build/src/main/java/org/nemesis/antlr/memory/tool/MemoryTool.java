@@ -69,6 +69,7 @@ import org.nemesis.antlr.memory.JFSPathHints;
 import static org.nemesis.antlr.memory.tool.ToolContext.currentFile;
 import static org.nemesis.antlr.memory.tool.ToolContext.isLoggable;
 import com.mastfrog.util.streams.stdio.ThreadMappedStdIO;
+import org.antlr.v4.tool.Rule;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
@@ -135,28 +136,61 @@ public final class MemoryTool extends Tool {
         return ToolContext.get(this).dir;
     }
 
+    @Override
     public void error(ANTLRMessage msg) {
         // Avoid the tool logging about non existent directories in the
         // super constructor when we are not actually using the filesystem
         if (initialized) {
+            ErrM em = (ErrM) errMgr;
             Path currFile = currentFile.get();
             if (currFile != null) {
                 // Ensure error messages have the complete (relative)
                 // file path, so we can map them easily in error highlighting
                 msg.fileName = currFile.toString();
             }
+            // There are a few cases in Antlr sources where
+            // a direct call is made to tool.error() or tool.warning()
+            // while bypassing the error manager - this means we
+            // would fail to capture these messages - so, in the case
+            // we're not making a recursive call, force them through
+            // ErrorManager
+            if (!em.isEmitting()) {
+                em.emit(msg.getErrorType(), msg, true);
+            }
             super.error(msg);
         }
     }
 
+    @Override
+    public void warning(ANTLRMessage msg) {
+        if (initialized) {
+            ErrM em = (ErrM) errMgr;
+
+            Path currFile = currentFile.get();
+            if (currFile != null) {
+                // Ensure error messages have the complete (relative)
+                // file path, so we can map them easily in error highlighting
+                msg.fileName = currFile.toString();
+            }
+            // There are a few cases in Antlr sources where
+            // a direct call is made to tool.error() or tool.warning()
+            // while bypassing the error manager - this means we
+            // would fail to capture these messages - so, in the case
+            // we're not making a recursive call, force them through
+            // ErrorManager
+            if (!em.isEmitting()) {
+                em.emit(msg.getErrorType(), msg, true);
+            }
+            super.warning(msg);
+        }
+    }
+
     public static String versionInfo() {
-        StringBuilder sb = new StringBuilder(VERSION)
-                .append(" (").append(Tool.class.getProtectionDomain().getCodeSource().getLocation())
+        return new StringBuilder(VERSION)
+                .append('(').append(Tool.class.getProtectionDomain().getCodeSource().getLocation())
                 .append(", ").append(RuntimeMetaData.class.getProtectionDomain().getCodeSource().getLocation())
                 .append(", ").append(IntArray.class.getProtectionDomain().getCodeSource().getLocation())
-                .append(",");
-
-        return sb.toString();
+                .append(')').toString();
     }
 
     JFS jfs() {
@@ -166,7 +200,7 @@ public final class MemoryTool extends Tool {
     private int errorsFilledIn = -1;
 
     public List<ParsedAntlrError> errors() {
-        List<ParsedAntlrError> result = new ArrayList<>(((ErrM) this.errMgr).errors);
+        List<ParsedAntlrError> result = new ArrayList<>(((ErrM) this.errMgr).errorsEncountered);
         if (errorsFilledIn != result.size()) {
             fillInErrors(result);
             convertEpsilonIssuesToErrors(result);
@@ -177,6 +211,10 @@ public final class MemoryTool extends Tool {
             result = coalesceSyntaxErrors(result);
         }
         return result;
+    }
+
+    public int originalErrorCount() {
+        return (((ErrM) this.errMgr).errorsEncountered.size());
     }
 
     private List<ParsedAntlrError> coalesceSyntaxErrors(List<ParsedAntlrError> errors) {
@@ -323,6 +361,7 @@ public final class MemoryTool extends Tool {
                 CharSequence content = fo.getCharContent(true);
                 return customLineSplit(content);
             } catch (IOException ex) {
+                ex.printStackTrace(ToolContext.get(this).logStream);
                 Logger.getLogger(MemoryTool.class.getName()).log(Level.INFO,
                         "Failed reading " + path, ex);
             }
@@ -340,7 +379,6 @@ public final class MemoryTool extends Tool {
 
     @Override
     public void log(String msg) {
-        // do nothing
         ToolContext ctx = ToolContext.get(this);
         if (ctx.logStream != null) {
             ctx.logStream.println(msg);
@@ -423,6 +461,7 @@ public final class MemoryTool extends Tool {
     public Writer getOutputFileWriter(Grammar g, String fileName) throws IOException {
         ToolContext ctx = ToolContext.get(this);
         UnixPath pth = ctx.dir.resolve(fileName);
+        ctx.logStream.println("output: " + g.name + " -> " + g.fileName + " -> " + pth.toString());
         // PENDING:  In Maven, .tokens file always end up in the default package.
         // Do that here?
         JFSFileObject fo = ctx.jfs.getSourceFileForOutput(pth.toString(),
@@ -669,6 +708,7 @@ public final class MemoryTool extends Tool {
                         at org.antlr.v4.Tool.process(Tool.java:369)
 
                  */
+                ex.printStackTrace(ctx.logStream);
                 errMgr.toolError(ErrorType.INTERNAL_ERROR, ex);
             }
         }
@@ -780,10 +820,10 @@ public final class MemoryTool extends Tool {
                 .append("Output location: ").append(ctx.outputLocation)
                 .append('\n');
         ctx.jfs.list(StandardLocation.SOURCE_PATH, (loc, file) -> {
-            sb.append(file).append('\t').append(loc.getName()).append('\n');
+            sb.append(" * ").append(loc.getName()).append('\t').append(file).append('\n');
         });
         ctx.jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, file) -> {
-            sb.append(file).append('\t').append(loc.getName()).append('\n');
+            sb.append(" * ").append(loc.getName()).append('\t').append(file).append('\n');
         });
         return sb.toString();
     }
@@ -916,6 +956,7 @@ public final class MemoryTool extends Tool {
         // so we have to override process() to avoid attempting to load
         // imported grammars more than once
         loadImportedGrammars(g);
+        ToolContext.get(this).logStream.println("process " + g.name + " generate? " + gencode);
 
         GrammarTransformPipeline transform = new GrammarTransformPipeline(g, this);
         transform.process();
@@ -1052,7 +1093,7 @@ public final class MemoryTool extends Tool {
 
     static final class ErrM extends ErrorManager {
 
-        private final List<ParsedAntlrError> errors = new ArrayList<>(13);
+        private final List<ParsedAntlrError> errorsEncountered = new ArrayList<>(13);
         private final List<String> infos = new ArrayList<>(3);
         boolean hasEpsilonIssues;
 
@@ -1061,7 +1102,7 @@ public final class MemoryTool extends Tool {
         }
 
         private String replaceWithPath(String name) {
-            Path p = currentFile.get();
+            UnixPath p = currentFile.get();
             if (p != null) {
                 return p.toString();
             }
@@ -1089,66 +1130,91 @@ public final class MemoryTool extends Tool {
         }
 
         @Override
-        public void emit(ErrorType etype, ANTLRMessage msg) {
-            ToolContext ctx = ToolContext.get((MemoryTool) tool);
-            switch (etype) {
-                case EPSILON_TOKEN:
-                case EPSILON_CLOSURE:
-                case EPSILON_OPTIONAL:
-                case EPSILON_LR_FOLLOW:
-                    hasEpsilonIssues = true;
-                    break;
-                case INTERNAL_ERROR:
-                    if (msg.getCause() != null) {
-                        msg.getCause().printStackTrace(System.out);
-                        ctx.logExternal(
-                                Level.INFO, etype + ": " + msg.getMessageTemplate(true).render(), msg.getCause());
-                        msg.getCause().printStackTrace(ctx.logStream);
-                    }
+        public void leftRecursionCycles(String fileName, Collection<? extends Collection<Rule>> cycles) {
+            for (ANTLRMessage msg : createLeftRecusionCyclesMessages(fileName, cycles)) {
+                tool.error(msg);
             }
-            msg.fileName = replaceWithPath(msg.fileName);
-            UnixPath supplied = currentFile.get();
-//            if (msg.fileName == null && supplied == null || (msg.fileName != null && !msg.fileName.contains("/"))) {
-//                new Exception("No qualified filename in " + msg.fileName + " - " + msg.getClass().getName()
-//                        + " - '" + msg + "' currentFile " + supplied).printStackTrace();
-//            }
-            UnixPath pth = msg.fileName == null ? supplied == null
-                    ? UnixPath.get("_no-file_") : supplied : UnixPath.get(msg.fileName);
-            int charPositionInLine = msg.charPosition;
-            int line = msg.line;
-            int startOffset = -1;
-            int stopOffset = -1;
-            if (msg.offendingToken instanceof CommonToken) {
-                CommonToken ct = (CommonToken) msg.offendingToken;
-                startOffset = ct.getStartIndex();
-                stopOffset = ct.getStopIndex();
-            } else if (msg.offendingToken instanceof org.antlr.runtime.CommonToken) {
-                org.antlr.runtime.CommonToken ct = (org.antlr.runtime.CommonToken) msg.offendingToken;
-                startOffset = ct.getStartIndex();
-                stopOffset = ct.getStopIndex();
-            } else if (msg.offendingToken != null) {
-                String txt = msg.offendingToken.getText();
-                if (txt != null) {
-                    startOffset = msg.offendingToken.getInputStream().index();
-                    stopOffset = startOffset + txt.length() - 1;
-                }
-            }
-            boolean isError = etype.severity == ErrorSeverity.ERROR
-                    || etype.severity == ErrorSeverity.ERROR_ONE_OFF
-                    || etype.severity == ErrorSeverity.FATAL;
+        }
 
-            String message = toString(msg);
-            Matcher m = ERRNUM.matcher(message);
-            if (m.find() && m.group(1).length() > 0) {
-                message = m.group(1);
+        @Override
+        public void emit(ErrorType etype, ANTLRMessage msg) {
+            emit(etype, msg, false);
+        }
+
+        boolean isEmitting() {
+            return inEmit;
+        }
+
+        private boolean inEmit;
+
+        void emit(ErrorType etype, ANTLRMessage msg, boolean fromTool) {
+            if (inEmit) {
+                // Avoid recursive reentry
+                return;
             }
-            ParsedAntlrError pae = new ParsedAntlrError(isError, etype.code, pth, line, charPositionInLine, message);
-            if (startOffset != -1 && stopOffset != -1) {
-                pae.setFileOffsetAndLength(startOffset, (stopOffset - startOffset) + 1);
+            inEmit = true;
+            try {
+                ToolContext ctx = ToolContext.get((MemoryTool) tool);
+                switch (etype) {
+                    case EPSILON_TOKEN:
+                    case EPSILON_CLOSURE:
+                    case EPSILON_OPTIONAL:
+                    case EPSILON_LR_FOLLOW:
+                        hasEpsilonIssues = true;
+                        break;
+                    case INTERNAL_ERROR:
+                        if (msg.getCause() != null) {
+                            ctx.logExternal(
+                                    Level.INFO, etype + ": " + msg.getMessageTemplate(true).render(), msg.getCause());
+                            msg.getCause().printStackTrace(ctx.logStream);
+                        }
+                }
+                msg.fileName = replaceWithPath(msg.fileName);
+                UnixPath supplied = currentFile.get();
+                UnixPath pth = msg.fileName == null ? supplied == null
+                        ? UnixPath.get("_no-file_") : supplied : UnixPath.get(msg.fileName);
+                int charPositionInLine = msg.charPosition;
+                int line = msg.line;
+                int startOffset = -1;
+                int stopOffset = -1;
+                if (msg.offendingToken instanceof CommonToken) {
+                    CommonToken ct = (CommonToken) msg.offendingToken;
+                    startOffset = ct.getStartIndex();
+                    stopOffset = ct.getStopIndex();
+                } else if (msg.offendingToken instanceof org.antlr.runtime.CommonToken) {
+                    org.antlr.runtime.CommonToken ct = (org.antlr.runtime.CommonToken) msg.offendingToken;
+                    startOffset = ct.getStartIndex();
+                    stopOffset = ct.getStopIndex();
+                } else if (msg.offendingToken != null) {
+                    String txt = msg.offendingToken.getText();
+                    Token t = msg.offendingToken;
+                    if (txt != null) {
+                        // XXX this is garbage
+                        startOffset = msg.offendingToken.getInputStream().index();
+                        stopOffset = startOffset + txt.length() - 1;
+                    }
+                }
+                boolean isError = etype.severity == ErrorSeverity.ERROR
+                        || etype.severity == ErrorSeverity.ERROR_ONE_OFF
+                        || etype.severity == ErrorSeverity.FATAL;
+
+                String message = toString(msg);
+                Matcher m = ERRNUM.matcher(message);
+                if (m.find() && m.group(1).length() > 0) {
+                    message = m.group(1);
+                }
+                ParsedAntlrError pae = new ParsedAntlrError(isError, etype.code, pth, line, charPositionInLine, message);
+                if (startOffset != -1 && stopOffset != -1) {
+                    pae.setFileOffsetAndLength(startOffset, (stopOffset - startOffset) + 1);
+                }
+                errorsEncountered.add(pae);
+                if (!fromTool) {
+                    super.emit(etype, msg);
+                }
+                ctx.logStream.println(etype.severity + ": " + message);
+            } finally {
+                inEmit = false;
             }
-            errors.add(pae);
-            super.emit(etype, msg);
-            ctx.logStream.println(message);
         }
 
         // 'nbantlr/xtr175w/sesjzw8xtoe/run1/Rust.g4(19,0) : error 51 : rule compilation_unit redefinition; previous at line 16'
@@ -1162,10 +1228,40 @@ public final class MemoryTool extends Tool {
 
         @Override
         public void resetErrorState() {
-            errors.clear();
+//            errorsEncountered.clear();
             infos.clear();
             super.resetErrorState();
         }
+    }
+
+    static List<ANTLRMessage> createLeftRecusionCyclesMessages(String fileName, Collection<? extends Collection<Rule>> cycles) {
+        List<ANTLRMessage> result = new ArrayList<>(16);
+        for (Collection<Rule> collection : cycles) {
+            for (Rule rule : collection) {
+                if (rule.ast != null) {
+                    int line = rule.ast.getLine();
+                    int cp = rule.ast.getCharPositionInLine();
+                    Token tok = rule.ast.getToken();
+                    if (tok.getCharPositionInLine() == -1) {
+                        // This is a synthetic U/DOWN token - not useful for
+                        // getting meaningful information from
+                        tok = rule.ast.g.originalTokenStream.get(rule.ast.getTokenStartIndex());
+                    }
+                    List<Rule> withCurrentAtFront = new ArrayList<>(collection);
+                    if (withCurrentAtFront.indexOf(rule) != 0) {
+                        withCurrentAtFront.remove(rule);
+                        withCurrentAtFront.add(0, rule);
+                    }
+                    ANTLRMessage msg = new ANTLRMessage(ErrorType.LEFT_RECURSION_CYCLES, tok,
+                            Arrays.asList(withCurrentAtFront));
+                    msg.line = line;
+                    msg.charPosition = cp;
+                    msg.g = rule.g;
+                    result.add(msg);
+                }
+            }
+        }
+        return result;
     }
 
     /**

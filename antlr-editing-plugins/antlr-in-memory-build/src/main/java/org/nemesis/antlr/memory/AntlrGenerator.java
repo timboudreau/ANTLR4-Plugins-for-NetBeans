@@ -34,11 +34,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.JavaFileManager;
+import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.tool.ANTLRMessage;
 import org.antlr.v4.tool.ErrorType;
@@ -234,7 +236,10 @@ public final class AntlrGenerator {
         if (fileName.indexOf('.') < 0) {
             fileName += ".g4";
         }
-        UnixPath result = packagePath().resolve(fileName);
+        UnixPath result = pathHints.firstPathForRawName(baseName, "g4", "g");
+        if (result == null) {
+            result = packagePath().resolve(fileName);
+        }
         JFSFileObject fo = jfs.get().get(sourceLocation(), result);
         if (fo == null) {
             result = packagePath().resolve(UnixPath.get(baseName).rawName() + ".g");
@@ -265,6 +270,8 @@ public final class AntlrGenerator {
 //        System.out.println("RUN " + grammarFileName);
 //        System.out.println(listJFS());
         return Debug.runObject(this, "Generate " + grammarFileName + " - " + generate, () -> {
+            logStream.println("Begin generation of '" + grammarFileName + "' generated=" + generate
+                    + " generateAll? " + generateAll);
             List<ParsedAntlrError> errors = new ArrayList<>();
             List<String> infos = new ArrayList<>();
             Throwable thrown = null;
@@ -308,13 +315,15 @@ public final class AntlrGenerator {
                             tool.log = opts.contains(AntlrGenerationOption.LOG);
                             tool.force_atn = opts.contains(AntlrGenerationOption.FORCE_ATN);
                             tool.genPackage = packageName;
-                            jfs.listAll().entrySet().stream().filter((e) -> {
-                                return grammarSourceLocation.equals(e.getValue()) || outputLocation.equals(e.getValue());
-                            }).forEach((f) -> {
-                                files.add(f.getKey().toReference());
-                                modificationDates.put(f.getKey(), f.getKey().getLastModified());
-                            });
+                            BiConsumer<Location, JFSFileObject> modificationDateCollector = (loc, fo) -> {
+                                files.add(fo.toReference());
+                                modificationDates.put(fo, fo.getLastModified());
+                            };
+                            jfs.list(grammarSourceLocation, modificationDateCollector);
+                            jfs.list(outputLocation, modificationDateCollector);
+
                             grammarFilePath = grammarFilePath(grammarFileName);
+                            logStream.println("Grammar File Path:\t" + grammarFilePath);
 
                             timestamp.set(System.currentTimeMillis());
                             mainGrammar.set(tool.withCurrentPath(grammarFilePath, () -> {
@@ -322,14 +331,16 @@ public final class AntlrGenerator {
                                     grammarFileLastModified.set(fo.getLastModified());
                                     grammarFile.set(fo.toReference());
                                 });
+                                logStream.println("loaded main grammar " + (result == null ? "null"
+                                        : (result.name + " / " + result.fileName + " " + result.getTypeString())));
                                 if (result != null) {
                                     grammars.add(result);
-                                    if (generateAll) {
-                                        tool.withCurrentPath(grammarFilePath, () -> {
-                                            generateAllGrammars(tool, result, new HashSet<>(), generate, grammars, jfs);
-                                            return null;
-                                        });
-                                    }
+                                }
+                                if (generateAll) {
+                                    tool.withCurrentPath(grammarFilePath, () -> {
+                                        generateAllGrammars(tool, result, new HashSet<>(), generate, grammars, jfs);
+                                        return null;
+                                    });
                                 }
                                 return result;
                             }));
@@ -345,12 +356,16 @@ public final class AntlrGenerator {
                             inputFiles.set(tool.inputFiles());
                             primaryInputFileForGrammarName.set(tool.primaryInputFiles());
                             dependencies.set(tool.dependencies());
-                            errors.addAll(tool.errors());
+                            List<ParsedAntlrError> errs = tool.errors();
+                            errors.addAll(errs);
+                            logStream.println("Raw error count " + tool.originalErrorCount()
+                                    + " with coalesce/epsilon processing " + errs.size());
                             infos.addAll(tool.infoMessages());
                             return null;
                         });
             } catch (Exception ex) {
                 LOG.log(Level.FINE, "Error loading grammar " + grammarFileName, ex);
+                ex.printStackTrace(logStream);
                 thrown = ex;
                 success.set(false);
 //                LOG.log(Level.SEVERE, gn.get(), ex);
@@ -374,13 +389,10 @@ public final class AntlrGenerator {
                         }
                     }
                 }
-                jfs.listAll().entrySet().stream().filter((e) -> {
-                    return grammarSourceLocation.equals(e.getValue()) || outputLocation.equals(e.getValue());
-                }).forEach((f) -> {
-                    JFSFileObject file = f.getKey();
+                BiConsumer<Location, JFSFileObject> modUpdater = (loc, file) -> {
                     if (LOG.isLoggable(Level.FINEST) && !files.contains(file)) {
-                        LOG.log(Level.FINEST, "Generated in {0}: {1}",
-                                new Object[]{f.getKey(), f.getValue()});
+                        LOG.log(Level.FINEST, "New file in {0}: {1}",
+                                new Object[]{loc, file.path()});
                     }
                     Long mod = modificationDates.get(file);
                     long currentLastModified = file.getLastModified();
@@ -393,7 +405,11 @@ public final class AntlrGenerator {
                         touchedLastModified.put(ref, currentLastModified);
                     }
                     postFiles.add(ref);
-                });
+                };
+
+                jfs.list(grammarSourceLocation, modUpdater);
+                jfs.list(outputLocation, modUpdater);
+
                 postFiles.removeAll(files);
                 code = MemoryTool.attemptedExitCode(thrown);
             } catch (Exception ex) {
@@ -435,7 +451,8 @@ public final class AntlrGenerator {
                     // bad source - a partially written
                     // character set, e.g. fragment FOO : [\p{...];
                     LOG.log(Level.INFO, "Bad character set", ex);
-                    tool.error(new ANTLRMessage(ErrorType.ERROR_READING_IMPORTED_GRAMMAR, ex, null));
+                    tool.errMgr.emit(ErrorType.ERROR_READING_IMPORTED_GRAMMAR,
+                            new ANTLRMessage(ErrorType.ERROR_READING_IMPORTED_GRAMMAR, ex, null));
                 }
             }
             if (g.isCombined()) {

@@ -17,11 +17,9 @@ package org.nemesis.antlr.error.highlighting;
 
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
 import com.mastfrog.function.state.Bool;
-import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
-import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.nemesis.antlr.ANTLRv4Parser;
@@ -39,7 +37,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.filesystems.FileObject;
-import org.openide.util.Exceptions;
 
 /**
  * Implements error highlighting and hints, using the error output from Antlr
@@ -101,11 +98,13 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
 //            AntlrGenerationResult res, ParseResultContents populate,
 //            Fixes fixes) {
         if (res == null || !fixes.active() || !isActive()) {
-            LOG.log(Level.FINER, "no result or no fixes, skip hints: {0}", extraction.source());
+            LOG.log(Level.FINER, "no result? {0}; fixes inactive? {1}, or inactive? {2}. Skip hints for : {3}",
+                    new Object[]{(res == null), !fixes.active(), !isActive(), extraction == null
+                        ? "null" : extraction.source().name()});
             return;
         }
 
-        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source());
+        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source().name());
         Optional<Document> doc = extraction.source().lookup(Document.class);
         if (!doc.isPresent()) {
             LOG.log(Level.FINE, "Doc not present from source {0}", extraction.source());
@@ -128,10 +127,12 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                         + "than at the time of parsing. It should be reparsed "
                         + "again presently.", new Object[]{
                             extraction.source(), (lm - res.grammarFileLastModified)});
-                return;
+//                return;
             }
-        } catch (IOException ex) {
-            Exceptions.printStackTrace(ex);
+        } catch (Exception | Error ex) {
+            LOG.log(Level.SEVERE, "Checking extraction up to date for "
+                    + extraction.source().name(), ex);
+            return;
         }
         PositionFactory positions = PositionFactory.forDocument(d);
 //        if (Objects.equals(currentTokensHash, extraction.tokensHash())) {
@@ -144,12 +145,15 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
             boolean usingResults = true;
             for (AntlrHintGenerator gen : AntlrHintGenerator.all()) {
                 try {
-                    boolean highlightsAdded = gen.generateHints(tree, extraction, res, populate, fixes, d, positions, brandNewBag);
+                    boolean highlightsAdded = gen.generateHints(tree,
+                            extraction, res, populate, fixes, d, positions, brandNewBag);
                     if (highlightsAdded) {
+                        LOG.log(Level.FINEST, "{0} added highlights", gen);
                         anyHighlights.set();
                     }
-                } catch (BadLocationException ex) {
-                    Exceptions.printStackTrace(ex);
+                } catch (Exception | Error ex) {
+                    LOG.log(Level.SEVERE, "Checking extraction up to date for "
+                            + extraction.source().name(), ex);
                 }
 //                if (runIndex != uses.get()) {
 //                    LOG.log(Level.INFO, "Not finishing hint run due to reentry of {0} with {1}",
@@ -167,7 +171,7 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                 service = HighlightsLayerFactory.class, position = 50)
     })
     public static HighlightsLayerFactory factory() {
-        return AbstractHighlighter.factory("antlr-runtime-errors", 
+        return AbstractHighlighter.factory("antlr-runtime-errors",
                 ZOrder.SYNTAX_RACK,
                 ctx -> new AntlrRuntimeErrorsHighlighter(ctx), true);
     }
