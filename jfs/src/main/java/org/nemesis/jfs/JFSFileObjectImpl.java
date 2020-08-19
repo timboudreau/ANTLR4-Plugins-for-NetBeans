@@ -52,6 +52,10 @@ class JFSFileObjectImpl implements JFSFileObject {
         this.encoding = encoding;
     }
 
+    boolean isDeleted() {
+        return deleted;
+    }
+
     @Override
     public JFSStorageKind storageKind() {
         return storage.storageKind();

@@ -15,6 +15,8 @@
  */
 package org.nemesis.jfs.isolation;
 
+import com.mastfrog.predicates.Predicates;
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.strings.Strings;
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,39 +36,56 @@ import java.util.function.Supplier;
  *
  * @author Tim Boudreau
  */
-public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass & Closeable> extends ClassLoader implements AutoCloseable, Closeable, Supplier<IsolationClassLoader<?>> {
+public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass & Closeable>
+        extends ClassLoader implements AutoCloseable, Closeable, Supplier<IsolationClassLoader<?>> {
 
     private T childClassLoader;
-
     private final boolean lockless;
+    private final boolean uncloseable;
 
-    IsolationClassLoader(Function<ClassLoader, T> childForParent) {
-        this(Thread.currentThread().getContextClassLoader(), childForParent);
+    IsolationClassLoader(Function<ClassLoader, T> childForParent, boolean uncloseable) {
+        this(Thread.currentThread().getContextClassLoader(), childForParent, uncloseable);
     }
 
-    IsolationClassLoader(ClassLoader parent, Function<ClassLoader, T> childForParent) {
-        this(parent, new FindClassClassLoader(parent), childForParent);
+    IsolationClassLoader(ClassLoader parent, Function<ClassLoader, T> childForParent,
+            boolean uncloseable) {
+        this(parent, new FindClassClassLoader(parent), childForParent, uncloseable);
     }
 
-    private IsolationClassLoader(ClassLoader parent, FindClassClassLoader lfp, Function<ClassLoader, T> childForParent) {
+    private IsolationClassLoader(ClassLoader parent, FindClassClassLoader lfp,
+            Function<ClassLoader, T> childForParent, boolean uncloseable) {
         super(parent);
+        this.uncloseable = uncloseable;
         childClassLoader = childForParent.apply(lfp);
         lockless = childClassLoader.getClass().getAnnotation(Lockless.class) != null;
         lfp.lockless = lockless;
     }
 
-    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>> lazyCreate(Function<ClassLoader, T> createDelegateClassloader) {
+    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>>
+            lazyCreate(Function<ClassLoader, T> createDelegateClassloader) {
+        return lazyCreate(createDelegateClassloader, false);
+    }
+
+    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>>
+            lazyCreate(Function<ClassLoader, T> createDelegateClassloader, boolean uncloseable) {
         return () -> {
-            return new IsolationClassLoader<>(createDelegateClassloader);
+            return new IsolationClassLoader<>(createDelegateClassloader, uncloseable);
         };
     }
 
-    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>> lazyCreate(ClassLoader parent, Function<ClassLoader, T> createDelegateClassloader) {
+    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>>
+            lazyCreate(ClassLoader parent, Function<ClassLoader, T> createDelegateClassloader) {
+        return lazyCreate(parent, createDelegateClassloader, false);
+    }
+
+    public static <T extends ClassLoader & ExposedFindClass & Closeable> Supplier<IsolationClassLoader<T>>
+            lazyCreate(ClassLoader parent, Function<ClassLoader, T> createDelegateClassloader, boolean uncloseable) {
         return () -> {
-            return new IsolationClassLoader<>(parent, createDelegateClassloader);
+            return new IsolationClassLoader<>(parent, createDelegateClassloader, uncloseable);
         };
     }
 
+    @Override
     public IsolationClassLoader<?> get() {
         return this;
     }
@@ -84,39 +103,83 @@ public final class IsolationClassLoader<T extends ClassLoader & ExposedFindClass
         return "IsolationClassLoader{" + childClassLoader + "}";
     }
 
-    static final class AlwaysFalse implements Predicate<String> {
-
-        @Override
-        public boolean test(String t) {
-            return false;
-        }
+    /**
+     * Create a simple isoloation classloader for some URLs.
+     *
+     * @param urls Some urls
+     * @return
+     */
+    public static IsolationClassLoader<?> forURLs(URL[] urls) {
+        return forURLs(false, notNull("urls", urls));
     }
 
-    public static IsolationClassLoader<?> forURLs(URL[] urls) {
-        return forURLs(urls, new AlwaysFalse()); // yes, lambdas, but this is cheaper
+    public static IsolationClassLoader<?> forURLs(boolean uncloseable, URL[] urls) {
+        return forURLs(urls, Predicates.alwaysFalse()); // yes, lambdas, but this is cheaper
     }
 
     public static IsolationClassLoader<?> forURLs(URL[] urls, Predicate<String> forceLoadFromParent) {
-        return forURLs(Thread.currentThread().getContextClassLoader(), urls, forceLoadFromParent);
+        return forURLs(urls, forceLoadFromParent, false);
+    }
+
+    public static IsolationClassLoader<?> forURLs(URL[] urls, Predicate<String> forceLoadFromParent, boolean uncloseable) {
+        return forURLs(Thread.currentThread().getContextClassLoader(), urls, forceLoadFromParent, uncloseable);
     }
 
     public static IsolationClassLoader<?> forURLs(ClassLoader parent, URL[] urls, Predicate<String> forceLoadFromParent) {
+        return forURLs(parent, urls, forceLoadFromParent, false);
+    }
+
+    /**
+     * Create an isolation classloader directly.
+     *
+     * @param parent The parent classloader (urls are searched first)
+     * @param urls Some URLs to create URLClassLoaders over
+     * @param forceLoadFromParent A predicate which, for class names it tests true for,
+     * will ensure the class object is loaded fro the parent classloader, not any url
+     * or other classloader present.
+     * @param uncloseable If true, the <code>close()</code> method will do nothing, and
+     * <code>reallyClose()</code> must be called to actually close the classloader - this
+     * is useful if this classloader will be repeatedly used as the parent of classloaders
+     * such as JFSClassLoader that try to close their parent when they are closed.
+     * @return An isolation class loader
+     */
+    public static IsolationClassLoader<?> forURLs(ClassLoader parent, URL[] urls, Predicate<String> forceLoadFromParent, boolean uncloseable) {
         Function<ClassLoader, ChildURLClassLoader> createWithParent = par -> {
             return new ChildURLClassLoader(urls, par, forceLoadFromParent);
         };
-        return new IsolationClassLoader<>(parent, createWithParent);
+        return new IsolationClassLoader<>(parent, createWithParent, uncloseable);
     }
 
+    /**
+     * Create a builder for IsolationClassLoader instances.
+     *
+     * @return An IsolationClassLoaderBuilder
+     */
     public static IsolationClassLoaderBuilder builder() {
         return new IsolationClassLoaderBuilder();
     }
 
     @Override
     public synchronized void close() throws IOException {
-        childClassLoader.close();
-        childClassLoader = null;
+        if (!uncloseable) {
+            childClassLoader.close();
+            childClassLoader = null;
+        }
     }
 
+    /**
+     * Actually close this classloader, even if it is marked uncloseable.
+     *
+     * @throws IOException if something goes wrong
+     */
+    public synchronized void reallyClose() throws IOException {
+        if (uncloseable) {
+            childClassLoader.close();
+            childClassLoader = null;
+        }
+    }
+
+    @Override
     public String getName() {
         T ldr;
         synchronized (this) {

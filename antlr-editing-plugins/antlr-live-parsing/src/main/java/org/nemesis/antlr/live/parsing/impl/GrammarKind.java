@@ -32,6 +32,7 @@ import org.openide.util.NbBundle.Messages;
 public enum GrammarKind {
     PARSER, LEXER, COMBINED, UNKNOWN;
 
+    @Override
     public String toString() {
         return NbBundle.getMessage(GrammarKind.class, name());
     }

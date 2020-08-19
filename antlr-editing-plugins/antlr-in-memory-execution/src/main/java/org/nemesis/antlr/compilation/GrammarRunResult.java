@@ -33,28 +33,28 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     private T result;
     private final Throwable thrown;
-    private final AntlrGenerationAndCompilationResult buildResult;
+    private final AntlrGenerationAndCompilationResult generationAndCompilationResult;
     private final GrammarRunResult<T> lastGood;
-    private final AntlrGenerationAndCompilationResult genResult;
     private final long timestamp = System.currentTimeMillis();
 
     GrammarRunResult(T result, Throwable thrown, AntlrGenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
         this.result = result;
         this.thrown = thrown;
-        this.buildResult = buildResult;
-        this.lastGood = lastGood;
-        genResult = buildResult;
+        this.generationAndCompilationResult = buildResult;
+        // Only need a last-good result if we are not; otherwise we
+        // will leak a chain of GrammarRunResults back to the dawn of time.
+        this.lastGood = buildResult.isUsable() ? null : lastGood;
     }
 
     public String grammarName() {
-        if (buildResult != null && buildResult.generationResult() != null) {
-            return buildResult.generationResult().grammarName;
+        if (generationAndCompilationResult != null && generationAndCompilationResult.generationResult() != null) {
+            return generationAndCompilationResult.generationResult().grammarName;
         }
-        if (lastGood != null && lastGood.genResult != null && lastGood.genResult.generationResult() != null) {
-            return lastGood.genResult.generationResult().grammarName;
+        if (lastGood != null && lastGood.generationAndCompilationResult != null && lastGood.generationAndCompilationResult.generationResult() != null) {
+            return lastGood.generationAndCompilationResult.generationResult().grammarName;
         }
-        if (buildResult != null && buildResult.mainGrammar() != null) {
-            return buildResult.mainGrammar().name;
+        if (generationAndCompilationResult != null && generationAndCompilationResult.mainGrammar() != null) {
+            return generationAndCompilationResult.mainGrammar().name;
         }
         return "Unknown";
     }
@@ -64,9 +64,9 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         StringBuilder sb = new StringBuilder("GrammarRunResult(");
         sb.append("usable=").append(isUsable())
                 .append(", result=").append(result).append("\n\n");
-        sb.append("buildResult.usable=").append(buildResult.isUsable());
+        sb.append("buildResult.usable=").append(generationAndCompilationResult.isUsable());
         sb.append(" buildResult.grammarGenerationResult.usable=");
-        sb.append(buildResult.generationResult().isUsable());
+        sb.append(generationAndCompilationResult.generationResult().isUsable());
         return sb.toString();
     }
 
@@ -79,27 +79,27 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     }
 
     public JFS jfs() {
-        return genResult.jfs();
+        return generationAndCompilationResult.jfs();
     }
 
     public Optional<Grammar> findGrammar(String name) {
-        return genResult.findGrammar(name);
+        return generationAndCompilationResult.findGrammar(name);
     }
 
     public Path sourceRoot() {
-        return genResult.sourceRoot();
+        return generationAndCompilationResult.sourceRoot();
     }
 
     public boolean compileFailed() {
-        return genResult.compileFailed();
+        return generationAndCompilationResult.compileFailed();
     }
 
     public List<Path> sources() {
-        return genResult.compiledSourceFiles();
+        return generationAndCompilationResult.compiledSourceFiles();
     }
 
     public List<JavacDiagnostic> diagnostics() {
-        return genResult.javacDiagnostics();
+        return generationAndCompilationResult.javacDiagnostics();
     }
 
     public GrammarRunResult<T> lastGood() {
@@ -107,12 +107,12 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     }
 
     public final AntlrGenerationAndCompilationResult genResult() {
-        return buildResult;
+        return generationAndCompilationResult;
     }
 
     @Override
     public boolean isUsable() {
-        return buildResult.isUsable() && thrown == null;
+        return generationAndCompilationResult.isUsable() && thrown == null;
     }
 
     @Override
@@ -120,12 +120,12 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         if (thrown != null) {
             return Optional.of(thrown);
         }
-        return buildResult.thrown();
+        return generationAndCompilationResult.thrown();
     }
 
     @Override
     public UpToDateness currentStatus() {
-        return buildResult.currentStatus();
+        return generationAndCompilationResult.currentStatus();
     }
 
     @Override

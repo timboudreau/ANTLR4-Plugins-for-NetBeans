@@ -25,6 +25,7 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.nemesis.jfs.javac.JavacOptions;
+import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -40,6 +41,10 @@ public abstract class InvocationRunner<T, A> implements ThrowingFunction<A, T> {
 
     public Class<T> type() {
         return type;
+    }
+
+    protected void onDisposed(FileObject fo) {
+        
     }
 
     final A configureCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String packageName, Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer) throws IOException {

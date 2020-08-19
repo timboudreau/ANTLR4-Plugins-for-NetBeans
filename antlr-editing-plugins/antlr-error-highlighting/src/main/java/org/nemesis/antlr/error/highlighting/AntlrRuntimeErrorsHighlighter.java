@@ -167,7 +167,9 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                 service = HighlightsLayerFactory.class, position = 50)
     })
     public static HighlightsLayerFactory factory() {
-        return AbstractHighlighter.factory("antlr-runtime-errors", ZOrder.SHOW_OFF_RACK, ctx -> new AntlrRuntimeErrorsHighlighter(ctx));
+        return AbstractHighlighter.factory("antlr-runtime-errors", 
+                ZOrder.SYNTAX_RACK,
+                ctx -> new AntlrRuntimeErrorsHighlighter(ctx), true);
     }
 
     /*

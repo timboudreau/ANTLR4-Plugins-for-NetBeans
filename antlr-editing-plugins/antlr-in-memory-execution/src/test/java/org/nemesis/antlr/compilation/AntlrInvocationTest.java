@@ -187,21 +187,27 @@ public class AntlrInvocationTest {
     }
 
     public static Object smashy() throws Exception {
-        throw new FooException();
+        throw new FooException("If the test is working correctly, this exception will be logged");
     }
 
     public static Object crashy() throws Exception {
-        throw new IllegalStateException();
+        throw new IllegalStateException("If the test is working correctly, this exception will be logged");
     }
 
     static class FooException extends Exception {
-
+        FooException(String msg) {
+            super(msg);
+        }
     }
 
     private void onFileCreated(JavaFileManager.Location loc, FileObject file) {
         if (loc == StandardLocation.CLASS_OUTPUT && file.getName().endsWith(".class")) {
             generatedClassFiles.add(file.getName());
         }
+    }
+
+    static {
+        System.setProperty("jfs.classloader.debug", "true");
     }
 
     @BeforeEach
@@ -221,7 +227,15 @@ public class AntlrInvocationTest {
                 .building(sourceFilePath.getParent())
                 .addToClasspath(Grammar.class)
                 .addToClasspath(org.antlr.v4.runtime.tree.ParseTree.class)
-                .build().isolated().build("NestedMapGrammar.g4");
+                .build().isolated()
+                .withParentClassLoader(() -> {
+                    try {
+                        return jfs.getClassLoader(StandardLocation.CLASS_OUTPUT, ClassLoader.getSystemClassLoader());
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                })
+                .build("NestedMapGrammar.g4");
         assertNotNull(runner);
     }
 }

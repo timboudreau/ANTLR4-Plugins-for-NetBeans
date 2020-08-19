@@ -186,7 +186,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
         Optional<Path> path = extraction.source().lookup(Path.class);
         List<EpsilonRuleInfo> epsilons = new ArrayList<>(errors.size());
         for (ParsedAntlrError err : errors) {
-            LOG.log(Level.FINEST, "Handle err {0}", err);
+            LOG.log(Level.FINEST, "{0} Handle err {1}", new Object[] {extraction.source(), err});
             boolean shouldAdd = true;
             if (path.isPresent()) {
                 // Convert to UnixPath to ensure endsWith test works
@@ -307,32 +307,35 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                     PositionRange pr = positions.range(region);
                     if (region == null) {
                         bl.set(false);
-                    }
-                    fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
-                        if (err.code() == 53) {
-                            String name = findRuleNameInErrorMessage(err.message());
-                            if (name != null) {
-                                try {
-                                    PositionRange rng = positions.range(start, end);
-                                    fixConsumer.addFix(Bundle.capitalize(), bag -> {
-                                        bag.replace(rng, capitalize(name));
-                                    });
-                                } catch (BadLocationException ex) {
-                                    Exceptions.printStackTrace(ex);
+                    } else {
+                        fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
+                            if (err.code() == 53) {
+                                String name = findRuleNameInErrorMessage(err.message());
+                                if (name != null) {
+                                    try {
+                                        PositionRange rng = positions.range(start, end);
+                                        fixConsumer.addFix(Bundle.capitalize(), bag -> {
+                                            bag.replace(rng, capitalize(name));
+                                        });
+                                    } catch (BadLocationException ex) {
+                                        Exceptions.printStackTrace(ex);
+                                    }
                                 }
                             }
-                        }
-                        fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
-                                bag -> bag.delete(pr));
-                        bl.set(true);
-                    });
-
+                            fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
+                                    bag -> bag.delete(pr));
+                            bl.set(true);
+                        });
+                    }
                 });
                 return bl.get();
             case 119:
+                LOG.log(Level.INFO, "Found a 119 error: {0}", err);
+                System.out.println("FOUND A 119 ERROR " + err);
                 // e.g., "The following sets of rules are mutually left-recursive [foo, baz, koog]"
                 int bstart = err.message().lastIndexOf('[');
                 int bend = err.message().lastIndexOf(']');
+                boolean res = false;
                 if (bend > bstart + 1 && bstart > 0) {
                     String sub = err.message().substring(bstart, bend - 1);
                     NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
@@ -340,11 +343,12 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                         item = item.trim();
                         NamedSemanticRegion<RuleTypes> reg = regions.regionFor(item);
                         if (reg != null) {
+//                            res = true;
                             fixes.addError(reg, err.message());
                         }
                     }
                 }
-                return true;
+                return res;
             // error 130 : label str assigned to a block which is not a set
             case 130: // Parser rule Label assigned to a block which is not a set
             case 201: // label in a lexer rule

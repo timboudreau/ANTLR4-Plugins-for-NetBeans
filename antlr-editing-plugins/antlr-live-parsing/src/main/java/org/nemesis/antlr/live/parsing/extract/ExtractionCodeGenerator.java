@@ -112,9 +112,11 @@ public class ExtractionCodeGenerator {
             foundParser = searchByName(fs, pkg, hints, grammarName, "Parser", "");
             if (foundParser == null) {
                 UnixPath pth = hints.firstPathForRawName(grammarName, "g4", "g");
-                foundParser = fs.get(StandardLocation.SOURCE_PATH, pth);
-                if (foundParser == null) {
-                    foundParser = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                if (pth != null) {
+                    foundParser = fs.get(StandardLocation.SOURCE_PATH, pth);
+                    if (foundParser == null) {
+                        foundParser = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                    }
                 }
             }
             logTo.println("grammarName non-match lexerName " + grammarName + " / " + lexerGrammarName + ". Found " + foundParser);
@@ -123,9 +125,11 @@ public class ExtractionCodeGenerator {
             foundLexer = searchByName(fs, pkg, hints, grammarName, "Lexer", "");
             if (foundLexer == null) {
                 UnixPath pth = hints.firstPathForRawName(lexerGrammarName, "g4", "g");
-                foundLexer = fs.get(StandardLocation.SOURCE_PATH, pth);
-                if (foundLexer == null) {
-                    foundLexer = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                if (pth != null) {
+                    foundLexer = fs.get(StandardLocation.SOURCE_PATH, pth);
+                    if (foundLexer == null) {
+                        foundLexer = fs.get(StandardLocation.SOURCE_OUTPUT, pth);
+                    }
                 }
             }
             logTo.println("For lexer name found " + foundLexer);

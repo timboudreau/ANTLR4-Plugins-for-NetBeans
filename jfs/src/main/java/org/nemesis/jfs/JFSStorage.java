@@ -76,6 +76,18 @@ final class JFSStorage {
         this.listener = listener;
     }
 
+    public boolean isEmpty() {
+        if (files.isEmpty()) {
+            return true;
+        }
+        for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
+            if (!e.getValue().isDeleted()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void forEach(IOBiConsumer<Name, JFSFileObjectImpl> c) throws IOException {
         for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
             c.accept(e.getKey(), e.getValue());

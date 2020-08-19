@@ -29,12 +29,16 @@ import javax.swing.text.PlainDocument;
 import javax.tools.StandardLocation;
 import org.antlr.runtime.CommonTokenStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.live.execution.AntlrRunSubscriptionsTest.TEXT_1;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSClassLoader;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -86,10 +90,23 @@ public class IR extends InvocationRunner<Map, Void> {
         return doc;
     }
 
+    @Override
+    protected void onDisposed(FileObject fo) {
+        try {
+            assertNotNull(fo);
+            assertEquals("NestedMaps.g4", fo.getNameExt());
+            clearLast();
+        } catch (IOException ex) {
+            Exceptions.chuck(ex);
+        }
+    }
+
     String gpn = "com.foo.bar";
 
     @Override
-    protected Void onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> cs) throws IOException {
+    protected Void onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res,
+            Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName,
+            Consumer<Supplier<ClassLoader>> cs) throws IOException {
         gpn = grammarPackageName;
         compileConfigCount++;
         bldr.addToClasspath(CommonTokenStream.class);
@@ -97,6 +114,7 @@ public class IR extends InvocationRunner<Map, Void> {
 //        jfs.create(Paths.get("com/foo/bar/NestedMapInfoExtractor.java"), StandardLocation.SOURCE_PATH, infoText());
         jfs.masquerade(doc(grammarPackageName),
                 StandardLocation.SOURCE_PATH, UnixPath.get(grammarPackageName.replace('.', '/') + "/NestedMapInfoExtractor.java"));
+        cs.accept(new JFSClassLoaderFactory(res.jfsSupplier));
         return null;
     }
 
@@ -110,9 +128,56 @@ public class IR extends InvocationRunner<Map, Void> {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> doit() throws Exception {
-        Class<?> type = Thread.currentThread().getContextClassLoader().loadClass(gpn + ".NestedMapInfoExtractor");
+        assertTrue(Thread.currentThread().getContextClassLoader() instanceof JFSClassLoader,
+                "Should be called under the JFS classloader");
+        Class<?> type = Class.forName(gpn + ".NestedMapInfoExtractor", true, Thread.currentThread().getContextClassLoader());
+//        Class<?> type = Class.forName(gpn + ".NestedMapInfoExtractor", false,
+//                Thread.currentThread().getContextClassLoader());;
         Method m = type.getMethod("parseText", String.class, String.class);
         return (Map<String, Object>) m.invoke(null, "Hoogers.boodge", TEXT_1);
     }
 
+    static synchronized JFSClassLoader lastClassloader() {
+        return JFSClassLoaderFactory.INSTANCE == null ? null
+                : JFSClassLoaderFactory.INSTANCE.last;
+    }
+
+    static synchronized void clearLast() throws IOException {
+        if (JFSClassLoaderFactory.INSTANCE != null) {
+            if (JFSClassLoaderFactory.INSTANCE.last != null) {
+                JFSClassLoaderFactory.INSTANCE.last.close();
+            }
+            JFSClassLoaderFactory.INSTANCE.last = null;
+        }
+        JFSClassLoaderFactory.INSTANCE = null;
+    }
+
+    static class JFSClassLoaderFactory implements Supplier<ClassLoader> {
+
+        private final Supplier<JFS> jfs;
+        static JFSClassLoaderFactory INSTANCE;
+        JFSClassLoader last;
+
+        public JFSClassLoaderFactory(Supplier<JFS> jfs) {
+            this.jfs = jfs;
+            synchronized (IR.class) {
+                INSTANCE = this;
+            }
+        }
+
+        @Override
+        public ClassLoader get() {
+            ClassLoader root = Thread.currentThread().getContextClassLoader();
+            try {
+                JFS jfs = this.jfs.get();
+                JFSClassLoader cl = jfs.getClassLoader(true, root, StandardLocation.CLASS_OUTPUT, StandardLocation.SOURCE_OUTPUT, StandardLocation.CLASS_PATH);
+                System.out.println("CREATE A JFSCL: " + cl);
+                synchronized (IR.class) {
+                    return last = cl;
+                }
+            } catch (IOException ex) {
+                throw new IllegalStateException(ex);
+            }
+        }
+    }
 }

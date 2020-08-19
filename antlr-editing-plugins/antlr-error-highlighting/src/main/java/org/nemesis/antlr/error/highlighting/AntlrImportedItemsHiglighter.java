@@ -67,12 +67,14 @@ public class AntlrImportedItemsHiglighter extends AbstractHighlighter implements
                 service = HighlightsLayerFactory.class, position = 50)
     })
     public static HighlightsLayerFactory factory() {
-        return AbstractHighlighter.factory("antlr-foreign-tokens", ZOrder.SYNTAX_RACK, ctx -> new AntlrImportedItemsHiglighter(ctx));
+        return AbstractHighlighter.factory("antlr-foreign-tokens", ZOrder.SYNTAX_RACK, ctx -> new AntlrImportedItemsHiglighter(ctx), true);
     }
 
     @Override
     protected void activated(FileObject file, Document doc) {
-        unsubscriber = RebuildSubscriptions.subscribe(file, this);
+        if (file != null) {
+            unsubscriber = RebuildSubscriptions.subscribe(file, this);
+        }
     }
 
     @Override
@@ -86,6 +88,9 @@ public class AntlrImportedItemsHiglighter extends AbstractHighlighter implements
 
     @Override
     public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes) {
+        if (!isActive() || unsubscriber == null) {
+            return;
+        }
         // What we are doing here is far more expensive than normal highlighting,
         // so get it out of the critical path of rebuilds and coalesce as much as
         // possible

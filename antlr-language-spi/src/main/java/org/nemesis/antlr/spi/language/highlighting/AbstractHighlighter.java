@@ -49,6 +49,8 @@ import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
+import static com.mastfrog.util.preconditions.Checks.notNull;
+
 /**
  * A generic highlighter or error annotator, which correctly implements several
  * things that can be tricky:
@@ -192,10 +194,19 @@ public abstract class AbstractHighlighter {
             doUpdate.set( highlightsUpdater.test( brandNewBag ) );
         } finally {
             Mutex.EVENT.readAccess( () -> {
-                if ( doUpdate.getAsBoolean() ) {
-                    bag.setHighlights( brandNewBag );
-                } else {
-                    bag.clear();
+                // We may have been closed / deactivated before
+                // Mutex.EVENT's EventQueue.invokeLater() call completes,
+                // and that can result in tripping an AssertionError.
+                // Since active updates are based on a ComponentListener that
+                // should only be called from the event thread, we are safe
+                // enough that if isActive() is true and the bag is still
+                // the instance referenced from the field, then it is still valid
+                if ( isActive() && theBag == bag ) {
+                    if ( doUpdate.getAsBoolean() ) {
+                        bag.setHighlights( brandNewBag );
+                    } else {
+                        bag.clear();
+                    }
                 }
                 brandNewBag.discard();
             } );
@@ -251,33 +262,60 @@ public abstract class AbstractHighlighter {
      */
     public static final HighlightsLayerFactory factory( String layerTypeId, ZOrder zOrder,
             Function<? super HighlightsLayerFactory.Context, ? extends AbstractHighlighter> highlighterCreator ) {
-        return new Factory( layerTypeId, zOrder, highlighterCreator );
+        return new Factory( layerTypeId, zOrder, highlighterCreator, false );
+    }
+
+    /**
+     * Create a factory for some type of AbstractHighlighter - typical usage is to create
+     * a no-argument factory method that calls this and annotate it with
+     * mime lookup registration.
+     *
+     * @param layerTypeId        The layer type id
+     * @param zOrder             The z-order
+     * @param highlighterCreator A function that returns an instance of AbstractHighlighter
+     *
+     * @return A generic highlighter factory
+     */
+    public static final HighlightsLayerFactory factory( String layerTypeId, ZOrder zOrder,
+            Function<? super HighlightsLayerFactory.Context, ? extends AbstractHighlighter> highlighterCreator,
+            boolean mustHaveFile ) {
+        return new Factory( layerTypeId, zOrder, highlighterCreator, mustHaveFile );
     }
 
     public final HighlightsContainer getHighlightsBag() {
         return lazy;
     }
 
+    /**
+     * A basic single-highlighter highlights layer factory that is easy to use
+     * from a no-argument overload the <code>factory()</code> method to register
+     * a highlight in the module's layer.
+     */
     private static class Factory implements HighlightsLayerFactory {
 
         private static final HighlightsLayer[] EMPTY = new HighlightsLayer[ 0 ];
         private final ZOrder zOrder;
         private final Function<? super Context, ? extends AbstractHighlighter> highlighterCreator;
         private final String layerTypeId;
+        private final boolean mustHaveFile;
 
         Factory( String layerTypeId, ZOrder zorder,
-                Function<? super Context, ? extends AbstractHighlighter> highlighterCreator ) {
-            this.zOrder = zorder;
-            this.highlighterCreator = highlighterCreator;
-            this.layerTypeId = layerTypeId;
+                Function<? super Context, ? extends AbstractHighlighter> highlighterCreator,
+                boolean mustHaveFile ) {
+            this.zOrder = notNull( "zorder", zorder );
+            this.highlighterCreator = notNull( "highlighterCreator", highlighterCreator );
+            this.layerTypeId = notNull( "layerTypeId", layerTypeId );
+            this.mustHaveFile = mustHaveFile;
         }
 
         @Override
         public HighlightsLayer[] createLayers( HighlightsLayerFactory.Context ctx ) {
             Document doc = ctx.getDocument();
-            FileObject fo = NbEditorUtilities.getFileObject( doc );
-            if ( fo == null ) { // preview pane, etc.
-                return EMPTY;
+            if ( mustHaveFile ) {
+                FileObject fo = NbEditorUtilities.getFileObject( doc );
+                if ( fo == null ) { // preview pane, etc.
+                    return EMPTY;
+                }
             }
             AbstractHighlighter highlighter = highlighterCreator.apply( ctx );
             return new HighlightsLayer[]{
@@ -287,6 +325,11 @@ public abstract class AbstractHighlighter {
         }
     }
 
+    /**
+     * Listens on the editor component, and informs the owning highlighter when
+     * the component becomes visible or is hidden, so it can ignore changes
+     * when the component is not onscreen.
+     */
     private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener {
 
         // Volatile because while highlighters are only attached and detached from the
@@ -372,7 +415,9 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void run() {
-            activate();
+            if ( active ) {
+                activate();
+            }
         }
     }
 

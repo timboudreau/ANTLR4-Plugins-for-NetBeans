@@ -80,7 +80,7 @@ public final class ReparseListeners {
                     listener.accept(g, proxy);
                 } catch (Exception ex) {
                     LOG.log(Level.SEVERE, "Passing new parse of "
-                            + proxy.grammarPath() + " to " + listener, ex);;
+                            + proxy.grammarPath() + " to " + listener, ex);
                 }
             }
         }

@@ -18,6 +18,7 @@ package org.nemesis.antlr.memory;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.ObjectGraph;
 import com.mastfrog.util.path.UnixPath;
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -119,7 +120,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.options = Collections.unmodifiableSet(EnumSet.copyOf(options));
         this.grammarEncoding = grammarEncoding;
         this.tokensHash = tokensHash;
-        this.originalFilePath = originalFilePath;
+        this.originalFilePath = notNull("originalFilePath", originalFilePath);
         this.primaryFiles = primaryFiles;
         this.outputFiles = outputFiles;
         this.inputFiles = inputFiles;

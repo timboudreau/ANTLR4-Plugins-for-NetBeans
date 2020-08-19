@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -37,7 +38,12 @@ import org.nemesis.jfs.isolation.ExposedFindClass;
 import org.nemesis.jfs.isolation.Lockless;
 
 /**
- * Public so the close method is visible.
+ * A classloader that can load classes from a JFS location or its parent. Note
+ * that this classloader is lockless (it currently tries to preload all classes
+ * in the storage aggresively on first use, shuffling initialization order until
+ * dependencies are satisfied); if you use it in a multithreded environment,
+ * take advantage of JFS.readLock() to and JFS.writeLock() to ensure thread-safe
+ * concurrent access.
  *
  * @author Tim Boudreau
  */
@@ -45,36 +51,58 @@ import org.nemesis.jfs.isolation.Lockless;
 public final class JFSClassLoader extends ClassLoader implements Closeable, AutoCloseable, ExposedFindClass {
 
     private static final Logger LOG = Logger.getLogger(JFSClassLoader.class.getName());
+    private static final boolean debug = Boolean.getBoolean("unit.test")
+            || Boolean.getBoolean("jfs.classloader.debug");
+    private static String baseId = Long.toString(System.currentTimeMillis());
     private static volatile int ids;
+    private Throwable closedAt;
     private final JFSStorage storage;
     private final Map<String, Class<?>> classes = new HashMap<>();
     private volatile Package[] packages;
-    private boolean initialized;
+    private volatile boolean initialized;
     private volatile boolean initializing;
     private final int id;
+    private volatile boolean closed;
 
     JFSClassLoader(JFSStorage storage) throws IOException {
         this(storage, ClassLoader.getSystemClassLoader());
     }
 
-    JFSClassLoader(JFSStorage storage, ClassLoader ldr) throws IOException {
-        super(ldr == null ? ClassLoader.getSystemClassLoader() : ldr);
+    JFSClassLoader(JFSStorage storage, ClassLoader parent) throws IOException {
+        super(parent == null ? ClassLoader.getSystemClassLoader() : parent);
         this.storage = storage;
         this.id = ids++;
-        LOG.fine(() -> "Created JFSClassLoader " + id);
+        LOG.fine(() -> "Created JFSClassLoader-" + id + "-" + storage.location() + " over " + parent);
     }
 
-    private synchronized void preloadClassesFromJFS() {
+    private String packageVersion() {
+        return baseId + "." + id;
+    }
+
+    private synchronized boolean preloadClassesFromJFS() {
+        if (closed) {
+            String msg = "Reusing a closed JFSClassLoader-" + id + " "
+                    + classes + ": " + this;
+            if (debug) {
+                throw new IllegalStateException(msg, closedAt);
+            } else {
+                LOG.log(Level.WARNING, msg);
+            }
+            return false;
+        }
         if (!initialized) {
             initialized = true;
+            LOG.log(Level.FINE, "Preload JFSClassLoader-{0}-{1}-{2}", new Object[]{id, storage.location(), storage.jfs().id()});
             Set<Package> packages = new HashSet<>();
-            String ver = "1." + Long.toString(System.currentTimeMillis());
+            String ver = packageVersion();
             for (String pkg : storage.listPackageNames()) {
                 packages.add(definePackage(pkg, pkg, ver, storage.id(),
-                        "-", ver, "-", null));
+                        storage.jfs().id(), ver, "-", null));
+                LOG.log(Level.FINE, "Define-pkg : {0} in JFSClassLoader-{1}", new Object[]{pkg, id});
             }
             this.packages = packages.toArray(new Package[packages.size()]);
             List<JFSFileObjectImpl> all = new ArrayList<>(storage.scan(JavaFileObject.Kind.CLASS));
+            assert all.size() == new HashSet(all).size() : "List of file objects contains duplicates: " + all;
             Set<String> names = new HashSet<>(all.size());
             // Poor man's dependency order - shuffle until it's right
             // Since there are usually only a small number of classes involved,
@@ -97,10 +125,20 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
             for (int i = 0; !all.isEmpty() && i < max + 1; i++) {
                 for (Iterator<JFSFileObjectImpl> iter = all.iterator(); iter.hasNext();) {
                     JFSFileObjectImpl clazz = iter.next();
+                    String nm = clazz.name().asClassName();
+                    if (classes.containsKey(nm)) {
+                        continue;
+                    }
                     try {
-                        Class<?> type = defineClass(null, clazz.asByteBuffer(), null);
+                        // We may have implicitly loaded a superclass or similar,
+                        // so note it if so
+                        Class<?> type = findLoadedClass(nm);
+                        if (type == null) {
+                            type = defineClass(null, clazz.asByteBuffer(), null);
+                        }
                         classes.put(type.getName(), type);
-                        classes.put(clazz.name().asClassName(), type);
+                        classes.put(nm, type);
+                        LOG.log(Level.FINEST, "JFSClassLoader-{0} preinit {1} as {2}", new Object[]{id, nm, type.getName()});
                         iter.remove();
                     } catch (NoClassDefFoundError err) {
                         // Change the iteration order randomly
@@ -109,23 +147,38 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
                         }
                         Collections.shuffle(all);
                         break;
+                    } catch (LinkageError err) {
+                        boolean parentContainsIt = false;
+                        try {
+                            getParent().loadClass(nm);
+                            parentContainsIt = true;
+                        } catch (Exception | Error ex) {
+
+                        }
+                        LOG.log(Level.SEVERE, "Linkage error - double load or parent contains " + nm
+                                + " already loaded " + classes.keySet() + " parent is " + getParent()
+                                + " able to load from parent? " + parentContainsIt, err);
+                        break;
                     } catch (IOException ex) {
-                        Logger.getLogger(JFSClassLoader.class.getName()).log(Level.SEVERE, null, ex);
+                        LOG.log(Level.SEVERE, null, ex);
                     }
                 }
             }
+            return true;
         }
+        return false;
     }
 
     //@Override // XXX JDK9
     protected Class<?> findClass(String moduleName, String name) {
         preloadClassesFromJFS();
-        Class<?> result = superFindClassJDK9(this, moduleName, name);
+        Class<?> result = loadLocal(name, true);
+        superFindClassJDK9(this, moduleName, name);
         if (result == null) {
             try {
                 result = findClass(name);
             } catch (ClassNotFoundException ex) {
-                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.FINE, null, ex);
+                LOG.log(Level.FINE, null, ex);
             }
         }
         return result;
@@ -151,27 +204,43 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
             }
         }
         if (findClassWithModuleNameMethod != null) {
-
+            try {
+                findClassWithModuleNameMethod.invoke(ldr, moduleName, name);
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+                LOG.log(Level.SEVERE, null, ex);
+            }
         }
         return null;
     }
 
     @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        preloadClassesFromJFS();
-        return super.loadClass(name, resolve); //To change body of generated methods, choose Tools | Templates.
+        Class<?> result = loadLocal(name, resolve);
+        return result == null ? super.loadClass(name, resolve) : result;
     }
 
     @Override
     public Class<?> loadClass(String name) throws ClassNotFoundException {
-        preloadClassesFromJFS();
-        return super.loadClass(name);
+        Class<?> result = loadLocal(name, false);
+        return result == null ? super.loadClass(name) : result;
+    }
+
+    /**
+     * Determine if this classloader has been closed and should not be used.
+     *
+     * @return True if this classloader has been closed and its contents
+     * discarded
+     */
+    public boolean isClosed() {
+        return closed;
     }
 
     @Override
     public String toString() {
         StringBuilder res = new StringBuilder("JFSClassLoader-");
-        res.append(id).append('(');
+        res.append('-').append(storage.location());
+        res.append('-').append(storage.jfs().id());
+        res.append('(');
         List<String> all = new ArrayList<>(classes.keySet());
         Collections.sort(all);
         for (Iterator<String> it = all.iterator(); it.hasNext();) {
@@ -188,9 +257,30 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
         return res.toString();
     }
 
+    private String identifier() {
+        return id + "-" + storage.location() + "-" + storage.id();
+    }
+
     @Override
     public void close() throws IOException {
-        LOG.log(Level.FINE, "Close a JFS classloader with {0}", classes.keySet());
+        if (debug && !closed) {
+            closedAt = new Exception("Close JFSClassLoader-" + identifier());
+//            if (LOG.isLoggable(Level.FINEST)) {
+//                LOG.log(Level.FINEST, "Close JFSClassLoader-" + id, closedAt);
+//            }
+        }
+        if (closed) {
+            // double check nothing got loaded unexpectedly
+            classes.clear();
+            if (debug && LOG.isLoggable(Level.FINEST)) {
+                LOG.log(Level.FINEST, "Double-close", new Exception("Second close", closedAt));
+            }
+            LOG.log(Level.FINER, "Close called twice on {0}", this);
+            return;
+        }
+        closed = true;
+        LOG.log(Level.FINE, "Close JFSClassLoader-{0} with {1} loaded classes: {2}",
+                new Object[]{identifier(), classes.size(), classes.keySet()});
         packages = new Package[0];
         classes.clear();
         storage.classloaderClosed(this);
@@ -215,12 +305,76 @@ public final class JFSClassLoader extends ClassLoader implements Closeable, Auto
 
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
+        Class<?> result = loadLocal(name, true);
+        return result != null ? result : super.findClass(name);
+    }
+
+    private Class<?> loadLocal(String className, boolean resolve) {
         preloadClassesFromJFS();
-        Class<?> type = classes.get(name);
-        if (type != null) {
-            return type;
+        Class<?> result = findLoadedClass(className);
+        if (result != null) {
+            if (!classes.containsKey(className)) {
+                classes.put(className, result);
+                classes.put(result.getName(), result);
+            }
+            return result;
         }
-        return super.findClass(name);
+        Class<?> type = classes.get(className);
+        if (type != null) {
+            if (resolve) {
+                resolveClass(type);
+            }
+            return type;
+        } else {
+            // Generation now may be run *after* the first call to load some
+            // JFS class
+            type = tryPostInitLoadFromJFS(className);
+            if (type != null) {
+                classes.put(className, type);
+                if (resolve) {
+                    resolveClass(type);
+                }
+                return type;
+            }
+        }
+        return null;
+    }
+
+    private Class<?> tryPostInitLoadFromJFS(String className) {
+        // XXX should probably use the JFS read-lock here to
+        // avoid racing;  for now, simply assuming the caller got their
+        // locking right, which in the case of the modules, it did.
+        Name name = Name.forClassName(className, JavaFileObject.Kind.CLASS);
+        JFSFileObjectImpl fo = storage.find(name, false);
+        if (fo != null) {
+            try {
+                String pkName = name.packageName();
+                // Need to define the package first, for this to work
+                boolean addPackage = true;
+                for (Package pk : packages) {
+                    if (pkName.equals(pk.getName())) {
+                        addPackage = false;
+                        break;
+                    }
+                }
+                if (addPackage) {
+                    Set<Package> all = new HashSet<>(Arrays.asList(packages));
+                    String ver = packageVersion();
+                    for (String pkg : storage.listPackageNames()) {
+                        all.add(definePackage(pkg, pkg, ver, storage.id(),
+                                storage.jfs().id(), ver, "-", null));
+                    }
+                    packages = all.toArray(new Package[all.size()]);
+                }
+                Class<?> result = super.defineClass(null, fo.asByteBuffer(), null);
+                LOG.log(Level.FINEST, "Post-init load {0} as {1} in JFSClassLoader-{2}",
+                        new Object[]{className, result.getName(), id});
+                return result;
+            } catch (IOException ex) {
+                Logger.getLogger(JFSClassLoader.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        return null;
     }
 
     @Override

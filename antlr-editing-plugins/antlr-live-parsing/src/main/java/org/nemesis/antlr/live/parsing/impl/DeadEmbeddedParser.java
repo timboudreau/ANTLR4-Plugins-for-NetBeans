@@ -47,10 +47,12 @@ public final class DeadEmbeddedParser implements EmbeddedParser {
         // do nothing
     }
 
+    @Override
     public String toString() {
         return "DeadEmbeddedParser(" + grammarName + ":" + grammarPath + ")";
     }
 
+    @Override
     public void clean() {
         // do nothing
     }

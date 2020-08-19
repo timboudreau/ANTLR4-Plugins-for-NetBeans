@@ -340,8 +340,11 @@ public class JFSTest {
     @Test
     public void testJFS() throws IOException {
         JFS jfs = new JFS();
+        assertTrue(jfs.isEmpty());
         UnixPath path = UnixPath.get(EXP1);
         JFSFileObject fo = jfs.create(path, SOURCE_PATH, SIMPLE_MAIN);
+
+        assertFalse(jfs.isEmpty());
 
         assertNotNull(fo);
         assertEquals(fo.length(), SIMPLE_MAIN.getBytes(UTF_16).length);
@@ -398,6 +401,11 @@ public class JFSTest {
         assertFalse(contains(jfs.list(CLASS_OUTPUT, "com.foo.bar", EnumSet.of(CLASS), false), written));
 
         assertEquals((long) SIMPLE_MAIN.getBytes(UTF_16).length, jfs.size());
+
+        assertFalse(jfs.isEmpty());
+        jfs.clear(SOURCE_PATH);
+        jfs.clear(CLASS_OUTPUT);
+        assertTrue(jfs.isEmpty());
     }
 
     private boolean contains(Iterable<?> it, Object obj) {

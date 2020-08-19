@@ -1,3 +1,6 @@
+
+Fix or-indenting - parenthesized ors should be indented more, first after ( should be on a new line
+
 In a parser grammar, parser rule completions is not showing imported rules.  It should.
 
 Rewrite AntlrRunSubscriptions to use Subscribable.

@@ -20,6 +20,7 @@ import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
+import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -113,6 +114,9 @@ import org.nemesis.jfs.spi.JFSUtilities;
  * instances into its filesystem, to operate against live documents open in an
  * editor, or local files in-place.
  * </p>
+ * If <code>JFSUrlStreamHandlerFactory</code> is registered with the system (in
+ * NetBeans this will happen automatically via the service provider file), then
+ * this JFS's files' URLs will be resolvable - e.g. jfs:CLASS_OUTPUT/com/foo/Bar.txt.
  *
  * @author Tim Boudreau
  */
@@ -165,6 +169,13 @@ public final class JFS implements JavaFileManager {
      * read access. Note: This lock does not protect against concurrent
      * modifications to masqueraded files or documents which are mapped into the
      * JFS namespace.
+     * <p>
+     * This lock is provided for <i>convenience</i> - it is not used internally
+     * by the JFS.  It is up to the caller to use the read- and write-locks
+     * appropriately when performing operations that modify or read the JFS;
+     * these methods simply guarantee there is one lock all consumers of this
+     * JFS will have access to.
+     * </p>
      *
      * @param <T> The type to return
      * @param supplier A supplier
@@ -187,6 +198,13 @@ public final class JFS implements JavaFileManager {
      * <i>write</i> access. Note: This lock does not protect against concurrent
      * modifications to masqueraded files or documents which are mapped into the
      * JFS namespace.
+     * <p>
+     * This lock is provided for <i>convenience</i> - it is not used internally
+     * by the JFS.  It is up to the caller to use the read- and write-locks
+     * appropriately when performing operations that modify or read the JFS;
+     * these methods simply guarantee there is one lock all consumers of this
+     * JFS will have access to.
+     * </p>
      *
      * @param <T> The type to return
      * @param supplier A supplier
@@ -986,6 +1004,21 @@ public final class JFS implements JavaFileManager {
         return result;
     }
 
+    public boolean isEmpty() {
+        if (storageForLocation.isEmpty()) {
+            return true;
+        }
+        for (Map.Entry<Location, JFSStorage> e : storageForLocation.entrySet()) {
+            if (e.getValue().isClosed()) {
+                continue;
+            }
+            if (!e.getValue().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Convenience method for getting an existing JFSFileObject by path if it
      * exists.
@@ -995,6 +1028,7 @@ public final class JFS implements JavaFileManager {
      * @return A file object or null
      */
     public JFSFileObject get(Location location, UnixPath path) {
+        notNull("path", path);
         JFSStorage stor = storageForLocation(location, false);
         return stor == null ? null : stor.find(Name.forPath(path));
     }

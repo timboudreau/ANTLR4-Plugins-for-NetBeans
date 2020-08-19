@@ -18,7 +18,6 @@ package org.nemesis.antlr.compilation;
 import com.mastfrog.function.throwing.ThrowingFunction;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.util.strings.Strings;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -27,9 +26,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.nemesis.debug.api.Debug;
-import org.nemesis.debug.api.Trackables;
-import org.nemesis.jfs.JFS;
-import org.nemesis.jfs.JFSClassLoader;
 
 /**
  *
@@ -37,6 +33,8 @@ import org.nemesis.jfs.JFSClassLoader;
  */
 public final class WithGrammarRunner {
 
+    private static final Logger LOG = Logger.getLogger(
+            WithGrammarRunner.class.getName());
     private final String grammarFileName;
     private final AntlrGeneratorAndCompiler compiler;
     private final Map<Object, GrammarRunResult<?>> lastGoodResults
@@ -88,20 +86,22 @@ public final class WithGrammarRunner {
 
     private AntlrGenerationAndCompilationResult lastGenerationResult;
 
-    private JFSClassLoader createClassLoader() throws IOException {
-        JFS jfs = compiler.jfs();
-        Debug.message("create-classloader", jfs::currentClasspath);
-        JFSClassLoader result = jfs.getClassLoader(true, classLoaderSupplier.get(), StandardLocation.CLASS_OUTPUT, StandardLocation.CLASS_PATH);
-        String nm = jfs.id() + "-" + grammarFileName;
-        Trackables.track(JFSClassLoader.class, result, () -> {
-            return "JFSClassLoader-" + nm;
-        });
-        return result;
-    }
-
-    public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner, A arg, Set<GrammarProcessingOptions> options) {
+    public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner,
+            A arg, Set<GrammarProcessingOptions> options) {
         ThrowingSupplier<T> supp = () -> {
-            return reflectiveRunner.apply(arg);
+            ClassLoader old = Thread.currentThread().getContextClassLoader();
+            ClassLoader ldr = classLoaderSupplier.get();
+            if (ldr != null) {
+                Thread.currentThread().setContextClassLoader(ldr);
+            }
+            try {
+                return reflectiveRunner.apply(arg);
+            } catch (LinkageError err) {
+                LOG.log(Level.WARNING, "Likely to double-load some class in " + ldr, err);
+                throw err;
+            } finally {
+                Thread.currentThread().setContextClassLoader(old);
+            }
         };
         return run(key, supp, options);
     }
@@ -114,7 +114,6 @@ public final class WithGrammarRunner {
     }
 
     public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
-        // XXX
         // - results checks if stale or not
         // - force re-run or not
         // - optionally return the last good result if there is one
@@ -123,7 +122,6 @@ public final class WithGrammarRunner {
         return Debug.runObject(this, "with-grammar-runner-run " + grammarFileName, () -> {
 //            GenerationAndCompilationResult res;
             AntlrGenerationAndCompilationResult res;
-            // XXX we should only regenerate Antlr if the option is set
 
             if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
                     && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
@@ -148,27 +146,40 @@ public final class WithGrammarRunner {
             ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
             GrammarRunResult<T> grr = null;
             try {
-                try (JFSClassLoader nue = createClassLoader()) {
-                    Thread.currentThread().setContextClassLoader(nue);
-                    T result = reflectiveRunner.get();
-                    grr = new GrammarRunResult(result, null, res, null);
-                    if (grr.isUsable()) {
-                        lastGoodResults.put(key, grr);
-                    }
-                    return grr;
+                ClassLoader ldr = classLoaderSupplier.get();
+                if (ldr != null) {
+                    Thread.currentThread().setContextClassLoader(ldr);
                 }
+                LOG.log(Level.FINEST, "Run {0} in {1}", new Object[]{grammarFileName, ldr});
+                T result = reflectiveRunner.get();
+                grr = new GrammarRunResult(result, null, res, lastGoodResults.get(key));
+                if (grr.isUsable()) {
+                    lastGoodResults.put(key, grr);
+                }
+                return grr;
+//                }
+            } catch (ClassNotFoundException ex) {
+                StringBuilder sb = new StringBuilder();
+                compiler.jfs().list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+                    sb.append('\n').append(loc).append('\t').append(fo.getName());
+                });
+                compiler.jfs().list(StandardLocation.CLASS_OUTPUT, (loc, fo) -> {
+                    sb.append('\n').append(loc).append('\t').append(fo.getName());
+                });
+                ClassNotFoundException ex2 = new ClassNotFoundException("Failed in " + reflectiveRunner
+                        + " JFS listing: " + sb, ex);
+                LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex2);
+                return new GrammarRunResult(null, ex, res, lastGood(key));
             } catch (Exception | Error ex) {
                 Thread.currentThread().setContextClassLoader(oldLoader);
                 Debug.failure(ex.toString(), () -> {
                     return Strings.toString(ex);
                 });
                 if (ex instanceof Error) {
-                    Logger.getLogger(WithGrammarRunner.class.getName())
-                            .log(Level.SEVERE, "Failed in " + reflectiveRunner, ex);
+                    LOG.log(Level.SEVERE, "Failed in " + reflectiveRunner, ex);
                     throw (Error) ex;
                 } else {
-                    Logger.getLogger(WithGrammarRunner.class.getName())
-                            .log(Level.INFO, "Failed in " + reflectiveRunner, ex);
+                    LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex);
                 }
                 return new GrammarRunResult(null, ex, res, lastGood(key));
             } finally {

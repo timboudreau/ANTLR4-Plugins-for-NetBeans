@@ -309,5 +309,23 @@ limitations under the License.
             <artifactId>plexus-utils</artifactId>
             <scope>test</scope>
         </dependency>
+        
+        <!--
+        These dependencies added to support the hotfix in ProxiesInvocationRunner
+        for the case that the analyzer class file is deleted from the JFS as
+        it is being loaded.  Remove when that has a proper long-term fix.
+        -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-language-spi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-loaders</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-text</artifactId>
+        </dependency>
     </dependencies>
 </project>

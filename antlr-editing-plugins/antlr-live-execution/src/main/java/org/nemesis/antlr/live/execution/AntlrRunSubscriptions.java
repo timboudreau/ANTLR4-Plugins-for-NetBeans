@@ -185,6 +185,7 @@ public class AntlrRunSubscriptions {
         private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
         private final Consumer<Entry<?, ?>> onEmpty;
         private boolean disposed;
+        private final FileObject fo;
 
         public Entry(InvocationRunner<T, A> runner,
                 FileObject fo,
@@ -193,6 +194,7 @@ public class AntlrRunSubscriptions {
             this.runner = runner;
             refs.get(fo).add(new ConsumerReference(res));
             this.onEmpty = onEmpty;
+            this.fo = fo;
         }
 
         @Override
@@ -208,6 +210,7 @@ public class AntlrRunSubscriptions {
             LOG.log(Level.FINE, "Disposed {0}", this);
             assert lock.isWriteLockedByCurrentThread();
             disposed = true;
+            runner.onDisposed(fo);
             onEmpty.accept(this);
         }
 
@@ -231,7 +234,8 @@ public class AntlrRunSubscriptions {
                 Set<ConsumerReference> toRemove = new HashSet<>();
                 writeLock.lock();
                 if (this.refs.containsKey(fo)) {
-                    for (ConsumerReference ref : refs.get(fo)) {
+                    Set<ConsumerReference> set = refs.get(fo);
+                    for (ConsumerReference ref : set) {
                         BiConsumer<Extraction, GrammarRunResult<T>> bc = ref.get();
                         if (bc == res) {
                             found = true;
@@ -242,11 +246,14 @@ public class AntlrRunSubscriptions {
                         }
                     }
                     LOG.log(Level.FINE, "Remove {0}", toRemove);
-                    refs.get(fo).removeAll(toRemove);
-                    if (refs.isEmpty()) {
+                    set.removeAll(toRemove);
+                    if (set.isEmpty()) {
                         LOG.log(Level.FINEST, "All subscribers to {0} gone - stop listening",
                                 fo.getPath());
                         disposed();
+                    } else {
+                        LOG.log(Level.FINEST, "Still have subscribers to {0} gone: {1}",
+                                new Object[] {fo.getPath(), refs.get(fo)});
                     }
                 }
             } finally {
@@ -447,7 +454,7 @@ public class AntlrRunSubscriptions {
                                 created = true;
 
 //                                res.jfs().closeLocations(StandardLocation.CLASS_OUTPUT);
-                                JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfs());
+                                JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfsSupplier);
 
 //                                bldr.verbose().nonIdeMode().withMaxErrors(10)
 //                                        .withMaxWarnings(10); // XXX for debugging, will wreak havoc
@@ -493,6 +500,15 @@ public class AntlrRunSubscriptions {
 
                                     if (csc.classloaderSupplier != null) {
                                         runBuilder.withParentClassLoader(csc.classloaderSupplier);
+                                    } else {
+                                        runBuilder.withParentClassLoader(() -> {
+                                            JFS jfs = res.jfsSupplier.get();
+                                            try {
+                                                return jfs.getClassLoader(StandardLocation.CLASS_OUTPUT, Thread.currentThread().getContextClassLoader());
+                                            } catch (IOException ex) {
+                                                throw new IllegalStateException(ex);
+                                            }
+                                        });
                                     }
 
                                     rb = runBuilder
