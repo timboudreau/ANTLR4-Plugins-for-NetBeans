@@ -21,7 +21,6 @@ import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
@@ -30,8 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeResolver;
@@ -271,7 +267,6 @@ public class SequenceHighlightingTest {
         String syntheticMimeType = AdhocMimeTypes.mimeTypeForPath(grammarFile);
         DynamicLanguages.ensureRegistered(syntheticMimeType);
         AdhocMimeTypes.registerFileNameExtension("md", syntheticMimeType);
-        initLoggers();
     }
 
     static final String[] PREINIT = new String[]{
@@ -283,25 +278,6 @@ public class SequenceHighlightingTest {
         "org.nemesis.antlr.live.execution.AntlrRunSubscriptions",
         "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",
         "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",};
-
-    @BeforeAll
-    public static void initLoggers() {
-        // Attempting to debug introduction of JFS-killing
-        for (String p : PREINIT) {
-            try {
-                Class<?> c = Class.forName(p);
-                Field f = c.getDeclaredField("LOG");
-                f.setAccessible(true);
-                Object o = f.get(null);
-                if (o instanceof Logger) {
-                    ((Logger) o).setLevel(Level.ALL);
-                    System.out.println("init logger " + c.getName() + " for " + ((Logger) o).getName());
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace(System.err);
-            }
-        }
-    }
 
     private static String loadResource(String name) throws IOException {
         try (InputStream in = SequenceHighlightingTest.class.getResourceAsStream(name)) {
@@ -333,7 +309,7 @@ public class SequenceHighlightingTest {
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
         TestFixtures fixtures = new TestFixtures();
         if (verbose) {
-            fixtures.verboseGlobalLogging();
+            fixtures.verboseGlobalLogging(PREINIT);
         }
         DocumentFactory fact = new DocumentFactoryImpl();
         return fixtures.addToMimeLookup("", fact)
